@@ -18,7 +18,8 @@ public sealed class CoreSitemapBuilder(
                 new("/"),
                 new("/about"),
                 new("/contact"),
-                new("/links")
+                new("/links"),
+                new("/mobile-apps")
             ]);
 
     public async Task<IReadOnlyList<SitemapEntry>?> BuildSectionAsync(
