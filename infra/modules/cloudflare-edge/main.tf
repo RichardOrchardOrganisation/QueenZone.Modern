@@ -125,11 +125,43 @@ resource "cloudflare_ruleset" "bot_blocking" {
         http.user_agent contains "AionBot" or
         http.user_agent contains "Amazonbot" or
         http.user_agent contains "SemrushBot" or
-        http.user_agent contains "MJ12bot"
+        http.user_agent contains "MJ12bot" or
+        http.user_agent contains "serpstatbot"
       )
     EOT
     action      = "block"
     enabled     = true
+  }]
+}
+
+# Archive-author pages perform database-backed lookups for each distinct legacy
+# author ID. Limit bursts per source IP while leaving ordinary browsing and
+# search-engine discovery unaffected. The exact Serpstat crawler currently
+# causing sustained traffic is blocked above; this rule is the safety net for
+# other clients that sweep unique author IDs too quickly for edge caching to help.
+resource "cloudflare_ruleset" "archive_author_rate_limit" {
+  zone_id     = var.zone_id
+  name        = "QueenZone rate limiting rules"
+  description = "Rate limit bursts across expensive archive-author pages"
+  kind        = "zone"
+  phase       = "http_ratelimit"
+
+  rules = [{
+    ref         = "rate_limit_archive_author_requests"
+    description = "Block archive-author clients exceeding 10 requests in 10 seconds"
+    expression  = <<-EOT
+      (http.host in {"queenzone.org" "www.queenzone.org"}) and
+      starts_with(http.request.uri.path, "/forum/archive-authors/")
+    EOT
+    action      = "block"
+    enabled     = true
+
+    ratelimit = {
+      characteristics     = ["cf.colo.id", "ip.src"]
+      period              = 10
+      requests_per_period = 10
+      mitigation_timeout  = 10
+    }
   }]
 }
 
