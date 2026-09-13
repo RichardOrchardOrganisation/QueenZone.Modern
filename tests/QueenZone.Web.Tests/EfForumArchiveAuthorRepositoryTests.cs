@@ -77,7 +77,25 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
                 FOREIGN KEY (ThreadId) REFERENCES ModernForumThread(Id)
             );
             """);
-        repository = new EfForumArchiveAuthorRepository(dbContext);
+        repository = new EfForumArchiveAuthorRepository(
+            dbContext,
+            legacyUserId => $"""
+                SELECT
+                    AuthorLegacyUserId AS LegacyUserId,
+                    AuthorDisplayName AS DisplayName,
+                    AuthorJoinedAt AS MemberSince,
+                    (
+                        SELECT COUNT(*)
+                        FROM ModernForumPost counted
+                        WHERE counted.AuthorLegacyUserId = {legacyUserId}
+                          AND counted.IsHidden = 0
+                    ) AS PostCount
+                FROM ModernForumPost
+                WHERE AuthorLegacyUserId = {legacyUserId}
+                  AND IsHidden = 0
+                ORDER BY PostedAt DESC, Id DESC
+                LIMIT 1
+                """);
     }
 
     [Fact]
@@ -144,6 +162,16 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
 
         Assert.Equal(2, commandCounter.ReaderCount);
         Assert.Equal(2, page.TotalCount);
+    }
+
+    [Fact]
+    public void ProductionSummaryQuery_ReadsOnlyThePrecomputedTable()
+    {
+        var sql = EfProductionSql.CreateForumArchiveAuthorSummarySql()(LegacyUserId).Format;
+
+        Assert.Contains("dbo.ModernForumArchiveAuthorSummary", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ModernForumPost ", sql, StringComparison.Ordinal);
+        Assert.Contains("WHERE LegacyUserId =", sql, StringComparison.Ordinal);
     }
 
     private void SeedThread(long id, string title) =>

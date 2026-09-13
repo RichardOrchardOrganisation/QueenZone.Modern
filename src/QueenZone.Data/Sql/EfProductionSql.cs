@@ -290,6 +290,13 @@ internal static class EfProductionSql
             WHERE USER_ID = {userId}
             """;
 
+    public static Func<int, FormattableString> CreateForumArchiveAuthorSummarySql() =>
+        legacyUserId => $"""
+            SELECT LegacyUserId, DisplayName, MemberSince, PostCount
+            FROM dbo.ModernForumArchiveAuthorSummary
+            WHERE LegacyUserId = {legacyUserId}
+            """;
+
     public static (string ListSql, Func<short, FormattableString> DetailSql) CreateBiographyQueries() =>
         (
             "EXEC Q_BIO_LIST_SP",

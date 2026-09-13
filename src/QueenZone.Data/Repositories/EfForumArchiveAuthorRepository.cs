@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -7,28 +8,31 @@ namespace QueenZone.Data;
 /// legacy author's posts stays fast even though the underlying table holds the whole imported
 /// archive (see <see cref="QueenZoneDbContext"/> and the matching migration).
 /// </summary>
-public sealed class EfForumArchiveAuthorRepository(QueenZoneDbContext dbContext) : IForumArchiveAuthorRepository
+public sealed class EfForumArchiveAuthorRepository : IForumArchiveAuthorRepository
 {
+    private readonly QueenZoneDbContext dbContext;
+    private readonly Func<int, FormattableString> summarySql;
+
+    [ExcludeFromCodeCoverage]
+    public EfForumArchiveAuthorRepository(QueenZoneDbContext dbContext)
+        : this(dbContext, EfProductionSql.CreateForumArchiveAuthorSummarySql())
+    {
+    }
+
+    internal EfForumArchiveAuthorRepository(
+        QueenZoneDbContext dbContext,
+        Func<int, FormattableString> summarySql)
+    {
+        this.dbContext = dbContext;
+        this.summarySql = summarySql;
+    }
+
     public async Task<ForumArchiveAuthorSummary?> GetSummaryAsync(
         int legacyUserId,
         CancellationToken cancellationToken = default)
     {
-        var posts = dbContext.ModernForumPosts
-            .AsNoTracking()
-            .Where(post => post.AuthorLegacyUserId == legacyUserId && !post.IsHidden);
-
-        // Keep identity and count in one SQL round trip. This route previously counted the same
-        // author's posts here and again while loading the page, which doubled an expensive query
-        // under crawler traffic.
-        var summary = await posts
-            .OrderByDescending(post => post.PostedAt)
-            .ThenByDescending(post => post.Id)
-            .Select(post => new
-            {
-                post.AuthorDisplayName,
-                post.AuthorJoinedAt,
-                PostCount = posts.Count(),
-            })
+        var summary = await dbContext.Database
+            .SqlQuery<ArchiveAuthorSummaryRow>(summarySql(legacyUserId))
             .FirstOrDefaultAsync(cancellationToken);
         if (summary is null)
         {
@@ -36,9 +40,9 @@ public sealed class EfForumArchiveAuthorRepository(QueenZoneDbContext dbContext)
         }
 
         return new ForumArchiveAuthorSummary(
-            legacyUserId,
-            summary.AuthorDisplayName,
-            summary.AuthorJoinedAt,
+            summary.LegacyUserId,
+            summary.DisplayName,
+            summary.MemberSince,
             summary.PostCount);
     }
 
@@ -90,4 +94,15 @@ public sealed class EfForumArchiveAuthorRepository(QueenZoneDbContext dbContext)
 
     private static DateTimeOffset ToOffset(DateTime? value) =>
         new(DateTime.SpecifyKind(value ?? DateTime.MinValue, DateTimeKind.Utc));
+
+    internal sealed class ArchiveAuthorSummaryRow
+    {
+        public int LegacyUserId { get; set; }
+
+        public string DisplayName { get; set; } = string.Empty;
+
+        public DateTime? MemberSince { get; set; }
+
+        public int PostCount { get; set; }
+    }
 }
