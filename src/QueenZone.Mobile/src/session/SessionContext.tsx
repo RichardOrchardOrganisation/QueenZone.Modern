@@ -610,24 +610,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return sessionRef.current.profile;
       }
 
-      const refresh = refreshTokenRef.current;
-      if (!refresh) {
+      if (!refreshTokenRef.current) {
         await clearLocal();
         return null;
       }
 
-      try {
-        const tokens = await refreshAccessToken(getAppConfig().apiBaseUrl, refresh);
-        return await applyTokens(tokens);
-      } catch (err) {
-        if (isTransientRefreshFailure(err)) {
-          return sessionRef.current.profile;
-        }
-        await clearLocal();
+      // Must go through the single-flight guard: calling refreshAccessToken
+      // directly here could present the same rotating grant as a concurrent
+      // ensureAccessToken, and the server treats a reused refresh token as theft
+      // and revokes every grant the member has. refreshWithStoredGrant already
+      // reloads the profile on success and clears local state on a dead grant.
+      const next = await refreshWithStoredGrant();
+      if (!next && !sessionRef.current.accessToken) {
         return null;
       }
+
+      return sessionRef.current.profile;
     }
-  }, [applyProfile, applyTokens, clearLocal, ensureAccessToken]);
+  }, [applyProfile, clearLocal, ensureAccessToken, refreshWithStoredGrant]);
 
   const signIn = useCallback(
     async (provider: string) => {

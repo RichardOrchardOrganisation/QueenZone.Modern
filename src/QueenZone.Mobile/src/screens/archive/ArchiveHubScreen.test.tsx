@@ -3,6 +3,26 @@ import { fakeNavigation, flushVirtualizedList, renderWithProviders } from '../..
 import { ArchiveHubScreen } from './ArchiveHubScreen';
 
 describe('ArchiveHubScreen', () => {
+  it('shows the updated archive summary and photographs destination', async () => {
+    const navigation = fakeNavigation();
+    renderWithProviders(
+      <ArchiveHubScreen
+        navigation={navigation as never}
+        route={{ key: 'archive', name: 'ArchiveHub' } as never}
+      />,
+      { navigation: false },
+    );
+    await flushVirtualizedList();
+
+    expect(
+      screen.getByText(
+        "Four thousand news articles going back to 2004, a hundred long-form features, tens of thousands of photographs and the community's own history — preserved and catalogued.",
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('Photographs')).toBeOnTheScreen();
+    expect(screen.queryByText('Recently restored')).toBeNull();
+  });
+
   it('labels the articles destination Articles and opens the Articles route', async () => {
     const user = userEvent.setup();
     const navigation = fakeNavigation();

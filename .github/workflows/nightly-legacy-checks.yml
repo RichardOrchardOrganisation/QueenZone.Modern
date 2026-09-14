@@ -111,6 +111,9 @@ jobs:
       - name: Restore local dotnet tools (sqlpackage)
         run: dotnet tool restore
 
+      - name: Verify SQLPackage process wrapper
+        run: ./scripts/Sync-LegacyDbToSqlExpress.ps1 -SelfTest
+
       - name: Fetch Bitwarden deploy secrets
         id: bitwarden-secrets
         uses: bitwarden/sm-action@v3.0.1

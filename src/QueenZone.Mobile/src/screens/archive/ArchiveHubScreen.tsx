@@ -63,7 +63,7 @@ export function ArchiveHubScreen({ navigation }: Props) {
         <PageTitleBlock
           eyebrow="The Queenzone.com archive"
           title="Explore the archive"
-          subtitle="Four thousand articles, a hundred long-form features, tens of thousands of photographs and the community's own history — preserved and catalogued."
+          subtitle="Four thousand news articles going back to 2004, a hundred long-form features, tens of thousands of photographs and the community's own history — preserved and catalogued."
         />
       }
       ListFooterComponent={<ArchiveFooter />}

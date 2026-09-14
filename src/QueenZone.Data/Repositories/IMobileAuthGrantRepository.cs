@@ -38,4 +38,15 @@ public interface IMobileAuthGrantRepository
         Guid memberAccountId,
         DateTime utcNow,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records that <paramref name="oldTokenHash"/> was rotated into
+    /// <paramref name="newTokenHash"/>, so a later replay of the old token can be
+    /// traced forward to the grant that replaced it. Returns false when the old
+    /// hash is unknown or already has a recorded successor.
+    /// </summary>
+    Task<bool> LinkRefreshTokenRotationAsync(
+        string oldTokenHash,
+        string newTokenHash,
+        CancellationToken cancellationToken = default);
 }

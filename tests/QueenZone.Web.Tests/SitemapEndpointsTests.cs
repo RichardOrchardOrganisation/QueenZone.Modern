@@ -101,6 +101,7 @@ public sealed class SitemapEndpointsTests : IClassFixture<WebApplicationFactory<
         Assert.Contains($"{BaseUrl}/about", locations);
         Assert.Contains($"{BaseUrl}/contact", locations);
         Assert.Contains($"{BaseUrl}/links", locations);
+        Assert.Contains($"{BaseUrl}/mobile-apps", locations);
         Assert.DoesNotContain($"{BaseUrl}/news", locations);
         Assert.DoesNotContain($"{BaseUrl}/articles", locations);
         Assert.DoesNotContain($"{BaseUrl}/photography", locations);

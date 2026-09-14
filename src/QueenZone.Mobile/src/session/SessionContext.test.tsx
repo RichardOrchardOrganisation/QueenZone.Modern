@@ -3,6 +3,7 @@ import { AppState, Text } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { act, screen, waitFor, userEvent } from '@testing-library/react-native';
 import { ApiError, fetchJson } from '../api/client';
+import { TokenEndpointError } from '../api/errors';
 import { authTokensFixture, deferred, memberProfilePayload } from '../test/fixtures';
 import { initials } from '../ui/initials';
 import { renderWithProviders } from '../test/render';
@@ -131,6 +132,13 @@ function Probe() {
         }}
       >
         do-ensure-token
+      </Text>
+      <Text
+        onPress={() => {
+          void session.refreshProfile().catch(() => {});
+        }}
+      >
+        do-refresh-profile
       </Text>
     </>
   );
@@ -790,6 +798,82 @@ describe('SessionProvider', () => {
     await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
     expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
+  });
+
+  it('single-flights a refreshProfile 401 recovery with a concurrent refresh', async () => {
+    // The server treats a reused refresh token as theft and revokes every grant
+    // the member holds, so two concurrent recoveries must not present the same
+    // rotating grant twice.
+    const user = userEvent.setup();
+    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
+    refreshAccessToken.mockImplementation(async () => refresh.promise);
+    readStored.mockResolvedValue({
+      ...authTokensFixture(),
+      expiresAt: Date.now() + 60_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' },
+    });
+    fetchJsonMock.mockResolvedValue(memberProfilePayload());
+    renderSession();
+    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
+
+    // Every /me from here on is a 401, so both presses take the recovery path.
+    fetchJsonMock.mockRejectedValue(ApiError.http(401, 'Unauthorized'));
+    await user.press(screen.getByText('do-refresh-profile'));
+    await user.press(screen.getByText('do-refresh-profile'));
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+
+    fetchJsonMock.mockResolvedValue(memberProfilePayload());
+    await act(async () => {
+      refresh.resolve(authTokensFixture({ accessToken: 'next' }));
+    });
+    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(clearStored).not.toHaveBeenCalled();
+  });
+
+  // Each of these used to read as a dead grant and sign the member out on the
+  // first launch after an overnight idle.
+  async function expectSessionSurvives(failure: Error): Promise<void> {
+    readStored.mockResolvedValue({
+      ...authTokensFixture(),
+      expiresAt: Date.now() - 1_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' },
+    });
+    refreshAccessToken.mockRejectedValue(failure);
+    renderSession();
+
+    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
+    expect(screen.getByText('Freddie')).toBeOnTheScreen();
+    expect(clearStored).not.toHaveBeenCalled();
+  }
+
+  it('keeps the session when the per-account limiter rate limits a refresh', async () => {
+    await expectSessionSurvives(
+      new TokenEndpointError(429, 'temporarily_unavailable', 'Too many attempts. Try again later.'),
+    );
+  });
+
+  it('keeps the session when the token endpoint is down', async () => {
+    await expectSessionSurvives(new TokenEndpointError(503, '', 'Could not complete sign-in.'));
+  });
+
+  it('keeps the session when mobile auth is unconfigured after a deploy', async () => {
+    await expectSessionSurvives(
+      new TokenEndpointError(400, 'temporarily_unavailable', 'Mobile auth is not configured.'),
+    );
+  });
+
+  it('still signs out on a dead grant from the token endpoint', async () => {
+    readStored.mockResolvedValue({
+      ...authTokensFixture(),
+      expiresAt: Date.now() - 1_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' },
+    });
+    refreshAccessToken.mockRejectedValue(new TokenEndpointError(400, 'invalid_grant', 'invalid_grant'));
+    renderSession();
+
+    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
+    expect(clearStored).toHaveBeenCalled();
   });
 
   it('refreshes an expired token from ensureAccessToken and app foreground', async () => {

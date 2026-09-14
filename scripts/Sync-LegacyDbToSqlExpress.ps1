@@ -221,6 +221,13 @@ function Invoke-SqlPackageProcess {
                 -RedirectStandardError $stderrPath
         }
 
+        # Windows PowerShell 5.1 can lose the native process handle after a
+        # polled process exits. ExitCode then resolves to $null even when the
+        # command succeeded, and the fallback below reports a false exit 1.
+        # Materialise the handle while the process is alive so its real exit
+        # code remains available after the polling loop.
+        $null = $process.Handle
+
         while (-not $process.HasExited) {
             $stdout = Read-SqlPackageRedirectedChunk -Path $stdoutPath -Offset ([ref]$stdoutOffset)
             $stderr = Read-SqlPackageRedirectedChunk -Path $stderrPath -Offset ([ref]$stderrOffset)
@@ -330,6 +337,30 @@ function Invoke-SqlPackagePhase {
     }
 }
 
+function New-MirrorPromotionSql {
+    param(
+        [Parameter(Mandatory = $true)][string]$StagingDatabase,
+        [Parameter(Mandatory = $true)][string]$TargetDatabase
+    )
+
+    return @"
+IF DB_ID(N'$StagingDatabase') IS NULL
+    THROW 50000, 'The staged mirror database does not exist.', 1;
+IF DB_ID(N'$TargetDatabase') IS NOT NULL
+BEGIN
+    ALTER DATABASE [$TargetDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [$TargetDatabase];
+END
+-- Keep this sqlcmd session inside the staged database before reserving its
+-- single-user slot. Otherwise a recently closing SqlPackage connection can
+-- claim that slot between SET SINGLE_USER and MODIFY NAME (SQL error 924).
+USE [$StagingDatabase];
+ALTER DATABASE [$StagingDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+ALTER DATABASE [$StagingDatabase] MODIFY NAME = [$TargetDatabase];
+ALTER DATABASE [$TargetDatabase] SET MULTI_USER;
+"@
+}
+
 function Invoke-SyncLegacyDbSelfTest {
     $tcp = 'A transport-level error has occurred when receiving results from the server. (provider: TCP Provider, error: 0 - An existing connection was forcibly closed by the remote host.)'
     $reset = 'The connection was reset by the remote host (connection reset).'
@@ -354,6 +385,14 @@ function Invoke-SyncLegacyDbSelfTest {
     }
     if (Test-SqlPackageTransientTransportError 'Timeout expired. The timeout period elapsed prior to completion of the operation.') {
         throw "Classifier must not treat a SQL command timeout as a transport drop."
+    }
+
+    $promotionSql = New-MirrorPromotionSql -StagingDatabase 'selftest_stage' -TargetDatabase 'selftest_target'
+    $useStagingIndex = $promotionSql.IndexOf('USE [selftest_stage];', [StringComparison]::Ordinal)
+    $singleUserIndex = $promotionSql.IndexOf('ALTER DATABASE [selftest_stage] SET SINGLE_USER', [StringComparison]::Ordinal)
+    $renameIndex = $promotionSql.IndexOf('ALTER DATABASE [selftest_stage] MODIFY NAME', [StringComparison]::Ordinal)
+    if ($useStagingIndex -lt 0 -or $singleUserIndex -le $useStagingIndex -or $renameIndex -le $singleUserIndex) {
+        throw "Promotion SQL must enter the staged database before reserving SINGLE_USER and renaming it."
     }
 
     $quoted = ConvertTo-WindowsProcessArguments @(
@@ -436,20 +475,15 @@ function Invoke-SyncLegacyDbSelfTest {
         throw "Nightly Sync wrapper must annotate the script's named TCP/transport failure."
     }
 
-    $smokeOut = Join-Path ([System.IO.Path]::GetTempPath()) ("queenzone-dotnet-smoke-out-{0}.log" -f [Guid]::NewGuid().ToString("N"))
-    $smokeErr = Join-Path ([System.IO.Path]::GetTempPath()) ("queenzone-dotnet-smoke-err-{0}.log" -f [Guid]::NewGuid().ToString("N"))
-    try {
-        $smoke = Start-Process -FilePath "dotnet" -ArgumentList @('--version') -NoNewWindow -PassThru -Wait -RedirectStandardOutput $smokeOut -RedirectStandardError $smokeErr
-        if ($smoke.ExitCode -ne 0) {
-            throw "Process-launch smoke failed with exit $($smoke.ExitCode)."
-        }
-        $versionText = (Get-Content -LiteralPath $smokeOut -Raw -ErrorAction SilentlyContinue)
-        if ($versionText -notmatch '\d+\.\d+') {
-            throw "Process-launch smoke did not print a dotnet version."
-        }
+    # Exercise the same polled Start-Process path as Extract and Publish. A
+    # previous smoke test used Start-Process -Wait, which concealed the
+    # Windows PowerShell 5.1 null-ExitCode failure seen by the nightly runner.
+    $smoke = Invoke-SqlPackageProcess -SqlPackageArguments @('/Version')
+    if ($smoke.ExitCode -ne 0) {
+        throw "Polled process-launch smoke failed with exit $($smoke.ExitCode)."
     }
-    finally {
-        Remove-Item -LiteralPath $smokeOut, $smokeErr -Force -ErrorAction SilentlyContinue
+    if ([string]$smoke.Output -notmatch '\d+\.\d+') {
+        throw "Polled process-launch smoke did not print a sqlpackage version."
     }
 
     Write-Host "Sync-LegacyDbToSqlExpress.ps1 self-test passed."
@@ -582,18 +616,7 @@ END
     sqlcmd -S "localhost\$InstanceName" -Q $grantSql
 
     Write-Host "Replacing $TargetDatabase with the verified staged mirror..."
-    $promoteSql = @"
-IF DB_ID(N'$stagingDatabase') IS NULL
-    THROW 50000, 'The staged mirror database does not exist.', 1;
-IF DB_ID(N'$TargetDatabase') IS NOT NULL
-BEGIN
-    ALTER DATABASE [$TargetDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    DROP DATABASE [$TargetDatabase];
-END
-ALTER DATABASE [$stagingDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-ALTER DATABASE [$stagingDatabase] MODIFY NAME = [$TargetDatabase];
-ALTER DATABASE [$TargetDatabase] SET MULTI_USER;
-"@
+    $promoteSql = New-MirrorPromotionSql -StagingDatabase $stagingDatabase -TargetDatabase $TargetDatabase
     sqlcmd -S "localhost\$InstanceName" -b -Q $promoteSql
     if ($LASTEXITCODE -ne 0) { throw "Mirror promotion failed with exit code $LASTEXITCODE" }
     $stagingPromoted = $true

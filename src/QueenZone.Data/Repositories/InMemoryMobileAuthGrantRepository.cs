@@ -99,6 +99,24 @@ public sealed class InMemoryMobileAuthGrantRepository(SharedMobileAuthGrantStore
         }
     }
 
+    public Task<bool> LinkRefreshTokenRotationAsync(
+        string oldTokenHash,
+        string newTokenHash,
+        CancellationToken cancellationToken = default)
+    {
+        lock (store.Gate)
+        {
+            var token = store.RefreshTokens.FirstOrDefault(item => item.TokenHash == oldTokenHash);
+            if (token is null || token.ReplacedByTokenHash is not null)
+            {
+                return Task.FromResult(false);
+            }
+
+            token.ReplacedByTokenHash = newTokenHash;
+            return Task.FromResult(true);
+        }
+    }
+
     private static MobileAuthAuthorizationCodeEntity CloneCode(MobileAuthAuthorizationCodeEntity code) =>
         new()
         {
@@ -123,5 +141,6 @@ public sealed class InMemoryMobileAuthGrantRepository(SharedMobileAuthGrantStore
             ExpiresAt = token.ExpiresAt,
             CreatedAt = token.CreatedAt,
             RevokedAt = token.RevokedAt,
+            ReplacedByTokenHash = token.ReplacedByTokenHash,
         };
 }

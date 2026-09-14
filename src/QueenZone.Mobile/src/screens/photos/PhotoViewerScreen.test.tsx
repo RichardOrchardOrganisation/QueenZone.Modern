@@ -1,5 +1,5 @@
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { Platform } from 'react-native';
+import { AccessibilityInfo, Platform } from 'react-native';
 import { fetchPhotoDetail } from '../../api';
 import { ApiError } from '../../api/client';
 import type { PhotoDetail } from '../../api/types';
@@ -7,10 +7,10 @@ import { SaveToPhotosError, saveToPhotosCopy } from '../../media/saveToPhotos';
 import { deferred } from '../../test/fixtures';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
 import { testIds } from '../../test/testIds';
-import { PhotoViewerScreen } from './PhotoViewerScreen';
-import { saveGalleryPhoto } from './saveGalleryPhoto';
+import { PhotoViewerScreen, photoViewerStatusTiming } from './PhotoViewerScreen';
+import { saveGalleryPhoto, saveGalleryPhotoCopy } from './saveGalleryPhoto';
 import { setAndroidGalleryWallpaper } from './setGalleryWallpaper';
-import { wallpaperCopy } from './wallpaperMeta';
+import { claimsWallpaperSet, wallpaperCopy } from './wallpaperMeta';
 
 jest.mock('../../api', () => {
   const actual = jest.requireActual('../../api');
@@ -125,6 +125,20 @@ async function flushGallerySwipe() {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
+}
+
+function expectStatusBanner(message: string) {
+  expect(screen.getByTestId(testIds.photoViewerStatus)).toHaveTextContent(message);
+  expect(screen.getByTestId(testIds.photoViewerMeta)).not.toHaveTextContent(message);
+}
+
+async function withFakeTimers<T>(run: () => Promise<T>): Promise<T> {
+  jest.useFakeTimers();
+  try {
+    return await run();
+  } finally {
+    jest.useRealTimers();
+  }
 }
 
 describe('PhotoViewerScreen', () => {
@@ -391,6 +405,7 @@ describe('PhotoViewerScreen', () => {
     const user = userEvent.setup();
     await user.press(screen.getByTestId(testIds.photoViewerSave));
     await waitFor(() => expect(screen.getByText(saveToPhotosCopy.denied)).toBeOnTheScreen());
+    expectStatusBanner(saveToPhotosCopy.denied);
 
     act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
     expect(screen.queryByTestId(testIds.photoViewerSave)).toBeNull();
@@ -406,12 +421,112 @@ describe('PhotoViewerScreen', () => {
     const pending = deferred<void>();
     savePhoto.mockReturnValueOnce(pending.promise);
     await loadPhoto();
-    const user = userEvent.setup();
-    await user.press(screen.getByTestId(testIds.photoViewerSave));
-    await user.press(screen.getByTestId(testIds.photoViewerSave));
+    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
+    await waitFor(() =>
+      expect(screen.getByTestId(testIds.photoViewerSave).props.accessibilityState).toEqual({
+        disabled: true,
+        busy: true,
+      }),
+    );
+    expect(screen.getByTestId(testIds.photoViewerWallpaper).props.accessibilityState).toEqual({
+      disabled: true,
+      busy: false,
+    });
+    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
+    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
     expect(savePhoto).toHaveBeenCalledTimes(1);
     pending.resolve();
+    await waitFor(() =>
+      expect(screen.getByTestId(testIds.photoViewerSave).props.accessibilityState).toEqual({
+        disabled: false,
+        busy: false,
+      }),
+    );
+    expect(savePhoto).toHaveBeenCalledTimes(1);
+  });
+
+  it('confirms Save on a status banner, not under the title', async () => {
+    const announce = jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => {});
+    await loadPhoto();
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId(testIds.photoViewerSave));
     await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
+    expectStatusBanner(saveGalleryPhotoCopy.saved);
+    expect(screen.getByText('Live Aid')).toBeOnTheScreen();
+    expect(announce).toHaveBeenCalledWith(saveGalleryPhotoCopy.saved);
+    announce.mockRestore();
+  });
+
+  it('does not write again during the Photos cooldown, then allows an explicit re-save', async () => {
+    await withFakeTimers(async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await loadPhoto();
+      await user.press(screen.getByTestId(testIds.photoViewerSave));
+      await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
+      expectStatusBanner(saveGalleryPhotoCopy.saved);
+
+      await user.press(screen.getByTestId(testIds.photoViewerSave));
+      expect(savePhoto).toHaveBeenCalledTimes(1);
+      expectStatusBanner(saveGalleryPhotoCopy.alreadySaved);
+
+      await act(async () => {
+        jest.advanceTimersByTime(photoViewerStatusTiming.cooldownMs);
+      });
+      await user.press(screen.getByTestId(testIds.photoViewerSave));
+      await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(2));
+      expectStatusBanner(saveGalleryPhotoCopy.saved);
+    });
+  });
+
+  it('clears the Photos cooldown when picId changes', async () => {
+    const pendingNext = deferred<PhotoDetail>();
+    fetchPhoto.mockResolvedValueOnce(photoDetail()).mockReturnValueOnce(pendingNext.promise);
+    const navigation = fakeNavigation();
+    const view = renderWithProviders(
+      <PhotoViewerScreen
+        navigation={navigation as never}
+        route={
+          {
+            key: 'viewer',
+            name: 'PhotoViewer',
+            params: { slug: 'brian-may', picId: 101 },
+          } as never
+        }
+      />,
+      { navigation: false },
+    );
+    await waitFor(() => expect(screen.getByTestId(testIds.photoViewerSave)).toBeOnTheScreen());
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId(testIds.photoViewerSave));
+    await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
+    expectStatusBanner(saveGalleryPhotoCopy.saved);
+
+    view.rerender(
+      <PhotoViewerScreen
+        navigation={navigation as never}
+        route={
+          {
+            key: 'viewer',
+            name: 'PhotoViewer',
+            params: { slug: 'brian-may', picId: 102 },
+          } as never
+        }
+      />,
+    );
+    pendingNext.resolve(photoDetail({ picId: 102, title: 'Wembley', index: 1 }));
+    await waitFor(() => expect(screen.getByText('Wembley')).toBeOnTheScreen());
+    expect(screen.queryByTestId(testIds.photoViewerStatus)).toBeNull();
+
+    await user.press(screen.getByTestId(testIds.photoViewerSave));
+    await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId(testIds.photoViewerStatus)).toHaveTextContent(
+      saveGalleryPhotoCopy.saved,
+    );
+    expect(screen.getByTestId(testIds.photoViewerMeta)).not.toHaveTextContent(
+      saveGalleryPhotoCopy.saved,
+    );
   });
 
   it('shows a fallback save error for unexpected failures', async () => {
@@ -422,6 +537,7 @@ describe('PhotoViewerScreen', () => {
     await waitFor(() =>
       expect(screen.getByText('Unable to save this picture.')).toBeOnTheScreen(),
     );
+    expectStatusBanner(saveGalleryPhotoCopy.failed);
   });
 
   it('omits Save when the image URL is not on the CDN', async () => {
@@ -445,11 +561,40 @@ describe('PhotoViewerScreen', () => {
     await waitFor(() =>
       expect(savePhoto).toHaveBeenCalledWith('https://cdn.queenzone.org/brian-may/img-101.jpg'),
     );
-    expect(screen.getByText(wallpaperCopy.iosSaved)).toBeOnTheScreen();
+    expectStatusBanner(wallpaperCopy.iosSaved);
+    expect(claimsWallpaperSet(wallpaperCopy.iosSaved)).toBe(false);
     expect(screen.queryByText(wallpaperCopy.androidSet)).toBeNull();
     expect(screen.queryByText(wallpaperCopy.home)).toBeNull();
     expect(screen.queryByTestId(testIds.photoViewerWallpaperSheet)).toBeNull();
     expect(setWallpaper).not.toHaveBeenCalled();
+  });
+
+  it('does not save again during the iOS wallpaper cooldown', async () => {
+    await loadPhoto();
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
+    expectStatusBanner(wallpaperCopy.iosSaved);
+
+    await user.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    expect(savePhoto).toHaveBeenCalledTimes(1);
+    expectStatusBanner(wallpaperCopy.iosAlreadySaved);
+    expect(claimsWallpaperSet(wallpaperCopy.iosAlreadySaved)).toBe(false);
+
+    await user.press(screen.getByTestId(testIds.photoViewerSave));
+    expect(savePhoto).toHaveBeenCalledTimes(1);
+    expectStatusBanner(saveGalleryPhotoCopy.alreadySaved);
+  });
+
+  it('treats a successful Save as an iOS wallpaper Photos cooldown too', async () => {
+    await loadPhoto();
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId(testIds.photoViewerSave));
+    await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
+
+    await user.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    expect(savePhoto).toHaveBeenCalledTimes(1);
+    expectStatusBanner(wallpaperCopy.iosAlreadySaved);
   });
 
   it('shows the save error when the iOS wallpaper save fails', async () => {
@@ -460,6 +605,7 @@ describe('PhotoViewerScreen', () => {
     const user = userEvent.setup();
     await user.press(screen.getByTestId(testIds.photoViewerWallpaper));
     await waitFor(() => expect(screen.getByText(saveToPhotosCopy.denied)).toBeOnTheScreen());
+    expectStatusBanner(saveToPhotosCopy.denied);
     expect(screen.queryByText(wallpaperCopy.androidSet)).toBeNull();
     expect(screen.queryByText(wallpaperCopy.iosSaved)).toBeNull();
   });
@@ -468,12 +614,45 @@ describe('PhotoViewerScreen', () => {
     const pending = deferred<void>();
     savePhoto.mockReturnValueOnce(pending.promise);
     await loadPhoto();
-    const user = userEvent.setup();
-    await user.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    await user.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await waitFor(() =>
+      expect(screen.getByTestId(testIds.photoViewerWallpaper).props.accessibilityState).toEqual({
+        disabled: true,
+        busy: true,
+      }),
+    );
+    expect(screen.getByTestId(testIds.photoViewerSave).props.accessibilityState).toEqual({
+      disabled: true,
+      busy: false,
+    });
+    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
     expect(savePhoto).toHaveBeenCalledTimes(1);
     pending.resolve();
-    await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId(testIds.photoViewerWallpaper).props.accessibilityState).toEqual({
+        disabled: false,
+        busy: false,
+      }),
+    );
+    expect(savePhoto).toHaveBeenCalledTimes(1);
+  });
+
+  it('dismisses a success banner after the success window', async () => {
+    await withFakeTimers(async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      await loadPhoto();
+      await user.press(screen.getByTestId(testIds.photoViewerSave));
+      await waitFor(() => expectStatusBanner(saveGalleryPhotoCopy.saved));
+      await act(async () => {
+        jest.advanceTimersByTime(photoViewerStatusTiming.successDismissMs - 1);
+      });
+      expect(screen.getByTestId(testIds.photoViewerStatus)).toBeOnTheScreen();
+      await act(async () => {
+        jest.advanceTimersByTime(1);
+      });
+      expect(screen.queryByTestId(testIds.photoViewerStatus)).toBeNull();
+    });
   });
 });
 
@@ -509,29 +688,59 @@ describe('PhotoViewerScreen Android wallpaper', () => {
         'home',
       ),
     );
-    expect(screen.getByText(wallpaperCopy.androidSet)).toBeOnTheScreen();
+    expectStatusBanner(wallpaperCopy.androidSet);
     expect(screen.queryByTestId(testIds.photoViewerWallpaperSheet)).toBeNull();
   });
 
-  it('sets lock and both from the sheet', async () => {
+  it('does not set wallpaper again during the Android cooldown', async () => {
     await loadPhoto();
     fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperLock));
-    await waitFor(() =>
-      expect(setWallpaper).toHaveBeenCalledWith(
-        'https://cdn.queenzone.org/brian-may/img-101.jpg',
-        'lock',
-      ),
-    );
+    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
+    await waitFor(() => expect(setWallpaper).toHaveBeenCalledTimes(1));
+    expectStatusBanner(wallpaperCopy.androidSet);
 
     fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperBoth));
-    await waitFor(() =>
-      expect(setWallpaper).toHaveBeenCalledWith(
-        'https://cdn.queenzone.org/brian-may/img-101.jpg',
-        'both',
-      ),
-    );
+    expect(setWallpaper).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId(testIds.photoViewerWallpaperSheet)).toBeNull();
+    expectStatusBanner(wallpaperCopy.androidAlreadySet);
+    expect(savePhoto).not.toHaveBeenCalled();
+  });
+
+  it('does not put Save on cooldown after an Android wallpaper set', async () => {
+    await loadPhoto();
+    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
+    await waitFor(() => expect(setWallpaper).toHaveBeenCalledTimes(1));
+
+    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
+    await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
+    expectStatusBanner(saveGalleryPhotoCopy.saved);
+  });
+
+  it('sets lock and both from the sheet', async () => {
+    await withFakeTimers(async () => {
+      await loadPhoto();
+      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperLock));
+      await waitFor(() =>
+        expect(setWallpaper).toHaveBeenCalledWith(
+          'https://cdn.queenzone.org/brian-may/img-101.jpg',
+          'lock',
+        ),
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(photoViewerStatusTiming.cooldownMs);
+      });
+      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperBoth));
+      await waitFor(() =>
+        expect(setWallpaper).toHaveBeenCalledWith(
+          'https://cdn.queenzone.org/brian-may/img-101.jpg',
+          'both',
+        ),
+      );
+    });
   });
 
   it('shows a lock-target error instead of a silent no-op', async () => {
@@ -540,6 +749,7 @@ describe('PhotoViewerScreen Android wallpaper', () => {
     fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
     fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperLock));
     await waitFor(() => expect(screen.getByText(wallpaperCopy.lockFailed)).toBeOnTheScreen());
+    expectStatusBanner(wallpaperCopy.lockFailed);
     expect(screen.queryByText(wallpaperCopy.androidSet)).toBeNull();
   });
 

@@ -1,12 +1,12 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ChevronLeft, ChevronRight, Download, Wallpaper, X } from 'lucide-react-native';
+import { Check, ChevronLeft, ChevronRight, Download, Wallpaper, X } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, fetchPhotoDetail, type PhotoDetail } from '../../api';
 import type { PhotosStackParamList } from '../../navigation/types';
 import { testIds } from '../../test/testIds';
-import { type, useTheme } from '../../theme';
+import { fonts, radius, space, type, useTheme } from '../../theme';
 import { IconButton } from '../../ui/IconButton';
 import { MetaLine } from '../../ui/MetaLine';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
@@ -25,6 +25,66 @@ import { wallpaperCopy, type WallpaperTarget } from './wallpaperMeta';
 import { ZoomableArchiveImage } from './ZoomableArchiveImage';
 
 type Props = NativeStackScreenProps<PhotosStackParamList, 'PhotoViewer'>;
+type ViewerStatusKind = 'success' | 'error';
+type ViewerStatus = { message: string; kind: ViewerStatusKind };
+
+export const photoViewerStatusTiming = {
+  successDismissMs: 2800,
+  errorDismissMs: 5000,
+  cooldownMs: 4000,
+} as const;
+
+function clearTimeoutRef(ref: { current: ReturnType<typeof setTimeout> | null }) {
+  if (ref.current != null) {
+    clearTimeout(ref.current);
+    ref.current = null;
+  }
+}
+
+function ViewerStatusBanner({
+  status,
+  top,
+}: {
+  status: ViewerStatus;
+  top: number;
+}) {
+  const { c } = useTheme();
+  return (
+    <View
+      testID={testIds.photoViewerStatus}
+      pointerEvents="none"
+      accessibilityLiveRegion="polite"
+      style={{
+        position: 'absolute',
+        top,
+        left: space.base,
+        right: space.base,
+        alignItems: 'center',
+      }}
+    >
+      <View
+        style={{
+          maxWidth: '100%',
+          paddingHorizontal: space.md,
+          paddingVertical: space.sm,
+          borderRadius: radius.pill,
+          backgroundColor: status.kind === 'error' ? 'rgba(142,47,47,0.94)' : 'rgba(17,17,17,0.88)',
+          borderWidth: 1,
+          borderColor: status.kind === 'error' ? c.danger : c.accentPrimary,
+        }}
+      >
+        <Text
+          style={[
+            type.caption,
+            { color: '#FFFFFF', textAlign: 'center', fontFamily: fonts.bodyMedium },
+          ]}
+        >
+          {status.message}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 export function PhotoViewerScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
@@ -35,12 +95,21 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
-  const [chromeMessage, setChromeMessage] = useState<string | null>(null);
+  const [status, setStatus] = useState<ViewerStatus | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [wallpaperBusy, setWallpaperBusy] = useState(false);
+  const [photosCooldown, setPhotosCooldown] = useState(false);
+  const [wallpaperCooldown, setWallpaperCooldown] = useState(false);
   const [wallpaperSheetVisible, setWallpaperSheetVisible] = useState(false);
   const photoRef = useRef<PhotoDetail | null>(null);
   const swipeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const photosCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wallpaperCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveBusyRef = useRef(false);
   const wallpaperBusyRef = useRef(false);
+  const photosCooldownRef = useRef(false);
+  const wallpaperCooldownRef = useRef(false);
   photoRef.current = photo;
 
   useEffect(() => {
@@ -68,9 +137,10 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     return () => {
-      if (swipeTimerRef.current != null) {
-        clearTimeout(swipeTimerRef.current);
-      }
+      clearTimeoutRef(swipeTimerRef);
+      clearTimeoutRef(statusTimerRef);
+      clearTimeoutRef(photosCooldownTimerRef);
+      clearTimeoutRef(wallpaperCooldownTimerRef);
     };
   }, []);
 
@@ -110,9 +180,52 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
     setChromeVisible((value) => !value);
   }, []);
 
+  const showStatus = useCallback((message: string, kind: ViewerStatusKind) => {
+    clearTimeoutRef(statusTimerRef);
+    setStatus({ message, kind });
+    AccessibilityInfo.announceForAccessibility(message);
+    statusTimerRef.current = setTimeout(() => {
+      setStatus(null);
+      statusTimerRef.current = null;
+    }, kind === 'success' ? photoViewerStatusTiming.successDismissMs : photoViewerStatusTiming.errorDismissMs);
+  }, []);
+
+  const startPhotosCooldown = useCallback(() => {
+    clearTimeoutRef(photosCooldownTimerRef);
+    photosCooldownRef.current = true;
+    setPhotosCooldown(true);
+    photosCooldownTimerRef.current = setTimeout(() => {
+      photosCooldownRef.current = false;
+      setPhotosCooldown(false);
+      photosCooldownTimerRef.current = null;
+    }, photoViewerStatusTiming.cooldownMs);
+  }, []);
+
+  const startWallpaperCooldown = useCallback(() => {
+    clearTimeoutRef(wallpaperCooldownTimerRef);
+    wallpaperCooldownRef.current = true;
+    setWallpaperCooldown(true);
+    wallpaperCooldownTimerRef.current = setTimeout(() => {
+      wallpaperCooldownRef.current = false;
+      setWallpaperCooldown(false);
+      wallpaperCooldownTimerRef.current = null;
+    }, photoViewerStatusTiming.cooldownMs);
+  }, []);
+
   useEffect(() => {
-    setChromeMessage(null);
+    saveBusyRef.current = false;
+    wallpaperBusyRef.current = false;
+    photosCooldownRef.current = false;
+    wallpaperCooldownRef.current = false;
+    setSaveBusy(false);
+    setWallpaperBusy(false);
+    setPhotosCooldown(false);
+    setWallpaperCooldown(false);
+    setStatus(null);
     setWallpaperSheetVisible(false);
+    clearTimeoutRef(statusTimerRef);
+    clearTimeoutRef(photosCooldownTimerRef);
+    clearTimeoutRef(wallpaperCooldownTimerRef);
   }, [picId]);
 
   useEffect(() => {
@@ -123,28 +236,50 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
 
   const handleSave = useCallback(async () => {
     const current = photoRef.current;
-    if (current == null || saveBusyRef.current) {
+    if (current == null || saveBusyRef.current || wallpaperBusyRef.current) {
       return;
     }
 
+    if (photosCooldownRef.current) {
+      showStatus(saveGalleryPhotoCopy.alreadySaved, 'success');
+      return;
+    }
+
+    const startedPicId = current.picId;
     saveBusyRef.current = true;
-    setChromeMessage(null);
+    setSaveBusy(true);
+    setStatus(null);
     try {
       await saveGalleryPhoto(current.imageUrl);
+      if (photoRef.current?.picId !== startedPicId) {
+        return;
+      }
+      showStatus(saveGalleryPhotoCopy.saved, 'success');
+      startPhotosCooldown();
     } catch (err: unknown) {
-      setChromeMessage(err instanceof Error ? err.message : saveGalleryPhotoCopy.failed);
+      if (photoRef.current?.picId !== startedPicId) {
+        return;
+      }
+      showStatus(err instanceof Error ? err.message : saveGalleryPhotoCopy.failed, 'error');
     } finally {
       saveBusyRef.current = false;
+      if (photoRef.current?.picId === startedPicId) {
+        setSaveBusy(false);
+      }
     }
-  }, []);
+  }, [showStatus, startPhotosCooldown]);
 
   const handleWallpaper = useCallback(() => {
     const current = photoRef.current;
-    if (current == null || wallpaperBusyRef.current) {
+    if (current == null || wallpaperBusyRef.current || saveBusyRef.current) {
       return;
     }
 
     if (Platform.OS === 'android') {
+      if (wallpaperCooldownRef.current) {
+        showStatus(wallpaperCopy.androidAlreadySet, 'success');
+        return;
+      }
       setWallpaperSheetVisible((open) => !open);
       return;
     }
@@ -153,40 +288,77 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
       return;
     }
 
-    wallpaperBusyRef.current = true;
-    setChromeMessage(null);
-    void (async () => {
-      try {
-        await saveGalleryPhoto(current.imageUrl);
-        setChromeMessage(wallpaperCopy.iosSaved);
-      } catch (err: unknown) {
-        setChromeMessage(err instanceof Error ? err.message : saveGalleryPhotoCopy.failed);
-      } finally {
-        wallpaperBusyRef.current = false;
-      }
-    })();
-  }, []);
-
-  const handleWallpaperTarget = useCallback((target: WallpaperTarget) => {
-    const current = photoRef.current;
-    setWallpaperSheetVisible(false);
-    if (current == null || wallpaperBusyRef.current) {
+    if (photosCooldownRef.current) {
+      showStatus(wallpaperCopy.iosAlreadySaved, 'success');
       return;
     }
 
+    const startedPicId = current.picId;
     wallpaperBusyRef.current = true;
-    setChromeMessage(null);
+    setWallpaperBusy(true);
+    setStatus(null);
     void (async () => {
       try {
-        await setAndroidGalleryWallpaper(current.imageUrl, target);
-        setChromeMessage(wallpaperCopy.androidSet);
+        await saveGalleryPhoto(current.imageUrl);
+        if (photoRef.current?.picId !== startedPicId) {
+          return;
+        }
+        showStatus(wallpaperCopy.iosSaved, 'success');
+        startPhotosCooldown();
       } catch (err: unknown) {
-        setChromeMessage(err instanceof Error ? err.message : wallpaperCopy.bothFailed);
+        if (photoRef.current?.picId !== startedPicId) {
+          return;
+        }
+        showStatus(err instanceof Error ? err.message : saveGalleryPhotoCopy.failed, 'error');
       } finally {
         wallpaperBusyRef.current = false;
+        if (photoRef.current?.picId === startedPicId) {
+          setWallpaperBusy(false);
+        }
       }
     })();
-  }, []);
+  }, [showStatus, startPhotosCooldown]);
+
+  const handleWallpaperTarget = useCallback(
+    (target: WallpaperTarget) => {
+      const current = photoRef.current;
+      setWallpaperSheetVisible(false);
+      if (current == null || wallpaperBusyRef.current || saveBusyRef.current) {
+        return;
+      }
+
+      if (wallpaperCooldownRef.current) {
+        showStatus(wallpaperCopy.androidAlreadySet, 'success');
+        return;
+      }
+
+      const startedPicId = current.picId;
+      wallpaperBusyRef.current = true;
+      setWallpaperBusy(true);
+      setStatus(null);
+      void (async () => {
+        try {
+          await setAndroidGalleryWallpaper(current.imageUrl, target);
+          if (photoRef.current?.picId !== startedPicId) {
+            return;
+          }
+          showStatus(wallpaperCopy.androidSet, 'success');
+          startWallpaperCooldown();
+        } catch (err: unknown) {
+          if (photoRef.current?.picId !== startedPicId) {
+            return;
+          }
+          showStatus(err instanceof Error ? err.message : wallpaperCopy.bothFailed, 'error');
+        } finally {
+          wallpaperBusyRef.current = false;
+          if (photoRef.current?.picId === startedPicId) {
+            setWallpaperBusy(false);
+          }
+        }
+      })();
+    },
+    [showStatus, startWallpaperCooldown],
+  );
 
   if (loading && !photo) {
     return <LoadingBlock label="Loading photograph…" />;
@@ -197,6 +369,10 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
   }
 
   const image = photoCdnSource(photo.imageUrl);
+  const actionBusy = saveBusy || wallpaperBusy;
+  const saveIcon = photosCooldown && !saveBusy ? Check : Download;
+  const wallpaperOnCooldown = Platform.OS === 'ios' ? photosCooldown : wallpaperCooldown;
+  const wallpaperIcon = wallpaperOnCooldown && !wallpaperBusy ? Check : Wallpaper;
 
   return (
     <View testID={testIds.photoViewerScreen} style={{ flex: 1, backgroundColor: '#000' }}>
@@ -248,15 +424,19 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
               {image ? (
                 <>
                   <IconButton
-                    icon={Wallpaper}
+                    icon={wallpaperIcon}
                     accessibilityLabel={wallpaperCopy.accessibilityLabel}
                     testID={testIds.photoViewerWallpaper}
+                    disabled={actionBusy}
+                    busy={wallpaperBusy}
                     onPress={handleWallpaper}
                   />
                   <IconButton
-                    icon={Download}
+                    icon={saveIcon}
                     accessibilityLabel="Save to Photos"
                     testID={testIds.photoViewerSave}
+                    disabled={actionBusy}
+                    busy={saveBusy}
                     onPress={() => {
                       void handleSave();
                     }}
@@ -267,6 +447,7 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
               )}
             </View>
           </View>
+          {status ? <ViewerStatusBanner status={status} top={insets.top + 48} /> : null}
           {photo.previous ? (
             <View style={{ position: 'absolute', left: 4, top: '45%' }}>
               <IconButton
@@ -286,6 +467,7 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
             </View>
           ) : null}
           <View
+            testID={testIds.photoViewerMeta}
             style={{
               position: 'absolute',
               left: 24,
@@ -296,9 +478,6 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
           >
             <Text style={[type.cardTitle, { color: c.textPrimary }]}>{photo.title}</Text>
             <MetaLine parts={photoDetailMeta(photo)} />
-            {chromeMessage ? (
-              <Text style={[type.caption, { color: c.textMuted }]}>{chromeMessage}</Text>
-            ) : null}
           </View>
         </View>
       ) : null}

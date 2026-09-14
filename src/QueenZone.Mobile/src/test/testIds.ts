@@ -52,6 +52,8 @@ export const testIds = {
   photoViewerClose: 'photo-viewer-close',
   photoViewerSave: 'photo-viewer-save',
   photoViewerWallpaper: 'photo-viewer-wallpaper',
+  photoViewerStatus: 'photo-viewer-status',
+  photoViewerMeta: 'photo-viewer-meta',
   photoViewerWallpaperSheet: 'photo-viewer-wallpaper-sheet',
   photoViewerWallpaperHome: 'photo-viewer-wallpaper-home',
   photoViewerWallpaperLock: 'photo-viewer-wallpaper-lock',

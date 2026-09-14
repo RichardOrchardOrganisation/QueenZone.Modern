@@ -20,6 +20,8 @@ public sealed class DiscographyPageTests : IClassFixture<WebApplicationFactory<P
         var body = await client.GetStringAsync("/discography");
 
         Assert.Contains("Discography", body);
+        Assert.Contains("The core catalogue.", body);
+        Assert.DoesNotContain("The complete studio catalogue, restored sleeve by sleeve.", body);
         Assert.Contains("A Night at the Opera", body);
         Assert.Contains("https://cdn.queenzone.org/images/discography/", body);
         Assert.Contains(TestSiteConfiguration.CanonicalLink("/discography"), body);

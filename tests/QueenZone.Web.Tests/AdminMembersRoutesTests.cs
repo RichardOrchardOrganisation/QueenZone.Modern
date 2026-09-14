@@ -542,5 +542,11 @@ public sealed class AdminMembersRoutesTests : IClassFixture<WebApplicationFactor
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("token store unavailable");
+
+        public Task<bool> LinkRefreshTokenRotationAsync(
+            string oldTokenHash,
+            string newTokenHash,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

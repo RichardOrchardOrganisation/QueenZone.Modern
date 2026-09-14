@@ -53,6 +53,23 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Non-2xx from `/api/v1/auth/token`, carrying the OAuth2 `error` code alongside
+ * the HTTP status. Refresh classification needs both: a 400 `invalid_grant` is a
+ * dead grant worth signing out for, while a 400 `temporarily_unavailable`, a 429
+ * from the per-account limiter, or a 502 from a cold start is a server having a
+ * bad minute and must not end the session.
+ */
+export class TokenEndpointError extends ApiError {
+  readonly oauthError: string;
+
+  constructor(status: number, oauthError: string, message: string) {
+    super(status, message, null, status === 0 ? 'offline' : 'http');
+    this.name = 'TokenEndpointError';
+    this.oauthError = oauthError;
+  }
+}
+
 export function isTimeoutFailure(err: unknown): err is ApiError & { kind: 'timeout' } {
   return err instanceof ApiError && err.kind === 'timeout';
 }

@@ -5,6 +5,8 @@ import { isPhotoCdnUrl, photoCdnSource } from './photoGalleryMeta';
 export const saveGalleryPhotoCopy = {
   refused: 'This photograph cannot be saved.',
   failed: saveToPhotosCopy.failed,
+  saved: 'Saved to Photos.',
+  alreadySaved: 'Already in Photos.',
 } as const;
 
 /**

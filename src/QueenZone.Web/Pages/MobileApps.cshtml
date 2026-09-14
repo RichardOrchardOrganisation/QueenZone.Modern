@@ -1,0 +1,88 @@
+@page "/mobile-apps"
+@{
+  ViewData["Title"] = "Test the Queenzone Mobile Apps";
+  ViewData["Description"] = "Help test the Queenzone Android app or request access to the iOS TestFlight release.";
+  ViewData["CanonicalPath"] = "/mobile-apps";
+}
+
+<partial name="_PageHero" model='@(("Mobile Apps", "Help test Queenzone", "Take the Queen archive, community and daily widgets with you.", "Android testing available · iOS under review"))' />
+
+<section class="qz-section qz-section--warm">
+  <div class="qz-container qz-mobile-apps">
+    <p class="lede">The Queenzone app includes most of the website's features, and a few extras built for your phone.</p>
+
+    <ul class="qz-mobile-apps__features" aria-label="App features">
+      <li>Forum browsing, posting and new topics for members</li>
+      <li>News from 2004 to today</li>
+      <li>Restored Queen photo galleries</li>
+      <li>More than 200 fan performances and Queen covers</li>
+      <li>Home-screen widgets for Queen trivia, quotes and On This Day</li>
+    </ul>
+
+    <div class="qz-mobile-apps__platform-grid">
+      <article class="qz-mobile-platform qz-mobile-platform--android">
+        <header class="qz-mobile-platform__header">
+          <span class="qz-mobile-platform__icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+              <path d="M10 5h4M11 19h2"></path>
+            </svg>
+          </span>
+          <div>
+            <p class="qz-mobile-platform__label">Testing now</p>
+            <h2>Android</h2>
+          </div>
+        </header>
+
+        <p>If you have an Android phone and a few minutes, testing the app would help me improve it.</p>
+
+        <ol class="qz-mobile-apps__steps">
+          <li>
+            <strong>Join the Google Group.</strong>
+            Use the same Google account that is on your Android phone.
+            <a class="qz-button qz-button--outline qz-button--sm" href="https://groups.google.com/g/queenzone-mobile" target="_blank" rel="noopener noreferrer">Join the Google Group</a>
+          </li>
+          <li>
+            <strong>Become a tester.</strong>
+            Open the testing page, tap <strong>Become a tester,</strong> then choose <strong>Install from Play.</strong>
+            <a class="qz-button qz-button--outline qz-button--sm" href="https://play.google.com/apps/testing/org.queenzone.mobile" target="_blank" rel="noopener noreferrer">Open the testing page</a>
+          </li>
+        </ol>
+
+        <p class="qz-mobile-platform__note">That is all. Please leave the app installed if you can. Reviews are not required, but feedback is welcome.</p>
+      </article>
+
+      <article class="qz-mobile-platform qz-mobile-platform--ios">
+        <header class="qz-mobile-platform__header">
+          <span class="qz-mobile-platform__icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+              <path d="M10 5h4M11 19h2"></path>
+            </svg>
+          </span>
+          <div>
+            <p class="qz-mobile-platform__label">Under review</p>
+            <h2>iOS</h2>
+          </div>
+        </header>
+
+        <p>The iOS app is under review. You can still ask to join the TestFlight release.</p>
+
+        <ol class="qz-mobile-apps__steps">
+          <li>
+            <strong>Email your Apple Account address.</strong>
+            Send the email address linked to your Apple Account to
+            <a href="mailto:support@queenzone.org?subject=Queenzone%20iOS%20TestFlight">support@queenzone.org</a>.
+          </li>
+          <li>
+            <strong>Install TestFlight.</strong>
+            Install Apple's TestFlight app. When your invitation arrives, open it to install Queenzone.
+            <a class="qz-button qz-button--outline qz-button--sm" href="https://apps.apple.com/app/testflight/id899247664" target="_blank" rel="noopener noreferrer">Get TestFlight</a>
+          </li>
+        </ol>
+      </article>
+    </div>
+
+    <p class="qz-mobile-apps__thanks">Thanks,<br><strong>Richard</strong></p>
+  </div>
+</section>

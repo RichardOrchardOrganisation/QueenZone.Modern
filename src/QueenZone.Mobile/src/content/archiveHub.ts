@@ -77,7 +77,7 @@ export const archiveDestinations: ArchiveDestination[] = [
   },
   {
     id: 'recently-restored',
-    title: 'Recently restored',
+    title: 'Photographs',
     kicker: 'Preserved',
     kickerRole: 'restored',
     meta: ['1,240 photographs', '340 articles'],

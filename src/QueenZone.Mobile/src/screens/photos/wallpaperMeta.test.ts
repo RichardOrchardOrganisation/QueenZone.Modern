@@ -15,6 +15,13 @@ describe('wallpaper copy (#1409 Option A)', () => {
     assert.doesNotMatch(wallpaperCopy.iosSaved, /Wallpaper set/);
   });
 
+  it('keeps the iOS already-saved cooldown line honest', () => {
+    assert.equal(claimsWallpaperSet(wallpaperCopy.iosAlreadySaved), false);
+    assert.match(wallpaperCopy.iosAlreadySaved, /Already saved/);
+    assert.match(wallpaperCopy.iosAlreadySaved, /Settings → Wallpaper/);
+    assert.doesNotMatch(wallpaperCopy.iosAlreadySaved, /Wallpaper set/);
+  });
+
   it('reserves Wallpaper set for the Android success path only', () => {
     assert.equal(claimsWallpaperSet(wallpaperCopy.androidSet), true);
     assert.equal(wallpaperCopy.androidSet, 'Wallpaper set.');

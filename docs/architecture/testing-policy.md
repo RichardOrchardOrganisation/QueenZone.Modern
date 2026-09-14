@@ -112,10 +112,11 @@ They run against a same-day SQL Express mirror on the self-hosted Windows runner
 extract/publish. Transient live-DB TCP/transport drops (forcibly closed, connection reset,
 transport timeout) retry the failed Extract or Publish phase a small fixed number of times;
 exhausted retries fail the Sync job with a named TCP/transport error instead of a silent
-cancel (#1453). It publishes into a staging database and replaces the named mirror only after a
-successful publish and required-table check. A failed extract or publish therefore leaves the previous
-mirror intact. Read probes then run from the macOS runner over the LAN. Self-cleaning write probes
-run locally on Windows after the read checks pass:
+cancel (#1453). Before reading production, the Sync job runs the script's process-wrapper self-test
+under the Windows runner account and shell. It publishes into a staging database and replaces the
+named mirror only after a successful publish and required-table check. A failed extract or publish
+therefore leaves the previous mirror intact. Read probes then run from the macOS runner over the LAN.
+Self-cleaning write probes run locally on Windows after the read checks pass:
 
 | Probe surface | How nightly runs it |
 | --- | --- |

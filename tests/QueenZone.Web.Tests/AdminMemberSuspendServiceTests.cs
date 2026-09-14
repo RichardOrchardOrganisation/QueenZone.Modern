@@ -234,5 +234,11 @@ public sealed class AdminMemberSuspendServiceTests
 
             return Task.FromResult(0);
         }
+
+        public Task<bool> LinkRefreshTokenRotationAsync(
+            string oldTokenHash,
+            string newTokenHash,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

@@ -11,6 +11,8 @@ import {
   signInWithPassword,
   signInWithProvider,
 } from './oauth';
+import { TokenEndpointError } from '../api/errors';
+import { isDefiniteAuthRefreshFailure, isTransientRefreshFailure } from './refreshFailure';
 import { jsonResponse } from '../test/fixtures';
 
 jest.mock('expo-web-browser', () => ({
@@ -154,6 +156,43 @@ describe('signInWithPassword', () => {
 });
 
 describe('token maintenance', () => {
+  it('carries the OAuth2 code and HTTP status off a rejected refresh', async () => {
+    // The refresh path classifies on these two fields: without them a 429 or a
+    // 5xx is indistinguishable from a dead grant and signs the member out.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'temporarily_unavailable', error_description: 'Too many attempts. Try again later.' }, 429),
+    );
+    const rateLimited = await refreshAccessToken('http://qz.test', 'r').catch((err: unknown) => err);
+    expect(rateLimited).toBeInstanceOf(TokenEndpointError);
+    expect(rateLimited).toMatchObject({ status: 429, oauthError: 'temporarily_unavailable' });
+    expect(isTransientRefreshFailure(rateLimited)).toBe(true);
+  });
+
+  it('treats an unparseable 5xx body as a transient outage, not a dead grant', async () => {
+    // An App Service cold start or a Cloudflare error page is HTML, so there is
+    // no OAuth2 error code to read — only the status.
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => {
+        throw new Error('not json');
+      },
+    } as unknown as Response);
+    const downstream = await refreshAccessToken('http://qz.test', 'r').catch((err: unknown) => err);
+    expect(downstream).toBeInstanceOf(TokenEndpointError);
+    expect(downstream).toMatchObject({ status: 503, message: 'Could not complete sign-in.' });
+    expect(isDefiniteAuthRefreshFailure(downstream)).toBe(false);
+    expect(isTransientRefreshFailure(downstream)).toBe(true);
+  });
+
+  it('still reports a dead grant as invalid_grant', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'invalid_grant' }, 400));
+    const dead = await refreshAccessToken('http://qz.test', 'r').catch((err: unknown) => err);
+    expect(dead).toBeInstanceOf(TokenEndpointError);
+    expect(dead).toMatchObject({ status: 400, oauthError: 'invalid_grant', message: 'invalid_grant' });
+    expect(isDefiniteAuthRefreshFailure(dead)).toBe(true);
+  });
+
   it('refreshes an access token', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ access_token: 'a2', refresh_token: 'r2', expires_in: 600 }),

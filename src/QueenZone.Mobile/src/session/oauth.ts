@@ -13,6 +13,7 @@ import {
   authTokenUrl,
   type AuthTokens,
 } from '../api/auth';
+import { TokenEndpointError } from '../api/errors';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -283,12 +284,15 @@ async function postToken(apiBaseUrl: string, fields: Record<string, string>): Pr
         ? (payload as { error?: unknown; error_description?: unknown })
         : null;
     const code = typeof error?.error === 'string' ? error.error : '';
+    // A 5xx or a Cloudflare error page has no JSON body at all, so the status is
+    // the only signal the caller gets — carry it rather than flattening every
+    // failure into a bare Error the refresh path then reads as a dead grant.
     if (code === 'invalid_grant' || response.status === 401) {
-      throw new Error('invalid_grant');
+      throw new TokenEndpointError(response.status, code || 'invalid_grant', 'invalid_grant');
     }
     const description =
       typeof error?.error_description === 'string' ? error.error_description : 'Could not complete sign-in.';
-    throw new Error(description);
+    throw new TokenEndpointError(response.status, code, description);
   }
 
   return parseTokenResponse(payload);
