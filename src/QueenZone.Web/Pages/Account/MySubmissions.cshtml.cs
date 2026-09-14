@@ -121,24 +121,30 @@ public sealed class MySubmissionsModel(
         IReadOnlyList<NewsSuggestion> suggestions,
         CancellationToken cancellationToken)
     {
-        var rows = new List<NewsSuggestionRow>(suggestions.Count);
-        foreach (var suggestion in suggestions)
+        var promotedNewsIds = suggestions
+            .Where(suggestion => suggestion.Status == NewsSuggestionStatus.Promoted)
+            .Select(suggestion => suggestion.PromotedNewsId)
+            .OfType<int>()
+            .Distinct()
+            .ToArray();
+        var publishedNewsById = promotedNewsIds.Length == 0
+            ? new Dictionary<int, NewsItem>()
+            : (await newsRepository.GetByIdsAsync(promotedNewsIds, cancellationToken))
+                .Where(news => news.IsPublished)
+                .ToDictionary(news => news.Id);
+
+        return suggestions.Select(suggestion =>
         {
             string? publishedPath = null;
             if (suggestion.Status == NewsSuggestionStatus.Promoted
-                && suggestion.PromotedNewsId is int newsId)
+                && suggestion.PromotedNewsId is int newsId
+                && publishedNewsById.TryGetValue(newsId, out var news))
             {
-                var news = await newsRepository.GetByIdAsync(newsId, cancellationToken);
-                if (news is { IsPublished: true })
-                {
-                    publishedPath = NewsRoutes.GetNewsDetailPath(news);
-                }
+                publishedPath = NewsRoutes.GetNewsDetailPath(news);
             }
 
-            rows.Add(new NewsSuggestionRow(suggestion, publishedPath));
-        }
-
-        return rows;
+            return new NewsSuggestionRow(suggestion, publishedPath);
+        }).ToList();
     }
 
     private async Task<IActionResult> LoadAsync(
