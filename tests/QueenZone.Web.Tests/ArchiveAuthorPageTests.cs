@@ -26,6 +26,7 @@ public sealed class ArchiveAuthorPageTests : IClassFixture<WebApplicationFactory
         Assert.Contains("brightonrock", body);
         Assert.Contains("Ranking every studio album", body);
         Assert.Contains("1 post", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<meta name=\"robots\" content=\"noindex,follow\"", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

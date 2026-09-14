@@ -59,6 +59,7 @@ public sealed class ArchiveAuthorModel(
                 ? $"/forum/archive-authors/{legacyUserId}"
                 : $"/forum/archive-authors/{legacyUserId}?pageNumber={page}");
         ViewData["Title"] = Author.DisplayName;
+        ViewData["Robots"] = "noindex,follow";
         ViewData["CanonicalPath"] = PageNumber <= 1
             ? $"/forum/archive-authors/{legacyUserId}"
             : $"/forum/archive-authors/{legacyUserId}?pageNumber={PageNumber}";
