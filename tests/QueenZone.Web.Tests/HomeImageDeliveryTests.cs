@@ -64,4 +64,18 @@ public sealed class HomeImageDeliveryTests : IClassFixture<WebApplicationFactory
         Assert.DoesNotContain("fonts.googleapis.com", css, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("fonts.gstatic.com", css, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task NonDevelopmentPagesUseOneDesignTokenStylesheet()
+    {
+        var client = factory.CreateClient();
+        var body = await client.GetStringAsync("/");
+
+        Assert.Contains("/design-system/tokens/tokens.min.css", body);
+        Assert.DoesNotContain("/design-system/tokens/fonts.min.css", body);
+        Assert.DoesNotContain("/design-system/tokens/colors.min.css", body);
+        Assert.DoesNotContain("/design-system/tokens/typography.min.css", body);
+        Assert.DoesNotContain("/design-system/tokens/spacing.min.css", body);
+        Assert.DoesNotContain("/design-system/tokens/base.min.css", body);
+    }
 }
