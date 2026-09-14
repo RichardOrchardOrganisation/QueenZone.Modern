@@ -3,16 +3,18 @@
 Issue: [#1272](https://github.com/richardorchard/QueenZone.Modern/issues/1272),
 Phase 7 of [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264).
 
-## Current status: 10 September 2026
+## Current status: 14 September 2026
 
 Stages 1–4 are complete. Production traffic, deployment, SQL, Blob Storage,
 telemetry, authentication callbacks, and mobile configuration now target the
 Canada East estate listed below. The previous Australia East App Service is
 stopped and retained with the old data resources only for rollback.
 
-Stage 5 is pending the agreed observation window. Do not retire the old estate
-yet. In particular, `queenzone-sql-server` cannot be deleted while it also
-hosts the Australia East dev database `queenzone-dev-db`.
+Stage 5 is in its agreed seven-day observation window, from **14 September
+2026 06:35 UTC** to **21 September 2026 06:35 UTC**. Do not retire the old
+estate before the window ends and every entry criterion passes. In particular,
+`queenzone-sql-server` cannot be deleted while it also hosts the Australia East
+dev database `queenzone-dev-db`.
 
 ## Target and safety boundary
 
@@ -246,7 +248,20 @@ fails, point Cloudflare back to `queenzone-dev`, restore the old app to service,
 and end the write freeze. Do not attempt an OpenTofu state rollback during the
 traffic incident.
 
-## Stage 5: observation and retirement — pending
+## Stage 5: observation and retirement — observing
+
+The seven-day observation window began after release `v2026.09.14.2` deployed
+the search-plan fix from #1509. The production migration, exact CI artifact
+deployment, build-stamp warmup, and post-deploy smoke passed in workflow run
+`34813716156`. Independent verification then passed all 11 live smoke routes.
+Repeated `queen` and `freddie` searches returned results in under 0.5 seconds
+after the first post-recycle execution, without the unavailable alert.
+
+The window ends at **21 September 2026 06:35 UTC**. Any unresolved production
+mismatch or failed nightly check blocks retirement and restarts the decision
+gate. Before retirement, record an explicit retention or deletion date for
+`queenzone-db-precutover-20260910-083153`; the database copy has no scheduled
+deletion, seven-day point-in-time restore, and no long-term-retention policy.
 
 Keep the old App Service, plan, SQL database/server, Storage account, and the
 immediate pre-cutover backup throughout the agreed observation window. Do not
