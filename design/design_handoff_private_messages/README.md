@@ -103,7 +103,7 @@ Padding `12px 16px 44px` (the 44px is the home-indicator inset); flex column, `g
 - Data: fetch messages paginated newest-first, render oldest-first; `Load earlier messages` at the top of the list when more pages exist (Cinzel 9.5px tracked label, centred, `rgba(255,255,255,0.5)`).
 
 ## Design tokens
-All from the Queenzone design system (`tokens/` in this bundle) unless marked **new**.
+All from the Queenzone design system (`tokens/` in this bundle) unless marked **new**. `tokens/` is a copy of `design/tokens/` (the canonical source); don't hand-edit it — run `pwsh ./scripts/Sync-DesignTokens.ps1` from the repo root to refresh it after `design/tokens/` changes.
 
 **Colour**
 - `--qz-black` `#111111` — header, composer chrome
