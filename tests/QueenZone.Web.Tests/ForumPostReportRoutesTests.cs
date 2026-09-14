@@ -125,7 +125,7 @@ public sealed partial class ForumPostReportRoutesTests : IClassFixture<QueenZone
         Assert.Contains("Report forum post", reportPage, StringComparison.Ordinal);
         Assert.Contains("noindex, nofollow", reportPage, StringComparison.Ordinal);
 
-        var returnUrl = $"/forum/topic/1002/ranking-every-studio-album#post-{postId}";
+        var returnUrl = $"/forum/topic/1002/ranking-every-studio-album/page/2#post-{postId}";
         using var submitted = await member.PostAsync(reportPath, new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = ExtractAntiforgeryToken(reportPage),
@@ -138,6 +138,23 @@ public sealed partial class ForumPostReportRoutesTests : IClassFixture<QueenZone
 
         var thread = await member.GetStringAsync(returnUrl);
         Assert.Contains("Report submitted", thread, StringComparison.Ordinal);
+
+        using var blocked = await member.PostAsync(
+            $"/forum/post/{postId}/block",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(thread),
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, blocked.StatusCode);
+        Assert.Equal(
+            $"/forum/topic/1002/ranking-every-studio-album#post-{postId}",
+            blocked.Headers.Location!.OriginalString);
+        Assert.True(await factory.Services.GetRequiredService<PrivateMessageService>()
+            .HasBlockedAsync(reporter.Id, author.Id));
+
+        var blockedThread = await member.GetStringAsync(returnUrl);
+        Assert.Contains("Member blocked", blockedThread, StringComparison.Ordinal);
+        Assert.Contains("Post from a blocked member. Show this post", blockedThread, StringComparison.Ordinal);
     }
 
     [Fact]

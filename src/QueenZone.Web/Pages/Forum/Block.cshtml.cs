@@ -34,6 +34,9 @@ public sealed class BlockModel(
         }
 
         TempData[ReportModel.StatusMessageKey] = "Member blocked. Their forum posts are now collapsed and they can no longer contact you privately.";
-        return LocalRedirect(Url.IsLocalUrl(ReturnUrl) ? ReturnUrl! : $"/forum#post-{postId}");
+        return LocalRedirect(
+            Url.IsLocalUrl(ReturnUrl)
+                ? ReturnUrl!
+                : $"{ForumRoutes.GetTopicCanonicalPath(post.TopicId, post.ThreadTitle)}#post-{postId}");
     }
 }

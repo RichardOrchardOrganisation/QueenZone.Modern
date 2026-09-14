@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError, forumPostReportCategories, reportForumPost, type ForumPostReportCategory } from '../../api';
+import { getAppConfig } from '../../config';
 import type { ForumStackParamList } from '../../navigation/types';
 import { MemberGate } from '../../session/MemberGate';
 import { useSession } from '../../session/SessionContext';
@@ -22,6 +23,7 @@ function ForumReportForm({ navigation, route }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const websiteUrl = getAppConfig().apiBaseUrl;
 
   const submit = async () => {
     if (!accessToken || !category || details.length > 1000) return;
@@ -43,7 +45,7 @@ function ForumReportForm({ navigation, route }: Props) {
   }
 
   return <ScrollView style={{ backgroundColor: c.surfacePage }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <Text style={[type.body, { color: c.textSecondary }]}>Report {route.params.authorUsername}'s post. Your identity is not shown to the author.</Text>
+    <Text style={[type.body, { color: c.textSecondary }]}>{`Report ${route.params.authorUsername}'s post. Your identity is not shown to the author.`}</Text>
     <Text style={[type.listTitle, { color: c.textPrimary, marginTop: space.xl }]}>Reason</Text>
     {forumPostReportCategories.map((item) => <Pressable key={item} accessibilityRole="radio" accessibilityState={{ checked: category === item }} onPress={() => setCategory(item)} style={[styles.option, { borderColor: category === item ? c.accentPrimary : c.hairline }]}>
       <Text style={[type.body, { color: c.textPrimary }]}>{category === item ? '● ' : '○ '}{item}</Text>
@@ -53,7 +55,10 @@ function ForumReportForm({ navigation, route }: Props) {
     <Text style={[type.caption, { color: c.textMuted, textAlign: 'right' }]}>{details.length}/1000</Text>
     {error ? <Text accessibilityRole="alert" style={[type.body, { color: c.danger, marginTop: space.md }]}>{error}</Text> : null}
     <View style={{ marginTop: space.xl }}><Button label={submitting ? 'Submitting…' : 'Submit report'} disabled={!category || submitting} onPress={() => void submit()} /></View>
-    <Text style={[type.caption, { color: c.textMuted, marginTop: space.lg }]}>Community rules and support contact details are available in Settings.</Text>
+    <View style={styles.helpLinks}>
+      <Button label="Community rules" variant="ghost" size="sm" onPress={() => void Linking.openURL(`${websiteUrl}/terms`)} />
+      <Button label="Contact support" variant="ghost" size="sm" onPress={() => void Linking.openURL(`${websiteUrl}/contact`)} />
+    </View>
   </ScrollView>;
 }
 
@@ -62,4 +67,5 @@ const styles = StyleSheet.create({
   success: { flex: 1, padding: space.xl, justifyContent: 'center' },
   option: { borderWidth: 1, borderRadius: radius.md, padding: space.md, marginTop: space.sm },
   input: { minHeight: 130, borderWidth: 1, borderRadius: radius.md, padding: space.md, marginTop: space.sm, textAlignVertical: 'top' },
+  helpLinks: { marginTop: space.lg, gap: space.xs },
 });

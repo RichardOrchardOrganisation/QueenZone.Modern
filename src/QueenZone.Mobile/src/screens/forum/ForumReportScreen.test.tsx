@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { Linking } from 'react-native';
 import { reportForumPost } from '../../api';
 import { createMockSession } from '../../test/mockSession';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
@@ -39,6 +40,7 @@ describe('ForumReportScreen', () => {
     mockSession.isRestoring = false;
     mockSession.accessToken = 'token';
     reportForumPostMock.mockReset();
+    jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   });
 
   it('requires a reason and enforces the details limit in the native form', () => {
@@ -48,6 +50,16 @@ describe('ForumReportScreen', () => {
     expect(screen.getByLabelText('Supporting details').props.maxLength).toBe(1000);
     fireEvent.press(screen.getByRole('radio', { name: /Spam or scams/ }));
     expect(screen.getByRole('button', { name: 'Submit report' })).toBeEnabled();
+  });
+
+  it('links to the community rules and support contact', () => {
+    renderReport();
+
+    fireEvent.press(screen.getByRole('button', { name: 'Community rules' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Contact support' }));
+
+    expect(Linking.openURL).toHaveBeenNthCalledWith(1, expect.stringMatching(/\/terms$/));
+    expect(Linking.openURL).toHaveBeenNthCalledWith(2, expect.stringMatching(/\/contact$/));
   });
 
   it('submits once, confirms success, and returns to the reported post', async () => {
