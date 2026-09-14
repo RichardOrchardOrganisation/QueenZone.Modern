@@ -18,7 +18,9 @@ public sealed record ForumPostViewModel(
     string? EditedLabel = null,
     bool CanMessage = false,
     bool IsAuthor = false,
-    int? AuthorLegacyUserId = null);
+    int? AuthorLegacyUserId = null,
+    bool AlreadyReported = false,
+    bool IsBlocked = false);
 
 /// <summary>
 /// Stable attachment presentation for forum posts.

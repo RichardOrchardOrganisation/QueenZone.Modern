@@ -22,8 +22,11 @@ public sealed class TopicModel : ForumTopicPageModel
         IOptions<AdminOptions> adminOptions,
         IOptions<ForumOptions> forumOptions,
         ITopicWatchRepository topicWatchRepository,
-        TimeProvider timeProvider)
-        : base(forumRepository, topicWatchRepository, forumOptions, adminOptions, timeProvider)
+        TimeProvider timeProvider,
+        IForumPostReportRepository forumPostReportRepository,
+        PrivateMessageService privateMessageService)
+        : base(forumRepository, topicWatchRepository, forumOptions, adminOptions, timeProvider,
+            forumPostReportRepository, privateMessageService)
     {
         this.forumRepository = forumRepository;
         this.forumPollRepository = forumPollRepository;

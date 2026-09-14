@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ForumPost } from '../../api';
 import { flushOfflineQueue, removeOfflineItem, updateOfflineItem, type OfflineQueueItem } from '../../offlineQueue';
@@ -22,28 +22,56 @@ export const ForumPostRow = memo(function ForumPostRow({
   isSignedIn,
   accessToken,
   interactionsEnabled,
+  isCurrentMember = false,
+  isReported = false,
+  isBlocked = false,
+  onReport = () => undefined,
+  onBlock = () => undefined,
 }: {
   post: DisplayPost;
   isSignedIn: boolean;
   accessToken: string | null;
   interactionsEnabled: boolean;
+  isCurrentMember?: boolean;
+  isReported?: boolean;
+  isBlocked?: boolean;
+  onReport?: () => void;
+  onBlock?: () => void;
 }) {
   const { c } = useTheme();
   const posted = formatPostTimestamp(post.postedAt);
   const memberSince = formatMemberSince(post.authorMemberSince);
   const meta = [posted, memberSince ? `Member since ${memberSince}` : null].filter(Boolean).join(' · ');
+  const [revealed, setRevealed] = useState(false);
+
+  const openMenu = () => {
+    const actions = [
+      { text: 'Cancel', style: 'cancel' as const },
+      ...(isReported ? [] : [{ text: 'Report post', onPress: onReport }]),
+      ...(post.authorMemberId && !isBlocked ? [{ text: 'Block member', style: 'destructive' as const, onPress: onBlock }] : []),
+    ];
+    Alert.alert('Post actions', undefined, actions);
+  };
 
   return (
     <View style={[styles.post, { borderTopColor: c.hairline }]}>
-      <Text style={[type.listTitle, { color: c.textPrimary }]} allowFontScaling>
-        {post.authorUsername}
-      </Text>
+      <View style={styles.authorRow}>
+        <Text style={[type.listTitle, { color: c.textPrimary, flex: 1 }]} allowFontScaling>{post.authorUsername}</Text>
+        {!isCurrentMember && !post.queueState ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Actions for ${post.authorUsername}'s post`} disabled={!interactionsEnabled} onPress={openMenu} hitSlop={8}>
+            <Text style={[type.listTitle, { color: c.accentPrimary }]}>•••</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {meta ? (
         <Text style={[type.meta, { color: c.textMuted, marginTop: space.xs }]}>{meta}</Text>
       ) : null}
-      <View style={styles.body}>
-        <RichHtmlBody html={post.body} horizontalInset={space.xl} />
-      </View>
+      {isBlocked && !revealed ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Show post from blocked member" onPress={() => setRevealed(true)} style={styles.blocked}>
+          <Text style={[type.body, { color: c.textSecondary }]}>Post from a blocked member. Show this post</Text>
+        </Pressable>
+      ) : <View style={styles.body}><RichHtmlBody html={post.body} horizontalInset={space.xl} /></View>}
+      {isReported ? <Text accessibilityRole="text" style={[type.caption, { color: c.textMuted, marginTop: space.sm }]}>Report submitted</Text> : null}
       {post.queueState ? (
         <Pressable
           accessibilityRole="button"
@@ -116,4 +144,6 @@ const styles = StyleSheet.create({
   body: {
     marginTop: space.md,
   },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  blocked: { marginTop: space.md, padding: space.md },
 });

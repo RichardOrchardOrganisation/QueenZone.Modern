@@ -52,6 +52,9 @@ public sealed class AdminDashboardService(IServiceScopeFactory scopeFactory)
         var openPrivateMessageReportsTask = RunAsync(
             sp => sp.GetRequiredService<IPrivateMessageRepository>()
                 .CountOpenReportsAsync(cancellationToken));
+        var openForumPostReportsTask = RunAsync(
+            sp => sp.GetRequiredService<IForumPostReportRepository>()
+                .CountOpenAsync(cancellationToken));
         var openFanPerformanceReportsTask = RunAsync(
             sp => sp.GetRequiredService<IFanPerformanceReportRepository>()
                 .CountOpenAsync(cancellationToken));
@@ -83,6 +86,7 @@ public sealed class AdminDashboardService(IServiceScopeFactory scopeFactory)
             fanPerformanceCountsTask,
             openHelpRequestsTask,
             openPrivateMessageReportsTask,
+            openForumPostReportsTask,
             openFanPerformanceReportsTask,
             photoContributorsTask,
             newsContributorsTask,
@@ -109,6 +113,7 @@ public sealed class AdminDashboardService(IServiceScopeFactory scopeFactory)
             submissionQueue,
             await openHelpRequestsTask.ConfigureAwait(false),
             await openPrivateMessageReportsTask.ConfigureAwait(false),
+            await openForumPostReportsTask.ConfigureAwait(false),
             await openFanPerformanceReportsTask.ConfigureAwait(false),
             await trafficTask.ConfigureAwait(false));
     }
@@ -146,5 +151,6 @@ public sealed record AdminDashboardSnapshot(
     SubmissionQueueStats SubmissionQueue,
     int OpenHelpRequestCount,
     int OpenPrivateMessageReportCount,
+    int OpenForumPostReportCount,
     int OpenFanPerformanceReportCount,
     GoogleAnalyticsTrafficSnapshot Traffic);

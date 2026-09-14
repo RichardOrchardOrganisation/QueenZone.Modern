@@ -70,7 +70,8 @@ export type ArchiveStackParamList = {
 export type ForumStackParamList = {
   ForumIndex: undefined;
   Category: { id: number; name?: string };
-  Thread: { id: number | string; title?: string; postId?: number };
+  Thread: { id: number | string; title?: string; postId?: number; reportedPostId?: number };
+  ForumReport: { postId: number; authorUsername: string; threadId: number | string; threadTitle?: string };
   Composer: {
     threadId?: number;
     threadTitle?: string;
