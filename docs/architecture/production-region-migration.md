@@ -7,14 +7,14 @@ Phase 7 of [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issue
 
 Stages 1–4 are complete. Production traffic, deployment, SQL, Blob Storage,
 telemetry, authentication callbacks, and mobile configuration now target the
-Canada East estate listed below. The previous Australia East App Service is
-stopped and retained with the old data resources only for rollback.
+Canada East estate listed below. After four days of verified operation, the
+maintainer accepted that observation period and approved Stage 5 retirement
+on **14 September 2026** to stop the old estate's ongoing cost.
 
-Stage 5 is in its agreed seven-day observation window, from **14 September
-2026 06:35 UTC** to **21 September 2026 06:35 UTC**. Do not retire the old
-estate before the window ends and every entry criterion passes. In particular,
-`queenzone-sql-server` cannot be deleted while it also hosts the Australia East
-dev database `queenzone-dev-db`.
+Retirement is staged. The old App Service estate and production database are
+the first tranche. `queenzone-sql-server` remains because it hosts the active
+dev database `queenzone-dev-db`. The pre-cutover database copy and old Storage
+account also remain until their separate retention and retirement decisions.
 
 ## Target and safety boundary
 
@@ -248,18 +248,21 @@ fails, point Cloudflare back to `queenzone-dev`, restore the old app to service,
 and end the write freeze. Do not attempt an OpenTofu state rollback during the
 traffic incident.
 
-## Stage 5: observation and retirement — observing
+## Stage 5: observation and retirement — in progress
 
-The seven-day observation window began after release `v2026.09.14.2` deployed
-the search-plan fix from #1509. The production migration, exact CI artifact
-deployment, build-stamp warmup, and post-deploy smoke passed in workflow run
-`34813716156`. Independent verification then passed all 11 live smoke routes.
-Repeated `queen` and `freddie` searches returned results in under 0.5 seconds
-after the first post-recycle execution, without the unavailable alert.
+The maintainer accepted the four-day period from cutover and waived the
+previously proposed seven-day window on **14 September 2026**. Release
+`v2026.09.14.2` deployed the search-plan fix from #1509 before retirement. The
+production migration, exact CI artifact deployment, build-stamp warmup, and
+post-deploy smoke passed in workflow run `34813716156`. Independent
+verification passed all 11 live smoke routes. Repeated `queen` and `freddie`
+searches returned results in under 0.5 seconds after the first post-recycle
+execution, without the unavailable alert.
 
-The window ends at **21 September 2026 06:35 UTC**. Any unresolved production
-mismatch or failed nightly check blocks retirement and restarts the decision
-gate. Before retirement, record an explicit retention or deletion date for
+The first retirement tranche removes the old App Service, plan, web telemetry,
+obsolete web monitors, and old production `queenzone-db`. It deliberately
+retains `queenzone-sql-server`, `queenzone-dev-db`, the pre-cutover database
+copy, and old Blob Storage. Record an explicit retention or deletion date for
 `queenzone-db-precutover-20260910-083153`; the database copy has no scheduled
 deletion, seven-day point-in-time restore, and no long-term-retention policy.
 
@@ -273,7 +276,7 @@ server during production retirement. Either move the dev database to a
 dev-owned server first, or retain the logical server and remove only the old
 production `queenzone-db` after confirming the dev state still references it.
 
-After the observation window passes with no unresolved mismatch:
+After the approved observation period passes with no unresolved mismatch:
 
 1. Back up remote OpenTofu state and stop all applies.
 2. Use reviewed `tofu state rm` commands for the old resource addresses.

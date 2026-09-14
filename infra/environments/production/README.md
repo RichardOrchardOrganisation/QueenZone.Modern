@@ -12,10 +12,12 @@ Use [`scripts/Test-OpenTofu.ps1`](../../../scripts/Test-OpenTofu.ps1) for local 
 
 ## Phase 7 staged migration
 
-Issue #1272 moves production to `canadaeast` while retaining the imported
-`australiaeast` estate for a rollback window. The target owns the production
-hostnames and uses Cloudflare-only ingress after Stage 4. The old web and data
-resources remain protected until the observation gates permit retirement.
+Issue #1272 moved production to `canadaeast`. After four days of verified
+operation, the maintainer accepted the observation window on 14 September
+2026 and approved staged retirement of the old estate. The production root no
+longer manages the old web resources or old production database. It retains
+the Australia East SQL server because the dev environment still uses
+`queenzone-dev-db`, and it temporarily retains the old Storage account.
 
 The SQL administrator password comes from the existing Bitwarden migration
 connection-string secret. OpenTofu passes it through the AzureRM provider's
