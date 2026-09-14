@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted and implemented on **10 September 2026**. Supersedes [ADR 0017](0017-production-region-eastus.md). Stages 1–4 of #1272 are complete; the stopped Australia East estate remains only for the observation and rollback window before Stage 5 retirement.
+Accepted and implemented on **10 September 2026**. Supersedes [ADR 0017](0017-production-region-eastus.md). Stages 1–4 of #1272 are complete. Stage 5 began on **14 September 2026** by retiring the old web estate and production database after the accepted four-day observation period.
 
 ## Context
 

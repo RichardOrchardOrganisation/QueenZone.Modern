@@ -45,36 +45,6 @@ import {
 }
 
 import {
-  to = module.azure_web.azurerm_log_analytics_workspace.production
-  id = "${local.log_analytics_base_id}/workspaces/queenzone-dev-law"
-}
-
-import {
-  to = module.azure_web.azurerm_application_insights.production
-  id = "${local.azure_monitor_base_id}/components/queenzone-dev-ai"
-}
-
-import {
-  to = module.azure_web.azurerm_service_plan.production
-  id = "${local.azure_web_base_id}/serverFarms/ASP-Queenzone"
-}
-
-import {
-  to = module.azure_web.azurerm_linux_web_app.production
-  id = "${local.azure_web_base_id}/sites/queenzone-dev"
-}
-
-import {
-  to = module.azure_web.azurerm_app_service_custom_hostname_binding.production["queenzone.org"]
-  id = "${local.azure_web_base_id}/sites/queenzone-dev/hostNameBindings/queenzone.org"
-}
-
-import {
-  to = module.azure_web.azurerm_app_service_custom_hostname_binding.production["www.queenzone.org"]
-  id = "${local.azure_web_base_id}/sites/queenzone-dev/hostNameBindings/www.queenzone.org"
-}
-
-import {
   to = module.azure_data.azapi_resource.sql_server[0]
   id = "${local.azure_sql_base_id}/servers/queenzone-sql-server"
 }
@@ -85,18 +55,8 @@ import {
 }
 
 import {
-  to = module.azure_data.azurerm_mssql_database.production[0]
-  id = "${local.azure_sql_base_id}/servers/queenzone-sql-server/databases/queenzone-db"
-}
-
-import {
   to = module.azure_data.azurerm_mssql_server_extended_auditing_policy.production[0]
   id = "${local.azure_sql_base_id}/servers/queenzone-sql-server/extendedAuditingSettings/Default"
-}
-
-import {
-  to = module.azure_data.azurerm_mssql_database_extended_auditing_policy.production[0]
-  id = "${local.azure_sql_base_id}/servers/queenzone-sql-server/databases/queenzone-db/extendedAuditingSettings/Default"
 }
 
 import {

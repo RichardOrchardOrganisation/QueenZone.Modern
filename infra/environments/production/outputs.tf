@@ -18,18 +18,12 @@ output "cloudflare_scope" {
 }
 
 output "module_import_contracts" {
-  description = "Non-sensitive live names and IDs that later resource imports must match."
+  description = "Non-sensitive live names and IDs that managed resources must match."
   value = {
-    azure_web       = module.azure_web.import_contract
     azure_data      = module.azure_data.import_contract
     mobile_builds   = module.azure_mobile_builds.import_contract
     cloudflare_edge = module.cloudflare_edge.import_contract
   }
-}
-
-output "azure_web_identity_principal_id" {
-  description = "System-assigned identity principal ID; no direct role assignments were present at the 2026-08-15 audit."
-  value       = module.azure_web.managed_identity_principal_id
 }
 
 output "migration_target" {

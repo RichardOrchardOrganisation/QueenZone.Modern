@@ -30,7 +30,7 @@ flowchart LR
 - **`dev`** — always-on environment at `dev.queenzone.org`, App Service `queenzone-devbox` / resource group `Queenzone-Dev-RG`, own SQL database and storage account. Every merge to `main` auto-deploys here via `deploy-dev.yml`. See [`opentofu-dev-environment.md`](opentofu-dev-environment.md).
 - **Production** — `queenzone.org` / `www.queenzone.org`, deployed via `deploy.yml`, which now triggers on `v*` tags rather than every merge to `main` (tag-based promotion, [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) Phase 5). Promote a merged commit by tagging it once it has been exercised on `dev`.
 
-Production runs on `queenzone-prod` in `Queenzone-RG`. The previous Australia East app, `queenzone-dev`, is stopped and retained only for the #1272 observation and rollback window. The isolated dev environment remains `queenzone-devbox`.
+Production runs on `queenzone-prod` in `Queenzone-RG`. The previous Australia East app, `queenzone-dev`, and its B1 plan were retired on **14 September 2026** after the accepted four-day observation period. The isolated dev environment remains `queenzone-devbox`.
 
 Optional later:
 
@@ -38,7 +38,7 @@ Optional later:
 
 ## Region
 
-Production runs in **`canadaeast`**, decided in [ADR 0020](../decisions/0020-production-region-canadaeast.md) after Microsoft declined access to both East US regions. The dev environment stays in `australiaeast`. The previous Australia East production estate remains intact only during the #1272 observation window.
+Production runs in **`canadaeast`**, decided in [ADR 0020](../decisions/0020-production-region-canadaeast.md) after Microsoft declined access to both East US regions. The dev environment stays in `australiaeast`. Staged retirement of the previous Australia East production estate is tracked in #1482.
 
 ## Scale and cost model (single instance)
 

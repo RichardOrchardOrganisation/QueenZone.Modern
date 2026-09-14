@@ -22,25 +22,19 @@ resource "azurerm_resource_group" "production" {
   }
 }
 
-module "azure_web" {
-  source = "../../modules/azure-web"
-
-  resource_group_name = azurerm_resource_group.production.name
-  location            = azurerm_resource_group.production.location
-  sku_name            = var.app_service_sku
-  worker_count        = var.app_service_worker_count
-}
-
 module "azure_data" {
   source = "../../modules/azure-data"
 
   resource_group_id   = azurerm_resource_group.production.id
   resource_group_name = var.azure_resource_group_name
   location            = var.azure_location
+
+  # The logical server remains because the dev environment uses
+  # queenzone-dev-db. The old production database is retired separately.
+  manage_sql_database = false
 }
 
-# Phase 7 (#1272), Canada East production target. The Australia East estate
-# remains alongside it for the observation and rollback window.
+# Phase 7 (#1272), Canada East production target.
 module "azure_web_target" {
   source = "../../modules/azure-web"
 
@@ -94,16 +88,6 @@ moved {
 moved {
   from = module.azure_data.azurerm_mssql_server_extended_auditing_policy.production
   to   = module.azure_data.azurerm_mssql_server_extended_auditing_policy.production[0]
-}
-
-moved {
-  from = module.azure_data.azurerm_mssql_database.production
-  to   = module.azure_data.azurerm_mssql_database.production[0]
-}
-
-moved {
-  from = module.azure_data.azurerm_mssql_database_extended_auditing_policy.production
-  to   = module.azure_data.azurerm_mssql_database_extended_auditing_policy.production[0]
 }
 
 moved {
