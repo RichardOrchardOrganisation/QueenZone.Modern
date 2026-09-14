@@ -32,12 +32,11 @@ const fetchConversationResultMock = fetchConversationResult as jest.MockedFuncti
 const unblockConversationParticipantMock = unblockConversationParticipant as jest.MockedFunction<
   typeof unblockConversationParticipant
 >;
-const blockConversationParticipantMock = blockConversationParticipant as jest.MockedFunction<
-  typeof blockConversationParticipant
->;
 
 const conversationId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const cachedAt = '2026-09-14T12:00:00.000Z';
+const scrollToEnd = jest.fn();
+const onArchived = jest.fn();
 
 function blockedDetail() {
   return conversationDetailFixture({
@@ -59,10 +58,12 @@ describe('useConversation unblock', () => {
   beforeEach(() => {
     fetchConversationResultMock.mockReset();
     unblockConversationParticipantMock.mockReset();
-    blockConversationParticipantMock.mockReset();
     (archiveConversation as jest.Mock).mockReset();
     (replyToConversation as jest.Mock).mockReset();
     (reportConversationMessage as jest.Mock).mockReset();
+    (blockConversationParticipant as jest.Mock).mockReset();
+    scrollToEnd.mockReset();
+    onArchived.mockReset();
     fetchConversationResultMock.mockResolvedValue({
       data: blockedDetail(),
       source: 'network',
@@ -77,10 +78,7 @@ describe('useConversation unblock', () => {
     unblockConversationParticipantMock.mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
-      useConversation(conversationId, 'tok', 'member-1', {
-        scrollToEnd: jest.fn(),
-        onArchived: jest.fn(),
-      }),
+      useConversation(conversationId, 'tok', 'member-1', { scrollToEnd, onArchived }),
     );
 
     await waitFor(() => expect(result.current.detail?.hasBlockedOtherParticipant).toBe(true));
@@ -102,10 +100,7 @@ describe('useConversation unblock', () => {
     unblockConversationParticipantMock.mockRejectedValue(new ApiError(500, 'Could not unblock.'));
 
     const { result } = renderHook(() =>
-      useConversation(conversationId, 'tok', 'member-1', {
-        scrollToEnd: jest.fn(),
-        onArchived: jest.fn(),
-      }),
+      useConversation(conversationId, 'tok', 'member-1', { scrollToEnd, onArchived }),
     );
 
     await waitFor(() => expect(result.current.detail?.hasBlockedOtherParticipant).toBe(true));

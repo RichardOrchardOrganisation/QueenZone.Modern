@@ -466,25 +466,8 @@ describe('ConversationScreen', () => {
       target?.onPress?.();
     });
     const navigation = fakeNavigation();
-    fetchConversationMock.mockResolvedValueOnce(
-      conversationDetail(
-        [
-          {
-            id: theirMessageId,
-            senderMemberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-            senderDisplayName: 'Bob',
-            body: 'Hello',
-            createdAt: '2026-08-19T12:00:00.000Z',
-            isMine: false,
-            sortKey: 1,
-            reportedByViewer: false,
-          },
-        ],
-        { canSendReply: false, hasBlockedOtherParticipant: true },
-      ),
-    );
-    fetchConversationMock.mockResolvedValue(
-      conversationDetail([
+    const blockedThread = conversationDetail(
+      [
         {
           id: theirMessageId,
           senderMemberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -495,7 +478,26 @@ describe('ConversationScreen', () => {
           sortKey: 1,
           reportedByViewer: false,
         },
-      ]),
+      ],
+      { canSendReply: false, hasBlockedOtherParticipant: true },
+    );
+    const openThread = conversationDetail(
+      [
+        {
+          id: theirMessageId,
+          senderMemberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          senderDisplayName: 'Bob',
+          body: 'Hello',
+          createdAt: '2026-08-19T12:00:00.000Z',
+          isMine: false,
+          sortKey: 1,
+          reportedByViewer: false,
+        },
+      ],
+      { canSendReply: true, hasBlockedOtherParticipant: false },
+    );
+    fetchConversationMock.mockImplementation(async () =>
+      fetchConversationMock.mock.calls.length <= 1 ? blockedThread : openThread,
     );
     unblockConversationParticipantMock.mockResolvedValue(undefined);
 
@@ -515,7 +517,15 @@ describe('ConversationScreen', () => {
     await waitFor(() =>
       expect(unblockConversationParticipantMock).toHaveBeenCalledWith('tok', conversationId),
     );
-    await waitFor(() => expect(main.getByLabelText('Reply')).toBeOnTheScreen(), { timeout: 8000 });
+    await waitFor(
+      () => {
+        expect(
+          main.queryByText('You have blocked this member. They can no longer send you private messages.'),
+        ).toBeNull();
+        expect(main.queryByTestId(testIds.conversationComposer)).not.toBeNull();
+      },
+      { timeout: 8000 },
+    );
     expect(titles).toContain('Unblock member');
     expect(titles).toContain('Member unblocked');
     expect(blockConversationParticipantMock).not.toHaveBeenCalled();
