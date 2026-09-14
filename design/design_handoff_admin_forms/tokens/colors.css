@@ -63,7 +63,7 @@
   --link-hover:          var(--qz-blue-deep);
 
   --accent-archive:      var(--qz-purple);   /* historical / timeline      */
-  --accent-editorial:    var(--qz-burgundy); /* featured / premium stories */
+  --accent-editorial:    var(--qz-burgundy); /* featured / premium articles */
   --accent-cta:          var(--qz-blue);     /* primary actions            */
   --accent-special:      var(--qz-gold);     /* anniversaries / badges      */
 
