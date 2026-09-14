@@ -59,6 +59,24 @@ public sealed class SearchDocumentSearchSqlTests
     }
 
     [Fact]
+    public void Both_freetexttable_match_inserts_recompile()
+    {
+        var untypedBranch = ReadUntypedMatchInsert();
+        var typedBranch = ReadTypedMatchInsert();
+
+        Assert.Contains("OPTION (RECOMPILE)", untypedBranch, StringComparison.Ordinal);
+        Assert.Contains("OPTION (RECOMPILE)", typedBranch, StringComparison.Ordinal);
+
+        var migration = ReadRepoFile(
+            Path.Combine("src", "QueenZone.Data", "Migrations", "20260914080000_RecompileSearchDocumentSearchMatches.cs"));
+        var upStart = migration.IndexOf("protected override void Up", StringComparison.Ordinal);
+        var downStart = migration.IndexOf("protected override void Down", StringComparison.Ordinal);
+        Assert.True(upStart >= 0 && downStart > upStart, "Expected Up before Down.");
+        Assert.Equal(2, CountOccurrences(migration[upStart..downStart], "OPTION (RECOMPILE)"));
+        Assert.DoesNotContain("OPTION (RECOMPILE)", migration[downStart..], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SearchDocument_fts_uses_auto_change_tracking_not_a_sync_rebuild()
     {
         var migration = ReadRepoFile(
