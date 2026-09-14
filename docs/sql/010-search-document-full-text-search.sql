@@ -2,8 +2,10 @@
 -- Applied by EF migrations: 20260804113500_AddSearchDocumentFullTextSearch
 -- (proc body), 20260824120000_AddSearchDocumentSearchSourceKey (SourceKey column),
 -- 20260827143000_CapSearchDocumentSearchMatches (single FTS pass + rank cap),
--- and 20260908140000_CapTypedSearchAfterContentTypeFilter (typed search caps after
--- the ContentType filter so a track-title hit is not crowded out of the global top 1000).
+-- 20260908140000_CapTypedSearchAfterContentTypeFilter (typed search caps after
+-- the ContentType filter so a track-title hit is not crowded out of the global top 1000),
+-- and 20260914080000_RecompileSearchDocumentSearchMatches (OPTION (RECOMPILE) on both
+-- FREETEXTTABLE match inserts).
 -- See docs/sql/README.md for contributor conventions.
 --
 -- Unlike the per-content-type NEWS_T_SearchPublished / ModernForum_SearchThreads procs, this
@@ -17,6 +19,18 @@
 -- Typed search (@ContentType set) must not reuse that global cap. News and forum rows fill
 -- the top 1000 for common terms, so a discography album whose track title lives only in Body
 -- never entered #Matches. Filter ContentType first, then apply the same rank cap.
+--
+-- Both FREETEXTTABLE match inserts carry OPTION (RECOMPILE). @MatchLimit and @ContentType
+-- are local variables, not literals, so without RECOMPILE the optimizer compiles (and then
+-- reuses) one cached plan for whatever @Query/@ContentType happened to run first. Full-text
+-- selectivity swings enormously by search term -- a rare term and a query built from
+-- individually common words (e.g. "Live Aid 1985": "Live" and "Aid" each hit a large
+-- fraction of a Queen fan archive on their own) need very different plans, and the
+-- top_n_by_rank push-down into the full-text engine itself only reliably kicks in when the
+-- limit is known at compile time. A stale plan sniffed from an unrepresentative first call
+-- reused a full-corpus rank/sort strategy for "Live Aid 1985" and blew the 30-second command
+-- timeout even though @MatchLimit capped the row count. RECOMPILE trades a small per-call
+-- compile cost for a plan built from that call's actual parameter values every time.
 
 CREATE OR ALTER PROCEDURE dbo.SearchDocument_Search
     @Query        NVARCHAR(500),
@@ -45,7 +59,8 @@ BEGIN
     BEGIN
         INSERT INTO #Matches (DocumentId, SearchRank)
         SELECT ft.[KEY], ft.[RANK]
-        FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft;
+        FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft
+        OPTION (RECOMPILE);
     END
     ELSE
     BEGIN
@@ -56,7 +71,8 @@ BEGIN
         FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query) ft
         INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
         WHERE  d.ContentType = @ContentType
-        ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC;
+        ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
+        OPTION (RECOMPILE);
     END
 
     SELECT

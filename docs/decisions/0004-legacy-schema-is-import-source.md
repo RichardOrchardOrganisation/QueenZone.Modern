@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0021](0021-legacy-database-is-production.md). The
+"import source" framing below no longer holds — the legacy database is the
+permanent production database, not a source feeding a separate destination.
+The operational description of which tables serve which reads (forum on
+`ModernForum*`, other content on legacy tables) is still accurate and is
+carried forward informally in ADR 0021.
 
 Amended 2026-07-09: forum public reads now use modern projected tables by default; other content areas may continue reading legacy tables unless performance or safety problems appear.
 

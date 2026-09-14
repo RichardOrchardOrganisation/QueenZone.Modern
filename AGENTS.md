@@ -412,7 +412,7 @@ Fan-performance audio is **not** a public CDN object. Signed-in members stream t
 - Allow deliberately designed editorial workflows for new approved news articles.
 - Do not port Web Forms architecture.
 - Keep all SQL Server access inside `QueenZone.Data` (no ad-hoc SQL in page models/tools). See ADR 0006 for the Dapper/EF matrix: new writes default to EF; complex legacy/projected reads may keep SQL/procs; target direction is EF Core as the single client library while retaining stored procedures for hot paths.
-- Treat the legacy database as an import source and historical reference. Forum public reads use modern projected tables by default; other public content may keep reading legacy tables unless performance or safety problems appear.
+- The legacy database (`queenzone-db`) is the permanent production database, not an import source for a separate future one (ADR 0021) — legacy schema may be altered through the same reviewed-migration discipline as modern tables. Forum public reads use modern projected tables by default; other public content may keep reading legacy tables unless performance or safety problems appear.
 - Prefer clean, stable, search-friendly canonical URLs over preserving legacy URL shapes.
 - Never expose private, hidden, deleted, moderated, or credential-related data by default.
 
