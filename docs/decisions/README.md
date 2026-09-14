@@ -26,4 +26,4 @@ next free number.
 | [0019](0019-api-versioning-convention.md) | API versioning convention (mobile / store-lag) | Accepted |
 | [0020](0020-production-region-canadaeast.md) | Production Azure region — `canadaeast` | Accepted |
 | [0021](0021-legacy-database-is-production.md) | The legacy database is the production database | Accepted |
-| [0022](0022-nightly-legacy-db-sync-strategy.md) | Nightly legacy DB sync strategy | Proposed |
+| [0022](0022-nightly-legacy-db-sync-strategy.md) | Nightly legacy DB sync strategy | Accepted |

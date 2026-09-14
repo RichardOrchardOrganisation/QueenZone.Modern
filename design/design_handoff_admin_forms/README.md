@@ -14,7 +14,7 @@ The design decision behind everything here: **admin is the same design system sp
 
 `admin-forms.css` is a **reference implementation** of the same rules in plain CSS against the design-system tokens. If the codebase uses vanilla CSS or CSS modules it can be adopted nearly as-is; if it uses Tailwind, styled-components, or a component library, treat it as the authoritative value table and port the values.
 
-`tokens/` contains the design system's token files verbatim. **Do not redefine these values** — the admin layer must consume the same variables the public site does. In the codebase these are already loaded; they are included here so the CSS is readable standalone.
+`tokens/` contains the design system's token files verbatim. **Do not redefine these values** — the admin layer must consume the same variables the public site does. In the codebase these are already loaded; they are included here so the CSS is readable standalone. `tokens/` is a copy of `design/tokens/` (the canonical source); don't hand-edit it — run `pwsh ./scripts/Sync-DesignTokens.ps1` from the repo root to refresh it after `design/tokens/` changes.
 
 ## Fidelity
 
