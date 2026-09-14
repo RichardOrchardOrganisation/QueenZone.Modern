@@ -327,6 +327,17 @@ export type ForumPostCreated = {
   detailPath: string;
 };
 
+export type ForumPostReportResponse = {
+  reportId: string;
+  status: 'Open' | 'Reviewed' | 'Dismissed' | 'Actioned';
+  alreadyReported: boolean;
+};
+
+export type ForumPostModerationState = {
+  reportedPostIds: number[];
+  blockedMemberIds: string[];
+};
+
 export type ForumPollOption = {
   optionId: string;
   optionText: string;

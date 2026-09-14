@@ -18,6 +18,10 @@
 
 <section class="qz-section">
   <div class="qz-container">
+    @if (TempData[ReportModel.StatusMessageKey] is string reportMessage)
+    {
+      <p class="qz-account-notice qz-account-notice--success" role="status">@reportMessage</p>
+    }
     <partial name="_SectionHeader" model="@(("Thread", "Posts in chronological order", false, "/search", "Search forum"))" />
     <partial name="_ForumTopicWatch" />
     <partial name="_ArchivePagination" model="ForumRoutes.GetTopicPaginationViewModel(header, Model.CurrentPage, Model.TotalPages)" />

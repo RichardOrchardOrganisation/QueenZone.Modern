@@ -43,6 +43,7 @@ import { PhotoSubmitScreen } from '../screens/photos/PhotoSubmitScreen';
 import { ForumScreen } from '../screens/forum/ForumScreen';
 import { CategoryScreen } from '../screens/forum/CategoryScreen';
 import { ThreadScreen } from '../screens/forum/ThreadScreen';
+import { ForumReportScreen } from '../screens/forum/ForumReportScreen';
 import { ComposerScreen } from '../screens/forum/ComposerScreen';
 import { ForumIndexHeaderRight, HeaderBackButton, NewsIndexHeaderRight, SearchIdentityHeaderRight } from './headerButtons';
 import type {
@@ -259,6 +260,7 @@ export function ForumStack() {
       />
       <Forum.Screen name="Category" component={CategoryScreen} options={{ title: 'Board' }} />
       <Forum.Screen name="Thread" component={ThreadScreen} />
+      <Forum.Screen name="ForumReport" component={ForumReportScreen} options={{ title: 'Report post', presentation: 'modal' }} />
       <Forum.Screen name="Composer" component={ComposerScreen} options={{ title: 'Compose', presentation: 'modal' }} />
       {commonScreens(Forum)}
     </Forum.Navigator>
