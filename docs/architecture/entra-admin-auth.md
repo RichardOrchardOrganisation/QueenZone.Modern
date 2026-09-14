@@ -23,7 +23,7 @@ Unauthenticated access to `/admin/*` must challenge **Entra OIDC**, not the publ
 
 Dual-role users may hold both member and Entra cookies. `AdminAccess` always reads the Entra admin cookie; the member cookie cannot override it. Shared editor uploads use the separate `AuthoringAccess` composite scheme so both members and authenticated admins can continue to upload rich-text images.
 
-## What was configured (2026-07-23)
+## Production registration (configured 2026-07-23)
 
 | Item | Value / note |
 | --- | --- |
@@ -39,6 +39,27 @@ Dual-role users may hold both member and Entra cookies. `AdminAccess` always rea
 | Access control | Entra signs the user in; **admin rights** still require the signed-in email to match `Admin:AllowedEmails` |
 
 This hobby-site configuration supports personal Microsoft accounts through the `common` endpoint. MFA is controlled on each personal Microsoft account. QueenZone does not claim to enforce tenant Conditional Access or enterprise-app assignment.
+
+## Dev registration (configured 2026-09-05)
+
+Dev uses a separate, tenant-only registration. Do not copy the production client ID or `common` tenant setting into dev.
+
+| Item | Value / note |
+| --- | --- |
+| App Service | `queenzone-devbox` in resource group `Queenzone-Dev-RG` |
+| Entra app display name | **QueenZone Dev Admin** |
+| Application (client) ID | `fe98ef8d-1b6d-47bd-83e1-190e483f121f` |
+| Sign-in audience | `AzureADMyOrg` (Thinking Websites tenant only) |
+| Tenant setting for the app | `AzureAd__TenantId=c9f094fd-23bf-4a35-a406-bcaacd7e1a8e` |
+| Client secret display name | `QueenZone dev App Service` |
+| Client secret created | **2026-09-05** |
+| **Renew secret by** | **2028-08-15** (expires **2028-09-05**) |
+| ID token issuance | **Enabled** on the web platform; required by the `id_token` OIDC response flow |
+| Redirect URI | `https://dev.queenzone.org/signin-oidc` |
+
+ID-token issuance was enabled on **2026-09-14** after Entra sign-in logs showed `AADSTS700054`. Without it, Entra rejects the callback flow before the application can create the admin session.
+
+The admin and member OAuth registrations remain operator-managed. They are deliberately outside the OpenTofu estate; see [`opentofu-inventory.md`](opentofu-inventory.md#entra--identity-reference). Do not add an `azuread_application` resource without a separate identity-stack decision and a reviewed import plan for the existing registrations.
 
 ### Admin allowlist (not secrets, still not committed)
 
@@ -57,9 +78,15 @@ Do not treat the allowlist as a secret, but also do not treat committed appsetti
 
 ### Redirect URIs (web)
 
+Production registration:
+
 - `https://www.queenzone.org/signin-oidc`
 - `https://queenzone.org/signin-oidc`
 - `https://queenzone-prod.azurewebsites.net/signin-oidc`
+
+Dev registration:
+
+- `https://dev.queenzone.org/signin-oidc`
 
 Add further hosts here (and in Entra) if you introduce staging slots or new custom domains.
 
@@ -70,8 +97,8 @@ Use double-underscore names (ASP.NET Core nested config):
 | App setting | Purpose |
 | --- | --- |
 | `AzureAd__Instance` | `https://login.microsoftonline.com/` |
-| `AzureAd__TenantId` | `common` |
-| `AzureAd__ClientId` | Application (client) ID above |
+| `AzureAd__TenantId` | `common` in production; the Thinking Websites tenant ID in dev |
+| `AzureAd__ClientId` | Environment-specific application (client) ID above |
 | `AzureAd__ClientSecret` | Client secret value (never commit) |
 | `AzureAd__CallbackPath` | `/signin-oidc` |
 
@@ -98,7 +125,7 @@ Never put connection strings, client secrets, storage keys, or OpenRouter keys i
 
 Do not point `AzureAd__*` at the member-login app without also aligning redirect URIs and OIDC vs OAuth schemes.
 
-## Verify current App Service config
+## Verify current configuration
 
 Requires `az login` with access to subscription **Base Thinking** / the QueenZone resource group.
 
@@ -112,10 +139,51 @@ az webapp config appsettings list `
 
 Expect five `AzureAd__*` rows with non-zero lengths. Do not print secret values into logs, issues, or PRs.
 
+Run the same name-and-length check against dev:
+
 ```powershell
-az ad app show --id f6d32f3b-7a4e-4517-a4d1-0995caad8feb `
-  --query "{displayName:displayName, appId:appId, redirectUris:web.redirectUris, idToken:web.implicitGrantSettings.enableIdTokenIssuance}" `
-  -o json
+az webapp config appsettings list `
+  --name queenzone-devbox `
+  --resource-group Queenzone-Dev-RG `
+  --query "[?starts_with(name, 'AzureAd')].{name:name, length:length(value)}" `
+  -o table
+```
+
+Validate both app registrations without reading secret values:
+
+```powershell
+$adminRegistrations = @(
+  @{
+    Environment = "production"
+    ClientId = "f6d32f3b-7a4e-4517-a4d1-0995caad8feb"
+    Audience = "AzureADandPersonalMicrosoftAccount"
+    RedirectUri = "https://www.queenzone.org/signin-oidc"
+  },
+  @{
+    Environment = "dev"
+    ClientId = "fe98ef8d-1b6d-47bd-83e1-190e483f121f"
+    Audience = "AzureADMyOrg"
+    RedirectUri = "https://dev.queenzone.org/signin-oidc"
+  }
+)
+
+foreach ($expected in $adminRegistrations) {
+  $actual = az ad app show --id $expected.ClientId `
+    --query "{audience:signInAudience, redirectUris:web.redirectUris, idToken:web.implicitGrantSettings.enableIdTokenIssuance}" `
+    -o json | ConvertFrom-Json
+
+  if (-not $actual.idToken) {
+    throw "$($expected.Environment) admin registration does not issue ID tokens."
+  }
+  if ($actual.audience -ne $expected.Audience) {
+    throw "$($expected.Environment) admin registration has the wrong sign-in audience."
+  }
+  if ($actual.redirectUris -notcontains $expected.RedirectUri) {
+    throw "$($expected.Environment) admin callback URI is missing."
+  }
+
+  Write-Host "$($expected.Environment) admin registration is valid."
+}
 ```
 
 Smoke after restart:
@@ -176,6 +244,8 @@ Local Development may leave `AzureAd:ClientId` empty and use `X-Test-User-Email`
 | --- | --- |
 | App fails to start after deploy | Missing/placeholder `AzureAd__ClientId` on App Service (Phase A fail-closed) |
 | Entra login error on redirect | Redirect URI not registered, or wrong ClientId |
+| `AADSTS700054` after Entra sign-in | ID-token issuance is disabled on the environment's Entra app registration |
+| Direct `GET /signin-oidc` returns 500 | Expected malformed callback: enter through `/admin`; the valid Entra callback is a state-bearing `POST` |
 | Signed in but 403 on `/admin` | Email not in `Admin:AllowedEmails` (check claim `email` / `preferred_username`) |
 | Signed in as a member but challenged again on `/admin` | Expected: member OAuth is separate; complete the QueenZone Admin Microsoft sign-in |
 | Sudden admin login failure after long uptime | **Expired client secret** — follow renewal steps above |

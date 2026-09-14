@@ -46,7 +46,7 @@ export function DestinationRow({
           borderTopWidth: 1,
           borderTopColor: c.hairline,
         },
-        Platform.OS === 'ios' && pressed ? { backgroundColor: 'rgba(255,255,255,0.04)' } : null,
+        Platform.OS === 'ios' && pressed ? { backgroundColor: c.accentTintWeak } : null,
       ]}
     >
       <ArchiveIconPlate name={icon} size={space.thumb} />

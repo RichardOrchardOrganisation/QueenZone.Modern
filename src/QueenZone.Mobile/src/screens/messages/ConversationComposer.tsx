@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError } from '../../api/client';
-import { fonts, palette, radius, space, type, useTheme } from '../../theme';
+import { fonts, radius, space, type, useTheme } from '../../theme';
 import { testIds } from '../../test/testIds';
 import { Button } from '../../ui/Button';
 import { conversationBodyMaxLength, validateReplyBody } from './inboxMeta';
@@ -102,7 +102,7 @@ export const ConversationComposer = memo(function ConversationComposer({
       ]}
     >
       <View style={styles.composerContext}>
-        <Text style={[styles.attribution, { color: 'rgba(255,255,255,0.45)' }]} numberOfLines={1}>
+        <Text style={[styles.attribution, { color: c.textMuted }]} numberOfLines={1}>
           REPLYING TO {correspondentName.toUpperCase()}
         </Text>
         <Pressable
@@ -115,7 +115,7 @@ export const ConversationComposer = memo(function ConversationComposer({
           hitSlop={8}
           style={[styles.archiveTap, archiving ? { opacity: 0.5 } : null]}
         >
-          <Text style={[styles.attribution, { color: palette.gold }]}>
+          <Text style={[styles.attribution, { color: c.accentPrimary }]}>
             {archiving ? 'ARCHIVING…' : 'ARCHIVE'}
           </Text>
         </Pressable>
@@ -125,7 +125,7 @@ export const ConversationComposer = memo(function ConversationComposer({
         value={draft}
         onChangeText={setDraft}
         placeholder="Write a reply"
-        placeholderTextColor="rgba(255,255,255,0.45)"
+        placeholderTextColor={c.textMuted}
         accessibilityLabel="Reply"
         multiline
         textAlignVertical="top"
@@ -133,7 +133,10 @@ export const ConversationComposer = memo(function ConversationComposer({
         autoCapitalize="sentences"
         maxLength={conversationBodyMaxLength}
         editable={!submitting}
-        style={styles.field}
+        style={[
+          styles.field,
+          { borderColor: c.borderStrong, backgroundColor: c.surfaceCard, color: c.textPrimary },
+        ]}
       />
       {submitError ? (
         <Text style={[type.caption, { color: c.textSecondary }]}>{submitError}</Text>
@@ -175,13 +178,10 @@ const styles = StyleSheet.create({
     minHeight: 44,
     maxHeight: 120,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontFamily: fonts.body,
     fontSize: 16,
-    color: palette.white,
   },
 });

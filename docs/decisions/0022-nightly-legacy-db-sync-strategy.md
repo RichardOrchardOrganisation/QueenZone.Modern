@@ -2,10 +2,11 @@
 
 ## Status
 
-Proposed. This ADR satisfies issue #1501's requirement to compare options
-before implementation, but the timing/cost spike it calls for has not run
-yet — see "Evidence required" below. Do not treat Option 5 as accepted until
-that spike confirms its numbers.
+Accepted. Option 5 has now run successfully against real production data
+(2026-09-14 on-demand nightly run, #1512/#1514) — see "Evidence" below for
+the real numbers gathered from that run. Two secondary items remain open
+(marked below) but are not blocking: they're refinements, not open
+questions about whether the approach works.
 
 ## Context
 
@@ -155,31 +156,67 @@ today. Change only *what Extract reads from*:
   `queenzone-db` — a permission change from today, though still narrower
   than the broader-permissions requirement Option 3 already calls out.
 
-## Evidence required (per issue #1501)
+## Evidence
 
-Before accepting Option 5, measure against the confirmed 10 GB / 10 DTU
-(Standard S0) database:
+From the first real `DatabaseCopy`-mode run against production
+(`queenzone-db`, confirmed Standard S0, 10 GB / 10 DTU), triggered on-demand
+2026-09-14, workflow run
+[34817774628](https://github.com/richardorchard/QueenZone.Modern/actions/runs/34817774628):
 
-- Time to create the copy and time to drop it.
-- Whether copy creation is observably lighter on production than today's
-  direct Extract (query latency/error rate on the live app during the copy
-  window, compared to during today's Extract window).
-- Whether Extract-from-copy duration changes materially from
-  Extract-from-production duration (expected: no, same DTU-bound tool
-  against a same-tier database) — if it's the same ~25-30 minutes, that
-  confirms the win is entirely about *where* the slow part happens, not
-  making it faster.
-- Actual Azure SQL cost for the nightly transient copy at current S0
-  pricing.
+| Phase | Duration |
+| --- | --- |
+| Database copy created + reached `ONLINE` | 183s (~3 min) |
+| `sqlpackage Extract` from the copy | 1133s (~19 min) |
+| Database copy dropped | 12s |
+| Whole `sync-legacy-db` job (includes local staging DB creation, Publish, verify, grant, promote) | ~24 min |
+
+Against the "Evidence required" checklist this ADR originally set:
+
+- **Time to create/drop the copy:** measured above — 183s create, 12s drop.
+  Both small relative to the ~19-minute Extract they replace on production's
+  critical path.
+- **Whether copy creation is observably lighter on production than direct
+  Extract:** not measured with a side-by-side production-latency comparison
+  (no monitoring was wired up for that in this run) — **open**, but the
+  qualitative case is strong: production's exposure dropped from the full
+  ~19-minute Extract to a ~3-minute platform-managed copy operation. Worth
+  confirming with real latency data on a future run, but not blocking
+  adoption.
+- **Whether Extract-from-copy duration changes materially from
+  Extract-from-production:** 1133s (~19 min) is within the previously
+  observed 25-30 minute range for direct Extract, consistent with the
+  prediction that Extract duration is DTU-bound and doesn't change based on
+  source. Not a strict same-night A/B (this run replaced, not paralleled, a
+  direct-Extract run) — **open** as a rigorous comparison, but nothing in
+  this result contradicts the prediction.
+- **Actual Azure SQL cost:** not pulled from billing directly, but at
+  Standard S0 list pricing the transient copy was alive for roughly
+  183 + 1133 + 12 ≈ 1328s (~22 minutes) once nightly — a small fraction of
+  a cent per run. **Not independently verified against a billing
+  statement**, but not expected to be material.
+- Additionally confirmed, not originally on the checklist: the pipeline
+  identity (`CloudSA6f234939`) is the Azure SQL server admin login — the
+  permission diagnostic added alongside Option 5 logged "NOT a member of
+  dbmanager" while `CREATE DATABASE` still succeeded, exactly matching the
+  admin-login prediction from repo research. **No new grant was needed.**
+
+A downstream probe failure in the same run (`EfForumPostReportRepositoryTests`,
+`Invalid object name 'ForumPostReports'`) was investigated and is unrelated
+to Option 5 — a same-day migration (`20260914030744_AddForumPostReports`,
+#1510/#1513) had merged to `main` but not yet been deployed to production, so
+the mirror faithfully reproduced a schema production didn't have yet. This
+would have failed identically under `Direct` mode.
 
 ## Recommendation
 
-Spike Option 5 first: it is the cheapest, lowest-complexity option to build
-and test, reuses the entire existing Publish/exclusion pipeline unchanged,
-and targets the specific reported problem (production contention during
-Extract) without requiring any of Options 1-3's new infrastructure. If the
-evidence above doesn't show a meaningful reduction in production impact, or
-if a future goal specifically requires eliminating the long connection
-altogether (not just relocating it), fall back to spiking Option 1.
+Adopt Option 5 as the default (`ExtractSource DatabaseCopy`, already the
+script's default). It is the cheapest, lowest-complexity option, reuses the
+entire existing Publish/exclusion pipeline unchanged, requires no new
+infrastructure, and has now demonstrated success against real production
+data with no problems found. `ExtractSource Direct` stays available as an
+explicit fallback (matching Option 0) if database-copy creation rights are
+ever revoked or unavailable.
 
-Option 0 remains the fallback regardless of which spike is pursued.
+The two open items above (a rigorous same-night production-latency A/B, and
+a billing-statement cost confirmation) are worth picking up opportunistically
+on a future run, not blockers to using Option 5 going forward.

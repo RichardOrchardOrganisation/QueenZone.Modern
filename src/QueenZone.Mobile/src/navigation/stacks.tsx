@@ -6,6 +6,7 @@ import { HomeScreen } from '../screens/home/HomeScreen';
 import { QuoteScreen } from '../screens/home/QuoteScreen';
 
 import { ProfileScreen } from '../screens/account/ProfileScreen';
+import { AppearanceScreen } from '../screens/account/AppearanceScreen';
 import { SettingsScreen } from '../screens/account/SettingsScreen';
 import { AnalyticsSettingsScreen } from '../screens/account/AnalyticsSettingsScreen';
 import { ContactScreen } from '../screens/account/ContactScreen';
@@ -116,6 +117,7 @@ export function HomeStack() {
           ),
         })}
       />
+      <Home.Screen name="Appearance" component={AppearanceScreen} />
       <Home.Screen name="Settings" component={SettingsScreen} />
       <Home.Screen
         name="AnalyticsSettings"
