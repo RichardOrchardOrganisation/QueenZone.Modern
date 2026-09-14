@@ -72,4 +72,18 @@ public sealed class EfMobileAuthGrantRepository(QueenZoneDbContext dbContext) : 
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(token => token.RevokedAt, utcNow),
                 cancellationToken);
+
+    public async Task<bool> LinkRefreshTokenRotationAsync(
+        string oldTokenHash,
+        string newTokenHash,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await dbContext.MobileAuthRefreshTokens
+            .Where(token => token.TokenHash == oldTokenHash && token.ReplacedByTokenHash == null)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(token => token.ReplacedByTokenHash, newTokenHash),
+                cancellationToken);
+
+        return updated == 1;
+    }
 }

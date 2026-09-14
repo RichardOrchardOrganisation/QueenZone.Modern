@@ -238,9 +238,44 @@ public sealed class MobileAuthService(
         if (stored.RevokedAt is not null)
         {
             // Refresh-token reuse: the presented grant was already rotated away.
-            // Revoking every grant signs the member out on every device, so this
-            // must be visible — a client that lost a rotation response looks the
-            // same as a stolen token from here.
+            // Within a short grace window this is usually a client that never saw
+            // its rotation response (killed mid launch, dropped connection, ...),
+            // not a stolen token — trace forward to whatever grant replaced it and
+            // rotate that instead of nuking every device. Outside the window, or
+            // when the chain doesn't lead anywhere live, treat it as theft: revoke
+            // everything and make that visible.
+            var withinGraceWindow = mobile.RefreshTokenReuseGraceSeconds > 0
+                && now - stored.RevokedAt.Value <= TimeSpan.FromSeconds(mobile.RefreshTokenReuseGraceSeconds);
+
+            var active = withinGraceWindow
+                ? await FindActiveDescendantAsync(stored, clientId!, now, cancellationToken)
+                : null;
+
+            if (active is not null)
+            {
+                logger.LogInformation(
+                    "Mobile auth refresh replayed an already-rotated token within the reuse grace window "
+                        + "for member {MemberId}; rotating the current grant instead of revoking all grants.",
+                    stored.MemberAccountId);
+
+                if (!await grants.TryRevokeRefreshTokenAsync(active.TokenHash, now, cancellationToken))
+                {
+                    // Lost this rotation race too; let the caller retry.
+                    return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
+                }
+
+                var recoveredAccount = await memberAccountService.FindByIdAsync(
+                    active.MemberAccountId,
+                    cancellationToken);
+                if (recoveredAccount is null || recoveredAccount.IsSuspended)
+                {
+                    await grants.RevokeAllRefreshTokensForMemberAsync(active.MemberAccountId, now, cancellationToken);
+                    return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
+                }
+
+                return await IssueTokenPairAsync(recoveredAccount, now, cancellationToken, active.TokenHash);
+            }
+
             logger.LogWarning(
                 "Mobile auth refresh-token reuse detected for member {MemberId}; revoking all grants. "
                     + "Grant issued {CreatedAt:o}, revoked {RevokedAt:o}.",
@@ -286,7 +321,7 @@ public sealed class MobileAuthService(
             return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
         }
 
-        return await IssueTokenPairAsync(account, now, cancellationToken);
+        return await IssueTokenPairAsync(account, now, cancellationToken, tokenHash);
     }
 
     public async Task<MobileAuthTokenResult> ExchangePasswordGrantAsync(
@@ -353,16 +388,18 @@ public sealed class MobileAuthService(
     private async Task<MobileAuthTokenResult> IssueTokenPairAsync(
         MemberAccount account,
         DateTime utcNow,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? rotatedFromTokenHash = null)
     {
         var mobile = options.Value;
         var accessToken = tokens.IssueAccessToken(account.Id, account.Email, account.DisplayName);
         var refreshToken = MobileAuthPkce.CreateOpaqueToken();
+        var refreshTokenHash = MobileAuthPkce.Sha256Hex(refreshToken);
         await grants.StoreRefreshTokenAsync(
             new MobileAuthRefreshTokenEntity
             {
                 Id = Guid.NewGuid(),
-                TokenHash = MobileAuthPkce.Sha256Hex(refreshToken),
+                TokenHash = refreshTokenHash,
                 MemberAccountId = account.Id,
                 ClientId = mobile.ClientId,
                 CreatedAt = utcNow,
@@ -370,11 +407,51 @@ public sealed class MobileAuthService(
             },
             cancellationToken);
 
+        if (rotatedFromTokenHash is not null)
+        {
+            await grants.LinkRefreshTokenRotationAsync(rotatedFromTokenHash, refreshTokenHash, cancellationToken);
+        }
+
         return MobileAuthTokenResult.Succeeded(
             accessToken,
             refreshToken,
             tokens.AccessTokenLifetimeSeconds);
     }
+
+    /// <summary>
+    /// Walks a chain of <see cref="MobileAuthRefreshTokenEntity.ReplacedByTokenHash"/>
+    /// pointers forward from an already-rotated token to find the grant that is
+    /// still active — the one a client would have received had its rotation
+    /// response not been lost. Bounded to guard against an unexpectedly long or
+    /// cyclical chain; a real rotation chain within the grace window is one hop.
+    /// </summary>
+    private async Task<MobileAuthRefreshTokenEntity?> FindActiveDescendantAsync(
+        MobileAuthRefreshTokenEntity token,
+        string clientId,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        var next = token.ReplacedByTokenHash;
+        for (var hop = 0; hop < MaxReuseChainHops && next is not null; hop++)
+        {
+            var candidate = await grants.FindRefreshTokenByHashAsync(next, cancellationToken);
+            if (candidate is null || !string.Equals(candidate.ClientId, clientId, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            if (candidate.RevokedAt is null)
+            {
+                return candidate.ExpiresAt > utcNow ? candidate : null;
+            }
+
+            next = candidate.ReplacedByTokenHash;
+        }
+
+        return null;
+    }
+
+    private const int MaxReuseChainHops = 5;
 
     public static bool IsRegisteredRedirectUri(MobileAuthOptions mobile, string? redirectUri)
     {

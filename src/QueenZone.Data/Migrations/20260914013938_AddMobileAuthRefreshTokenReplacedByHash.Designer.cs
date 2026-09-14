@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QueenZone.Data;
 
@@ -11,9 +12,11 @@ using QueenZone.Data;
 namespace QueenZone.Data.Migrations
 {
     [DbContext(typeof(QueenZoneDbContext))]
-    partial class QueenZoneDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260914013938_AddMobileAuthRefreshTokenReplacedByHash")]
+    partial class AddMobileAuthRefreshTokenReplacedByHash
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -606,114 +609,6 @@ namespace QueenZone.Data.Migrations
                         .HasDatabaseName("IX_ForumPostAttachments_PostId");
 
                     b.ToTable("ForumPostAttachments", (string)null);
-                });
-
-            modelBuilder.Entity("QueenZone.Data.Entities.ForumPostReportAuditLogEntity", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ActorEmail")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("Details")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("ReportId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReportId", "OccurredAt")
-                        .IsDescending(false, true)
-                        .HasDatabaseName("IX_ForumPostReportAuditLog_ReportId_OccurredAt");
-
-                    b.ToTable("ForumPostReportAuditLog", (string)null);
-                });
-
-            modelBuilder.Entity("QueenZone.Data.Entities.ForumPostReportEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AuthorDisplayNameSnapshot")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ContextJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Details")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("PostBodySnapshot")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset>("PostCreatedAtSnapshot")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("PostId")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("ReportedMemberId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ReporterMemberId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ThreadTitleSnapshot")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("TopicId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReportedMemberId")
-                        .HasDatabaseName("IX_ForumPostReports_ReportedMember");
-
-                    b.HasIndex("ReporterMemberId", "PostId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ForumPostReports_Reporter_Post");
-
-                    b.HasIndex("Status", "CreatedAt")
-                        .IsDescending(false, true)
-                        .HasDatabaseName("IX_ForumPostReports_Status_CreatedAt");
-
-                    b.ToTable("ForumPostReports", (string)null);
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.HelpRequestEntity", b =>
@@ -1427,7 +1322,6 @@ namespace QueenZone.Data.Migrations
                     b.ToTable("ModernForumPost", null, t =>
                         {
                             t.ExcludeFromMigrations();
-                            t.HasTrigger("TR_ModernForumPost_RefreshArchiveAuthorSummary");
                         });
                 });
 
@@ -3253,24 +3147,6 @@ namespace QueenZone.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Post");
-                });
-
-            modelBuilder.Entity("QueenZone.Data.Entities.ForumPostReportEntity", b =>
-                {
-                    b.HasOne("QueenZone.Data.Entities.MemberAccount", "Reported")
-                        .WithMany()
-                        .HasForeignKey("ReportedMemberId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("QueenZone.Data.Entities.MemberAccount", "Reporter")
-                        .WithMany()
-                        .HasForeignKey("ReporterMemberId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Reported");
-
-                    b.Navigation("Reporter");
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.HelpRequestEntity", b =>
