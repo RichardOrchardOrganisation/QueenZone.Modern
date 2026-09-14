@@ -116,6 +116,76 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
+    public async Task Get_NewsTab_ResolvesPromotedArticlesInSingleBatch()
+    {
+        var firstArticle = new NewsItem(
+            1002,
+            "First promoted story",
+            "First excerpt",
+            "First body",
+            new DateTime(2026, 9, 13, 9, 0, 0, DateTimeKind.Utc),
+            null,
+            true,
+            "first-promoted-story");
+        var secondArticle = new NewsItem(
+            1003,
+            "Second promoted story",
+            "Second excerpt",
+            "Second body",
+            new DateTime(2026, 9, 14, 9, 0, 0, DateTimeKind.Utc),
+            null,
+            true,
+            "second-promoted-story");
+        var trackingNews = new TrackingNewsRepository(new FixedNewsRepository([firstArticle, secondArticle]));
+        using var testFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<INewsRepository>();
+                services.AddSingleton<INewsRepository>(trackingNews);
+            }));
+        const string email = "mysubs-news-batch@example.com";
+        var client = await CreateSignedInMemberClientAsync(
+            email,
+            "News Batch Fan",
+            "google-mysubs-news-batch",
+            new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            },
+            testFactory);
+
+        await SubmitNewsAsync(client, "https://example.com/first-promoted-story", "First suggestion");
+        await SubmitNewsAsync(client, "https://example.com/second-promoted-story", "Second suggestion");
+
+        var member = await testFactory.Services
+            .GetRequiredService<IMemberAccountRepository>()
+            .FindByEmailAsync(email);
+        Assert.NotNull(member);
+        var suggestionRepository = testFactory.Services.GetRequiredService<INewsSuggestionRepository>();
+        var suggestions = await suggestionRepository.GetBySubmitterAsync(member.Id);
+        Assert.Equal(2, suggestions.Items.Count);
+        await suggestionRepository.PromoteAsync(
+            suggestions.Items[0].Id,
+            firstArticle.Id,
+            "admin@test.local",
+            null);
+        await suggestionRepository.PromoteAsync(
+            suggestions.Items[1].Id,
+            secondArticle.Id,
+            "admin@test.local",
+            null);
+
+        var page = await client.GetStringAsync("/account/my-submissions?tab=news");
+
+        Assert.Equal(1, trackingNews.GetByIdsCallCount);
+        Assert.Equal(0, trackingNews.GetByIdCallCount);
+        Assert.Equal([firstArticle.Id, secondArticle.Id], trackingNews.LastRequestedIds.Order());
+        Assert.Contains(NewsRoutes.GetNewsDetailPath(firstArticle), page);
+        Assert.Contains(NewsRoutes.GetNewsDetailPath(secondArticle), page);
+    }
+
+    [Fact]
     public async Task Get_ArticleDraft_LinksToSubmitArticleIdPath()
     {
         var client = await CreateSignedInMemberClientAsync(
@@ -312,9 +382,10 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         string email,
         string displayName,
         string subject,
-        WebApplicationFactoryClientOptions? options = null)
+        WebApplicationFactoryClientOptions? options = null,
+        WebApplicationFactory<Program>? sourceFactory = null)
     {
-        var client = factory.CreateClient(options ?? new WebApplicationFactoryClientOptions
+        var client = (sourceFactory ?? factory).CreateClient(options ?? new WebApplicationFactoryClientOptions
         {
             HandleCookies = true,
             AllowAutoRedirect = true,
@@ -353,4 +424,59 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
 
     [GeneratedRegex("""name="DraftId"[^>]*value="(?<id>[^"]+)""", RegexOptions.IgnoreCase)]
     private static partial Regex DraftIdRegex();
+
+    private sealed class TrackingNewsRepository(INewsRepository inner) : INewsRepository
+    {
+        public int GetByIdCallCount { get; private set; }
+
+        public int GetByIdsCallCount { get; private set; }
+
+        public IReadOnlyList<int> LastRequestedIds { get; private set; } = [];
+
+        public Task<IReadOnlyList<NewsItem>> GetLatestAsync(
+            int count,
+            CancellationToken cancellationToken = default) =>
+            inner.GetLatestAsync(count, cancellationToken);
+
+        public Task<IReadOnlyList<NewsItem>> GetArchivePageAsync(
+            int page,
+            int pageSize,
+            NewsArchiveFilter filter = default,
+            CancellationToken cancellationToken = default) =>
+            inner.GetArchivePageAsync(page, pageSize, filter, cancellationToken);
+
+        public Task<int> GetPublishedCountAsync(
+            NewsArchiveFilter filter = default,
+            CancellationToken cancellationToken = default) =>
+            inner.GetPublishedCountAsync(filter, cancellationToken);
+
+        public Task<NewsArchiveYearRange> GetArchiveYearRangeAsync(CancellationToken cancellationToken = default) =>
+            inner.GetArchiveYearRangeAsync(cancellationToken);
+
+        public Task<NewsItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        {
+            GetByIdCallCount++;
+            return inner.GetByIdAsync(id, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<NewsItem>> GetByIdsAsync(
+            IReadOnlyCollection<int> ids,
+            CancellationToken cancellationToken = default)
+        {
+            GetByIdsCallCount++;
+            LastRequestedIds = ids.ToArray();
+            return inner.GetByIdsAsync(ids, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(
+            CancellationToken cancellationToken = default) =>
+            inner.GetPublishedSitemapEntriesAsync(cancellationToken);
+
+        public Task<NewsSearchPage> SearchAsync(
+            string query,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            inner.SearchAsync(query, page, pageSize, cancellationToken);
+    }
 }
