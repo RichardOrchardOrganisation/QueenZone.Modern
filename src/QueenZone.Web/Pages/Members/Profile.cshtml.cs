@@ -75,6 +75,7 @@ public sealed class ProfileModel(
 
         var activityPage = await activityRepository.GetPageAsync(
             memberId,
+            Member.LinkedLegacyUserId,
             PageNumber,
             ActivityPageSize,
             cancellationToken);

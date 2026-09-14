@@ -4,20 +4,30 @@ public sealed class InMemoryMemberPublicActivityRepository(
     InMemoryForumWriteRepository forumWriteRepository,
     IArticleSubmissionRepository articleSubmissionRepository,
     IPhotoSubmissionRepository photoSubmissionRepository,
-    INewsSuggestionRepository newsSuggestionRepository) : IMemberPublicActivityRepository
+    INewsSuggestionRepository newsSuggestionRepository,
+    IForumArchiveAuthorRepository archiveAuthorRepository) : IMemberPublicActivityRepository
 {
     public Task<MemberPublicActivityPage> GetPageAsync(
         Guid memberId,
+        int? linkedLegacyUserId,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default) =>
-        GetFeedPageAsync([memberId], page, pageSize, cancellationToken);
+        GetPageCoreAsync([memberId], linkedLegacyUserId, page, pageSize, cancellationToken);
 
-    public async Task<MemberPublicActivityPage> GetFeedPageAsync(
+    public Task<MemberPublicActivityPage> GetFeedPageAsync(
         IReadOnlyCollection<Guid> memberIds,
         int page,
         int pageSize,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GetPageCoreAsync(memberIds, linkedLegacyUserId: null, page, pageSize, cancellationToken);
+
+    private async Task<MemberPublicActivityPage> GetPageCoreAsync(
+        IReadOnlyCollection<Guid> memberIds,
+        int? linkedLegacyUserId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -88,13 +98,50 @@ public sealed class InMemoryMemberPublicActivityRepository(
                     AuthorDisplayName: news.SubmitterDisplayName)));
         }
 
+        var legacyItems = linkedLegacyUserId is int legacyUserId
+            ? await LoadLinkedLegacyItemsAsync(legacyUserId, memberIds.First(), cancellationToken)
+            : [];
+
         var all = forumItems
             .Concat(articleItems)
             .Concat(photoItems)
             .Concat(newsItems)
+            .Concat(legacyItems)
             .OrderByDescending(item => item.PublishedAt)
             .ToList();
         var items = all.Skip((page - 1) * pageSize).Take(pageSize).ToList();
         return new MemberPublicActivityPage(items, all.Count, page, pageSize);
+    }
+
+    private async Task<List<MemberPublicActivityItem>> LoadLinkedLegacyItemsAsync(
+        int legacyUserId,
+        Guid memberId,
+        CancellationToken cancellationToken)
+    {
+        var summary = await archiveAuthorRepository.GetSummaryAsync(legacyUserId, cancellationToken);
+        var items = new List<MemberPublicActivityItem>();
+        if (summary is null)
+        {
+            return items;
+        }
+
+        const int batchSize = 100;
+        for (var page = 1; items.Count < summary.PostCount; page++)
+        {
+            var batch = await archiveAuthorRepository.GetPostsPageAsync(
+                legacyUserId,
+                page,
+                batchSize,
+                summary.PostCount,
+                cancellationToken);
+            if (batch.Items.Count == 0)
+            {
+                break;
+            }
+
+            items.AddRange(batch.Items.Select(item => item with { AuthorId = memberId }));
+        }
+
+        return items;
     }
 }
