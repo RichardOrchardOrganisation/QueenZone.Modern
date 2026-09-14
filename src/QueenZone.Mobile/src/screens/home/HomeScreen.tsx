@@ -103,9 +103,9 @@ export function HomeScreen({ navigation }: Props) {
 
           {data.liveActivity.view.kind === 'content' &&
           liveStripIsVisible(data.liveActivity.view.data.newForumRepliesToday) ? (
-            <View style={styles.liveStrip}>
-              <View style={styles.liveStripDot} />
-              <Text numberOfLines={1} style={styles.liveStripLabel}>
+            <View style={[styles.liveStrip, { backgroundColor: c.surfaceRaised }]}>
+              <View style={[styles.liveStripDot, { backgroundColor: c.accentPrimary }]} />
+              <Text numberOfLines={1} style={[styles.liveStripLabel, { color: c.textSecondary }]}>
                 {liveStripLabel(data.liveActivity.view.data.newForumRepliesToday)}
               </Text>
             </View>
@@ -209,15 +209,14 @@ export function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   liveStrip: {
-    backgroundColor: '#181614',
     paddingVertical: 9,
     paddingHorizontal: space.xl,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  liveStripDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#B89A4A' },
-  liveStripLabel: { fontFamily: fonts.body, fontSize: 12, color: 'rgba(255,255,255,0.72)' },
+  liveStripDot: { width: 6, height: 6, borderRadius: 3 },
+  liveStripLabel: { fontFamily: fonts.body, fontSize: 12 },
   environmentStrip: {
     paddingVertical: 8,
     paddingHorizontal: space.xl,

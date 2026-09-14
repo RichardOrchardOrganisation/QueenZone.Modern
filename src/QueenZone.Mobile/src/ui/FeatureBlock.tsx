@@ -33,16 +33,16 @@ export function FeatureBlock({
         marginTop: space.xxl,
         marginHorizontal: space.xl,
         padding: 22,
-        backgroundColor: '#181614',
+        backgroundColor: c.surfaceRaised,
         borderWidth: 1,
-        borderColor: 'rgba(184,154,74,0.34)',
+        borderColor: c.borderStrong,
         borderRadius: radius.sm,
         overflow: 'hidden',
         gap: space.md,
       }}
     >
       <Image
-        source={media.crestWhite}
+        source={c.crest === 'crest-white.png' ? media.crestWhite : media.crestBlack}
         style={{
           position: 'absolute',
           right: -30,
@@ -64,7 +64,7 @@ export function FeatureBlock({
         <View
           style={{
             borderTopWidth: 1,
-            borderTopColor: 'rgba(184,154,74,0.34)',
+            borderTopColor: c.borderStrong,
             paddingTop: space.md,
             gap: 6,
           }}

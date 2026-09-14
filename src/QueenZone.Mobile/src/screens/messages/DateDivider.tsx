@@ -7,7 +7,7 @@ export const DateDivider = memo(function DateDivider({ label }: { label: string 
   return (
     <View style={styles.dividerRow}>
       <View style={[styles.dividerRule, { backgroundColor: c.ruleSubtle }]} />
-      <Text style={[type.eyebrow, { color: 'rgba(255,255,255,0.5)' }]}>{label}</Text>
+      <Text style={[type.eyebrow, { color: c.textMuted }]}>{label}</Text>
       <View style={[styles.dividerRule, { backgroundColor: c.ruleSubtle }]} />
     </View>
   );

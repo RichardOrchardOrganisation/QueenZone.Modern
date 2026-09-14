@@ -6,7 +6,7 @@ import { Eyebrow } from '../../ui/Eyebrow';
 import { MetaLine } from '../../ui/MetaLine';
 import { SectionErrorBlock } from '../../ui/ScreenStates';
 import { initials } from '../../ui/initials';
-import { fonts, radius, space, type } from '../../theme';
+import { fonts, radius, space, type, useTheme } from '../../theme';
 import { formatForumThreadMeta } from './homeMeta';
 
 export const HomeForumSection = memo(function HomeForumSection({
@@ -20,24 +20,25 @@ export const HomeForumSection = memo(function HomeForumSection({
   onEnterForum: () => void;
   onReloadForum: () => void;
 }) {
+  const { c } = useTheme();
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, { backgroundColor: c.surfaceRaised }]}>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Eyebrow tone="onDark" size={10}>
+          <Eyebrow tone="primary" size={10}>
             The community
           </Eyebrow>
-          <Text style={[type.pageTitle, styles.title]}>In the forum</Text>
+          <Text style={[type.pageTitle, styles.title, { color: c.textPrimary }]}>In the forum</Text>
         </View>
         <Pressable accessibilityRole="button" onPress={onEnterForum} hitSlop={8}>
-          <Text style={styles.enter}>Enter</Text>
+          <Text style={[styles.enter, { color: c.accentPrimary }]}>Enter</Text>
         </Pressable>
       </View>
 
       {forumView.kind === 'skeleton' ? (
         <View style={styles.skeletonList}>
           {[0, 1, 2].map((key) => (
-            <View key={key} style={styles.skeletonRow} />
+            <View key={key} style={[styles.skeletonRow, { backgroundColor: c.accentTintWeak }]} />
           ))}
         </View>
       ) : forumView.kind === 'error' ? (
@@ -50,18 +51,18 @@ export const HomeForumSection = memo(function HomeForumSection({
             accessibilityRole="button"
             accessibilityLabel={thread.title}
             onPress={() => onOpenThread(thread)}
-            style={styles.row}
+            style={[styles.row, { borderTopColor: c.border }]}
           >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarLabel}>{initials(thread.categoryName)}</Text>
+            <View style={[styles.avatar, { backgroundColor: c.surfaceCard, borderColor: c.borderStrong }]}>
+              <Text style={[styles.avatarLabel, { color: c.textPrimary }]}>{initials(thread.categoryName)}</Text>
             </View>
             <View style={styles.rowText}>
-              <Text numberOfLines={2} style={styles.rowTitle}>
+              <Text numberOfLines={2} style={[styles.rowTitle, { color: c.textPrimary }]}>
                 {thread.title}
               </Text>
               <MetaLine parts={formatForumThreadMeta(thread)} />
             </View>
-            {index === 0 ? <View style={styles.newDot} /> : null}
+            {index === 0 ? <View style={[styles.newDot, { backgroundColor: c.accentPrimary }]} /> : null}
           </Pressable>
         ))
       )}
@@ -72,7 +73,6 @@ export const HomeForumSection = memo(function HomeForumSection({
 const styles = StyleSheet.create({
   section: {
     marginTop: space.xxl,
-    backgroundColor: '#181614',
     paddingVertical: 26,
     paddingHorizontal: space.xl,
   },
@@ -83,20 +83,18 @@ const styles = StyleSheet.create({
     marginBottom: space.md,
   },
   headerText: { gap: 6 },
-  title: { color: '#F2F1ED', fontSize: 23 },
+  title: { fontSize: 23 },
   enter: {
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
     letterSpacing: 0.7,
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.66)',
   },
   skeletonList: { gap: 12 },
-  skeletonRow: { height: 44, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: radius.xs },
+  skeletonRow: { height: 44, borderRadius: radius.xs },
   row: {
     paddingVertical: 14,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.16)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -105,14 +103,12 @@ const styles = StyleSheet.create({
     width: space.avatar,
     height: space.avatar,
     borderRadius: radius.avatar,
-    backgroundColor: 'rgba(255,255,255,0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarLabel: { fontFamily: fonts.display, fontSize: 12, color: 'rgba(255,255,255,0.85)' },
+  avatarLabel: { fontFamily: fonts.display, fontSize: 12 },
   rowText: { flex: 1, gap: 4 },
-  rowTitle: { fontFamily: fonts.bodyMedium, fontSize: 14.5, color: '#FFFFFF' },
-  newDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#B89A4A' },
+  rowTitle: { fontFamily: fonts.bodyMedium, fontSize: 14.5 },
+  newDot: { width: 6, height: 6, borderRadius: 3 },
 });

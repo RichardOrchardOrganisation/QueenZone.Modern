@@ -403,7 +403,7 @@ function ComposerForm({ navigation, route }: Props) {
               {
                 color: c.textPrimary,
                 borderColor: c.border,
-                backgroundColor: '#1D1D1D',
+                backgroundColor: c.surfaceCard,
               },
             ]}
           />
@@ -424,7 +424,7 @@ function ComposerForm({ navigation, route }: Props) {
             {
               color: c.textPrimary,
               borderColor: c.border,
-              backgroundColor: '#1D1D1D',
+              backgroundColor: c.surfaceCard,
             },
           ]}
         />

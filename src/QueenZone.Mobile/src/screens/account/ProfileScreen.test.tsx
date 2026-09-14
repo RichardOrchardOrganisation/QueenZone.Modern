@@ -47,6 +47,8 @@ describe('ProfileScreen', () => {
     );
     await user.press(screen.getByRole('button', { name: 'Analytics preferences' }));
     expect(navigation.navigate).toHaveBeenCalledWith('AnalyticsSettings');
+    await user.press(screen.getByRole('button', { name: 'Appearance' }));
+    expect(navigation.navigate).toHaveBeenCalledWith('Appearance');
   });
 
   it('shows a restoring state instead of the signed-out gate', () => {
@@ -93,6 +95,7 @@ describe('ProfileScreen', () => {
     expect(screen.getByTestId('profile-messages')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Analytics preferences' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Appearance' })).toBeOnTheScreen();
   });
 
   it('opens My submissions from the member profile', async () => {

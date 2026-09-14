@@ -105,7 +105,7 @@ export const MessageBubble = memo(function MessageBubble({
     : isFirstOfRun
       ? `${item.senderDisplayName.toUpperCase()} · ${time}`
       : time;
-  const attributionColor = item.isMine ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.72)';
+  const attributionColor = item.isMine ? c.textMuted : c.textSecondary;
 
   if (item.isMine) {
     return (
@@ -117,7 +117,7 @@ export const MessageBubble = memo(function MessageBubble({
             { backgroundColor: c.bubbleOutgoing, borderWidth: 1, borderColor: c.borderStrong },
           ]}
         >
-          <Text style={styles.outgoingText}>{item.body}</Text>
+          <Text style={[styles.outgoingText, { color: c.textPrimary }]}>{item.body}</Text>
         </View>
         {item.queueState ? (
           <Pressable
@@ -152,7 +152,7 @@ export const MessageBubble = memo(function MessageBubble({
               ]);
             }}
           >
-            <Text style={[styles.attribution, { color: palette.gold }]}>
+            <Text style={[styles.attribution, { color: c.accentPrimary }]}>
               {queueStatusLabel(item.queueState)}
             </Text>
           </Pressable>
@@ -177,8 +177,8 @@ export const MessageBubble = memo(function MessageBubble({
         </View>
         {item.reportedByViewer ? (
           <View style={styles.reportedRow}>
-            <Flag size={11} strokeWidth={2} color={palette.gold} />
-            <Text style={styles.reportedLabel}>REPORTED</Text>
+            <Flag size={11} strokeWidth={2} color={c.accentPrimary} />
+            <Text style={[styles.reportedLabel, { color: c.accentPrimary }]}>REPORTED</Text>
           </View>
         ) : !interactionsEnabled ? null : report.reporting ? (
           <View style={styles.reportForm}>
@@ -186,14 +186,17 @@ export const MessageBubble = memo(function MessageBubble({
               value={report.reportReason}
               onChangeText={(reason) => dispatch({ type: 'changeReason', reason })}
               placeholder="Optional reason"
-              placeholderTextColor="rgba(255,255,255,0.45)"
+              placeholderTextColor={c.textMuted}
               accessibilityLabel="Optional reason"
               maxLength={reportReasonMaxLength}
               editable={!report.reportBusy}
-              style={styles.reportField}
+              style={[
+                styles.reportField,
+                { borderColor: c.borderStrong, backgroundColor: c.surfaceCard, color: c.textPrimary },
+              ]}
             />
             {report.reportError ? (
-              <Text style={[type.caption, { color: 'rgba(255,255,255,0.66)' }]}>{report.reportError}</Text>
+              <Text style={[type.caption, { color: c.danger }]}>{report.reportError}</Text>
             ) : null}
             <View style={styles.reportActions}>
               <Button
@@ -214,7 +217,7 @@ export const MessageBubble = memo(function MessageBubble({
             onPress={startReport}
             hitSlop={8}
           >
-            <Text style={styles.reportTrigger}>Report message</Text>
+            <Text style={[styles.reportTrigger, { color: c.textMuted }]}>Report message</Text>
           </Pressable>
         )}
       </View>
@@ -242,27 +245,24 @@ const styles = StyleSheet.create({
   incomingContent: { flex: 1, maxWidth: '80%', alignItems: 'flex-start', gap: 6 },
   bubble: { borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, maxWidth: '80%' },
   incomingBubble: { backgroundColor: palette.warmWhite, alignSelf: 'stretch', maxWidth: undefined },
-  outgoingText: { fontFamily: fonts.body, fontSize: 16.5, lineHeight: 24.75, color: palette.white },
+  outgoingText: { fontFamily: fonts.body, fontSize: 16.5, lineHeight: 24.75 },
   incomingText: { fontFamily: fonts.body, fontSize: 16.5, lineHeight: 24.75, color: palette.charcoal },
   reportedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 2 },
-  reportedLabel: { fontFamily: fonts.titling, fontSize: 9, letterSpacing: 1.6, color: palette.gold },
+  reportedLabel: { fontFamily: fonts.titling, fontSize: 9, letterSpacing: 1.6 },
   reportTrigger: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
     textDecorationLine: 'underline',
   },
   reportForm: { alignSelf: 'stretch', gap: space.sm },
   reportField: {
     minHeight: 40,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
     borderRadius: radius.md,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontFamily: fonts.body,
     fontSize: 16,
-    color: palette.white,
   },
   reportActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
 });
