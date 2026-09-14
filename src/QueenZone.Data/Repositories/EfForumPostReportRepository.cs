@@ -15,18 +15,23 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
                 post.LegacyThreadTopicId,
                 ThreadTitle = post.Thread!.Title,
                 post.BodyHtml,
+                post.AuthorLegacyUserId,
                 post.AuthorMemberId,
                 post.AuthorDisplayName,
                 post.PostedAt,
             })
             .SingleOrDefaultAsync(cancellationToken);
 
+        var authorMemberId = row is null
+            ? null
+            : await ResolveAuthorMemberIdAsync(row.AuthorMemberId, row.AuthorLegacyUserId, cancellationToken);
+
         return row is null ? null : new ForumReportablePost(
             row.LegacyPostId,
             row.LegacyThreadTopicId,
             row.ThreadTitle,
             row.BodyHtml,
-            row.AuthorMemberId,
+            authorMemberId,
             row.AuthorDisplayName,
             ToOffset(row.PostedAt));
     }
@@ -126,10 +131,24 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             return null;
         }
 
-        var previous = report.ReportedMemberId is Guid memberId
+        var reportedMemberId = report.ReportedMemberId;
+        if (reportedMemberId is null)
+        {
+            var author = await dbContext.ModernForumPosts.AsNoTracking()
+                .Where(post => post.LegacyPostId == report.PostId)
+                .Select(post => new { post.AuthorMemberId, post.AuthorLegacyUserId })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (author is not null)
+            {
+                reportedMemberId = await ResolveAuthorMemberIdAsync(
+                    author.AuthorMemberId, author.AuthorLegacyUserId, cancellationToken);
+            }
+        }
+
+        var previous = reportedMemberId is Guid memberId
             ? await dbContext.ForumPostReports.CountAsync(item => item.ReportedMemberId == memberId && item.Id != reportId, cancellationToken)
             : await dbContext.ForumPostReports.CountAsync(item => item.AuthorDisplayNameSnapshot == report.AuthorDisplayNameSnapshot && item.Id != reportId, cancellationToken);
-        return Map(report, previous);
+        return Map(report, reportedMemberId, previous);
     }
 
     public async Task<ForumPostReportListPage> ListAsync(string? status, int page, int pageSize, CancellationToken cancellationToken = default)
@@ -221,6 +240,28 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
         report.Category, report.Details, report.CreatedAt, report.Status, report.PostBodySnapshot,
         report.AuthorDisplayNameSnapshot, report.PostCreatedAtSnapshot, report.ThreadTitleSnapshot,
         ForumPostReportContextSerializer.Deserialize(report.ContextJson), previous);
+
+    private static ForumPostReport Map(ForumPostReportEntity report, Guid? reportedMemberId, int previous) => new(
+        report.Id, report.PostId, report.TopicId, report.ReporterMemberId, reportedMemberId,
+        report.Category, report.Details, report.CreatedAt, report.Status, report.PostBodySnapshot,
+        report.AuthorDisplayNameSnapshot, report.PostCreatedAtSnapshot, report.ThreadTitleSnapshot,
+        ForumPostReportContextSerializer.Deserialize(report.ContextJson), previous);
+
+    private async Task<Guid?> ResolveAuthorMemberIdAsync(
+        Guid? authorMemberId,
+        int? authorLegacyUserId,
+        CancellationToken cancellationToken)
+    {
+        if (authorMemberId is not null || authorLegacyUserId is null)
+        {
+            return authorMemberId;
+        }
+
+        return await dbContext.MemberAccounts.AsNoTracking()
+            .Where(account => account.LinkedLegacyUserId == authorLegacyUserId)
+            .Select(account => (Guid?)account.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 
     private static DateTimeOffset ToOffset(DateTime? value) =>
         new(DateTime.SpecifyKind(value ?? DateTime.MinValue, DateTimeKind.Utc));

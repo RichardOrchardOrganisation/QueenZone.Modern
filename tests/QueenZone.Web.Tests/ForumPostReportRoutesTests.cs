@@ -175,6 +175,8 @@ public sealed partial class ForumPostReportRoutesTests : IClassFixture<QueenZone
         Assert.Contains("Review this", detail, StringComparison.Ordinal);
         Assert.Contains("Current post state</dt><dd>Visible", detail, StringComparison.Ordinal);
         Assert.Contains("Current member state</dt><dd>Active", detail, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/admin/members/{author.Id}\">Forum admin author</a>", detail, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/admin/members/{reporter.Id}\">Forum admin reporter</a>", detail, StringComparison.Ordinal);
         Assert.Contains("Open current post and moderation controls", detail, StringComparison.Ordinal);
 
         using var changed = await admin.PostAsync(
