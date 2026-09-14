@@ -36,6 +36,8 @@ Final colours, typography, spacing, motion and interactions. Recreate the UI pix
 
 All tokens are CSS custom properties. The canonical source is `tokens/colors.css`, `tokens/typography.css`, `tokens/spacing.css`; `styles.css` `@import`s the set. **~90% monochrome, ~10% accent. Accent colour is used by meaning, never decoration. Gold is the rarest of all.**
 
+`tokens/*.css` here is duplicated into `src/QueenZone.Web/wwwroot/design-system/tokens/` (the shipped copy) and into every `design_handoff_*/tokens/` folder (included so each handoff package's reference CSS reads standalone). Those copies are not hand-maintained: edit only the files in this `tokens/` folder, then run `pwsh ./scripts/Sync-DesignTokens.ps1` to propagate the change everywhere else. CI runs `pwsh ./scripts/Sync-DesignTokens.ps1 -Check` and fails if any copy has drifted.
+
 ### Colour — monochrome foundation
 | Token | Hex | Use |
 |---|---|---|

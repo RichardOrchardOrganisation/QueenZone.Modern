@@ -962,28 +962,62 @@ END
     Write-Host "Sync complete: $TargetDatabase refreshed from the live legacy database."
 }
 finally {
-    if (-not $stagingPromoted) {
-        $cleanupSql = @"
+    # Each cleanup step below is independently wrapped: with
+    # $ErrorActionPreference = "Stop" in effect for the whole script, an
+    # unhandled failure in one step (e.g. a locked local dacpac file) would
+    # otherwise abort the rest of this finally block and skip the ones after
+    # it - and the nightly database copy is the one that actually costs
+    # money for as long as it survives, so it must not depend on local
+    # cleanup succeeding first. It also runs first for that reason: if
+    # something still interrupts this finally block partway through (a hard
+    # process kill can skip it entirely - see the stale-copy sweep at
+    # startup for that case), the paid-for cloud resource is the one that
+    # got the best chance at being dropped.
+    #
+    # Always drop the nightly database copy, success or failure - it is
+    # purely a disposable Extract source (ADR 0022 Option 5), never the
+    # promoted mirror, so there is no "keep it on failure" case the way
+    # there is for the local staging database below.
+    if ($ExtractSource -eq "DatabaseCopy" -and $copyCreated) {
+        try {
+            Write-Host "Dropping nightly database copy $copyDatabaseName..."
+            $copyDropStart = Get-Date
+            Remove-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -CopyDatabaseName $copyDatabaseName
+            $copyDropSeconds = [int]((Get-Date) - $copyDropStart).TotalSeconds
+            Write-Host "Nightly database copy drop attempt finished in ${copyDropSeconds}s."
+        }
+        catch {
+            # Remove-AzureSqlDatabaseCopy already catches its own SQL
+            # errors internally and does not throw; this catch exists so a
+            # truly unexpected failure here (e.g. $masterConnectionString
+            # itself somehow invalid) still can't take down the rest of
+            # cleanup below.
+            Write-Host "Unexpected failure while dropping nightly database copy '$copyDatabaseName' (continuing cleanup - the stale-copy sweep will catch it on a future run): $($_.Exception.Message)"
+        }
+    }
+
+    try {
+        if (-not $stagingPromoted) {
+            $cleanupSql = @"
 IF DB_ID(N'$stagingDatabase') IS NOT NULL
 BEGIN
     ALTER DATABASE [$stagingDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
     DROP DATABASE [$stagingDatabase];
 END
 "@
-        sqlcmd -S "localhost\$InstanceName" -Q $cleanupSql 2>$null
+            sqlcmd -S "localhost\$InstanceName" -Q $cleanupSql 2>$null
+        }
     }
-    if (Test-Path $dacpacPath) {
-        Remove-Item $dacpacPath -Force
+    catch {
+        Write-Host "Failed to clean up local staging database '$stagingDatabase' (continuing cleanup): $($_.Exception.Message)"
     }
-    # Always drop the nightly database copy, success or failure - it is
-    # purely a disposable Extract source (ADR 0022 Option 5), never the
-    # promoted mirror, so there is no "keep it on failure" case the way
-    # there is for the local staging database above.
-    if ($ExtractSource -eq "DatabaseCopy" -and $copyCreated) {
-        Write-Host "Dropping nightly database copy $copyDatabaseName..."
-        $copyDropStart = Get-Date
-        Remove-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -CopyDatabaseName $copyDatabaseName
-        $copyDropSeconds = [int]((Get-Date) - $copyDropStart).TotalSeconds
-        Write-Host "Nightly database copy drop attempt finished in ${copyDropSeconds}s."
+
+    try {
+        if (Test-Path $dacpacPath) {
+            Remove-Item $dacpacPath -Force
+        }
+    }
+    catch {
+        Write-Host "Failed to remove local dacpac '$dacpacPath' (continuing cleanup, the stale-dacpac sweep will catch it on a future run): $($_.Exception.Message)"
     }
 }
