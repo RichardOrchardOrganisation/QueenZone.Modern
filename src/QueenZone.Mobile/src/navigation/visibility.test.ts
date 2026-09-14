@@ -25,6 +25,7 @@ describe('member-only screens', () => {
     assert.equal(isMemberOnlyScreen('Conversation'), true);
     assert.equal(isMemberOnlyScreen('Composer'), true);
     assert.equal(isMemberOnlyScreen('Settings'), true);
+    assert.equal(isMemberOnlyScreen('Appearance'), false);
     assert.equal(isMemberOnlyScreen('DeleteAccount'), true);
     assert.equal(isMemberOnlyScreen('PhotoSubmit'), true);
     assert.equal(isMemberOnlyScreen('FanPerformanceSubmit'), true);

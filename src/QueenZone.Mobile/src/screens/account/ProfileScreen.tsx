@@ -33,7 +33,7 @@ function initials(name: string | null): string {
 }
 
 export function ProfileScreen({ navigation }: Props) {
-  const { c } = useTheme();
+  const { c, mode } = useTheme();
   const { isSignedIn, isRestoring, displayName, profile, refreshProfile, signOut } = useSession();
   const unreadCount = useUnreadConversationCount();
   const [busy, setBusy] = useState(false);
@@ -88,6 +88,9 @@ export function ProfileScreen({ navigation }: Props) {
         <Pressable accessibilityRole="button" onPress={() => navigation.navigate('AnalyticsSettings')}>
           <Text style={[type.button, { color: c.accentPrimary }]}>Analytics preferences</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Appearance')}>
+          <Text style={[type.button, { color: c.accentPrimary }]}>Appearance</Text>
+        </Pressable>
         <ArchiveFooter />
       </ScrollView>
     );
@@ -141,6 +144,11 @@ export function ProfileScreen({ navigation }: Props) {
         <Eyebrow tone="muted">Account</Eyebrow>
       </View>
       <SettingsRow title="Account settings" onPress={() => navigation.navigate('Settings')} />
+      <SettingsRow
+        title="Appearance"
+        value={mode === 'light' ? 'Light' : 'Dark'}
+        onPress={() => navigation.navigate('Appearance')}
+      />
       <SettingsRow
         title="Messages"
         value={unreadCount > 0 ? String(unreadCount) : undefined}

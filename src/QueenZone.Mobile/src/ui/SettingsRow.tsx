@@ -76,7 +76,7 @@ export function SettingsRow({
       testID={testID}
       onPress={onPress}
       {...press}
-      style={({ pressed }) => (Platform.OS === 'ios' && pressed ? { backgroundColor: 'rgba(255,255,255,0.04)' } : null)}
+      style={({ pressed }) => (Platform.OS === 'ios' && pressed ? { backgroundColor: c.accentTintWeak } : null)}
     >
       {content}
     </Pressable>

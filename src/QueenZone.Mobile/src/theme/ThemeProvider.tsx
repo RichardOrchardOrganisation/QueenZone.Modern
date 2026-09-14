@@ -1,9 +1,14 @@
 import {
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
+  useState,
   type ReactNode,
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'react-native';
 import {
   chrome,
@@ -23,11 +28,14 @@ import {
 
 export type ThemePreference = 'system' | ThemeMode;
 
+export const themePreferenceStorageKey = 'queenzone.mobile.themePreference';
+
 type ThemeContextValue = {
   /** Resolved colours for the active mode. */
   c: ColorScheme;
   mode: ThemeMode;
   preference: ThemePreference;
+  setPreference: (preference: ThemePreference) => void;
   palette: typeof palette;
   type: typeof type;
   fonts: typeof fonts;
@@ -51,9 +59,39 @@ type Props = {
  * Provides design tokens. Dark is the product default; light exists for
  * system preference parity with the web archive.
  */
-export function ThemeProvider({ children, preference: preferenceProp = 'dark' }: Props) {
+export function ThemeProvider(props: Props) {
+  const { children, preference: preferenceProp = 'dark' } = props;
   const systemScheme = useColorScheme();
-  const preference = preferenceProp;
+  const [savedPreference, setSavedPreference] = useState<ThemePreference>(preferenceProp);
+  const changedByUser = useRef(false);
+  const isControlled = props.preference !== undefined;
+  const preference = isControlled ? preferenceProp : savedPreference;
+
+  useEffect(() => {
+    if (isControlled) {
+      return;
+    }
+
+    let active = true;
+    void AsyncStorage.getItem(themePreferenceStorageKey).then((stored) => {
+      if (active && !changedByUser.current && (stored === 'dark' || stored === 'light' || stored === 'system')) {
+        setSavedPreference(stored);
+      }
+    }).catch(() => {
+      // Keep the dark default when local storage is unavailable.
+    });
+    return () => {
+      active = false;
+    };
+  }, [isControlled]);
+
+  const setPreference = useCallback((next: ThemePreference) => {
+    changedByUser.current = true;
+    setSavedPreference(next);
+    void AsyncStorage.setItem(themePreferenceStorageKey, next).catch(() => {
+      // The in-memory choice still applies for this session.
+    });
+  }, []);
 
   const mode: ThemeMode =
     preference === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : preference;
@@ -63,6 +101,7 @@ export function ThemeProvider({ children, preference: preferenceProp = 'dark' }:
       c: mode === 'light' ? light : dark,
       mode,
       preference,
+      setPreference,
       palette,
       type,
       fonts,
@@ -73,7 +112,7 @@ export function ThemeProvider({ children, preference: preferenceProp = 'dark' }:
       chrome,
       imagery,
     }),
-    [mode, preference],
+    [mode, preference, setPreference],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

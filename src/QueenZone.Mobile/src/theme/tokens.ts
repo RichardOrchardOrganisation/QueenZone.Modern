@@ -78,6 +78,9 @@ export const dark = {
   accentEditorial: palette.burgundy,
   accentSpecial: palette.gold,
   danger: '#D98A8A',
+  success: '#6EE7B7',
+  successTint: 'rgba(110,231,183,0.16)',
+  successBorder: 'rgba(110,231,183,0.50)',
 
   crest: 'crest-white.png',
   crestWatermarkOpacity: 0.06,
@@ -116,6 +119,9 @@ export const light = {
   accentEditorial: palette.burgundy,
   accentSpecial: palette.gold,
   danger: '#8E2F2F',
+  success: '#287A58',
+  successTint: 'rgba(40,122,88,0.12)',
+  successBorder: 'rgba(40,122,88,0.42)',
 
   crest: 'crest-black.png',
   crestWatermarkOpacity: 0.05,

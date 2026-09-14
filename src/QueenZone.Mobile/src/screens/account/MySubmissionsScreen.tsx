@@ -301,7 +301,7 @@ function badgeColors(
 ): { background: string; border: string; text: string } {
   switch (tone) {
     case 'success':
-      return { background: 'rgba(110, 231, 183, 0.16)', border: 'rgba(110, 231, 183, 0.5)', text: '#6EE7B7' };
+      return { background: c.successTint, border: c.successBorder, text: c.success };
     case 'danger':
       return { background: c.accentTintWeak, border: c.danger, text: c.danger };
     case 'attention':
