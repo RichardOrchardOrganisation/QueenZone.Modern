@@ -410,6 +410,52 @@ function Invoke-AzureSqlCommand {
     }
 }
 
+function Get-AzureSqlLoginDiagnostics {
+    param([Parameter(Mandatory = $true)][string]$MasterConnectionString)
+
+    $connection = [System.Data.SqlClient.SqlConnection]::new($MasterConnectionString)
+    try {
+        $connection.Open()
+        $command = $connection.CreateCommand()
+        # sysadmin is not a meaningful server role on Azure SQL Database
+        # (single database); dbmanager is the Azure SQL Database
+        # server-level role that grants CREATE/DROP DATABASE. The server
+        # admin login itself is never a *member* of dbmanager - it has full
+        # rights implicitly - so IsDbManager reading $false does not by
+        # itself mean this login lacks the rights Option 5 needs.
+        $command.CommandText = "SELECT SUSER_SNAME() AS LoginName, IS_SRVROLEMEMBER('dbmanager') AS IsDbManager"
+        $reader = $command.ExecuteReader()
+        try {
+            if (-not $reader.Read()) {
+                return [PSCustomObject]@{ LoginName = $null; IsDbManager = $null }
+            }
+            $isDbManagerRaw = $reader['IsDbManager']
+            return [PSCustomObject]@{
+                LoginName   = [string]$reader['LoginName']
+                IsDbManager = if ($isDbManagerRaw -is [DBNull]) { $null } else { [bool][int]$isDbManagerRaw }
+            }
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $connection.Dispose()
+    }
+}
+
+function Format-DatabaseCopyPermissionDiagnosticMessage {
+    param($Diagnostics)
+
+    $loginDescription = if ([string]::IsNullOrEmpty($Diagnostics.LoginName)) { "(login name unavailable)" } else { $Diagnostics.LoginName }
+    $roleDescription = switch ($Diagnostics.IsDbManager) {
+        $true { "is a member of dbmanager" }
+        $false { "is NOT a member of dbmanager (expected and fine if this is the server admin login, which has full rights without dbmanager membership)" }
+        default { "dbmanager membership could not be determined" }
+    }
+    return "Nightly sync is connecting to master as '$loginDescription', which $roleDescription. docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5 needs this login to be the server admin login or a dbmanager member to create/drop database copies."
+}
+
 function New-AzureSqlDatabaseCopy {
     param(
         [Parameter(Mandatory = $true)][string]$MasterConnectionString,
@@ -605,6 +651,19 @@ function Invoke-SyncLegacyDbSelfTest {
         throw "Test-SafeDatabaseIdentifier must reject an empty name."
     }
 
+    $dbManagerMessage = Format-DatabaseCopyPermissionDiagnosticMessage ([PSCustomObject]@{ LoginName = 'CloudSA6f234939'; IsDbManager = $true })
+    if ($dbManagerMessage -notmatch "CloudSA6f234939" -or $dbManagerMessage -notmatch 'is a member of dbmanager') {
+        throw "Format-DatabaseCopyPermissionDiagnosticMessage must name the login and report dbmanager membership when true."
+    }
+    $notDbManagerMessage = Format-DatabaseCopyPermissionDiagnosticMessage ([PSCustomObject]@{ LoginName = 'CloudSA6f234939'; IsDbManager = $false })
+    if ($notDbManagerMessage -notmatch 'is NOT a member of dbmanager' -or $notDbManagerMessage -notmatch 'server admin login') {
+        throw "Format-DatabaseCopyPermissionDiagnosticMessage must explain that a non-dbmanager login can still be the server admin, not just report a bare failure."
+    }
+    $unknownMessage = Format-DatabaseCopyPermissionDiagnosticMessage ([PSCustomObject]@{ LoginName = $null; IsDbManager = $null })
+    if ($unknownMessage -notmatch 'login name unavailable' -or $unknownMessage -notmatch 'could not be determined') {
+        throw "Format-DatabaseCopyPermissionDiagnosticMessage must degrade gracefully when the diagnostic query itself returned nothing."
+    }
+
     $promotionSql = New-MirrorPromotionSql -StagingDatabase 'selftest_stage' -TargetDatabase 'selftest_target'
     $useStagingIndex = $promotionSql.IndexOf('USE [selftest_stage];', [StringComparison]::Ordinal)
     $singleUserIndex = $promotionSql.IndexOf('ALTER DATABASE [selftest_stage] SET SINGLE_USER', [StringComparison]::Ordinal)
@@ -788,9 +847,24 @@ if ($ExtractSource -eq "DatabaseCopy") {
 try {
     $extractSourceConnectionString = $sourceConnectionString
     if ($ExtractSource -eq "DatabaseCopy") {
+        $loginDiagnostics = $null
+        try {
+            $loginDiagnostics = Get-AzureSqlLoginDiagnostics -MasterConnectionString $masterConnectionString
+            Write-Host (Format-DatabaseCopyPermissionDiagnosticMessage $loginDiagnostics)
+        }
+        catch {
+            Write-Host "Could not run the CREATE DATABASE permission diagnostic (continuing - the CREATE DATABASE attempt below is the real test): $($_.Exception.Message)"
+        }
+
         Write-Host "Creating nightly database copy $copyDatabaseName of $sourceDatabaseName (docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5)..."
         $copyCreateStart = Get-Date
-        New-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -SourceDatabaseName $sourceDatabaseName -CopyDatabaseName $copyDatabaseName
+        try {
+            New-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -SourceDatabaseName $sourceDatabaseName -CopyDatabaseName $copyDatabaseName
+        }
+        catch {
+            $loginDescription = if ($loginDiagnostics -and $loginDiagnostics.LoginName) { $loginDiagnostics.LoginName } else { "(unknown - the permission diagnostic above did not run or failed)" }
+            throw "CREATE DATABASE ... AS COPY OF failed for login '$loginDescription'. That login needs to be the Azure SQL server admin login, or a member of the server-level 'dbmanager' role, to create/drop database copies (docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5). Original error: $($_.Exception.Message)"
+        }
         $copyCreated = $true
         Wait-AzureSqlDatabaseCopyReady -MasterConnectionString $masterConnectionString -DatabaseName $copyDatabaseName -TimeoutMinutes $CopyReadyTimeoutMinutes -PollSeconds $CopyPollSeconds
         $copyReadySeconds = [int]((Get-Date) - $copyCreateStart).TotalSeconds
