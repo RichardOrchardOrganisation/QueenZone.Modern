@@ -13,6 +13,8 @@ import type {
   ForumPoll,
   ForumPost,
   ForumPostCreated,
+  ForumPostReportResponse,
+  ForumPostModerationState,
   ForumRecentThread,
   ForumTopicCreated,
   ForumTopicDetail,
@@ -30,6 +32,43 @@ export type OfflineReadOptions = {
 };
 
 export type { CachedResult };
+
+export const forumPostReportCategories = [
+  'Harassment or bullying',
+  'Hate speech or discrimination',
+  'Threats or violence',
+  'Sexual or explicit content',
+  'Spam or scams',
+  'Copyright or ownership concern',
+  'Other',
+] as const;
+
+export type ForumPostReportCategory = (typeof forumPostReportCategories)[number];
+
+export function reportForumPost(
+  accessToken: string,
+  postId: number,
+  category: ForumPostReportCategory,
+  details: string,
+): Promise<ForumPostReportResponse> {
+  return sendJson<ForumPostReportResponse>(`/me/forum/posts/${postId}/report`, {
+    method: 'POST', accessToken, body: { category, details: details.trim() || null },
+  });
+}
+
+export function blockForumPostAuthor(accessToken: string, postId: number): Promise<void> {
+  return sendJson(`/me/forum/posts/${postId}/block`, { method: 'POST', accessToken });
+}
+
+export function fetchForumPostModerationState(
+  accessToken: string,
+  postIds: number[],
+  authorMemberIds: string[],
+): Promise<ForumPostModerationState> {
+  return sendJson<ForumPostModerationState>('/me/forum/posts/moderation-state', {
+    method: 'POST', accessToken, body: { postIds, authorMemberIds },
+  });
+}
 
 function pageParams({ page, pageSize }: PageQuery) {
   return {

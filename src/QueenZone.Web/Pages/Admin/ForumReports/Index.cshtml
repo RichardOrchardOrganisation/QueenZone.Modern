@@ -1,0 +1,43 @@
+@page "/admin/forum-reports"
+@model QueenZone.Web.Pages.Admin.ForumReports.IndexModel
+@using QueenZone.Data
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <h1>Reported forum posts</h1>
+  <p>Reports contain a private evidence snapshot. Opening a report records the moderator view.</p>
+  <form method="get" class="admin-search-form">
+    <label>Status
+      <select name="status">
+        @if (Model.StatusFilter == "all") { <option value="all" selected>All</option> }
+        else { <option value="all">All</option> }
+        @foreach (var status in PrivateMessageReportStatus.All)
+        {
+          if (Model.StatusFilter == status) { <option value="@status" selected>@status</option> }
+          else { <option value="@status">@status</option> }
+        }
+      </select>
+    </label>
+    <button type="submit" class="qz-button">Filter</button>
+  </form>
+  @if (Model.List.Items.Count == 0)
+  {
+    <p>No reports in this view.</p>
+  }
+  else
+  {
+    <table class="admin-table">
+      <thead><tr><th>Author</th><th>Reporter</th><th>Reason</th><th>Reported</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      @foreach (var item in Model.List.Items)
+      {
+        <tr>
+          <td>@item.ReportedDisplayName</td><td>@item.ReporterDisplayName</td><td>@item.Category</td>
+          <td>@item.CreatedAt.ToString("u")</td><td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+          <td><a href="/admin/forum-reports/@item.Id">Open</a></td>
+        </tr>
+      }
+      </tbody>
+    </table>
+  }
+</div>

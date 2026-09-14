@@ -47,9 +47,11 @@ export { fetchSearchPage } from './search';
 export type { SearchPageQuery } from './search';
 export {
   closeForumTopicPoll,
+  blockForumPostAuthor,
   createForumReply,
   createForumTopic,
   fetchForumCategories,
+  fetchForumPostModerationState,
   fetchForumCategory,
   fetchForumCategoryTopics,
   fetchForumRecentThreads,
@@ -60,11 +62,13 @@ export {
   fetchForumTopicPosts,
   fetchForumTopicPostsResult,
   fetchForumTopicWatch,
+  forumPostReportCategories,
+  reportForumPost,
   unwatchForumTopic,
   voteForumTopicPoll,
   watchForumTopic,
 } from './forum';
-export type { CachedResult, ForumReplyWrite, ForumTopicWrite, OfflineReadOptions } from './forum';
+export type { CachedResult, ForumPostReportCategory, ForumReplyWrite, ForumTopicWrite, OfflineReadOptions } from './forum';
 export type { CacheSource } from '../cache/withOfflineCache';
 export {
   cacheForumAttachment,

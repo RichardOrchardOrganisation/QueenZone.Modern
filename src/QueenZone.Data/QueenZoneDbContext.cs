@@ -96,6 +96,11 @@ public sealed class QueenZoneDbContext : DbContext
     public DbSet<PrivateMessageReportAuditLogEntity> PrivateMessageReportAuditLogs =>
         Set<PrivateMessageReportAuditLogEntity>();
 
+    public DbSet<ForumPostReportEntity> ForumPostReports => Set<ForumPostReportEntity>();
+
+    public DbSet<ForumPostReportAuditLogEntity> ForumPostReportAuditLogs =>
+        Set<ForumPostReportAuditLogEntity>();
+
     public DbSet<MemberMessageBlockEntity> MemberMessageBlocks => Set<MemberMessageBlockEntity>();
 
     public DbSet<MemberFollowEntity> MemberFollows => Set<MemberFollowEntity>();
@@ -373,7 +378,11 @@ public sealed class QueenZoneDbContext : DbContext
 
         modelBuilder.Entity<ModernForumPostEntity>(entity =>
         {
-            entity.ToTable("ModernForumPost", table => table.ExcludeFromMigrations());
+            entity.ToTable("ModernForumPost", table =>
+            {
+                table.ExcludeFromMigrations();
+                table.HasTrigger("TR_ModernForumPost_RefreshArchiveAuthorSummary");
+            });
             entity.HasKey(post => post.Id);
             entity.Property(post => post.AuthorDisplayName).HasMaxLength(100).IsRequired();
             entity.Property(post => post.BodyHtml).IsUnicode().HasColumnType("nvarchar(max)").IsRequired();
@@ -1223,6 +1232,44 @@ public sealed class QueenZoneDbContext : DbContext
             entity.HasIndex(log => new { log.ReportId, log.OccurredAt })
                 .IsDescending(false, true)
                 .HasDatabaseName("IX_PrivateMessageReportAuditLog_ReportId_OccurredAt");
+        });
+
+        modelBuilder.Entity<ForumPostReportEntity>(entity =>
+        {
+            entity.ToTable("ForumPostReports");
+            entity.HasKey(report => report.Id);
+            entity.Property(report => report.Category).HasMaxLength(100).IsRequired();
+            entity.Property(report => report.Details).HasMaxLength(ForumPostReportLimits.MaxDetailsLength);
+            entity.Property(report => report.Status).HasMaxLength(50).IsRequired();
+            entity.Property(report => report.PostBodySnapshot).IsRequired();
+            entity.Property(report => report.AuthorDisplayNameSnapshot).HasMaxLength(100).IsRequired();
+            entity.Property(report => report.ThreadTitleSnapshot).HasMaxLength(200).IsRequired();
+            entity.Property(report => report.CreatedAt).IsRequired();
+            entity.Property(report => report.PostCreatedAtSnapshot).IsRequired();
+
+            entity.HasIndex(report => new { report.ReporterMemberId, report.PostId })
+                .IsUnique().HasDatabaseName("IX_ForumPostReports_Reporter_Post");
+            entity.HasIndex(report => new { report.Status, report.CreatedAt })
+                .IsDescending(false, true).HasDatabaseName("IX_ForumPostReports_Status_CreatedAt");
+            entity.HasIndex(report => report.ReportedMemberId)
+                .HasDatabaseName("IX_ForumPostReports_ReportedMember");
+
+            entity.HasOne(report => report.Reporter).WithMany()
+                .HasForeignKey(report => report.ReporterMemberId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(report => report.Reported).WithMany()
+                .HasForeignKey(report => report.ReportedMemberId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ForumPostReportAuditLogEntity>(entity =>
+        {
+            entity.ToTable("ForumPostReportAuditLog");
+            entity.HasKey(log => log.Id);
+            entity.Property(log => log.Action).HasMaxLength(50).IsRequired();
+            entity.Property(log => log.ActorEmail).HasMaxLength(256).IsRequired();
+            entity.Property(log => log.OccurredAt).IsRequired();
+            entity.Property(log => log.Details).HasMaxLength(2000);
+            entity.HasIndex(log => new { log.ReportId, log.OccurredAt })
+                .IsDescending(false, true).HasDatabaseName("IX_ForumPostReportAuditLog_ReportId_OccurredAt");
         });
 
         modelBuilder.Entity<MemberMessageBlockEntity>(entity =>
