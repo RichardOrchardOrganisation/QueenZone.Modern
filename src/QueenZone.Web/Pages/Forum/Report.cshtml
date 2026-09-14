@@ -1,0 +1,37 @@
+@page "/forum/post/{postId:int}/report"
+@model QueenZone.Web.Pages.Forum.ReportModel
+@using QueenZone.Data
+
+<section class="qz-section">
+  <div class="qz-container qz-container--narrow">
+    <h1>Report forum post</h1>
+    <p>Reports are private. The post author will not see who submitted this report.</p>
+
+    <div class="qz-account-notice">
+      <strong>@Model.Post!.AuthorDisplayName</strong> in @Model.Post.ThreadTitle
+    </div>
+
+    <form method="post" class="qz-form" data-busy-submit data-busy-label="Submitting report…">
+      @Html.AntiForgeryToken()
+      <input type="hidden" asp-for="ReturnUrl" />
+      <div asp-validation-summary="All" class="qz-form__validation"></div>
+      <label asp-for="Category">Reason</label>
+      <select asp-for="Category" required>
+        <option value="">Choose a reason</option>
+        @foreach (var category in ForumPostReportCategories.All)
+        {
+          <option value="@category">@category</option>
+        }
+      </select>
+      <span asp-validation-for="Category"></span>
+
+      <label asp-for="Details">Supporting details (optional)</label>
+      <textarea asp-for="Details" rows="6" maxlength="@ForumPostReportLimits.MaxDetailsLength"></textarea>
+      <p class="qz-meta">Maximum @ForumPostReportLimits.MaxDetailsLength characters.</p>
+      <span asp-validation-for="Details"></span>
+
+      <p class="qz-meta">Read the <a href="/terms">community rules</a> or <a href="/contact">contact support</a>.</p>
+      <button class="qz-button qz-button--cta" type="submit">Submit report</button>
+    </form>
+  </div>
+</section>

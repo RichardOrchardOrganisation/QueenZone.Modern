@@ -26,3 +26,7 @@ if ($env:RUN_FORUM_WRITE_PROBE -ne "true") {
 dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj `
     --configuration $Configuration `
     --filter "FullyQualifiedName~EfForumWriteLiveProbeTests"
+
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}

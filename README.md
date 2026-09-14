@@ -448,6 +448,7 @@ Admin editorial surfaces:
 
 - `/admin/news` — create, edit, preview, publish news articles
 - `/admin/news-discovery` — review discovered candidates and AI-generated drafts (see `docs/architecture/news-agent.md`)
+- `/admin/forum-reports` — review reported forum posts (see `docs/forum-report-moderation.md`)
 
 Do not commit publish profiles, `.pubxml` files, local app settings, or connection strings. Rotate the App Service publish profile if it has ever been saved outside GitHub Secrets.
 

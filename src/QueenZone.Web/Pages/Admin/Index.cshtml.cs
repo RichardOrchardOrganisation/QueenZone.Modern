@@ -13,6 +13,7 @@ public sealed class IndexModel(AdminDashboardService dashboardService) : PageMod
     public SubmissionQueueStats SubmissionQueue { get; private set; } = SubmissionQueueStats.Empty;
     public int OpenHelpRequestCount { get; private set; }
     public int OpenPrivateMessageReportCount { get; private set; }
+    public int OpenForumPostReportCount { get; private set; }
     public int OpenFanPerformanceReportCount { get; private set; }
     public GoogleAnalyticsTrafficSnapshot Traffic { get; private set; } =
         GoogleAnalyticsTrafficSnapshot.Unavailable("Google Analytics traffic has not loaded.");
@@ -32,6 +33,7 @@ public sealed class IndexModel(AdminDashboardService dashboardService) : PageMod
         SubmissionQueue = snapshot.SubmissionQueue;
         OpenHelpRequestCount = snapshot.OpenHelpRequestCount;
         OpenPrivateMessageReportCount = snapshot.OpenPrivateMessageReportCount;
+        OpenForumPostReportCount = snapshot.OpenForumPostReportCount;
         OpenFanPerformanceReportCount = snapshot.OpenFanPerformanceReportCount;
         Traffic = snapshot.Traffic;
         return Page();

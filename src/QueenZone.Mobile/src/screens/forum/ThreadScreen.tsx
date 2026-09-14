@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { Alert, FlatList, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   fetchForumTopicPostsResult,
+  fetchForumPostModerationState,
+  blockForumPostAuthor,
   isOfflineFailure,
   isTimeoutFailure,
   type CacheSource,
@@ -42,6 +44,14 @@ export function ThreadScreen({ navigation, route }: Props) {
   const id = parseTopicId(rawId);
   const [postsSource, setPostsSource] = useState<CacheSource>('network');
   const [postsCachedAt, setPostsCachedAt] = useState<string | null>(null);
+  const [reportedPostIds, setReportedPostIds] = useState<Set<number>>(() => new Set());
+  const [blockedMemberIds, setBlockedMemberIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (route.params.reportedPostId) {
+      setReportedPostIds((current) => new Set(current).add(route.params.reportedPostId!));
+    }
+  }, [route.params.reportedPostId]);
 
   const forumThread = useForumThread(id, accessToken, navigation);
   const { topic, topicError, topicSource, topicCachedAt } = forumThread;
@@ -73,6 +83,16 @@ export function ThreadScreen({ navigation, route }: Props) {
     ),
     forumPostsPageSize,
   );
+
+  useEffect(() => {
+    if (!accessToken || paged.items.length === 0) return;
+    const postIds = paged.items.map((post) => post.id);
+    const authorMemberIds = [...new Set(paged.items.map((post) => post.authorMemberId).filter((authorId): authorId is string => Boolean(authorId)))];
+    void fetchForumPostModerationState(accessToken, postIds, authorMemberIds).then((state) => {
+      setReportedPostIds(new Set(state.reportedPostIds));
+      setBlockedMemberIds(new Set(state.blockedMemberIds));
+    }).catch(() => undefined);
+  }, [accessToken, paged.items]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -126,15 +146,42 @@ export function ThreadScreen({ navigation, route }: Props) {
   const offlineSnapshot = topicSource === 'cache' || postsSource === 'cache';
 
   const renderItem = useCallback<ListRenderItem<DisplayPost>>(
-    ({ item }) => (
+    ({ item }) => {
+      const isCurrentMember = Boolean(memberId && item.authorMemberId === memberId);
+      const report = () => {
+        if (!isSignedIn) {
+          openSignIn(navigation, { tab: 'ForumTab', screen: 'ForumReport', params: { postId: item.id, authorUsername: item.authorUsername, threadId: rawId, threadTitle: topic?.title ?? title } });
+          return;
+        }
+        navigation.navigate('ForumReport', { postId: item.id, authorUsername: item.authorUsername, threadId: rawId, threadTitle: topic?.title ?? title });
+      };
+      const block = () => {
+        if (!isSignedIn || !accessToken) {
+          openSignIn(navigation, { tab: 'ForumTab', screen: 'Thread', params: route.params });
+          return;
+        }
+        Alert.alert('Block member?', `${item.authorUsername} will no longer be able to contact you privately. Their forum posts will be collapsed.`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Block', style: 'destructive', onPress: () => void blockForumPostAuthor(accessToken, item.id).then(() => {
+            if (item.authorMemberId) setBlockedMemberIds((current) => new Set(current).add(item.authorMemberId!));
+          }).catch(() => Alert.alert('Could not block member', 'Try again when you have a connection.')) },
+        ]);
+      };
+      return (
       <ForumPostRow
         post={item}
         isSignedIn={isSignedIn}
         accessToken={accessToken}
         interactionsEnabled={!offlineSnapshot}
+        isCurrentMember={isCurrentMember}
+        isReported={reportedPostIds.has(item.id)}
+        isBlocked={Boolean(item.authorMemberId && blockedMemberIds.has(item.authorMemberId))}
+        onReport={report}
+        onBlock={block}
       />
-    ),
-    [accessToken, isSignedIn, offlineSnapshot],
+      );
+    },
+    [accessToken, blockedMemberIds, isSignedIn, memberId, navigation, offlineSnapshot, rawId, reportedPostIds, route.params, title, topic?.title],
   );
 
   if (id === null) {

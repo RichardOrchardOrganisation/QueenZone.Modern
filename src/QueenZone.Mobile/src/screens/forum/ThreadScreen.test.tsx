@@ -1,14 +1,16 @@
 import type { ReactNode } from 'react';
-import { RefreshControl } from 'react-native';
+import { Alert, RefreshControl } from 'react-native';
 import { fireEvent, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import {
   fetchForumTopic,
+  fetchForumPostModerationState,
   fetchForumTopicPoll,
   fetchForumTopicPosts,
   fetchForumTopicPostsResult,
   fetchForumTopicResult,
   fetchForumTopicWatch,
   cacheForumAttachment,
+  blockForumPostAuthor,
   openForumAttachmentFile,
   openForumAttachmentImage,
   saveForumAttachmentImage,
@@ -37,6 +39,7 @@ jest.mock('../../api', () => {
   return {
     ...actual,
     fetchForumTopic: jest.fn(),
+    fetchForumPostModerationState: jest.fn(async () => ({ reportedPostIds: [], blockedMemberIds: [] })),
     fetchForumTopicResult: jest.fn(),
     fetchForumTopicPosts: jest.fn(),
     fetchForumTopicPostsResult: jest.fn(),
@@ -49,6 +52,7 @@ jest.mock('../../api', () => {
     openForumAttachmentFile: jest.fn(),
     openForumAttachmentImage: jest.fn(),
     cacheForumAttachment: jest.fn(),
+    blockForumPostAuthor: jest.fn(),
     saveForumAttachmentImage: jest.fn(),
   };
 });
@@ -73,6 +77,9 @@ jest.mock('../../config', () => ({
 }));
 
 const fetchTopic = fetchForumTopic as jest.MockedFunction<typeof fetchForumTopic>;
+const fetchModerationState = fetchForumPostModerationState as jest.MockedFunction<
+  typeof fetchForumPostModerationState
+>;
 const fetchTopicResult = fetchForumTopicResult as jest.MockedFunction<typeof fetchForumTopicResult>;
 const fetchPosts = fetchForumTopicPosts as jest.MockedFunction<typeof fetchForumTopicPosts>;
 const fetchPostsResult = fetchForumTopicPostsResult as jest.MockedFunction<
@@ -125,6 +132,7 @@ const cacheAttachment = cacheForumAttachment as jest.MockedFunction<typeof cache
 const saveImageAttachment = saveForumAttachmentImage as jest.MockedFunction<
   typeof saveForumAttachmentImage
 >;
+const blockPostAuthor = blockForumPostAuthor as jest.MockedFunction<typeof blockForumPostAuthor>;
 
 function renderThread(navigation = fakeNavigation()) {
   return {
@@ -881,3 +889,66 @@ describe('ThreadScreen offline snapshot', () => {
   });
 });
 
+describe('ThreadScreen forum moderation', () => {
+  beforeEach(() => {
+    mockSession.isSignedIn = true;
+    mockSession.accessToken = 'tok';
+    mockSession.profile = memberProfileFixture({ memberId: 'viewer-1' });
+    useOfflineQueueMock.mockReturnValue([]);
+    mockNetworkTopic(
+      defaultTopic,
+      pagedResponse([forumPostFixture({ id: 42, authorMemberId: 'author-1', authorUsername: 'Reported author' })]),
+    );
+    fetchModerationState.mockReset();
+    fetchModerationState.mockResolvedValue({ reportedPostIds: [], blockedMemberIds: [] });
+    blockPostAuthor.mockReset();
+    blockPostAuthor.mockResolvedValue(undefined);
+    fetchPoll.mockResolvedValue({} as never);
+    fetchWatch.mockResolvedValue({ watching: false });
+  });
+
+  afterEach(async () => {
+    jest.restoreAllMocks();
+    await flushVirtualizedList();
+  });
+
+  it('opens the report screen from the accessible post overflow menu', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { navigation } = renderThread();
+
+    await waitFor(() => expect(screen.getByLabelText("Actions for Reported author's post")).toBeOnTheScreen());
+    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Report post')?.onPress?.();
+
+    expect(navigation.navigate).toHaveBeenCalledWith('ForumReport', {
+      postId: 42,
+      authorUsername: 'Reported author',
+      threadId: 1002,
+      threadTitle: 'Ranking every studio album',
+    });
+  });
+
+  it('confirms blocking and collapses the author immediately', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    renderThread();
+
+    await waitFor(() => expect(screen.getByLabelText("Actions for Reported author's post")).toBeOnTheScreen());
+    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Block member')?.onPress?.();
+    alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Block')?.onPress?.();
+
+    await waitFor(() => expect(blockPostAuthor).toHaveBeenCalledWith('tok', 42));
+    expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen();
+    expect(screen.queryByText('Hello')).toBeNull();
+  });
+
+  it('shows existing report state and prevents another submission', async () => {
+    fetchModerationState.mockResolvedValue({ reportedPostIds: [42], blockedMemberIds: [] });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    renderThread();
+
+    await waitFor(() => expect(screen.getByText('Report submitted')).toBeOnTheScreen());
+    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    expect(alert.mock.calls[0]?.[2]?.some((action) => action.text === 'Report post')).toBe(false);
+  });
+});
