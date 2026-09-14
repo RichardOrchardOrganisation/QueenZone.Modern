@@ -87,6 +87,44 @@ public sealed class EfForumPostReportRepositoryTests : IAsyncDisposable
         Assert.Null(await repository.UpdateStatusAsync(Guid.NewGuid(), PrivateMessageReportStatus.Dismissed, "admin@test.local"));
     }
 
+    [Fact]
+    public async Task ResolvesMemberLinkedToLegacyPostAuthor_ForNewAndExistingReports()
+    {
+        var author = await SeedMemberAsync("legacy-owner@example.test", "Legacy owner");
+        author.LinkedLegacyUserId = 4242;
+        await dbContext.SaveChangesAsync();
+        var reporter = await SeedMemberAsync("legacy-reporter@example.test", "Reporter");
+        await SeedThreadAsync(author, isHidden: false);
+        await SeedPostAsync(4001, author, "Legacy post", DateTime.UtcNow, authorMemberId: null, authorLegacyUserId: 4242);
+
+        var post = await repository.GetVisiblePostAsync(4001);
+        Assert.Equal(author.Id, post!.AuthorMemberId);
+
+        var own = await repository.CreateAsync(
+            author.Id, 4001, ForumPostReportCategories.Other, null, DateTimeOffset.UtcNow);
+        Assert.Equal(ForumPostReportText.CannotReportOwn, own.ErrorMessage);
+
+        var reportId = Guid.NewGuid();
+        dbContext.ForumPostReports.Add(new ForumPostReportEntity
+        {
+            Id = reportId,
+            PostId = 4001,
+            TopicId = 1001,
+            ReporterMemberId = reporter.Id,
+            ReportedMemberId = null,
+            Category = ForumPostReportCategories.Other,
+            CreatedAt = DateTimeOffset.UtcNow,
+            PostBodySnapshot = "Legacy post",
+            AuthorDisplayNameSnapshot = "Legacy owner",
+            PostCreatedAtSnapshot = DateTimeOffset.UtcNow,
+            ThreadTitleSnapshot = "Reportable thread",
+        });
+        await dbContext.SaveChangesAsync();
+
+        var existing = await repository.GetAsync(reportId);
+        Assert.Equal(author.Id, existing!.ReportedMemberId);
+    }
+
     private async Task<MemberAccount> SeedMemberAsync(string email, string displayName)
     {
         var member = new MemberAccount
@@ -130,7 +168,14 @@ public sealed class EfForumPostReportRepositoryTests : IAsyncDisposable
         await dbContext.SaveChangesAsync();
     }
 
-    private async Task SeedPostAsync(int postId, MemberAccount author, string body, DateTime postedAt, bool isHidden = false)
+    private async Task SeedPostAsync(
+        int postId,
+        MemberAccount author,
+        string body,
+        DateTime postedAt,
+        bool isHidden = false,
+        Guid? authorMemberId = null,
+        int? authorLegacyUserId = null)
     {
         var thread = await dbContext.ModernForumThreads.SingleAsync();
         dbContext.ModernForumPosts.Add(new ModernForumPostEntity
@@ -139,7 +184,8 @@ public sealed class EfForumPostReportRepositoryTests : IAsyncDisposable
             LegacyThreadTopicId = thread.LegacyTopicId,
             ThreadId = thread.Id,
             LegacyForumId = thread.LegacyForumId,
-            AuthorMemberId = author.Id,
+            AuthorMemberId = authorMemberId ?? (authorLegacyUserId is null ? author.Id : null),
+            AuthorLegacyUserId = authorLegacyUserId,
             AuthorDisplayName = author.DisplayName,
             AuthorUserValidated = true,
             BodyHtml = body,

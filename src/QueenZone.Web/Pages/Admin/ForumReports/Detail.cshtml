@@ -9,8 +9,8 @@
   @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
   { <p class="qz-account-notice" role="status">@Model.StatusMessage</p> }
   <dl class="admin-detail-list">
-    <dt>Author</dt><dd>@report.AuthorDisplayNameSnapshot @if (report.ReportedMemberId is Guid memberId) { <a href="/admin/members/@memberId">Member account</a> }</dd>
-    <dt>Reporter</dt><dd>@(Model.Reporter?.DisplayName ?? "Unknown member") @if (Model.Reporter is not null) { <a href="/admin/members/@report.ReporterMemberId">Member account</a> }</dd>
+    <dt>Author</dt><dd>@if (report.ReportedMemberId is Guid memberId) { <a href="/admin/members/@memberId">@report.AuthorDisplayNameSnapshot</a> } else { @report.AuthorDisplayNameSnapshot }</dd>
+    <dt>Reporter</dt><dd>@if (Model.Reporter is not null) { <a href="/admin/members/@report.ReporterMemberId">@Model.Reporter.DisplayName</a> } else { <text>Unknown member</text> }</dd>
     <dt>Reason</dt><dd>@report.Category</dd>
     <dt>Details</dt><dd>@(string.IsNullOrWhiteSpace(report.Details) ? "—" : report.Details)</dd>
     <dt>Status</dt><dd><partial name="_SubmissionStatusBadge" model="report.Status" /></dd>
