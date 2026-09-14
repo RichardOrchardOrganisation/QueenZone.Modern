@@ -1,5 +1,5 @@
 # Refreshes a local SQL Express copy of the live legacy/deploy Azure SQL
-# database (queenzone-db, Basic tier), so nightly probes run against a
+# database (queenzone-db, Standard S0 tier, 10 GB / 10 DTU), so nightly probes run against a
 # same-day snapshot instead of the live database. Run nightly by
 # .github/workflows/nightly-legacy-checks.yml on the Windows runner, where
 # SQL Express lives.
