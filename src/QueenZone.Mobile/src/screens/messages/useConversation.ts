@@ -6,6 +6,7 @@ import {
   fetchConversationResult,
   replyToConversation,
   reportConversationMessage,
+  unblockConversationParticipant,
   type ConversationDetail,
 } from '../../api/messages';
 import {
@@ -22,6 +23,8 @@ type ArchiveBlockState = {
   archiveError: string | null;
   blocking: boolean;
   blockError: string | null;
+  unblocking: boolean;
+  unblockError: string | null;
 };
 
 const initialArchiveBlockState: ArchiveBlockState = {
@@ -29,6 +32,8 @@ const initialArchiveBlockState: ArchiveBlockState = {
   archiveError: null,
   blocking: false,
   blockError: null,
+  unblocking: false,
+  unblockError: null,
 };
 
 type ArchiveBlockAction =
@@ -37,7 +42,10 @@ type ArchiveBlockAction =
   | { type: 'archive/failure'; message: string }
   | { type: 'block/start' }
   | { type: 'block/success' }
-  | { type: 'block/failure'; message: string };
+  | { type: 'block/failure'; message: string }
+  | { type: 'unblock/start' }
+  | { type: 'unblock/success' }
+  | { type: 'unblock/failure'; message: string };
 
 function archiveBlockReducer(state: ArchiveBlockState, action: ArchiveBlockAction): ArchiveBlockState {
   switch (action.type) {
@@ -53,6 +61,12 @@ function archiveBlockReducer(state: ArchiveBlockState, action: ArchiveBlockActio
       return { ...state, blocking: false };
     case 'block/failure':
       return { ...state, blocking: false, blockError: action.message };
+    case 'unblock/start':
+      return { ...state, unblocking: true, unblockError: null };
+    case 'unblock/success':
+      return { ...state, unblocking: false };
+    case 'unblock/failure':
+      return { ...state, unblocking: false, unblockError: action.message };
     default:
       return state;
   }
@@ -225,6 +239,22 @@ export function useConversation(
     }
   }, [accessToken, conversationId, reload]);
 
+  const unblock = useCallback(async () => {
+    if (!accessToken || !conversationId) {
+      return false;
+    }
+    dispatch({ type: 'unblock/start' });
+    try {
+      await unblockConversationParticipant(accessToken, conversationId);
+      dispatch({ type: 'unblock/success' });
+      reload();
+      return true;
+    } catch (err: unknown) {
+      dispatch({ type: 'unblock/failure', message: messageFromUnknownError(err) });
+      return false;
+    }
+  }, [accessToken, conversationId, reload]);
+
   return {
     detail,
     source,
@@ -238,6 +268,7 @@ export function useConversation(
     submitReport,
     archive,
     block,
+    unblock,
     ...archiveBlock,
   };
 }

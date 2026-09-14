@@ -11,6 +11,7 @@ import {
   fetchForumTopicWatch,
   cacheForumAttachment,
   blockForumPostAuthor,
+  unblockForumPostAuthor,
   openForumAttachmentFile,
   openForumAttachmentImage,
   saveForumAttachmentImage,
@@ -53,6 +54,7 @@ jest.mock('../../api', () => {
     openForumAttachmentImage: jest.fn(),
     cacheForumAttachment: jest.fn(),
     blockForumPostAuthor: jest.fn(),
+    unblockForumPostAuthor: jest.fn(),
     saveForumAttachmentImage: jest.fn(),
   };
 });
@@ -133,6 +135,7 @@ const saveImageAttachment = saveForumAttachmentImage as jest.MockedFunction<
   typeof saveForumAttachmentImage
 >;
 const blockPostAuthor = blockForumPostAuthor as jest.MockedFunction<typeof blockForumPostAuthor>;
+const unblockPostAuthor = unblockForumPostAuthor as jest.MockedFunction<typeof unblockForumPostAuthor>;
 
 function renderThread(navigation = fakeNavigation()) {
   return {
@@ -903,6 +906,8 @@ describe('ThreadScreen forum moderation', () => {
     fetchModerationState.mockResolvedValue({ reportedPostIds: [], blockedMemberIds: [] });
     blockPostAuthor.mockReset();
     blockPostAuthor.mockResolvedValue(undefined);
+    unblockPostAuthor.mockReset();
+    unblockPostAuthor.mockResolvedValue(undefined);
     fetchPoll.mockResolvedValue({} as never);
     fetchWatch.mockResolvedValue({ watching: false });
   });
@@ -940,6 +945,41 @@ describe('ThreadScreen forum moderation', () => {
     await waitFor(() => expect(blockPostAuthor).toHaveBeenCalledWith('tok', 42));
     expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen();
     expect(screen.queryByText('Hello')).toBeNull();
+  });
+
+  it('offers Unblock member when the author is blocked and un-collapses posts', async () => {
+    fetchModerationState.mockResolvedValue({ reportedPostIds: [], blockedMemberIds: ['author-1'] });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    renderThread();
+
+    await waitFor(() => expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen());
+    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    expect(alert.mock.calls[0]?.[2]?.some((action) => action.text === 'Block member')).toBe(false);
+    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Unblock member')?.onPress?.();
+    alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Unblock')?.onPress?.();
+
+    await waitFor(() => expect(unblockPostAuthor).toHaveBeenCalledWith('tok', 42));
+    expect(screen.queryByLabelText('Show post from blocked member')).toBeNull();
+    expect(screen.getByText('Hello')).toBeOnTheScreen();
+    expect(blockPostAuthor).not.toHaveBeenCalled();
+  });
+
+  it('shows an alert when forum unblock fails', async () => {
+    fetchModerationState.mockResolvedValue({ reportedPostIds: [], blockedMemberIds: ['author-1'] });
+    unblockPostAuthor.mockRejectedValue(new ApiError(500, 'offline'));
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    renderThread();
+
+    await waitFor(() => expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen());
+    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Unblock member')?.onPress?.();
+    alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Unblock')?.onPress?.();
+
+    await waitFor(() => expect(unblockPostAuthor).toHaveBeenCalledWith('tok', 42));
+    await waitFor(() =>
+      expect(alert.mock.calls.some((call) => call[0] === 'Could not unblock member')).toBe(true),
+    );
+    expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen();
   });
 
   it('shows existing report state and prevents another submission', async () => {

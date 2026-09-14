@@ -9,6 +9,7 @@ import {
   fetchConversationResult,
   replyToConversation,
   reportConversationMessage,
+  unblockConversationParticipant,
 } from '../../api/messages';
 import type { ConversationDetail, ConversationMessage } from '../../api/messages';
 import { enqueueMessageReply, useOfflineQueue } from '../../offlineQueue';
@@ -34,6 +35,7 @@ jest.mock('../../api/messages', () => ({
   reportConversationMessage: jest.fn(),
   archiveConversation: jest.fn(),
   blockConversationParticipant: jest.fn(),
+  unblockConversationParticipant: jest.fn(),
 }));
 
 jest.mock('../../offlineQueue', () => ({
@@ -76,6 +78,9 @@ const archiveConversationMock = archiveConversation as jest.MockedFunction<typeo
 const blockConversationParticipantMock = blockConversationParticipant as jest.MockedFunction<
   typeof blockConversationParticipant
 >;
+const unblockConversationParticipantMock = unblockConversationParticipant as jest.MockedFunction<
+  typeof unblockConversationParticipant
+>;
 
 function renderConversation(navigation = fakeNavigation()) {
   return renderWithProviders(
@@ -117,6 +122,7 @@ describe('ConversationScreen', () => {
     reportConversationMessageMock.mockReset();
     archiveConversationMock.mockReset();
     blockConversationParticipantMock.mockReset();
+    unblockConversationParticipantMock.mockReset();
   });
 
   afterEach(async () => {
@@ -447,6 +453,82 @@ describe('ConversationScreen', () => {
         ).not.toBeNull(),
       { timeout: 8000 },
     );
+    alertSpy.mockRestore();
+  }, 15000);
+
+  it('unblocks the other participant from the overflow menu and shows a success alert', async () => {
+    const titles: string[] = [];
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, _message, buttons) => {
+      titles.push(String(title));
+      const target =
+        buttons?.find((button) => button.text === 'Unblock member' || button.text === 'Unblock') ??
+        buttons?.find((button) => button.style !== 'cancel');
+      target?.onPress?.();
+    });
+    const navigation = fakeNavigation();
+    const blockedThread = conversationDetail(
+      [
+        {
+          id: theirMessageId,
+          senderMemberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          senderDisplayName: 'Bob',
+          body: 'Hello',
+          createdAt: '2026-08-19T12:00:00.000Z',
+          isMine: false,
+          sortKey: 1,
+          reportedByViewer: false,
+        },
+      ],
+      { canSendReply: false, hasBlockedOtherParticipant: true },
+    );
+    const openThread = conversationDetail(
+      [
+        {
+          id: theirMessageId,
+          senderMemberId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          senderDisplayName: 'Bob',
+          body: 'Hello',
+          createdAt: '2026-08-19T12:00:00.000Z',
+          isMine: false,
+          sortKey: 1,
+          reportedByViewer: false,
+        },
+      ],
+      { canSendReply: true, hasBlockedOtherParticipant: false },
+    );
+    fetchConversationMock.mockImplementation(async () =>
+      fetchConversationMock.mock.calls.length <= 1 ? blockedThread : openThread,
+    );
+    unblockConversationParticipantMock.mockResolvedValue(undefined);
+
+    const main = renderConversation(navigation);
+    await waitFor(() =>
+      expect(
+        main.getByText('You have blocked this member. They can no longer send you private messages.'),
+      ).toBeOnTheScreen(),
+    );
+
+    const latestOptions = navigation.setOptions.mock.calls.at(-1)?.[0];
+    const header = renderWithProviders(latestOptions.headerRight(), { navigation: false });
+
+    const user = userEvent.setup();
+    await user.press(header.getByRole('button', { name: 'More options' }));
+
+    await waitFor(() =>
+      expect(unblockConversationParticipantMock).toHaveBeenCalledWith('tok', conversationId),
+    );
+    await waitFor(
+      () => {
+        expect(
+          main.queryByText('You have blocked this member. They can no longer send you private messages.'),
+        ).toBeNull();
+        expect(main.queryByTestId(testIds.conversationComposer)).not.toBeNull();
+      },
+      { timeout: 8000 },
+    );
+    expect(titles).toContain('Unblock member');
+    expect(titles).toContain('Member unblocked');
+    expect(blockConversationParticipantMock).not.toHaveBeenCalled();
     alertSpy.mockRestore();
   }, 15000);
 

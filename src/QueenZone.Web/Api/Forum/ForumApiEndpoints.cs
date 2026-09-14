@@ -66,6 +66,15 @@ public static class ForumApiEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
+        memberGroup.MapPost("/posts/{postId:int}/unblock", UnblockPostAuthorAsync)
+            .WithName("UnblockForumPostAuthor")
+            .WithSummary("Unblock the linked member who authored a visible forum post.")
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+
         memberGroup.MapPost("/posts/moderation-state", GetPostModerationStateAsync)
             .WithName("GetForumPostModerationState")
             .WithSummary("Return report and block state for the supplied forum post page.")
@@ -293,6 +302,30 @@ public static class ForumApiEndpoints
         return result.Succeeded
             ? Results.NoContent()
             : Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Bad Request", detail: result.ErrorMessage);
+    }
+
+    internal static async Task<IResult> UnblockPostAuthorAsync(
+        ClaimsPrincipal user,
+        int postId,
+        ForumPostReportService reportService,
+        PrivateMessageService privateMessageService,
+        CancellationToken cancellationToken)
+    {
+        var memberId = ForumMember.GetMemberId(user);
+        if (memberId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var post = await reportService.GetVisiblePostAsync(postId, cancellationToken);
+        if (post?.AuthorMemberId is not Guid authorMemberId)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not Found",
+                detail: "This post does not belong to an active member account.");
+        }
+
+        await privateMessageService.UnblockAsync(memberId.Value, authorMemberId, cancellationToken);
+        return Results.NoContent();
     }
 
     internal static async Task<IResult> GetPostModerationStateAsync(
