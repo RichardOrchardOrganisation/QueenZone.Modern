@@ -87,6 +87,15 @@ describe('Maestro device flows (#1281)', () => {
     assert.doesNotMatch(attach, /visible: attach\.txt|text: attach\.txt|tapOn: attach\.txt/);
   });
 
+  it('recovers one transient thread read while keeping forum-thread-screen mandatory', () => {
+    const attach = readMaestro('flows/10-forum-attach.yaml');
+    assert.match(
+      attach,
+      /id: forum-thread-\$\{ATTACH_TOPIC_ID\}[\s\S]*retry:[\s\S]*maxRetries: 1[\s\S]*text: '\^Try again\$'[\s\S]*id: forum-thread-screen[\s\S]*assertVisible: Journey attach topic/,
+    );
+    assert.equal(attach.match(/maxRetries: 1/g)?.length, 1);
+  });
+
   it('leaves the archive search story before the forum flow switches tabs', () => {
     const search = readMaestro('flows/06-archive-search.yaml');
     assert.match(

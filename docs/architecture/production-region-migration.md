@@ -3,16 +3,19 @@
 Issue: [#1272](https://github.com/richardorchard/QueenZone.Modern/issues/1272),
 Phase 7 of [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264).
 
-## Current status: 10 September 2026
+## Current status: 14 September 2026
 
 Stages 1–4 are complete. Production traffic, deployment, SQL, Blob Storage,
 telemetry, authentication callbacks, and mobile configuration now target the
-Canada East estate listed below. The previous Australia East App Service is
-stopped and retained with the old data resources only for rollback.
+Canada East estate listed below. After four days of verified operation, the
+maintainer accepted that observation period and approved Stage 5 retirement
+on **14 September 2026** to stop the old estate's ongoing cost.
 
-Stage 5 is pending the agreed observation window. Do not retire the old estate
-yet. In particular, `queenzone-sql-server` cannot be deleted while it also
-hosts the Australia East dev database `queenzone-dev-db`.
+Retirement is staged. The old App Service estate and production database were
+deleted in the first tranche. `queenzone-sql-server` remains because it hosts
+the active dev database `queenzone-dev-db`. The pre-cutover database copy was
+deleted on **14 September 2026**. The old Storage account remains pending a
+separate retirement decision.
 
 ## Target and safety boundary
 
@@ -240,17 +243,33 @@ Service webspace. Its non-secret Azure thumbprint is
 enabled throughout the handover; never put the PFX or password in OpenTofu
 configuration, state, plans, workflow output, or the repository.
 
-Verify the live hostname over HTTPS, including build stamp, full route smoke,
-auth, forum, uploads, Blob media, and mobile API journeys. If a blocking check
-fails, point Cloudflare back to `queenzone-dev`, restore the old app to service,
-and end the write freeze. Do not attempt an OpenTofu state rollback during the
-traffic incident.
+Before Stage 5 retirement, the cutover rollback was to point Cloudflare back to
+`queenzone-dev` and restore that app. That path ended when the old app was
+deleted on **14 September 2026**. Current recovery must use the Canada East
+estate, a redeployment, or the retained database and Storage backups.
 
-## Stage 5: observation and retirement — pending
+## Stage 5: observation and retirement — in progress
 
-Keep the old App Service, plan, SQL database/server, Storage account, and the
-immediate pre-cutover backup throughout the agreed observation window. Do not
-remove their state or delete them in the cutover change.
+The maintainer accepted the four-day period from cutover and waived the
+previously proposed seven-day window on **14 September 2026**. Release
+`v2026.09.14.2` deployed the search-plan fix from #1509 before retirement. The
+production migration, exact CI artifact deployment, build-stamp warmup, and
+post-deploy smoke passed in workflow run `34813716156`. Independent
+verification passed all 11 live smoke routes. Repeated `queen` and `freddie`
+searches returned results in under 0.5 seconds after the first post-recycle
+execution, without the unavailable alert.
+
+The first retirement tranche completed on **14 September 2026**. It deleted the
+old App Service `queenzone-dev`, B1 plan `ASP-Queenzone`, both old certificates,
+Log Analytics workspace, Application Insights component, web test, associated
+alerts, and `queenzone-sql-server/queenzone-db`. It deliberately
+retains `queenzone-sql-server`, `queenzone-dev-db`, and old Blob Storage. The
+pre-cutover S0 copy `queenzone-db-precutover-20260910-083153` recorded no
+successful or failed connections during the four-day observation period. The
+maintainer approved its deletion, which completed at
+`2026-09-14T07:32:33.837Z`. Azure listed it as a deleted, point-in-time
+restorable database immediately after deletion; no long-term-retention policy
+exists.
 
 The old logical SQL server also hosts the independently managed
 `queenzone-dev-db` database used by the dev environment. Do **not** delete that
@@ -258,16 +277,25 @@ server during production retirement. Either move the dev database to a
 dev-owned server first, or retain the logical server and remove only the old
 production `queenzone-db` after confirming the dev state still references it.
 
-After the observation window passes with no unresolved mismatch:
+The first-tranche retirement followed this sequence:
 
 1. Back up remote OpenTofu state and stop all applies.
 2. Use reviewed `tofu state rm` commands for the old resource addresses.
-3. Remove the old import blocks and configuration in a follow-up pull request.
+3. Remove the old import blocks and configuration in a reviewed pull request.
 4. Confirm the normal plan has no delete or replacement.
 5. Manually delete only the exact old Azure resources after one final target
    inventory and backup check. Exclude `queenzone-sql-server` while it hosts
    `queenzone-dev-db`.
 6. Record the retained backup location and expiry without recording secrets.
+
+PR #1515 completed the state and configuration changes after clean dev and
+production plans. The Azure backend state snapshot is
+`2026-09-14T06:52:48.0182308Z`. Post-deletion inventory found every targeted
+resource absent, while the shared SQL server, `queenzone-dev-db`, pre-cutover
+database copy, and old Storage account remained. The pre-cutover copy was then
+deleted by separate maintainer approval. `queenzone-dev-db` remained Online,
+and all 11 live smoke routes passed again against
+`https://www.queenzone.org`.
 
 Update current-state documentation only after live cutover is proven. The
 final repository search must find no operational reference that still targets

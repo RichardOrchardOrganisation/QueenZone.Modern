@@ -35,10 +35,23 @@ appId: org.queenzone.mobile
     timeout: 20000
 - tapOn:
     id: forum-thread-${ATTACH_TOPIC_ID}
-- extendedWaitUntil:
-    visible:
-      id: forum-thread-screen
-    timeout: 20000
+# The hosted Simulator can briefly starve the loopback Testing host while
+# XCTest is active. Retry only the thread's read-only recovery action; the
+# forum-thread-screen assertion remains required and a second miss fails.
+- retry:
+    maxRetries: 1
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '^Try again$'
+          commands:
+            - tapOn:
+                text: '^Try again$'
+      - extendedWaitUntil:
+          visible:
+            id: forum-thread-screen
+          timeout: 20000
 - assertVisible: Journey attach topic
 - tapOn:
     id: forum-thread-reply

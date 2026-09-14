@@ -111,17 +111,19 @@ Treatments:
 | Plan `ASP-Queenzone-Prod` | `…/Microsoft.Web/serverFarms/ASP-Queenzone-Prod` | manage | Canada East live plan; SKU must stay B1×1 |
 | Site `queenzone-prod` | `…/Microsoft.Web/sites/queenzone-prod` | manage | Canada East live application; Cloudflare-only ingress |
 | Hostname bindings `queenzone.org`, `www.queenzone.org` | `…/sites/queenzone-prod/hostNameBindings/…` | manage | SNI certs bound; breaking bindings = public TLS outage |
-| Plan `ASP-Queenzone` / site `queenzone-dev` | Australia East resource paths | import | Stopped rollback estate; retain through #1272 observation, then remove from state before manual retirement |
-| Rollback certificates `queenzone.org`, `www.queenzone.org` | `…/Microsoft.Web/certificates/…` | import or defer | Australia East GeoTrust TLS RSA CA G1 certificates expire **2026-12-29**; retain with the rollback app during observation |
+| Plan `ASP-Queenzone` / site `queenzone-dev` | Australia East resource paths | retired | Removed from state and deleted on **2026-09-14** after the accepted observation period |
+| Rollback certificates `queenzone.org`, `www.queenzone.org` | `…/Microsoft.Web/certificates/…` | retired | Old Australia East certificate resources deleted with the rollback app on **2026-09-14** |
 | Active Canada East SNI certificate | uploaded certificate in the `queenzone-prod` webspace | outside | Cloudflare Origin CA certificate; secret material stays in Bitwarden. OpenTofu manages the target hostname bindings by the non-secret thumbprint recorded in `production-region-migration.md` |
 | Access restrictions (Cloudflare IPv4/IPv6 allow + deny all) | site `ipSecurityRestrictions` | import | Mis-order or drop = either open origin or lock out Cloudflare |
 | SCM access restrictions | site `scmIpSecurityRestrictions` | import | Currently **Allow all**; keep separate from main site rules (deploy path) |
 | App settings (names only) | site config | outside → [ADR 0008](../decisions/0008-app-service-settings-ownership.md) | Names re-listed 2026-08-24. Secret **values** stay in Azure/Bitwarden, never state. `deploy.yml` ARM-owns three non-secret deploy keys outside OpenTofu (see [App Service settings](#app-service-application-setting-names-values-not-recorded)). #622's site resource must omit/`ignore_changes` on `app_settings`/`connection_string` |
 | SQL server `queenzone-prod-sql` | `…/Microsoft.Sql/servers/queenzone-prod-sql` | manage | Canada East live server; SQL auth still used by app |
-| SQL server `queenzone-sql-server` | `…/Microsoft.Sql/servers/queenzone-sql-server` | import | Australia East rollback source retained through #1272 observation |
+| SQL server `queenzone-sql-server` | `…/Microsoft.Sql/servers/queenzone-sql-server` | import | Retained because the active dev environment still uses `queenzone-dev-db` |
 | Firewall `AllowAllWindowsAzureIps` | `…/firewallRules/AllowAllWindowsAzureIps` | import | Required for App Service → SQL |
 | Firewall `ClientIPAddress_2026-6-11_20-28-58` | `…/firewallRules/ClientIPAddress_…` | defer | Operator workstation IP; likely keep outside or replace with named break-glass rule |
-| Database `queenzone-db` | `…/databases/queenzone-db` | import | Basic; **never recreate** (data loss). Schema via EF only |
+| Database `queenzone-db` on `queenzone-prod-sql` | `…/servers/queenzone-prod-sql/databases/queenzone-db` | manage | Canada East live database; **never recreate** (data loss). Schema via EF only |
+| Database `queenzone-db` on `queenzone-sql-server` | `…/servers/queenzone-sql-server/databases/queenzone-db` | retired | Old Australia East production database removed from state and deleted on **2026-09-14** |
+| Pre-cutover copy `queenzone-db-precutover-20260910-083153` | `…/servers/queenzone-sql-server/databases/queenzone-db-precutover-20260910-083153` | retired | Recorded zero connections during observation; deleted by separate maintainer approval on **2026-09-14** |
 | SQL auditing (server + db) | `…/auditingSettings/Default` | data / defer | Currently **Disabled** — do not “enable by default” in first import |
 | Short-term backup (7 days, LRS) | backup policy | import | Provider default-ish for Basic; LTR all zero |
 | Storage account `queenzoneprod` | `…/storageAccounts/queenzoneprod` | manage | Canada East live account; public blob access allowed; **custom domain `cdn.queenzone.org`** |
@@ -129,12 +131,12 @@ Treatments:
 | Blob soft-delete / container soft-delete (7 days) | blob service properties | import | Versioning **not** enabled; no lifecycle management policy |
 | Blob containers + public access flags | per-container | import | See [Storage containers](#storage-containers-live); changing ACLs can break media or expose private UGC |
 | Storage RBAC assignments | scope storage account | data | Empty list at audit time (access via keys / portal roles at higher scope) |
-| Log Analytics `queenzone-dev-law` | `…/workspaces/queenzone-dev-law` | import | Retention 30d; daily cap **0.1 GB** |
-| App Insights `queenzone-dev-ai` | `…/components/queenzone-dev-ai` | import | Workspace-linked; retention 90d; daily volume cap 100 GB (platform billing cap) |
+| Log Analytics `queenzone-dev-law` | `…/workspaces/queenzone-dev-law` | retired | Deleted on **2026-09-14** with the old web estate |
+| App Insights `queenzone-dev-ai` | `…/components/queenzone-dev-ai` | retired | Deleted on **2026-09-14** with the old web estate |
 | Action group `queenzone-alerts` | `…/actionGroups/queenzone-alerts` | import | Email receiver present (address not recorded here) |
-| Legacy webtest `queenzone-dev-health` | `…/webtests/queenzone-dev-health` | import / defer | Still targets the stopped rollback app at `https://queenzone-dev.azurewebsites.net/health`; it is not a current production monitor and remains blocked by the Cloudflare IP allowlist |
-| Metric / query alerts | listed in import JSON | import | `queenzone-dev-failed-requests` is **disabled** on purpose |
-| Smart detector `Failure Anomalies - queenzone-dev-ai` | alertsmanagement | defer | Dashboard-created default; prefer leave as provider default unless drift forces import |
+| Legacy webtest `queenzone-dev-health` | `…/webtests/queenzone-dev-health` | retired | Deleted on **2026-09-14** because it targeted the retired app |
+| Legacy metric / query alerts | listed in import JSON | retired | Five rules scoped only to the old Application Insights or Log Analytics resources were deleted on **2026-09-14** |
+| Smart detector `Failure Anomalies - queenzone-dev-ai` | alertsmanagement | retired | Deleted with the old Application Insights component on **2026-09-14** |
 | Diagnostic settings (web/sql/storage) | n/a | outside | None configured — do not invent |
 
 ### Cloudflare (API inventory complete)
@@ -284,7 +286,7 @@ Documented for [#622](https://github.com/richardorchard/QueenZone.Modern/issues/
 | Smart detection failure anomalies rule | Leave as Azure default unless product wants it managed |
 | App Insights billing cap 100 GB | Far above LAW 0.1 GB daily cap; LAW cap is the real budget control — do not “harmonise” upward |
 | `use32BitWorkerProcess: true` on a Linux .NET site | Likely portal noise; verify before encoding |
-| Disabled metric alert `queenzone-dev-failed-requests` | Keep disabled; replaced by query alert |
+| Retired metric alert `queenzone-dev-failed-requests` | Deleted with the old telemetry stack on **2026-09-14**; do not recreate |
 | SQL auditing disabled | Import as disabled; enabling is a product decision |
 | Storage versioning off | Do not enable in first apply |
 | Operator SQL firewall ClientIP rule | Do not encode personal IPs as production IaC without renaming |
