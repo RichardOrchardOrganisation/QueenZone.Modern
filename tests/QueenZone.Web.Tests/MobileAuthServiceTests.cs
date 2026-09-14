@@ -265,9 +265,10 @@ public sealed class MobileAuthServiceTests
     }
 
     [Fact]
-    public async Task ExchangeRefreshToken_RotatesAndRejectsReuse()
+    public async Task ExchangeRefreshToken_RotatesAndRejectsReuseAfterTheGraceWindow()
     {
-        var issued = await IssueTokensAsync();
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var issued = await IssueTokensAsync(timeProvider: time);
 
         var refreshed = await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
@@ -280,6 +281,9 @@ public sealed class MobileAuthServiceTests
         Assert.NotEqual(issued.RefreshToken, refreshed.RefreshToken);
         Assert.DoesNotContain(issued.RefreshToken!, refreshed.ErrorDescription ?? string.Empty);
 
+        // Past the reuse grace window, a replay of the rotated-away token is
+        // theft, not a lost rotation response.
+        time.Advance(TimeSpan.FromSeconds(31));
         var reused = await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
             issued.RefreshToken,
@@ -296,15 +300,18 @@ public sealed class MobileAuthServiceTests
     public async Task ExchangeRefreshToken_LogsReuseBeforeRevokingEveryGrant()
     {
         // Reuse revokes every grant the member holds, signing them out on every
-        // device. A client that lost a rotation response looks identical to a
-        // stolen token from here, so the decision has to be traceable.
+        // device. Past the grace window, a client that lost a rotation response
+        // looks identical to a stolen token from here, so the decision has to be
+        // traceable.
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
         var log = new RecordingServiceLogger();
-        var issued = await IssueTokensAsync(serviceLogger: log);
+        var issued = await IssueTokensAsync(serviceLogger: log, timeProvider: time);
         await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
             issued.RefreshToken,
             CancellationToken.None);
 
+        time.Advance(TimeSpan.FromSeconds(31));
         var reused = await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
             issued.RefreshToken,
@@ -318,6 +325,72 @@ public sealed class MobileAuthServiceTests
                 && entry.Message.Contains("reuse detected", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("revoking all grants", warning.Message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(issued.RefreshToken!, warning.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_WithinGraceWindow_RecoversALostRotationResponseInsteadOfRevokingEverything()
+    {
+        // The client rotated once but never saw the response (killed mid launch,
+        // dropped connection, ...) and retries with the same, now-rotated-away
+        // refresh token a moment later. That must not sign the member out.
+        var log = new RecordingServiceLogger();
+        var issued = await IssueTokensAsync(serviceLogger: log);
+        var firstRotation = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+        Assert.True(firstRotation.Success);
+
+        var retried = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.True(retried.Success);
+        Assert.False(string.IsNullOrWhiteSpace(retried.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(retried.RefreshToken));
+        Assert.NotEqual(firstRotation.RefreshToken, retried.RefreshToken);
+        Assert.DoesNotContain(
+            log.Entries,
+            entry => entry.Message.Contains("reuse detected", StringComparison.OrdinalIgnoreCase));
+
+        // The recovered pair is fully usable going forward.
+        var next = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            retried.RefreshToken,
+            CancellationToken.None);
+        Assert.True(next.Success);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_WithinGraceWindow_StillRevokesEverythingWhenTheChainDeadEnds()
+    {
+        // The rotated-away token is replayed, but whatever replaced it was itself
+        // revoked outside any grace window (e.g. the member signed out in the
+        // meantime) — there is no live grant to recover, so this still reads as
+        // theft.
+        var log = new RecordingServiceLogger();
+        var issued = await IssueTokensAsync(serviceLogger: log);
+        var firstRotation = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+        Assert.True(firstRotation.Success);
+
+        await issued.Service.RevokeRefreshTokenAsync(firstRotation.RefreshToken, CancellationToken.None);
+
+        var replayed = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.False(replayed.Success);
+        Assert.Equal("invalid_grant", replayed.Error);
+        Assert.Contains(
+            log.Entries,
+            entry =>
+                entry.Level == LogLevel.Warning
+                && entry.Message.Contains("reuse detected", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -775,11 +848,13 @@ public sealed class MobileAuthServiceTests
         AuthRateLimitingOptions? authLimits = null,
         ILogger<MobileAuthService>? serviceLogger = null,
         InMemoryMemberAccountRepository? accounts = null,
-        IMobileAuthGrantRepository? grants = null)
+        IMobileAuthGrantRepository? grants = null,
+        TimeProvider? timeProvider = null)
     {
         var pair = MobileAuthPkceTestData.CreatePair();
         var service = CreateService(
             accounts,
+            timeProvider: timeProvider,
             authLimits: authLimits,
             serviceLogger: serviceLogger,
             grants: grants);
@@ -949,6 +1024,12 @@ public sealed class MobileAuthServiceTests
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             inner.RevokeAllRefreshTokensForMemberAsync(memberAccountId, utcNow, cancellationToken);
+
+        public Task<bool> LinkRefreshTokenRotationAsync(
+            string oldTokenHash,
+            string newTokenHash,
+            CancellationToken cancellationToken = default) =>
+            inner.LinkRefreshTokenRotationAsync(oldTokenHash, newTokenHash, cancellationToken);
     }
 
     private sealed class RecordingServiceLogger : ILogger<MobileAuthService>
