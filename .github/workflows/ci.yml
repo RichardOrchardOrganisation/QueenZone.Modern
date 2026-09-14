@@ -23,6 +23,7 @@ jobs:
       mobile: ${{ steps.check.outputs.mobile }}
       mobile_native: ${{ steps.check.outputs.mobile_native }}
       mobile_api_contracts: ${{ steps.check.outputs.mobile_api_contracts }}
+      design_tokens: ${{ steps.check.outputs.design_tokens }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,6 +39,7 @@ jobs:
             echo "mobile=true" >> $GITHUB_OUTPUT
             echo "mobile_native=true" >> $GITHUB_OUTPUT
             echo "mobile_api_contracts=true" >> $GITHUB_OUTPUT
+            echo "design_tokens=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -454,6 +456,30 @@ jobs:
     steps:
       - name: No mobile API contract changes — required check satisfied
         run: echo "No mobile API contract changes — marking Mobile API consumer contracts as satisfied without starting the Testing host."
+
+  # De-risks drift between design/tokens/ (canonical) and its copies —
+  # src/QueenZone.Web/wwwroot/design-system/tokens/ and every
+  # design_handoff_*/tokens/ folder (issue #1466). Independent of code=
+  # since design/ is otherwise excluded from the .NET suite.
+  design-tokens-check:
+    name: Design token sync check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.design_tokens == 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check design token copies are in sync
+        shell: pwsh
+        run: ./scripts/Sync-DesignTokens.ps1 -Check
+
+  design-tokens-check-ok:
+    name: Design token sync check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.design_tokens != 'true'
+    steps:
+      - name: No design token changes — required check satisfied
+        run: echo "No design token changes — marking Design token sync check as satisfied without comparing copies."
 
   # Builds and publishes the Linux app once per PR run ("build once, test many").
   # Deterministic tests run in the `test` matrix (mixed Web.Tests shards — see

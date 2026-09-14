@@ -14,7 +14,7 @@ The prototype loads React + ReactDOM + Babel from CDN and transpiles JSX in the 
 **High-fidelity (hifi).** Colours, typography, spacing, motion and interactions are final and precise. Recreate the UI to match, using the design tokens listed below (they already exist as the Queenzone design-system CSS — reuse those variables rather than hardcoding hex values where the system is available).
 
 ## Design System / Tokens
-This design consumes the **Queenzone design system**. All values below are CSS custom properties defined in `styles.css` (which `@import`s `tokens/*.css`). **In production, reference these tokens** — do not reinvent them.
+This design consumes the **Queenzone design system**. All values below are CSS custom properties defined in `styles.css` (which `@import`s `tokens/*.css`). **In production, reference these tokens** — do not reinvent them. `tokens/` here is a copy of `design/tokens/` (the canonical source); don't hand-edit it — run `pwsh ./scripts/Sync-DesignTokens.ps1` from the repo root to refresh it after `design/tokens/` changes.
 
 ### Colours
 Monochrome foundation (~90%) + sparing accents (~10%); gold is the rarest.
@@ -29,7 +29,7 @@ Monochrome foundation (~90%) + sparing accents (~10%); gold is the rarest.
 - `--font-body`: **Inter** — UI, body copy, ledes
 - `--font-titling`: **Cinzel** (serif caps) — eyebrows, category tags, year labels, "Jump to" label
 - Weights: `--fw-regular 400`, `--fw-medium 500`, `--fw-semibold 600`
-- Loaded via Google Fonts (`tokens/fonts.css`).
+- Loaded via local Latin WOFF2 subsets (`tokens/fonts.css`).
 
 ### Spacing / radii / motion
 - 4px spacing base (`--space-*`). Layout max-width **1180px**, gutters `--gutter-lg 2.5rem`.

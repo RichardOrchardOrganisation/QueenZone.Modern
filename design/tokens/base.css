@@ -70,10 +70,12 @@ img { max-width: 100%; display: block; }
 }
 
 /* ---- Gentle entrance (respects reduced motion) ---- */
+/* @keyframes stays outside @media: the build's CSS minifier (QueenZone.Tools
+   minify-css) fails on @keyframes nested inside @media (CSS1060/CSS1019). */
+@keyframes qz-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @media (prefers-reduced-motion: no-preference) {
   .qz-reveal { animation: qz-fade-up var(--dur-slow) var(--ease-out) both; }
-  @keyframes qz-fade-up {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
 }
