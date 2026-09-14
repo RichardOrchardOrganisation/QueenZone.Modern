@@ -3,6 +3,7 @@
 @{
   var canReply = ViewData["CanReply"] as bool? ?? false;
   var isAdmin = ViewData["IsAdmin"] as bool? ?? false;
+  var returnPath = $"{Context.Request.Path}{Context.Request.QueryString}";
 }
 
 @if (Model.Count == 0)
@@ -57,7 +58,17 @@ else
               </span>
             </div>
           </header>
-          <div class="qz-forum-post__body article-body">@Html.Raw(UgcHtml.FormatForDisplay(post.Body))</div>
+          @if (post.IsBlocked)
+          {
+            <details class="qz-forum-post__blocked">
+              <summary>Post from a blocked member. Show this post</summary>
+              <div class="qz-forum-post__body article-body">@Html.Raw(UgcHtml.FormatForDisplay(post.Body))</div>
+            </details>
+          }
+          else
+          {
+            <div class="qz-forum-post__body article-body">@Html.Raw(UgcHtml.FormatForDisplay(post.Body))</div>
+          }
           @if (post.Attachments is { Count: > 0 })
           {
             <div class="qz-forum-post__attachments">
@@ -99,7 +110,7 @@ else
             <footer class="qz-forum-post__signature qz-meta">@post.Signature</footer>
           }
         </div>
-        @if ((post.IsAuthor && post.CanEdit) || post.CanMessage || canReply || isAdmin)
+        @if ((post.IsAuthor && post.CanEdit) || post.CanMessage || canReply || isAdmin || !post.IsAuthor)
         {
           <div class="qz-forum-post__actions">
             @if (canReply)
@@ -125,6 +136,32 @@ else
                 </svg>
                 <span class="visually-hidden">Message @post.AuthorUsername</span>
               </a>
+            }
+            @if (!post.IsAuthor)
+            {
+              @if (post.AlreadyReported)
+              {
+                <span class="qz-meta" role="status">Report submitted</span>
+              }
+              else
+              {
+                <a class="qz-forum-post__report-link" href="/forum/post/@post.Id/report?returnUrl=@Uri.EscapeDataString(returnPath + $"#post-{post.Id}")" rel="nofollow">Report post</a>
+              }
+              @if (post.AuthorMemberId is Guid blockMemberId)
+              {
+                @if (post.IsBlocked)
+                {
+                  <span class="qz-meta">Member blocked</span>
+                }
+                else
+                {
+                  <form method="post" action="/forum/post/@post.Id/block" class="admin-inline-form" onsubmit="return confirm('Block @post.AuthorUsername? They will no longer be able to contact you privately.');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@(returnPath + $"#post-{post.Id}")" />
+                    <button type="submit" class="qz-link-button">Block member</button>
+                  </form>
+                }
+              }
             }
             @if (isAdmin)
             {

@@ -10,12 +10,16 @@ public sealed class TopicPageModel(
     ITopicWatchRepository topicWatchRepository,
     IOptions<ForumOptions> forumOptions,
     IOptions<AdminOptions> adminOptions,
-    TimeProvider timeProvider) : ForumTopicPageModel(
+    TimeProvider timeProvider,
+    IForumPostReportRepository forumPostReportRepository,
+    PrivateMessageService privateMessageService) : ForumTopicPageModel(
         forumRepository,
         topicWatchRepository,
         forumOptions,
         adminOptions,
-        timeProvider)
+        timeProvider,
+        forumPostReportRepository,
+        privateMessageService)
 {
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; }

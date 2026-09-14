@@ -141,6 +141,24 @@ public sealed record ForumPostUpdateRequestDto
     public DateTimeOffset? UpdatedAt { get; init; }
 }
 
+public sealed record ForumPostReportRequestDto
+{
+    public string? Category { get; init; }
+    public string? Details { get; init; }
+}
+
+public sealed record ForumPostReportResponseDto(Guid ReportId, string Status, bool AlreadyReported);
+
+public sealed record ForumPostModerationStateRequestDto
+{
+    public IReadOnlyList<int> PostIds { get; init; } = [];
+    public IReadOnlyList<Guid> AuthorMemberIds { get; init; } = [];
+}
+
+public sealed record ForumPostModerationStateDto(
+    IReadOnlyList<int> ReportedPostIds,
+    IReadOnlyList<Guid> BlockedMemberIds);
+
 /// <summary>
 /// Poll card for <c>/api/v1/forum/topics/{id}/poll</c>. Same fields the website
 /// renders in <c>_ForumPoll.cshtml</c> (question, close state, vote vs results).

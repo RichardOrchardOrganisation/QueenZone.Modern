@@ -20,7 +20,7 @@ accounts, member follows, forum topic watches, help requests, news discovery,
 news-agent guidance and run leases, queen history) are already EF Core tables
 living inside this **same** physical Azure SQL database, not a separate one.
 There is no destination database anywhere in this codebase's infrastructure —
-one Azure SQL Database (Basic tier, `queenzone-db`) is the entire production
+one Azure SQL Database (Standard S0 tier, 10 GB / 10 DTU, `queenzone-db`) is the entire production
 data store, and it has been taking live writes from the running application
 for some time.
 

@@ -14,19 +14,25 @@ public abstract class ForumTopicPageModel : PageModel
     private readonly ForumOptions forumOptions;
     private readonly AdminOptions adminOptions;
     private readonly TimeProvider timeProvider;
+    private readonly IForumPostReportRepository forumPostReportRepository;
+    private readonly PrivateMessageService privateMessageService;
 
     protected ForumTopicPageModel(
         IForumRepository forumRepository,
         ITopicWatchRepository topicWatchRepository,
         IOptions<ForumOptions> forumOptions,
         IOptions<AdminOptions> adminOptions,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IForumPostReportRepository forumPostReportRepository,
+        PrivateMessageService privateMessageService)
     {
         this.forumRepository = forumRepository;
         this.topicWatchRepository = topicWatchRepository;
         this.forumOptions = forumOptions.Value;
         this.adminOptions = adminOptions.Value;
         this.timeProvider = timeProvider;
+        this.forumPostReportRepository = forumPostReportRepository;
+        this.privateMessageService = privateMessageService;
     }
 
     public ForumThreadHeader? Header { get; private set; }
@@ -111,6 +117,21 @@ public abstract class ForumTopicPageModel : PageModel
                 forumOptions.PostEditWindowMinutes,
                 utcNow))
             .ToList();
+        if (memberId is Guid signedInMemberId)
+        {
+            var postIds = Posts.Select(post => post.Id).ToArray();
+            var reportedIds = await forumPostReportRepository.GetReportedPostIdsAsync(
+                signedInMemberId, postIds, cancellationToken);
+            var authorIds = Posts.Where(post => post.AuthorMemberId is not null)
+                .Select(post => post.AuthorMemberId!.Value).Distinct().ToArray();
+            var blockedIds = await privateMessageService.ListBlockedMemberIdsAsync(
+                signedInMemberId, authorIds, cancellationToken);
+            Posts = Posts.Select(post => post with
+            {
+                AlreadyReported = reportedIds.Contains(post.Id),
+                IsBlocked = post.AuthorMemberId is Guid authorId && blockedIds.Contains(authorId),
+            }).ToList();
+        }
         CurrentPage = page;
         TotalPages = totalPages;
         TotalPosts = topicPage.TotalCount;

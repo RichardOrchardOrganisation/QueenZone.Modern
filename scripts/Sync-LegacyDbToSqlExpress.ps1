@@ -1,5 +1,5 @@
 # Refreshes a local SQL Express copy of the live legacy/deploy Azure SQL
-# database (queenzone-db, Basic tier), so nightly probes run against a
+# database (queenzone-db, Standard S0 tier, 10 GB / 10 DTU), so nightly probes run against a
 # same-day snapshot instead of the live database. Run nightly by
 # .github/workflows/nightly-legacy-checks.yml on the Windows runner, where
 # SQL Express lives.
@@ -41,12 +41,30 @@
 #
 # Ordinary data-sync automation, not a system/security-config change - unlike
 # Enable-SqlExpressRemoteAccess.ps1 (run once, manually, before this is used).
+#
+# ExtractSource DatabaseCopy (default, docs/decisions/0022-nightly-legacy-db-sync-strategy.md
+# "Option 5"): before Extract, create a short-lived same-server Azure SQL
+# database copy (CREATE DATABASE ... AS COPY OF) and Extract from that copy
+# instead of the live production database. Production's only involvement
+# becomes the (platform-managed, not client-driven) copy operation; the
+# 25-30 minute Extract that used to hold a connection open against
+# production - competing with live app traffic for its small DTU budget -
+# now runs against a disposable database nobody else is using. Publish is
+# unchanged either way: same exclusions, same local staging-then-promote.
+# ExtractSource Direct restores the pre-0022 behavior (Extract straight from
+# production) for comparison during the ADR 0022 spike, or as a manual
+# fallback if database-copy creation rights are ever unavailable.
 
 param(
     [string]$InstanceName = "SQLEXPRESS",
     [string]$TargetDatabase = "queenzone_legacy_sync",
     [string]$ProbeLoginName = "queenzone_probe",
     [int]$SqlPackageTransientAttempts = 3,
+    [ValidateSet("DatabaseCopy", "Direct")]
+    [string]$ExtractSource = "DatabaseCopy",
+    [int]$CopyReadyTimeoutMinutes = 30,
+    [int]$CopyPollSeconds = 15,
+    [int]$StaleCopyMaxAgeHours = 6,
     [switch]$SelfTest
 )
 
@@ -337,6 +355,219 @@ function Invoke-SqlPackagePhase {
     }
 }
 
+function Test-SafeDatabaseIdentifier {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Name,
+        [int]$MaxLength = 128
+    )
+
+    if ([string]::IsNullOrEmpty($Name) -or $Name.Length -gt $MaxLength) {
+        return $false
+    }
+
+    # Deliberately more permissive than the local-only names above (which the
+    # script itself invents and can keep to [A-Za-z0-9_]): this validates
+    # names derived from the real Azure SQL database name, which may
+    # legitimately contain hyphens (e.g. "queenzone-db").
+    return $Name -match '^[A-Za-z0-9_-]+$'
+}
+
+function Get-DatabaseNameFromConnectionString {
+    param([Parameter(Mandatory = $true)][string]$ConnectionString)
+
+    $builder = [System.Data.SqlClient.SqlConnectionStringBuilder]::new($ConnectionString)
+    return $builder['Initial Catalog']
+}
+
+function ConvertTo-DatabaseConnectionString {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConnectionString,
+        [Parameter(Mandatory = $true)][string]$DatabaseName
+    )
+
+    $builder = [System.Data.SqlClient.SqlConnectionStringBuilder]::new($ConnectionString)
+    $builder['Initial Catalog'] = $DatabaseName
+    return $builder.ConnectionString
+}
+
+function Invoke-AzureSqlCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConnectionString,
+        [Parameter(Mandatory = $true)][string]$CommandText,
+        [int]$CommandTimeoutSeconds = 120
+    )
+
+    $connection = [System.Data.SqlClient.SqlConnection]::new($ConnectionString)
+    try {
+        $connection.Open()
+        $command = $connection.CreateCommand()
+        $command.CommandText = $CommandText
+        $command.CommandTimeout = $CommandTimeoutSeconds
+        return $command.ExecuteNonQuery()
+    }
+    finally {
+        $connection.Dispose()
+    }
+}
+
+function Get-AzureSqlLoginDiagnostics {
+    param([Parameter(Mandatory = $true)][string]$MasterConnectionString)
+
+    $connection = [System.Data.SqlClient.SqlConnection]::new($MasterConnectionString)
+    try {
+        $connection.Open()
+        $command = $connection.CreateCommand()
+        # sysadmin is not a meaningful server role on Azure SQL Database
+        # (single database); dbmanager is the Azure SQL Database
+        # server-level role that grants CREATE/DROP DATABASE. The server
+        # admin login itself is never a *member* of dbmanager - it has full
+        # rights implicitly - so IsDbManager reading $false does not by
+        # itself mean this login lacks the rights Option 5 needs.
+        $command.CommandText = "SELECT SUSER_SNAME() AS LoginName, IS_SRVROLEMEMBER('dbmanager') AS IsDbManager"
+        $reader = $command.ExecuteReader()
+        try {
+            if (-not $reader.Read()) {
+                return [PSCustomObject]@{ LoginName = $null; IsDbManager = $null }
+            }
+            $isDbManagerRaw = $reader['IsDbManager']
+            return [PSCustomObject]@{
+                LoginName   = [string]$reader['LoginName']
+                IsDbManager = if ($isDbManagerRaw -is [DBNull]) { $null } else { [bool][int]$isDbManagerRaw }
+            }
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $connection.Dispose()
+    }
+}
+
+function Format-DatabaseCopyPermissionDiagnosticMessage {
+    param($Diagnostics)
+
+    $loginDescription = if ([string]::IsNullOrEmpty($Diagnostics.LoginName)) { "(login name unavailable)" } else { $Diagnostics.LoginName }
+    $roleDescription = switch ($Diagnostics.IsDbManager) {
+        $true { "is a member of dbmanager" }
+        $false { "is NOT a member of dbmanager (expected and fine if this is the server admin login, which has full rights without dbmanager membership)" }
+        default { "dbmanager membership could not be determined" }
+    }
+    return "Nightly sync is connecting to master as '$loginDescription', which $roleDescription. docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5 needs this login to be the server admin login or a dbmanager member to create/drop database copies."
+}
+
+function New-AzureSqlDatabaseCopy {
+    param(
+        [Parameter(Mandatory = $true)][string]$MasterConnectionString,
+        [Parameter(Mandatory = $true)][string]$SourceDatabaseName,
+        [Parameter(Mandatory = $true)][string]$CopyDatabaseName
+    )
+
+    if (-not (Test-SafeDatabaseIdentifier $SourceDatabaseName) -or -not (Test-SafeDatabaseIdentifier $CopyDatabaseName)) {
+        throw "Source and copy database names may contain only letters, numbers, underscores, and hyphens, and must not exceed 128 characters."
+    }
+
+    # CREATE DATABASE ... AS COPY OF is asynchronous on Azure SQL: this
+    # statement returns once the copy operation has been accepted, not once
+    # the copy is usable. Callers must poll (Wait-AzureSqlDatabaseCopyReady)
+    # before reading from it.
+    $sql = "CREATE DATABASE [$CopyDatabaseName] AS COPY OF [$SourceDatabaseName];"
+    Invoke-AzureSqlCommand -ConnectionString $MasterConnectionString -CommandText $sql -CommandTimeoutSeconds 300 | Out-Null
+}
+
+function Wait-AzureSqlDatabaseCopyReady {
+    param(
+        [Parameter(Mandatory = $true)][string]$MasterConnectionString,
+        [Parameter(Mandatory = $true)][string]$DatabaseName,
+        [int]$TimeoutMinutes = 30,
+        [int]$PollSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
+    while ($true) {
+        $connection = [System.Data.SqlClient.SqlConnection]::new($MasterConnectionString)
+        try {
+            $connection.Open()
+            $command = $connection.CreateCommand()
+            $command.CommandText = "SELECT state_desc FROM sys.databases WHERE name = @name"
+            $null = $command.Parameters.AddWithValue('@name', $DatabaseName)
+            $state = $command.ExecuteScalar()
+        }
+        finally {
+            $connection.Dispose()
+        }
+
+        if ($null -eq $state) {
+            throw "Database copy '$DatabaseName' does not exist on the server while waiting for it to come online."
+        }
+
+        if ($state -eq 'ONLINE') {
+            return
+        }
+
+        if ($state -ne 'COPYING') {
+            throw "Database copy '$DatabaseName' entered unexpected state '$state' while waiting for it to come online."
+        }
+
+        if ((Get-Date) -gt $deadline) {
+            throw "Database copy '$DatabaseName' did not reach ONLINE state within $TimeoutMinutes minutes (last state: $state). It will be caught by the stale-copy sweep on a future run - it is not silently left running forever, but this run cannot use it."
+        }
+
+        Start-Sleep -Seconds $PollSeconds
+    }
+}
+
+function Remove-AzureSqlDatabaseCopy {
+    param(
+        [Parameter(Mandatory = $true)][string]$MasterConnectionString,
+        [Parameter(Mandatory = $true)][string]$CopyDatabaseName
+    )
+
+    $sql = @"
+IF EXISTS (SELECT 1 FROM sys.databases WHERE name = '$($CopyDatabaseName.Replace("'", "''"))')
+    DROP DATABASE [$CopyDatabaseName];
+"@
+    try {
+        Invoke-AzureSqlCommand -ConnectionString $MasterConnectionString -CommandText $sql -CommandTimeoutSeconds 120 | Out-Null
+    }
+    catch {
+        Write-Host "Failed to drop nightly database copy '$CopyDatabaseName': $($_.Exception.Message). It will be caught by the stale-copy sweep on a future run."
+    }
+}
+
+function Remove-StaleAzureSqlDatabaseCopies {
+    param(
+        [Parameter(Mandatory = $true)][string]$MasterConnectionString,
+        [Parameter(Mandatory = $true)][string]$NamePrefix,
+        [int]$MaxAgeHours = 6
+    )
+
+    $staleNames = @()
+    $connection = [System.Data.SqlClient.SqlConnection]::new($MasterConnectionString)
+    try {
+        $connection.Open()
+        $command = $connection.CreateCommand()
+        $command.CommandText = "SELECT name FROM sys.databases WHERE name LIKE @pattern ESCAPE '\' AND create_date < DATEADD(HOUR, -@maxAge, SYSUTCDATETIME())"
+        $null = $command.Parameters.AddWithValue('@pattern', "$($NamePrefix.Replace('\', '\\').Replace('%', '\%').Replace('_', '\_'))%")
+        $null = $command.Parameters.AddWithValue('@maxAge', $MaxAgeHours)
+        $reader = $command.ExecuteReader()
+        try {
+            while ($reader.Read()) { $staleNames += $reader.GetString(0) }
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $connection.Dispose()
+    }
+
+    foreach ($staleName in $staleNames) {
+        Write-Host "Removing stale leftover nightly database copy from an interrupted run: $staleName"
+        Remove-AzureSqlDatabaseCopy -MasterConnectionString $MasterConnectionString -CopyDatabaseName $staleName
+    }
+}
+
 function New-MirrorPromotionSql {
     param(
         [Parameter(Mandatory = $true)][string]$StagingDatabase,
@@ -385,6 +616,52 @@ function Invoke-SyncLegacyDbSelfTest {
     }
     if (Test-SqlPackageTransientTransportError 'Timeout expired. The timeout period elapsed prior to completion of the operation.') {
         throw "Classifier must not treat a SQL command timeout as a transport drop."
+    }
+
+    # ExtractSource DatabaseCopy (ADR 0022 "Option 5") support - only the
+    # pure string/connection-string logic is unit-testable here; the actual
+    # CREATE/DROP DATABASE and polling calls need a real Azure SQL server and
+    # are exercised by a protected on-demand nightly run instead, the same
+    # way sqlpackage itself isn't unit-tested by this self-test.
+    $sampleConnectionString = 'Server=tcp:queenzone.database.windows.net,1433;Initial Catalog=queenzone-db;User ID=sync;Password=p@ss;Encrypt=True;TrustServerCertificate=False;'
+
+    if ((Get-DatabaseNameFromConnectionString $sampleConnectionString) -ne 'queenzone-db') {
+        throw "Get-DatabaseNameFromConnectionString must read the source database name from Initial Catalog."
+    }
+
+    $masterConnectionString = ConvertTo-DatabaseConnectionString -ConnectionString $sampleConnectionString -DatabaseName 'master'
+    if ((Get-DatabaseNameFromConnectionString $masterConnectionString) -ne 'master') {
+        throw "ConvertTo-DatabaseConnectionString must swap Initial Catalog to the requested database."
+    }
+    $masterBuilder = [System.Data.SqlClient.SqlConnectionStringBuilder]::new($masterConnectionString)
+    if ($masterBuilder['Data Source'] -notmatch 'queenzone\.database\.windows\.net' -or $masterBuilder['User ID'] -ne 'sync') {
+        throw "ConvertTo-DatabaseConnectionString must preserve server and credentials while swapping the database."
+    }
+
+    if (-not (Test-SafeDatabaseIdentifier 'queenzone-db_nightly_ab12cd34ef56ab12cd34ef56ab12cd34')) {
+        throw "Test-SafeDatabaseIdentifier must accept a real Azure SQL database name (hyphen) plus a hex GUID suffix."
+    }
+    if (Test-SafeDatabaseIdentifier "queenzone-db'; DROP DATABASE [queenzone-db]; --") {
+        throw "Test-SafeDatabaseIdentifier must reject names containing characters outside letters, numbers, underscore, and hyphen."
+    }
+    if (Test-SafeDatabaseIdentifier ('a' * 129)) {
+        throw "Test-SafeDatabaseIdentifier must reject names over 128 characters."
+    }
+    if (Test-SafeDatabaseIdentifier '') {
+        throw "Test-SafeDatabaseIdentifier must reject an empty name."
+    }
+
+    $dbManagerMessage = Format-DatabaseCopyPermissionDiagnosticMessage ([PSCustomObject]@{ LoginName = 'CloudSA6f234939'; IsDbManager = $true })
+    if ($dbManagerMessage -notmatch "CloudSA6f234939" -or $dbManagerMessage -notmatch 'is a member of dbmanager') {
+        throw "Format-DatabaseCopyPermissionDiagnosticMessage must name the login and report dbmanager membership when true."
+    }
+    $notDbManagerMessage = Format-DatabaseCopyPermissionDiagnosticMessage ([PSCustomObject]@{ LoginName = 'CloudSA6f234939'; IsDbManager = $false })
+    if ($notDbManagerMessage -notmatch 'is NOT a member of dbmanager' -or $notDbManagerMessage -notmatch 'server admin login') {
+        throw "Format-DatabaseCopyPermissionDiagnosticMessage must explain that a non-dbmanager login can still be the server admin, not just report a bare failure."
+    }
+    $unknownMessage = Format-DatabaseCopyPermissionDiagnosticMessage ([PSCustomObject]@{ LoginName = $null; IsDbManager = $null })
+    if ($unknownMessage -notmatch 'login name unavailable' -or $unknownMessage -notmatch 'could not be determined') {
+        throw "Format-DatabaseCopyPermissionDiagnosticMessage must degrade gracefully when the diagnostic query itself returned nothing."
     }
 
     $promotionSql = New-MirrorPromotionSql -StagingDatabase 'selftest_stage' -TargetDatabase 'selftest_target'
@@ -499,6 +776,24 @@ if ([string]::IsNullOrWhiteSpace($sourceConnectionString)) {
     Write-Error "ConnectionStrings__QueenZoneLegacy is not set."
 }
 
+$sourceDatabaseName = $null
+$copyDatabaseNamePrefix = $null
+$copyDatabaseName = $null
+$masterConnectionString = $null
+$copyCreated = $false
+if ($ExtractSource -eq "DatabaseCopy") {
+    $sourceDatabaseName = Get-DatabaseNameFromConnectionString $sourceConnectionString
+    if (-not (Test-SafeDatabaseIdentifier $sourceDatabaseName)) {
+        throw "Source database name '$sourceDatabaseName' (from ConnectionStrings__QueenZoneLegacy) contains characters outside letters, numbers, underscore, and hyphen; refusing to derive a database-copy name from it."
+    }
+    $copyDatabaseNamePrefix = "${sourceDatabaseName}_nightly_"
+    $copyDatabaseName = "$copyDatabaseNamePrefix$stagingToken"
+    if (-not (Test-SafeDatabaseIdentifier $copyDatabaseName)) {
+        throw "Generated database-copy name '$copyDatabaseName' is invalid."
+    }
+    $masterConnectionString = ConvertTo-DatabaseConnectionString -ConnectionString $sourceConnectionString -DatabaseName "master"
+}
+
 function Get-SourceSchemaUserNames([string] $ConnectionString) {
     $connection = [System.Data.SqlClient.SqlConnection]::new($ConnectionString)
     try {
@@ -536,13 +831,54 @@ Get-ChildItem -Path ([System.IO.Path]::GetTempPath()) -Filter "queenzone-legacy-
         Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
     }
 
-try {
-    $schemaUserNames = @(Get-SourceSchemaUserNames $sourceConnectionString)
+# Same defensive idea as the dacpac sweep above, for database copies left
+# behind by a hard-killed run (ADR 0022 Option 5): a normal run always drops
+# its own copy in the finally block below, but a cancelled workflow or a
+# crashed runner can skip that.
+if ($ExtractSource -eq "DatabaseCopy") {
+    try {
+        Remove-StaleAzureSqlDatabaseCopies -MasterConnectionString $masterConnectionString -NamePrefix $copyDatabaseNamePrefix -MaxAgeHours $StaleCopyMaxAgeHours
+    }
+    catch {
+        Write-Host "Stale nightly database copy sweep failed (continuing with this run): $($_.Exception.Message)"
+    }
+}
 
-    Write-Host "Extracting live legacy database (schema + data) to $dacpacPath..."
+try {
+    $extractSourceConnectionString = $sourceConnectionString
+    if ($ExtractSource -eq "DatabaseCopy") {
+        $loginDiagnostics = $null
+        try {
+            $loginDiagnostics = Get-AzureSqlLoginDiagnostics -MasterConnectionString $masterConnectionString
+            Write-Host (Format-DatabaseCopyPermissionDiagnosticMessage $loginDiagnostics)
+        }
+        catch {
+            Write-Host "Could not run the CREATE DATABASE permission diagnostic (continuing - the CREATE DATABASE attempt below is the real test): $($_.Exception.Message)"
+        }
+
+        Write-Host "Creating nightly database copy $copyDatabaseName of $sourceDatabaseName (docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5)..."
+        $copyCreateStart = Get-Date
+        try {
+            New-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -SourceDatabaseName $sourceDatabaseName -CopyDatabaseName $copyDatabaseName
+        }
+        catch {
+            $loginDescription = if ($loginDiagnostics -and $loginDiagnostics.LoginName) { $loginDiagnostics.LoginName } else { "(unknown - the permission diagnostic above did not run or failed)" }
+            throw "CREATE DATABASE ... AS COPY OF failed for login '$loginDescription'. That login needs to be the Azure SQL server admin login, or a member of the server-level 'dbmanager' role, to create/drop database copies (docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5). Original error: $($_.Exception.Message)"
+        }
+        $copyCreated = $true
+        Wait-AzureSqlDatabaseCopyReady -MasterConnectionString $masterConnectionString -DatabaseName $copyDatabaseName -TimeoutMinutes $CopyReadyTimeoutMinutes -PollSeconds $CopyPollSeconds
+        $copyReadySeconds = [int]((Get-Date) - $copyCreateStart).TotalSeconds
+        Write-Host "Nightly database copy ready after ${copyReadySeconds}s. Extract will read from the copy, not production."
+        $extractSourceConnectionString = ConvertTo-DatabaseConnectionString -ConnectionString $sourceConnectionString -DatabaseName $copyDatabaseName
+    }
+
+    $schemaUserNames = @(Get-SourceSchemaUserNames $extractSourceConnectionString)
+
+    Write-Host "Extracting legacy database (schema + data) to $dacpacPath..."
+    $extractStart = Get-Date
     Invoke-SqlPackagePhase -PhaseName "Extract" -MaxAttempts $SqlPackageTransientAttempts -SqlPackageArguments @(
         "/Action:Extract",
-        "/SourceConnectionString:$sourceConnectionString",
+        "/SourceConnectionString:$extractSourceConnectionString",
         "/TargetFile:$dacpacPath",
         "/p:ExtractAllTableData=True",
         "/p:VerifyExtraction=False"
@@ -552,6 +888,8 @@ try {
             Remove-Item -LiteralPath $dacpacPath -Force -ErrorAction SilentlyContinue
         }
     }
+    $extractSeconds = [int]((Get-Date) - $extractStart).TotalSeconds
+    Write-Host "Extract completed in ${extractSeconds}s."
 
     Write-Host "Recreating staging database $stagingDatabase..."
 
@@ -636,5 +974,16 @@ END
     }
     if (Test-Path $dacpacPath) {
         Remove-Item $dacpacPath -Force
+    }
+    # Always drop the nightly database copy, success or failure - it is
+    # purely a disposable Extract source (ADR 0022 Option 5), never the
+    # promoted mirror, so there is no "keep it on failure" case the way
+    # there is for the local staging database above.
+    if ($ExtractSource -eq "DatabaseCopy" -and $copyCreated) {
+        Write-Host "Dropping nightly database copy $copyDatabaseName..."
+        $copyDropStart = Get-Date
+        Remove-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -CopyDatabaseName $copyDatabaseName
+        $copyDropSeconds = [int]((Get-Date) - $copyDropStart).TotalSeconds
+        Write-Host "Nightly database copy drop attempt finished in ${copyDropSeconds}s."
     }
 }
