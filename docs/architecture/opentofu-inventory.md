@@ -122,7 +122,8 @@ Treatments:
 | Firewall `AllowAllWindowsAzureIps` | `…/firewallRules/AllowAllWindowsAzureIps` | import | Required for App Service → SQL |
 | Firewall `ClientIPAddress_2026-6-11_20-28-58` | `…/firewallRules/ClientIPAddress_…` | defer | Operator workstation IP; likely keep outside or replace with named break-glass rule |
 | Database `queenzone-db` on `queenzone-prod-sql` | `…/servers/queenzone-prod-sql/databases/queenzone-db` | manage | Canada East live database; **never recreate** (data loss). Schema via EF only |
-| Database `queenzone-db` on `queenzone-sql-server` | `…/servers/queenzone-sql-server/databases/queenzone-db` | retired | Old Australia East production database removed from state and deleted on **2026-09-14**; the pre-cutover copy remains |
+| Database `queenzone-db` on `queenzone-sql-server` | `…/servers/queenzone-sql-server/databases/queenzone-db` | retired | Old Australia East production database removed from state and deleted on **2026-09-14** |
+| Pre-cutover copy `queenzone-db-precutover-20260910-083153` | `…/servers/queenzone-sql-server/databases/queenzone-db-precutover-20260910-083153` | retired | Recorded zero connections during observation; deleted by separate maintainer approval on **2026-09-14** |
 | SQL auditing (server + db) | `…/auditingSettings/Default` | data / defer | Currently **Disabled** — do not “enable by default” in first import |
 | Short-term backup (7 days, LRS) | backup policy | import | Provider default-ish for Basic; LTR all zero |
 | Storage account `queenzoneprod` | `…/storageAccounts/queenzoneprod` | manage | Canada East live account; public blob access allowed; **custom domain `cdn.queenzone.org`** |
