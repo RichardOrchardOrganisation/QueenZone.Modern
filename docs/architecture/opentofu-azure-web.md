@@ -7,20 +7,19 @@ step 4 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/
 
 Production now runs on the Canada East `queenzone-prod` app, plan
 `ASP-Queenzone-Prod`, Log Analytics workspace `queenzone-prod-law`, and
-Application Insights component `queenzone-prod-ai`. The same production root
-temporarily retains the imported Australia East resources listed below for the
-#1272 observation and rollback window; they are no longer serving traffic.
+Application Insights component `queenzone-prod-ai`. The imported Australia East
+web estate was removed from state and deleted on **14 September 2026** after
+the accepted four-day observation period.
 
-The production root declares imports for:
+The retired estate comprised:
 
-- resource group `Queenzone-RG`;
 - Linux App Service plan `ASP-Queenzone`, fixed at B1 and one worker;
 - Linux web app `queenzone-dev` and its system-assigned identity;
 - `queenzone.org` and `www.queenzone.org` SNI hostname bindings;
 - Log Analytics workspace `queenzone-dev-law`;
 - Application Insights component `queenzone-dev-ai`.
 
-No direct role assignment exists for the web app identity, so this module does
+No direct role assignment existed for the old web app identity, so the module did
 not invent one. ADR 0008 keeps App Service settings outside OpenTofu. The narrow
 `ignore_changes` entry prevents an incomplete settings map from deleting live
 secrets or the ARM-owned deployment settings.
@@ -35,12 +34,11 @@ managed alongside them.
 
 ## Certificate boundary
 
-The two certificates are uploaded GeoTrust PFX resources expiring
-**2026-12-29**. They are not Key Vault or App Service Managed Certificates.
-AzureRM cannot safely describe them without private PFX material, and the
-renewal path is unresolved. OpenTofu therefore manages the SNI hostname
-bindings and current certificate thumbprints but not the certificate resources.
-This keeps certificate secrets out of configuration and state.
+The two old GeoTrust PFX resources were deleted with the Australia East app.
+The live Canada East app uses a separate Cloudflare Origin CA certificate.
+OpenTofu manages the SNI hostname bindings by non-secret thumbprint but keeps
+the certificate resource and all private material outside configuration and
+state.
 
 ## Verification
 

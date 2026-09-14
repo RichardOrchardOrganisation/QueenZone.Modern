@@ -30,7 +30,7 @@ flowchart LR
 - **`dev`** — always-on environment at `dev.queenzone.org`, App Service `queenzone-devbox` / resource group `Queenzone-Dev-RG`, own SQL database and storage account. Every merge to `main` auto-deploys here via `deploy-dev.yml`. See [`opentofu-dev-environment.md`](opentofu-dev-environment.md).
 - **Production** — `queenzone.org` / `www.queenzone.org`, deployed via `deploy.yml`, which now triggers on `v*` tags rather than every merge to `main` (tag-based promotion, [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) Phase 5). Promote a merged commit by tagging it once it has been exercised on `dev`.
 
-Production runs on `queenzone-prod` in `Queenzone-RG`. Retirement of the previous Australia East app, `queenzone-dev`, began on **14 September 2026** after the accepted four-day observation period. The isolated dev environment remains `queenzone-devbox`.
+Production runs on `queenzone-prod` in `Queenzone-RG`. The previous Australia East app, `queenzone-dev`, and its B1 plan were retired on **14 September 2026** after the accepted four-day observation period. The isolated dev environment remains `queenzone-devbox`.
 
 Optional later:
 
