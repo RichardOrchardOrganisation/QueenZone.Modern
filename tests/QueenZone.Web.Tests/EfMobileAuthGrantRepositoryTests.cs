@@ -133,6 +133,29 @@ public sealed class EfMobileAuthGrantRepositoryTests : IAsyncDisposable
         Assert.Null((await repository.FindRefreshTokenByHashAsync("ef-bob"))!.RevokedAt);
     }
 
+    [Fact]
+    public async Task LinkRefreshTokenRotation_RecordsSuccessorOnce()
+    {
+        var member = await SeedMemberAsync();
+        var now = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
+        await repository.StoreRefreshTokenAsync(new MobileAuthRefreshTokenEntity
+        {
+            Id = Guid.NewGuid(),
+            TokenHash = "ef-old-hash",
+            MemberAccountId = member.Id,
+            ClientId = MobileAuthOptions.DefaultClientId,
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(30),
+        });
+
+        Assert.True(await repository.LinkRefreshTokenRotationAsync("ef-old-hash", "ef-new-hash"));
+        Assert.Equal(
+            "ef-new-hash",
+            (await repository.FindRefreshTokenByHashAsync("ef-old-hash"))!.ReplacedByTokenHash);
+        Assert.False(await repository.LinkRefreshTokenRotationAsync("ef-old-hash", "ef-another-hash"));
+        Assert.False(await repository.LinkRefreshTokenRotationAsync("ef-missing-hash", "ef-new-hash"));
+    }
+
     private async Task<MemberAccount> SeedMemberAsync()
     {
         var account = new MemberAccount

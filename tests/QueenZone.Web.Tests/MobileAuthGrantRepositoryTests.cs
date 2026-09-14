@@ -127,6 +127,29 @@ public sealed class MobileAuthGrantRepositoryTests
         Assert.Null((await repository.FindRefreshTokenByHashAsync("bob-1"))!.RevokedAt);
     }
 
+    [Fact]
+    public async Task LinkRefreshTokenRotation_RecordsSuccessorOnce()
+    {
+        var repository = new InMemoryMobileAuthGrantRepository(new SharedMobileAuthGrantStore());
+        var now = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
+        await repository.StoreRefreshTokenAsync(new MobileAuthRefreshTokenEntity
+        {
+            Id = Guid.NewGuid(),
+            TokenHash = "old-hash",
+            MemberAccountId = Guid.NewGuid(),
+            ClientId = MobileAuthOptions.DefaultClientId,
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(30),
+        });
+
+        Assert.True(await repository.LinkRefreshTokenRotationAsync("old-hash", "new-hash"));
+        Assert.Equal("new-hash", (await repository.FindRefreshTokenByHashAsync("old-hash"))!.ReplacedByTokenHash);
+
+        // Already linked, and an unknown hash: both no-ops.
+        Assert.False(await repository.LinkRefreshTokenRotationAsync("old-hash", "another-hash"));
+        Assert.False(await repository.LinkRefreshTokenRotationAsync("missing-hash", "new-hash"));
+    }
+
     private static MobileAuthAuthorizationCodeEntity CreateCode(string hash, DateTime expiresAt, DateTime createdAt) =>
         new()
         {

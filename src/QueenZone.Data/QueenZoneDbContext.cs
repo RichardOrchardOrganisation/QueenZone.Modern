@@ -1341,6 +1341,7 @@ public sealed class QueenZoneDbContext : DbContext
             entity.Property(token => token.ClientId).HasMaxLength(100).IsRequired();
             entity.Property(token => token.ExpiresAt).IsRequired();
             entity.Property(token => token.CreatedAt).IsRequired();
+            entity.Property(token => token.ReplacedByTokenHash).HasMaxLength(64);
 
             entity.HasIndex(token => token.TokenHash)
                 .IsUnique()
