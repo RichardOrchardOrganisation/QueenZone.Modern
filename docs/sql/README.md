@@ -19,7 +19,7 @@ Authoritative SQL for stored procedures, FTS DDL, and other hand-written databas
 | `007-forum-search.sql` / related | Forum FTS |
 | `008-news-full-text-search.sql` | `dbo.NEWS_T_SearchPublished` proc body (migration `20260729000000_AddNewsFullTextSearch`) |
 | `009-photo-dimension-inventory.sql` | Read-only coverage of `PIC_WIDTH`/`PIC_HEIGHT` for public photos (issue #435) |
-| `010-search-document-full-text-search.sql` | `dbo.SearchDocument_Search` proc body — unified whole-site search (migrations `20260804113500_AddSearchDocumentFullTextSearch`, `20260824120000_AddSearchDocumentSearchSourceKey`, `20260827143000_CapSearchDocumentSearchMatches`, `20260908140000_CapTypedSearchAfterContentTypeFilter`) |
+| `010-search-document-full-text-search.sql` | `dbo.SearchDocument_Search` proc body — unified whole-site search (migrations `20260804113500_AddSearchDocumentFullTextSearch`, `20260824120000_AddSearchDocumentSearchSourceKey`, `20260827143000_CapSearchDocumentSearchMatches`, `20260908140000_CapTypedSearchAfterContentTypeFilter`, `20260914080000_RecompileSearchDocumentSearchMatches`) |
 | `011-modern-forum-archive-author-summary.sql` | Materialized visible-post count and latest identity for archive-author pages, maintained by a trigger on `ModernForumPost` |
 
 Do not put connection strings or secrets in these files.
