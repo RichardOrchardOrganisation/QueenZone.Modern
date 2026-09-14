@@ -5,6 +5,7 @@ import {
   fetchForumTopicPostsResult,
   fetchForumPostModerationState,
   blockForumPostAuthor,
+  unblockForumPostAuthor,
   isOfflineFailure,
   isTimeoutFailure,
   type CacheSource,
@@ -167,6 +168,24 @@ export function ThreadScreen({ navigation, route }: Props) {
           }).catch(() => Alert.alert('Could not block member', 'Try again when you have a connection.')) },
         ]);
       };
+      const unblock = () => {
+        if (!isSignedIn || !accessToken) {
+          openSignIn(navigation, { tab: 'ForumTab', screen: 'Thread', params: route.params });
+          return;
+        }
+        Alert.alert('Unblock member?', `${item.authorUsername} will be able to contact you privately again. Their forum posts will be shown.`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Unblock', onPress: () => void unblockForumPostAuthor(accessToken, item.id).then(() => {
+            if (item.authorMemberId) {
+              setBlockedMemberIds((current) => {
+                const next = new Set(current);
+                next.delete(item.authorMemberId!);
+                return next;
+              });
+            }
+          }).catch(() => Alert.alert('Could not unblock member', 'Try again when you have a connection.')) },
+        ]);
+      };
       return (
       <ForumPostRow
         post={item}
@@ -178,6 +197,7 @@ export function ThreadScreen({ navigation, route }: Props) {
         isBlocked={Boolean(item.authorMemberId && blockedMemberIds.has(item.authorMemberId))}
         onReport={report}
         onBlock={block}
+        onUnblock={unblock}
       />
       );
     },

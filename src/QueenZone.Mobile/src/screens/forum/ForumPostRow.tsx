@@ -27,6 +27,7 @@ export const ForumPostRow = memo(function ForumPostRow({
   isBlocked = false,
   onReport = () => undefined,
   onBlock = () => undefined,
+  onUnblock = () => undefined,
 }: {
   post: DisplayPost;
   isSignedIn: boolean;
@@ -37,6 +38,7 @@ export const ForumPostRow = memo(function ForumPostRow({
   isBlocked?: boolean;
   onReport?: () => void;
   onBlock?: () => void;
+  onUnblock?: () => void;
 }) {
   const { c } = useTheme();
   const posted = formatPostTimestamp(post.postedAt);
@@ -48,7 +50,11 @@ export const ForumPostRow = memo(function ForumPostRow({
     const actions = [
       { text: 'Cancel', style: 'cancel' as const },
       ...(isReported ? [] : [{ text: 'Report post', onPress: onReport }]),
-      ...(post.authorMemberId && !isBlocked ? [{ text: 'Block member', style: 'destructive' as const, onPress: onBlock }] : []),
+      ...(post.authorMemberId
+        ? isBlocked
+          ? [{ text: 'Unblock member', onPress: onUnblock }]
+          : [{ text: 'Block member', style: 'destructive' as const, onPress: onBlock }]
+        : []),
     ];
     Alert.alert('Post actions', undefined, actions);
   };

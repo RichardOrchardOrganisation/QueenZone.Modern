@@ -100,13 +100,35 @@ function ConversationThread({ navigation, route }: Props) {
     );
   }, [conversation, correspondentName]);
 
+  const confirmUnblock = useCallback(() => {
+    Alert.alert(
+      'Unblock member',
+      `Unblock ${correspondentName}? They will be able to send you private messages again.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unblock',
+          onPress: () => {
+            void conversation.unblock().then((ok) => {
+              if (ok) {
+                Alert.alert('Member unblocked');
+              }
+            });
+          },
+        },
+      ],
+    );
+  }, [conversation, correspondentName]);
+
   const openOverflowMenu = useCallback(() => {
     Alert.alert(correspondentName, undefined, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Archive conversation', onPress: confirmArchive },
-      { text: 'Block member', style: 'destructive', onPress: confirmBlock },
+      detail?.hasBlockedOtherParticipant
+        ? { text: 'Unblock member', onPress: confirmUnblock }
+        : { text: 'Block member', style: 'destructive', onPress: confirmBlock },
     ]);
-  }, [confirmArchive, confirmBlock, correspondentName]);
+  }, [confirmArchive, confirmBlock, confirmUnblock, correspondentName, detail?.hasBlockedOtherParticipant]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -199,7 +221,7 @@ function ConversationThread({ navigation, route }: Props) {
           archiving={conversation.archiving}
           archiveDisabled={offlineSnapshot}
           archiveError={conversation.archiveError}
-          blockError={conversation.blockError}
+          blockError={conversation.blockError ?? conversation.unblockError}
           onArchive={confirmArchive}
           onSend={conversation.sendReply}
         />
@@ -215,8 +237,10 @@ function ConversationThread({ navigation, route }: Props) {
           ]}
         >
           <Text style={[type.body, { color: c.textSecondary }]}>{notice}</Text>
-          {conversation.blockError ? (
-            <Text style={[type.caption, { color: c.textSecondary }]}>{conversation.blockError}</Text>
+          {conversation.blockError || conversation.unblockError ? (
+            <Text style={[type.caption, { color: c.textSecondary }]}>
+              {conversation.blockError ?? conversation.unblockError}
+            </Text>
           ) : null}
         </View>
       ) : null}

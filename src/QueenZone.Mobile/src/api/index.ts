@@ -48,6 +48,7 @@ export type { SearchPageQuery } from './search';
 export {
   closeForumTopicPoll,
   blockForumPostAuthor,
+  unblockForumPostAuthor,
   createForumReply,
   createForumTopic,
   fetchForumCategories,

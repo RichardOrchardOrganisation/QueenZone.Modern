@@ -60,6 +60,10 @@ export function blockForumPostAuthor(accessToken: string, postId: number): Promi
   return sendJson(`/me/forum/posts/${postId}/block`, { method: 'POST', accessToken });
 }
 
+export function unblockForumPostAuthor(accessToken: string, postId: number): Promise<void> {
+  return sendJson(`/me/forum/posts/${postId}/unblock`, { method: 'POST', accessToken });
+}
+
 export function fetchForumPostModerationState(
   accessToken: string,
   postIds: number[],

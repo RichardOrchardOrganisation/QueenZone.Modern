@@ -107,6 +107,37 @@ public sealed partial class ForumPostReportRoutesTests : IClassFixture<QueenZone
     }
 
     [Fact]
+    public async Task UnblockApi_ReusesMemberBlockAndClearsModerationState()
+    {
+        var author = await CreateMemberAsync("Forum unblock author");
+        var viewer = await CreateMemberAsync("Forum unblock viewer");
+        var postId = await CreatePostAsync(author, "Unblockable post");
+        using var anonymous = factory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var unauthorized = await anonymous.PostAsync($"/api/v1/me/forum/posts/{postId}/unblock", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+
+        using var client = CreateBearerClient(viewer);
+        using var missing = await client.PostAsync("/api/v1/me/forum/posts/2147483647/unblock", null);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        using var blocked = await client.PostAsync($"/api/v1/me/forum/posts/{postId}/block", null);
+        Assert.Equal(HttpStatusCode.NoContent, blocked.StatusCode);
+
+        using var unblocked = await client.PostAsync($"/api/v1/me/forum/posts/{postId}/unblock", null);
+        Assert.Equal(HttpStatusCode.NoContent, unblocked.StatusCode);
+
+        using var stateResponse = await client.PostAsJsonAsync(
+            "/api/v1/me/forum/posts/moderation-state",
+            new { postIds = new[] { postId }, authorMemberIds = new[] { author.Id } });
+        Assert.Equal(HttpStatusCode.OK, stateResponse.StatusCode);
+        var state = await stateResponse.Content.ReadFromJsonAsync<ForumPostModerationStateDto>(JsonOptions);
+        Assert.DoesNotContain(author.Id, state!.BlockedMemberIds);
+
+        var messages = factory.Services.GetRequiredService<PrivateMessageService>();
+        Assert.False(await messages.HasBlockedAsync(viewer.Id, author.Id));
+    }
+
+    [Fact]
     public async Task WebsiteReport_ChallengesAnonymousAndReturnsMemberToExactPost()
     {
         var author = await CreateMemberAsync("Forum website author");

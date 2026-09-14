@@ -8,6 +8,7 @@ import {
   messagesRecipientsPath,
   messagesReportPath,
   messagesUnarchivePath,
+  messagesUnblockPath,
   messagesUnreadCountPath,
 } from './messagesPaths.ts';
 
@@ -35,6 +36,10 @@ describe('messages API paths', () => {
     assert.equal(
       messagesUnarchivePath('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'),
       '/me/messages/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/unarchive',
+    );
+    assert.equal(
+      messagesUnblockPath('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'),
+      '/me/messages/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/unblock',
     );
   });
 });

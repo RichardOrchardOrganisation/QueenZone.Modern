@@ -7,6 +7,8 @@ import {
   replyToConversation,
   reportConversationMessage,
   searchRecipients,
+  blockConversationParticipant,
+  unblockConversationParticipant,
 } from './messages';
 import { jsonResponse } from '../test/fixtures';
 import { ContentCache, conversationCacheKey, createMemoryStorage, inboxCacheKey } from '../cache';
@@ -152,6 +154,22 @@ describe('fetchConversation and replyToConversation', () => {
 
     expect(result.source).toBe('cache');
     expect(result.data).toMatchObject(payload);
+  });
+});
+
+describe('block and unblock conversation participant', () => {
+  it('POSTs the conversation block and unblock paths', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    await blockConversationParticipant('tok', 'c1');
+    expect(lastCall().url).toBe('http://qz.test/api/v1/me/messages/c1/block');
+    expect(lastCall().init.method).toBe('POST');
+    expect(lastCall().init.headers).toMatchObject({ Authorization: 'Bearer tok' });
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    await unblockConversationParticipant('tok', 'c1');
+    expect(lastCall().url).toBe('http://qz.test/api/v1/me/messages/c1/unblock');
+    expect(lastCall().init.method).toBe('POST');
+    expect(lastCall().init.headers).toMatchObject({ Authorization: 'Bearer tok' });
   });
 });
 

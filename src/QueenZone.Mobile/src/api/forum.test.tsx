@@ -14,6 +14,8 @@ import {
   unwatchForumTopic,
   voteForumTopicPoll,
   watchForumTopic,
+  blockForumPostAuthor,
+  unblockForumPostAuthor,
 } from './forum';
 import {
   ContentCache,
@@ -242,6 +244,24 @@ describe('poll endpoints', () => {
     expect(url).toBe('http://qz.test/api/v1/forum/topics/10/poll/close');
     expect(init.method).toBe('POST');
     expect(init.headers).toMatchObject({ Authorization: 'Bearer tok' });
+  });
+});
+
+describe('post author block and unblock', () => {
+  it('POSTs block and unblock with a Bearer token and no body', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    await blockForumPostAuthor('tok', 42);
+    expect(lastCall().url).toBe('http://qz.test/api/v1/me/forum/posts/42/block');
+    expect(lastCall().init.method).toBe('POST');
+    expect(lastCall().init.headers).toMatchObject({ Authorization: 'Bearer tok' });
+    expect(lastCall().init.body).toBeUndefined();
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    await unblockForumPostAuthor('tok', 42);
+    expect(lastCall().url).toBe('http://qz.test/api/v1/me/forum/posts/42/unblock');
+    expect(lastCall().init.method).toBe('POST');
+    expect(lastCall().init.headers).toMatchObject({ Authorization: 'Bearer tok' });
+    expect(lastCall().init.body).toBeUndefined();
   });
 });
 
