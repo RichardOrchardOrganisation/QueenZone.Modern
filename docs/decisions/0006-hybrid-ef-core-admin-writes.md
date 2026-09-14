@@ -90,7 +90,7 @@ Target end state (achieved for client library):
 - Use EF entities/change tracking for writes and for simple modern-table reads.
 - Do not map the entire legacy schema into EF entities solely to call procs; keyless entities, `SqlQuery` row types, or `EfSql` readers are enough for read models.
 
-This target does **not** require abandoning ADR 0004's "legacy as import source" policy. Table shape (legacy vs modern) remains independent of the client library.
+This target is independent of [ADR 0021](0021-legacy-database-is-production.md) (which retired ADR 0004's "legacy as import source" framing — the legacy database is the permanent production database, not a source feeding a separate one). Table shape (legacy vs modern) remains independent of the client library either way.
 
 ## Consequences
 

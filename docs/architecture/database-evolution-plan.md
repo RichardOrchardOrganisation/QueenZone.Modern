@@ -2,7 +2,7 @@
 
 ## Position
 
-The legacy `MAIN2_DB` schema is an import source and historical reference.
+The legacy `MAIN2_DB` schema (`queenzone-db`) is the permanent production database — see [ADR 0021](../decisions/0021-legacy-database-is-production.md), which superseded the earlier "import source" framing (ADR 0004). It is not a source feeding a separate destination database; modern EF-managed tables already live in this same database alongside the legacy tables.
 
 QueenZone Modern may keep reading most public archive content from legacy tables. Modern projected tables are introduced when a content area needs better performance, privacy boundaries, or maintainability — not as a blanket rewrite of every legacy read.
 
@@ -99,13 +99,13 @@ Fields:
 
 ## Migration Rules
 
-- Do not mutate legacy data during early migration.
-- Prefer read-only credentials for the legacy database.
-- Store imported modern data in separate tables or a separate database.
+- Legacy tables may be altered through reviewed, repeatable migrations like any other production schema (ADR 0021) — this is no longer a frozen source to read around.
+- Store imported/projected modern data in separate tables within the same production database (`queenzone-db`); there is no separate destination database.
 - Keep `LegacyId` fields on modern records.
 - Keep import runs repeatable.
 - Generate reports for skipped, hidden, malformed, or unsafe records.
 - Do not import private messages, emails, password fields, IP addresses, or private profile fields into public read models.
+- Ordinary production-change discipline still applies to legacy tables: back up before destructive schema changes, avoid breaking in-flight application code, keep migrations reversible where practical.
 
 ## Forum Archive Status
 
