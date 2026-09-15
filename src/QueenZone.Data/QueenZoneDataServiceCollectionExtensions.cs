@@ -66,6 +66,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IForumAttachmentRepository, EfForumAttachmentRepository>();
         services.AddScoped<IForumPollRepository, EfForumPollRepository>();
         services.AddScoped<IHomePollRepository, EfHomePollRepository>();
+        services.AddScoped<IQuizRepository, EfQuizRepository>();
         services.AddScoped<INewsDiscoveryRepository, EfNewsDiscoveryRepository>();
         services.AddScoped<INewsAgentGuidanceRepository, EfNewsAgentGuidanceRepository>();
         services.AddScoped<INewsAgentRunLeaseService, EfNewsAgentRunLeaseService>();
@@ -139,6 +140,10 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddSingleton(homePollStore);
         services.AddSingleton<IHomePollRepository>(sp =>
             new InMemoryHomePollRepository(homePollStore, sp.GetService<TimeProvider>()));
+        var quizStore = new SharedQuizStore();
+        services.AddSingleton(quizStore);
+        services.AddSingleton<IQuizRepository>(sp =>
+            new InMemoryQuizRepository(quizStore, sp.GetService<TimeProvider>()));
         services.AddSingleton<IForumRepository>(_ => new InMemoryForumRepository(
             SampleForumData.CreateSeedCategories(),
             SampleForumData.CreateSeedStats(),
