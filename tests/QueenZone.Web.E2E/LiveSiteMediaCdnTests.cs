@@ -35,7 +35,7 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
         "https://cdn2.queenzone.org/songfiles/2014417798057369.mp3";
 
     private const string KnownAnonymousSongfileBlobUrl =
-        "https://queenzone.blob.core.windows.net/songfiles/2014417798057369.mp3";
+        "https://queenzoneprod.blob.core.windows.net/songfiles/2014417798057369.mp3";
 
     protected override bool AllowsWrites => false;
 

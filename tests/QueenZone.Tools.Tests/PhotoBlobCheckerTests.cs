@@ -59,7 +59,7 @@ public sealed class HttpPhotoBlobCheckerTests
         var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
         await using var checker = new HttpPhotoBlobChecker(new HttpClient(handler));
 
-        var result = await checker.CheckAsync("https://queenzone.blob.core.windows.net/queen/a.jpg", CancellationToken.None);
+        var result = await checker.CheckAsync("https://queenzoneprod.blob.core.windows.net/queen/a.jpg", CancellationToken.None);
 
         Assert.True(result.Exists);
         Assert.Equal("200", result.Status);
@@ -72,7 +72,7 @@ public sealed class HttpPhotoBlobCheckerTests
         var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
         await using var checker = new HttpPhotoBlobChecker(new HttpClient(handler));
 
-        var result = await checker.CheckAsync("https://queenzone.blob.core.windows.net/queen/missing.jpg", CancellationToken.None);
+        var result = await checker.CheckAsync("https://queenzoneprod.blob.core.windows.net/queen/missing.jpg", CancellationToken.None);
 
         Assert.False(result.Exists);
         Assert.Equal("404", result.Status);

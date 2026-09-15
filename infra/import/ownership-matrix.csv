@@ -11,8 +11,8 @@ azure-sql,queenzone-db,.../databases/queenzone-db,import,yes,Basic 5 DTU product
 azure-sql,firewall AllowAllWindowsAzureIps,.../firewallRules/AllowAllWindowsAzureIps,import,no,0.0.0.0 Azure services
 azure-sql,firewall ClientIPAddress_2026-6-11,.../firewallRules/ClientIPAddress_*,defer,no,personal /32
 azure-sql,EF schema/data,inside database,outside,yes,GitHub migrate path
-azure-storage,queenzone,.../storageAccounts/queenzone,import,yes,Standard_LRS customDomain cdn
-azure-storage,containers,see storage-containers.json,import,yes,songfiles private since 2026-08-16 (#177)
+azure-storage,queenzone,.../storageAccounts/queenzone,outside→retirement,no,removed from state 2026-09-15; pending final manual deletion
+azure-storage,containers,see storage-containers.json,outside→retirement,no,old account containers removed from state; Canada East copies remain managed
 azure-monitor,queenzone-dev-law,.../workspaces/queenzone-dev-law,import,no,0.1GB/day 30d
 azure-monitor,queenzone-dev-ai,.../components/queenzone-dev-ai,import,no,90d retention
 azure-monitor,alerts/webtest/action group,Queenzone-RG insights resources,import,no,webtest URL likely wrong under IP lock
@@ -20,8 +20,8 @@ azure-absent,Redis/Front Door/CDN/slots,n/a,outside,n/a,confirmed absent
 cloudflare-zone,queenzone.org,zone 079fc2f37095c82fb3a2b4da65718b2b,import,yes,Free plan; account f93121b2086286e79a7a9fdb8d03cb4c
 cloudflare-dns,apex A proxied,record c22f8759158c7a3f06e290e5f51f5da8 → 52.237.246.162,import,yes,App Service inbound IP
 cloudflare-dns,www CNAME proxied,record fdd05b163df7c2941ae1e36986558228 → queenzone-dev.azurewebsites.net,import,yes,
-cloudflare-dns,cdn CNAME proxied,record c8989e49d2d624756ddf35a05e3ac153 → queenzone.blob.core.windows.net,import,yes,no Worker; Azure custom domain
-cloudflare-dns,cdn2 CNAME proxied,record 1af26073508a0494bc5d66f5b23df57f → queenzone.blob.core.windows.net,import,yes,Worker route attached
+cloudflare-dns,cdn CNAME proxied,record c8989e49d2d624756ddf35a05e3ac153 → queenzoneprod.blob.core.windows.net,import,yes,no Worker; Azure custom domain
+cloudflare-dns,cdn2 CNAME proxied,record 1af26073508a0494bc5d66f5b23df57f → queenzoneprod.blob.core.windows.net,import,yes,Worker route attached
 cloudflare-worker,pictures-queenzone-org,script + route 0fd4ebdc9c3e4825a1d9e6527fbd4d24 (cdn2.queenzone.org/*),import,yes,script name only; public host is cdn2.queenzone.org
 cloudflare-dns,pictures CNAME proxied,record 4bc9968da3b9ec19d792fef11ef4d77a to cdn.queenzone.org,import,yes,retired media hostname compatibility
 cloudflare-worker,pictures-legacy-redirect,script + route 276e102a9ef8402c9b610c7bc60bbedb (pictures.queenzone.org/*),import,yes,robots 200; other paths redirect to cdn

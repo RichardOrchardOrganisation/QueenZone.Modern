@@ -9,12 +9,12 @@ public sealed class PhotoInventoryReportTests
     {
         var report = PhotoInventoryReport.FromAssetResults(
         [
-            new PhotoBlobCheckResult(101, 12, "Queen", "original", "https://queenzone.blob.core.windows.net/queen/a.jpg", true, "200"),
-            new PhotoBlobCheckResult(101, 12, "Queen", "thumbnail", "https://queenzone.blob.core.windows.net/queen/t_a.jpg", false, "404"),
-            new PhotoBlobCheckResult(102, 12, "Queen", "original", "https://queenzone.blob.core.windows.net/queen/b.jpg", false, "404"),
-            new PhotoBlobCheckResult(102, 12, "Queen", "thumbnail", "https://queenzone.blob.core.windows.net/queen/t_b.jpg", false, "404"),
-            new PhotoBlobCheckResult(103, 9, "Brian May", "original", "https://queenzone.blob.core.windows.net/brian-may/c.jpg", true, "200"),
-            new PhotoBlobCheckResult(103, 9, "Brian May", "thumbnail", "https://queenzone.blob.core.windows.net/brian-may/t_c.jpg", true, "200"),
+            new PhotoBlobCheckResult(101, 12, "Queen", "original", "https://queenzoneprod.blob.core.windows.net/queen/a.jpg", true, "200"),
+            new PhotoBlobCheckResult(101, 12, "Queen", "thumbnail", "https://queenzoneprod.blob.core.windows.net/queen/t_a.jpg", false, "404"),
+            new PhotoBlobCheckResult(102, 12, "Queen", "original", "https://queenzoneprod.blob.core.windows.net/queen/b.jpg", false, "404"),
+            new PhotoBlobCheckResult(102, 12, "Queen", "thumbnail", "https://queenzoneprod.blob.core.windows.net/queen/t_b.jpg", false, "404"),
+            new PhotoBlobCheckResult(103, 9, "Brian May", "original", "https://queenzoneprod.blob.core.windows.net/brian-may/c.jpg", true, "200"),
+            new PhotoBlobCheckResult(103, 9, "Brian May", "thumbnail", "https://queenzoneprod.blob.core.windows.net/brian-may/t_c.jpg", true, "200"),
         ]);
 
         Assert.Equal(3, report.PhotosChecked);

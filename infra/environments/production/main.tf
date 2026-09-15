@@ -30,8 +30,10 @@ module "azure_data" {
   location            = var.azure_location
 
   # The logical server remains because the dev environment uses
-  # queenzone-dev-db. The old production database is retired separately.
-  manage_sql_database = false
+  # queenzone-dev-db. Its old production database and Storage sibling are
+  # retired separately.
+  manage_sql_database    = false
+  manage_storage_account = false
 }
 
 # Phase 7 (#1272), Canada East production target.
@@ -91,8 +93,8 @@ moved {
 }
 
 moved {
-  from = module.azure_data.azapi_resource.blob_service
-  to   = module.azure_data.azapi_resource.blob_service[0]
+  from = module.azure_data_target.azapi_resource.storage_account
+  to   = module.azure_data_target.azapi_resource.storage_account[0]
 }
 
 module "azure_mobile_builds" {

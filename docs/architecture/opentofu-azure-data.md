@@ -9,12 +9,14 @@ Production now uses `queenzone-db` on the Canada East logical server
 `queenzone-prod-sql` and Blob Storage account `queenzoneprod`. The original
 Australia East production database was removed from state and deleted on
 **14 September 2026**. Its logical server remains protected because it hosts
-`queenzone-dev-db`; the original Storage account remains pending retirement.
+`queenzone-dev-db`. The original Storage account was removed from state on
+**15 September 2026** after content and dependency checks and remains outside
+OpenTofu pending its separately verified manual deletion.
 
-The production root retains imports for the existing Australia East SQL logical
-server, Azure-services firewall rule, disabled server auditing setting, Storage
-account, Blob service, and 29 product containers. It no longer declares the old
-production database or its database-level auditing resource.
+The production root retains imports only for the existing Australia East SQL
+logical server, Azure-services firewall rule, and disabled server auditing
+setting. It no longer declares the old production database, its database-level
+auditing resource, or the old Storage account, Blob service, and 29 containers.
 
 OpenTofu records the existing SQL server administrator name because ARM requires
 it, but does not manage its password. Database principals, schema, EF migrations,

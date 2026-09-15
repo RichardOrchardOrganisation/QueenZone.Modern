@@ -266,7 +266,7 @@ internal static class CheckPhotosCommand
         Console.Error.WriteLine("  --limit <count>               Stop after this many photos");
         Console.Error.WriteLine("  --concurrency <count>         Parallel checks (default: 8)");
         Console.Error.WriteLine("  --method http|blob            Check via HTTPS HEAD to blob endpoint or Azure Blob SDK (default: http)");
-        Console.Error.WriteLine("  --blob-endpoint <url>         Azure blob endpoint for checks (default: https://queenzone.blob.core.windows.net)");
+        Console.Error.WriteLine("  --blob-endpoint <url>         Azure blob endpoint for checks (default: https://queenzoneprod.blob.core.windows.net)");
         Console.Error.WriteLine("  --storage-connection-string <value>  Azure Storage connection string for blob SDK checks");
         Console.Error.WriteLine("  --timeout <seconds>           HTTP timeout for http checks (default: 30)");
         Console.Error.WriteLine("  --output <path>               Write one-row-per-photo CSV report");
@@ -295,7 +295,7 @@ internal sealed class CheckPhotosOptions
 
     public string StorageConnectionString { get; private init; } = string.Empty;
 
-    public string BlobEndpoint { get; private init; } = "https://queenzone.blob.core.windows.net";
+    public string BlobEndpoint { get; private init; } = "https://queenzoneprod.blob.core.windows.net";
 
     public int? CategoryId { get; private init; }
 
@@ -466,7 +466,7 @@ internal sealed class CheckPhotosOptions
         {
             ConnectionString = connectionString,
             StorageConnectionString = storageConnectionString ?? string.Empty,
-            BlobEndpoint = string.IsNullOrWhiteSpace(blobEndpoint) ? "https://queenzone.blob.core.windows.net" : blobEndpoint.TrimEnd('/'),
+            BlobEndpoint = string.IsNullOrWhiteSpace(blobEndpoint) ? "https://queenzoneprod.blob.core.windows.net" : blobEndpoint.TrimEnd('/'),
             CategoryId = categoryId,
             CategorySlug = categorySlug,
             Limit = limit,
