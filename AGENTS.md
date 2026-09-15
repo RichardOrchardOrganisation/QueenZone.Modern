@@ -36,6 +36,8 @@ The React Native client lives at `src/QueenZone.Mobile/` as an Expo development-
 
 Mobile server state uses the in-repo hooks, not a query library: `useHomeSection` for home sections, `useDetailQuery` for a single resource, `usePagedContent` for paginated and infinite lists, all fetching through `src/cache/fetchCached.ts` with a key from `src/cache/keys.ts` (same `cacheKey` shares one in-flight promise). Cross-screen invalidation uses `src/cache/externalStore.ts` (prefix subscribe/invalidate via `useSyncExternalStore`). Do not add `@tanstack/react-query` or another server-state library, and do not add a new bespoke pub/sub module for cache invalidation — see ADR 0018 for the decision and its revisit trigger.
 
+`design/tokens/*.css` (colors, typography, spacing/shadows/motion) is the **canonical** source for design-token CSS custom properties, documented in `design/README.md`. `src/QueenZone.Web/wwwroot/design-system/tokens/` and every `design/design_handoff_*/tokens/` folder are generated copies — never hand-edit them. After changing anything under `design/tokens/`, run `pwsh ./scripts/Sync-DesignTokens.ps1` to propagate the change, or CI's "Design token sync check" (`pwsh ./scripts/Sync-DesignTokens.ps1 -Check`) will fail the PR. `site.css` itself (`src/QueenZone.Web/wwwroot/css/site.css`) consumes these tokens via `var(--...)` and is edited directly as normal.
+
 ## Branch And Pull Request Policy
 
 Do not push feature work directly to `main`.
@@ -136,6 +138,8 @@ dotnet test QueenZone.sln --configuration Release --no-build
 ```
 
 Use deterministic sample or fake data for normal unit and web integration tests. Real legacy database tests must be opt-in and clearly reported.
+
+If a PR touches any file under `design/tokens/`, also run `pwsh ./scripts/Sync-DesignTokens.ps1` before committing (see UI Architecture above) — CI's "Design token sync check" gate fails otherwise.
 
 When changing EF `SqlQueryRaw` projections over legacy tables, check the real SQL Server column types or cast projections to the C# row model types explicitly. Many legacy IDs and counts are `smallint`, which SQL Server materializes as `System.Int16`; in-memory route tests will not catch `Int16`-to-`Int32` mapping failures. Prefer a deterministic SQL-shape test plus an opt-in read-only legacy DB probe for new public legacy read surfaces.
 
