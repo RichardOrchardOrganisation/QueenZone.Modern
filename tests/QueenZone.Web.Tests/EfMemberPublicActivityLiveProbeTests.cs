@@ -26,7 +26,7 @@ public sealed class EfMemberPublicActivityLiveProbeTests
         }
 
         await using var dbContext = CreateContext(connectionString);
-        var repository = new EfMemberPublicActivityRepository(dbContext);
+        var repository = new EfMemberPublicActivityRepository(dbContext, new EfForumArchiveAuthorRepository(dbContext));
 
         // Every member that actually has linked forum activity on the mirror, so the union and
         // the forum branch both have rows to order.
@@ -62,8 +62,21 @@ public sealed class EfMemberPublicActivityLiveProbeTests
         }
 
         // Single-member reads go through the same path.
-        var single = await repository.GetPageAsync(authorIds[0], page: 1, pageSize: 5);
+        var single = await repository.GetPageAsync(authorIds[0], linkedLegacyUserId: null, page: 1, pageSize: 5);
         Assert.True(single.Items.Count <= 5);
+
+        // A linked legacy account merges its archive posts through the summary count and the
+        // deferred body load; page 2 exercises the Take beyond one page.
+        var legacyUserId = await dbContext.ModernForumPosts
+            .AsNoTracking()
+            .Where(post => post.AuthorLegacyUserId != null && !post.IsHidden && post.Thread != null)
+            .Select(post => post.AuthorLegacyUserId!.Value)
+            .FirstAsync();
+        var linked = await repository.GetPageAsync(authorIds[0], legacyUserId, page: 2, pageSize: 5);
+        Assert.True(linked.TotalCount > single.TotalCount);
+        Assert.All(
+            linked.Items.Where(item => item.Type == MemberPublicActivityType.ForumPost),
+            item => Assert.Equal(authorIds[0], item.AuthorId));
     }
 
     private static string KeyOf(MemberPublicActivityItem item) =>

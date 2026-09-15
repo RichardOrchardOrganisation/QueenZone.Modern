@@ -95,4 +95,27 @@ public sealed class ArchiveAuthorPageTests : IClassFixture<WebApplicationFactory
         Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
         Assert.Equal($"/members/{member.Id}", response.Headers.Location?.OriginalString);
     }
+
+    [Fact]
+    public async Task MemberProfile_LinkedLegacyUser_ShowsArchivePosts()
+    {
+        using var linkedFactory = QueenZoneWebApplicationFactory.WithServices(_ => { });
+        using var scope = linkedFactory.Services.CreateScope();
+        var memberAccountRepository = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
+        var member = await memberAccountRepository.CreateAsync(new MemberAccount
+        {
+            Id = Guid.NewGuid(),
+            Email = "brightonrock-profile@example.com",
+            DisplayName = "Brighton Rock",
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        using var client = linkedFactory.CreateAnonymousClient();
+        var unlinked = await client.GetStringAsync($"/members/{member.Id}");
+        await memberAccountRepository.LinkLegacyUserIdAsync(member.Id, 5001);
+        var linked = await client.GetStringAsync($"/members/{member.Id}");
+
+        Assert.DoesNotContain("Ranking every studio album", unlinked);
+        Assert.Contains("Ranking every studio album", linked);
+    }
 }
