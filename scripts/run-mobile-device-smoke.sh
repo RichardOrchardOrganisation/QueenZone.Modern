@@ -274,6 +274,37 @@ dump_android_host_diagnostics() {
   done
 }
 
+copy_android_disk_logs() {
+  local f
+  for f in "$HOME"/.android/*.log "$HOME"/.android/avd/*/*.log; do
+    [ -f "$f" ] || continue
+    cp "$f" "$results_dir/$(basename "$f")" 2>/dev/null || true
+  done
+}
+
+write_android_transport_marker() {
+  local reason="${1:-device-server-or-emulator-transport-loss}"
+  local qemu_state="missing"
+  local logcat_bytes=0
+  dump_android_host_diagnostics "transport-marker-$reason"
+  copy_android_disk_logs
+  if ps -eo args 2>/dev/null | grep -Eq '[q]emu-system|[e]mulator/emulator|[e]mulator64-'; then
+    qemu_state="running"
+  fi
+  if [ -f "$results_dir/logcat.txt" ]; then
+    logcat_bytes="$(wc -c < "$results_dir/logcat.txt" | tr -d ' ')"
+  fi
+  {
+    echo "class=transport_death"
+    echo "reason=$reason"
+    echo "detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "adb_state=$(android_adb_state)"
+    echo "qemu_state=$qemu_state"
+    echo "logcat_bytes=$logcat_bytes"
+  } > "$results_dir/android-transport-death"
+  echo "android_failure_class=transport_death reason=$reason qemu_state=$qemu_state logcat_bytes=$logcat_bytes" >> "$results_dir/harness.log"
+}
+
 run_adb_timeout_self_test() {
   local status elapsed start finish
 
@@ -346,6 +377,29 @@ EOF
     exit 1
   fi
 
+  marker_dir="$(mktemp -d)"
+  results_dir="$marker_dir" write_android_transport_marker "adb-recover-timeout"
+  if [ ! -f "$marker_dir/android-transport-death" ]; then
+    echo "self-test: android-transport-death marker was not written" >&2
+    rm -rf "$marker_dir"
+    exit 1
+  fi
+  if ! grep -q '^class=transport_death$' "$marker_dir/android-transport-death"; then
+    echo "self-test: marker class mismatch" >&2
+    cat "$marker_dir/android-transport-death" >&2
+    rm -rf "$marker_dir"
+    exit 1
+  fi
+  if ! grep -q '^reason=adb-recover-timeout$' "$marker_dir/android-transport-death"; then
+    echo "self-test: marker reason mismatch" >&2
+    cat "$marker_dir/android-transport-death" >&2
+    rm -rf "$marker_dir"
+    exit 1
+  fi
+  echo "--- sample android-transport-death ---"
+  cat "$marker_dir/android-transport-death"
+  rm -rf "$marker_dir"
+
   echo "ADB timeout self-test passed."
 }
 
@@ -369,14 +423,6 @@ rm -f "$results_dir/android-transport-death"
 export QUEENZONE_MOBILE_CONTRACT_FIXTURE="$fixture"
 
 host_pid=""
-
-copy_android_disk_logs() {
-  local f
-  for f in "$HOME"/.android/*.log "$HOME"/.android/avd/*/*.log; do
-    [ -f "$f" ] || continue
-    cp "$f" "$results_dir/$(basename "$f")" 2>/dev/null || true
-  done
-}
 
 stop_android_side_processes() {
   if [ -n "${android_watchdog_pid}" ]; then
@@ -822,29 +868,6 @@ android_latest_attempt_transport_died() {
     return 0
   fi
   return 1
-}
-
-write_android_transport_marker() {
-  local reason="${1:-device-server-or-emulator-transport-loss}"
-  local qemu_state="missing"
-  local logcat_bytes=0
-  dump_android_host_diagnostics "transport-marker-$reason"
-  copy_android_disk_logs
-  if ps -eo args 2>/dev/null | grep -Eq '[q]emu-system|[e]mulator/emulator|[e]mulator64-'; then
-    qemu_state="running"
-  fi
-  if [ -f "$results_dir/logcat.txt" ]; then
-    logcat_bytes="$(wc -c < "$results_dir/logcat.txt" | tr -d ' ')"
-  fi
-  {
-    echo "class=transport_death"
-    echo "reason=$reason"
-    echo "detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "adb_state=$(android_adb_state)"
-    echo "qemu_state=$qemu_state"
-    echo "logcat_bytes=$logcat_bytes"
-  } > "$results_dir/android-transport-death"
-  echo "android_failure_class=transport_death reason=$reason qemu_state=$qemu_state logcat_bytes=$logcat_bytes" >> "$results_dir/harness.log"
 }
 
 run_maestro_once() {
