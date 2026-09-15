@@ -44,6 +44,22 @@ public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    public async Task NewThreadGet_UsesSharedFormFieldClasses()
+    {
+        var client = CreateMemberClient(factory, Guid.NewGuid());
+
+        var page = await client.GetStringAsync("/forum/c/the-music/new-thread");
+        var css = await client.GetStringAsync("/css/site.css");
+
+        Assert.DoesNotContain("qz-form__field", page);
+        Assert.DoesNotContain(".qz-form__field", css);
+        Assert.Contains("qz-field qz-field--spaced", page);
+        Assert.Contains("class=\"qz-label\"", page);
+        Assert.Contains("class=\"qz-input\"", page);
+        Assert.Contains("qz-error qz-error--text", page);
+    }
+
+    [Fact]
     public async Task ValidNewThreadPost_CreatesThreadAndRedirectsToExistingTopicRoute()
     {
         var client = CreateMemberClient(factory, Guid.NewGuid());

@@ -1123,83 +1123,6 @@ body.qz-menu-lock .qz-masthead {
   display: none;
 }
 
-/* Admin Form Style Guide: labels sit above the field, never inline. */
-.qz-form__field {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: var(--space-5);
-}
-
-.qz-form__field > label {
-  display: block;
-  font: 600 0.8125rem/1.4 var(--font-body);
-  letter-spacing: 0.02em;
-  color: var(--text-primary);
-  margin-bottom: 7px;
-}
-
-.qz-form__field > input,
-.qz-form__field > select,
-.qz-form__field > textarea {
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  font: 400 15px/1.4 var(--font-body);
-  color: var(--text-primary);
-  background: var(--qz-white);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  outline: none;
-  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
-}
-
-.qz-form__field > textarea {
-  height: auto;
-  min-height: 96px;
-  padding: 10px 12px;
-  line-height: 1.6;
-  resize: vertical;
-}
-
-.qz-form__field > input:focus,
-.qz-form__field > select:focus,
-.qz-form__field > textarea:focus {
-  border-color: var(--qz-blue);
-  box-shadow: var(--shadow-focus);
-}
-
-.qz-form__field .field-validation-error {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--qz-burgundy);
-  margin-top: 7px;
-}
-
-.qz-form__field .field-validation-error:empty {
-  display: none;
-}
-
-.qz-form__field.field-validation-error > input,
-.qz-form__field:has(.field-validation-error:not(:empty)) > input {
-  border-color: var(--qz-burgundy);
-}
-
-@media (max-width: 720px) {
-  .qz-form__field > input,
-  .qz-form__field > select,
-  .qz-form__field > textarea {
-    height: 48px;
-    font-size: 16px;
-  }
-
-  .qz-form__field > textarea {
-    height: auto;
-  }
-}
-
 @media (max-width: 720px) {
   .qz-forum-compose .qz-form__actions .qz-button:first-child {
     width: 100%;
@@ -3834,6 +3757,10 @@ a.qz-forum-post__author-link:focus-visible {
   flex-direction: column;
 }
 
+.qz-field--spaced {
+  margin-bottom: var(--space-5);
+}
+
 .qz-label {
   display: block;
   font: 600 0.8125rem/1.4 var(--font-body);
@@ -3868,6 +3795,10 @@ a.qz-forum-post__author-link:focus-visible {
   display: none;
 }
 
+.qz-error:empty {
+  display: none;
+}
+
 .qz-error::before {
   content: "!";
   flex: none;
@@ -3881,6 +3812,14 @@ a.qz-forum-post__author-link:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.qz-error--text::before {
+  display: none;
+}
+
+.qz-field:has(.qz-error:not(:empty)) > .qz-input {
+  border-color: var(--qz-burgundy);
 }
 
 .qz-error-summary {
