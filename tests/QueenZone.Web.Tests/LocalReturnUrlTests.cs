@@ -1,4 +1,5 @@
 using QueenZone.Web.Infrastructure;
+using QueenZone.Web.Pages.Account;
 
 namespace QueenZone.Web.Tests;
 
@@ -57,9 +58,22 @@ public sealed class LocalReturnUrlTests
     {
         var resolved = LocalReturnUrl.Resolve(returnUrl);
         Assert.Equal(returnUrl, resolved);
-        Assert.Equal(Uri.EscapeDataString(resolved), Uri.EscapeDataString(returnUrl));
-        Assert.DoesNotContain('<', Uri.EscapeDataString(returnUrl));
-        Assert.DoesNotContain('>', Uri.EscapeDataString(returnUrl));
-        Assert.DoesNotContain('"', Uri.EscapeDataString(returnUrl));
+        var encoded = Uri.EscapeDataString(resolved);
+        Assert.Equal(encoded, Uri.EscapeDataString(returnUrl));
+        Assert.DoesNotContain('<', encoded);
+        Assert.DoesNotContain('>', encoded);
+        Assert.DoesNotContain('"', encoded);
+        Assert.Equal(resolved, LoginModel.DecodeFormReturnUrl(encoded));
+        Assert.Equal(resolved, LoginModel.DecodeFormReturnUrl(resolved));
+    }
+
+    [Theory]
+    [InlineData("//evil.example.com")]
+    [InlineData("https://evil.example.com")]
+    public void LoginFormDecode_StillRejectsUnsafeValuesAfterUnescape(string returnUrl)
+    {
+        var decoded = LoginModel.DecodeFormReturnUrl(Uri.EscapeDataString(returnUrl));
+        Assert.Equal(returnUrl, decoded);
+        Assert.Equal("/", LocalReturnUrl.Resolve(decoded));
     }
 }

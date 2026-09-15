@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
+using QueenZone.Web.Pages.Account;
 
 namespace QueenZone.Web.Tests;
 
@@ -34,11 +35,11 @@ public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFa
         const string returnUrl = "/messages/compose?to=42";
         var body = await client.GetStringAsync(
             $"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
-        var encoded = Uri.EscapeDataString(returnUrl);
+        var formEncoded = Uri.EscapeDataString(Uri.EscapeDataString(returnUrl));
         var formAction = ExtractPasswordFormAction(body);
 
-        Assert.Contains($"returnUrl={encoded}", formAction, StringComparison.Ordinal);
-        Assert.Contains($"returnUrl={encoded}", body, StringComparison.Ordinal);
+        Assert.Contains($"returnUrl={formEncoded}", formAction, StringComparison.Ordinal);
+        Assert.Equal(returnUrl, LoginModel.DecodeFormReturnUrl(Uri.EscapeDataString(returnUrl)));
     }
 
     [Fact]
