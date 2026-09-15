@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -98,6 +99,20 @@ public sealed class FanPerformancesPageTests : IClassFixture<WebApplicationFacto
         Assert.Contains("aria-label=\"Play Reaching Out\"", body);
         Assert.Contains("data-qz-stage-play-all", body);
         Assert.DoesNotContain("Sign in to play", body);
+    }
+
+    [Fact]
+    public async Task EnhancedAudioUsesSharedVisuallyHiddenRule()
+    {
+        var client = factory.CreateClient();
+
+        var css = await client.GetStringAsync("/css/site.css");
+
+        var sharedRule = Regex.Match(
+            css,
+            @"\.visually-hidden,\s*\.qz-stage-list\.is-enhanced \.qz-stage-row__audio\s*\{(?<body>[^}]*)\}");
+        Assert.True(sharedRule.Success);
+        Assert.Contains("clip: rect(0, 0, 0, 0);", sharedRule.Groups["body"].Value);
     }
 
     [Fact]
