@@ -438,7 +438,8 @@
   margin-top: var(--space-5);
 }
 
-.visually-hidden {
+.visually-hidden,
+.qz-stage-list.is-enhanced .qz-stage-row__audio {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2123,18 +2124,6 @@ body.qz-menu-lock .qz-masthead {
   width: 100%;
   max-width: 28rem;
   margin-top: var(--space-3);
-}
-
-.qz-stage-list.is-enhanced .qz-stage-row__audio {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 .qz-stage-row__description {
