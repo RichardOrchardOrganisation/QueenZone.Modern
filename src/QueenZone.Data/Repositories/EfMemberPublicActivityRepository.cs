@@ -13,22 +13,36 @@ namespace QueenZone.Data;
 /// they stay a second query merged in memory. Folding all four into a single UNION ALL needs a
 /// value converter on <c>PostedAt</c> — deliberately out of scope here because that column also
 /// carries the perf-critical forum read path.
+/// A profile with a linked legacy account adds a third source: archive posts keyed by
+/// <c>AuthorLegacyUserId</c>, counted from the precomputed archive-author summary rather than
+/// aggregated per request.
 /// </remarks>
-public sealed class EfMemberPublicActivityRepository(QueenZoneDbContext dbContext)
+public sealed class EfMemberPublicActivityRepository(
+    QueenZoneDbContext dbContext,
+    IForumArchiveAuthorRepository archiveAuthorRepository)
     : IMemberPublicActivityRepository
 {
     public Task<MemberPublicActivityPage> GetPageAsync(
         Guid memberId,
+        int? linkedLegacyUserId,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default) =>
-        GetFeedPageAsync([memberId], page, pageSize, cancellationToken);
+        GetPageCoreAsync([memberId], linkedLegacyUserId, page, pageSize, cancellationToken);
 
-    public async Task<MemberPublicActivityPage> GetFeedPageAsync(
+    public Task<MemberPublicActivityPage> GetFeedPageAsync(
         IReadOnlyCollection<Guid> memberIds,
         int page,
         int pageSize,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GetPageCoreAsync(memberIds, linkedLegacyUserId: null, page, pageSize, cancellationToken);
+
+    private async Task<MemberPublicActivityPage> GetPageCoreAsync(
+        IReadOnlyCollection<Guid> memberIds,
+        int? linkedLegacyUserId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -47,6 +61,11 @@ public sealed class EfMemberPublicActivityRepository(QueenZoneDbContext dbContex
         // fetched every matching row with no Take at all.
         var totalCount = await forumPosts.CountAsync(cancellationToken)
             + await submissionsQuery.CountAsync(cancellationToken);
+
+        var legacyRows = linkedLegacyUserId is int legacyUserId
+            ? await LoadLinkedLegacyRowsAsync(legacyUserId, authorIds[0], take, cancellationToken)
+            : null;
+        totalCount += legacyRows?.TotalCount ?? 0;
         if (totalCount == 0)
         {
             return new MemberPublicActivityPage([], 0, page, pageSize);
@@ -96,6 +115,7 @@ public sealed class EfMemberPublicActivityRepository(QueenZoneDbContext dbContex
         // ordered on PublishedAt alone, leaving same-timestamp rows free to swap between pages.
         var pageRows = forumRows
             .Concat(submissionRows)
+            .Concat(legacyRows?.Rows ?? [])
             .OrderByDescending(row => row.PublishedAt)
             .ThenByDescending(row => row.Type, StringComparer.Ordinal)
             .ThenBy(row => row.Title, StringComparer.Ordinal)
@@ -103,6 +123,7 @@ public sealed class EfMemberPublicActivityRepository(QueenZoneDbContext dbContex
             .Take(pageSize)
             .ToList();
 
+        await LoadLegacyBodiesAsync(pageRows, cancellationToken);
         var names = await LoadAuthorNamesAsync(pageRows, cancellationToken);
 
         var items = pageRows
@@ -134,6 +155,78 @@ public sealed class EfMemberPublicActivityRepository(QueenZoneDbContext dbContex
                 && authorIds.Contains(post.AuthorMemberId.Value)
                 && post.Thread != null
                 && !post.IsHidden);
+
+    /// <summary>
+    /// Newest <paramref name="take"/> visible archive posts for a linked legacy account, without
+    /// bodies: a prolific legacy author can have thousands of posts, so deep profile pages merge
+    /// on lightweight rows and only the posts that land on the page load <c>BodyHtml</c>.
+    /// Served by <c>IX_ModernForumPost_AuthorLegacyUserId_PostedAt</c>.
+    /// </summary>
+    private async Task<(int TotalCount, List<FeedRow> Rows)?> LoadLinkedLegacyRowsAsync(
+        int legacyUserId,
+        Guid memberId,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var summary = await archiveAuthorRepository.GetSummaryAsync(legacyUserId, cancellationToken);
+        if (summary is null || summary.PostCount <= 0)
+        {
+            return null;
+        }
+
+        var rows = await dbContext.ModernForumPosts
+            .AsNoTracking()
+            .Where(post => post.AuthorLegacyUserId == legacyUserId
+                && post.Thread != null
+                && !post.IsHidden)
+            .OrderByDescending(post => post.PostedAt)
+            .ThenByDescending(post => post.Id)
+            .Take(take)
+            .Select(post => new
+            {
+                post.Id,
+                post.LegacyPostId,
+                post.LegacyThreadTopicId,
+                ThreadTitle = post.Thread!.Title,
+                post.PostedAt,
+                post.AuthorDisplayName,
+            })
+            .ToListAsync(cancellationToken);
+
+        return (summary.PostCount, rows
+            .Select(row => new FeedRow
+            {
+                Type = MemberPublicActivityType.ForumPost,
+                Title = row.ThreadTitle,
+                PublishedAt = ToOffset(row.PostedAt),
+                ContentId = row.LegacyPostId,
+                ParentId = row.LegacyThreadTopicId,
+                AuthorId = memberId,
+                AuthorDisplayName = row.AuthorDisplayName,
+                LegacyForumPostRowId = row.Id,
+            })
+            .ToList());
+    }
+
+    private async Task LoadLegacyBodiesAsync(IReadOnlyList<FeedRow> rows, CancellationToken cancellationToken)
+    {
+        var legacyRows = rows.Where(row => row.LegacyForumPostRowId is not null).ToList();
+        if (legacyRows.Count == 0)
+        {
+            return;
+        }
+
+        var ids = legacyRows.Select(row => row.LegacyForumPostRowId!.Value).ToList();
+        var bodies = await dbContext.ModernForumPosts
+            .AsNoTracking()
+            .Where(post => ids.Contains(post.Id))
+            .Select(post => new { post.Id, post.BodyHtml })
+            .ToDictionaryAsync(post => post.Id, post => post.BodyHtml, cancellationToken);
+        foreach (var row in legacyRows)
+        {
+            row.Summary = bodies.GetValueOrDefault(row.LegacyForumPostRowId!.Value);
+        }
+    }
 
     /// <summary>
     /// <c>PostedAt</c> is stored without an offset, so it is pinned to UTC explicitly rather than
@@ -266,5 +359,8 @@ public sealed class EfMemberPublicActivityRepository(QueenZoneDbContext dbContex
         public Guid AuthorId { get; set; }
 
         public string? AuthorDisplayName { get; set; }
+
+        /// <summary>Set on linked legacy archive rows whose body is loaded after paging.</summary>
+        public long? LegacyForumPostRowId { get; set; }
     }
 }

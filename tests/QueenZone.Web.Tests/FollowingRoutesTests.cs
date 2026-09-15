@@ -287,6 +287,7 @@ public sealed class FollowingRoutesTests : IClassFixture<WebApplicationFactory<P
 
         public Task<MemberPublicActivityPage> GetPageAsync(
             Guid memberId,
+            int? linkedLegacyUserId,
             int page,
             int pageSize,
             CancellationToken cancellationToken = default)
