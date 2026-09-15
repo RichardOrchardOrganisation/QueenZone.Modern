@@ -42,23 +42,26 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Authored CSS that gets a minified "*.min.css" sibling generated at publish time.
-         See the MinifyCss target below and src/QueenZone.Tools/MinifyCssCommand.cs.
+    <!-- Token CSS is bundled in this order, then it and site.css get minified at publish time.
+         See the BundleCss and MinifyCss targets below.
          Forward slashes only: this path is concatenated with $(PublishDir) and handed
          to a shell command, and CI publishes on Linux where "\" is not a separator. -->
+    <TokenCss Include="wwwroot/design-system/tokens/fonts.css" />
+    <TokenCss Include="wwwroot/design-system/tokens/colors.css" />
+    <TokenCss Include="wwwroot/design-system/tokens/typography.css" />
+    <TokenCss Include="wwwroot/design-system/tokens/spacing.css" />
+    <TokenCss Include="wwwroot/design-system/tokens/base.css" />
+    <CssToMinify Include="wwwroot/design-system/tokens/tokens.css" />
     <CssToMinify Include="wwwroot/css/site.css" />
-    <CssToMinify Include="wwwroot/design-system/tokens/fonts.css" />
-    <CssToMinify Include="wwwroot/design-system/tokens/colors.css" />
-    <CssToMinify Include="wwwroot/design-system/tokens/typography.css" />
-    <CssToMinify Include="wwwroot/design-system/tokens/spacing.css" />
-    <CssToMinify Include="wwwroot/design-system/tokens/base.css" />
   </ItemGroup>
 
-  <!-- Runs after the publish output (including wwwroot) has been copied to $(PublishDir), so it
-       minifies the already-published copies in place and writes "*.min.css" siblings there. This
-       avoids fighting the Static Web Assets pipeline's own timing for discovering wwwroot content,
-       and keeps generated files out of the source tree entirely. -->
-  <Target Name="MinifyCss" AfterTargets="Publish">
+  <!-- Generate only in the publish directory so build artifacts never dirty the source tree. -->
+  <Target Name="BundleCss">
+    <Exec Command="dotnet run --project &quot;$(RepositoryRoot)/src/QueenZone.Tools/QueenZone.Tools.csproj&quot; -c Release -- bundle-css &quot;$(PublishDir)wwwroot/design-system/tokens/tokens.css&quot; @(TokenCss -> '&quot;$(PublishDir)%(Identity)&quot;', ' ')" />
+  </Target>
+
+  <!-- Runs after the publish output (including wwwroot) has been copied to $(PublishDir). -->
+  <Target Name="MinifyCss" AfterTargets="Publish" DependsOnTargets="BundleCss">
     <Exec Command="dotnet run --project &quot;$(RepositoryRoot)/src/QueenZone.Tools/QueenZone.Tools.csproj&quot; -c Release -- minify-css @(CssToMinify -> '&quot;$(PublishDir)%(Identity)&quot;', ' ')" />
   </Target>
 
