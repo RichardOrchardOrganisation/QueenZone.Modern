@@ -11,11 +11,11 @@ Canada East estate listed below. After four days of verified operation, the
 maintainer accepted that observation period and approved Stage 5 retirement
 on **14 September 2026** to stop the old estate's ongoing cost.
 
-Retirement is staged. The old App Service estate and production database were
-deleted in the first tranche. `queenzone-sql-server` remains because it hosts
-the active dev database `queenzone-dev-db`. The pre-cutover database copy was
-deleted on **14 September 2026**. The old Storage account remains pending a
-separate retirement decision.
+Retirement completed on **15 September 2026**. The old App Service estate and
+production database were deleted in the first tranche. The pre-cutover database
+copy and old Storage account were deleted after their separate safety gates.
+`queenzone-sql-server` remains because it hosts the active dev database
+`queenzone-dev-db`.
 
 ## Target and safety boundary
 
@@ -248,7 +248,7 @@ Before Stage 5 retirement, the cutover rollback was to point Cloudflare back to
 deleted on **14 September 2026**. Current recovery must use the Canada East
 estate, a redeployment, or the retained database and Storage backups.
 
-## Stage 5: observation and retirement — in progress
+## Stage 5: observation and retirement — complete
 
 The maintainer accepted the four-day period from cutover and waived the
 previously proposed seven-day window on **14 September 2026**. Release
@@ -285,9 +285,18 @@ HTTPS-only.
 Before configuration removal, state serial 32 was backed up outside the
 repository and Azure backend snapshot `2026-09-15T03:35:06.6008342Z` was
 created. All 31 old Storage, Blob service, and container addresses were then
-removed from state while the apply workflow was disabled. The live account
-was deliberately left intact pending review, clean plans, deployment of the
-remaining code-default correction, and the final manual deletion gate.
+removed from state while the apply workflow was disabled. PR #1532 passed all
+CI checks and merged the configuration and code-default correction. OpenTofu
+apply run `34930483873` and production deployment run `34930904590` completed
+successfully. A final Azure Monitor query found no write APIs against the old
+account, and the account was deleted at `2026-09-15T05:06:34.9842827Z`.
+
+After deletion, Azure returned `ResourceNotFound` for `queenzone` while
+`queenzoneprod` remained `Succeeded` in Canada East. All 11 live-site routes
+passed, `/health/ready` reported SQL and Blob healthy, the direct App Service
+origin remained blocked, and an existing public gallery blob returned HTTP 200
+with the same content length and MD5 through `cdn.queenzone.org` and the Canada
+East Blob origin. The OpenTofu apply workflow was re-enabled.
 
 The old logical SQL server also hosts the independently managed
 `queenzone-dev-db` database used by the dev environment. Do **not** delete that

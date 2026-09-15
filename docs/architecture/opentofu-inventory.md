@@ -127,7 +127,7 @@ Treatments:
 | SQL auditing (server + db) | `…/auditingSettings/Default` | data / defer | Currently **Disabled** — do not “enable by default” in first import |
 | Short-term backup (7 days, LRS) | backup policy | import | Provider default-ish for Basic; LTR all zero |
 | Storage account `queenzoneprod` | `…/storageAccounts/queenzoneprod` | manage | Canada East live account; public blob access allowed; **custom domain `cdn.queenzone.org`** |
-| Storage account `queenzone` | `…/storageAccounts/queenzone` | outside → retirement | Removed from state on **2026-09-15** after content/dependency checks; remains live only until the reviewed retirement PR and final deletion gate complete |
+| Storage account `queenzone` | `…/storageAccounts/queenzone` | retired | Removed from state and deleted on **2026-09-15** after content, dependency, no-write, deployment, and post-deletion health checks passed |
 | Blob soft-delete / container soft-delete (7 days) | blob service properties | import | Versioning **not** enabled; no lifecycle management policy |
 | Blob containers + public access flags | per-container | import | See [Storage containers](#storage-containers-live); changing ACLs can break media or expose private UGC |
 | Storage RBAC assignments | scope storage account | data | Empty list at audit time (access via keys / portal roles at higher scope) |

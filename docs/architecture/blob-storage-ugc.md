@@ -62,12 +62,12 @@ Store **container + blob name** in the database. Treat any public/display URL as
 
 Two Cloudflare hostnames proxy the legacy Azure Blob containers. They behave differently and are not interchangeable:
 
-- **`cdn.queenzone.org`** — straight CDN proxy, no Worker. Azure Storage custom domain on account `queenzone` makes the proxied Host valid. Cannot set custom response headers. Used by `PhotoImageUrl` for photos and images.
+- **`cdn.queenzone.org`** — straight CDN proxy, no Worker. Azure Storage custom domain on account `queenzoneprod` makes the proxied Host valid. Cannot set custom response headers. Used by `PhotoImageUrl` for photos and images.
 - **`cdn2.queenzone.org`** — Cloudflare Worker **script** `pictures-queenzone-org` on route `cdn2.queenzone.org/*`. That script name is historical; the DNS hostname is **cdn2**. Sets cache/CORS/nosniff headers. Used as the redirect target for **legacy forum attachments** after a member-auth check (`/forum/attachment/legacy/{postId}` → `https://cdn2.queenzone.org/attachments/{fileName}`). The Worker returns 404 for `/songfiles/*`. Retired `pictures.queenzone.org` is a compatibility hostname (Worker `pictures-legacy-redirect` → `cdn`); do not use it for new media URLs.
 
 Fan-performance audio is **not** a public CDN object. The member-authenticated app proxy `GET /fan-performances/{id}/audio` streams from the private `songfiles` container and sets `Content-Disposition`. Do not emit `cdn2.queenzone.org/songfiles/…` or raw blob URLs in HTML.
 
-**ACL note:** `songfiles` is private (#177). Legacy `attachments` remain public blob access; URL guessing still bypasses the app gate for those files. Private modern UGC containers present: `ugc-avatars`, `ugc-forum` (`ugc-photos` / `ugc-articles` / `ugc-fan-performances` not created in Azure yet; `CreateIfNotExists` uses `PublicAccessType.None`). Pending fan-performance audio must stay in `ugc-fan-performances` until a later review step copies an approved file into `songfiles`.
+**ACL note:** `songfiles` is private (#177). Legacy `attachments` remain public blob access; URL guessing still bypasses the app gate for those files. Private modern UGC containers present: `ugc-avatars`, `ugc-forum`, `ugc-photos`, and `ugc-articles` (`ugc-fan-performances` is not created in Azure yet; `CreateIfNotExists` uses `PublicAccessType.None`). Pending fan-performance audio must stay in `ugc-fan-performances` until a later review step copies an approved file into `songfiles`.
 
 ### Forum attachments
 
