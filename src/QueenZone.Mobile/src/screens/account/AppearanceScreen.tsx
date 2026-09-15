@@ -1,12 +1,17 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { HomeStackParamList } from '../../navigation/types';
-import { radius, space, type, useTheme, type ThemeMode } from '../../theme';
+import { radius, space, type, useTheme, type ThemePreference } from '../../theme';
 import { Eyebrow } from '../../ui/Eyebrow';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Appearance'>;
 
-const options: readonly { value: ThemeMode; title: string; description: string }[] = [
+const options: readonly { value: ThemePreference; title: string; description: string }[] = [
+  {
+    value: 'system',
+    title: 'Use system setting',
+    description: 'Automatically match your phone’s Light or Dark appearance.',
+  },
   { value: 'dark', title: 'Dark', description: 'Gold accents on a dark background.' },
   { value: 'light', title: 'Light', description: 'Blue accents on a light background.' },
 ];

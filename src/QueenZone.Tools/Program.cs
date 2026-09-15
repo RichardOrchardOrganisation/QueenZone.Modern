@@ -53,6 +53,11 @@ internal static class ToolsApp
             return await MinifyCssCommand.RunAsync(args[1..]);
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "bundle-css", StringComparison.OrdinalIgnoreCase))
+        {
+            return await BundleCssCommand.RunAsync(args[1..]);
+        }
+
         if (args.Length > 0 && string.Equals(args[0], "import-quotes", StringComparison.OrdinalIgnoreCase))
         {
             return await RunImportQuotesAsync(args);
