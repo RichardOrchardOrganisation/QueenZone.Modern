@@ -24,6 +24,51 @@ public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFa
     }
 
     [Fact]
+    public async Task Get_WithLocalReturnUrl_EncodesFormActionLikeExternalLinks()
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+
+        const string returnUrl = "/messages/compose?to=42";
+        var body = await client.GetStringAsync(
+            $"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+        var encoded = Uri.EscapeDataString(returnUrl);
+        var formAction = ExtractPasswordFormAction(body);
+
+        Assert.Contains($"returnUrl={encoded}", formAction, StringComparison.Ordinal);
+        Assert.Contains($"returnUrl={encoded}", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Post_WithValidCredentials_RedirectsToResolvedReturnUrl()
+    {
+        await SeedAccountAsync("return-url@example.com", "correct horse battery staple", "Return Fan");
+
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            HandleCookies = true,
+            AllowAutoRedirect = false,
+        });
+
+        const string returnUrl = "/forum";
+        var loginPage = await client.GetStringAsync(
+            $"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(loginPage),
+            ["Input.Email"] = "return-url@example.com",
+            ["Input.Password"] = "correct horse battery staple",
+        });
+
+        var response = await client.PostAsync(ExtractPasswordFormAction(loginPage), content);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(returnUrl, response.Headers.Location!.OriginalString);
+    }
+
+    [Fact]
     public async Task Post_WithValidCredentials_SignsInAndGrantsMemberAccess()
     {
         await SeedAccountAsync("reviewer@example.com", "correct horse battery staple", "App Reviewer");
@@ -156,6 +201,16 @@ public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFa
         return match.Groups["token"].Value;
     }
 
+    private static string ExtractPasswordFormAction(string html)
+    {
+        var match = PasswordFormActionRegex().Match(html);
+        Assert.True(match.Success, "Password sign-in form action was not found.");
+        return System.Net.WebUtility.HtmlDecode(match.Groups["action"].Value);
+    }
+
     [GeneratedRegex("""name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""", RegexOptions.IgnoreCase)]
     private static partial Regex AntiforgeryTokenRegex();
+
+    [GeneratedRegex("""<form[^>]*action="(?<action>[^"]+)"[^>]*>""", RegexOptions.IgnoreCase)]
+    private static partial Regex PasswordFormActionRegex();
 }

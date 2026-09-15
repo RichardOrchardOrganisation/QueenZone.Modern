@@ -36,7 +36,9 @@ public sealed class RequestLogScopeMiddleware(
         // who hit it.
         if (AdminAllowlist.IsAllowed(context.User, adminOptions.Value))
         {
-            state["AdminEmail"] = AdminAllowlist.ResolveEmail(context.User);
+            state["IsAdmin"] = true;
+            state["AdminEmailFingerprint"] = LogRedaction.EmailFingerprint(
+                AdminAllowlist.ResolveEmail(context.User));
         }
 
         using (logger.BeginScope(state))

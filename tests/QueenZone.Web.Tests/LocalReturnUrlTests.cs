@@ -48,4 +48,18 @@ public sealed class LocalReturnUrlTests
         Assert.True(Uri.IsWellFormedUriString(protocolRelative, UriKind.Relative));
         Assert.False(LocalReturnUrl.IsLocal(protocolRelative));
     }
+
+    [Theory]
+    [InlineData("/forum")]
+    [InlineData("/messages/compose?to=42")]
+    [InlineData("/account/settings#profile")]
+    public void LoginFormRouteValue_UsesEscapeDataStringOnResolvedLocalPath(string returnUrl)
+    {
+        var resolved = LocalReturnUrl.Resolve(returnUrl);
+        Assert.Equal(returnUrl, resolved);
+        Assert.Equal(Uri.EscapeDataString(resolved), Uri.EscapeDataString(returnUrl));
+        Assert.DoesNotContain('<', Uri.EscapeDataString(returnUrl));
+        Assert.DoesNotContain('>', Uri.EscapeDataString(returnUrl));
+        Assert.DoesNotContain('"', Uri.EscapeDataString(returnUrl));
+    }
 }

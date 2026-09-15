@@ -54,10 +54,9 @@ public sealed class AdminReviewerAccountService(
         var created = await memberAccounts.CreateAsync(account, cancellationToken);
 
         logger.LogInformation(
-            "Admin {AdminEmail} created local-password account {MemberId} for {MemberEmail}.",
-            adminEmail,
-            created.Id,
-            created.Email);
+            "Admin {AdminEmailFingerprint} created local-password account {MemberId}.",
+            LogRedaction.EmailFingerprint(adminEmail),
+            created.Id);
         return ReviewerAccountResult.Success(ToSummary(created));
     }
 
@@ -105,8 +104,8 @@ public sealed class AdminReviewerAccountService(
         }
 
         logger.LogInformation(
-            "Admin {AdminEmail} updated local-password account {MemberId}; password reset: {PasswordReset}.",
-            adminEmail,
+            "Admin {AdminEmailFingerprint} updated local-password account {MemberId}; password reset: {PasswordReset}.",
+            LogRedaction.EmailFingerprint(adminEmail),
             id,
             passwordHash is not null);
         return ReviewerAccountResult.Success(ToSummary(updated));
@@ -121,8 +120,8 @@ public sealed class AdminReviewerAccountService(
         if (removed)
         {
             logger.LogInformation(
-                "Admin {AdminEmail} removed local-password access from member {MemberId}.",
-                adminEmail,
+                "Admin {AdminEmailFingerprint} removed local-password access from member {MemberId}.",
+                LogRedaction.EmailFingerprint(adminEmail),
                 id);
         }
 
