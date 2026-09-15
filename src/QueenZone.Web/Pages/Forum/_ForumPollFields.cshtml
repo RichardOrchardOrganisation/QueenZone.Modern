@@ -3,8 +3,8 @@
   var poll = Model ?? new ForumPollForm();
 }
 
-<div class="qz-form__field qz-forum-poll-compose" data-forum-poll-compose>
-  <label class="qz-forum-poll-compose__toggle">
+<div class="qz-field qz-field--spaced qz-forum-poll-compose" data-forum-poll-compose>
+  <label class="qz-label qz-forum-poll-compose__toggle">
     <input type="checkbox"
            name="Poll.Enabled"
            value="true"
@@ -15,9 +15,10 @@
   </label>
 
   <div class="qz-forum-poll-compose__fields" data-poll-fields @(poll.Enabled ? null : "hidden")>
-    <div class="qz-form__field">
-      <label for="Poll_Question">Poll question</label>
+    <div class="qz-field qz-field--spaced">
+      <label class="qz-label" for="Poll_Question">Poll question</label>
       <input id="Poll_Question"
+             class="qz-input"
              name="Poll.Question"
              type="text"
              maxlength="300"
@@ -25,8 +26,8 @@
              data-poll-question />
     </div>
 
-    <div class="qz-form__field">
-      <label>Options</label>
+    <div class="qz-field qz-field--spaced">
+      <label class="qz-label">Options</label>
       <div class="qz-forum-poll-compose__options" data-poll-options>
         @{
           var optionList = poll.Options is { Count: > 0 } ? poll.Options : new List<string> { "", "" };
@@ -47,8 +48,8 @@
       <button type="button" class="qz-button qz-button--ghost" data-poll-add-option>Add option</button>
     </div>
 
-    <div class="qz-form__field">
-      <label class="qz-forum-poll-compose__toggle">
+    <div class="qz-field qz-field--spaced">
+      <label class="qz-label qz-forum-poll-compose__toggle">
         <input type="checkbox"
                name="Poll.IsMultiChoice"
                value="true"
@@ -58,9 +59,10 @@
       </label>
     </div>
 
-    <div class="qz-form__field" data-poll-max-choices-wrap @(poll.IsMultiChoice ? null : "hidden")>
-      <label for="Poll_MaxChoices">Max choices (optional)</label>
+    <div class="qz-field qz-field--spaced" data-poll-max-choices-wrap @(poll.IsMultiChoice ? null : "hidden")>
+      <label class="qz-label" for="Poll_MaxChoices">Max choices (optional)</label>
       <input id="Poll_MaxChoices"
+             class="qz-input"
              name="Poll.MaxChoices"
              type="number"
              min="1"
@@ -68,9 +70,10 @@
              value="@poll.MaxChoices" />
     </div>
 
-    <div class="qz-form__field">
-      <label for="Poll_ClosesAt">Close date (optional, UTC)</label>
+    <div class="qz-field qz-field--spaced">
+      <label class="qz-label" for="Poll_ClosesAt">Close date (optional, UTC)</label>
       <input id="Poll_ClosesAt"
+             class="qz-input"
              name="Poll.ClosesAt"
              type="datetime-local"
              value="@(poll.ClosesAt?.ToString("yyyy-MM-ddTHH:mm"))" />
