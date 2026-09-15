@@ -87,12 +87,12 @@
 .qz-masthead.is-scrolled {
   background: rgba(17, 17, 17, 0.92);
   backdrop-filter: saturate(180%) blur(12px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-masthead);
 }
 
 .qz-masthead--light.is-scrolled {
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 6px 22px rgba(17, 17, 17, 0.1);
+  box-shadow: var(--shadow-masthead-light);
 }
 
 .qz-masthead__inner,
@@ -237,14 +237,14 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-md);
   background: #171717;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-panel);
   animation: qzPanel var(--dur-fast) var(--ease-out);
 }
 
 .qz-masthead--light .qz-nav-panel {
   border-color: var(--qz-grey-200);
   background: var(--qz-white);
-  box-shadow: 0 18px 50px rgba(17, 17, 17, 0.14);
+  box-shadow: var(--shadow-panel-light);
 }
 
 .qz-nav-panel__eyebrow {
@@ -821,7 +821,7 @@
   overscroll-behavior: contain;
   background: var(--qz-white);
   color: var(--qz-charcoal);
-  box-shadow: -12px 0 40px rgba(17, 17, 17, 0.28);
+  box-shadow: var(--shadow-drawer);
   animation: qzDrawer var(--dur-base) var(--ease-out);
 }
 
@@ -1328,7 +1328,7 @@ body.qz-menu-lock .qz-masthead {
   pointer-events: none;
   border-radius: 50%;
   filter: blur(8px);
-  transition: background 900ms var(--ease-out);
+  transition: background var(--dur-900) var(--ease-out);
 }
 
 .qz-hero-archive__crest {
@@ -1454,7 +1454,7 @@ body.qz-menu-lock .qz-masthead {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid rgba(184, 154, 74, 0.5);
-  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-hero);
   background: #0d0d0d;
 }
 
@@ -1484,7 +1484,7 @@ body.qz-menu-lock .qz-masthead {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.6);
-  transition: color 500ms var(--ease-out);
+  transition: color var(--dur-500) var(--ease-out);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1549,7 +1549,7 @@ body.qz-menu-lock .qz-masthead {
   font: var(--fw-medium) 12px/1 var(--font-titling);
   letter-spacing: 0.14em;
   color: rgba(255, 255, 255, 0.4);
-  transition: color 300ms var(--ease-out);
+  transition: color var(--dur-300) var(--ease-out);
   position: relative;
 }
 
@@ -1567,7 +1567,7 @@ body.qz-menu-lock .qz-masthead {
   background: var(--qz-gold);
   border-radius: 2px;
   opacity: 0;
-  transition: opacity 300ms var(--ease-out);
+  transition: opacity var(--dur-300) var(--ease-out);
 }
 
 .qz-era-btn--active .qz-era-btn__pip {
@@ -2732,7 +2732,7 @@ a.qz-forum-post__author-link:focus-visible {
   color: var(--link);
   text-decoration: none;
   font-size: 0.875rem;
-  transition: background 180ms ease, border-color 180ms ease;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 
 .qz-forum-post__attachment-link:hover {
@@ -3076,7 +3076,7 @@ a.qz-forum-post__author-link:focus-visible {
   text-decoration: none;
   color: inherit;
   background: var(--surface-muted, #f6f6f6);
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color var(--dur-150) var(--ease-out), background-color var(--dur-150) var(--ease-out);
 }
 
 .admin-dashboard__nav-link:hover,
@@ -5555,7 +5555,7 @@ select.qz-input {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 200ms ease;
+  transition: all var(--dur-200) var(--ease-out);
 }
 
 .qz-htl-chip:hover {
@@ -5638,7 +5638,7 @@ select.qz-input {
   color: var(--text-secondary);
   cursor: pointer;
   text-align: left;
-  transition: color 180ms var(--ease-out);
+  transition: color var(--dur-fast) var(--ease-out);
 }
 
 .qz-htl-rail__decade-btn::before {
@@ -5651,7 +5651,7 @@ select.qz-input {
   height: 0;
   background: var(--qz-gold-deep);
   border-radius: 1px;
-  transition: height 220ms var(--ease-out);
+  transition: height var(--dur-220) var(--ease-out);
 }
 
 .qz-htl-rail__decade-btn--active {
@@ -5676,7 +5676,7 @@ select.qz-input {
   max-height: 0;
   border-left: 1px solid var(--hairline);
   padding-left: 16px;
-  transition: max-height 320ms var(--ease-out);
+  transition: max-height var(--dur-base) var(--ease-out);
 }
 
 .qz-htl-rail__years--open {
@@ -5693,7 +5693,7 @@ select.qz-input {
   color: var(--qz-grey-500);
   cursor: pointer;
   text-align: left;
-  transition: color 150ms ease;
+  transition: color var(--dur-150) var(--ease-out);
 }
 
 .qz-htl-rail__year-btn::before {
@@ -5706,7 +5706,7 @@ select.qz-input {
   height: 2px;
   background: var(--qz-gold-deep);
   border-radius: 1px;
-  transition: width 180ms var(--ease-out);
+  transition: width var(--dur-fast) var(--ease-out);
 }
 
 .qz-htl-rail__year-btn--active {
@@ -5841,7 +5841,7 @@ select.qz-input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity 200ms ease;
+  transition: opacity var(--dur-200) var(--ease-out);
 }
 
 .qz-htl-row--open .qz-htl-row__lede {
@@ -5852,7 +5852,7 @@ select.qz-input {
 .qz-htl-row__chevron {
   color: var(--qz-grey-500);
   flex-shrink: 0;
-  transition: transform 300ms ease;
+  transition: transform var(--dur-300) var(--ease-out);
   align-self: center;
 }
 
@@ -5895,7 +5895,7 @@ select.qz-input {
 .qz-htl-row__detail {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 380ms var(--ease-out);
+  transition: grid-template-rows var(--dur-380) var(--ease-out);
 }
 
 .qz-htl-row--open .qz-htl-row__detail {
