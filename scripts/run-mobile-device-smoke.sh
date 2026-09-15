@@ -13,15 +13,18 @@
 #   ./scripts/run-mobile-device-smoke.sh --platform android --suite journeys
 #   ./scripts/run-mobile-device-smoke.sh --platform android --suite release
 #   ./scripts/run-mobile-device-smoke.sh --dump-android-host
+#   ./scripts/run-mobile-device-smoke.sh --self-test-adb-timeout
 #
 # Maestro selector and assertion failures are not retried. One Android device
 # transport failure (DeviceServerDied / emulator gone) or pre-flow iOS
 # driver-startup failure may retry after device recovery. android-transport-death
-# is written only when the emulator is gone or the in-process retry itself
-# dies as transport, so CI can boot a fresh emulator. A selector miss on a
-# live emulator must not retrigger that outer restart. Android smoke CI
-# recreates an isolated AVD on that one outer retry (#1454); this script
-# does not add a third attempt.
+# is written only when the emulator is gone, ADB recover times out, or the
+# in-process retry itself dies as transport, so CI can boot a fresh emulator.
+# A selector miss on a live emulator must not retrigger that outer restart.
+# Android smoke CI recreates an isolated AVD on that one outer retry (#1454);
+# this script does not add a third attempt. A wedged `adb start-server` is
+# hard-capped (~45s) so the step fails instead of hanging until the 90m job
+# cancel (#1529).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,6 +36,7 @@ skip_host=false
 no_build_host=false
 prove_failure=false
 dump_android_host=false
+self_test_adb_timeout=false
 suite="smoke"
 apk=""
 app=""
@@ -44,7 +48,7 @@ android_logcat_pid=""
 android_watchdog_pid=""
 
 usage() {
-  sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [ "$#" -gt 0 ]; do
@@ -93,6 +97,10 @@ while [ "$#" -gt 0 ]; do
       dump_android_host=true
       shift
       ;;
+    --self-test-adb-timeout)
+      self_test_adb_timeout=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -105,7 +113,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ "$dump_android_host" != true ] && [ "$platform" != "android" ] && [ "$platform" != "ios" ]; then
+if [ "$dump_android_host" != true ] && [ "$self_test_adb_timeout" != true ] && [ "$platform" != "android" ] && [ "$platform" != "ios" ]; then
   echo "--platform android|ios is required." >&2
   exit 2
 fi
@@ -131,13 +139,85 @@ unset ConnectionStrings__SqlServerTest || true
 
 mkdir -p "$results_dir"
 
+# Hard deadline for ADB recover. A wedged `adb start-server` on the
+# self-hosted Mac hung ~81m until the 90m job cancel, skipping classify and
+# the existing fresh-AVD retry (#1529).
+ANDROID_ADB_TIMEOUT_SECONDS="${ANDROID_ADB_TIMEOUT_SECONDS:-45}"
+ANDROID_ADB_PROBE_TIMEOUT_SECONDS="${ANDROID_ADB_PROBE_TIMEOUT_SECONDS:-10}"
+
+# Run a command with a hard deadline. Returns 124 on timeout (GNU timeout).
+# Prefers timeout/gtimeout; falls back to background + wait so macOS runners
+# without coreutils still fail-fast.
+run_with_timeout() {
+  local seconds="$1"
+  shift
+  if [ "$#" -eq 0 ]; then
+    echo "run_with_timeout: missing command" >&2
+    return 2
+  fi
+
+  if [ "${ANDROID_ADB_TIMEOUT_IMPL:-}" != "bash" ]; then
+    if command -v timeout >/dev/null; then
+      timeout -k 5 "$seconds" "$@"
+      return $?
+    fi
+    if command -v gtimeout >/dev/null; then
+      gtimeout -k 5 "$seconds" "$@"
+      return $?
+    fi
+  fi
+
+  "$@" &
+  local pid=$!
+  local elapsed=0
+  while [ "$elapsed" -lt "$seconds" ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid"
+      return $?
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  echo "Timed out after ${seconds}s: $*" >&2
+
+  local child
+  while IFS= read -r child; do
+    [ -n "$child" ] || continue
+    kill -TERM "$child" 2>/dev/null || true
+  done < <(pgrep -P "$pid" 2>/dev/null || true)
+  kill -TERM "$pid" 2>/dev/null || true
+  sleep 1
+  while IFS= read -r child; do
+    [ -n "$child" ] || continue
+    kill -KILL "$child" 2>/dev/null || true
+  done < <(pgrep -P "$pid" 2>/dev/null || true)
+  kill -KILL "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  return 124
+}
+
+# reconnect / kill-server / start-server share one deadline so a wedged
+# daemon cannot sit on start-server until the job timeout (#1529).
+android_recover_adb() {
+  echo "Recovering ADB (deadline ${ANDROID_ADB_TIMEOUT_SECONDS}s)..."
+  if run_with_timeout "$ANDROID_ADB_TIMEOUT_SECONDS" bash -c '
+    adb reconnect offline || true
+    adb kill-server || true
+    adb start-server
+  '; then
+    return 0
+  fi
+  echo "ADB recover timed out or failed after ${ANDROID_ADB_TIMEOUT_SECONDS}s." >&2
+  return 1
+}
+
 android_adb_state() {
   local state=""
   if ! command -v adb >/dev/null; then
     echo missing
     return 0
   fi
-  state="$(adb get-state 2>/dev/null || true)"
+  state="$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb get-state 2>/dev/null || true)"
   state="$(printf '%s' "$state" | tr -d '\r\n')"
   if [ -n "$state" ]; then
     printf '%s\n' "$state"
@@ -158,7 +238,7 @@ dump_android_host_diagnostics() {
     echo "adb_state=$(android_adb_state)"
     echo "=== adb devices -l ==="
     if command -v adb >/dev/null; then
-      adb devices -l || true
+      run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb devices -l || echo "adb devices timed out or failed"
     else
       echo "adb not on PATH"
     fi
@@ -194,6 +274,140 @@ dump_android_host_diagnostics() {
   done
 }
 
+copy_android_disk_logs() {
+  local f
+  for f in "$HOME"/.android/*.log "$HOME"/.android/avd/*/*.log; do
+    [ -f "$f" ] || continue
+    cp "$f" "$results_dir/$(basename "$f")" 2>/dev/null || true
+  done
+}
+
+write_android_transport_marker() {
+  local reason="${1:-device-server-or-emulator-transport-loss}"
+  local qemu_state="missing"
+  local logcat_bytes=0
+  dump_android_host_diagnostics "transport-marker-$reason"
+  copy_android_disk_logs
+  if ps -eo args 2>/dev/null | grep -Eq '[q]emu-system|[e]mulator/emulator|[e]mulator64-'; then
+    qemu_state="running"
+  fi
+  if [ -f "$results_dir/logcat.txt" ]; then
+    logcat_bytes="$(wc -c < "$results_dir/logcat.txt" | tr -d ' ')"
+  fi
+  {
+    echo "class=transport_death"
+    echo "reason=$reason"
+    echo "detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "adb_state=$(android_adb_state)"
+    echo "qemu_state=$qemu_state"
+    echo "logcat_bytes=$logcat_bytes"
+  } > "$results_dir/android-transport-death"
+  echo "android_failure_class=transport_death reason=$reason qemu_state=$qemu_state logcat_bytes=$logcat_bytes" >> "$results_dir/harness.log"
+}
+
+run_adb_timeout_self_test() {
+  local status elapsed start finish
+
+  start="$(date +%s)"
+  set +e
+  run_with_timeout 1 sleep 8
+  status=$?
+  set -e
+  finish="$(date +%s)"
+  elapsed=$((finish - start))
+  if [ "$status" -ne 124 ]; then
+    echo "self-test: expected 124 from timed-out sleep, got $status" >&2
+    exit 1
+  fi
+  if [ "$elapsed" -ge 6 ]; then
+    echo "self-test: timeout wrapper took ${elapsed}s; expected fail-fast under 6s" >&2
+    exit 1
+  fi
+
+  set +e
+  run_with_timeout 5 true
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    echo "self-test: expected 0 from true, got $status" >&2
+    exit 1
+  fi
+
+  start="$(date +%s)"
+  set +e
+  ANDROID_ADB_TIMEOUT_IMPL=bash run_with_timeout 1 sleep 8
+  status=$?
+  set -e
+  finish="$(date +%s)"
+  elapsed=$((finish - start))
+  if [ "$status" -ne 124 ]; then
+    echo "self-test: bash fallback expected 124, got $status" >&2
+    exit 1
+  fi
+  if [ "$elapsed" -ge 6 ]; then
+    echo "self-test: bash fallback took ${elapsed}s; expected fail-fast under 6s" >&2
+    exit 1
+  fi
+
+  tmpdir="$(mktemp -d)"
+  cat > "$tmpdir/adb" <<'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = "start-server" ]; then
+  echo "* daemon not running; starting now at tcp:5037"
+  sleep 120
+  exit 0
+fi
+exit 0
+EOF
+  chmod +x "$tmpdir/adb"
+  start="$(date +%s)"
+  set +e
+  PATH="$tmpdir:$PATH" ANDROID_ADB_TIMEOUT_IMPL=bash ANDROID_ADB_TIMEOUT_SECONDS=2 android_recover_adb
+  status=$?
+  set -e
+  finish="$(date +%s)"
+  elapsed=$((finish - start))
+  rm -rf "$tmpdir"
+  if [ "$status" -eq 0 ]; then
+    echo "self-test: hung adb start-server should fail recover" >&2
+    exit 1
+  fi
+  if [ "$elapsed" -ge 15 ]; then
+    echo "self-test: hung adb start-server recover took ${elapsed}s; expected fail-fast under 15s" >&2
+    exit 1
+  fi
+
+  marker_dir="$(mktemp -d)"
+  results_dir="$marker_dir" write_android_transport_marker "adb-recover-timeout"
+  if [ ! -f "$marker_dir/android-transport-death" ]; then
+    echo "self-test: android-transport-death marker was not written" >&2
+    rm -rf "$marker_dir"
+    exit 1
+  fi
+  if ! grep -q '^class=transport_death$' "$marker_dir/android-transport-death"; then
+    echo "self-test: marker class mismatch" >&2
+    cat "$marker_dir/android-transport-death" >&2
+    rm -rf "$marker_dir"
+    exit 1
+  fi
+  if ! grep -q '^reason=adb-recover-timeout$' "$marker_dir/android-transport-death"; then
+    echo "self-test: marker reason mismatch" >&2
+    cat "$marker_dir/android-transport-death" >&2
+    rm -rf "$marker_dir"
+    exit 1
+  fi
+  echo "--- sample android-transport-death ---"
+  cat "$marker_dir/android-transport-death"
+  rm -rf "$marker_dir"
+
+  echo "ADB timeout self-test passed."
+}
+
+if [ "$self_test_adb_timeout" = true ]; then
+  run_adb_timeout_self_test
+  exit 0
+fi
+
 if [ "$dump_android_host" = true ]; then
   dump_android_host_diagnostics "cli-dump-android-host"
   exit 0
@@ -209,14 +423,6 @@ rm -f "$results_dir/android-transport-death"
 export QUEENZONE_MOBILE_CONTRACT_FIXTURE="$fixture"
 
 host_pid=""
-
-copy_android_disk_logs() {
-  local f
-  for f in "$HOME"/.android/*.log "$HOME"/.android/avd/*/*.log; do
-    [ -f "$f" ] || continue
-    cp "$f" "$results_dir/$(basename "$f")" 2>/dev/null || true
-  done
-}
 
 stop_android_side_processes() {
   if [ -n "${android_watchdog_pid}" ]; then
@@ -261,7 +467,7 @@ start_android_watchdog() {
   (
     for _ in $(seq 1 3600); do
       sleep 2
-      if [ "$(adb get-state 2>/dev/null || true)" != "device" ]; then
+      if [ "$(android_adb_state)" != "device" ]; then
         dump_android_host_diagnostics "watchdog-adb-lost"
         exit 0
       fi
@@ -280,11 +486,7 @@ collect_diagnostics() {
     # Streaming logcat is started while the device is alive. A post-death
     # `adb logcat -d` overwrite would replace that file with empty output.
     if [ ! -s "$results_dir/logcat.txt" ] && command -v adb >/dev/null; then
-      if command -v timeout >/dev/null; then
-        timeout 30 adb logcat -d > "$results_dir/logcat.txt" 2>/dev/null || true
-      else
-        adb logcat -d > "$results_dir/logcat.txt" 2>/dev/null || true
-      fi
+      run_with_timeout 30 adb logcat -d > "$results_dir/logcat.txt" 2>/dev/null || true
     fi
   fi
   if [ "$platform" = "ios" ]; then
@@ -629,7 +831,7 @@ maestro_console_log="$results_dir/maestro-console.log"
 android_transport_re="DeviceServerDiedException|Device server died|device offline|DEADLINE_EXCEEDED|host:transport:|device 'emulator-[0-9]+' not found"
 
 android_emulator_gone() {
-  [ "$(adb get-state 2>/dev/null || true)" != "device" ]
+  [ "$(android_adb_state)" != "device" ]
 }
 
 android_transport_died() {
@@ -668,29 +870,6 @@ android_latest_attempt_transport_died() {
   return 1
 }
 
-write_android_transport_marker() {
-  local reason="${1:-device-server-or-emulator-transport-loss}"
-  local qemu_state="missing"
-  local logcat_bytes=0
-  dump_android_host_diagnostics "transport-marker-$reason"
-  copy_android_disk_logs
-  if ps -eo args 2>/dev/null | grep -Eq '[q]emu-system|[e]mulator/emulator|[e]mulator64-'; then
-    qemu_state="running"
-  fi
-  if [ -f "$results_dir/logcat.txt" ]; then
-    logcat_bytes="$(wc -c < "$results_dir/logcat.txt" | tr -d ' ')"
-  fi
-  {
-    echo "class=transport_death"
-    echo "reason=$reason"
-    echo "detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "adb_state=$(android_adb_state)"
-    echo "qemu_state=$qemu_state"
-    echo "logcat_bytes=$logcat_bytes"
-  } > "$results_dir/android-transport-death"
-  echo "android_failure_class=transport_death reason=$reason qemu_state=$qemu_state logcat_bytes=$logcat_bytes" >> "$results_dir/harness.log"
-}
-
 run_maestro_once() {
   maestro "${maestro_args[@]}" 2>&1 | tee -a "$maestro_console_log"
   return "${PIPESTATUS[0]}"
@@ -706,10 +885,10 @@ set -e
 # DeviceServerDiedException across observed runs. Preserve that attempt,
 # recover ADB, reinstall the same APK, and retry once when the emulator is
 # still alive. A hierarchy timeout is not a product assert failure. If the
-# emulator process is gone, write android-transport-death so CI can boot a
-# fresh emulator and rerun the same flows. A selector miss after a live
-# in-process retry must not write that marker. Selector and assertion
-# failures stay single-attempt.
+# emulator process is gone or ADB recover times out, write
+# android-transport-death so CI can boot a fresh emulator and rerun the same
+# flows. A selector miss after a live in-process retry must not write that
+# marker. Selector and assertion failures stay single-attempt.
 if [ "$platform" = "android" ] \
   && [ "$maestro_status" -ne 0 ] \
   && android_transport_died; then
@@ -720,44 +899,46 @@ if [ "$platform" = "android" ] \
   if [ -f "$results_dir/junit.xml" ]; then
     mv "$results_dir/junit.xml" "$results_dir/junit-android-transport-first.xml"
   fi
-  adb reconnect offline || true
-  adb kill-server || true
-  adb start-server
-  android_ready=false
-  for i in $(seq 1 45); do
-    if [ "$(adb get-state 2>/dev/null || true)" = "device" ] \
-      && [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
-      android_ready=true
-      break
-    fi
-    # After ADB restarts, a still-running emulator may take a few seconds to
-    # reappear. A vanished qemu process never will — stop waiting so CI can
-    # boot a fresh emulator instead of burning 90s (#1432).
-    if [ "$i" -ge 5 ] && android_emulator_gone; then
-      echo "Android emulator is gone after the Maestro transport failure; a fresh-emulator job retry is required." >&2
-      break
-    fi
-    sleep 2
-  done
-  if [ "$android_ready" = true ]; then
-    start_android_logcat
-    start_android_watchdog
-    adb install -r "$apk"
-    set +e
-    run_maestro_once
-    maestro_status=$?
-    set -e
-    if [ "$maestro_status" -eq 0 ]; then
-      echo "android_failure_class=recovered_after_transport_death" >> "$results_dir/harness.log"
-    elif android_latest_attempt_transport_died; then
-      write_android_transport_marker "retry-still-transport-death"
-    else
-      echo "In-process Android retry failed on a selector or assertion miss. Not requesting a fresh emulator." >&2
-      echo "android_failure_class=selector_miss" >> "$results_dir/harness.log"
-    fi
+  if ! android_recover_adb; then
+    write_android_transport_marker "adb-recover-timeout"
+    echo "Android ADB recover timed out or failed after Maestro transport loss; a fresh-emulator job retry is required." >&2
   else
-    write_android_transport_marker "emulator-gone"
-    echo "Android emulator did not return online after the Maestro transport failure." >&2
+    android_ready=false
+    for i in $(seq 1 45); do
+      if [ "$(android_adb_state)" = "device" ] \
+        && [ "$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+        android_ready=true
+        break
+      fi
+      # After ADB restarts, a still-running emulator may take a few seconds to
+      # reappear. A vanished qemu process never will — stop waiting so CI can
+      # boot a fresh emulator instead of burning 90s (#1432).
+      if [ "$i" -ge 5 ] && android_emulator_gone; then
+        echo "Android emulator is gone after the Maestro transport failure; a fresh-emulator job retry is required." >&2
+        break
+      fi
+      sleep 2
+    done
+    if [ "$android_ready" = true ]; then
+      start_android_logcat
+      start_android_watchdog
+      adb install -r "$apk"
+      set +e
+      run_maestro_once
+      maestro_status=$?
+      set -e
+      if [ "$maestro_status" -eq 0 ]; then
+        echo "android_failure_class=recovered_after_transport_death" >> "$results_dir/harness.log"
+      elif android_latest_attempt_transport_died; then
+        write_android_transport_marker "retry-still-transport-death"
+      else
+        echo "In-process Android retry failed on a selector or assertion miss. Not requesting a fresh emulator." >&2
+        echo "android_failure_class=selector_miss" >> "$results_dir/harness.log"
+      fi
+    else
+      write_android_transport_marker "emulator-gone"
+      echo "Android emulator did not return online after the Maestro transport failure." >&2
+    fi
   fi
 fi
 
