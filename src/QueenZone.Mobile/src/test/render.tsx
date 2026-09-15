@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { act, render, type RenderOptions } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider } from '../theme';
+import { ThemeProvider, type ThemePreference } from '../theme';
 
 const safeAreaMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -15,17 +15,19 @@ export const testHeaderHeight = 96;
 
 type Options = RenderOptions & {
   navigation?: boolean;
+  /** Defaults to dark for deterministic tests; null exercises persisted app behaviour. */
+  themePreference?: ThemePreference | null;
 };
 
 export function renderWithProviders(ui: ReactElement, options: Options = {}) {
-  const { navigation = true, ...renderOptions } = options;
+  const { navigation = true, themePreference = 'dark', ...renderOptions } = options;
   const content = navigation ? <NavigationContainer>{ui}</NavigationContainer> : ui;
 
   return render(content, {
     wrapper: ({ children }) => (
       <SafeAreaProvider initialMetrics={safeAreaMetrics}>
         <HeaderHeightContext.Provider value={testHeaderHeight}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider preference={themePreference ?? undefined}>{children}</ThemeProvider>
         </HeaderHeightContext.Provider>
       </SafeAreaProvider>
     ),

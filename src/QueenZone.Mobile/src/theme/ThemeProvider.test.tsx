@@ -21,15 +21,16 @@ describe('ThemeProvider', () => {
     await AsyncStorage.clear();
   });
 
-  it('defaults to dark when no choice has been saved', async () => {
+  it('defaults to the system setting when no choice has been saved', async () => {
     render(
       <ThemeProvider>
         <ThemeProbe />
       </ThemeProvider>,
     );
 
-    expect(screen.getByTestId('mode')).toHaveTextContent('dark');
-    expect(screen.getByTestId('accent')).toHaveTextContent('#B89A4A');
+    expect(screen.getByTestId('mode')).toHaveTextContent('light');
+    expect(screen.getByTestId('preference')).toHaveTextContent('system');
+    expect(screen.getByTestId('accent')).toHaveTextContent('#244A8F');
     await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalledWith(themePreferenceStorageKey));
   });
 
