@@ -33,6 +33,12 @@ variable "storage_account_name" {
   default     = "queenzone"
 }
 
+variable "manage_storage_account" {
+  description = "Whether this module manages application media Storage resources. Set false when retaining SQL without its former Storage sibling."
+  type        = bool
+  default     = true
+}
+
 variable "sql_database_sku_name" {
   description = "Azure SQL database SKU name."
   type        = string

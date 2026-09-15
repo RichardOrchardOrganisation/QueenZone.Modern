@@ -271,6 +271,24 @@ maintainer approved its deletion, which completed at
 restorable database immediately after deletion; no long-term-retention policy
 exists.
 
+The Storage retirement preflight completed on **15 September 2026**. Exact
+count, byte-total, and ACL comparison matched for 26 containers. Canada East
+contained only expected post-cutover additions in `ugc-articles`,
+`ugc-avatars`, and `ugc-photos`; the two Australia-only article blobs matched
+Canada East soft-deleted blobs exactly by name, length, and MD5. Azure Monitor
+recorded no write API against the old account after the first retirement
+tranche. Production App Service settings, Cloudflare `cdn`/`cdn2` DNS, the
+`cdn2` Worker origin, and Bitwarden runtime and dev-snapshot secrets all point
+to `queenzoneprod`. The dev-snapshot source remains read/list-only and
+HTTPS-only.
+
+Before configuration removal, state serial 32 was backed up outside the
+repository and Azure backend snapshot `2026-09-15T03:35:06.6008342Z` was
+created. All 31 old Storage, Blob service, and container addresses were then
+removed from state while the apply workflow was disabled. The live account
+was deliberately left intact pending review, clean plans, deployment of the
+remaining code-default correction, and the final manual deletion gate.
+
 The old logical SQL server also hosts the independently managed
 `queenzone-dev-db` database used by the dev environment. Do **not** delete that
 server during production retirement. Either move the dev database to a

@@ -96,3 +96,30 @@ run "migration_target_uses_write_only_password_and_defers_database" {
     error_message = "A new StorageV2 account must patch its automatically created blob service instead of creating the child again."
   }
 }
+
+run "retained_sql_can_exclude_retired_storage" {
+  command = plan
+
+  variables {
+    existing_sql_server_id                 = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/test"
+    create_azure_services_firewall_rule    = false
+    create_server_extended_auditing_policy = false
+    manage_sql_database                    = false
+    manage_storage_account                 = false
+  }
+
+  assert {
+    condition = (
+      length(azapi_resource.storage_account) == 0 &&
+      length(azapi_resource.blob_service) == 0 &&
+      length(azapi_update_resource.blob_service_settings) == 0 &&
+      length(azapi_resource.container) == 0
+    )
+    error_message = "A SQL-only module call must not recreate a retired Storage account, blob service, or containers."
+  }
+
+  assert {
+    condition     = output.storage_account_id == null
+    error_message = "A SQL-only module call must expose no managed Storage account ID."
+  }
+}

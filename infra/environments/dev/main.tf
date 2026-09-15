@@ -85,3 +85,8 @@ moved {
   from = module.azure_data.azurerm_mssql_database_extended_auditing_policy.production
   to   = module.azure_data.azurerm_mssql_database_extended_auditing_policy.production[0]
 }
+
+moved {
+  from = module.azure_data.azapi_resource.storage_account
+  to   = module.azure_data.azapi_resource.storage_account[0]
+}

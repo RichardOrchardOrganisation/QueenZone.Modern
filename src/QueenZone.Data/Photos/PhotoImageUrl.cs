@@ -8,7 +8,7 @@ namespace QueenZone.Data;
 public static class PhotoImageUrl
 {
     private const string DefaultPublicBaseUrl = "https://cdn.queenzone.org";
-    private const string DefaultBlobStorageBaseUrl = "https://queenzone.blob.core.windows.net";
+    private const string DefaultBlobStorageBaseUrl = "https://queenzoneprod.blob.core.windows.net";
 
     public const string PublicBaseUrlEnvironmentVariable = "QUEENZONE_PHOTO_PUBLIC_BASE_URL";
 
