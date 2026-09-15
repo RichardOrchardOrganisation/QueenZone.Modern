@@ -7,6 +7,8 @@ namespace QueenZone.Web.Tests;
 
 public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
 {
+    private const int LegacyUserId = 7001;
+
     private readonly SqliteConnection connection;
     private readonly QueenZoneDbContext dbContext;
     private readonly Guid memberId = Guid.NewGuid();
@@ -128,8 +130,8 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
             News("Pending news", NewsSuggestionStatus.Pending, null, null));
         await dbContext.SaveChangesAsync();
 
-        var result = await new EfMemberPublicActivityRepository(dbContext)
-            .GetPageAsync(memberId, 1, 20);
+        var result = await CreateRepository()
+            .GetPageAsync(memberId, linkedLegacyUserId: null, 1, 20);
 
         Assert.Equal(4, result.TotalCount);
         Assert.Equal(
@@ -147,7 +149,7 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         SeedForumPost(memberId, "Solo", 1, 101, 201, "Solo topic", DateTimeOffset.Parse("2026-08-03T08:00:00Z").UtcDateTime);
         await dbContext.SaveChangesAsync();
 
-        var result = await new EfMemberPublicActivityRepository(dbContext)
+        var result = await CreateRepository()
             .GetFeedPageAsync([], 1, 20);
 
         Assert.Equal(0, result.TotalCount);
@@ -171,7 +173,7 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         dbContext.NewsSuggestions.Add(NewsFor(carolId, "Carol news", NewsSuggestionStatus.Promoted, 301, DateTimeOffset.Parse("2026-08-03T13:00:00Z")));
         await dbContext.SaveChangesAsync();
 
-        var result = await new EfMemberPublicActivityRepository(dbContext)
+        var result = await CreateRepository()
             .GetFeedPageAsync([aliceId, bobId], 1, 20);
 
         Assert.Equal(4, result.TotalCount);
@@ -206,7 +208,7 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         }
 
         await dbContext.SaveChangesAsync();
-        var repository = new EfMemberPublicActivityRepository(dbContext);
+        var repository = CreateRepository();
 
         var first = await repository.GetFeedPageAsync([aliceId, bobId], 1, 20);
         var second = await repository.GetFeedPageAsync([aliceId, bobId], 2, 20);
@@ -216,6 +218,130 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         Assert.Equal("Topic 0", first.Items[0].Title);
         Assert.DoesNotContain(first.Items, item => item.Title == "Topic 20");
         Assert.Equal(["Topic 20"], second.Items.Select(item => item.Title).ToArray());
+    }
+
+    [Fact]
+    public async Task GetPageAsync_LinkedLegacyUser_MergesArchivePostsAttributedToMember()
+    {
+        SeedMember(memberId, "New Name");
+        SeedForumPost(memberId, "New Name", 1, 101, 201, "Modern topic", DateTime.Parse("2026-08-03T08:00:00Z").ToUniversalTime());
+        SeedLegacyForumPost(LegacyUserId, 2, 102, 202, "Archive topic", "Old archive body", DateTime.Parse("2009-05-01T08:00:00Z").ToUniversalTime());
+        SeedLegacyForumPost(LegacyUserId, 3, 103, 203, "Hidden archive", "Hidden body", DateTime.Parse("2009-06-01T08:00:00Z").ToUniversalTime(), isHidden: true);
+        SeedLegacyForumPost(LegacyUserId + 1, 4, 104, 204, "Someone else", "Other body", DateTime.Parse("2010-01-01T08:00:00Z").ToUniversalTime());
+        await dbContext.SaveChangesAsync();
+
+        var result = await CreateRepository().GetPageAsync(memberId, LegacyUserId, 1, 20);
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(["Modern topic", "Archive topic"], result.Items.Select(item => item.Title).ToArray());
+        var archive = result.Items[1];
+        Assert.Equal(MemberPublicActivityType.ForumPost, archive.Type);
+        Assert.Equal("Old archive body", archive.Summary);
+        Assert.Equal(202, archive.ContentId);
+        Assert.Equal(102, archive.ParentId);
+        Assert.Equal(memberId, archive.AuthorId);
+        Assert.Equal("New Name", archive.AuthorDisplayName);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_LinkedLegacyUser_PaginatesAndLoadsBodiesForPageRows()
+    {
+        SeedMember(memberId, "Prolific");
+        for (var index = 0; index < 25; index++)
+        {
+            SeedLegacyForumPost(
+                LegacyUserId,
+                index + 1,
+                500 + index,
+                600 + index,
+                $"Archive {index}",
+                $"Body {index}",
+                DateTime.Parse("2009-05-01T08:00:00Z").ToUniversalTime().AddDays(-index));
+        }
+
+        await dbContext.SaveChangesAsync();
+        var repository = CreateRepository();
+
+        var second = await repository.GetPageAsync(memberId, LegacyUserId, 2, 20);
+        var feed = await repository.GetFeedPageAsync([memberId], 1, 20);
+
+        Assert.Equal(25, second.TotalCount);
+        Assert.Equal(
+            Enumerable.Range(20, 5).Select(index => $"Archive {index}").ToArray(),
+            second.Items.Select(item => item.Title).ToArray());
+        Assert.Equal(
+            Enumerable.Range(20, 5).Select(index => $"Body {index}").ToArray(),
+            second.Items.Select(item => item.Summary).ToArray());
+        Assert.Equal(0, feed.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_LinkedLegacyUserWithoutPosts_ReturnsMemberActivityOnly()
+    {
+        SeedMember(memberId, "Quiet");
+        SeedForumPost(memberId, "Quiet", 1, 101, 201, "Modern topic", DateTime.Parse("2026-08-03T08:00:00Z").ToUniversalTime());
+        await dbContext.SaveChangesAsync();
+
+        var result = await CreateRepository().GetPageAsync(memberId, LegacyUserId, 1, 20);
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal(["Modern topic"], result.Items.Select(item => item.Title).ToArray());
+    }
+
+    private EfMemberPublicActivityRepository CreateRepository() =>
+        new(
+            dbContext,
+            new EfForumArchiveAuthorRepository(
+                dbContext,
+                legacyUserId => $"""
+                    SELECT
+                        AuthorLegacyUserId AS LegacyUserId,
+                        AuthorDisplayName AS DisplayName,
+                        AuthorJoinedAt AS MemberSince,
+                        (
+                            SELECT COUNT(*)
+                            FROM ModernForumPost counted
+                            WHERE counted.AuthorLegacyUserId = {legacyUserId}
+                              AND counted.IsHidden = 0
+                        ) AS PostCount
+                    FROM ModernForumPost
+                    WHERE AuthorLegacyUserId = {legacyUserId}
+                      AND IsHidden = 0
+                    ORDER BY PostedAt DESC, Id DESC
+                    LIMIT 1
+                    """));
+
+    private void SeedLegacyForumPost(
+        int legacyUserId,
+        int id,
+        int topicId,
+        int postId,
+        string title,
+        string body,
+        DateTime postedAt,
+        bool isHidden = false)
+    {
+        dbContext.ModernForumThreads.Add(new ModernForumThreadEntity
+        {
+            Id = id,
+            LegacyTopicId = topicId,
+            LegacyForumId = 1,
+            CategoryId = 1,
+            Title = title,
+        });
+        dbContext.ModernForumPosts.Add(new ModernForumPostEntity
+        {
+            Id = id,
+            LegacyPostId = postId,
+            LegacyThreadTopicId = topicId,
+            ThreadId = id,
+            LegacyForumId = 1,
+            AuthorLegacyUserId = legacyUserId,
+            AuthorDisplayName = "old_username",
+            BodyHtml = body,
+            PostedAt = postedAt,
+            IsHidden = isHidden,
+        });
     }
 
     private void SeedMember(Guid id, string displayName)

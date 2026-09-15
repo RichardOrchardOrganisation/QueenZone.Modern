@@ -3,8 +3,8 @@ namespace QueenZone.Data;
 /// <summary>
 /// Reads all posts by a single unlinked legacy forum author (keyed by their stable legacy user
 /// id, not their display name, since the same id can carry different display-name spellings
-/// across posts). Once an author links their legacy account, their activity is served by
-/// <see cref="IMemberPublicActivityRepository"/> instead.
+/// across posts). Once an author links their legacy account, their archive posts are served on
+/// their member profile by <see cref="IMemberPublicActivityRepository.GetPageAsync"/> instead.
 /// </summary>
 public interface IForumArchiveAuthorRepository
 {
