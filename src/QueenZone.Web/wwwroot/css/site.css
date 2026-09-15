@@ -36,6 +36,11 @@
   color: var(--qz-charcoal);
 }
 
+/*
+  Responsive breakpoint convention (until CSS custom media is supported by the build):
+  compact <= 640px, mobile/tablet <= 768px, wide navigation/layout <= 900px.
+*/
+
 #main-content:focus {
   outline: none;
 }
@@ -1083,7 +1088,7 @@ body.qz-menu-lock .qz-masthead {
   color: var(--qz-burgundy);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .qz-button--row {
     height: 44px;
     padding: 0 0.875rem;
@@ -1122,7 +1127,7 @@ body.qz-menu-lock .qz-masthead {
   display: none;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .qz-forum-compose .qz-form__actions .qz-button:first-child {
     width: 100%;
   }
@@ -1569,7 +1574,7 @@ body.qz-menu-lock .qz-masthead {
 }
 
 /* Responsive — stack to single column below 768px */
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   .qz-hero-archive__inner {
     grid-template-columns: 1fr;
     padding-bottom: var(--space-8);
@@ -3341,7 +3346,7 @@ a.qz-forum-post__author-link:focus-visible {
   margin-left: auto;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .admin-form-actions {
     position: sticky;
     bottom: 0;
@@ -3908,7 +3913,7 @@ select.qz-input {
   background-repeat: no-repeat;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .qz-input {
     height: 48px;
     font-size: 16px;
@@ -4161,7 +4166,7 @@ select.qz-input {
   background: var(--qz-blue);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .qz-dropzone {
     grid-template-columns: 1fr;
   }
@@ -4288,7 +4293,7 @@ select.qz-input {
   gap: 4px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   /* Rows collapse into stacked cards: a meta row (status + date), the
      title, then a full-width action row — matching the mobile card
      layout in the spec while keeping a real <table> for a11y. */
@@ -4390,7 +4395,7 @@ select.qz-input {
   justify-content: flex-end;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .qz-dialog[open] {
     width: 100vw;
     height: 100vh;
@@ -5426,7 +5431,7 @@ select.qz-input {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 640px) {
   .qz-masthead__inner,
   .qz-container {
     padding-left: var(--gutter);
@@ -5959,7 +5964,7 @@ select.qz-input {
 }
 
 /* ---- Responsive ---- */
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .qz-htl-body {
     grid-template-columns: 1fr;
   }
@@ -5996,7 +6001,7 @@ select.qz-input {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 640px) {
   .qz-htl-hero__crest {
     display: none;
   }
@@ -6248,7 +6253,7 @@ select.qz-input {
   font-size: 0.625rem;
 }
 
-@media (max-width: 620px) {
+@media (max-width: 640px) {
   .qz-message-list__item {
     flex-direction: column;
     align-items: stretch;
