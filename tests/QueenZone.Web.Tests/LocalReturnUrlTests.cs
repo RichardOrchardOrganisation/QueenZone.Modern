@@ -1,4 +1,5 @@
 using QueenZone.Web.Infrastructure;
+using QueenZone.Web.Pages.Account;
 
 namespace QueenZone.Web.Tests;
 
@@ -47,5 +48,32 @@ public sealed class LocalReturnUrlTests
         const string protocolRelative = "//evil.example.com/phish";
         Assert.True(Uri.IsWellFormedUriString(protocolRelative, UriKind.Relative));
         Assert.False(LocalReturnUrl.IsLocal(protocolRelative));
+    }
+
+    [Theory]
+    [InlineData("/forum")]
+    [InlineData("/messages/compose?to=42")]
+    [InlineData("/account/settings#profile")]
+    public void LoginFormRouteValue_UsesEscapeDataStringOnResolvedLocalPath(string returnUrl)
+    {
+        var resolved = LocalReturnUrl.Resolve(returnUrl);
+        Assert.Equal(returnUrl, resolved);
+        var encoded = Uri.EscapeDataString(resolved);
+        Assert.Equal(encoded, Uri.EscapeDataString(returnUrl));
+        Assert.DoesNotContain('<', encoded);
+        Assert.DoesNotContain('>', encoded);
+        Assert.DoesNotContain('"', encoded);
+        Assert.Equal(resolved, LoginModel.DecodeFormReturnUrl(encoded));
+        Assert.Equal(resolved, LoginModel.DecodeFormReturnUrl(resolved));
+    }
+
+    [Theory]
+    [InlineData("//evil.example.com")]
+    [InlineData("https://evil.example.com")]
+    public void LoginFormDecode_StillRejectsUnsafeValuesAfterUnescape(string returnUrl)
+    {
+        var decoded = LoginModel.DecodeFormReturnUrl(Uri.EscapeDataString(returnUrl));
+        Assert.Equal(returnUrl, decoded);
+        Assert.Equal("/", LocalReturnUrl.Resolve(decoded));
     }
 }

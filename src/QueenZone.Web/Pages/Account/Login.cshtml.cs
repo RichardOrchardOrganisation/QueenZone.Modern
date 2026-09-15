@@ -23,7 +23,7 @@ public sealed class LoginModel(
 
     public void OnGet(string? returnUrl, string? signedOut = null, string? suspended = null)
     {
-        ReturnUrl = ResolveReturnUrl(returnUrl);
+        ReturnUrl = ResolveReturnUrl(DecodeFormReturnUrl(returnUrl));
         ShowSignedOutMessage = string.Equals(signedOut, "1", StringComparison.OrdinalIgnoreCase)
             || string.Equals(signedOut, "true", StringComparison.OrdinalIgnoreCase);
         ShowSuspendedMessage = string.Equals(suspended, "1", StringComparison.OrdinalIgnoreCase);
@@ -36,7 +36,7 @@ public sealed class LoginModel(
     /// </summary>
     public async Task<IActionResult> OnPostAsync(string? returnUrl, CancellationToken cancellationToken)
     {
-        ReturnUrl = ResolveReturnUrl(returnUrl);
+        ReturnUrl = ResolveReturnUrl(DecodeFormReturnUrl(returnUrl));
 
         if (!ModelState.IsValid)
         {
@@ -62,6 +62,15 @@ public sealed class LoginModel(
 
         return Redirect(ReturnUrl);
     }
+
+    /// <summary>
+    /// The password form encodes <c>returnUrl</c> with <see cref="Uri.EscapeDataString"/>
+    /// (CodeQL XSS) and the form tag helper encodes the route value again. Binding therefore
+    /// yields the still-escaped local path; undo one encoding before
+    /// <see cref="AccountPageModel.ResolveReturnUrl"/>.
+    /// </summary>
+    internal static string? DecodeFormReturnUrl(string? returnUrl) =>
+        string.IsNullOrEmpty(returnUrl) ? returnUrl : Uri.UnescapeDataString(returnUrl);
 
     public sealed class PasswordSignInInput
     {
