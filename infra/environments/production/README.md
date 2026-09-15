@@ -17,9 +17,8 @@ operation, the maintainer accepted the observation window on 14 September
 2026 and approved staged retirement of the old estate. The production root no
 longer manages the old web resources or old production database. It retains
 the Australia East SQL server because the dev environment still uses
-`queenzone-dev-db`. The old Storage account was removed from state on 15
-September 2026 and remains outside OpenTofu only until its final manual
-retirement checks and deletion complete.
+`queenzone-dev-db`. The old Storage account was removed from state and deleted
+on 15 September 2026 after its final manual retirement checks passed.
 
 The SQL administrator password comes from the existing Bitwarden migration
 connection-string secret. OpenTofu passes it through the AzureRM provider's

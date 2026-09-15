@@ -11,8 +11,10 @@ azure-sql,queenzone-db,.../databases/queenzone-db,import,yes,Basic 5 DTU product
 azure-sql,firewall AllowAllWindowsAzureIps,.../firewallRules/AllowAllWindowsAzureIps,import,no,0.0.0.0 Azure services
 azure-sql,firewall ClientIPAddress_2026-6-11,.../firewallRules/ClientIPAddress_*,defer,no,personal /32
 azure-sql,EF schema/data,inside database,outside,yes,GitHub migrate path
-azure-storage,queenzone,.../storageAccounts/queenzone,outside→retirement,no,removed from state 2026-09-15; pending final manual deletion
-azure-storage,containers,see storage-containers.json,outside→retirement,no,old account containers removed from state; Canada East copies remain managed
+azure-storage,queenzoneprod,.../storageAccounts/queenzoneprod,manage,yes,Canada East production account; custom domain cdn.queenzone.org
+azure-storage,queenzoneprod containers,see storage-containers.json,import,yes,29 Canada East containers and ACLs verified 2026-09-15
+azure-storage,queenzone,.../storageAccounts/queenzone,retired,no,removed from state and deleted 2026-09-15 after final safety checks
+azure-storage,queenzone containers,historical source inventory,retired,no,deleted with old account after exact content and ACL comparison
 azure-monitor,queenzone-dev-law,.../workspaces/queenzone-dev-law,import,no,0.1GB/day 30d
 azure-monitor,queenzone-dev-ai,.../components/queenzone-dev-ai,import,no,90d retention
 azure-monitor,alerts/webtest/action group,Queenzone-RG insights resources,import,no,webtest URL likely wrong under IP lock

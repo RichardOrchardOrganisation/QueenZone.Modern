@@ -1,8 +1,9 @@
 {
-  "auditDate": "2026-09-09",
+  "auditDate": "2026-09-15",
   "issue": 624,
-  "storageAccount": "queenzone",
-  "storageAccountId": "/subscriptions/610e3b3a-028d-4f1b-ac1d-a5567a4f8b9d/resourceGroups/Queenzone-RG/providers/Microsoft.Storage/storageAccounts/queenzone",
+  "lastVerifiedForIssue": 1482,
+  "storageAccount": "queenzoneprod",
+  "storageAccountId": "/subscriptions/610e3b3a-028d-4f1b-ac1d-a5567a4f8b9d/resourceGroups/Queenzone-RG/providers/Microsoft.Storage/storageAccounts/queenzoneprod",
   "customDomain": "cdn.queenzone.org",
   "containers": [
     { "name": "album-or-single-covers", "publicAccess": "blob", "opentofuTreatment": "import" },
@@ -36,5 +37,5 @@
     { "name": "us-convention-2001", "publicAccess": "blob", "opentofuTreatment": "import" }
   ],
   "documentedButMissing": [],
-  "relatedIssues": [177, 583, 584]
+  "relatedIssues": [177, 583, 584, 624, 1482]
 }
