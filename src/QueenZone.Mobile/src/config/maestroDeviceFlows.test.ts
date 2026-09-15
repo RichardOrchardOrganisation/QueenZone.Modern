@@ -331,6 +331,7 @@ describe('device-smoke harness (#1281)', () => {
     );
     assert.match(script, /android-transport-death/);
     assert.match(script, /android_latest_attempt_transport_died/);
+    assert.match(script, /write_android_transport_marker "adb-recover-timeout"/);
     assert.match(script, /write_android_transport_marker "emulator-gone"/);
     assert.match(script, /write_android_transport_marker "retry-still-transport-death"/);
     assert.doesNotMatch(
@@ -341,11 +342,20 @@ describe('device-smoke harness (#1281)', () => {
       script,
       /In-process Android retry failed on a selector or assertion miss\. Not requesting a fresh emulator/,
     );
-    const firstWrite = script.indexOf('write_android_transport_marker "');
+    // #1530 self-test writes adb-recover-timeout first (after the recover helper
+    // is defined, before any APK install). Runtime recover-timeout is written
+    // when ADB recover fails, still before the live-emulator retry install.
+    // retry-still-transport-death is the only marker that follows that install.
     const recoverIdx = script.indexOf('adb reconnect offline');
-    const installIdx = script.indexOf('adb install -r "$apk"');
-    assert.ok(firstWrite >= 0 && recoverIdx >= 0 && firstWrite > recoverIdx);
-    assert.ok(installIdx >= 0 && firstWrite > installIdx);
+    const selfTestWrite = script.indexOf('write_android_transport_marker "adb-recover-timeout"');
+    const runtimeRecoverTimeout = script.lastIndexOf(
+      'write_android_transport_marker "adb-recover-timeout"',
+    );
+    const retryInstallIdx = script.lastIndexOf('adb install -r "$apk"');
+    const retryStillWrite = script.indexOf('write_android_transport_marker "retry-still-transport-death"');
+    assert.ok(recoverIdx >= 0 && selfTestWrite > recoverIdx);
+    assert.ok(runtimeRecoverTimeout > selfTestWrite && runtimeRecoverTimeout < retryInstallIdx);
+    assert.ok(retryInstallIdx >= 0 && retryStillWrite > retryInstallIdx);
     assert.match(script, /Maestro failing cause: Android device transport death/);
     assert.match(script, /Maestro failing cause: selector or assertion miss/);
     assert.match(script, /debug-android-transport-first/);

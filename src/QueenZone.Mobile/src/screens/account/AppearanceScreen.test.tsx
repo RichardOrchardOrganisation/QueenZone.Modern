@@ -9,16 +9,18 @@ describe('AppearanceScreen', () => {
     await AsyncStorage.clear();
   });
 
-  it('starts dark and lets the user choose light', async () => {
+  it('starts with the system setting and lets the user choose light', async () => {
     renderWithProviders(
       <AppearanceScreen
         navigation={fakeNavigation() as never}
         route={{ key: 'appearance', name: 'Appearance' } as never}
       />,
-      { navigation: false },
+      { navigation: false, themePreference: null },
     );
 
-    expect(screen.getByRole('radio', { name: 'Dark' }).props.accessibilityState).toEqual({ selected: true });
+    expect(screen.getByRole('radio', { name: 'Use system setting' }).props.accessibilityState).toEqual({
+      selected: true,
+    });
 
     await userEvent.setup().press(screen.getByRole('radio', { name: 'Light' }));
 

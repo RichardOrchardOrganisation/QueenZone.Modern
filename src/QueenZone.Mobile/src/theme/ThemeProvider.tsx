@@ -51,16 +51,16 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 type Props = {
   children: ReactNode;
-  /** Default dark-first; pass `system` to follow OS appearance. */
+  /** Follows the OS by default; pass a value to force a mode in previews or tests. */
   preference?: ThemePreference;
 };
 
 /**
- * Provides design tokens. Dark is the product default; light exists for
- * system preference parity with the web archive.
+ * Provides design tokens. The app follows the OS appearance until someone
+ * chooses and persists an explicit preference.
  */
 export function ThemeProvider(props: Props) {
-  const { children, preference: preferenceProp = 'dark' } = props;
+  const { children, preference: preferenceProp = 'system' } = props;
   const systemScheme = useColorScheme();
   const [savedPreference, setSavedPreference] = useState<ThemePreference>(preferenceProp);
   const changedByUser = useRef(false);
@@ -78,7 +78,7 @@ export function ThemeProvider(props: Props) {
         setSavedPreference(stored);
       }
     }).catch(() => {
-      // Keep the dark default when local storage is unavailable.
+      // Keep following the system when local storage is unavailable.
     });
     return () => {
       active = false;
