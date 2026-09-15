@@ -129,6 +129,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       './plugins/withAndroidWorkRuntimeAlignment.cjs',
       // iOS expo-audio 57.0.4: currentStatus must not call currentDate() (#1234).
       './plugins/withExpoAudioIosCurrentOffsetFromLive.cjs',
+      // Xcode/iOS 27 requires UIScene; Expo SDK 57 still generates the legacy
+      // AppDelegate-owned UIWindow and the resulting app traps at launch.
+      './plugins/withIosSceneLifecycle.cjs',
       // After expo-media-library: drop READ_MEDIA_* so add-only save does not
       // request photo/video/audio read at install (#1230 / #1232).
       './plugins/withAndroidAddOnlyPhotos.cjs',
