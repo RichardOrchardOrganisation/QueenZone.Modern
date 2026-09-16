@@ -646,8 +646,10 @@ jobs:
           scene_delegate=$(/usr/libexec/PlistBuddy \
             -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' \
             "$app_path/Info.plist" 2>/dev/null || true)
-          if [ "$scene_delegate" != '$(PRODUCT_MODULE_NAME).SceneDelegate' ]; then
-            echo "::error::Exported IPA is missing the iOS scene lifecycle declaration."
+          app_module=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Info.plist")
+          expected_scene_delegate="${app_module}.SceneDelegate"
+          if [ "$scene_delegate" != "$expected_scene_delegate" ]; then
+            echo "::error::Exported IPA scene delegate is ${scene_delegate:-<missing>}, expected ${expected_scene_delegate}."
             exit 1
           fi
           echo "IPA scene delegate=${scene_delegate}"
