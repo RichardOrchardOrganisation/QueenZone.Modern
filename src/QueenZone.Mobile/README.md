@@ -309,6 +309,36 @@ list screen walk that same paged GET (`pageSize` 100) for the full catalog, then
 pass the ordered or once-shuffled queue to `FanPerformancePlayer.play` — not the
 `FlatList` pages already on screen.
 
+### Siri and Spotlight (iOS)
+
+Four read-only App Shortcuts are compiled into the main iOS target by
+`plugins/withIosAppIntents.cjs` and `plugins/ios/QueenZoneAppIntents.swift`:
+“What happened today in QueenZone?”, “Show latest news in QueenZone”,
+“Tell me a Queen fact from QueenZone”, and “Search QueenZone” (then provide a search term).
+The first reads the public on-this-day API and opens its timeline event; News
+opens the News tab; trivia speaks one published random fact and, on iOS 18+,
+asks whether to open Trivia; search opens the existing in-app search with the
+spoken term. Empty, offline, and server-error responses never invent content.
+No member-authenticated API or write action is exposed.
+
+The source-controlled config plugin is the SDK 57 integration path: Expo's
+`expo-app-intents` package is documented for SDK 58, so this app does not
+depend on it or edit generated `ios/` files. The shortcut code runs in the
+main app target; no new extension or provisioning profile is needed for this
+implementation. It reuses the existing `queenzone` URL scheme. On iOS 18.4+,
+the app indexes a bounded first page of public albums and timeline events in
+an on-device Spotlight index, refreshed on launch and cached locally for
+offline entity resolution. Spotlight items open the corresponding Album or
+Timeline screen. The index contains no member content. Earlier supported iOS
+versions get the four shortcuts without this Spotlight entity catalog.
+
+Verify with `expo prebuild --platform ios --clean`, the mobile preflight and
+coverage gate, an unsigned iOS build, then a physical iPhone running the
+signed app. Check each phrase from Siri and Shortcuts, cold/warm navigation,
+an offline fact request, locked-device behavior, and Spotlight album/event
+results on iOS 18.4+. Simulator or Swift typechecking alone does not prove
+Siri recognition or spoken responses.
+
 ### Offline fan-performance downloads
 
 Signed-in members can download a recording from the listing or the detail/player.
