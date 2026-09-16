@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using QueenZone.Data;
 using QueenZone.Web;
@@ -10,7 +12,7 @@ public sealed class AdminReviewerAccountServiceTests
     private const string MemberEmail = "reviewer@example.com";
 
     [Fact]
-    public async Task Create_LogsFingerprintAndMemberIdWithoutCleartextEmails()
+    public async Task Create_LogsMemberIdWithoutEmailOrFingerprint()
     {
         var logger = new RecordingLogger();
         var service = new AdminReviewerAccountService(new InMemoryMemberAccountRepository(), logger);
@@ -18,20 +20,17 @@ public sealed class AdminReviewerAccountServiceTests
         var result = await service.CreateAsync(
             MemberEmail,
             "Store Reviewer",
-            "reviewer-password-12",
-            AdminEmail);
+            "reviewer-password-12");
 
         Assert.True(result.Succeeded);
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Information, entry.Level);
-        Assert.Contains(LogRedaction.EmailFingerprint(AdminEmail), entry.Message, StringComparison.Ordinal);
         Assert.Contains(result.Account!.Id.ToString(), entry.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(AdminEmail, entry.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(MemberEmail, entry.Message, StringComparison.OrdinalIgnoreCase);
+        AssertNoEmailOrFingerprint(entry.Message, AdminEmail, MemberEmail);
     }
 
     [Fact]
-    public async Task Update_LogsFingerprintMemberIdAndPasswordResetWithoutCleartextEmails()
+    public async Task Update_LogsMemberIdAndPasswordResetWithoutEmailOrFingerprint()
     {
         var logger = new RecordingLogger();
         var members = new InMemoryMemberAccountRepository();
@@ -39,47 +38,59 @@ public sealed class AdminReviewerAccountServiceTests
         var created = await service.CreateAsync(
             MemberEmail,
             "Store Reviewer",
-            "reviewer-password-12",
-            AdminEmail);
+            "reviewer-password-12");
         logger.Entries.Clear();
 
         var result = await service.UpdateAsync(
             created.Account!.Id,
             "updated-reviewer@example.com",
             "Updated Reviewer",
-            "replacement-password-12",
-            AdminEmail);
+            "replacement-password-12");
 
         Assert.True(result.Succeeded);
         var entry = Assert.Single(logger.Entries);
-        Assert.Contains(LogRedaction.EmailFingerprint(AdminEmail), entry.Message, StringComparison.Ordinal);
         Assert.Contains(created.Account.Id.ToString(), entry.Message, StringComparison.Ordinal);
         Assert.Contains("password reset: True", entry.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(AdminEmail, entry.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(MemberEmail, entry.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("updated-reviewer@example.com", entry.Message, StringComparison.OrdinalIgnoreCase);
+        AssertNoEmailOrFingerprint(
+            entry.Message,
+            AdminEmail,
+            MemberEmail,
+            "updated-reviewer@example.com");
     }
 
     [Fact]
-    public async Task RemovePassword_LogsFingerprintAndMemberIdWithoutCleartextEmails()
+    public async Task RemovePassword_LogsMemberIdWithoutEmailOrFingerprint()
     {
         var logger = new RecordingLogger();
         var service = new AdminReviewerAccountService(new InMemoryMemberAccountRepository(), logger);
         var created = await service.CreateAsync(
             MemberEmail,
             "Store Reviewer",
-            "reviewer-password-12",
-            AdminEmail);
+            "reviewer-password-12");
         logger.Entries.Clear();
 
-        var removed = await service.RemovePasswordAsync(created.Account!.Id, AdminEmail);
+        var removed = await service.RemovePasswordAsync(created.Account!.Id);
 
         Assert.True(removed);
         var entry = Assert.Single(logger.Entries);
-        Assert.Contains(LogRedaction.EmailFingerprint(AdminEmail), entry.Message, StringComparison.Ordinal);
         Assert.Contains(created.Account.Id.ToString(), entry.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(AdminEmail, entry.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(MemberEmail, entry.Message, StringComparison.OrdinalIgnoreCase);
+        AssertNoEmailOrFingerprint(entry.Message, AdminEmail, MemberEmail);
+    }
+
+    private static void AssertNoEmailOrFingerprint(string message, params string[] emails)
+    {
+        foreach (var email in emails)
+        {
+            Assert.DoesNotContain(email, message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(EmailFingerprint(email), message, StringComparison.Ordinal);
+        }
+    }
+
+    private static string EmailFingerprint(string email)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexStringLower(hash)[..12];
     }
 
     private sealed class RecordingLogger : ILogger<AdminReviewerAccountService>
