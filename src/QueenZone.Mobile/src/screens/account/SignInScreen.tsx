@@ -25,6 +25,7 @@ export function SignInScreen({ navigation, route }: Props) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finished = useRef(false);
+  const passwordInput = useRef<TextInput>(null);
   const formBusy = busyProvider !== null || passwordBusy;
 
   useEffect(() => {
@@ -171,6 +172,9 @@ export function SignInScreen({ navigation, route }: Props) {
               autoCorrect={false}
               autoComplete="username"
               keyboardType="email-address"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => passwordInput.current?.focus()}
               textContentType="username"
               accessibilityLabel="Email"
               placeholder="you@example.com"
@@ -180,12 +184,17 @@ export function SignInScreen({ navigation, route }: Props) {
             />
             <Text style={[type.listTitle, { color: c.textMuted }]}>Password</Text>
             <TextInput
+              ref={passwordInput}
               testID={testIds.signInPassword}
               value={password}
               onChangeText={setPassword}
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="password"
+              returnKeyType="go"
+              onSubmitEditing={() => {
+                void onPasswordSignIn();
+              }}
               textContentType="password"
               secureTextEntry
               accessibilityLabel="Password"

@@ -21,7 +21,7 @@ Most archive, news and photography features are available without signing in. To
 1. Open QueenZone and select the profile avatar from Home.
 2. On Sign in, expand **Other ways to sign in** and enter the supplied review email and password. Do not use a social provider for this reviewer account.
 3. Forum posting is available from the Forum tab. Please create clearly identified test content and remove it when finished if the UI offers that option.
-4. Private messages are available from the member profile. `[ADD A SECOND SAFE TEST RECIPIENT OR EXPLAIN THE REVIEW FIXTURE]`.
+4. Private messages are available from the member profile. The inbox contains a clearly labelled conversation with **QueenZone Review Partner**, a second safe test account. Its messages can be used to inspect the report and block controls without contacting a real member.
 5. Photo submission is available from Photography. Submissions enter moderation and do not publish immediately.
 6. News suggestions can be opened from News. Suggestions enter editorial review and do not publish automatically.
 7. Notification preferences and account deletion are available in Settings.
@@ -36,6 +36,7 @@ If a backend feature is unavailable during review, contact `[REVIEW EMAIL]` and 
 ## Final review-build checks
 
 - Reviewer credentials work on a clean installation.
+- The selected TestFlight build cold-launches and completes the typical flow on a physical iPhone running the latest iOS release.
 - Sign in with Apple completes successfully.
 - Public content loads without authentication.
 - Camera/photo permission prompts match the action that triggered them.
