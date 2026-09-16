@@ -251,6 +251,15 @@ describe('SearchRouteScreen', () => {
     });
   });
 
+  it('runs a Siri-provided search term without requiring keyboard input', async () => {
+    fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
+    renderWithProviders(
+      <SearchRouteScreen route={{ key: 'siri-search', name: 'Search', params: { query: 'Queen II' } }} />,
+      { navigation: false },
+    );
+    await waitFor(() => expect(fetchSearch).toHaveBeenCalledWith(expect.objectContaining({ q: 'Queen II' })));
+  });
+
   it('navigates news hits through the tab parent', async () => {
     fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
     renderWithProviders(<SearchRouteScreen />, { navigation: false });
