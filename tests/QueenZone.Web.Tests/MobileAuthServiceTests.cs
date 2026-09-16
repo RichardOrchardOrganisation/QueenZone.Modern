@@ -412,6 +412,29 @@ public sealed class MobileAuthServiceTests
             log.Entries,
             e => e.Message.Contains("no grant matches", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain("grant-from-another-origin", entry.Message, StringComparison.Ordinal);
+        Assert.Contains(MobileAuthOptions.DefaultClientId, entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_UnknownGrant_LogsConfiguredClientIdNotRequestParameter()
+    {
+        var log = new RecordingServiceLogger();
+        const string configuredClientId = "configured-mobile-client";
+        var service = CreateService(
+            serviceLogger: log,
+            mobileOptions: new MobileAuthOptions { ClientId = configuredClientId });
+
+        var result = await service.ExchangeRefreshTokenAsync(
+            configuredClientId,
+            "grant-from-another-origin",
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        var entry = Assert.Single(
+            log.Entries,
+            e => e.Message.Contains("no grant matches", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(configuredClientId, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("grant-from-another-origin", entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -912,10 +935,11 @@ public sealed class MobileAuthServiceTests
         AuthRateLimitingOptions? authLimits = null,
         ILogger<MobileAuthAccountRateLimiter>? logger = null,
         ILogger<MobileAuthService>? serviceLogger = null,
-        IMobileAuthGrantRepository? grants = null)
+        IMobileAuthGrantRepository? grants = null,
+        MobileAuthOptions? mobileOptions = null)
     {
         var clock = timeProvider ?? TimeProvider.System;
-        var options = Options.Create(new MobileAuthOptions());
+        var options = Options.Create(mobileOptions ?? new MobileAuthOptions());
         var site = Options.Create(new SiteOptions());
         var environment = new FakeHostEnvironment(environmentName);
         var members = new MemberAccountService(

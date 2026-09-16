@@ -231,7 +231,7 @@ public sealed class MobileAuthService(
             // ships staging and production under one bundle id.
             logger.LogInformation(
                 "Mobile auth refresh rejected: no grant matches the presented token for client {ClientId}.",
-                clientId);
+                mobile.ClientId);
             return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
         }
 

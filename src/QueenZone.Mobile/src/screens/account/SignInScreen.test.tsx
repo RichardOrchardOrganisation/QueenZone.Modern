@@ -1,4 +1,4 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { fallbackAuthProviders } from '../../api/auth';
 import { jsonResponse } from '../../test/fixtures';
 import { createMockSession } from '../../test/mockSession';
@@ -103,6 +103,30 @@ describe('SignInScreen', () => {
     await user.press(screen.getByTestId(testIds.signInPasswordSubmit));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Incorrect email or password.'));
     expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+
+  it('submits the reviewer credentials from the password keyboard', async () => {
+    mockSession.signInWithPassword.mockResolvedValue(undefined);
+    renderSignIn();
+    await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
+    fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
+
+    const email = screen.getByTestId(testIds.signInEmail);
+    const password = screen.getByTestId(testIds.signInPassword);
+    expect(email.props.returnKeyType).toBe('next');
+    expect(password.props.returnKeyType).toBe('go');
+
+    fireEvent.changeText(email, 'reviewer@example.com');
+    fireEvent(email, 'submitEditing');
+    fireEvent.changeText(password, 'correct horse battery staple');
+    fireEvent(password, 'submitEditing');
+
+    await waitFor(() =>
+      expect(mockSession.signInWithPassword).toHaveBeenCalledWith(
+        'reviewer@example.com',
+        'correct horse battery staple',
+      ),
+    );
   });
 
   it('describes OAuth secrets separately from the password fallback', async () => {

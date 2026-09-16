@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -11,10 +10,4 @@ public abstract class AdminReviewerAccountsPageModel : PageModel
         ViewData["ShowAdminNav"] = true;
         base.OnPageHandlerExecuting(context);
     }
-
-    protected string EditorEmail =>
-        User.FindFirstValue(ClaimTypes.Email)
-        ?? User.FindFirstValue("preferred_username")
-        ?? User.Identity?.Name
-        ?? "unknown";
 }

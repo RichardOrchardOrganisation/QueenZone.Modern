@@ -18,6 +18,16 @@ public sealed class EfForumWriteLiveProbeTests
             return;
         }
 
+        await using (var schema = CreateContext(connectionString))
+        {
+            if (!await LiveProbeSchema.TableExistsAsync(schema, LiveProbeSchema.ForumPostReportsTable))
+            {
+                // Mirror matches production. ForumPostReports is a same-day
+                // migration that may not be deployed yet (#1528 / #1507).
+                return;
+            }
+        }
+
         var uniqueSuffix = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
         var marker = $"forum-report-probe-{uniqueSuffix}";
         var authorId = Guid.NewGuid();
