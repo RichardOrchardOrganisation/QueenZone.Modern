@@ -466,7 +466,7 @@ public class LiveSiteContentApiTests : RealDataPageTest
     public async Task UnknownApiPath_ReturnsProblemDetailsNotHtmlAsync()
     {
         using var client = CreateHttpClient();
-        using var response = await client.GetAsync(ToAbsoluteUri("/api/v1/does-not-exist"));
+        using var response = await GetWithLiveSiteRetryAsync(client, "/api/v1/does-not-exist");
         var body = await response.Content.ReadAsStringAsync();
         var mediaType = response.Content.Headers.ContentType?.MediaType;
 
@@ -508,6 +508,9 @@ public class LiveSiteContentApiTests : RealDataPageTest
         return new Uri(root + path);
     }
 
+    private Task<HttpResponseMessage> GetWithLiveSiteRetryAsync(HttpClient client, string path) =>
+        LiveSiteTransportRetry.RunAsync(() => client.GetAsync(ToAbsoluteUri(path)));
+
     private async Task<JsonElement?> TryGetJsonAsync(
         HttpClient client,
         string path,
@@ -516,7 +519,7 @@ public class LiveSiteContentApiTests : RealDataPageTest
         HttpResponseMessage response;
         try
         {
-            response = await client.GetAsync(ToAbsoluteUri(path));
+            response = await GetWithLiveSiteRetryAsync(client, path);
         }
         catch (Exception ex)
         {

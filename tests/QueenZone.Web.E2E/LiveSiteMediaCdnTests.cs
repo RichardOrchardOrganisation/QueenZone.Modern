@@ -57,7 +57,7 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Range = new RangeHeaderValue(0, 1023);
 
-        using var response = await client.SendAsync(request);
+        using var response = await LiveSiteTransportRetry.RunAsync(() => client.SendAsync(request));
 
         Assert.That(
             new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.NotFound },
@@ -70,13 +70,14 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     [Test]
     public async Task PhotographyImages_ResolveThroughAllowedCdnHostsAsync()
     {
-        var response = await Page.GotoAsync(
-            "/photography",
-            new PageGotoOptions
-            {
-                WaitUntil = WaitUntilState.DOMContentLoaded,
-                Timeout = 60_000,
-            });
+        var response = await LiveSiteTransportRetry.RunAsync(
+            () => Page.GotoAsync(
+                "/photography",
+                new PageGotoOptions
+                {
+                    WaitUntil = WaitUntilState.DOMContentLoaded,
+                    Timeout = 60_000,
+                }));
 
         Assert.That(
             response?.Status,
@@ -154,7 +155,7 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
             try
             {
                 using var head = new HttpRequestMessage(HttpMethod.Head, mediaUri);
-                using var mediaResponse = await client.SendAsync(head);
+                using var mediaResponse = await LiveSiteTransportRetry.RunAsync(() => client.SendAsync(head));
                 // Missing thumbs are soft on archives; only fail hard on unexpected host policy above.
                 if ((int)mediaResponse.StatusCode >= 500)
                 {

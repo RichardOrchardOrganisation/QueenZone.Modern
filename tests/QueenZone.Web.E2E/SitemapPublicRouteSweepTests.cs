@@ -43,7 +43,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
         {
             sectionedUrls = await DiscoverSampledSectionUrlsAsync(httpClient, cts.Token);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             Assert.Fail(
                 $"Sitemap discovery exceeded {SitemapDiscoveryBudget.TotalSeconds:0}s budget. " +
@@ -103,7 +103,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
     [Test]
     public async Task UnknownPath_Returns404WithStyledNotFoundPageAsync()
     {
-        var response = await Page.GotoAsync("/this-page-does-not-exist-e2e-545");
+        var response = await GotoWithLiveSiteRetryAsync(Page, "/this-page-does-not-exist-e2e-545");
 
         Assert.That(response?.Status, Is.EqualTo(404));
         await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Page Not Found", Level = 1 }))
@@ -123,7 +123,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
         var lastSlash = canonicalPath!.TrimEnd('/').LastIndexOf('/');
         var stalePath = canonicalPath[..(lastSlash + 1)] + "stale-slug-e2e-545";
 
-        var response = await Page.GotoAsync(stalePath);
+        var response = await GotoWithLiveSiteRetryAsync(Page, stalePath);
 
         Assert.That(response?.Request.RedirectedFrom, Is.Not.Null, "Expected the stale slug to redirect.");
         await Expect(Page).ToHaveURLAsync(new Regex($"{Regex.Escape(canonicalPath.TrimEnd('/'))}/?$"));
@@ -147,13 +147,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
 
             try
             {
-                await Page.GotoAsync(
-                    representative,
-                    new PageGotoOptions
-                    {
-                        WaitUntil = WaitUntilState.DOMContentLoaded,
-                        Timeout = (float)NavigationTimeout.TotalMilliseconds,
-                    });
+                await GotoWithLiveSiteRetryAsync(Page, representative);
             }
             catch (TimeoutException ex)
             {
@@ -186,13 +180,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
         {
             // Load (not NetworkIdle): archive pages can keep long-polling or analytics busy under
             // parallel RealData load, which falsely trips NetworkIdle within the default timeout.
-            response = await Page.GotoAsync(
-                url,
-                new PageGotoOptions
-                {
-                    WaitUntil = WaitUntilState.DOMContentLoaded,
-                    Timeout = (float)NavigationTimeout.TotalMilliseconds,
-                });
+            response = await GotoWithLiveSiteRetryAsync(Page, url);
         }
         catch (Exception ex)
         {
@@ -256,13 +244,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
             }
         }
 
-        await mobilePage.GotoAsync(
-            url,
-            new PageGotoOptions
-            {
-                WaitUntil = WaitUntilState.DOMContentLoaded,
-                Timeout = (float)NavigationTimeout.TotalMilliseconds,
-            });
+        await GotoWithLiveSiteRetryAsync(mobilePage, url);
         var overflows = await mobilePage.EvaluateAsync<bool>(
             "() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1");
         if (overflows)
@@ -301,7 +283,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
     {
         var stopwatch = Stopwatch.StartNew();
         TestContext.Out.WriteLine("Sitemap discovery: fetching /sitemap.xml");
-        var indexXml = await httpClient.GetStringAsync("/sitemap.xml", cancellationToken);
+        var indexXml = await GetStringWithLiveSiteRetryAsync(httpClient, "/sitemap.xml", cancellationToken);
         var childSitemapPaths = SitemapRouteParser.ParseIndexPaths(indexXml);
         TestContext.Out.WriteLine(
             $"Sitemap discovery: index returned {childSitemapPaths.Count} child sitemaps in {stopwatch.ElapsedMilliseconds}ms");
@@ -313,7 +295,7 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
             var section = SitemapRouteParser.ResolveSectionName(sitemapPath);
             var childStarted = stopwatch.ElapsedMilliseconds;
             TestContext.Out.WriteLine($"Sitemap discovery: fetching {sitemapPath} (section={section})");
-            var childXml = await httpClient.GetStringAsync(sitemapPath, cancellationToken);
+            var childXml = await GetStringWithLiveSiteRetryAsync(httpClient, sitemapPath, cancellationToken);
             var urlPaths = SitemapRouteParser.ParseUrlSetPaths(childXml);
             TestContext.Out.WriteLine(
                 $"Sitemap discovery: {sitemapPath} returned {urlPaths.Count} URLs in {stopwatch.ElapsedMilliseconds - childStarted}ms " +
@@ -344,6 +326,24 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
     /// </summary>
     private static string FailureAttributionPrefix() =>
         RealDataMarkers.IsReadOnlyMode() ? "PRODUCTION LIVE-SITE: " : string.Empty;
+
+    private static Task<string> GetStringWithLiveSiteRetryAsync(
+        HttpClient httpClient,
+        string path,
+        CancellationToken cancellationToken) =>
+        LiveSiteTransportRetry.RunAsync(
+            () => httpClient.GetStringAsync(path, cancellationToken),
+            cancellationToken);
+
+    private static Task<IResponse?> GotoWithLiveSiteRetryAsync(IPage page, string url) =>
+        LiveSiteTransportRetry.RunAsync(
+            () => page.GotoAsync(
+                url,
+                new PageGotoOptions
+                {
+                    WaitUntil = WaitUntilState.DOMContentLoaded,
+                    Timeout = (float)NavigationTimeout.TotalMilliseconds,
+                }));
 
     private HttpClient CreateHttpClient()
     {
