@@ -29,7 +29,6 @@ public sealed class AdminReviewerAccountService(
         string email,
         string displayName,
         string password,
-        string adminEmail,
         CancellationToken cancellationToken = default)
     {
         var validated = Validate(email, displayName, password, passwordRequired: true);
@@ -53,10 +52,7 @@ public sealed class AdminReviewerAccountService(
         account.PasswordHash = passwordHasher.HashPassword(account, password);
         var created = await memberAccounts.CreateAsync(account, cancellationToken);
 
-        logger.LogInformation(
-            "Admin {AdminEmailFingerprint} created local-password account {MemberId}.",
-            LogRedaction.EmailFingerprint(adminEmail),
-            created.Id);
+        logger.LogInformation("Created local-password account {MemberId}.", created.Id);
         return ReviewerAccountResult.Success(ToSummary(created));
     }
 
@@ -65,7 +61,6 @@ public sealed class AdminReviewerAccountService(
         string email,
         string displayName,
         string? newPassword,
-        string adminEmail,
         CancellationToken cancellationToken = default)
     {
         var validated = Validate(email, displayName, newPassword, passwordRequired: false);
@@ -104,8 +99,7 @@ public sealed class AdminReviewerAccountService(
         }
 
         logger.LogInformation(
-            "Admin {AdminEmailFingerprint} updated local-password account {MemberId}; password reset: {PasswordReset}.",
-            LogRedaction.EmailFingerprint(adminEmail),
+            "Updated local-password account {MemberId}; password reset: {PasswordReset}.",
             id,
             passwordHash is not null);
         return ReviewerAccountResult.Success(ToSummary(updated));
@@ -113,16 +107,12 @@ public sealed class AdminReviewerAccountService(
 
     public async Task<bool> RemovePasswordAsync(
         Guid id,
-        string adminEmail,
         CancellationToken cancellationToken = default)
     {
         var removed = await memberAccounts.RemoveLocalPasswordAsync(id, cancellationToken);
         if (removed)
         {
-            logger.LogInformation(
-                "Admin {AdminEmailFingerprint} removed local-password access from member {MemberId}.",
-                LogRedaction.EmailFingerprint(adminEmail),
-                id);
+            logger.LogInformation("Removed local-password access from member {MemberId}.", id);
         }
 
         return removed;

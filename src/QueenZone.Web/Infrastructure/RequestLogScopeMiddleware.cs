@@ -29,16 +29,12 @@ public sealed class RequestLogScopeMiddleware(
             state["MemberId"] = id.ToString("D");
         }
 
-        // Admin staff are a small, already-identified set (unlike anonymous visitors, whom this
-        // app deliberately avoids fingerprinting elsewhere — see client IP masking in
-        // Program.cs), so tagging their requests costs no extra privacy exposure and lets a
-        // warning/exception logged mid-request (e.g. an antiforgery rejection) be tied back to
-        // who hit it.
+        // Allowlisted admin requests get IsAdmin so a mid-request warning/exception can be
+        // distinguished from visitor traffic without putting email (or an email-derived
+        // fingerprint) in the log scope.
         if (AdminAllowlist.IsAllowed(context.User, adminOptions.Value))
         {
             state["IsAdmin"] = true;
-            state["AdminEmailFingerprint"] = LogRedaction.EmailFingerprint(
-                AdminAllowlist.ResolveEmail(context.User));
         }
 
         using (logger.BeginScope(state))

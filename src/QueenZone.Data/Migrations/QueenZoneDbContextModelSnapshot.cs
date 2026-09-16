@@ -1427,8 +1427,11 @@ namespace QueenZone.Data.Migrations
                     b.ToTable("ModernForumPost", null, t =>
                         {
                             t.ExcludeFromMigrations();
+
                             t.HasTrigger("TR_ModernForumPost_RefreshArchiveAuthorSummary");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.ModernForumThreadEntity", b =>
@@ -2804,6 +2807,132 @@ namespace QueenZone.Data.Migrations
                     b.ToTable("QueenLinkChecks", (string)null);
                 });
 
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizAttemptEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("CorrectCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("MemberAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("QuizId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MemberAccountId", "CompletedAt")
+                        .HasDatabaseName("IX_QuizAttempts_MemberAccountId_CompletedAt");
+
+                    b.HasIndex("QuizId", "CompletedAt")
+                        .HasDatabaseName("IX_QuizAttempts_QuizId_CompletedAt");
+
+                    b.ToTable("QuizAttempts", (string)null);
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsPublished")
+                        .HasDatabaseName("IX_Quizzes_IsPublished");
+
+                    b.ToTable("Quizzes", (string)null);
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizOptionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OptionText")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuestionId", "DisplayOrder")
+                        .HasDatabaseName("IX_QuizOptions_QuestionId_DisplayOrder");
+
+                    b.ToTable("QuizOptions", (string)null);
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizQuestionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QuestionText")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("QuizId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuizId", "DisplayOrder")
+                        .HasDatabaseName("IX_QuizQuestions_QuizId_DisplayOrder");
+
+                    b.ToTable("QuizQuestions", (string)null);
+                });
+
             modelBuilder.Entity("QueenZone.Data.Entities.QuoteEntity", b =>
                 {
                     b.Property<int>("QuoteId")
@@ -3627,6 +3756,39 @@ namespace QueenZone.Data.Migrations
                     b.Navigation("Reporter");
                 });
 
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizAttemptEntity", b =>
+                {
+                    b.HasOne("QueenZone.Data.Entities.QuizEntity", "Quiz")
+                        .WithMany("Attempts")
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quiz");
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizOptionEntity", b =>
+                {
+                    b.HasOne("QueenZone.Data.Entities.QuizQuestionEntity", "Question")
+                        .WithMany("Options")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizQuestionEntity", b =>
+                {
+                    b.HasOne("QueenZone.Data.Entities.QuizEntity", "Quiz")
+                        .WithMany("Questions")
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Quiz");
+                });
+
             modelBuilder.Entity("QueenZone.Data.Entities.TriviaFactSubmissionAuditLogEntity", b =>
                 {
                     b.HasOne("QueenZone.Data.Entities.TriviaFactSubmissionEntity", "Submission")
@@ -3697,6 +3859,18 @@ namespace QueenZone.Data.Migrations
                     b.Navigation("Messages");
 
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizEntity", b =>
+                {
+                    b.Navigation("Attempts");
+
+                    b.Navigation("Questions");
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizQuestionEntity", b =>
+                {
+                    b.Navigation("Options");
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.TriviaFactSubmissionEntity", b =>

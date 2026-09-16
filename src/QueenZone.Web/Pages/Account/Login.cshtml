@@ -73,7 +73,8 @@
       {
         <p class="qz-account-notice qz-account-notice--error">@Model.PasswordSignInError</p>
       }
-      <form method="post" asp-page="./Login" asp-route-returnUrl="@Uri.EscapeDataString(Model.ReturnUrl)">
+      <form method="post" asp-page="./Login">
+        <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
         <div class="qz-form-field">
           <label asp-for="Input.Email">Email</label>
           <input asp-for="Input.Email" type="email" autocomplete="username" required />

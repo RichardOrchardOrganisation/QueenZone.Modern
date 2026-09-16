@@ -132,6 +132,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // Xcode/iOS 27 requires UIScene; Expo SDK 57 still generates the legacy
       // AppDelegate-owned UIWindow and the resulting app traps at launch.
       './plugins/withIosSceneLifecycle.cjs',
+      ['./plugins/withIosAppIntents.cjs', { apiBaseUrl }],
       // After expo-media-library: drop READ_MEDIA_* so add-only save does not
       // request photo/video/audio read at install (#1230 / #1232).
       './plugins/withAndroidAddOnlyPhotos.cjs',

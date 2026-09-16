@@ -1,11 +1,9 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
-using QueenZone.Web.Pages.Account;
 
 namespace QueenZone.Web.Tests;
 
@@ -25,7 +23,7 @@ public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFa
     }
 
     [Fact]
-    public async Task Get_WithLocalReturnUrl_EncodesFormActionLikeExternalLinks()
+    public async Task Get_WithLocalReturnUrl_PutsResolvedUrlInHiddenFieldNotFormAction()
     {
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -35,11 +33,31 @@ public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFa
         const string returnUrl = "/messages/compose?to=42";
         var body = await client.GetStringAsync(
             $"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
-        var formEncoded = Uri.EscapeDataString(Uri.EscapeDataString(returnUrl));
         var formAction = ExtractPasswordFormAction(body);
 
-        Assert.Contains($"returnUrl={formEncoded}", formAction, StringComparison.Ordinal);
-        Assert.Equal(returnUrl, LoginModel.DecodeFormReturnUrl(Uri.EscapeDataString(returnUrl)));
+        Assert.DoesNotContain("returnUrl=", formAction, StringComparison.Ordinal);
+        Assert.Equal(returnUrl, ExtractHiddenReturnUrl(body));
+        Assert.Contains(
+            $"""<input type="hidden" name="returnUrl" value="{returnUrl}" />""",
+            body,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Get_WithQuotedReturnUrl_HtmlEncodesHiddenField()
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+
+        const string returnUrl = "/forum?q=\"><script>alert(1)</script>";
+        var body = await client.GetStringAsync(
+            $"/account/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+
+        Assert.Equal("/forum?q=&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;", ExtractHiddenReturnUrlRaw(body));
+        Assert.DoesNotContain("<script>", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("returnUrl=", ExtractPasswordFormAction(body), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -59,6 +77,7 @@ public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFa
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = ExtractAntiforgeryToken(loginPage),
+            ["returnUrl"] = ExtractHiddenReturnUrl(loginPage),
             ["Input.Email"] = "return-url@example.com",
             ["Input.Password"] = "correct horse battery staple",
         });
@@ -209,9 +228,22 @@ public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFa
         return System.Net.WebUtility.HtmlDecode(match.Groups["action"].Value);
     }
 
+    private static string ExtractHiddenReturnUrl(string html) =>
+        System.Net.WebUtility.HtmlDecode(ExtractHiddenReturnUrlRaw(html));
+
+    private static string ExtractHiddenReturnUrlRaw(string html)
+    {
+        var match = HiddenReturnUrlRegex().Match(html);
+        Assert.True(match.Success, "Hidden returnUrl field was not found.");
+        return match.Groups["value"].Value;
+    }
+
     [GeneratedRegex("""name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""", RegexOptions.IgnoreCase)]
     private static partial Regex AntiforgeryTokenRegex();
 
     [GeneratedRegex("""<form[^>]*action="(?<action>[^"]+)"[^>]*>""", RegexOptions.IgnoreCase)]
     private static partial Regex PasswordFormActionRegex();
+
+    [GeneratedRegex("""<input[^>]*name="returnUrl"[^>]*value="(?<value>[^"]*)"[^>]*/?>""", RegexOptions.IgnoreCase)]
+    private static partial Regex HiddenReturnUrlRegex();
 }

@@ -11,7 +11,7 @@ export type SignInParams = {
 };
 
 export type CommonStackParamList = {
-  Search: undefined;
+  Search: { query?: string } | undefined;
 };
 
 export type StoryRouteParamList = {

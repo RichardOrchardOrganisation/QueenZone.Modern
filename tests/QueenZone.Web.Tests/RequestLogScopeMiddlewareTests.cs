@@ -111,7 +111,7 @@ public sealed class RequestLogScopeMiddlewareTests
     }
 
     [Fact]
-    public async Task Allowlisted_admin_principal_scope_includes_email_fingerprint()
+    public async Task Allowlisted_admin_principal_scope_includes_is_admin_without_email()
     {
         var logger = new RecordingScopeLogger();
         var context = new DefaultHttpContext
@@ -137,10 +137,12 @@ public sealed class RequestLogScopeMiddlewareTests
         Assert.Equal(Activity.Current?.TraceId.ToString() ?? "admin-trace", scope["TraceId"]);
         Assert.False(scope.ContainsKey("MemberId"));
         Assert.False(scope.ContainsKey("AdminEmail"));
+        Assert.False(scope.ContainsKey("AdminEmailFingerprint"));
         Assert.Equal(true, scope["IsAdmin"]);
-        Assert.Equal(LogRedaction.EmailFingerprint("admin@example.com"), scope["AdminEmailFingerprint"]);
+        Assert.Equal(["TraceId", "IsAdmin"], scope.Keys);
         Assert.DoesNotContain(scope.Values, value => value is string text
-            && text.Contains("admin@example.com", StringComparison.Ordinal));
+            && (text.Contains("admin@example.com", StringComparison.Ordinal)
+                || text.Contains("Admin User", StringComparison.Ordinal)));
     }
 
     [Theory]

@@ -11,6 +11,7 @@ import { EnvBanner } from '../ui/EnvBanner';
 import { NotificationBridge } from '../notifications/NotificationBridge';
 import { NewsShareBridge } from '../share/news/NewsShare';
 import { WidgetLinkBridge } from '../widgets/WidgetLinkBridge';
+import { SiriLinkBridge } from '../siri/SiriLinkBridge';
 import { HeaderCloseButton } from './headerButtons';
 import { ArchiveStack, ForumStack, HomeStack, NewsStack, PhotosStack, stackScreenOptions } from './stacks';
 import type { RootStackParamList, RootTabParamList } from './types';
@@ -223,6 +224,7 @@ export function RootNavigator() {
       <NotificationBridge />
       <NewsShareBridge />
       <WidgetLinkBridge />
+      <SiriLinkBridge />
     </View>
   );
 }
