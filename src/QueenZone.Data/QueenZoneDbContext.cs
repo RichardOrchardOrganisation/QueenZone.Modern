@@ -41,6 +41,14 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<HomePollVoteEntity> HomePollVotes => Set<HomePollVoteEntity>();
 
+    public DbSet<QuizEntity> Quizzes => Set<QuizEntity>();
+
+    public DbSet<QuizQuestionEntity> QuizQuestions => Set<QuizQuestionEntity>();
+
+    public DbSet<QuizOptionEntity> QuizOptions => Set<QuizOptionEntity>();
+
+    public DbSet<QuizAttemptEntity> QuizAttempts => Set<QuizAttemptEntity>();
+
     public DbSet<NewsDiscoverySourceEntity> NewsDiscoverySources => Set<NewsDiscoverySourceEntity>();
 
     public DbSet<NewsCandidateEntity> NewsCandidates => Set<NewsCandidateEntity>();
@@ -1516,6 +1524,58 @@ public sealed class QueenZoneDbContext : DbContext
                 .WithMany(option => option.Votes)
                 .HasForeignKey(vote => vote.OptionId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<QuizEntity>(entity =>
+        {
+            entity.ToTable("Quizzes");
+            entity.HasKey(quiz => quiz.Id);
+            entity.Property(quiz => quiz.Title).HasMaxLength(QuizValidation.TitleMaxLength).IsRequired();
+            entity.Property(quiz => quiz.Description).HasMaxLength(QuizValidation.DescriptionMaxLength);
+            entity.Property(quiz => quiz.CreatedAt).IsRequired();
+            entity.HasIndex(quiz => quiz.IsPublished)
+                .HasDatabaseName("IX_Quizzes_IsPublished");
+            entity.HasMany(quiz => quiz.Questions)
+                .WithOne(question => question.Quiz)
+                .HasForeignKey(question => question.QuizId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(quiz => quiz.Attempts)
+                .WithOne(attempt => attempt.Quiz)
+                .HasForeignKey(attempt => attempt.QuizId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<QuizQuestionEntity>(entity =>
+        {
+            entity.ToTable("QuizQuestions");
+            entity.HasKey(question => question.Id);
+            entity.Property(question => question.QuestionText).HasMaxLength(QuizValidation.QuestionMaxLength).IsRequired();
+            entity.HasIndex(question => new { question.QuizId, question.DisplayOrder })
+                .HasDatabaseName("IX_QuizQuestions_QuizId_DisplayOrder");
+            entity.HasMany(question => question.Options)
+                .WithOne(option => option.Question)
+                .HasForeignKey(option => option.QuestionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<QuizOptionEntity>(entity =>
+        {
+            entity.ToTable("QuizOptions");
+            entity.HasKey(option => option.Id);
+            entity.Property(option => option.OptionText).HasMaxLength(QuizValidation.OptionMaxLength).IsRequired();
+            entity.HasIndex(option => new { option.QuestionId, option.DisplayOrder })
+                .HasDatabaseName("IX_QuizOptions_QuestionId_DisplayOrder");
+        });
+
+        modelBuilder.Entity<QuizAttemptEntity>(entity =>
+        {
+            entity.ToTable("QuizAttempts");
+            entity.HasKey(attempt => attempt.Id);
+            entity.Property(attempt => attempt.CompletedAt).IsRequired();
+            entity.HasIndex(attempt => new { attempt.QuizId, attempt.CompletedAt })
+                .HasDatabaseName("IX_QuizAttempts_QuizId_CompletedAt");
+            entity.HasIndex(attempt => new { attempt.MemberAccountId, attempt.CompletedAt })
+                .HasDatabaseName("IX_QuizAttempts_MemberAccountId_CompletedAt");
         });
 
         modelBuilder.Entity<IdempotencyReceiptEntity>(entity =>
