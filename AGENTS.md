@@ -100,6 +100,10 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 
+### Auto-merge is enabled repo-wide
+
+GitHub auto-merge is on for this repository: once you enable it on a PR (`gh pr merge --auto --squash`, or the "Enable auto-merge" button), GitHub merges it itself as soon as required checks pass and any branch-protection requirements (reviews, etc.) are satisfied — no need to poll CI and merge manually. Turn it on right after opening the PR rather than waiting for checks to go green first.
+
 ### Linking issues so merge auto-closes them
 
 Fill in the template's `## Issues` section with a real GitHub closing keyword — `Closes #123`, `Fixes #123`, or `Resolves #123` — for every issue the PR fully resolves. GitHub only auto-closes an issue on merge when one of those keywords appears; a prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else in the PR body (including `## Summary`) does not trigger it and leaves the issue open after merge. Use `Relates to #123` for issues the PR only touches without resolving. The `pr-issue-link-check` CI job fails the PR if it references an issue number without a recognized closing or relating keyword, so use the correct keyword up front rather than fixing it after the check fails.
