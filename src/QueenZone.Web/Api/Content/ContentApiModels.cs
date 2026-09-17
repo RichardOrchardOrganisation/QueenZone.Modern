@@ -209,6 +209,57 @@ public sealed record HomePollOptionDto(Guid Id, string Text, int Count, double P
 
 public sealed record HomePollVoteRequestDto(Guid? OptionId);
 
+/// <summary>Shape for <c>GET /api/v1/content/quizzes</c> list items.</summary>
+public sealed record QuizListItemDto(Guid Id, string Title, string? Description, int QuestionCount);
+
+/// <summary>An answer option shaped for play — no correct-answer flag.</summary>
+public sealed record QuizOptionDto(Guid Id, string Text);
+
+public sealed record QuizQuestionDto(Guid Id, string Text, int Points, IReadOnlyList<QuizOptionDto> Options);
+
+/// <summary>
+/// Shape for <c>GET /api/v1/content/quizzes/{id}</c>. Options only, no correct-answer flag —
+/// the correct option is never sent to the client before submit.
+/// </summary>
+public sealed record QuizDetailDto(Guid Id, string Title, string? Description, IReadOnlyList<QuizQuestionDto> Questions);
+
+public sealed record QuizAnswerSubmissionDto(Guid QuestionId, Guid? SelectedOptionId);
+
+/// <summary>Request body for <c>POST /api/v1/content/quizzes/{id}/attempts</c>.</summary>
+public sealed record QuizSubmitRequestDto(IReadOnlyList<QuizAnswerSubmissionDto>? Answers);
+
+public sealed record QuizAnswerResultDto(
+    Guid QuestionId,
+    string QuestionText,
+    Guid? SelectedOptionId,
+    string? SelectedOptionText,
+    Guid CorrectOptionId,
+    string CorrectOptionText,
+    bool IsCorrect,
+    int PointsAwarded);
+
+/// <summary>
+/// Result of <c>POST /api/v1/content/quizzes/{id}/attempts</c>. Scoring is computed
+/// server-side; this is the only place the correct answers are ever revealed to the client.
+/// </summary>
+public sealed record QuizResultDto(
+    Guid QuizId,
+    string QuizTitle,
+    int Score,
+    int MaxScore,
+    int CorrectCount,
+    int QuestionCount,
+    bool Recorded,
+    IReadOnlyList<QuizAnswerResultDto> Answers);
+
+public sealed record QuizLeaderboardEntryDto(int Rank, string DisplayName, int Score, int AttemptCount);
+
+/// <summary>Shape for <c>GET /api/v1/content/quizzes/leaderboard</c>.</summary>
+public sealed record QuizLeaderboardDto(
+    IReadOnlyList<QuizLeaderboardEntryDto> Top,
+    QuizLeaderboardEntryDto? Viewer,
+    int TotalMembers);
+
 /// <summary>
 /// Category card for <c>/api/v1/content/photos/categories</c> and
 /// <c>/api/v1/content/photos/categories/{slug}</c>. Cover URLs are CDN

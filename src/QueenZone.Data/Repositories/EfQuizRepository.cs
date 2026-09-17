@@ -152,6 +152,92 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<QuizListItem>> GetPublishedAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.Quizzes
+            .AsNoTracking()
+            .Where(quiz => quiz.IsPublished)
+            .OrderByDescending(quiz => quiz.PublishedAt)
+            .Select(quiz => new QuizListItem(quiz.Id, quiz.Title, quiz.Description, quiz.Questions.Count))
+            .ToListAsync(cancellationToken);
+
+    public async Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .AsNoTracking()
+            .Include(item => item.Questions)
+                .ThenInclude(question => question.Options)
+            .SingleOrDefaultAsync(item => item.Id == id && item.IsPublished, cancellationToken);
+
+        return quiz is null ? null : ToPlayView(quiz);
+    }
+
+    public async Task<QuizSubmissionResult?> SubmitAsync(
+        Guid quizId,
+        Guid? memberAccountId,
+        IReadOnlyList<QuizAnswerSubmission> answers,
+        CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .AsNoTracking()
+            .Include(item => item.Questions)
+                .ThenInclude(question => question.Options)
+            .SingleOrDefaultAsync(item => item.Id == quizId && item.IsPublished, cancellationToken);
+        if (quiz is null)
+        {
+            return null;
+        }
+
+        var recorded = memberAccountId is Guid memberId;
+        var result = QuizScoring.Score(quiz, answers, recorded);
+        if (recorded)
+        {
+            await RecordAttemptAsync(
+                quizId,
+                memberAccountId!.Value,
+                result.Score,
+                result.CorrectCount,
+                result.QuestionCount,
+                cancellationToken);
+        }
+
+        return result;
+    }
+
+    public async Task<QuizLeaderboardResult> GetLeaderboardAsync(
+        QuizLeaderboardScope scope,
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.QuizAttempts.AsNoTracking();
+        if (scope == QuizLeaderboardScope.Week)
+        {
+            var weekStart = QuizScoring.GetCurrentWeekStartUtc(timeProvider.GetUtcNow());
+            query = query.Where(attempt => attempt.CompletedAt >= weekStart);
+        }
+
+        var attempts = await query.ToListAsync(cancellationToken);
+        return QuizScoring.BuildLeaderboard(attempts, viewerMemberId, top);
+    }
+
+    private static QuizPlayView ToPlayView(QuizEntity quiz) =>
+        new(
+            quiz.Id,
+            quiz.Title,
+            quiz.Description,
+            quiz.Questions
+                .OrderBy(question => question.DisplayOrder)
+                .Select(question => new QuizPlayQuestion(
+                    question.Id,
+                    question.QuestionText,
+                    question.DisplayOrder,
+                    question.Points,
+                    question.Options
+                        .OrderBy(option => option.DisplayOrder)
+                        .Select(option => new QuizPlayOption(option.Id, option.OptionText))
+                        .ToList()))
+                .ToList());
+
     internal static QuizEntity BuildEntity(AdminQuizDraft draft, Guid createdByMemberId, DateTimeOffset createdAt)
     {
         var quizId = Guid.NewGuid();

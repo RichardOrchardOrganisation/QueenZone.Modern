@@ -30,4 +30,36 @@ public interface IQuizRepository
         int correctCount,
         int questionCount,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Published quizzes for the public quiz list. Unpublished quizzes never appear.</summary>
+    Task<IReadOnlyList<QuizListItem>> GetPublishedAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A published quiz shaped for play — options only, no correct-answer flag. Null when the
+    /// quiz does not exist or is not published.
+    /// </summary>
+    Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Scores <paramref name="answers"/> server-side against the quiz's stored correct options.
+    /// When <paramref name="memberAccountId"/> is given, also records the attempt (leaderboard +
+    /// admin edit lock); anonymous play still returns a score but is never recorded. Null when
+    /// the quiz does not exist or is not published.
+    /// </summary>
+    Task<QuizSubmissionResult?> SubmitAsync(
+        Guid quizId,
+        Guid? memberAccountId,
+        IReadOnlyList<QuizAnswerSubmission> answers,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ranks members by the sum of their recorded attempt scores within <paramref name="scope"/>
+    /// (current UTC week, Monday start, or all-time). <paramref name="viewerMemberId"/>'s own
+    /// entry is included even when outside the top page.
+    /// </summary>
+    Task<QuizLeaderboardResult> GetLeaderboardAsync(
+        QuizLeaderboardScope scope,
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default);
 }
