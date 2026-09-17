@@ -87,14 +87,25 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         quiz.Title = draft.Title.Trim();
         quiz.Description = string.IsNullOrWhiteSpace(draft.Description) ? null : draft.Description.Trim();
 
-        foreach (var question in quiz.Questions)
-        {
-            dbContext.QuizOptions.RemoveRange(question.Options);
-        }
+        // Manage questions and options as independent rows rather than through the Questions/
+        // Options navigation properties: mixing an explicit RemoveRange with navigation-collection
+        // mutation on the same tracked entities confuses EF's relationship fixup on these required
+        // FKs and throws a spurious DbUpdateConcurrencyException on SaveChanges.
+        var existingQuestionIds = await dbContext.QuizQuestions
+            .Where(question => question.QuizId == quiz.Id)
+            .Select(question => question.Id)
+            .ToListAsync(cancellationToken);
+        var existingOptions = await dbContext.QuizOptions
+            .Where(option => existingQuestionIds.Contains(option.QuestionId))
+            .ToListAsync(cancellationToken);
+        dbContext.QuizOptions.RemoveRange(existingOptions);
 
-        dbContext.QuizQuestions.RemoveRange(quiz.Questions);
+        var existingQuestions = await dbContext.QuizQuestions
+            .Where(question => question.QuizId == quiz.Id)
+            .ToListAsync(cancellationToken);
+        dbContext.QuizQuestions.RemoveRange(existingQuestions);
 
-        quiz.Questions = BuildQuestions(quiz.Id, draft.Questions);
+        dbContext.QuizQuestions.AddRange(BuildQuestions(quiz.Id, draft.Questions));
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
