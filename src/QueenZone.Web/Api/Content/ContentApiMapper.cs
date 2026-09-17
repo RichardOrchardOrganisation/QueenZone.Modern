@@ -104,6 +104,45 @@ public static class ContentApiMapper
             poll.ViewerHasVoted,
             poll.SelectedOptionId);
 
+    public static QuizListItemDto ToQuizListItemDto(QuizListItem quiz) =>
+        new(quiz.Id, quiz.Title, quiz.Description, quiz.QuestionCount);
+
+    public static QuizDetailDto ToQuizDetailDto(QuizPlayView quiz) =>
+        new(
+            quiz.Id,
+            quiz.Title,
+            quiz.Description,
+            quiz.Questions
+                .Select(question => new QuizQuestionDto(
+                    question.Id,
+                    question.Text,
+                    question.Points,
+                    question.Options
+                        .Select(option => new QuizOptionDto(option.Id, option.Text))
+                        .ToList()))
+                .ToList());
+
+    public static QuizResultDto ToQuizResultDto(QuizSubmissionResult result) =>
+        new(
+            result.QuizId,
+            result.QuizTitle,
+            result.Score,
+            result.MaxScore,
+            result.CorrectCount,
+            result.QuestionCount,
+            result.Recorded,
+            result.Answers
+                .Select(answer => new QuizAnswerResultDto(
+                    answer.QuestionId,
+                    answer.QuestionText,
+                    answer.SelectedOptionId,
+                    answer.SelectedOptionText,
+                    answer.CorrectOptionId,
+                    answer.CorrectOptionText,
+                    answer.IsCorrect,
+                    answer.PointsAwarded))
+                .ToList());
+
     public static TimelineEventDto ToTimelineEvent(QueenHistoryEvent historyEvent) =>
         new(
             historyEvent.Id,

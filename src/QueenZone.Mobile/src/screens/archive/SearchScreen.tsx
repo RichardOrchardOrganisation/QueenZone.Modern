@@ -101,9 +101,14 @@ export function SearchScreen({ onOpen, initialQuery = '' }: Props) {
     return () => clearTimeout(handle);
   }, [query]);
 
+  const commitQuery = useCallback((value: string) => {
+    const next = value.trim();
+    setQuery(next);
+    setCommittedQuery(next);
+  }, []);
+
   const applyPreset = (preset: string) => {
-    setQuery(preset);
-    setCommittedQuery(preset);
+    commitQuery(preset);
   };
 
   return (
@@ -128,12 +133,14 @@ export function SearchScreen({ onOpen, initialQuery = '' }: Props) {
             autoFocus
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={(event) => commitQuery(event.nativeEvent.text)}
             placeholder="Search news, articles and discussions"
             placeholderTextColor={c.textMuted}
             accessibilityLabel="Search the archive"
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
+            blurOnSubmit
             style={{
               flex: 1,
               color: c.textPrimary,

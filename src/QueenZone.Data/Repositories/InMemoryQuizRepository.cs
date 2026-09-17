@@ -137,6 +137,93 @@ public sealed class InMemoryQuizRepository(
         return Task.CompletedTask;
     }
 
+    public Task<IReadOnlyList<QuizListItem>> GetPublishedAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.Read((quizzes, _) =>
+        {
+            IReadOnlyList<QuizListItem> items = quizzes
+                .Where(quiz => quiz.IsPublished)
+                .OrderByDescending(quiz => quiz.PublishedAt)
+                .Select(quiz => new QuizListItem(quiz.Id, quiz.Title, quiz.Description, quiz.Questions.Count))
+                .ToList();
+            return items;
+        }));
+
+    public Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.Read((quizzes, _) =>
+        {
+            var quiz = quizzes.SingleOrDefault(item => item.Id == id && item.IsPublished);
+            return quiz is null ? null : ToPlayView(quiz);
+        }));
+
+    public Task<QuizSubmissionResult?> SubmitAsync(
+        Guid quizId,
+        Guid? memberAccountId,
+        IReadOnlyList<QuizAnswerSubmission> answers,
+        CancellationToken cancellationToken = default)
+    {
+        var quiz = store.Read((quizzes, _) => quizzes.SingleOrDefault(item => item.Id == quizId && item.IsPublished));
+        if (quiz is null)
+        {
+            return Task.FromResult<QuizSubmissionResult?>(null);
+        }
+
+        var recorded = memberAccountId is Guid;
+        var result = QuizScoring.Score(quiz, answers, recorded);
+        if (memberAccountId is Guid memberId)
+        {
+            store.Write((_, attempts) =>
+            {
+                attempts.Add(new QuizAttemptEntity
+                {
+                    Id = Guid.NewGuid(),
+                    QuizId = quizId,
+                    MemberAccountId = memberId,
+                    Score = result.Score,
+                    CorrectCount = result.CorrectCount,
+                    QuestionCount = result.QuestionCount,
+                    CompletedAt = timeProvider.GetUtcNow(),
+                });
+            });
+        }
+
+        return Task.FromResult<QuizSubmissionResult?>(result);
+    }
+
+    public Task<QuizLeaderboardResult> GetLeaderboardAsync(
+        QuizLeaderboardScope scope,
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.Read((_, attempts) =>
+        {
+            IEnumerable<QuizAttemptEntity> scoped = attempts;
+            if (scope == QuizLeaderboardScope.Week)
+            {
+                var weekStart = QuizScoring.GetCurrentWeekStartUtc(timeProvider.GetUtcNow());
+                scoped = scoped.Where(attempt => attempt.CompletedAt >= weekStart);
+            }
+
+            return QuizScoring.BuildLeaderboard(scoped, viewerMemberId, top);
+        }));
+
+    private static QuizPlayView ToPlayView(QuizEntity quiz) =>
+        new(
+            quiz.Id,
+            quiz.Title,
+            quiz.Description,
+            quiz.Questions
+                .OrderBy(question => question.DisplayOrder)
+                .Select(question => new QuizPlayQuestion(
+                    question.Id,
+                    question.QuestionText,
+                    question.DisplayOrder,
+                    question.Points,
+                    question.Options
+                        .OrderBy(option => option.DisplayOrder)
+                        .Select(option => new QuizPlayOption(option.Id, option.OptionText))
+                        .ToList()))
+                .ToList());
+
     private static List<QuizQuestionEntity> BuildQuestions(Guid quizId, IReadOnlyList<QuizQuestionDraft> questions) =>
         questions
             .Select((question, questionIndex) =>

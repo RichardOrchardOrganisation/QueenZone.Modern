@@ -118,6 +118,31 @@ public static class ContentApiEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
+        group.MapGet("/quizzes", GetQuizzesAsync)
+            .WithName("GetContentQuizzes")
+            .WithSummary("Paged list of published quizzes. Unpublished quizzes never appear.")
+            .Produces<ApiPagedResponse<QuizListItemDto>>();
+
+        group.MapGet("/quizzes/leaderboard", GetQuizLeaderboardAsync)
+            .WithName("GetContentQuizLeaderboard")
+            .WithSummary("Quiz leaderboard ranked by summed attempt score. 'scope' is 'week' (default, current UTC week) or 'all'. Optional Bearer includes the viewer's own rank even outside the top page.")
+            .Produces<QuizLeaderboardDto>();
+
+        group.MapGet("/quizzes/{id:guid}", GetQuizDetailAsync)
+            .WithName("GetContentQuizDetail")
+            .WithSummary("A published quiz shaped for play: options only, no correct-answer flag.")
+            .Produces<QuizDetailDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/quizzes/{id:guid}/attempts", SubmitQuizAsync)
+            .WithName("SubmitContentQuizAttempt")
+            .WithSummary("Score answers server-side against the quiz's stored correct options and record the attempt. Correct answers are only ever revealed in this response.")
+            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .Accepts<QuizSubmitRequestDto>("application/json")
+            .Produces<QuizResultDto>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         group.MapGet("/biography", GetBiographyChaptersAsync)
             .WithName("GetContentBiographyChapters")
             .WithSummary("Paged list of biography chapters, in reading order.")
@@ -430,6 +455,108 @@ public static class ContentApiEndpoints
         return poll is null
             ? Results.Content("null", "application/json")
             : Results.Ok(ContentApiMapper.ToHomePollDto(poll));
+    }
+
+    internal static async Task<IResult> GetQuizzesAsync(
+        IQuizRepository quizRepository,
+        int? page,
+        int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        var request = ApiPagination.Normalize(page, pageSize);
+        var all = await quizRepository.GetPublishedAsync(cancellationToken);
+        var items = all
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .Select(ContentApiMapper.ToQuizListItemDto)
+            .ToList();
+
+        var response = ApiPagedResponse<QuizListItemDto>.Create(items, request.Page, request.PageSize, all.Count);
+        return Results.Ok(response);
+    }
+
+    internal static async Task<IResult> GetQuizDetailAsync(
+        IQuizRepository quizRepository,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var quiz = await quizRepository.GetPublishedForPlayAsync(id, cancellationToken);
+        if (quiz is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Not Found",
+                detail: $"No published quiz with id '{id}'.");
+        }
+
+        return Results.Ok(ContentApiMapper.ToQuizDetailDto(quiz));
+    }
+
+    internal static async Task<IResult> SubmitQuizAsync(
+        HttpContext httpContext,
+        Guid id,
+        QuizSubmitRequestDto? request,
+        IQuizRepository quizRepository,
+        CancellationToken cancellationToken)
+    {
+        var memberId = ForumMember.GetMemberId(httpContext.User);
+        if (memberId is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                title: "Unauthorized");
+        }
+
+        var answers = (request?.Answers ?? [])
+            .Select(answer => new QuizAnswerSubmission(answer.QuestionId, answer.SelectedOptionId))
+            .ToList();
+
+        var result = await quizRepository.SubmitAsync(id, memberId, answers, cancellationToken);
+        if (result is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Not Found",
+                detail: $"No published quiz with id '{id}'.");
+        }
+
+        return Results.Ok(ContentApiMapper.ToQuizResultDto(result));
+    }
+
+    internal static async Task<IResult> GetQuizLeaderboardAsync(
+        HttpContext httpContext,
+        string? scope,
+        IQuizRepository quizRepository,
+        IMemberAccountRepository memberAccountRepository,
+        CancellationToken cancellationToken)
+    {
+        var leaderboardScope = string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase)
+            ? QuizLeaderboardScope.AllTime
+            : QuizLeaderboardScope.Week;
+        var viewerId = await TryGetViewerMemberIdAsync(httpContext);
+
+        var result = await quizRepository.GetLeaderboardAsync(leaderboardScope, viewerId, top: 20, cancellationToken);
+        var top = await ToLeaderboardEntryDtosAsync(result.Top, memberAccountRepository, cancellationToken);
+        var viewer = result.Viewer is null
+            ? null
+            : (await ToLeaderboardEntryDtosAsync([result.Viewer], memberAccountRepository, cancellationToken)).Single();
+
+        return Results.Ok(new QuizLeaderboardDto(top, viewer, result.TotalMembers));
+    }
+
+    private static async Task<IReadOnlyList<QuizLeaderboardEntryDto>> ToLeaderboardEntryDtosAsync(
+        IReadOnlyList<QuizLeaderboardEntry> entries,
+        IMemberAccountRepository memberAccountRepository,
+        CancellationToken cancellationToken)
+    {
+        var dtos = new List<QuizLeaderboardEntryDto>(entries.Count);
+        foreach (var entry in entries)
+        {
+            var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
+            dtos.Add(new QuizLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.AttemptCount));
+        }
+
+        return dtos;
     }
 
     internal static async Task<IResult> GetQuoteDetailAsync(
