@@ -67,6 +67,38 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         pageSize = Math.Clamp(pageSize, 1, 100);
         var skip = (page - 1) * pageSize;
 
+        // SQLite cannot order by DateTimeOffset server-side (see IsSqliteDatabase); materialize
+        // then sort/page client-side. Row counts here are small enough (admin queue) for this
+        // to be safe on SQL Server too, but keep the server-side path there for scale.
+        if (IsSqliteDatabase())
+        {
+            var rows = await dbContext.QuizQuestionSubmissions
+                .AsNoTracking()
+                .Where(row => row.Status == QuizQuestionSubmissionStatus.Pending)
+                .Select(row => new
+                {
+                    row.Id,
+                    row.QuestionText,
+                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
+                    row.SubmittedAt,
+                    row.Status,
+                })
+                .ToListAsync(cancellationToken);
+
+            return rows
+                .OrderByDescending(row => row.SubmittedAt)
+                .ThenBy(row => row.Id)
+                .Skip(skip)
+                .Take(pageSize)
+                .Select(row => new QuizQuestionSubmissionListItem(
+                    row.Id,
+                    row.QuestionText,
+                    string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
+                    row.SubmittedAt,
+                    row.Status))
+                .ToList();
+        }
+
         return await dbContext.QuizQuestionSubmissions
             .AsNoTracking()
             .Where(row => row.Status == QuizQuestionSubmissionStatus.Pending)
@@ -84,10 +116,38 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
     }
 
     public async Task<IReadOnlyList<QuizQuestionSubmissionListItem>> GetApprovedAndAvailableAsync(
-        CancellationToken cancellationToken = default) =>
-        await dbContext.QuizQuestionSubmissions
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.QuizQuestionSubmissions
             .AsNoTracking()
-            .Where(row => row.Status == QuizQuestionSubmissionStatus.Approved && row.AddedToQuizId == null)
+            .Where(row => row.Status == QuizQuestionSubmissionStatus.Approved && row.AddedToQuizId == null);
+
+        if (IsSqliteDatabase())
+        {
+            var rows = await query
+                .Select(row => new
+                {
+                    row.Id,
+                    row.QuestionText,
+                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
+                    row.SubmittedAt,
+                    row.ReviewedAt,
+                    row.Status,
+                })
+                .ToListAsync(cancellationToken);
+
+            return rows
+                .OrderByDescending(row => row.ReviewedAt)
+                .Select(row => new QuizQuestionSubmissionListItem(
+                    row.Id,
+                    row.QuestionText,
+                    string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
+                    row.SubmittedAt,
+                    row.Status))
+                .ToList();
+        }
+
+        return await query
             .OrderByDescending(row => row.ReviewedAt)
             .Select(row => new QuizQuestionSubmissionListItem(
                 row.Id,
@@ -96,6 +156,7 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
                 row.SubmittedAt,
                 row.Status))
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<QuizQuestionSubmission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -123,6 +184,23 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
             .Where(row => row.SubmitterMemberId == submitterMemberId);
 
         var totalCount = await query.CountAsync(cancellationToken);
+
+        if (IsSqliteDatabase())
+        {
+            var all = await query
+                .Include(row => row.Submitter)
+                .Include(row => row.Options)
+                .ToListAsync(cancellationToken);
+            var sqliteItems = all
+                .OrderByDescending(row => row.SubmittedAt)
+                .ThenBy(row => row.Id)
+                .Skip(skip)
+                .Take(pageSize)
+                .Select(Map)
+                .ToList();
+            return new SubmissionListPage<QuizQuestionSubmission>(sqliteItems, totalCount);
+        }
+
         var entities = await query
             .Include(row => row.Submitter)
             .Include(row => row.Options)
@@ -143,7 +221,6 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         CancellationToken cancellationToken = default)
     {
         var entity = await dbContext.QuizQuestionSubmissions
-            .Include(row => row.Options)
             .SingleOrDefaultAsync(row => row.Id == id, cancellationToken);
         if (entity is null)
         {
@@ -167,19 +244,31 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
             throw new ArgumentException(string.Join(" ", errors), nameof(edit));
         }
 
+        // Manage options as independent rows rather than through the Options navigation
+        // property: mixing an explicit RemoveRange with navigation-collection mutation on the
+        // same tracked entities confuses EF's relationship fixup on this required FK and throws
+        // a spurious DbUpdateConcurrencyException on SaveChanges.
+        var existingOptions = await dbContext.QuizQuestionSubmissionOptions
+            .Where(option => option.QuizQuestionSubmissionId == id)
+            .ToListAsync(cancellationToken);
+        dbContext.QuizQuestionSubmissionOptions.RemoveRange(existingOptions);
+
         entity.QuestionText = edit.QuestionText.Trim();
-        dbContext.QuizQuestionSubmissionOptions.RemoveRange(entity.Options);
         var options = QuizQuestionSubmissionValidation.NormalizeOptions(edit.Options);
-        entity.Options = options
-            .Select((option, index) => new QuizQuestionSubmissionOptionEntity
+        var newOptions = new List<QuizQuestionSubmissionOptionEntity>(options.Count);
+        for (var index = 0; index < options.Count; index++)
+        {
+            newOptions.Add(new QuizQuestionSubmissionOptionEntity
             {
                 Id = Guid.NewGuid(),
                 QuizQuestionSubmissionId = entity.Id,
-                OptionText = option.Text,
+                OptionText = options[index].Text,
                 DisplayOrder = index,
-                IsCorrect = option.IsCorrect,
-            })
-            .ToList();
+                IsCorrect = options[index].IsCorrect,
+            });
+        }
+
+        dbContext.QuizQuestionSubmissionOptions.AddRange(newOptions);
 
         entity.Status = QuizQuestionSubmissionStatus.Approved;
         var now = DateTimeOffset.UtcNow;
@@ -304,6 +393,12 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         return new SubmissionTypeCounts(
             pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30);
     }
+
+    private bool IsSqliteDatabase() =>
+        string.Equals(
+            dbContext.Database.ProviderName,
+            "Microsoft.EntityFrameworkCore.Sqlite",
+            StringComparison.Ordinal);
 
     private static string? NormalizeOptional(string? value, int maxLength)
     {
