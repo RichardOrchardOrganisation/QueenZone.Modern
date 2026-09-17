@@ -60,9 +60,13 @@ updates:
           - "react-native-reanimated"
           # Expo 57 pins; 19.2.8 also fights react-test-renderer / react-dom 19.2.3 overrides.
           - "react"
+          # Expo 57 pin; RN majors peer-break reanimated 4.5.1 / worklets 0.10.1.
+          - "react-native"
           - "react-native-safe-area-context"
           - "react-native-screens"
           - "react-native-svg"
+          # Expo 57 / reanimated 4.5.1 stay on worklets 0.10.1; newer worklets peer-break that pin.
+          - "react-native-worklets"
           # Expo 57 expo-doctor rejected 7.13.0 on #1259; keep ~7.11.0 until Expo 58.
           - "@sentry/react-native"
         update-types:
