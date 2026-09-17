@@ -64,6 +64,9 @@ export type ArchiveStackParamList = {
   FanPerformanceDownloads: undefined;
   FanPerformanceSubmit: undefined;
   Trivia: undefined;
+  QuizList: undefined;
+  QuizPlay: { id: string };
+  QuizLeaderboard: undefined;
   AboutArchive: undefined;
 } & CommonStackParamList &
   StoryRouteParamList;

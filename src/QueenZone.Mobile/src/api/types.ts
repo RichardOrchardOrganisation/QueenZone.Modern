@@ -398,6 +398,83 @@ export type HomePollOption = {
   percentage: number;
 };
 
+/** Shape for `GET /api/v1/content/quizzes` list items. */
+export type QuizListItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  questionCount: number;
+};
+
+/** An answer option shaped for play — no correct-answer flag. */
+export type QuizOption = {
+  id: string;
+  text: string;
+};
+
+export type QuizQuestion = {
+  id: string;
+  text: string;
+  points: number;
+  options: QuizOption[];
+};
+
+/**
+ * Shape for `GET /api/v1/content/quizzes/{id}`. Options only — the correct answer is
+ * never sent to the client before submit.
+ */
+export type QuizDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  questions: QuizQuestion[];
+};
+
+export type QuizAnswerSubmission = {
+  questionId: string;
+  selectedOptionId: string | null;
+};
+
+export type QuizAnswerResult = {
+  questionId: string;
+  questionText: string;
+  selectedOptionId: string | null;
+  selectedOptionText: string | null;
+  correctOptionId: string;
+  correctOptionText: string;
+  isCorrect: boolean;
+  pointsAwarded: number;
+};
+
+/**
+ * Result of `POST /api/v1/content/quizzes/{id}/attempts`. Scoring is computed
+ * server-side; this is the only place the correct answers are ever revealed.
+ */
+export type QuizResult = {
+  quizId: string;
+  quizTitle: string;
+  score: number;
+  maxScore: number;
+  correctCount: number;
+  questionCount: number;
+  recorded: boolean;
+  answers: QuizAnswerResult[];
+};
+
+export type QuizLeaderboardEntry = {
+  rank: number;
+  displayName: string;
+  score: number;
+  attemptCount: number;
+};
+
+/** Shape for `GET /api/v1/content/quizzes/leaderboard`. */
+export type QuizLeaderboard = {
+  top: QuizLeaderboardEntry[];
+  viewer: QuizLeaderboardEntry | null;
+  totalMembers: number;
+};
+
 /** One hit from `GET /api/v1/search`. `id` is parsed from numeric source keys. */
 export type SearchResult = {
   contentType: string;

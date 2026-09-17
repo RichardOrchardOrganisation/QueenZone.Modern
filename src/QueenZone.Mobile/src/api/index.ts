@@ -42,6 +42,10 @@ export {
   fetchHomePoll,
   voteHomePoll,
   fetchTimelinePage,
+  fetchQuizzesPage,
+  fetchQuizDetail,
+  fetchQuizLeaderboard,
+  submitQuizAttempt,
 } from './content';
 export { fetchSearchPage } from './search';
 export type { SearchPageQuery } from './search';

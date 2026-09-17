@@ -19,6 +19,11 @@ import type {
   PhotoDetail,
   PhotoListItem,
   FanPerformance,
+  QuizAnswerSubmission,
+  QuizDetail,
+  QuizLeaderboard,
+  QuizListItem,
+  QuizResult,
   RandomQuote,
   RandomTrivia,
   TimelineEvent,
@@ -219,6 +224,42 @@ export function voteHomePoll(
     accessToken,
     signal,
   });
+}
+
+export function fetchQuizzesPage(query: PageQuery = {}): Promise<ApiPagedResponse<QuizListItem>> {
+  return fetchJson('/content/quizzes', { query: pageParams(query), signal: query.signal });
+}
+
+/** Options only — the correct-answer flag is never sent to the client before submit. */
+export function fetchQuizDetail(id: string, signal?: AbortSignal): Promise<QuizDetail> {
+  return fetchJson(`/content/quizzes/${id}`, { signal });
+}
+
+/** Scores server-side and records the attempt. Caller must be signed in. */
+export function submitQuizAttempt(
+  id: string,
+  answers: QuizAnswerSubmission[],
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<QuizResult> {
+  return sendJson(`/content/quizzes/${id}/attempts`, {
+    method: 'POST',
+    body: { answers },
+    accessToken,
+    signal,
+  });
+}
+
+/**
+ * Ranked by summed attempt score. Optional Bearer includes the viewer's own rank even
+ * outside the top page.
+ */
+export function fetchQuizLeaderboard(
+  scope: 'week' | 'all',
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizLeaderboard> {
+  return fetchJson('/content/quizzes/leaderboard', { query: { scope }, signal, accessToken });
 }
 
 export function fetchFreddieTributePage(
