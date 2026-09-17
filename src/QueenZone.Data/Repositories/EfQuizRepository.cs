@@ -77,8 +77,6 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         }
 
         var quiz = await dbContext.Quizzes
-            .Include(item => item.Questions)
-                .ThenInclude(question => question.Options)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new QuizException(QuizException.NotFound, "Quiz was not found.");
 

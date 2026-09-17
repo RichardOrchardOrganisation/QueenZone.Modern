@@ -61,6 +61,40 @@ public sealed class EfQuizRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task UpdateAsync_rewrites_question_and_option_counts()
+    {
+        var id = await repository.CreateAsync(SampleDraft(), createdByMemberId);
+
+        var created = await repository.GetByIdAsync(id);
+        Assert.Equal(2, created!.Questions.Count);
+        Assert.Equal(2, created.Questions[0].Options.Count);
+        Assert.Equal(3, created.Questions[1].Options.Count);
+
+        await repository.UpdateAsync(
+            id,
+            new AdminQuizDraft(
+                "Trimmed quiz",
+                "One question now",
+                [
+                    new QuizQuestionDraft(
+                        "Which guitarist is known for the Red Special?",
+                        1,
+                        [
+                            new QuizOptionDraft("Brian May", true),
+                            new QuizOptionDraft("John Deacon", false),
+                            new QuizOptionDraft("Roger Taylor", false),
+                        ]),
+                ]));
+
+        var updated = await repository.GetByIdAsync(id);
+        Assert.NotNull(updated);
+        Assert.Equal("Trimmed quiz", updated!.Title);
+        Assert.Equal(1, updated.Questions.Count);
+        Assert.Equal("Which guitarist is known for the Red Special?", updated.Questions[0].Text);
+        Assert.Equal(3, updated.Questions[0].Options.Count);
+    }
+
+    [Fact]
     public async Task UpdateAsync_can_be_called_repeatedly_on_the_same_quiz()
     {
         var id = await repository.CreateAsync(SampleDraft(), createdByMemberId);
