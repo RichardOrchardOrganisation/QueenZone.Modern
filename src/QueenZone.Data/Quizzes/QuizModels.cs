@@ -2,7 +2,12 @@ namespace QueenZone.Data;
 
 public sealed record QuizOptionDraft(string Text, bool IsCorrect);
 
-public sealed record QuizQuestionDraft(string Text, int Points, IReadOnlyList<QuizOptionDraft> Options);
+public sealed record QuizQuestionDraft(
+    string Text,
+    int Points,
+    IReadOnlyList<QuizOptionDraft> Options,
+    string? Category = null,
+    string? Difficulty = null);
 
 public sealed record AdminQuizDraft(
     string Title,
@@ -25,7 +30,9 @@ public sealed record QuizQuestionView(
     string Text,
     int DisplayOrder,
     int Points,
-    IReadOnlyList<QuizOptionView> Options);
+    IReadOnlyList<QuizOptionView> Options,
+    string? Category = null,
+    string? Difficulty = null);
 
 public sealed record QuizAdminDetail(
     Guid Id,

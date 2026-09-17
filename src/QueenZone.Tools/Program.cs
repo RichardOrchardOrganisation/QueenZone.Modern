@@ -68,6 +68,11 @@ internal static class ToolsApp
             return await RunImportTriviaAsync(args);
         }
 
+        if (args.Length > 0 && string.Equals(args[0], "import-quiz-questions", StringComparison.OrdinalIgnoreCase))
+        {
+            return await RunImportQuizQuestionsAsync(args);
+        }
+
         if (args.Length == 0 || string.Equals(args[0], "import-history", StringComparison.OrdinalIgnoreCase))
         {
             return await RunImportHistoryAsync(args);
@@ -191,6 +196,62 @@ internal static class ToolsApp
         return 0;
     }
 
+    private static async Task<int> RunImportQuizQuestionsAsync(string[] args)
+    {
+        var options = ImportOptions.Parse(args, "import-quiz-questions");
+        if (!options.IsValid)
+        {
+            PrintUsage(options.ErrorMessage);
+            return 2;
+        }
+
+        if (!File.Exists(options.CsvPath))
+        {
+            Console.Error.WriteLine($"CSV file was not found: {options.CsvPath}");
+            return 2;
+        }
+
+        if (options.DryRun)
+        {
+            try
+            {
+                var drafts = QuizCsvImporter.ReadDrafts(options.CsvPath);
+                Console.WriteLine($"Quizzes parsed: {drafts.Count}");
+                Console.WriteLine($"Questions parsed: {drafts.Sum(draft => draft.Questions.Count)}");
+                Console.WriteLine("Dry run only. No database changes were made.");
+                return 0;
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return 2;
+            }
+        }
+
+        var dbOptions = new DbContextOptionsBuilder<QueenZoneDbContext>()
+            .UseSqlServer(options.ConnectionString)
+            .Options;
+
+        await using var dbContext = new QueenZoneDbContext(dbOptions);
+        var repository = new EfQuizRepository(dbContext, TimeProvider.System);
+        var importer = new QuizCsvImporter(repository);
+
+        try
+        {
+            var result = await importer.ImportAsync(options.CsvPath);
+            Console.WriteLine($"Options read: {result.RowsRead}");
+            Console.WriteLine($"Quizzes created: {result.QuizzesCreated}");
+            Console.WriteLine($"Questions created: {result.QuestionsCreated}");
+            Console.WriteLine("Every imported quiz is unpublished. Review and publish it from Admin > Quizzes.");
+            return 0;
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 2;
+        }
+    }
+
     private static void PrintUsage(string errorMessage)
     {
         Console.Error.WriteLine(errorMessage);
@@ -202,6 +263,8 @@ internal static class ToolsApp
         Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- import-quotes --csv <path> --dry-run");
         Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- import-trivia --csv <path> --connection-string <connection-string>");
         Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- import-trivia --csv <path> --dry-run");
+        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- import-quiz-questions --csv <path> --connection-string <connection-string>");
+        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- import-quiz-questions --csv <path> --dry-run");
         Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- check-photos [options]");
         Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- generate-photo-thumbs [options]");
         Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- check-links [options]");

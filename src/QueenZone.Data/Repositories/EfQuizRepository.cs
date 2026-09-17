@@ -267,6 +267,8 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
                     QuestionText = question.Text.Trim(),
                     DisplayOrder = questionIndex,
                     Points = question.Points,
+                    Category = string.IsNullOrWhiteSpace(question.Category) ? null : question.Category.Trim(),
+                    Difficulty = question.Difficulty,
                     Options = options
                         .Select((option, optionIndex) => new QuizOptionEntity
                         {
@@ -300,7 +302,9 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
                     question.Options
                         .OrderBy(option => option.DisplayOrder)
                         .Select(option => new QuizOptionView(option.Id, option.OptionText, option.DisplayOrder, option.IsCorrect))
-                        .ToList()))
+                        .ToList(),
+                    question.Category,
+                    question.Difficulty))
                 .ToList());
 
     private async Task EnsureNoResultsAsync(Guid quizId, string message, CancellationToken cancellationToken)
