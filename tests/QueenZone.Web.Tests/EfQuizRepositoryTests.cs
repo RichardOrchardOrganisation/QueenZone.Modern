@@ -89,9 +89,9 @@ public sealed class EfQuizRepositoryTests : IAsyncDisposable
         var updated = await repository.GetByIdAsync(id);
         Assert.NotNull(updated);
         Assert.Equal("Trimmed quiz", updated!.Title);
-        Assert.Equal(1, updated.Questions.Count);
-        Assert.Equal("Which guitarist is known for the Red Special?", updated.Questions[0].Text);
-        Assert.Equal(3, updated.Questions[0].Options.Count);
+        var question = Assert.Single(updated.Questions);
+        Assert.Equal("Which guitarist is known for the Red Special?", question.Text);
+        Assert.Equal(3, question.Options.Count);
     }
 
     [Fact]
