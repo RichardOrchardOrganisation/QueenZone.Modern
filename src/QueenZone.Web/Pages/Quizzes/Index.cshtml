@@ -7,7 +7,10 @@
   <div class="qz-container">
     <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
 
-    <p><a class="qz-button qz-button--secondary qz-button--sm" href="/quizzes/leaderboard">View the leaderboard</a></p>
+    <p>
+      <a class="qz-button qz-button--secondary qz-button--sm" href="/quizzes/leaderboard">View the leaderboard</a>
+      <a class="qz-button qz-button--secondary qz-button--sm" href="/submit/quiz-question">Suggest a quiz question</a>
+    </p>
 
     @if (Model.Quizzes.Count == 0)
     {

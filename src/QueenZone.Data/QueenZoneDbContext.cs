@@ -49,6 +49,14 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<QuizAttemptEntity> QuizAttempts => Set<QuizAttemptEntity>();
 
+    public DbSet<QuizQuestionSubmissionEntity> QuizQuestionSubmissions => Set<QuizQuestionSubmissionEntity>();
+
+    public DbSet<QuizQuestionSubmissionOptionEntity> QuizQuestionSubmissionOptions =>
+        Set<QuizQuestionSubmissionOptionEntity>();
+
+    public DbSet<QuizQuestionSubmissionAuditLogEntity> QuizQuestionSubmissionAuditLogs =>
+        Set<QuizQuestionSubmissionAuditLogEntity>();
+
     public DbSet<NewsDiscoverySourceEntity> NewsDiscoverySources => Set<NewsDiscoverySourceEntity>();
 
     public DbSet<NewsCandidateEntity> NewsCandidates => Set<NewsCandidateEntity>();
@@ -1576,6 +1584,70 @@ public sealed class QueenZoneDbContext : DbContext
                 .HasDatabaseName("IX_QuizAttempts_QuizId_CompletedAt");
             entity.HasIndex(attempt => new { attempt.MemberAccountId, attempt.CompletedAt })
                 .HasDatabaseName("IX_QuizAttempts_MemberAccountId_CompletedAt");
+        });
+
+        modelBuilder.Entity<QuizQuestionSubmissionEntity>(entity =>
+        {
+            entity.ToTable("QuizQuestionSubmissions");
+            entity.HasKey(submission => submission.Id);
+
+            entity.Property(submission => submission.QuestionText)
+                .HasMaxLength(QuizValidation.QuestionMaxLength)
+                .IsRequired();
+            entity.Property(submission => submission.SourceNote)
+                .HasMaxLength(QuizQuestionSubmissionValidation.MaxSourceNoteLength);
+            entity.Property(submission => submission.Status).HasMaxLength(50).IsRequired();
+            entity.Property(submission => submission.SubmittedAt).IsRequired();
+            entity.Property(submission => submission.ReviewerEmail).HasMaxLength(256);
+            entity.Property(submission => submission.ReviewNotes).HasMaxLength(500);
+            entity.Property(submission => submission.RejectionReason).HasMaxLength(500);
+
+            entity.HasIndex(submission => new { submission.Status, submission.SubmittedAt })
+                .IsDescending(false, true)
+                .HasDatabaseName("IX_QuizQuestionSubmissions_Status_SubmittedAt");
+
+            entity.HasIndex(submission => new { submission.SubmitterMemberId, submission.SubmittedAt })
+                .IsDescending(false, true)
+                .HasDatabaseName("IX_QuizQuestionSubmissions_Submitter_SubmittedAt");
+
+            entity.HasOne(submission => submission.Submitter)
+                .WithMany()
+                .HasForeignKey(submission => submission.SubmitterMemberId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(submission => submission.Options)
+                .WithOne(option => option.Submission)
+                .HasForeignKey(option => option.QuizQuestionSubmissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<QuizQuestionSubmissionOptionEntity>(entity =>
+        {
+            entity.ToTable("QuizQuestionSubmissionOptions");
+            entity.HasKey(option => option.Id);
+            entity.Property(option => option.OptionText).HasMaxLength(QuizValidation.OptionMaxLength).IsRequired();
+            entity.HasIndex(option => new { option.QuizQuestionSubmissionId, option.DisplayOrder })
+                .HasDatabaseName("IX_QuizQuestionSubmissionOptions_Submission_DisplayOrder");
+        });
+
+        modelBuilder.Entity<QuizQuestionSubmissionAuditLogEntity>(entity =>
+        {
+            entity.ToTable("QuizQuestionSubmissionAuditLog");
+            entity.HasKey(log => log.Id);
+
+            entity.Property(log => log.Action).HasMaxLength(50).IsRequired();
+            entity.Property(log => log.ActorEmail).HasMaxLength(256).IsRequired();
+            entity.Property(log => log.OccurredAt).IsRequired();
+            entity.Property(log => log.Details).HasMaxLength(2000);
+
+            entity.HasIndex(log => new { log.QuizQuestionSubmissionId, log.OccurredAt })
+                .IsDescending(false, true)
+                .HasDatabaseName("IX_QuizQuestionSubmissionAuditLog_Submission_OccurredAt");
+
+            entity.HasOne(log => log.Submission)
+                .WithMany(submission => submission.AuditLogs)
+                .HasForeignKey(log => log.QuizQuestionSubmissionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<IdempotencyReceiptEntity>(entity =>

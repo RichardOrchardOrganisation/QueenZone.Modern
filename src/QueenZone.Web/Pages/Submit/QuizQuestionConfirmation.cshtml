@@ -1,0 +1,48 @@
+@page "/submit/quiz-question/confirmation/{id:guid}"
+@model QuizQuestionConfirmationModel
+
+@{
+  var submission = Model.Submission!;
+}
+
+<partial name="_PageHero" model='@(("Community", "Quiz question submitted", "Your quiz question is under review.", ""))' />
+
+<section class="qz-section">
+  <div class="qz-container qz-prose">
+    <p class="qz-account-notice qz-account-notice--success" role="status">Your quiz question is under review.</p>
+
+    <div class="qz-account-settings">
+      <dl class="qz-account-settings__meta">
+        <div>
+          <dt>Question</dt>
+          <dd>@submission.QuestionText</dd>
+        </div>
+        <div>
+          <dt>Options</dt>
+          <dd>
+            <ul>
+              @foreach (var option in submission.Options)
+              {
+                <li>@option.Text @(option.IsCorrect ? "(your marked answer)" : "")</li>
+              }
+            </ul>
+          </dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>@submission.Status</dd>
+        </div>
+        <div>
+          <dt>Submitted</dt>
+          <dd>@submission.SubmittedAt.ToString("u")</dd>
+        </div>
+      </dl>
+    </div>
+
+    <p>
+      <a href="/submit/quiz-question">Suggest another question</a>
+      ·
+      <a href="/quizzes">Back to quizzes</a>
+    </p>
+  </div>
+</section>

@@ -1,0 +1,41 @@
+@page "/admin/quiz-question-submissions"
+@model IndexModel
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <h1>Quiz question submissions</h1>
+  <p>
+    <a href="/admin/quizzes">Quizzes</a>
+  </p>
+
+  @if (Model.Submissions.Count == 0)
+  {
+    <p>No quiz question suggestions awaiting review.</p>
+  }
+  else
+  {
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Submitter</th>
+          <th>Submitted</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var item in Model.Submissions)
+        {
+          <tr>
+            <td>@item.QuestionText</td>
+            <td>@item.SubmitterDisplayName</td>
+            <td>@item.SubmittedAt.ToString("u")</td>
+            <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+            <td><a href="/admin/quiz-question-submissions/@item.Id">Review</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
