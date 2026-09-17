@@ -13,6 +13,10 @@
   {
     <p class="admin-status admin-status--@Model.StatusMessageKind">@Model.StatusMessage</p>
   }
+  @if (!Model.Form.QuestionsLocked)
+  {
+    <p><a href="/admin/quizzes/@Model.Quiz!.Id/question-bank">Add a question from the question bank</a></p>
+  }
   <partial name="_QuizForm" model="Model.Form" />
 }
 </div>
