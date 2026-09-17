@@ -16,7 +16,7 @@
       "rollForward": false
     },
     "microsoft.sqlpackage": {
-      "version": "170.5.76",
+      "version": "170.5.96",
       "commands": [
         "sqlpackage"
       ]
