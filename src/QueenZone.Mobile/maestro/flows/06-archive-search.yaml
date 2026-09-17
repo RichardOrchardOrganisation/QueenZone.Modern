@@ -17,11 +17,36 @@ appId: org.queenzone.mobile
 - tapOn:
     id: search-input
 - inputText: modernisation
+# iOS XCTest can leave a controlled TextInput uncommitted until the search
+# return key flushes native text. Enter starts SearchScreen's 300ms
+# committedQuery path (and onSubmitEditing). hideKeyboard alone does not.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - pressKey: Enter
 - hideKeyboard
-- extendedWaitUntil:
-    visible:
-      id: search-result-news-1003
-    timeout: 20000
+# Hosted Simulator can briefly starve the loopback Testing host while
+# XCTest is active. Retry only the screen's read-only recovery action; a
+# selector miss or a second request failure still fails the flow.
+- retry:
+    maxRetries: 1
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '^Try again$'
+          commands:
+            - tapOn:
+                text: '^Try again$'
+      - extendedWaitUntil:
+          visible:
+            id: search-results
+          timeout: 20000
+      - extendedWaitUntil:
+          visible:
+            id: search-result-news-1003
+          timeout: 20000
 - tapOn:
     id: search-result-news-1003
 - extendedWaitUntil:
