@@ -1,0 +1,35 @@
+@page "/quizzes"
+@model IndexModel
+
+<partial name="_PageHero" model='@(("Test yourself", "Quiz", "Multiple-choice quizzes drawn from the Queenzone archive.", ""))' />
+
+<section class="qz-section">
+  <div class="qz-container">
+    <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+
+    <p><a class="qz-button qz-button--secondary qz-button--sm" href="/quizzes/leaderboard">View the leaderboard</a></p>
+
+    @if (Model.Quizzes.Count == 0)
+    {
+      <p>No quizzes have been published yet.</p>
+    }
+    else
+    {
+      <ul class="qz-quiz-list">
+        @foreach (var quiz in Model.Quizzes)
+        {
+          <li class="qz-quiz-list__item">
+            <a class="qz-quiz-list__link" href="/quizzes/@quiz.Id">
+              <h2 class="qz-quiz-list__title">@quiz.Title</h2>
+              @if (!string.IsNullOrWhiteSpace(quiz.Description))
+              {
+                <p class="qz-quiz-list__description">@quiz.Description</p>
+              }
+              <span class="qz-quiz-list__meta">@quiz.QuestionCount question@(quiz.QuestionCount == 1 ? "" : "s")</span>
+            </a>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</section>
