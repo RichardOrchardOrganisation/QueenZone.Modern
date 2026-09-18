@@ -40,6 +40,9 @@ public interface IQuizRepository
     /// </summary>
     Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Server-only pool of questions from published quizzes for timed play.</summary>
+    Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Scores <paramref name="answers"/> server-side against the quiz's stored correct options.
     /// When <paramref name="memberAccountId"/> is given, also records the attempt (leaderboard +
