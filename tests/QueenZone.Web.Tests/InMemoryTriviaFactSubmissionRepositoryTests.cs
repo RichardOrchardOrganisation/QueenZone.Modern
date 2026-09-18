@@ -115,12 +115,18 @@ public sealed class InMemoryTriviaFactSubmissionRepositoryTests
     }
 
     [Fact]
-    public async Task RejectAsync_requires_a_reason()
+    public async Task RejectAsync_requires_a_reason_and_does_not_corrupt_status()
     {
         var created = await repository.CreateAsync(NewSubmission(Guid.NewGuid(), "Need a reason", null));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             repository.RejectAsync(created.Id, "admin@test.local", "   ", null));
+        Assert.Equal(TriviaFactSubmissionStatus.Pending, (await repository.GetByIdAsync(created.Id))!.Status);
+
+        var rejected = await repository.RejectAsync(created.Id, "admin@test.local", "Unsourced", "internal only");
+        Assert.Equal(TriviaFactSubmissionStatus.Rejected, rejected!.Status);
+        Assert.Equal("Unsourced", rejected.RejectionReason);
+        Assert.Equal("internal only", rejected.ReviewNotes);
     }
 
     [Fact]
