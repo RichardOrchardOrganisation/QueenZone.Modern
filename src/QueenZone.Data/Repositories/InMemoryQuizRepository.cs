@@ -155,6 +155,24 @@ public sealed class InMemoryQuizRepository(
             return quiz is null ? null : ToPlayView(quiz);
         }));
 
+    public Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.Read((quizzes, _) =>
+        {
+            IReadOnlyList<QuizSprintQuestion> questions = quizzes
+                .Where(quiz => quiz.IsPublished)
+                .SelectMany(quiz => quiz.Questions)
+                .Select(question => new QuizSprintQuestion(
+                    question.Id,
+                    question.QuestionText,
+                    question.Options
+                        .OrderBy(option => option.DisplayOrder)
+                        .Select(option => new QuizSprintOption(option.Id, option.OptionText, option.IsCorrect))
+                        .ToList()))
+                .ToList();
+            return questions;
+        }));
+
     public Task<QuizSubmissionResult?> SubmitAsync(
         Guid quizId,
         Guid? memberAccountId,

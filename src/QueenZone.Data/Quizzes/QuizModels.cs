@@ -61,6 +61,14 @@ public sealed record QuizPlayQuestion(
 /// </summary>
 public sealed record QuizPlayView(Guid Id, string Title, string? Description, IReadOnlyList<QuizPlayQuestion> Questions);
 
+/// <summary>Server-only question pool for a timed round; never serialize this model to the browser.</summary>
+public sealed record QuizSprintQuestion(
+    Guid Id,
+    string Text,
+    IReadOnlyList<QuizSprintOption> Options);
+
+public sealed record QuizSprintOption(Guid Id, string Text, bool IsCorrect);
+
 public sealed record QuizAnswerSubmission(Guid QuestionId, Guid? SelectedOptionId);
 
 public sealed record QuizAnswerResult(

@@ -46,6 +46,21 @@ public sealed class EfQuizRepositoryTests : IAsyncDisposable
             ]);
 
     [Fact]
+    public async Task Sprint_pool_contains_only_published_questions_and_answer_keys()
+    {
+        await repository.CreateAsync(SampleDraft("Draft"), createdByMemberId);
+        var publishedId = await repository.CreateAsync(SampleDraft("Published"), createdByMemberId);
+        await repository.PublishAsync(publishedId);
+
+        var questions = await repository.GetPublishedSprintQuestionsAsync();
+
+        Assert.Equal(2, questions.Count);
+        var singer = Assert.Single(questions, question => question.Text == "Who was the lead singer?");
+        Assert.Equal("Freddie Mercury", Assert.Single(singer.Options, option => option.IsCorrect).Text);
+        Assert.Contains(singer.Options, option => option.Text == "Brian May" && !option.IsCorrect);
+    }
+
+    [Fact]
     public async Task UpdateAsync_replaces_questions_and_options_against_a_real_ef_context()
     {
         var id = await repository.CreateAsync(SampleDraft(), createdByMemberId);
