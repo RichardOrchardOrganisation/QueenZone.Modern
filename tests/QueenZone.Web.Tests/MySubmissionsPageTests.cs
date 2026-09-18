@@ -79,12 +79,14 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         await SubmitNewsAsync(owner, "https://example.com/owner-exclusive-news-story", "Owner news");
         await SubmitArticleAsync(owner, "Owner exclusive article");
         await SubmitTriviaAsync(owner, "Owner exclusive trivia fact about Queen.");
+        await SubmitQuizQuestionAsync(owner, "Owner exclusive quiz question about Queen?");
         await SubmitFanPerformanceAsync(owner, "Owner exclusive performance");
 
         await SubmitPhotoAsync(other, "Other member photo secret");
         await SubmitNewsAsync(other, "https://example.com/other-member-news-secret", "Other news");
         await SubmitArticleAsync(other, "Other member article secret");
         await SubmitTriviaAsync(other, "Other member trivia secret about a rumour.");
+        await SubmitQuizQuestionAsync(other, "Other member quiz question secret?");
         await SubmitFanPerformanceAsync(other, "Other member performance secret");
 
         var ownerPhotos = await owner.GetStringAsync("/account/my-submissions?tab=photos");
@@ -104,6 +106,12 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         var ownerTrivia = await owner.GetStringAsync("/account/my-submissions?tab=trivia");
         Assert.Contains("Owner exclusive trivia fact about Queen.", ownerTrivia);
         Assert.DoesNotContain("Other member trivia secret about a rumour.", ownerTrivia);
+
+        var ownerQuiz = await owner.GetStringAsync("/account/my-submissions?tab=quiz");
+        Assert.Contains("Owner exclusive quiz question about Queen?", ownerQuiz);
+        Assert.DoesNotContain("Other member quiz question secret?", ownerQuiz);
+        Assert.Contains("/submit/quiz-question", ownerQuiz);
+        Assert.Contains("quiz questions", ownerQuiz);
 
         var ownerPerformances = await owner.GetStringAsync("/account/my-submissions?tab=performances");
         Assert.Contains("Owner exclusive performance", ownerPerformances);
@@ -207,6 +215,78 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         var editPage = await client.GetStringAsync($"/submit/article/{draftId:D}");
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/submit/article/{draftId:D}")).StatusCode);
         Assert.Contains("Draft link target article", editPage);
+    }
+
+    [Fact]
+    public async Task Get_QuizTab_EmptyState_LinksToSuggestAQuizQuestion()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "mysubs-quiz-empty@example.com",
+            displayName: "Empty Quiz Fan",
+            subject: "google-mysubs-quiz-empty",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        var page = await client.GetStringAsync("/account/my-submissions?tab=quiz");
+
+        Assert.Contains("You have not suggested any quiz questions yet.", page);
+        Assert.Contains("href=\"/submit/quiz-question\"", page);
+        Assert.Contains("Suggest a quiz question", page);
+        Assert.Contains("aria-current=\"page\"", page);
+        Assert.Contains(">Quiz</a>", page);
+        Assert.DoesNotContain("You have not suggested any trivia facts yet.", page);
+    }
+
+    [Fact]
+    public async Task Get_QuizTab_ShowsPendingApprovedAndRejectedReason()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "mysubs-quiz-status@example.com",
+            displayName: "Quiz Status Fan",
+            subject: "google-mysubs-quiz-status",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        await SubmitQuizQuestionAsync(client, "Pending quiz question about Live Aid?");
+        var approvedId = await SubmitQuizQuestionAsync(client, "Approved quiz question about the Red Special?");
+        var rejectedId = await SubmitQuizQuestionAsync(client, "Rejected quiz question about a rumour?");
+
+        var repository = factory.Services.GetRequiredService<IQuizQuestionSubmissionRepository>();
+        var approved = await repository.GetByIdAsync(approvedId);
+        Assert.NotNull(approved);
+        await repository.ApproveAsync(
+            approvedId,
+            new QuizQuestionSubmissionEdit(
+                approved.QuestionText,
+                approved.Options
+                    .Select(option => new QuizQuestionSubmissionOptionDraft(option.Text, option.IsCorrect))
+                    .ToList()),
+            "admin@test.local",
+            "internal quiz approve note");
+        await repository.RejectAsync(
+            rejectedId,
+            "admin@test.local",
+            "Could not verify this quiz claim.",
+            "keep this quiz reject internal");
+
+        var page = await client.GetStringAsync("/account/my-submissions?tab=quiz");
+
+        Assert.Contains("Pending quiz question about Live Aid?", page);
+        Assert.Contains("Approved quiz question about the Red Special?", page);
+        Assert.Contains("Rejected quiz question about a rumour?", page);
+        Assert.Contains(QuizQuestionSubmissionStatus.Pending, page);
+        Assert.Contains(QuizQuestionSubmissionStatus.Approved, page);
+        Assert.Contains(QuizQuestionSubmissionStatus.Rejected, page);
+        Assert.Contains("Could not verify this quiz claim.", page);
+        Assert.DoesNotContain("internal quiz approve note", page);
+        Assert.DoesNotContain("keep this quiz reject internal", page);
+        Assert.DoesNotContain("Withdraw", page);
     }
 
     [Fact]
@@ -320,6 +400,23 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
 
         var response = await client.PostAsync("/submit/news", content);
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    private async Task<Guid> SubmitQuizQuestionAsync(HttpClient client, string questionText)
+    {
+        var formPage = await client.GetStringAsync("/submit/quiz-question");
+        using var content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("__RequestVerificationToken", ExtractAntiforgeryToken(formPage)),
+            new KeyValuePair<string, string>("QuestionText", questionText),
+            new KeyValuePair<string, string>("OptionTexts", "Freddie Mercury"),
+            new KeyValuePair<string, string>("OptionTexts", "Brian May"),
+            new KeyValuePair<string, string>("CorrectOptionIndex", "0"),
+        ]);
+
+        var response = await client.PostAsync("/submit/quiz-question", content);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        return Guid.Parse(response.Headers.Location!.OriginalString.Split('/').Last());
     }
 
     private async Task SubmitTriviaAsync(HttpClient client, string text)
