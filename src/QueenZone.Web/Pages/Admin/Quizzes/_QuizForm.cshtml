@@ -55,6 +55,20 @@
           Points
           <input type="number" name="questions[@questionIndex].points" value="@question.Points" min="@QuizValidation.MinPoints" max="@QuizValidation.MaxPoints" @(Model.QuestionsLocked ? "readonly" : null)>
         </label>
+        <label>
+          Category (optional)
+          <input type="text" name="questions[@questionIndex].category" value="@question.Category" maxlength="@QuizValidation.CategoryMaxLength" @(Model.QuestionsLocked ? "readonly" : null)>
+        </label>
+        <label>
+          Difficulty (optional)
+          <select name="questions[@questionIndex].difficulty" @(Model.QuestionsLocked ? "disabled" : null)>
+            <option value="" selected="@(string.IsNullOrEmpty(question.Difficulty) ? "selected" : null)">-</option>
+            @foreach (var difficulty in QuizValidation.AllowedDifficulties)
+            {
+              <option value="@difficulty" selected="@(question.Difficulty == difficulty ? "selected" : null)">@difficulty</option>
+            }
+          </select>
+        </label>
 
         <div class="admin-quiz-form__options" data-quiz-options>
           @for (var optionIndex = 0; optionIndex < optionSlots.Count; optionIndex++)
@@ -108,6 +122,20 @@
       <label class="admin-quiz-form__points">
         Points
         <input type="number" name="questions[__Q__].points" value="@QuizValidation.DefaultPoints" min="@QuizValidation.MinPoints" max="@QuizValidation.MaxPoints">
+      </label>
+      <label>
+        Category (optional)
+        <input type="text" name="questions[__Q__].category" maxlength="@QuizValidation.CategoryMaxLength">
+      </label>
+      <label>
+        Difficulty (optional)
+        <select name="questions[__Q__].difficulty">
+          <option value="" selected>-</option>
+          @foreach (var difficulty in QuizValidation.AllowedDifficulties)
+          {
+            <option value="@difficulty">@difficulty</option>
+          }
+        </select>
       </label>
       <div class="admin-quiz-form__options" data-quiz-options>
         <div class="admin-quiz-form__option" data-quiz-option>

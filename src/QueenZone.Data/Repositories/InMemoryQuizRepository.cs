@@ -237,6 +237,8 @@ public sealed class InMemoryQuizRepository(
                     QuestionText = question.Text.Trim(),
                     DisplayOrder = questionIndex,
                     Points = question.Points,
+                    Category = string.IsNullOrWhiteSpace(question.Category) ? null : question.Category.Trim(),
+                    Difficulty = question.Difficulty,
                     Options = options
                         .Select((option, optionIndex) => new QuizOptionEntity
                         {
@@ -270,7 +272,9 @@ public sealed class InMemoryQuizRepository(
                     question.Options
                         .OrderBy(option => option.DisplayOrder)
                         .Select(option => new QuizOptionView(option.Id, option.OptionText, option.DisplayOrder, option.IsCorrect))
-                        .ToList()))
+                        .ToList(),
+                    question.Category,
+                    question.Difficulty))
                 .ToList());
 
     private static void EnsureNoResults(Guid quizId, IReadOnlyList<QuizAttemptEntity> attempts, string message)

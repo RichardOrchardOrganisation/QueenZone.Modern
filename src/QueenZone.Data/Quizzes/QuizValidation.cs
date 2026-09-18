@@ -24,6 +24,12 @@ public static class QuizValidation
 
     public const int DefaultPoints = 1;
 
+    public const int CategoryMaxLength = 100;
+
+    public const int DifficultyMaxLength = 20;
+
+    public static readonly IReadOnlyList<string> AllowedDifficulties = ["easy", "medium", "hard"];
+
     public static IReadOnlyList<string> ValidateDraft(AdminQuizDraft draft)
     {
         var errors = new List<string>();
@@ -73,6 +79,17 @@ public static class QuizValidation
         if (question.Points is < MinPoints or > MaxPoints)
         {
             errors.Add($"{label}: points must be between {MinPoints} and {MaxPoints}.");
+        }
+
+        if (question.Category is { Length: > CategoryMaxLength })
+        {
+            errors.Add($"{label}: category must be {CategoryMaxLength} characters or fewer.");
+        }
+
+        if (question.Difficulty is not null
+            && !AllowedDifficulties.Contains(question.Difficulty, StringComparer.Ordinal))
+        {
+            errors.Add($"{label}: difficulty must be easy, medium, or hard.");
         }
 
         var options = (question.Options ?? [])

@@ -1558,6 +1558,8 @@ public sealed class QueenZoneDbContext : DbContext
             entity.ToTable("QuizQuestions");
             entity.HasKey(question => question.Id);
             entity.Property(question => question.QuestionText).HasMaxLength(QuizValidation.QuestionMaxLength).IsRequired();
+            entity.Property(question => question.Category).HasMaxLength(QuizValidation.CategoryMaxLength);
+            entity.Property(question => question.Difficulty).HasMaxLength(QuizValidation.DifficultyMaxLength);
             entity.HasIndex(question => new { question.QuizId, question.DisplayOrder })
                 .HasDatabaseName("IX_QuizQuestions_QuizId_DisplayOrder");
             entity.HasMany(question => question.Options)

@@ -104,6 +104,45 @@ public sealed class QuizValidationTests
     }
 
     [Fact]
+    public void ValidateDraft_rejects_overlong_category_and_unsupported_difficulty()
+    {
+        var draft = new AdminQuizDraft(
+            "Title",
+            null,
+            [
+                new QuizQuestionDraft(
+                    "Q1",
+                    1,
+                    [new QuizOptionDraft("A", true), new QuizOptionDraft("B", false)],
+                    new string('C', QuizValidation.CategoryMaxLength + 1),
+                    "impossible"),
+            ]);
+
+        var errors = QuizValidation.ValidateDraft(draft);
+
+        Assert.Contains(errors, error => error.Contains("category must be 100", StringComparison.Ordinal));
+        Assert.Contains(errors, error => error.Contains("difficulty must be easy, medium, or hard", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValidateDraft_accepts_a_question_with_category_and_difficulty()
+    {
+        var draft = new AdminQuizDraft(
+            "Queen trivia",
+            null,
+            [
+                new QuizQuestionDraft(
+                    "Who was the lead singer?",
+                    1,
+                    [new QuizOptionDraft("Freddie Mercury", true), new QuizOptionDraft("Brian May", false)],
+                    "Band Members",
+                    "easy"),
+            ]);
+
+        Assert.Empty(QuizValidation.ValidateDraft(draft));
+    }
+
+    [Fact]
     public void NormalizeOptions_trims_and_drops_blank_options()
     {
         var normalized = QuizValidation.NormalizeOptions(
