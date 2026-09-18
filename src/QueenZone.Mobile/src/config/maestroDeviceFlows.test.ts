@@ -158,8 +158,12 @@ describe('Maestro device flows (#1281)', () => {
     assert.match(openAuth, /openLink: \$\{SMOKE_AUTH_URL\}/);
     assert.match(openAuth, /accept-ios-open-link\.yaml/);
     assert.match(accept, /platform: iOS/);
-    assert.match(accept, /text: '\^Open\$'[\s\S]*optional: true/);
-    assert.doesNotMatch(accept, /visible:\s+text: '\^Open\$'/);
+    assert.match(
+      accept,
+      /extendedWaitUntil:[\s\S]*visible:[\s\S]*text: '\^Open\$'[\s\S]*timeout: 15000[\s\S]*optional: true/,
+    );
+    assert.match(accept, /tapOn:[\s\S]*text: '\^Open\$'[\s\S]*optional: true/);
+    assert.match(accept, /retryTapIfNoChange: true/);
     assert.doesNotMatch(accept, /Open in \.\*QueenZone/);
     assert.match(accept, /\^Open\$/);
 
@@ -174,6 +178,19 @@ describe('Maestro device flows (#1281)', () => {
     assert.match(authenticated, /id: profile-messages/);
     assert.match(readMaestro('flows/12-masthead-unread.yaml'), /open-smoke-auth\.yaml/);
     assert.match(readMaestro('flows/10-forum-attach.yaml'), /accept-ios-open-link\.yaml/);
+  });
+
+  it('waits for the delayed iOS Open confirm before asserting home-messages (#1455)', () => {
+    const accept = readMaestro('flows/accept-ios-open-link.yaml');
+    const waitIdx = accept.indexOf('extendedWaitUntil:');
+    const tapIdx = accept.indexOf('tapOn:');
+    assert.ok(waitIdx >= 0 && tapIdx > waitIdx);
+
+    const openAuth = readMaestro('flows/open-smoke-auth.yaml');
+    assert.match(openAuth, /visible:[\s\S]*id: home-messages/);
+    assert.doesNotMatch(openAuth, /#.*id: home-messages/);
+    assert.match(readMaestro('journeys.yaml'), /flows\/10-forum-attach\.yaml/);
+    assert.match(readMaestro('flows/10-forum-attach.yaml'), /runFlow: open-smoke-auth\.yaml/);
   });
 
   it('matches the seeded inbox row when iOS merges its accessibility label', () => {
