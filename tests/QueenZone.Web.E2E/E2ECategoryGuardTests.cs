@@ -4,7 +4,7 @@ namespace QueenZone.Web.E2E;
 
 /// <summary>
 /// Ensures every concrete Playwright fixture is tagged so CI filters cannot silently
-/// drop new tests into neither the PR gate nor the nightly RealData suite.
+/// drop new tests outside the PR gate, nightly mirror suite, or deployed dev auth check.
 /// </summary>
 [TestFixture]
 [Category(E2ECategories.Deterministic)]
@@ -14,11 +14,12 @@ public class E2ECategoryGuardTests
     private static readonly string[] SuiteCategories =
     [
         E2ECategories.Deterministic,
-        E2ECategories.RealData
+        E2ECategories.RealData,
+        E2ECategories.DeployedAuth
     ];
 
     [Test]
-    public void EveryConcreteFixtureHasDeterministicOrRealDataCategory()
+    public void EveryConcreteFixtureHasASuiteCategory()
     {
         var assembly = typeof(E2EPageTest).Assembly;
         var fixtures = assembly.GetTypes()
@@ -37,7 +38,7 @@ public class E2ECategoryGuardTests
         Assert.That(
             missing,
             Is.Empty,
-            "These fixtures need [Category(\"Deterministic\")] or [Category(\"RealData\")] " +
+            "These fixtures need [Category(\"Deterministic\")], [Category(\"RealData\")], or [Category(\"DeployedAuth\")] " +
             "(and optionally [Category(\"ReadOnly\")]): " + string.Join(", ", missing));
     }
 
@@ -134,6 +135,31 @@ public class E2ECategoryGuardTests
             "Mark new read-only RealData fixtures with [Category(\"ReadOnly\")].");
     }
 
+    [Test]
+    public void DeployedAuthFilterSelectsOnlyTheDevMemberFixture()
+    {
+        var fixtures = typeof(E2EPageTest).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false, IsPublic: true })
+            .Where(IsNUnitFixture)
+            .Where(t => HasCategory(t, E2ECategories.DeployedAuth))
+            .Select(t => t.Name)
+            .ToList();
+
+        Assert.That(fixtures, Is.EqualTo(new[] { nameof(DeployedMemberAuthTests) }));
+    }
+
+    [TestCase("https://dev.queenzone.org")]
+    [TestCase("https://dev.queenzone.org/")]
+    public void DeployedAuthTargetAcceptsOnlyTheDevOrigin(string url) =>
+        Assert.That(DeployedAuthTarget.RequireDevUrl(url).Host, Is.EqualTo("dev.queenzone.org"));
+
+    [TestCase("https://www.queenzone.org")]
+    [TestCase("https://dev.queenzone.org.evil.example")]
+    [TestCase("http://dev.queenzone.org")]
+    [TestCase("https://dev.queenzone.org:444")]
+    [TestCase("https://dev.queenzone.org/account/login")]
+    public void DeployedAuthTargetRejectsOtherOriginsAndPaths(string url) =>
+        Assert.Throws<InvalidOperationException>(() => DeployedAuthTarget.RequireDevUrl(url));
 
     private static bool IsNUnitFixture(Type type)
     {
