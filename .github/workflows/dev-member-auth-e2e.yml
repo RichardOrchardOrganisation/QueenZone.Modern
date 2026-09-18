@@ -1,0 +1,96 @@
+name: Dev member authentication browser check
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dev-member-auth-e2e
+  cancel-in-progress: false
+
+jobs:
+  member-auth:
+    name: Sign in and out on dev
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: dev-deploy
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure login for dev readiness
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Require a connected dev snapshot
+        id: snapshot
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          settings="$(az webapp config appsettings list --name queenzone-devbox --resource-group Queenzone-Dev-RG -o json)"
+          ready="$(jq -r '[.[] | select(.name == "DevSnapshot__Ready") | .value][0] // ""' <<< "$settings")"
+          connection="$(jq -r '[.[] | select(.name == "ConnectionStrings__QueenZoneLegacy") | .value][0] // ""' <<< "$settings")"
+          if [ "$ready" != "true" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::DevSnapshot__Ready is not true. The dev site is using sample data and has no persistent synthetic member account."
+              exit 1
+            fi
+            echo "Dev authentication check skipped: curated snapshot is not connected." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "$connection" ]; then
+            echo "::error::DevSnapshot__Ready is true, but the dev SQL connection is missing."
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up .NET
+        if: steps.snapshot.outputs.ready == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Fetch the synthetic dev member password
+        if: steps.snapshot.outputs.ready == 'true'
+        id: member-secret
+        uses: bitwarden/sm-action@v3.0.1
+        with:
+          access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
+          secrets: ${{ vars.BITWARDEN_DEV_AUTH_E2E_SECRETS }}
+
+      - name: Build browser tests and install Chromium
+        if: steps.snapshot.outputs.ready == 'true'
+        shell: pwsh
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          dotnet restore tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj --configuration Release --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tests/QueenZone.Web.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Check real member sign-in and session
+        if: steps.snapshot.outputs.ready == 'true'
+        shell: pwsh
+        env:
+          E2E_BASE_URL: https://dev.queenzone.org
+          DEV_AUTH_E2E_PASSWORD: ${{ steps.member-secret.outputs.DEV_SNAPSHOT_MEMBER_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:DEV_AUTH_E2E_PASSWORD)) {
+            throw 'DEV_SNAPSHOT_MEMBER_PASSWORD is absent from BITWARDEN_DEV_AUTH_E2E_SECRETS.'
+          }
+          dotnet test tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj --configuration Release --no-build --filter TestCategory=DeployedAuth -- NUnit.NumberOfTestWorkers=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'Real member password and cookie journey passed on dev. No password-bearing trace was recorded.' >> $env:GITHUB_STEP_SUMMARY
