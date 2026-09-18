@@ -185,9 +185,10 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 throw new InvalidOperationException(error);
             }
 
-            entity.Status = TriviaFactSubmissionStatus.Rejected;
-            entity.RejectionReason = NormalizeOptional(rejectionReason, 500)
+            var normalizedReason = NormalizeOptional(rejectionReason, 500)
                 ?? throw new InvalidOperationException("A rejection reason is required.");
+            entity.Status = TriviaFactSubmissionStatus.Rejected;
+            entity.RejectionReason = normalizedReason;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
             entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
             entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
