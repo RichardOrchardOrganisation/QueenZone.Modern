@@ -62,6 +62,7 @@ public class E2ECategoryGuardTests
             nameof(E2ECategoryGuardTests),
             nameof(EditorWorkflowTests),
             nameof(ForumPostingWorkflowTests),
+            nameof(ForumSafetyWorkflowTests),
             nameof(LiveSiteTransportRetryTests),
             nameof(PhotographyLightboxTests),
             nameof(PrivateMessagingMobileTests),
@@ -96,6 +97,7 @@ public class E2ECategoryGuardTests
         {
             nameof(AdminModerationWorkflowTests),
             nameof(CommunitySubmissionWorkflowTests),
+            nameof(ForumBlockWorkflowTests),
             nameof(LiveSiteContentApiTests),
             nameof(LiveSiteMediaCdnTests),
             nameof(PrivateMessagingWorkflowTests),
