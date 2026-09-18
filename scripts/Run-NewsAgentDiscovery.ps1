@@ -33,6 +33,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $repoRoot
+. (Join-Path $PSScriptRoot 'Import-NewsAgentProductionConnection.ps1')
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     Write-Error 'dotnet SDK not found. Install from https://dotnet.microsoft.com/download'
