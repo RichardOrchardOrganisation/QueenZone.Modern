@@ -207,11 +207,15 @@ project, key name, and intended expiry first.
 
 ### Load legacy SQL connection for tools (never print the value)
 
+The Windows NewsAgent scheduling scripts load `ConnectionStrings__QueenZoneLegacyCanadaEast`
+automatically on every run. Use that same secret for tools targeting production;
+`ConnectionStrings__QueenZoneLegacy` still contains the retired Australia East target.
+
 ```powershell
 $env:BWS_ACCESS_TOKEN = [Environment]::GetEnvironmentVariable("BWS_ACCESS_TOKEN", "User")
 $secrets = bws secret list "1c16fd2d-4bfb-4eb7-8357-b49400233490" --output json | ConvertFrom-Json
-$cs = $secrets | Where-Object { $_.key -eq "ConnectionStrings__QueenZoneLegacy" } | Select-Object -First 1
-if (-not $cs) { throw "ConnectionStrings__QueenZoneLegacy not found in Bitwarden project" }
+$cs = $secrets | Where-Object { $_.key -eq "ConnectionStrings__QueenZoneLegacyCanadaEast" } | Select-Object -First 1
+if (-not $cs) { throw "ConnectionStrings__QueenZoneLegacyCanadaEast not found in Bitwarden project" }
 $env:ConnectionStrings__QueenZoneLegacy = $cs.value
 "loaded ConnectionStrings__QueenZoneLegacy len=$($cs.value.Length)"
 # example: photo original-dimension inventory (issue #435)
