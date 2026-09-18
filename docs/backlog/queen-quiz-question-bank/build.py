@@ -295,12 +295,13 @@ def write():
         ])
         writer.writeheader()
         for n, row in enumerate(rows):
+            quiz_title = f"{row['QuizTitle']} (Part {(n % 50) // 25 + 1})"
             for option_index in range(1, 5):
                 writer.writerow({
-                    "QuizTitle": row["QuizTitle"],
+                    "QuizTitle": quiz_title,
                     "QuizDescription": (
                         f"{row['Difficulty']} Queen questions drawn from supplied books and official sources."
-                        if n % 50 == 0 and option_index == 1 else ""
+                        if n % 25 == 0 and option_index == 1 else ""
                     ),
                     "QuestionText": row["Question"],
                     "Category": row["Category"] if option_index == 1 else "",
@@ -316,9 +317,9 @@ def write():
             "QuizTitle", "QuestionText", "EditorialDifficulty", "Source",
         ])
         writer.writeheader()
-        for row in rows:
+        for n, row in enumerate(rows):
             writer.writerow({
-                "QuizTitle": row["QuizTitle"],
+                "QuizTitle": f"{row['QuizTitle']} (Part {(n % 50) // 25 + 1})",
                 "QuestionText": row["Question"],
                 "EditorialDifficulty": row["Difficulty"],
                 "Source": row["Source"],

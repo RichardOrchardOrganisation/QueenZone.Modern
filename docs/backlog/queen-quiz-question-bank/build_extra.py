@@ -424,10 +424,11 @@ def write():
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         for n, r in enumerate(records):
+            quiz_title = f"{r['title']} (Part {(n % 50) // 25 + 1})"
             for i, option in enumerate(r["options"]):
                 writer.writerow({
-                    "QuizTitle": r["title"],
-                    "QuizDescription": "Additional sourced Queen questions for editorial review." if n % 50 == 0 and i == 0 else "",
+                    "QuizTitle": quiz_title,
+                    "QuizDescription": "Additional sourced Queen questions for editorial review." if n % 25 == 0 and i == 0 else "",
                     "QuestionText": r["question"],
                     "Category": r["category"] if i == 0 else "",
                     "Difficulty": ("hard" if r["difficulty"] == "very hard" else r["difficulty"]) if i == 0 else "",
@@ -438,8 +439,8 @@ def write():
     with (HERE / "sources_extra.csv").open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["QuizTitle", "QuestionText", "EditorialDifficulty", "Source"])
         writer.writeheader()
-        for r in records:
-            writer.writerow({"QuizTitle": r["title"], "QuestionText": r["question"], "EditorialDifficulty": r["difficulty"], "Source": r["source"]})
+        for n, r in enumerate(records):
+            writer.writerow({"QuizTitle": f"{r['title']} (Part {(n % 50) // 25 + 1})", "QuestionText": r["question"], "EditorialDifficulty": r["difficulty"], "Source": r["source"]})
 
 if __name__ == "__main__":
     write()
