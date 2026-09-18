@@ -25,7 +25,7 @@
     var questions = questionsContainer.querySelectorAll("[data-quiz-question]");
     questions.forEach(function (questionEl, questionIndex) {
       questionEl.querySelector("legend").textContent = "Question " + (questionIndex + 1);
-      questionEl.querySelectorAll("input, textarea").forEach(function (input) {
+      questionEl.querySelectorAll("input, textarea, select").forEach(function (input) {
         input.name = input.name.replace(/questions\[[^\]]*\]/, "questions[" + questionIndex + "]");
       });
       questionEl.querySelectorAll("[data-quiz-option]").forEach(function (optionEl, optionIndex) {

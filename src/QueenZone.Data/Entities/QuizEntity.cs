@@ -38,6 +38,10 @@ public sealed class QuizQuestionEntity
 
     public int Points { get; set; } = 1;
 
+    public string? Category { get; set; }
+
+    public string? Difficulty { get; set; }
+
     public QuizEntity? Quiz { get; set; }
 
     public ICollection<QuizOptionEntity> Options { get; set; } = [];

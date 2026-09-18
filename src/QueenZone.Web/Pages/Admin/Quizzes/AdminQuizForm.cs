@@ -11,6 +11,12 @@ public sealed class AdminQuizQuestionForm
     [FromForm(Name = "points")]
     public int Points { get; init; } = QuizValidation.DefaultPoints;
 
+    [FromForm(Name = "category")]
+    public string? Category { get; init; }
+
+    [FromForm(Name = "difficulty")]
+    public string? Difficulty { get; init; }
+
     [FromForm(Name = "optionTexts")]
     public List<string> OptionTexts { get; init; } = [];
 
@@ -43,6 +49,8 @@ public sealed class AdminQuizForm
                         .Select((text, index) => new QuizOptionDraft(
                             text ?? string.Empty,
                             index == question.CorrectOptionIndex))
-                        .ToList()))
+                        .ToList(),
+                    string.IsNullOrWhiteSpace(question.Category) ? null : question.Category.Trim(),
+                    string.IsNullOrWhiteSpace(question.Difficulty) ? null : question.Difficulty))
                 .ToList());
 }
