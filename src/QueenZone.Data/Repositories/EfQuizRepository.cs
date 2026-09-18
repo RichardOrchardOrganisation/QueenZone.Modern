@@ -180,6 +180,28 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         return quiz is null ? null : ToPlayView(quiz);
     }
 
+    public async Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var quizzes = await dbContext.Quizzes
+            .AsNoTracking()
+            .Where(quiz => quiz.IsPublished)
+            .Include(quiz => quiz.Questions)
+                .ThenInclude(question => question.Options)
+            .ToListAsync(cancellationToken);
+
+        return quizzes
+            .SelectMany(quiz => quiz.Questions)
+            .Select(question => new QuizSprintQuestion(
+                question.Id,
+                question.QuestionText,
+                question.Options
+                    .OrderBy(option => option.DisplayOrder)
+                    .Select(option => new QuizSprintOption(option.Id, option.OptionText, option.IsCorrect))
+                    .ToList()))
+            .ToList();
+    }
+
     public async Task<QuizSubmissionResult?> SubmitAsync(
         Guid quizId,
         Guid? memberAccountId,
