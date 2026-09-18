@@ -106,7 +106,7 @@ public sealed class SprintModel(
             ticket = JsonSerializer.Deserialize<SprintTicket>(
                 protector.Unprotect(rawTicket.ToString()), TicketJsonOptions);
         }
-        catch (Exception exception) when (exception is CryptographicException or JsonException)
+        catch (Exception exception) when (exception is CryptographicException or FormatException or JsonException)
         {
             return BadRequest();
         }

@@ -188,6 +188,24 @@ public sealed class QuizPagesRoutesTests
         Assert.Contains("Round expired", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Sprint_rejects_a_tampered_answer_ticket()
+    {
+        using var isolated = IsolatedQuizzes();
+        await PublishSampleAsync(isolated);
+        using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var landing = await client.GetStringAsync("/quizzes/sprint");
+        var round = await StartSprintAsync(client, landing);
+
+        var response = await client.PostAsync("/quizzes/sprint?handler=Finish", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AdminHttpTestHelpers.ExtractAntiforgeryToken(round),
+            ["ticket"] = ExtractTicket(round) + "tampered",
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private static async Task<string> StartSprintAsync(HttpClient client, string landing)
     {
         var response = await client.PostAsync("/quizzes/sprint?handler=Start", new FormUrlEncodedContent(new Dictionary<string, string>
