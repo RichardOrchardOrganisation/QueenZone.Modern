@@ -47,6 +47,12 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
         var confirmation = await member.GetStringAsync(confirmationPath);
         Assert.Contains("Your quiz question is under review.", confirmation, StringComparison.Ordinal);
         Assert.Contains("Who played guitar for Queen?", confirmation, StringComparison.Ordinal);
+        Assert.Contains("/account/my-submissions?tab=quiz", confirmation, StringComparison.Ordinal);
+
+        var mySubmissions = await member.GetStringAsync("/account/my-submissions?tab=quiz");
+        Assert.Contains("Who played guitar for Queen?", mySubmissions, StringComparison.Ordinal);
+        Assert.Contains(QuizQuestionSubmissionStatus.Pending, mySubmissions, StringComparison.Ordinal);
+        Assert.Contains("Suggest a quiz question", mySubmissions, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -133,6 +139,51 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
         var bank = await submissions.GetApprovedAndAvailableAsync();
         Assert.Contains(bank, item => item.Id == submissionId);
         Assert.DoesNotContain(bank, item => item.Id == toRejectId);
+    }
+
+    [Fact]
+    public async Task MySubmissions_QuizTab_ShowsRejectionReason_AndHidesReviewNotes()
+    {
+        using var isolated = IsolatedQuizzes();
+        using var member = MemberClient(isolated, "History Fan");
+        var formPage = await member.GetStringAsync("/submit/quiz-question");
+        var token = AdminHttpTestHelpers.ExtractAntiforgeryToken(formPage);
+        var submit = await member.PostAsync(
+            "/submit/quiz-question",
+            new FormUrlEncodedContent(
+            [
+                new KeyValuePair<string, string>("__RequestVerificationToken", token),
+                new KeyValuePair<string, string>("QuestionText", "Reject this quiz history question?"),
+                new KeyValuePair<string, string>("OptionTexts", "A"),
+                new KeyValuePair<string, string>("OptionTexts", "B"),
+                new KeyValuePair<string, string>("CorrectOptionIndex", "0"),
+            ]));
+        var submissionId = Guid.Parse(submit.Headers.Location!.OriginalString.Split('/').Last());
+
+        using var admin = isolated.CreateAdminClient();
+        var rejectDetail = await admin.GetStringAsync($"/admin/quiz-question-submissions/{submissionId}");
+        var rejectToken = AdminHttpTestHelpers.ExtractAntiforgeryToken(rejectDetail);
+        var reject = await admin.PostAsync(
+            $"/admin/quiz-question-submissions/{submissionId}/reject",
+            new FormUrlEncodedContent(
+            [
+                new KeyValuePair<string, string>("__RequestVerificationToken", rejectToken),
+                new KeyValuePair<string, string>("rejectionReason", "Too easy."),
+                new KeyValuePair<string, string>("reviewNotes", "keep this quiz reject internal"),
+            ]));
+        Assert.Equal(HttpStatusCode.Redirect, reject.StatusCode);
+
+        var emptyMember = MemberClient(isolated, "Empty Quiz Fan");
+        var emptyPage = await emptyMember.GetStringAsync("/account/my-submissions?tab=quiz");
+        Assert.Contains("You have not suggested any quiz questions yet.", emptyPage, StringComparison.Ordinal);
+        Assert.Contains("href=\"/submit/quiz-question\"", emptyPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reject this quiz history question?", emptyPage, StringComparison.Ordinal);
+
+        var history = await member.GetStringAsync("/account/my-submissions?tab=quiz");
+        Assert.Contains("Reject this quiz history question?", history, StringComparison.Ordinal);
+        Assert.Contains("Too easy.", history, StringComparison.Ordinal);
+        Assert.Contains(QuizQuestionSubmissionStatus.Rejected, history, StringComparison.Ordinal);
+        Assert.DoesNotContain("keep this quiz reject internal", history, StringComparison.Ordinal);
     }
 
     [Fact]

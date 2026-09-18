@@ -13,6 +13,7 @@ public sealed class MySubmissionsModel(
     INewsSuggestionRepository newsSuggestionRepository,
     IArticleSubmissionRepository articleSubmissionRepository,
     ITriviaFactSubmissionRepository triviaFactSubmissionRepository,
+    IQuizQuestionSubmissionRepository quizQuestionSubmissionRepository,
     IFanPerformanceSubmissionRepository fanPerformanceSubmissionRepository,
     FanPerformanceSubmissionService fanPerformanceSubmissionService,
     INewsRepository newsRepository) : PageModel
@@ -23,6 +24,7 @@ public sealed class MySubmissionsModel(
     public const string TabNews = "news";
     public const string TabArticles = "articles";
     public const string TabTrivia = "trivia";
+    public const string TabQuiz = "quiz";
     public const string TabPerformances = "performances";
 
     public string ActiveTab { get; private set; } = TabPhotos;
@@ -36,6 +38,8 @@ public sealed class MySubmissionsModel(
     public IReadOnlyList<ArticleSubmission> ArticleSubmissions { get; private set; } = [];
 
     public IReadOnlyList<TriviaFactSubmission> TriviaSubmissions { get; private set; } = [];
+
+    public IReadOnlyList<QuizQuestionSubmission> QuizSubmissions { get; private set; } = [];
 
     public IReadOnlyList<FanPerformanceSubmission> FanPerformanceSubmissions { get; private set; } = [];
 
@@ -182,6 +186,14 @@ public sealed class MySubmissionsModel(
                     Pagination = BuildPagination(result.TotalCount);
                     break;
                 }
+            case TabQuiz:
+                {
+                    var result = await quizQuestionSubmissionRepository.GetBySubmitterAsync(
+                        memberId, CurrentPage, PageSize, cancellationToken);
+                    QuizSubmissions = result.Items;
+                    Pagination = BuildPagination(result.TotalCount);
+                    break;
+                }
             case TabPerformances:
                 {
                     var result = await fanPerformanceSubmissionRepository.GetBySubmitterAsync(
@@ -210,6 +222,7 @@ public sealed class MySubmissionsModel(
             TabNews => TabNews,
             TabArticles => TabArticles,
             TabTrivia => TabTrivia,
+            TabQuiz => TabQuiz,
             TabPerformances => TabPerformances,
             _ => TabPhotos,
         };
