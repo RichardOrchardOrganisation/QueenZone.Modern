@@ -205,11 +205,14 @@ jobs:
     # Skip the restore/`database update` when the classified range did not
     # touch EF paths (issue #659). Dispatch uses the same classifier
     # (tip vs parent) — do not force migrations=true.
+    # Runs regardless of DevSnapshot__Ready: dev must prove every migration
+    # against queenzone-dev-db before production (#1600). Sample-data vs
+    # curated-snapshot only changes what data the app serves, not whether
+    # the schema is kept current.
     if: |
       github.ref == 'refs/heads/main' &&
       needs.changes.outputs.code == 'true' &&
-      needs.changes.outputs.migrations == 'true' &&
-      needs.changes.outputs.sample_data != 'true'
+      needs.changes.outputs.migrations == 'true'
     environment: dev-migrate
 
     steps:
