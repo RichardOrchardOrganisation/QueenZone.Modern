@@ -115,6 +115,70 @@ public sealed class QuizPagesRoutesTests
     }
 
     [Fact]
+    public async Task Sprint_get_start_redirects_to_landing_without_starting_a_round()
+    {
+        using var isolated = IsolatedQuizzes();
+        await PublishSampleAsync(isolated);
+        using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+
+        var response = await client.GetAsync("/quizzes/sprint?handler=Start");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/quizzes/sprint", response.Headers.Location?.OriginalString);
+        var startBody = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("name=\"ticket\"", startBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-sprint-game", startBody, StringComparison.Ordinal);
+
+        var landing = await client.GetStringAsync(response.Headers.Location!);
+        Assert.Contains("Press Start to begin a 60-second sprint.", landing, StringComparison.Ordinal);
+        Assert.Contains("Start 60-second sprint", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"ticket\"", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-sprint-game", landing, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Sprint_post_start_with_published_pool_returns_ticket_and_questions()
+    {
+        using var isolated = IsolatedQuizzes();
+        await PublishSampleAsync(isolated);
+        using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var landing = await client.GetStringAsync("/quizzes/sprint");
+        var round = await StartSprintAsync(client, landing);
+
+        Assert.Contains("name=\"ticket\"", round, StringComparison.Ordinal);
+        Assert.Contains("data-sprint-question", round, StringComparison.Ordinal);
+        Assert.Contains("Who was the lead singer?", round, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ready for a quick round?", round, StringComparison.Ordinal);
+        Assert.DoesNotContain("No published questions are available yet.", round, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Sprint_post_start_with_empty_pool_shows_empty_pool_message()
+    {
+        using var isolated = IsolatedQuizzes();
+        using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+
+        var landing = await client.GetStringAsync("/quizzes/sprint");
+        Assert.Contains("No published questions are available yet.", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start 60-second sprint", landing, StringComparison.Ordinal);
+
+        var contact = await client.GetStringAsync("/contact");
+        var response = await client.PostAsync(
+            "/quizzes/sprint?handler=Start",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AdminHttpTestHelpers.ExtractAntiforgeryToken(contact),
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("No published questions are available yet.", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"ticket\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-sprint-game", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start 60-second sprint", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Sprint_uses_only_published_questions_and_shows_a_visible_countdown()
     {
         using var isolated = IsolatedQuizzes();

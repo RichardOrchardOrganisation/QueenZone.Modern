@@ -97,6 +97,10 @@
     else
     {
       <div class="qz-quiz-result">
+        @if (!string.IsNullOrWhiteSpace(Model.StartNotice) && !Model.EmptyPool)
+        {
+          <p class="qz-quiz-result__notice" role="status">@Model.StartNotice</p>
+        }
         <h2>Ready for a quick round?</h2>
         <p>You have 60 seconds to answer as many random questions from published Queen quizzes as you can. Each correct answer earns one point. Wrong or skipped answers earn zero, with no deduction.</p>
         <p>This is a casual round; results do not appear on the leaderboard.</p>
