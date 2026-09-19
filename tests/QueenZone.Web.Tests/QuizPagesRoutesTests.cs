@@ -143,10 +143,10 @@ public sealed class QuizPagesRoutesTests
         await PublishSampleAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         var landing = await client.GetStringAsync("/quizzes/sprint");
-        Assert.Equal(1, Regex.Matches(landing, "name=\"__RequestVerificationToken\"").Count);
+        Assert.Single(Regex.Matches(landing, "name=\"__RequestVerificationToken\""));
         var round = await StartSprintAsync(client, landing);
 
-        Assert.Equal(1, Regex.Matches(round, "name=\"__RequestVerificationToken\"").Count);
+        Assert.Single(Regex.Matches(round, "name=\"__RequestVerificationToken\""));
         Assert.Contains("name=\"ticket\"", round, StringComparison.Ordinal);
         Assert.Contains("data-sprint-question", round, StringComparison.Ordinal);
         Assert.Contains("Who was the lead singer?", round, StringComparison.Ordinal);
