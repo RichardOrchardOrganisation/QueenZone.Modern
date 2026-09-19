@@ -101,6 +101,12 @@ check, or relationship check fails.
 
 ## Workflow
 
+`deploy-dev.yml` applies pending EF migrations to `queenzone-dev-db` on every
+qualifying push (EF paths changed), whether or not the curated snapshot has
+been refreshed (#1600). `DevSnapshot__Ready` only controls which data the app
+serves, so dev proves migrations ahead of production. A refresh is an optional
+reset, not a prerequisite for a current schema.
+
 Run **Refresh dev curated snapshot** manually. It performs these stages:
 
 1. set App Service `DevSnapshot__Ready=false` and remove the dev database setting;
