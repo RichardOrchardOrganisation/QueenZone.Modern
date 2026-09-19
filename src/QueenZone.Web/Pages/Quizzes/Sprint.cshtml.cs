@@ -39,6 +39,12 @@ public sealed class SprintModel(
 
     public bool Expired { get; private set; }
 
+    public string? StartNotice { get; private set; }
+
+    private const string StartNoticeKey = "QuizSprintStartNotice";
+
+    private const string StartNoticeText = "Press Start to begin a 60-second sprint.";
+
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; } =
     [
         BreadcrumbItem.Home,
@@ -49,7 +55,14 @@ public sealed class SprintModel(
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         SetViewData();
+        StartNotice = TempData[StartNoticeKey] as string;
         EmptyPool = (await quizRepository.GetPublishedSprintQuestionsAsync(cancellationToken)).Count == 0;
+    }
+
+    public IActionResult OnGetStartAsync()
+    {
+        TempData[StartNoticeKey] = StartNoticeText;
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostStartAsync(CancellationToken cancellationToken)

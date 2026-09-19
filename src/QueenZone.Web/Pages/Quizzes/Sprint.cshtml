@@ -1,9 +1,5 @@
 @page "/quizzes/sprint"
 @model SprintModel
-@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
-@{
-  var antiforgeryToken = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
-}
 
 <partial name="_PageHero" model='@(("Test yourself", "Quiz Sprint", "How many Queen questions can you answer in 60 seconds?", ""))' />
 
@@ -60,7 +56,6 @@
         </div>
 
         <form method="post" asp-page-handler="Finish" data-sprint-form>
-          <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryToken">
           <input type="hidden" name="ticket" value="@ticket">
           <p class="qz-sprint__counter" data-sprint-counter>Question 1 of @Model.Questions.Count</p>
           @for (var index = 0; index < Model.Questions.Count; index++)
@@ -97,6 +92,10 @@
     else
     {
       <div class="qz-quiz-result">
+        @if (!string.IsNullOrWhiteSpace(Model.StartNotice) && !Model.EmptyPool)
+        {
+          <p class="qz-quiz-result__notice" role="status">@Model.StartNotice</p>
+        }
         <h2>Ready for a quick round?</h2>
         <p>You have 60 seconds to answer as many random questions from published Queen quizzes as you can. Each correct answer earns one point. Wrong or skipped answers earn zero, with no deduction.</p>
         <p>This is a casual round; results do not appear on the leaderboard.</p>
@@ -107,7 +106,6 @@
         else
         {
           <form method="post" asp-page-handler="Start">
-            <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryToken">
             <button type="submit" class="qz-button qz-button--cta">Start 60-second sprint</button>
           </form>
         }
