@@ -94,10 +94,10 @@ export const archiveDestinations: ArchiveDestination[] = [
   },
   {
     id: 'quiz',
-    title: 'Quiz',
+    title: 'Quiz Sprint',
     kicker: 'Test yourself',
     kickerRole: 'archive',
-    meta: ['Multiple-choice quizzes', 'Leaderboard'],
+    meta: ['60-second timed quiz', 'Daily leaderboard'],
     icon: 'quiz',
   },
   {

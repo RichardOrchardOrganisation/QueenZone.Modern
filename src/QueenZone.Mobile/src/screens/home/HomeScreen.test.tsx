@@ -4,6 +4,7 @@ import {
   fetchForumRecentThreads,
   fetchHomePoll,
   fetchInbox,
+  fetchQuizSprintDaily,
   fetchLiveActivity,
   fetchNewsPage,
   fetchOnThisDay,
@@ -45,6 +46,7 @@ jest.mock('../../api', () => {
     voteHomePoll: jest.fn(),
     fetchLiveActivity: jest.fn(),
     fetchInbox: jest.fn(),
+    fetchQuizSprintDaily: jest.fn(),
   };
 });
 
@@ -127,6 +129,7 @@ describe('HomeScreen', () => {
     fetchPoll.mockResolvedValue(null);
     votePoll.mockReset();
     fetchLive.mockResolvedValue({ newForumRepliesToday: 0 });
+    (fetchQuizSprintDaily as jest.Mock).mockResolvedValue({ top: [], viewer: null, playersToday: 0 });
     mockSyncHomeWidget.mockClear();
     fetchInboxMock.mockReset();
   });

@@ -475,6 +475,63 @@ export type QuizLeaderboard = {
   totalMembers: number;
 };
 
+/** A Quiz Sprint question: options only, the answer key stays on the server. */
+export type QuizSprintQuestion = {
+  id: string;
+  text: string;
+  options: QuizOption[];
+};
+
+/** Shape for `POST /api/v1/content/quizzes/sprint/start`. Times are Unix milliseconds (UTC). */
+export type QuizSprintRound = {
+  ticket: string;
+  serverNowUnixMilliseconds: number;
+  expiresAtUnixMilliseconds: number;
+  durationSeconds: number;
+  questions: QuizSprintQuestion[];
+};
+
+/** Shape for `POST /api/v1/content/quizzes/sprint/answer`. */
+export type QuizSprintAnswerCheck = {
+  isCorrect: boolean;
+  correctOptionId: string;
+};
+
+export type QuizSprintReviewItem = {
+  questionId: string;
+  questionText: string;
+  isCorrect: boolean;
+  correctAnswer: string;
+};
+
+/**
+ * Shape for `POST /api/v1/content/quizzes/sprint/finish`. `recorded` is true only when the
+ * caller was signed in and the run reached today's leaderboard.
+ */
+export type QuizSprintResult = {
+  attempted: number;
+  correct: number;
+  points: number;
+  bestStreak: number;
+  recorded: boolean;
+  rank: number | null;
+  answers: QuizSprintReviewItem[];
+};
+
+export type QuizSprintLeaderboardEntry = {
+  rank: number;
+  displayName: string;
+  score: number;
+  bestStreak: number;
+};
+
+/** Shape for `GET /api/v1/content/quizzes/sprint/daily` (today, UTC). */
+export type QuizSprintDailyBoard = {
+  top: QuizSprintLeaderboardEntry[];
+  viewer: QuizSprintLeaderboardEntry | null;
+  playersToday: number;
+};
+
 /** One hit from `GET /api/v1/search`. `id` is parsed from numeric source keys. */
 export type SearchResult = {
   contentType: string;
