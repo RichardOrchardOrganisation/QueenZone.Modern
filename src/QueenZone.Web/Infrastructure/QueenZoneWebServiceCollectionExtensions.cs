@@ -289,6 +289,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<ForumPostWriteService>();
         services.AddScoped<ForumPostReportService>();
         services.AddScoped<HomePollVoteService>();
+        services.AddScoped<QuizSprintService>();
         services.AddSingleton<IFcmAccessTokenProvider, GoogleFcmAccessTokenProvider>();
         services.AddHttpClient(DirectPushTransport.ApnsClientName, client =>
         {

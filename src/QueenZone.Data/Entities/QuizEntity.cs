@@ -87,3 +87,25 @@ public sealed class QuizAttemptEntity
 
     public QuizEntity? Quiz { get; set; }
 }
+
+/// <summary>
+/// A signed-in member's completed Quiz Sprint run. Recorded server-side after the signed round
+/// ticket is verified; the source for the daily Sprint leaderboard and homepage stats.
+/// </summary>
+[ExcludeFromCodeCoverage]
+public sealed class QuizSprintRunEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid MemberAccountId { get; set; }
+
+    public int Score { get; set; }
+
+    public int CorrectCount { get; set; }
+
+    public int AnsweredCount { get; set; }
+
+    public int BestStreak { get; set; }
+
+    public DateTimeOffset CompletedAt { get; set; }
+}
