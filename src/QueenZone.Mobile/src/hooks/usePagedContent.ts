@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
 import type { ApiPagedResponse } from '../api/types';
+import { waitForMinimumRefreshVisibility } from './refreshVisibility';
 
 export type PagedFetchMode = 'load' | 'refresh' | 'more';
 
@@ -171,34 +172,47 @@ export function usePagedContent<T>(
 
   const refresh = useCallback(() => {
     const { generation, signal } = coordinator.begin();
+    const startedAt = Date.now();
     refreshingRef.current = true;
     loadingMoreRef.current = false;
     setRefreshing(true);
     setLoadingMore(false);
     setError(null);
+
+    const finishRefresh = (apply: () => void) => {
+      apply();
+      void waitForMinimumRefreshVisibility(startedAt).then(() => {
+        if (!coordinator.isCurrent(generation) || signal.aborted) {
+          return;
+        }
+        refreshingRef.current = false;
+        setRefreshing(false);
+      });
+    };
+
     fetcherRef
       .current(1, signal, 'refresh')
       .then((response) => {
         if (!coordinator.isCurrent(generation) || signal.aborted) {
           return;
         }
-        setItems(response.items);
-        applyPageMeta(response);
-        loadingRef.current = false;
-        refreshingRef.current = false;
-        setLoading(false);
-        setRefreshing(false);
+        finishRefresh(() => {
+          setItems(response.items);
+          applyPageMeta(response);
+          loadingRef.current = false;
+          setLoading(false);
+        });
       })
       .catch((err: unknown) => {
         if (!coordinator.isCurrent(generation) || signal.aborted || isAbortError(err)) {
           return;
         }
-        const message = err instanceof ApiError ? err.message : 'Something went wrong.';
-        setError(message);
-        loadingRef.current = false;
-        refreshingRef.current = false;
-        setLoading(false);
-        setRefreshing(false);
+        finishRefresh(() => {
+          const message = err instanceof ApiError ? err.message : 'Something went wrong.';
+          setError(message);
+          loadingRef.current = false;
+          setLoading(false);
+        });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- generation-guard omit: applyPageMeta is a local helper; listing it would recreate refresh each render.
   }, [coordinator]);

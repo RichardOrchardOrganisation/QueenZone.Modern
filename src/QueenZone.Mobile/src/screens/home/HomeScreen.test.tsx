@@ -141,6 +141,7 @@ describe('HomeScreen', () => {
   it('exposes home-screen and home-hero testIDs for Debug device smoke', async () => {
     renderHome();
     expect(screen.getByTestId(testIds.homeScreen)).toBeOnTheScreen();
+    expect(screen.getByTestId(testIds.homeScreen).props.alwaysBounceVertical).toBe(true);
     await waitFor(() => expect(screen.getByTestId(testIds.homeHero)).toBeOnTheScreen());
   });
 

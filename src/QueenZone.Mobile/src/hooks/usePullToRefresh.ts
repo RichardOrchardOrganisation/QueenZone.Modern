@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { waitForMinimumRefreshVisibility } from './refreshVisibility';
 
 export type PullToRefreshHandle = {
   refreshing: boolean;
@@ -21,12 +22,15 @@ export function usePullToRefresh(
 
   const onRefresh = useCallback(() => {
     const epoch = ++epochRef.current;
+    const startedAt = Date.now();
     setRefreshing(true);
-    void Promise.allSettled(tasksRef.current.map((run) => run())).then(() => {
-      if (epoch === epochRef.current) {
-        setRefreshing(false);
-      }
-    });
+    void Promise.allSettled(tasksRef.current.map((run) => run()))
+      .then(() => waitForMinimumRefreshVisibility(startedAt))
+      .then(() => {
+        if (epoch === epochRef.current) {
+          setRefreshing(false);
+        }
+      });
   }, []);
 
   return { refreshing, onRefresh };
