@@ -36,6 +36,8 @@ import { TriviaScreen } from '../screens/archive/TriviaScreen';
 import { QuizListScreen } from '../screens/archive/QuizListScreen';
 import { QuizPlayScreen } from '../screens/archive/QuizPlayScreen';
 import { QuizLeaderboardScreen } from '../screens/archive/QuizLeaderboardScreen';
+import { QuizSprintScreen } from '../screens/archive/QuizSprintScreen';
+import { QuizSprintLeaderboardScreen } from '../screens/archive/QuizSprintLeaderboardScreen';
 import { SearchRouteScreen } from '../screens/archive/SearchScreen';
 import { NewsIndexScreen } from '../screens/news/NewsIndexScreen';
 import { NewsStoryScreen } from '../screens/news/NewsStoryScreen';
@@ -241,6 +243,12 @@ export function ArchiveStack() {
         options={{ title: 'Downloads' }}
       />
       <Archive.Screen name="Trivia" component={TriviaScreen} options={{ title: 'Trivia' }} />
+      <Archive.Screen name="QuizSprint" component={QuizSprintScreen} options={{ title: 'Quiz Sprint' }} />
+      <Archive.Screen
+        name="QuizSprintLeaderboard"
+        component={QuizSprintLeaderboardScreen}
+        options={{ title: 'Leaderboard' }}
+      />
       <Archive.Screen name="QuizList" component={QuizListScreen} options={{ title: 'Quiz' }} />
       <Archive.Screen name="QuizPlay" component={QuizPlayScreen} options={{ title: 'Quiz' }} />
       <Archive.Screen

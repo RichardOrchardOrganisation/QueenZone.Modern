@@ -46,6 +46,10 @@ export {
   fetchQuizDetail,
   fetchQuizLeaderboard,
   submitQuizAttempt,
+  startQuizSprint,
+  checkQuizSprintAnswer,
+  finishQuizSprint,
+  fetchQuizSprintDaily,
 } from './content';
 export { fetchSearchPage } from './search';
 export type { SearchPageQuery } from './search';

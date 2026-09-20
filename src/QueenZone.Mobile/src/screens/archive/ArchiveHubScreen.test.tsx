@@ -69,8 +69,8 @@ describe('ArchiveHubScreen', () => {
     );
     await flushVirtualizedList();
 
-    await user.press(screen.getByRole('button', { name: /Test yourself\. Quiz\./ }));
-    expect(navigation.navigate).toHaveBeenCalledWith('QuizList');
+    await user.press(screen.getByRole('button', { name: /Test yourself\. Quiz Sprint\./ }));
+    expect(navigation.navigate).toHaveBeenCalledWith('QuizSprint');
   });
 
   it('opens Timeline in-stack from the listing row', async () => {
