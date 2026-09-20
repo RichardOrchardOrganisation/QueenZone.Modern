@@ -65,4 +65,19 @@ public interface IQuizRepository
         Guid? viewerMemberId,
         int top = 10,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Records a signed-in member's completed Quiz Sprint run (already verified server-side).</summary>
+    Task RecordSprintRunAsync(
+        Guid memberAccountId,
+        QuizSprintScore score,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Today's (UTC) Quiz Sprint standings using each member's best run today.
+    /// <paramref name="viewerMemberId"/>'s own entry is included even when outside the top page.
+    /// </summary>
+    Task<QuizSprintDailyBoard> GetSprintDailyBoardAsync(
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default);
 }

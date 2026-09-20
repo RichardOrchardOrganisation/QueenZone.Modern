@@ -348,4 +348,35 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
             throw new QuizException(QuizException.HasResults, message);
         }
     }
+
+    public async Task RecordSprintRunAsync(
+        Guid memberAccountId,
+        QuizSprintScore score,
+        CancellationToken cancellationToken = default)
+    {
+        dbContext.QuizSprintRuns.Add(new QuizSprintRunEntity
+        {
+            Id = Guid.NewGuid(),
+            MemberAccountId = memberAccountId,
+            Score = score.Points,
+            CorrectCount = score.Correct,
+            AnsweredCount = score.Answered,
+            BestStreak = score.BestStreak,
+            CompletedAt = timeProvider.GetUtcNow(),
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<QuizSprintDailyBoard> GetSprintDailyBoardAsync(
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
+        var runs = await dbContext.QuizSprintRuns
+            .AsNoTracking()
+            .Where(run => run.CompletedAt >= dayStart)
+            .ToListAsync(cancellationToken);
+        return QuizScoring.BuildSprintDailyBoard(runs, viewerMemberId, top);
+    }
 }

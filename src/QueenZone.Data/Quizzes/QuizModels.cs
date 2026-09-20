@@ -69,6 +69,24 @@ public sealed record QuizSprintQuestion(
 
 public sealed record QuizSprintOption(Guid Id, string Text, bool IsCorrect);
 
+/// <summary>One member's best Quiz Sprint run for the day, ranked.</summary>
+public sealed record QuizSprintLeaderboardEntry(
+    int Rank,
+    Guid MemberAccountId,
+    int Score,
+    int BestStreak,
+    int AnsweredCount,
+    DateTimeOffset CompletedAt);
+
+/// <summary>
+/// Today's (UTC) Quiz Sprint standings: each member's best run, the viewer's own entry even
+/// outside the top page, and how many distinct members have played today.
+/// </summary>
+public sealed record QuizSprintDailyBoard(
+    IReadOnlyList<QuizSprintLeaderboardEntry> Top,
+    QuizSprintLeaderboardEntry? Viewer,
+    int PlayersToday);
+
 public sealed record QuizAnswerSubmission(Guid QuestionId, Guid? SelectedOptionId);
 
 public sealed record QuizAnswerResult(

@@ -7,6 +7,23 @@ public sealed class SharedQuizStore
     private readonly object sync = new();
     private readonly List<QuizEntity> quizzes = [];
     private readonly List<QuizAttemptEntity> attempts = [];
+    private readonly List<QuizSprintRunEntity> sprintRuns = [];
+
+    public T ReadSprintRuns<T>(Func<IReadOnlyList<QuizSprintRunEntity>, T> reader)
+    {
+        lock (sync)
+        {
+            return reader(sprintRuns);
+        }
+    }
+
+    public void WriteSprintRuns(Action<List<QuizSprintRunEntity>> writer)
+    {
+        lock (sync)
+        {
+            writer(sprintRuns);
+        }
+    }
 
     public T Read<T>(Func<IReadOnlyList<QuizEntity>, IReadOnlyList<QuizAttemptEntity>, T> reader)
     {

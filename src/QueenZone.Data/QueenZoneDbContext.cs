@@ -49,6 +49,8 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<QuizAttemptEntity> QuizAttempts => Set<QuizAttemptEntity>();
 
+    public DbSet<QuizSprintRunEntity> QuizSprintRuns => Set<QuizSprintRunEntity>();
+
     public DbSet<QuizQuestionSubmissionEntity> QuizQuestionSubmissions => Set<QuizQuestionSubmissionEntity>();
 
     public DbSet<QuizQuestionSubmissionOptionEntity> QuizQuestionSubmissionOptions =>
@@ -1586,6 +1588,17 @@ public sealed class QueenZoneDbContext : DbContext
                 .HasDatabaseName("IX_QuizAttempts_QuizId_CompletedAt");
             entity.HasIndex(attempt => new { attempt.MemberAccountId, attempt.CompletedAt })
                 .HasDatabaseName("IX_QuizAttempts_MemberAccountId_CompletedAt");
+        });
+
+        modelBuilder.Entity<QuizSprintRunEntity>(entity =>
+        {
+            entity.ToTable("QuizSprintRuns");
+            entity.HasKey(run => run.Id);
+            entity.Property(run => run.CompletedAt).IsRequired();
+            entity.HasIndex(run => run.CompletedAt)
+                .HasDatabaseName("IX_QuizSprintRuns_CompletedAt");
+            entity.HasIndex(run => new { run.MemberAccountId, run.CompletedAt })
+                .HasDatabaseName("IX_QuizSprintRuns_MemberAccountId_CompletedAt");
         });
 
         modelBuilder.Entity<QuizQuestionSubmissionEntity>(entity =>
