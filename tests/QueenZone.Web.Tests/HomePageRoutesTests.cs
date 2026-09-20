@@ -26,7 +26,7 @@ public sealed class HomePageRoutesTests
         using var quizzes = await client.GetAsync("/quizzes");
 
         Assert.Equal(HttpStatusCode.OK, home.StatusCode);
-        Assert.Equal(1, Regex.Matches(homeHtml, @"<h1\b", RegexOptions.IgnoreCase).Count);
+        Assert.Single(Regex.Matches(homeHtml, @"<h1\b", RegexOptions.IgnoreCase));
         Assert.Matches(HomepageHeading, homeHtml);
 
         Assert.Equal(HttpStatusCode.OK, about.StatusCode);
@@ -48,12 +48,20 @@ public sealed class HomePageRoutesTests
             .Select(descriptor => descriptor!)
             .ToList();
 
-        var home = Assert.Single(pages, page => page.ViewEnginePath == "/Index");
-        var quizzes = Assert.Single(pages, page => page.ViewEnginePath == "/Quizzes/Index");
+        var homeModel = Assert.Single(
+            pages
+                .Where(page => page.RelativePath == "/Pages/Index.cshtml")
+                .Select(page => page.ModelTypeInfo!.AsType())
+                .Distinct());
+        var quizzesModel = Assert.Single(
+            pages
+                .Where(page => page.RelativePath == "/Pages/Quizzes/Index.cshtml")
+                .Select(page => page.ModelTypeInfo!.AsType())
+                .Distinct());
 
-        Assert.Equal(typeof(QueenZone.Web.Pages.IndexModel), home.ModelTypeInfo.AsType());
-        Assert.Equal(typeof(QueenZone.Web.Pages.Quizzes.QuizzesIndexModel), quizzes.ModelTypeInfo.AsType());
-        Assert.NotEqual(home.ModelTypeInfo.AsType(), quizzes.ModelTypeInfo.AsType());
+        Assert.Equal(typeof(QueenZone.Web.Pages.IndexModel), homeModel);
+        Assert.Equal(typeof(QueenZone.Web.Pages.Quizzes.QuizzesIndexModel), quizzesModel);
+        Assert.NotEqual(homeModel, quizzesModel);
     }
 
     [Fact]
@@ -70,7 +78,7 @@ public sealed class HomePageRoutesTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(1, Regex.Matches(html, @"<h1\b", RegexOptions.IgnoreCase).Count);
+        Assert.Single(Regex.Matches(html, @"<h1\b", RegexOptions.IgnoreCase));
         Assert.Matches(HomepageHeading, html);
         Assert.Contains("The sixty-second Queen quiz", html, StringComparison.Ordinal);
     }
