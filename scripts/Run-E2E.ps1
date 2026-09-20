@@ -405,6 +405,9 @@ function Update-SqlExpressMirrorMigrations {
     Write-Host "Applying EF migrations to the SQL Express mirror (not production Azure SQL)."
     Write-Host "Sync/skip_sync can leave Express without modern tables such as QuizSprintRuns."
     Invoke-DotNet -Arguments @("tool", "restore")
+    # Tool restore does not write project.assets.json. Restore Data+Web via the
+    # solution before ef update so a clean checkout cannot hit NETSDK1004 (#1630).
+    Invoke-DotNet -Arguments @("restore", "QueenZone.sln")
     Invoke-DotNet -Arguments @(
         "ef", "database", "update",
         "--project", "src/QueenZone.Data/QueenZone.Data.csproj",
