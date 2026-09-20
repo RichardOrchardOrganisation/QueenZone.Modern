@@ -76,7 +76,8 @@ public sealed record QuizSprintLeaderboardEntry(
     int Score,
     int BestStreak,
     int AnsweredCount,
-    DateTimeOffset CompletedAt);
+    DateTimeOffset CompletedAt,
+    int Runs = 1);
 
 public enum QuizSprintBoardScope
 {
@@ -85,6 +86,9 @@ public enum QuizSprintBoardScope
 
     /// <summary>Best run per member, ever.</summary>
     AllTime,
+
+    /// <summary>Points summed across every run a member has played, ever.</summary>
+    Total,
 }
 
 /// <summary>

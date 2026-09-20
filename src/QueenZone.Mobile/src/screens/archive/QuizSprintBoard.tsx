@@ -6,6 +6,8 @@ type Props = {
   rows: QuizSprintLeaderboardEntry[];
   viewer: QuizSprintLeaderboardEntry | null;
   emptyText: string;
+  /** Total-points board: show each member's run count instead of the fixed 60-second label. */
+  showRuns?: boolean;
 };
 
 function rankLabel(rank: number): string {
@@ -13,7 +15,7 @@ function rankLabel(rank: number): string {
 }
 
 /** Today's Quiz Sprint standings on a dark surface; the viewer's own row is highlighted gold. */
-export function QuizSprintBoard({ rows, viewer, emptyText }: Props) {
+export function QuizSprintBoard({ rows, viewer, emptyText, showRuns = false }: Props) {
   const shown = viewer && !rows.some((row) => row.rank === viewer.rank) ? [...rows, viewer] : rows;
 
   if (shown.length === 0) {
@@ -32,7 +34,9 @@ export function QuizSprintBoard({ rows, viewer, emptyText }: Props) {
                 {isYou ? 'You' : row.displayName}
               </Text>
               <Text style={[styles.meta, isYou && styles.goldMeta]}>
-                60 SEC · {row.bestStreak} STREAK
+                {showRuns
+                  ? `${row.runs ?? 1} RUN${row.runs === 1 || row.runs == null ? '' : 'S'} · BEST STREAK ${row.bestStreak}`
+                  : `60 SEC · ${row.bestStreak} STREAK`}
               </Text>
             </View>
             <Text style={[styles.score, isYou && styles.gold]}>{row.score}</Text>

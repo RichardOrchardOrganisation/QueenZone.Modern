@@ -66,12 +66,36 @@ describe('QuizSprintLeaderboardScreen', () => {
     load.mockResolvedValueOnce(
       board({ scope: 'all', players: 40, top: [{ rank: 1, displayName: 'legend', score: 41, bestStreak: 20 }] }),
     );
-    await user.press(screen.getByRole('button', { name: 'All time' }));
+    await user.press(screen.getByRole('button', { name: 'Best run' }));
 
     await waitFor(() => expect(screen.getByText('legend')).toBeOnTheScreen());
-    expect(screen.getByText('All-time leaderboard')).toBeOnTheScreen();
+    expect(screen.getByText('Best runs')).toBeOnTheScreen();
     expect(screen.getByText('40 members ranked.')).toBeOnTheScreen();
     expect(load).toHaveBeenLastCalledWith('all', expect.anything(), null);
+  });
+
+  it('shows run counts on the total-points board', async () => {
+    load.mockResolvedValueOnce(board());
+    const user = userEvent.setup();
+    renderBoard();
+    await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
+
+    load.mockResolvedValueOnce(
+      board({
+        scope: 'total',
+        players: 2,
+        top: [
+          { rank: 1, displayName: 'grinder', score: 240, bestStreak: 9, runs: 31 },
+          { rank: 2, displayName: 'newcomer', score: 12, bestStreak: 4, runs: 1 },
+        ],
+      }),
+    );
+    await user.press(screen.getByRole('button', { name: 'Total points' }));
+
+    await waitFor(() => expect(screen.getByText('grinder')).toBeOnTheScreen());
+    expect(screen.getByText('31 RUNS · BEST STREAK 9')).toBeOnTheScreen();
+    expect(screen.getByText('1 RUN · BEST STREAK 4')).toBeOnTheScreen();
+    expect(load).toHaveBeenLastCalledWith('total', expect.anything(), null);
   });
 
   it('shows the viewer as You, even outside the top page', async () => {

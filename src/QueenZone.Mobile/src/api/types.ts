@@ -523,11 +523,16 @@ export type QuizSprintLeaderboardEntry = {
   displayName: string;
   score: number;
   bestStreak: number;
+  /** Runs played in the scope: 1 for a best-run entry, the member's run count on the total board. */
+  runs?: number;
 };
 
-/** Shape for `GET /api/v1/content/quizzes/sprint/leaderboard`; `players` counts members ranked in `scope`. */
+/**
+ * Shape for `GET /api/v1/content/quizzes/sprint/leaderboard`; `players` counts members ranked in `scope`.
+ * `daily` = best run today, `all` = best run ever, `total` = points summed over every run.
+ */
 export type QuizSprintBoard = {
-  scope: 'daily' | 'all';
+  scope: 'daily' | 'all' | 'total';
   top: QuizSprintLeaderboardEntry[];
   viewer: QuizSprintLeaderboardEntry | null;
   players: number;

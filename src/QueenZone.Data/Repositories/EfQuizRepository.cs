@@ -383,7 +383,49 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
             return QuizScoring.BuildSprintBoard(runs, viewerMemberId, top);
         }
 
-        return await GetAllTimeSprintBoardAsync(viewerMemberId, top, cancellationToken);
+        return scope == QuizSprintBoardScope.Total
+            ? await GetTotalSprintBoardAsync(viewerMemberId, top, cancellationToken)
+            : await GetAllTimeSprintBoardAsync(viewerMemberId, top, cancellationToken);
+    }
+
+    /// <summary>
+    /// Cumulative board: one grouped row per member (sum of points over every run), ranked in memory.
+    /// Bounded by member count, not run count. Ties on points fall back to member id.
+    /// </summary>
+    private async Task<QuizSprintBoardResult> GetTotalSprintBoardAsync(
+        Guid? viewerMemberId,
+        int top,
+        CancellationToken cancellationToken)
+    {
+        var totals = await dbContext.QuizSprintRuns
+            .AsNoTracking()
+            .GroupBy(run => run.MemberAccountId)
+            .Select(group => new
+            {
+                MemberAccountId = group.Key,
+                Points = group.Sum(run => run.Score),
+                BestStreak = group.Max(run => run.BestStreak),
+                Answered = group.Sum(run => run.AnsweredCount),
+                Runs = group.Count(),
+            })
+            .ToListAsync(cancellationToken);
+
+        var ranked = totals
+            .OrderByDescending(row => row.Points)
+            .ThenBy(row => row.MemberAccountId)
+            .Select((row, index) => new QuizSprintLeaderboardEntry(
+                index + 1,
+                row.MemberAccountId,
+                row.Points,
+                row.BestStreak,
+                row.Answered,
+                default,
+                row.Runs))
+            .ToList();
+        var viewer = viewerMemberId is Guid viewerId
+            ? ranked.SingleOrDefault(entry => entry.MemberAccountId == viewerId)
+            : null;
+        return new QuizSprintBoardResult(ranked.Take(top).ToList(), viewer, ranked.Count);
     }
 
     /// <summary>
@@ -399,13 +441,13 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         var bests = await dbContext.QuizSprintRuns
             .AsNoTracking()
             .GroupBy(run => run.MemberAccountId)
-            .Select(group => new { MemberAccountId = group.Key, Best = group.Max(run => run.Score) })
+            .Select(group => new { MemberAccountId = group.Key, Best = group.Max(run => run.Score), Runs = group.Count() })
             .ToListAsync(cancellationToken);
 
         var ranked = bests
             .OrderByDescending(row => row.Best)
             .ThenBy(row => row.MemberAccountId)
-            .Select((row, index) => (Rank: index + 1, row.MemberAccountId, row.Best))
+            .Select((row, index) => (Rank: index + 1, row.MemberAccountId, row.Best, row.Runs))
             .ToList();
 
         var wanted = ranked.Take(top).ToList();
@@ -423,7 +465,7 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
             .Where(run => memberIds.Contains(run.MemberAccountId))
             .ToListAsync(cancellationToken);
 
-        QuizSprintLeaderboardEntry ToEntry((int Rank, Guid MemberAccountId, int Best) row)
+        QuizSprintLeaderboardEntry ToEntry((int Rank, Guid MemberAccountId, int Best, int Runs) row)
         {
             var bestRun = runs
                 .Where(run => run.MemberAccountId == row.MemberAccountId && run.Score == row.Best)
@@ -435,7 +477,8 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
                 bestRun.Score,
                 bestRun.BestStreak,
                 bestRun.AnsweredCount,
-                bestRun.CompletedAt);
+                bestRun.CompletedAt,
+                row.Runs);
         }
 
         var entries = wanted.Select(ToEntry).ToList();
