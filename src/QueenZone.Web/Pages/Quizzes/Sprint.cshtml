@@ -22,7 +22,10 @@
         }
         else if (!Model.SignedIn)
         {
-          <p class="qz-sprint-results__note" role="status">Your score is only added to the leaderboard if you are signed in. <a href="@loginHref">Sign in</a> before your next run to be ranked.</p>
+          var claimHref = result.ClaimToken is { } claimToken
+            ? "/account/login?returnUrl=" + Uri.EscapeDataString("/quizzes/sprint?claim=" + Uri.EscapeDataString(claimToken))
+            : loginHref;
+          <p class="qz-sprint-results__note" role="status">Your score is only added to the leaderboard if you are signed in. <a href="@claimHref">@(result.ClaimToken is null ? "Sign in" : "Sign in to save this score")</a>@(result.ClaimToken is null ? " before your next run to be ranked." : " and it will be added under your display name.")</p>
         }
         <div class="qz-sprint__buttons">
           <a class="qz-sprint__cta" href="/quizzes/sprint">Run it again</a>
@@ -119,6 +122,10 @@ else
         <h1 class="qz-sprint-intro__title">Sixty seconds<br>on the clock.</h1>
         <p class="qz-sprint-intro__standfirst">One question at a time, drawn from the Queen archive. Answer fast, build a streak, and take your place on today's leaderboard.</p>
         <p class="qz-sprint-intro__rules"><span>60 seconds</span><span>Unlimited runs</span><span>No skips</span></p>
+        @if (!string.IsNullOrWhiteSpace(Model.ClaimMessage))
+        {
+          <p class="qz-sprint-intro__notice" role="status">@Model.ClaimMessage@if (!Model.SignedIn) { <text> <a href="/account/login?returnUrl=@Uri.EscapeDataString(Model.Request.Path + Model.Request.QueryString)">Sign in</a></text> }</p>
+        }
         @if (!string.IsNullOrWhiteSpace(Model.StartNotice) && !Model.EmptyPool)
         {
           <p class="qz-sprint-intro__notice" role="status">@Model.StartNotice</p>

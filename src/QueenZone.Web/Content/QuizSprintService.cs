@@ -26,7 +26,19 @@ public sealed record SprintResult(
     int BestStreak,
     bool Recorded,
     int? Rank,
-    IReadOnlyList<SprintReviewItem> Answers);
+    IReadOnlyList<SprintReviewItem> Answers,
+    string? ClaimToken = null);
+
+public enum SprintClaimStatus
+{
+    Claimed,
+    AlreadyClaimed,
+    Expired,
+    Invalid,
+}
+
+/// <param name="Rank">The member's rank on today's board after claiming, when the run was today's.</param>
+public sealed record SprintClaimOutcome(SprintClaimStatus Status, int Points = 0, int? Rank = null);
 
 public sealed record SprintBoardRow(int Rank, string DisplayName, int Score, int BestStreak, bool IsViewer, int Runs = 1);
 
@@ -61,9 +73,13 @@ public sealed class QuizSprintService(
     TimeProvider timeProvider)
 {
     public const int DurationSeconds = 60;
+
+    /// <summary>How long after finishing a guest can sign in and still add that run to the leaderboard.</summary>
+    public static readonly TimeSpan ClaimWindow = TimeSpan.FromHours(1);
     private const int QuestionLimit = 60;
     private static readonly JsonSerializerOptions TicketJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("QueenZone.QuizSprint.v1");
+    private readonly IDataProtector claimProtector = dataProtectionProvider.CreateProtector("QueenZone.QuizSprint.claim.v1");
 
     public async Task<bool> HasQuestionsAsync(CancellationToken cancellationToken) =>
         (await quizRepository.GetPublishedSprintQuestionsAsync(cancellationToken)).Count > 0;
@@ -137,15 +153,79 @@ public sealed class QuizSprintService(
 
         var score = QuizSprintScoring.Score(outcomes);
         int? rank = null;
-        if (memberId is Guid member && score.Answered > 0)
+        string? claimToken = null;
+        if (score.Answered > 0)
         {
-            await quizRepository.RecordSprintRunAsync(member, score, cancellationToken);
-            rank = (await quizRepository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, member, 1, cancellationToken)).Viewer?.Rank;
+            if (memberId is Guid member)
+            {
+                await quizRepository.RecordSprintRunAsync(member, score, cancellationToken);
+                rank = (await quizRepository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, member, 1, cancellationToken)).Viewer?.Rank;
+            }
+            else
+            {
+                // A guest's server-scored run can be added to the leaderboard if they sign in soon after.
+                claimToken = claimProtector.Protect(JsonSerializer.Serialize(
+                    new ClaimPayload(Guid.NewGuid(), score.Points, score.Correct, score.Answered, score.BestStreak, timeProvider.GetUtcNow().ToUnixTimeMilliseconds()),
+                    TicketJsonOptions));
+            }
         }
 
         return new SprintFinishOutcome(
             SprintFinishStatus.Completed,
-            new SprintResult(score.Answered, score.Correct, score.Points, score.BestStreak, rank is not null, rank, review));
+            new SprintResult(score.Answered, score.Correct, score.Points, score.BestStreak, rank is not null, rank, review, claimToken));
+    }
+
+    /// <summary>
+    /// Adds a guest's earlier run (identified by the signed claim token from their results) to
+    /// <paramref name="memberId"/>'s record. Each token can be claimed once, within <see cref="ClaimWindow"/>.
+    /// </summary>
+    public async Task<SprintClaimOutcome> ClaimAsync(string? claimToken, Guid memberId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(claimToken))
+        {
+            return new SprintClaimOutcome(SprintClaimStatus.Invalid);
+        }
+
+        ClaimPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<ClaimPayload>(claimProtector.Unprotect(claimToken), TicketJsonOptions);
+        }
+        catch (Exception exception) when (exception is CryptographicException or FormatException or JsonException)
+        {
+            return new SprintClaimOutcome(SprintClaimStatus.Invalid);
+        }
+
+        if (payload is null || payload.RunId == Guid.Empty || payload.Answered < 1)
+        {
+            return new SprintClaimOutcome(SprintClaimStatus.Invalid);
+        }
+
+        var completedAt = DateTimeOffset.FromUnixTimeMilliseconds(payload.CompletedAtUnixMilliseconds);
+        var now = timeProvider.GetUtcNow();
+        if (completedAt > now.AddSeconds(5))
+        {
+            return new SprintClaimOutcome(SprintClaimStatus.Invalid);
+        }
+
+        if (now - completedAt > ClaimWindow)
+        {
+            return new SprintClaimOutcome(SprintClaimStatus.Expired);
+        }
+
+        var recorded = await quizRepository.ClaimSprintRunAsync(
+            payload.RunId,
+            memberId,
+            new QuizSprintScore(payload.Points, payload.Correct, payload.Answered, payload.BestStreak),
+            completedAt,
+            cancellationToken);
+        if (!recorded)
+        {
+            return new SprintClaimOutcome(SprintClaimStatus.AlreadyClaimed, payload.Points);
+        }
+
+        var rank = (await quizRepository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, memberId, 1, cancellationToken)).Viewer?.Rank;
+        return new SprintClaimOutcome(SprintClaimStatus.Claimed, payload.Points, rank);
     }
 
     /// <summary>
@@ -242,6 +322,14 @@ public sealed class QuizSprintService(
             (items[index], items[swapIndex]) = (items[swapIndex], items[index]);
         }
     }
+
+    private sealed record ClaimPayload(
+        Guid RunId,
+        int Points,
+        int Correct,
+        int Answered,
+        int BestStreak,
+        long CompletedAtUnixMilliseconds);
 
     private sealed record SprintTicket(long StartedAtUnixMilliseconds, IReadOnlyList<TicketQuestion> Questions);
 

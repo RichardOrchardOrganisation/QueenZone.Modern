@@ -109,6 +109,25 @@ public sealed class QuizSprintRunTests
     }
 
     [Fact]
+    public async Task Ef_claim_is_idempotent_on_the_run_id()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlite(connection).Options;
+        await using var dbContext = new QueenZoneDbContext(options);
+        dbContext.Database.EnsureCreated();
+        var repository = new EfQuizRepository(dbContext, TimeProvider.System);
+        var runId = Guid.NewGuid();
+        var completedAt = new DateTimeOffset(2026, 9, 20, 9, 0, 0, TimeSpan.Zero);
+
+        Assert.True(await repository.ClaimSprintRunAsync(runId, Guid.NewGuid(), new QuizSprintScore(5, 4, 5, 3), completedAt));
+        Assert.False(await repository.ClaimSprintRunAsync(runId, Guid.NewGuid(), new QuizSprintScore(5, 4, 5, 3), completedAt));
+
+        var run = await dbContext.QuizSprintRuns.SingleAsync();
+        Assert.Equal((runId, 5, completedAt), (run.Id, run.Score, run.CompletedAt));
+    }
+
+    [Fact]
     public async Task Ef_all_time_board_is_empty_without_runs()
     {
         using var connection = new SqliteConnection("Data Source=:memory:");
@@ -227,6 +246,86 @@ public sealed class QuizSprintRunTests
         Assert.Null(result.Rank);
         var board = await client.GetFromJsonAsync<SprintDailyBoardDto>($"{ContentApiEndpoints.RootPath}/quizzes/sprint/daily", JsonOptions);
         Assert.Equal(0, board!.PlayersToday);
+    }
+
+    [Fact]
+    public async Task Guest_run_can_be_claimed_once_after_signing_in()
+    {
+        using var isolated = IsolatedQuizzes();
+        await PublishThreeQuestionsAsync(isolated);
+        using var guest = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var round = (await (await guest.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null))
+            .Content.ReadFromJsonAsync<SprintRoundDto>(JsonOptions))!;
+        var finished = (await (await guest.PostAsJsonAsync(
+            $"{ContentApiEndpoints.RootPath}/quizzes/sprint/finish",
+            new SprintFinishRequestDto(round.Ticket, CorrectAnswers(round))))
+            .Content.ReadFromJsonAsync<SprintResultDto>(JsonOptions))!;
+        Assert.False(finished.Recorded);
+        Assert.False(string.IsNullOrEmpty(finished.ClaimToken));
+
+        var claimUrl = $"{ContentApiEndpoints.RootPath}/quizzes/sprint/claim";
+        using var member = CreateBearerClient(isolated, Guid.NewGuid(), "Late Signer");
+        var claimed = (await (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto(finished.ClaimToken)))
+            .Content.ReadFromJsonAsync<SprintClaimResultDto>(JsonOptions))!;
+        Assert.Equal(("claimed", 3, 1), (claimed.Status, claimed.Points, claimed.Rank));
+
+        var again = (await (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto(finished.ClaimToken)))
+            .Content.ReadFromJsonAsync<SprintClaimResultDto>(JsonOptions))!;
+        Assert.Equal("already_claimed", again.Status);
+
+        // A second member cannot re-claim the same run, and the board holds it exactly once.
+        using var other = CreateBearerClient(isolated, Guid.NewGuid(), "Other");
+        var stolen = (await (await other.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto(finished.ClaimToken)))
+            .Content.ReadFromJsonAsync<SprintClaimResultDto>(JsonOptions))!;
+        Assert.Equal("already_claimed", stolen.Status);
+        var board = await member.GetFromJsonAsync<SprintDailyBoardDto>($"{ContentApiEndpoints.RootPath}/quizzes/sprint/daily", JsonOptions);
+        Assert.Equal(1, board!.PlayersToday);
+        Assert.Equal(3, board.Top[0].Score);
+    }
+
+    [Fact]
+    public async Task Claim_requires_sign_in_and_rejects_bad_or_expired_tokens()
+    {
+        var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        using var isolated = IsolatedQuizzes(clock);
+        await PublishThreeQuestionsAsync(isolated);
+        using var guest = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var claimUrl = $"{ContentApiEndpoints.RootPath}/quizzes/sprint/claim";
+
+        var anonymous = await guest.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto("x"));
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+
+        using var member = CreateBearerClient(isolated, Guid.NewGuid(), "Member");
+        Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto("tampered"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto(null))).StatusCode);
+
+        var round = (await (await guest.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null))
+            .Content.ReadFromJsonAsync<SprintRoundDto>(JsonOptions))!;
+        var finished = (await (await guest.PostAsJsonAsync(
+            $"{ContentApiEndpoints.RootPath}/quizzes/sprint/finish",
+            new SprintFinishRequestDto(round.Ticket, CorrectAnswers(round))))
+            .Content.ReadFromJsonAsync<SprintResultDto>(JsonOptions))!;
+        clock.Advance(TimeSpan.FromMinutes(61));
+
+        Assert.Equal(HttpStatusCode.Gone, (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto(finished.ClaimToken))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Signed_in_finish_returns_no_claim_token()
+    {
+        using var isolated = IsolatedQuizzes();
+        await PublishThreeQuestionsAsync(isolated);
+        using var member = CreateBearerClient(isolated, Guid.NewGuid(), "Member");
+        var round = (await (await member.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null))
+            .Content.ReadFromJsonAsync<SprintRoundDto>(JsonOptions))!;
+
+        var finished = (await (await member.PostAsJsonAsync(
+            $"{ContentApiEndpoints.RootPath}/quizzes/sprint/finish",
+            new SprintFinishRequestDto(round.Ticket, CorrectAnswers(round))))
+            .Content.ReadFromJsonAsync<SprintResultDto>(JsonOptions))!;
+
+        Assert.True(finished.Recorded);
+        Assert.Null(finished.ClaimToken);
     }
 
     [Fact]

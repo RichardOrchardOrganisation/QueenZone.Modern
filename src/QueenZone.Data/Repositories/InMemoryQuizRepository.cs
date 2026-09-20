@@ -303,6 +303,36 @@ public sealed class InMemoryQuizRepository(
         }
     }
 
+    public Task<bool> ClaimSprintRunAsync(
+        Guid runId,
+        Guid memberAccountId,
+        QuizSprintScore score,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken = default)
+    {
+        var recorded = false;
+        store.WriteSprintRuns(runs =>
+        {
+            if (runs.Any(run => run.Id == runId))
+            {
+                return;
+            }
+
+            runs.Add(new QuizSprintRunEntity
+            {
+                Id = runId,
+                MemberAccountId = memberAccountId,
+                Score = score.Points,
+                CorrectCount = score.Correct,
+                AnsweredCount = score.Answered,
+                BestStreak = score.BestStreak,
+                CompletedAt = completedAt,
+            });
+            recorded = true;
+        });
+        return Task.FromResult(recorded);
+    }
+
     public Task RecordSprintRunAsync(
         Guid memberAccountId,
         QuizSprintScore score,
