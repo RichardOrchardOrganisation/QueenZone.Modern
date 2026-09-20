@@ -3,11 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
+  ApiError,
   checkQuizSprintAnswer,
+  claimQuizSprintRun,
   fetchQuizSprintDaily,
   finishQuizSprint,
   startQuizSprint,
   type QuizAnswerSubmission,
+  type QuizSprintClaimResult,
   type QuizSprintDailyBoard,
   type QuizSprintResult,
   type QuizSprintRound,
@@ -40,8 +43,24 @@ type Feedback = { pickedId: string; correctId: string | null; isCorrect: boolean
 const CORRECT_TEXT = '#4F6B4A';
 const CORRECT_BG = '#EEF3EC';
 
-export function QuizSprintScreen({ navigation }: Props) {
+function describeClaim(result: QuizSprintClaimResult): string {
+  if (result.status === 'already_claimed') {
+    return 'That score is already on the leaderboard.';
+  }
+  return `Your score of ${result.points} was added to the leaderboard${result.rank != null ? ` (rank #${result.rank} today)` : ''}.`;
+}
+
+function describeClaimError(err: unknown): string {
+  return err instanceof ApiError && err.status === 410
+    ? 'That run finished too long ago to add to the leaderboard. Play again to be ranked.'
+    : "We couldn't save that score. Play again to be ranked.";
+}
+
+export function QuizSprintScreen({ navigation, route }: Props) {
   const { isSignedIn, accessToken } = useSession();
+  const claim = route.params?.claim;
+  const [claimMessage, setClaimMessage] = useState<string | null>(null);
+  const handledClaim = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>('intro');
   const [error, setError] = useState<string | null>(null);
   const [board, setBoard] = useState<QuizSprintDailyBoard | null>(null);
@@ -63,6 +82,21 @@ export function QuizSprintScreen({ navigation }: Props) {
     void loadBoard(controller.signal);
     return () => controller.abort();
   }, [loadBoard]);
+
+  useEffect(() => {
+    // A guest signed in from their results: add that run now that we know who they are.
+    if (!claim || !isSignedIn || !accessToken || handledClaim.current === claim) {
+      return;
+    }
+    handledClaim.current = claim;
+    claimQuizSprintRun(claim, accessToken)
+      .then((claimed) => {
+        setClaimMessage(describeClaim(claimed));
+        return loadBoard();
+      })
+      .catch((err: unknown) => setClaimMessage(describeClaimError(err)))
+      .finally(() => navigation.setParams({ claim: undefined }));
+  }, [accessToken, claim, isSignedIn, loadBoard, navigation]);
 
   const begin = useCallback(async () => {
     setPhase('starting');
@@ -113,7 +147,14 @@ export function QuizSprintScreen({ navigation }: Props) {
           setRound(null);
           setPhase('intro');
         }}
-        onSignIn={signIn}
+        onSignIn={() =>
+          openSignIn(
+            navigation,
+            result.claimToken
+              ? { tab: 'ArchiveTab', screen: 'QuizSprint', params: { claim: result.claimToken } }
+              : { tab: 'ArchiveTab', screen: 'QuizSprint' },
+          )
+        }
       />
     );
   }
@@ -142,6 +183,8 @@ export function QuizSprintScreen({ navigation }: Props) {
       </View>
 
       <Text style={styles.rules}>60 SECONDS · UNLIMITED RUNS · NO SKIPS</Text>
+
+      {claimMessage ? <Text style={styles.note}>{claimMessage}</Text> : null}
 
       {error ? <ErrorBlock message={error} onRetry={() => void begin()} /> : null}
 
@@ -356,8 +399,12 @@ function SprintResults({ result, board, isSignedIn, onAgain, onSignIn }: Results
       ) : !isSignedIn ? (
         <View style={styles.signIn}>
           <Text style={styles.note}>Your score is only added to the leaderboard if you are signed in.</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Sign in to be ranked" onPress={onSignIn}>
-            <Text style={styles.noteLink}>Sign in to be ranked</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={result.claimToken ? 'Sign in to save this score' : 'Sign in to be ranked'}
+            onPress={onSignIn}
+          >
+            <Text style={styles.noteLink}>{result.claimToken ? 'Sign in to save this score' : 'Sign in to be ranked'}</Text>
           </Pressable>
         </View>
       ) : null}

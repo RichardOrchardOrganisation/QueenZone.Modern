@@ -349,6 +349,41 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         }
     }
 
+    public async Task<bool> ClaimSprintRunAsync(
+        Guid runId,
+        Guid memberAccountId,
+        QuizSprintScore score,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken = default)
+    {
+        if (await dbContext.QuizSprintRuns.AnyAsync(run => run.Id == runId, cancellationToken))
+        {
+            return false;
+        }
+
+        dbContext.QuizSprintRuns.Add(new QuizSprintRunEntity
+        {
+            Id = runId,
+            MemberAccountId = memberAccountId,
+            Score = score.Points,
+            CorrectCount = score.Correct,
+            AnsweredCount = score.Answered,
+            BestStreak = score.BestStreak,
+            CompletedAt = completedAt,
+        });
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent claim of the same run won the race on the primary key.
+            dbContext.ChangeTracker.Clear();
+            return false;
+        }
+    }
+
     public async Task RecordSprintRunAsync(
         Guid memberAccountId,
         QuizSprintScore score,
