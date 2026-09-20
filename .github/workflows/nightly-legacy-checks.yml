@@ -269,12 +269,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Restore tools and apply pending EF migrations
+      - name: Restore tools and solution
+        run: |
+          dotnet tool restore
+          dotnet restore QueenZone.sln
+
+      - name: Apply pending EF migrations
         run: |
           ./scripts/Assert-SqlExpressMirrorConnection.ps1 -ConnectionString $env:ConnectionStrings__QueenZoneLegacy
           echo "Applying EF migrations against the SQL Express mirror (not production Azure SQL)."
           echo "Production database update remains deploy.yml migrate after merge/tag/dispatch."
-          dotnet tool restore
           dotnet ef database update `
             --project src/QueenZone.Data/QueenZone.Data.csproj `
             --startup-project src/QueenZone.Web/QueenZone.Web.csproj
