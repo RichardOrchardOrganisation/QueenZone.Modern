@@ -157,6 +157,8 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
 
             try
             {
+                // Critical only — serious stays logged. Do not apply the PR-gate
+                // serious-fail policy here; archive UGC would make the sweep brittle (#1597).
                 await AxeAssertions.AssertNoCriticalViolationsAsync(Page);
             }
             catch (Exception ex)
@@ -245,13 +247,11 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
         }
 
         await GotoWithLiveSiteRetryAsync(mobilePage, url);
-        var overflows = await mobilePage.EvaluateAsync<bool>(
-            "() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1");
+        var overflows = await PageShapeAssertions.HasHorizontalOverflowAsync(mobilePage);
         if (overflows)
         {
-            // Archive UGC and some section indexes still overflow at 390px; log without
-            // failing the suite (Assert.Warn would mark the test Warning). Structural checks
-            // above remain hard failures.
+            // Broad archive sweep stays soft (#1597). Curated PR-gate pages hard-fail
+            // overflow in CuratedPageLayoutSmokeTests. Assert.Warn would mark the test Warning.
             TestContext.Out.WriteLine($"SOFT: {url}: horizontal overflow at 390px viewport width");
         }
 
