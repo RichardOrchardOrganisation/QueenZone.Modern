@@ -9,13 +9,14 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace QueenZone.Web.E2E;
 
 /// <summary>
-/// Member-facing community content submission journeys (#546): photo, article, and news
-/// suggestion submission through the real forms, confirmation pages, and
-/// <c>/account/my-submissions</c> status, plus account settings display-name updates and
-/// per-form validation. Runs against the SQL Express mirror (<c>ASPNETCORE_ENVIRONMENT=E2E</c>);
-/// every row this fixture creates is tagged with the <c>uie2e-{runId}-...</c> marker convention
-/// and deleted in <see cref="CleanupCreatedRowsAsync"/>. The admin moderation half of the
-/// pipeline is a separate issue (#540 sibling) and is out of scope here.
+/// Member-facing community content submission journeys (#546, #1596): photo, article, news
+/// suggestion, trivia, and fan-performance submission through the real forms, confirmation
+/// pages, and <c>/account/my-submissions</c> status, plus account settings display-name
+/// updates and per-form validation. Trivia and fan-performance also do a cheap admin-queue
+/// check and one reject outcome. Runs against the SQL Express mirror
+/// (<c>ASPNETCORE_ENVIRONMENT=E2E</c>); every row this fixture creates is tagged with the
+/// <c>uie2e-{runId}-...</c> marker convention and deleted in <see cref="CleanupCreatedRowsAsync"/>.
+/// Full photo/article/news moderation stays in <see cref="AdminModerationWorkflowTests"/>.
 /// </summary>
 [Parallelizable(ParallelScope.Self)]
 [TestFixture]
@@ -220,6 +221,142 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         await Expect(Page.GetByText("URL is required.").First).ToBeVisibleAsync();
     }
 
+    [Test]
+    public async Task Member_can_submit_trivia_and_admin_reject_persists()
+    {
+        var member = await CreateMemberAsync("trivia-submit");
+        var fact = $"{member.Marker} trivia fact about the Red Special.";
+
+        await Page.GotoAsync("/submit/trivia");
+        await Page.GetByLabel("Trivia fact").FillAsync(fact);
+        await Page.GetByLabel("Category").FillAsync("Instruments");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Submit for review" }).ClickAsync();
+
+        await Expect(Page).ToHaveURLAsync(new Regex(".*/submit/trivia/confirmation/.+"));
+        await Expect(Page.GetByRole(AriaRole.Status)).ToContainTextAsync("Your trivia fact is under review.");
+        await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync(fact);
+        await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync("Pending");
+
+        await Page.GotoAsync("/account/my-submissions?tab=trivia");
+        var memberRow = Page.Locator("table.admin-table tbody tr").Filter(new() { HasText = fact });
+        await Expect(memberRow).ToBeVisibleAsync();
+        await Expect(memberRow.GetByText("Pending")).ToBeVisibleAsync();
+
+        var adminContext = await CreateExtraContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = BaseUrl,
+            ExtraHTTPHeaders = new Dictionary<string, string> { [AdminEmailHeader] = AdminEmail },
+        });
+        var adminPage = await adminContext.NewPageAsync();
+        await adminPage.GotoAsync("/admin/trivia-submissions");
+        var adminRow = adminPage.Locator("table.admin-table tbody tr").Filter(new() { HasText = fact });
+        await Expect(adminRow).ToBeVisibleAsync();
+        await Expect(adminRow.GetByText("Pending")).ToBeVisibleAsync();
+        await adminRow.GetByRole(AriaRole.Link, new() { Name = "Review" }).ClickAsync();
+
+        adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
+        const string rejectionReason = "Not a good fit for the trivia rotation.";
+        await adminPage.GetByLabel("Rejection reason (shown to submitter)").FillAsync(rejectionReason);
+        await adminPage.GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
+        await Expect(adminPage.GetByText("Trivia suggestion rejected.")).ToBeVisibleAsync();
+        await Expect(adminPage.Locator("dl")).ToContainTextAsync("Rejected");
+
+        await Page.GotoAsync("/account/my-submissions?tab=trivia");
+        await Expect(memberRow).ToBeVisibleAsync();
+        await Expect(memberRow.GetByText("Rejected")).ToBeVisibleAsync();
+        await Expect(memberRow.GetByText(rejectionReason)).ToBeVisibleAsync();
+    }
+
+    [Test]
+    public async Task Trivia_submission_missing_fact_shows_required_validation_message()
+    {
+        await CreateMemberAsync("trivia-validate-required");
+        await Page.GotoAsync("/submit/trivia");
+        await DisableNativeValidationAsync();
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Submit for review" }).ClickAsync();
+
+        await Expect(Page.GetByText("Fact text is required.").First).ToBeVisibleAsync();
+    }
+
+    [Test]
+    public async Task Member_can_submit_fan_performance_and_admin_reject_persists()
+    {
+        var member = await CreateMemberAsync("fanperf-submit");
+        var title = $"{member.Marker} fan performance";
+
+        await Page.GotoAsync("/submit/fan-performance");
+        await Page.GetByLabel("Title").FillAsync(title);
+        await Page.GetByLabel("Queen song covered").FillAsync("Bohemian Rhapsody");
+        await Page.GetByLabel("Performed by").FillAsync(member.DisplayName);
+        await Page.Locator("#AudioFile").SetInputFilesAsync(new FilePayload
+        {
+            Name = "e2e-cover.mp3",
+            MimeType = "audio/mpeg",
+            Buffer = GenerateMpegBytes(400),
+        });
+        await Page.GetByRole(AriaRole.Checkbox, new() { NameRegex = new Regex("own performance") }).CheckAsync();
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Submit for review" })
+            .ClickAsync(new() { Timeout = 60_000 });
+
+        await Expect(Page).ToHaveURLAsync(new Regex(".*/submit/fan-performance/confirmation/.+"), new() { Timeout = 60_000 });
+        await Expect(Page.GetByRole(AriaRole.Status)).ToContainTextAsync("Your fan performance is under review.");
+        await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync(title);
+        await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync("Pending");
+
+        await Page.GotoAsync("/account/my-submissions?tab=performances");
+        var memberRow = Page.Locator("table.admin-table tbody tr").Filter(new() { HasText = title });
+        await Expect(memberRow).ToBeVisibleAsync();
+        await Expect(memberRow.GetByText("Pending")).ToBeVisibleAsync();
+
+        var adminContext = await CreateExtraContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = BaseUrl,
+            ExtraHTTPHeaders = new Dictionary<string, string> { [AdminEmailHeader] = AdminEmail },
+        });
+        var adminPage = await adminContext.NewPageAsync();
+        await adminPage.GotoAsync("/admin/fan-performance-submissions");
+        var adminRow = adminPage.Locator("table.admin-table tbody tr").Filter(new() { HasText = title });
+        await Expect(adminRow).ToBeVisibleAsync();
+        await Expect(adminRow.GetByText("Pending")).ToBeVisibleAsync();
+        await adminRow.GetByRole(AriaRole.Link, new() { Name = "Review" }).ClickAsync();
+
+        adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
+        const string rejectionReason = "Audio quality is not a good fit for the archive.";
+        await adminPage.GetByLabel("Rejection reason (shown to submitter)").FillAsync(rejectionReason);
+        await adminPage.GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
+        await Expect(adminPage.GetByText("Fan performance rejected.")).ToBeVisibleAsync();
+        await Expect(adminPage.Locator("dl")).ToContainTextAsync("Rejected");
+
+        await Page.GotoAsync("/account/my-submissions?tab=performances");
+        await Expect(memberRow).ToBeVisibleAsync();
+        await Expect(memberRow.GetByText("Rejected")).ToBeVisibleAsync();
+        await Expect(memberRow.GetByText(rejectionReason)).ToBeVisibleAsync();
+    }
+
+    [Test]
+    public async Task Fan_performance_submission_wrong_file_type_shows_validation_message()
+    {
+        var member = await CreateMemberAsync("fanperf-validate-type");
+        var title = $"{member.Marker} wrong type performance";
+
+        await Page.GotoAsync("/submit/fan-performance");
+        await Page.GetByLabel("Title").FillAsync(title);
+        await Page.GetByLabel("Queen song covered").FillAsync("Don't Stop Me Now");
+        await Page.GetByLabel("Performed by").FillAsync(member.DisplayName);
+        await Page.Locator("#AudioFile").SetInputFilesAsync(new FilePayload
+        {
+            Name = "e2e-not-audio.mp3",
+            MimeType = "audio/mpeg",
+            Buffer = Encoding.UTF8.GetBytes("This is not an audio file."),
+        });
+        await Page.GetByRole(AriaRole.Checkbox, new() { NameRegex = new Regex("own performance") }).CheckAsync();
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Submit for review" }).ClickAsync();
+
+        await Expect(Page.GetByText("File content is not recognized as audio")).ToBeVisibleAsync();
+    }
+
     /// <summary>
     /// Seeds a real <c>MemberAccounts</c> row (submission forms look the member up via
     /// <c>MemberAccountService</c>/repositories, so a bare <c>X-Test-Member-Id</c> claim with no
@@ -260,12 +397,37 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         await using var db = RealDataDb.CreateContext();
         foreach (var marker in markers)
         {
-            // Submission rows first — MemberAccounts is a Restrict FK target for all three.
+            // Submission rows first — MemberAccounts is a Restrict FK target.
             await db.PhotoSubmissions.Where(s => s.Title.Contains(marker)).ExecuteDeleteAsync();
             await db.ArticleSubmissions.Where(s => s.Title.Contains(marker)).ExecuteDeleteAsync();
             await db.NewsSuggestions
                 .Where(s => s.Url.Contains(marker) || (s.Title != null && s.Title.Contains(marker)))
                 .ExecuteDeleteAsync();
+
+            var triviaIds = await db.TriviaFactSubmissions
+                .Where(s => s.Text.Contains(marker))
+                .Select(s => s.Id)
+                .ToListAsync();
+            if (triviaIds.Count > 0)
+            {
+                await db.TriviaFactSubmissionAuditLogs
+                    .Where(a => triviaIds.Contains(a.TriviaFactSubmissionId))
+                    .ExecuteDeleteAsync();
+                await db.TriviaFactSubmissions.Where(s => triviaIds.Contains(s.Id)).ExecuteDeleteAsync();
+            }
+
+            var fanPerformanceIds = await db.FanPerformanceSubmissions
+                .Where(s => s.Title.Contains(marker))
+                .Select(s => s.Id)
+                .ToListAsync();
+            if (fanPerformanceIds.Count > 0)
+            {
+                await db.FanPerformanceSubmissionAuditLogs
+                    .Where(a => fanPerformanceIds.Contains(a.FanPerformanceSubmissionId))
+                    .ExecuteDeleteAsync();
+                await db.FanPerformanceSubmissions.Where(s => fanPerformanceIds.Contains(s.Id)).ExecuteDeleteAsync();
+            }
+
             await db.MemberAccounts.Where(m => m.Email.Contains(marker)).ExecuteDeleteAsync();
         }
     }
@@ -302,6 +464,20 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         using var stream = new MemoryStream();
         image.SaveAsPng(stream);
         return stream.ToArray();
+    }
+
+    /// <summary>
+    /// MPEG-1 Layer III header (128 kbps, 44100 Hz) plus padding — same shape as
+    /// <c>Mp3DurationTests.CreateMpeg1Layer3Header</c> in Web.Tests.
+    /// </summary>
+    private static byte[] GenerateMpegBytes(int length)
+    {
+        var bytes = new byte[Math.Max(length, 4)];
+        bytes[0] = 0xFF;
+        bytes[1] = 0xFB;
+        bytes[2] = 0x90;
+        bytes[3] = 0x00;
+        return bytes;
     }
 
     private sealed record MemberContext(Guid Id, string Marker, string DisplayName, string Email);
