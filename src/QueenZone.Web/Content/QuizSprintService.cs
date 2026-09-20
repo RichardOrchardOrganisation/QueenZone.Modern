@@ -28,6 +28,14 @@ public sealed record SprintResult(
     int? Rank,
     IReadOnlyList<SprintReviewItem> Answers);
 
+public sealed record SprintBoardRow(int Rank, string DisplayName, int Score, int BestStreak, bool IsViewer);
+
+/// <summary>Today's standings with display names resolved; <c>Viewer</c> is set even outside <c>Rows</c>.</summary>
+public sealed record SprintBoard(IReadOnlyList<SprintBoardRow> Rows, SprintBoardRow? Viewer, int PlayersToday);
+
+/// <summary>Whether a picked option was right, plus the right option so the client can reveal it.</summary>
+public sealed record SprintAnswerCheck(bool IsCorrect, Guid CorrectOptionId);
+
 public enum SprintFinishStatus
 {
     Completed,
@@ -44,6 +52,7 @@ public sealed record SprintFinishOutcome(SprintFinishStatus Status, SprintResult
 /// </summary>
 public sealed class QuizSprintService(
     IQuizRepository quizRepository,
+    IMemberAccountRepository memberAccountRepository,
     IDataProtectionProvider dataProtectionProvider,
     TimeProvider timeProvider)
 {
@@ -101,38 +110,10 @@ public sealed class QuizSprintService(
         Guid? memberId,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(rawTicket))
+        var (status, ticket) = ReadTicket(rawTicket);
+        if (ticket is null)
         {
-            return new SprintFinishOutcome(SprintFinishStatus.Invalid);
-        }
-
-        SprintTicket? ticket;
-        try
-        {
-            ticket = JsonSerializer.Deserialize<SprintTicket>(protector.Unprotect(rawTicket), TicketJsonOptions);
-        }
-        catch (Exception exception) when (exception is CryptographicException or FormatException or JsonException)
-        {
-            return new SprintFinishOutcome(SprintFinishStatus.Invalid);
-        }
-
-        if (ticket is null || ticket.Questions.Count is < 1 or > QuestionLimit
-            || ticket.Questions.Select(question => question.Id).Distinct().Count() != ticket.Questions.Count)
-        {
-            return new SprintFinishOutcome(SprintFinishStatus.Invalid);
-        }
-
-        var now = timeProvider.GetUtcNow();
-        var startedAt = DateTimeOffset.FromUnixTimeMilliseconds(ticket.StartedAtUnixMilliseconds);
-        if (startedAt > now.AddSeconds(5))
-        {
-            return new SprintFinishOutcome(SprintFinishStatus.Invalid);
-        }
-
-        // A small transit allowance lets an automatic submission at zero reach the server.
-        if (now > startedAt.AddSeconds(DurationSeconds + 5))
-        {
-            return new SprintFinishOutcome(SprintFinishStatus.Expired);
+            return new SprintFinishOutcome(status);
         }
 
         var outcomes = new List<bool?>(ticket.Questions.Count);
@@ -161,6 +142,87 @@ public sealed class QuizSprintService(
         return new SprintFinishOutcome(
             SprintFinishStatus.Completed,
             new SprintResult(score.Answered, score.Correct, score.Points, score.BestStreak, rank is not null, rank, review));
+    }
+
+    /// <summary>
+    /// Reveals whether one pick was right while a round is still live, so the client can show
+    /// per-answer feedback without ever holding the answer key. Null for a bad or expired ticket.
+    /// </summary>
+    public SprintAnswerCheck? CheckAnswer(string? rawTicket, Guid questionId, Guid optionId)
+    {
+        var (_, ticket) = ReadTicket(rawTicket);
+        var question = ticket?.Questions.FirstOrDefault(item => item.Id == questionId);
+        if (question is null || !question.OptionIds.Contains(optionId))
+        {
+            return null;
+        }
+
+        return new SprintAnswerCheck(optionId == question.CorrectOptionId, question.CorrectOptionId);
+    }
+
+    /// <summary>Today's standings with display names, marking the viewer's own row.</summary>
+    public async Task<SprintBoard> GetBoardAsync(Guid? viewerMemberId, int top, CancellationToken cancellationToken)
+    {
+        var board = await quizRepository.GetSprintDailyBoardAsync(viewerMemberId, top, cancellationToken);
+
+        async Task<SprintBoardRow> ToRowAsync(QuizSprintLeaderboardEntry entry)
+        {
+            var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
+            return new SprintBoardRow(
+                entry.Rank,
+                account?.DisplayName ?? "Member",
+                entry.Score,
+                entry.BestStreak,
+                entry.MemberAccountId == viewerMemberId);
+        }
+
+        var rows = new List<SprintBoardRow>(board.Top.Count);
+        foreach (var entry in board.Top)
+        {
+            rows.Add(await ToRowAsync(entry));
+        }
+
+        var viewer = board.Viewer is null ? null : await ToRowAsync(board.Viewer);
+        return new SprintBoard(rows, viewer, board.PlayersToday);
+    }
+
+    private (SprintFinishStatus Status, SprintTicket? Ticket) ReadTicket(string? rawTicket)
+    {
+        if (string.IsNullOrEmpty(rawTicket))
+        {
+            return (SprintFinishStatus.Invalid, null);
+        }
+
+        SprintTicket? ticket;
+        try
+        {
+            ticket = JsonSerializer.Deserialize<SprintTicket>(protector.Unprotect(rawTicket), TicketJsonOptions);
+        }
+        catch (Exception exception) when (exception is CryptographicException or FormatException or JsonException)
+        {
+            return (SprintFinishStatus.Invalid, null);
+        }
+
+        if (ticket is null || ticket.Questions.Count is < 1 or > QuestionLimit
+            || ticket.Questions.Select(question => question.Id).Distinct().Count() != ticket.Questions.Count)
+        {
+            return (SprintFinishStatus.Invalid, null);
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var startedAt = DateTimeOffset.FromUnixTimeMilliseconds(ticket.StartedAtUnixMilliseconds);
+        if (startedAt > now.AddSeconds(5))
+        {
+            return (SprintFinishStatus.Invalid, null);
+        }
+
+        // A small transit allowance lets an automatic submission at zero reach the server.
+        if (now > startedAt.AddSeconds(DurationSeconds + 5))
+        {
+            return (SprintFinishStatus.Expired, null);
+        }
+
+        return (SprintFinishStatus.Completed, ticket);
     }
 
     private static void Shuffle<T>(IList<T> items)

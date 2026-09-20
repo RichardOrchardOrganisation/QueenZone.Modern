@@ -11,6 +11,7 @@ public sealed class IndexModel(
     IQuoteRepository quoteRepository,
     IHomePollRepository homePollRepository,
     HomePollVoteService homePollVoteService,
+    QuizSprintService quizSprintService,
     TimeProvider timeProvider) : PageModel
 {
     /// <summary>Stock archive images cycled deterministically per article, since legacy
@@ -37,6 +38,8 @@ public sealed class IndexModel(
 
     public QuoteItem? FeaturedQuote { get; private set; }
 
+    public SprintBoard SprintBoard { get; private set; } = new([], null, 0);
+
     public HomePollResults? HomePoll { get; private set; }
 
     public bool HomePollViewerCanVote { get; private set; }
@@ -48,6 +51,7 @@ public sealed class IndexModel(
         ViewData["Title"] = "QueenZone";
         ViewData["Description"] = "The complete fan resource for Queen – music, news, history, photography and more, from the Queenzone.com archive.";
         ViewData["CanonicalPath"] = "/";
+        SprintBoard = await quizSprintService.GetBoardAsync(null, 3, cancellationToken);
         var latest = await publicQueryCache.GetLatestNewsAsync(5, cancellationToken);
         Latest = await newsDiscussion.ToArchiveItemsAsync(latest, cancellationToken);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
