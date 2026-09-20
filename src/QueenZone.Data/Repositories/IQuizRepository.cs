@@ -73,6 +73,17 @@ public interface IQuizRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Records a guest's earlier run for a member who signed in afterwards. Idempotent on
+    /// <paramref name="runId"/>: returns false when that run was already recorded.
+    /// </summary>
+    Task<bool> ClaimSprintRunAsync(
+        Guid runId,
+        Guid memberAccountId,
+        QuizSprintScore score,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Quiz Sprint standings using each member's best run today (UTC) or ever.
     /// <paramref name="viewerMemberId"/>'s own entry is included even when outside the top page.
     /// </summary>

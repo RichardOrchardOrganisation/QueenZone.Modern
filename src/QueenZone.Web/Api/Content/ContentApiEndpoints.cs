@@ -149,6 +149,16 @@ public static class ContentApiEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status410Gone);
 
+        group.MapPost("/quizzes/sprint/claim", ClaimSprintRunAsync)
+            .WithName("ClaimContentQuizSprintRun")
+            .WithSummary("Add a guest's finished Sprint run (via the claimToken from its finish response) to the signed-in member's leaderboard record. Valid for one hour; each token can be claimed once.")
+            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .Accepts<SprintClaimRequestDto>("application/json")
+            .Produces<SprintClaimResultDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status410Gone);
+
         group.MapGet("/quizzes/sprint/leaderboard", GetSprintBoardAsync)
             .WithName("GetContentQuizSprintBoard")
             .WithSummary("Quiz Sprint standings using each member's best run. 'scope' is 'daily' (default, today UTC), 'all' (best run ever) or 'total' (points summed over every run). Optional Bearer includes the viewer's own entry even outside the top page.")
@@ -656,8 +666,37 @@ public static class ContentApiEndpoints
                     result.Rank,
                     result.Answers
                         .Select(item => new SprintReviewItemDto(item.QuestionId, item.QuestionText, item.IsCorrect, item.CorrectAnswer))
-                        .ToList()));
+                        .ToList(),
+                    result.ClaimToken));
         }
+    }
+
+    internal static async Task<IResult> ClaimSprintRunAsync(
+        HttpContext httpContext,
+        SprintClaimRequestDto? request,
+        QuizSprintService sprintService,
+        CancellationToken cancellationToken)
+    {
+        var memberId = ForumMember.GetMemberId(httpContext.User);
+        if (memberId is null)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Unauthorized");
+        }
+
+        var outcome = await sprintService.ClaimAsync(request?.ClaimToken, memberId.Value, cancellationToken);
+        return outcome.Status switch
+        {
+            SprintClaimStatus.Claimed => Results.Ok(new SprintClaimResultDto("claimed", outcome.Points, outcome.Rank)),
+            SprintClaimStatus.AlreadyClaimed => Results.Ok(new SprintClaimResultDto("already_claimed", outcome.Points, null)),
+            SprintClaimStatus.Expired => Results.Problem(
+                statusCode: StatusCodes.Status410Gone,
+                title: "Claim expired",
+                detail: "That run finished too long ago to add to the leaderboard."),
+            _ => Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                detail: "The claim token is missing or invalid."),
+        };
     }
 
     internal static async Task<IResult> GetSprintBoardAsync(

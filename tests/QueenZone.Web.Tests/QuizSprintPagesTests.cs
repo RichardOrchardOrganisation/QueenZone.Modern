@@ -53,6 +53,36 @@ public sealed class QuizSprintPagesTests
     }
 
     [Fact]
+    public async Task Guest_results_offer_to_save_the_score_and_signing_in_adds_it()
+    {
+        using var isolated = IsolatedQuizzes();
+        await PublishPoolAsync(isolated);
+        using var guest = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var landing = await guest.GetStringAsync("/quizzes/sprint");
+        var results = await FinishAsync(guest, await StartAsync(guest, landing), answerCorrectly: true);
+
+        var link = Regex.Match(results, "href=\"(/account/login\\?returnUrl=[^\"]+)\"[^>]*>Sign in to save this score");
+        Assert.True(link.Success, "results should link to sign in with the claim token");
+        var encoded = Regex.Match(System.Net.WebUtility.HtmlDecode(link.Groups[1].Value), "returnUrl=(.+)$").Groups[1].Value;
+        var returnUrl = Uri.UnescapeDataString(encoded);
+        Assert.StartsWith("/quizzes/sprint?claim=", returnUrl, StringComparison.Ordinal);
+
+        using var member = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        member.DefaultRequestHeaders.Add(TestMemberAuthHandler.MemberIdHeader, Guid.NewGuid().ToString());
+        member.DefaultRequestHeaders.Add(TestMemberAuthHandler.DisplayNameHeader, "Late Signer");
+        var saved = await member.GetStringAsync(returnUrl);
+        Assert.Contains("Your score of 3 was added to the leaderboard (rank #1 today).", saved, StringComparison.Ordinal);
+
+        var replay = await member.GetStringAsync(returnUrl);
+        Assert.Contains("already on the leaderboard", replay, StringComparison.Ordinal);
+
+        var signedOut = await guest.GetStringAsync(returnUrl);
+        Assert.Contains("Sign in to save your score", signedOut, StringComparison.Ordinal);
+        var tampered = await member.GetStringAsync("/quizzes/sprint?claim=nonsense");
+        Assert.Contains("save that score", tampered, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Answer_endpoint_reveals_correctness_for_a_live_round_only()
     {
         using var isolated = IsolatedQuizzes();
