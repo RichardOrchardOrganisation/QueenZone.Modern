@@ -516,6 +516,15 @@ export type QuizSprintResult = {
   recorded: boolean;
   rank: number | null;
   answers: QuizSprintReviewItem[];
+  /** Anonymous runs only: sign in within an hour and send this to the claim endpoint to add the run. */
+  claimToken?: string | null;
+};
+
+/** Shape for `POST /api/v1/content/quizzes/sprint/claim`. */
+export type QuizSprintClaimResult = {
+  status: 'claimed' | 'already_claimed';
+  points: number;
+  rank: number | null;
 };
 
 export type QuizSprintLeaderboardEntry = {

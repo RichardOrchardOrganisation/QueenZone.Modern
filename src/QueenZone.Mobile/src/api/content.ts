@@ -26,6 +26,7 @@ import type {
   QuizResult,
   QuizSprintAnswerCheck,
   QuizSprintBoard,
+  QuizSprintClaimResult,
   QuizSprintDailyBoard,
   QuizSprintResult,
   QuizSprintRound,
@@ -299,6 +300,23 @@ export function finishQuizSprint(
   return sendJson('/content/quizzes/sprint/finish', {
     method: 'POST',
     body: { ticket, answers },
+    accessToken,
+    signal,
+  });
+}
+
+/**
+ * Adds a guest's finished run to the signed-in member's record. Needs the `claimToken` from that
+ * run's finish response; valid for one hour and claimable once (410 once expired).
+ */
+export function claimQuizSprintRun(
+  claimToken: string,
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<QuizSprintClaimResult> {
+  return sendJson('/content/quizzes/sprint/claim', {
+    method: 'POST',
+    body: { claimToken },
     accessToken,
     signal,
   });
