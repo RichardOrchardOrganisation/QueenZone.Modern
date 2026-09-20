@@ -202,7 +202,7 @@ Good targets (covered or expanding):
 
 - Homepage, news archive (including pagination), and news detail (canonical + body).
 - Forum index, category, and topic (posts + breadcrumbs).
-- Articles, biography, photography, and search surface loads.
+- Articles, biography, photography, and search (form submit, known result, type filter, empty state).
 - Mobile viewport + open mobile nav menu.
 - Curated high-value public and member pages: hard-fail 390px overflow, visible encoding artifacts, and skip-link keyboard access (#1597).
 - axe-core accessibility smoke on those curated pages: **critical** always fails; **serious** fails unless a triaged legacy/UGC pair is listed in `AxeSeriousExceptions` (see [Axe serious policy](#axe-serious-policy)).
