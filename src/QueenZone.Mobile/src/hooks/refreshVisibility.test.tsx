@@ -7,6 +7,7 @@ describe('waitForMinimumRefreshVisibility', () => {
       callback(0);
       return 1;
     });
+    jest.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -36,5 +37,13 @@ describe('waitForMinimumRefreshVisibility', () => {
   it('skips the timer when the load already covered the min duration', async () => {
     const startedAt = Date.now() - MIN_PULL_TO_REFRESH_VISIBLE_MS;
     await waitForMinimumRefreshVisibility(startedAt);
+  });
+
+  it('resolves immediately when the hold is aborted', async () => {
+    const controller = new AbortController();
+    const startedAt = Date.now();
+    const pending = waitForMinimumRefreshVisibility(startedAt, controller.signal);
+    controller.abort();
+    await pending;
   });
 });

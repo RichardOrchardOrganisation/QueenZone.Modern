@@ -181,7 +181,7 @@ export function usePagedContent<T>(
 
     const finishRefresh = (apply: () => void) => {
       apply();
-      void waitForMinimumRefreshVisibility(startedAt).then(() => {
+      void waitForMinimumRefreshVisibility(startedAt, signal).then(() => {
         if (!coordinator.isCurrent(generation) || signal.aborted) {
           return;
         }
