@@ -85,6 +85,8 @@ export const testIds = {
   quizSprintResult: 'quiz-sprint-result',
   quizSprintAgain: 'quiz-sprint-again',
   quizSprintLeaderboardScreen: 'quiz-sprint-leaderboard-screen',
+  quizSprintLeaderboardTabDaily: 'quiz-sprint-leaderboard-tab-daily',
+  quizSprintLeaderboardTabAll: 'quiz-sprint-leaderboard-tab-all',
   homeSprintCard: 'home-sprint-card',
   homeSprintStart: 'home-sprint-start',
   quizLeaderboardTabWeek: 'quiz-leaderboard-tab-week',

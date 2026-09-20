@@ -25,6 +25,7 @@ import type {
   QuizListItem,
   QuizResult,
   QuizSprintAnswerCheck,
+  QuizSprintBoard,
   QuizSprintDailyBoard,
   QuizSprintResult,
   QuizSprintRound,
@@ -309,6 +310,15 @@ export function fetchQuizSprintDaily(
   accessToken?: string | null,
 ): Promise<QuizSprintDailyBoard> {
   return fetchJson('/content/quizzes/sprint/daily', { signal, accessToken });
+}
+
+/** Each member's best Quiz Sprint run: today (`daily`) or ever (`all`). Optional Bearer includes the viewer. */
+export function fetchQuizSprintLeaderboard(
+  scope: 'daily' | 'all',
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizSprintBoard> {
+  return fetchJson('/content/quizzes/sprint/leaderboard', { query: { scope }, signal, accessToken });
 }
 
 export function fetchFreddieTributePage(

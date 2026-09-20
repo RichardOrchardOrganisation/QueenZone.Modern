@@ -24,6 +24,7 @@ import {
   checkQuizSprintAnswer,
   finishQuizSprint,
   fetchQuizSprintDaily,
+  fetchQuizSprintLeaderboard,
   fetchRandomQuote,
   fetchRandomTrivia,
   voteHomePoll,
@@ -336,6 +337,15 @@ describe('Quiz Sprint api', () => {
     await finishQuizSprint('t', []);
     init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it('reads the leaderboard for a scope', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ scope: 'all', top: [], viewer: null, players: 3 }));
+    const board = await fetchQuizSprintLeaderboard('all', undefined, 'member-token');
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/quizzes/sprint/leaderboard?scope=all');
+    expect(board.players).toBe(3);
+    const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer member-token');
   });
 
   it('reads the daily board', async () => {

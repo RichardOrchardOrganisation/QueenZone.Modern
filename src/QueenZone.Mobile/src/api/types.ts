@@ -525,6 +525,14 @@ export type QuizSprintLeaderboardEntry = {
   bestStreak: number;
 };
 
+/** Shape for `GET /api/v1/content/quizzes/sprint/leaderboard`; `players` counts members ranked in `scope`. */
+export type QuizSprintBoard = {
+  scope: 'daily' | 'all';
+  top: QuizSprintLeaderboardEntry[];
+  viewer: QuizSprintLeaderboardEntry | null;
+  players: number;
+};
+
 /** Shape for `GET /api/v1/content/quizzes/sprint/daily` (today, UTC). */
 export type QuizSprintDailyBoard = {
   top: QuizSprintLeaderboardEntry[];
