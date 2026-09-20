@@ -204,7 +204,8 @@ Good targets (covered or expanding):
 - Forum index, category, and topic (posts + breadcrumbs).
 - Articles, biography, photography, and search surface loads.
 - Mobile viewport + open mobile nav menu.
-- axe-core accessibility smoke: **critical** violations fail the run (serious findings are logged).
+- Curated high-value public and member pages: hard-fail 390px overflow, visible encoding artifacts, and skip-link keyboard access (#1597).
+- axe-core accessibility smoke on those curated pages: **critical** always fails; **serious** fails unless a triaged legacy/UGC pair is listed in `AxeSeriousExceptions` (see [Axe serious policy](#axe-serious-policy)).
 - Admin news list and create-draft flow with `X-Test-User-Email` test auth in the `Testing` environment.
 - Editorial discovery promote → publish → public visibility journey.
 - Forum post report → moderator review, including own-post denial and duplicate-report handling.
@@ -213,13 +214,25 @@ Keep the PR-gate end-to-end suite small. It should prove critical user journeys 
 
 On failure, tests write screenshots and Playwright traces under `test-results/e2e/` (gitignored). CI uploads that folder as an artifact when the e2e job fails.
 
+#### Axe serious policy
+
+The deterministic PR-gate axe smoke (`AccessibilitySmokeTests`) fails on **critical** and on **serious** WCAG 2 A/AA findings. Serious is fail-closed by default so chrome regressions cannot hide in log output.
+
+Narrow exceptions live in `tests/QueenZone.Web.E2E/AxeSeriousExceptions.cs` as `(path prefix, rule id)` pairs. Add a row only after triaging the finding as known **legacy or UGC content** (for example historical forum post HTML), not site chrome we own. Do not add `*` wildcards, and do not pre-seed the list. Allowed serious findings are still logged.
+
+The sampled live-site / nightly sitemap sweep (`SitemapPublicRouteSweepTests`) keeps the older **critical-only** axe rule and logs serious findings. That sweep stays read-only and sampled on purpose: promoting every archive URL to serious-fail or hard 390px overflow would make the PR gate brittle against legacy UGC (#1597).
+
+#### Curated mobile layout and encoding gate
+
+`CuratedPageLayoutSmokeTests` is the hard 390px / encoding / keyboard set. It is a small catalog in `CuratedLayoutPages` (home, news list/detail, forum index/topic, sign-in, messages, following). Overflow and unrendered HTML-encoding artifacts fail those tests. The sitemap sweep continues to log the same signals as `SOFT:` on sampled archive URLs and is not a PR merge gate.
+
 ### Nightly UI Regression (Real Data)
 
 > **Nightly UI regression (real data)** — extensive browser coverage against the SQL Express mirror in the `E2E` environment. Not a PR gate. Assertions must be shape-based, not content-based, because mirror data changes nightly. All writes must be marked `uie2e-` and self-cleaning, and covered by `EfLegacyProbeResidueTests`. The PR-gate e2e suite stays small, deterministic, and in-memory.
 
 This is a second, separate layer from the End-To-End Tests above, sharing the same `tests/QueenZone.Web.E2E` project but running under the `E2E` hosting environment (real SQL Express mirror + test auth, see `AGENTS.md`) instead of `Testing` (in-memory). It runs nightly through `.github/workflows/nightly-legacy-checks.yml`, not on pull requests.
 
-`SitemapPublicRouteSweepTests` (`[Category("RealData")]`, `[Category("ReadOnly")]`) discovers URLs at runtime from `/sitemap.xml` (sampling first/last/seeded-random per section, capped and logged for reproducibility), plus a fixed list of routes not in the sitemap, and asserts page *shape* rather than content — HTTP 200, a single non-empty `<h1>`, a single matching canonical link, no console errors, no horizontal overflow at 390px, and no unrendered HTML-encoding artifacts. It also checks the negative cases (unknown path → styled 404, stale slug → redirect) and runs the axe-core critical-violation check on one representative page per section. It performs no writes and passes with `E2E_READONLY=true`, so the live-site job can reuse it unchanged.
+`SitemapPublicRouteSweepTests` (`[Category("RealData")]`, `[Category("ReadOnly")]`) discovers URLs at runtime from `/sitemap.xml` (sampling first/last/seeded-random per section, capped and logged for reproducibility), plus a fixed list of routes not in the sitemap, and asserts page *shape* rather than content — HTTP 200, a single non-empty `<h1>`, a single matching canonical link, and no actionable console errors. Horizontal overflow at 390px and unrendered HTML-encoding artifacts are **logged as `SOFT:`** on this sweep so legacy archive UGC cannot fail the nightly or live-site job (#1597); those signals hard-fail only on the curated Deterministic catalog. It also checks the negative cases (unknown path → styled 404, stale slug → redirect) and runs the axe-core **critical-only** check on one representative page per section (serious findings are logged). It performs no writes and passes with `E2E_READONLY=true`, so the live-site job can reuse it unchanged.
 
 **Live-site read-only public sweep** (`.github/workflows/livesite-readonly-sweep.yml`, issue #551): its own scheduled workflow (06:00 UTC daily, plus `workflow_dispatch`) on the Mac runner against `https://www.queenzone.org` via `scripts/Run-E2E.ps1 -Mode LiveSite`. Separate from `nightly-legacy-checks.yml` so it needs no database and does not wait on mirror sync. That mode sets `E2E_READONLY=true`, filters to `TestCategory=RealData&TestCategory=ReadOnly` (currently `SitemapPublicRouteSweepTests` + `LiveSiteMediaCdnTests` + `LiveSiteContentApiTests`), refuses a localhost base URL, and caps NUnit to one worker so production rate limiting is not tripped. Write-capable RealData fixtures throw at setup under `E2E_READONLY` (`RealDataWriteGuard`). Sitemap HTTP fetches and Playwright `goto` retry once on `TaskCanceledException` / socket cancel (and Playwright navigation timeout) when `E2E_READONLY` is set — same spirit as the #1432 harness retry; the 120s sitemap discovery budget and shape asserts stay unchanged, and nightly RealData does not retry (#1543). Failures are production/CDN signal (messages prefix `PRODUCTION LIVE-SITE`), not mirror/code-path signal — continuous only, never a PR gate.
 
