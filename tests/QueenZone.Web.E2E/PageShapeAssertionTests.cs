@@ -43,9 +43,10 @@ public class PageShapeAssertionTests
     public void CuratedCatalog_IsASmallHighValueSet()
     {
         var all = CuratedLayoutPages.All.ToList();
+        var paths = all.Select(p => p.Path).ToList();
         Assert.That(all, Has.Count.InRange(6, 10));
-        Assert.That(all.Select(p => p.Path).Distinct(StringComparer.Ordinal), Has.Count.EqualTo(all.Count));
-        Assert.That(all.Select(p => p.Path), Does.Contain("/").And.Contain("/messages"));
+        Assert.That(paths.Distinct(StringComparer.Ordinal).ToList(), Has.Count.EqualTo(all.Count));
+        Assert.That(paths, Does.Contain("/").And.Contain("/messages"));
     }
 
     [Test]

@@ -5,7 +5,7 @@ namespace QueenZone.Web.E2E;
 /// in the deterministic PR gate (#1597). Keep this catalog curated — the broad
 /// archive lives in the sampled live-site sitemap sweep, which stays soft.
 /// </summary>
-internal sealed record CuratedLayoutPage(string Path, string Heading)
+public sealed record CuratedLayoutPage(string Path, string Heading)
 {
     public override string ToString() => Path;
 }
