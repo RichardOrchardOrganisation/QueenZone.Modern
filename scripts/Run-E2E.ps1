@@ -9,7 +9,9 @@
 
   Modes:
     Deterministic — ASPNETCORE_ENVIRONMENT=Testing (in-memory), TestCategory=Deterministic
-    RealData      — ASPNETCORE_ENVIRONMENT=E2E (SQL Express mirror), TestCategory=RealData
+    RealData      — ASPNETCORE_ENVIRONMENT=E2E (SQL Express mirror), TestCategory=RealData.
+                  Applies pending EF migrations to Express before start (sync/skip_sync can
+                  leave modern tables such as QuizSprintRuns missing).
     LiveSite      — no local app; E2E_READONLY=true; TestCategory=RealData&TestCategory=ReadOnly
 
   Windows starts the published exe via WMI Win32_Process.Create so the process is not tied to a
@@ -399,6 +401,17 @@ function Invoke-DotNet {
     }
 }
 
+function Update-SqlExpressMirrorMigrations {
+    Write-Host "Applying EF migrations to the SQL Express mirror (not production Azure SQL)."
+    Write-Host "Sync/skip_sync can leave Express without modern tables such as QuizSprintRuns."
+    Invoke-DotNet -Arguments @("tool", "restore")
+    Invoke-DotNet -Arguments @(
+        "ef", "database", "update",
+        "--project", "src/QueenZone.Data/QueenZone.Data.csproj",
+        "--startup-project", "src/QueenZone.Web/QueenZone.Web.csproj"
+    )
+}
+
 # --- Mode resolution -----------------------------------------------------------
 
 $BaseUrl = $BaseUrl.TrimEnd("/")
@@ -427,6 +440,7 @@ switch ($Mode) {
         }
         & (Join-Path $PSScriptRoot "Assert-SqlExpressMirrorConnection.ps1") `
             -ConnectionString $connectionString
+        Update-SqlExpressMirrorMigrations
     }
     "LiveSite" {
         $startsApp = $false

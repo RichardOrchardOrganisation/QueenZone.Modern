@@ -60,7 +60,7 @@ concurrency:
 #      reservation) ever changes.
 #
 # Sequence: sync-legacy-db -> legacy-read-probes -> legacy-write-probes ->
-# ui-e2e-realdata -> residue-check. One workflow with explicit `needs`
+# apply-ef-migrations-mirror -> ui-e2e-realdata -> residue-check. One workflow with explicit `needs`
 # ordering, rather than a second workflow racing this one, so nothing can
 # rebuild the mirror underneath a running UI suite.
 #
@@ -76,6 +76,8 @@ concurrency:
 # Probe-AdminNewsLegacyWrites.ps1). EfNewsDiscoveryPromotionLiveProbeTests
 # stays opt-in until hardened (#503).
 #
+# apply-ef-migrations-mirror then applies pending EF migrations to Express
+# (sync/skip_sync can omit modern tables such as QuizSprintRuns).
 # ui-e2e-realdata then runs the TestCategory=RealData Playwright suite
 # (scripts/Run-E2E.ps1 -Mode RealData) on both the Windows runner (localhost
 # mirror, Integrated Security) and the Mac runner (mirror over LAN, the
@@ -248,12 +250,39 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.run_full_url_probe
         env:
           RUN_NEWS_AGENT_URL_INGESTION_PROBE: "true"
-        run: ./scripts/Probe-NewsAgentUrlIngestion.ps1 -Full
+        run:           ./scripts/Probe-NewsAgentUrlIngestion.ps1 -Full
+
+  apply-ef-migrations-mirror:
+    name: Apply EF migrations to SQL Express mirror
+    # Windows-only: Integrated Security is dbo on the disposable mirror. The Mac
+    # probe login can also DDL (db_owner after sync), but applying once here
+    # before the OS matrix avoids a CREATE TABLE race on skip_sync runs that
+    # still lack modern tables such as QuizSprintRuns.
+    needs: [sync-legacy-db, legacy-write-probes]
+    if: always() && needs.legacy-write-probes.result == 'success' && (needs.sync-legacy-db.result == 'success' || needs.sync-legacy-db.result == 'skipped')
+    runs-on: [self-hosted, Windows]
+    timeout-minutes: 15
+    env:
+      ConnectionStrings__QueenZoneLegacy: "Server=localhost\\SQLEXPRESS;Database=queenzone_legacy_sync;Integrated Security=True;TrustServerCertificate=True"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Restore tools and apply pending EF migrations
+        run: |
+          ./scripts/Assert-SqlExpressMirrorConnection.ps1 -ConnectionString $env:ConnectionStrings__QueenZoneLegacy
+          echo "Applying EF migrations against the SQL Express mirror (not production Azure SQL)."
+          echo "Production database update remains deploy.yml migrate after merge/tag/dispatch."
+          dotnet tool restore
+          dotnet ef database update `
+            --project src/QueenZone.Data/QueenZone.Data.csproj `
+            --startup-project src/QueenZone.Web/QueenZone.Web.csproj
 
   ui-e2e-realdata:
     name: UI E2E RealData (${{ matrix.os }})
-    needs: [sync-legacy-db, legacy-read-probes, legacy-write-probes]
-    if: always() && needs.legacy-write-probes.result == 'success' && (needs.sync-legacy-db.result == 'success' || needs.sync-legacy-db.result == 'skipped')
+    needs: [sync-legacy-db, legacy-read-probes, legacy-write-probes, apply-ef-migrations-mirror]
+    if: always() && needs.apply-ef-migrations-mirror.result == 'success' && needs.legacy-write-probes.result == 'success' && (needs.sync-legacy-db.result == 'success' || needs.sync-legacy-db.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:

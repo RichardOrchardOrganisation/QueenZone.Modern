@@ -365,6 +365,13 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .Get<ForumDataOptions>() ?? new ForumDataOptions();
 
             services.AddQueenZoneLegacyData(legacyConnectionString, forumDataOptions);
+            if (environment.IsEnvironment(QueenZoneEnvironments.E2E))
+            {
+                // Sync/skip_sync copies production Azure SQL, which may not yet have
+                // modern tables such as QuizSprintRuns. Apply pending EF migrations to
+                // the disposable Express mirror before the RealData host serves GET /.
+                services.AddHostedService<E2EMirrorMigrationHostedService>();
+            }
         }
         else
         {

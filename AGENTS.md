@@ -163,7 +163,9 @@ Run the E2E-suite locally or on demand with `scripts/Run-E2E.ps1`:
 # Same as the PR merge gate (Testing environment, in-memory, Deterministic category):
 powershell -File ./scripts/Run-E2E.ps1 -Mode Deterministic
 
-# Nightly real-data suite against the SQL Express mirror (E2E environment):
+# Nightly real-data suite against the SQL Express mirror (E2E environment).
+# RealData applies pending EF migrations to Express before start (sync/skip_sync
+# can omit modern tables such as QuizSprintRuns).
 $env:ConnectionStrings__QueenZoneLegacy = "Server=localhost\SQLEXPRESS;Database=queenzone_legacy_sync;Integrated Security=True;TrustServerCertificate=True"
 powershell -File ./scripts/Run-E2E.ps1 -Mode RealData
 
