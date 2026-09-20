@@ -233,6 +233,8 @@ The sampled live-site / nightly sitemap sweep (`SitemapPublicRouteSweepTests`) k
 
 `CuratedPageLayoutSmokeTests` is the hard 390px / encoding / keyboard set. It is a small catalog in `CuratedLayoutPages` (home, news list/detail, forum index/topic, sign-in, messages, following). Overflow and unrendered HTML-encoding artifacts fail those tests. The sitemap sweep continues to log the same signals as `SOFT:` on sampled archive URLs and is not a PR merge gate.
 
+CI `e2e-test` stays `scripts/Run-E2E.ps1 -Mode Deterministic`. Do **not** promote `RealData` (nightly mirror or live-site sweep) or `DeployedAuth` (dev member cookie) to required PR checks. Those stay scheduled or on-demand.
+
 ### Nightly UI Regression (Real Data)
 
 > **Nightly UI regression (real data)** — extensive browser coverage against the SQL Express mirror in the `E2E` environment. Not a PR gate. Assertions must be shape-based, not content-based, because mirror data changes nightly. All writes must be marked `uie2e-` and self-cleaning, and covered by `EfLegacyProbeResidueTests`. The PR-gate e2e suite stays small, deterministic, and in-memory.
@@ -415,7 +417,7 @@ node ../../scripts/Test-MobileCoverageGate.mjs --self-test
 | `coverage` | Merge shard + SQL Server + small-projects Cobertura reports, HTML summary, coverage gates | Yes |
 | `ef-migrations` | When migration-related paths change: snapshot check + `database update` on the SQL Express mirror (no production Azure SQL) | Yes (same-repo PRs only; skipped otherwise) |
 | `smoke-test` | Published app, curl `/health`, `/`, `/news` (starts after `build`, overlaps shards/coverage) | Yes |
-| `e2e-test` | Playwright suite on a self-hosted `e2e` runner (Windows or macOS; starts after `build`, overlaps coverage) | Yes (required PR merge gate) |
+| `e2e-test` | Deterministic Playwright suite on a self-hosted `e2e` runner (`Run-E2E.ps1 -Mode Deterministic` only; starts after `build`, overlaps coverage). RealData and DeployedAuth are not required PR checks (#1597). | Yes (required PR merge gate) |
 | `mobile-js` | `npm ci` + `scripts/check-npm-advisories.mjs` + typecheck + `npm run lint` + `npm run test:coverage` + `scripts/Test-MobileCoverageGate.mjs` + Expo Doctor in `src/QueenZone.Mobile` | Yes — required on `main` after #870; skip-success stub when that tree is unchanged |
 | `mobile-android` | Unsigned debug APK compile (GitHub-hosted Linux) | Yes — required on `main` after #870; skip-success stub when that tree is unchanged |
 | `mobile-ios` | Unsigned Simulator compile (idle self-hosted `ios-build` Mac preferred; `macos-26` fallback) | Yes — required on `main` after #870; skip-success stub when that tree is unchanged |

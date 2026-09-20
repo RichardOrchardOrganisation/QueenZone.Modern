@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace QueenZone.Web.E2E;
 
@@ -164,6 +165,21 @@ public class E2ECategoryGuardTests
     public void DeployedAuthTargetRejectsOtherOriginsAndPaths(string url) =>
         Assert.Throws<InvalidOperationException>(() => DeployedAuthTarget.RequireDevUrl(url));
 
+    [Test]
+    public void CiPullRequestE2eJobStaysDeterministicOnly()
+    {
+        // #1597: RealData (nightly/live-site) and DeployedAuth (dev member cookie)
+        // must not become required PR checks. The merge-gate job pins Mode=Deterministic.
+        var ciPath = Path.GetFullPath(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+        Assert.That(File.Exists(ciPath), Is.True, $"Expected CI workflow at {ciPath}.");
+
+        var ci = File.ReadAllText(ciPath);
+        Assert.That(ci, Does.Contain("-Mode Deterministic"));
+        Assert.That(ci, Does.Not.Contain("-Mode RealData"));
+        Assert.That(ci, Does.Not.Contain("-Mode LiveSite"));
+        Assert.That(ci, Does.Not.Contain("TestCategory=DeployedAuth"));
+    }
+
     private static bool IsNUnitFixture(Type type)
     {
         if (type.GetCustomAttributes(typeof(TestFixtureAttribute), inherit: true).Length > 0)
@@ -182,4 +198,11 @@ public class E2ECategoryGuardTests
         type.GetCustomAttributes(typeof(CategoryAttribute), inherit: true)
             .OfType<CategoryAttribute>()
             .Any(a => string.Equals(a.Name, category, StringComparison.Ordinal));
+
+    private static string RepoRoot([CallerFilePath] string thisFile = "")
+    {
+        var directory = Path.GetDirectoryName(thisFile);
+        Assert.That(directory, Is.Not.Null.And.Not.Empty);
+        return Path.GetFullPath(Path.Combine(directory!, "..", ".."));
+    }
 }
