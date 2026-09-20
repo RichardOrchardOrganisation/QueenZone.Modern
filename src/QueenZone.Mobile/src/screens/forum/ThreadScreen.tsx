@@ -287,6 +287,7 @@ export function ThreadScreen({ navigation, route }: Props) {
           onReply={openReply}
         />
       }
+      alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={refresh} />
       }

@@ -165,6 +165,7 @@ export function TimelineScreen({ navigation, route }: Props) {
       keyExtractor={(row) => (row.kind === 'decade' ? `decade:${row.decade}` : `event:${row.event.id}`)}
       ListEmptyComponent={<EmptyBlock message="No timeline events yet." />}
       ListFooterComponent={<ListFooterLoading visible={paged.loadingMore} />}
+      alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={paged.refresh} />
       }

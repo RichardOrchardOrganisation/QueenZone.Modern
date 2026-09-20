@@ -1,5 +1,5 @@
-import { RefreshControl } from 'react-native';
-import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { RefreshControl, ScrollView } from 'react-native';
+import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { submissionsApiUrl } from '../../api/submissions';
 import { jsonResponse } from '../../test/fixtures';
 import { createMockSession } from '../../test/mockSession';
@@ -220,6 +220,30 @@ describe('MySubmissionsScreen', () => {
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Retry loading submissions' }));
     await waitFor(() => expect(screen.getByText('Live in Montreal')).toBeOnTheScreen());
+  });
+
+  it('holds refreshing on an immediately resolved no-token pull', async () => {
+    mockSession.accessToken = null;
+    renderSubmissions();
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Live submission status needs a QueenZone member token/),
+      ).toBeOnTheScreen(),
+    );
+
+    expect(screen.UNSAFE_getByType(ScrollView).props.alwaysBounceVertical).toBe(true);
+
+    await act(async () => {
+      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+    });
+    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
+    await waitFor(() => expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false));
   });
 
   it('pull-to-refresh reloads every submission kind through ThemedRefreshControl', async () => {
