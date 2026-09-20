@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,6 +10,7 @@ import { leaveStoryScreen, nestedTabParams } from '../../navigation/nestedTab';
 import type { NewsStackParamList, RootTabParamList } from '../../navigation/types';
 import { formatPostTimestamp } from '../forum/forumThreadMeta';
 import { Button } from '../../ui/Button';
+import { openExternalUrl } from '../../ui/openExternalUrl';
 import { RichHtmlBody } from '../../ui/RichHtmlBody';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { testIds } from '../../test/testIds';
@@ -95,7 +96,7 @@ export function NewsStoryScreen({ navigation, route }: Props) {
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Open source"
-          onPress={() => Linking.openURL(article.sourceUrl!)}
+          onPress={() => void openExternalUrl(article.sourceUrl!)}
           style={styles.source}
         >
           <Text style={[type.button, { color: c.accentPrimary }]}>Source</Text>

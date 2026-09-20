@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError, forumPostReportCategories, reportForumPost, type ForumPostReportCategory } from '../../api';
 import { getAppConfig } from '../../config';
@@ -7,6 +7,7 @@ import type { ForumStackParamList } from '../../navigation/types';
 import { MemberGate } from '../../session/MemberGate';
 import { useSession } from '../../session/SessionContext';
 import { Button } from '../../ui/Button';
+import { openExternalUrl } from '../../ui/openExternalUrl';
 import { radius, space, type, useTheme } from '../../theme';
 
 type Props = NativeStackScreenProps<ForumStackParamList, 'ForumReport'>;
@@ -56,8 +57,8 @@ function ForumReportForm({ navigation, route }: Props) {
     {error ? <Text accessibilityRole="alert" style={[type.body, { color: c.danger, marginTop: space.md }]}>{error}</Text> : null}
     <View style={{ marginTop: space.xl }}><Button label={submitting ? 'Submitting…' : 'Submit report'} disabled={!category || submitting} onPress={() => void submit()} /></View>
     <View style={styles.helpLinks}>
-      <Button label="Community rules" variant="ghost" size="sm" onPress={() => void Linking.openURL(`${websiteUrl}/terms`)} />
-      <Button label="Contact support" variant="ghost" size="sm" onPress={() => void Linking.openURL(`${websiteUrl}/contact`)} />
+      <Button label="Community rules" variant="ghost" size="sm" onPress={() => void openExternalUrl(`${websiteUrl}/terms`)} />
+      <Button label="Contact support" variant="ghost" size="sm" onPress={() => void openExternalUrl(`${websiteUrl}/contact`)} />
     </View>
   </ScrollView>;
 }

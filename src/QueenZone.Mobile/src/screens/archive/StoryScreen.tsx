@@ -1,9 +1,10 @@
 import { useCallback, useLayoutEffect } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { fetchArticleDetail, formatPublishedDate } from '../../api';
 import { useDetailQuery } from '../../hooks/useDetailQuery';
 import type { ArchiveStackParamList } from '../../navigation/types';
+import { openExternalUrl } from '../../ui/openExternalUrl';
 import { RichHtmlBody } from '../../ui/RichHtmlBody';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { isHttpUrl } from '../../ui/html/resolveContentUrl';
@@ -65,7 +66,7 @@ export function StoryScreen({ navigation, route }: Props) {
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Open source"
-          onPress={() => Linking.openURL(source)}
+          onPress={() => void openExternalUrl(source)}
           style={styles.source}
         >
           <Text style={[type.button, { color: c.accentPrimary }]}>Source</Text>
