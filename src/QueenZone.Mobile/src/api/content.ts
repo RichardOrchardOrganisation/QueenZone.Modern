@@ -25,6 +25,7 @@ import type {
   QuizListItem,
   QuizResult,
   QuizSprintAnswerCheck,
+  QuizSprintBoard,
   QuizSprintDailyBoard,
   QuizSprintResult,
   QuizSprintRound,
@@ -309,6 +310,18 @@ export function fetchQuizSprintDaily(
   accessToken?: string | null,
 ): Promise<QuizSprintDailyBoard> {
   return fetchJson('/content/quizzes/sprint/daily', { signal, accessToken });
+}
+
+/**
+ * Quiz Sprint standings: best run today (`daily`), best run ever (`all`), or points summed over
+ * every run (`total`). Optional Bearer includes the viewer.
+ */
+export function fetchQuizSprintLeaderboard(
+  scope: 'daily' | 'all' | 'total',
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizSprintBoard> {
+  return fetchJson('/content/quizzes/sprint/leaderboard', { query: { scope }, signal, accessToken });
 }
 
 export function fetchFreddieTributePage(

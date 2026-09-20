@@ -149,6 +149,11 @@ public static class ContentApiEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status410Gone);
 
+        group.MapGet("/quizzes/sprint/leaderboard", GetSprintBoardAsync)
+            .WithName("GetContentQuizSprintBoard")
+            .WithSummary("Quiz Sprint standings using each member's best run. 'scope' is 'daily' (default, today UTC), 'all' (best run ever) or 'total' (points summed over every run). Optional Bearer includes the viewer's own entry even outside the top page.")
+            .Produces<SprintBoardDto>();
+
         group.MapGet("/quizzes/sprint/daily", GetSprintDailyBoardAsync)
             .WithName("GetContentQuizSprintDailyBoard")
             .WithSummary("Today's (UTC) Quiz Sprint standings using each member's best run, plus players today. Optional Bearer includes the viewer's own entry even outside the top page.")
@@ -655,6 +660,29 @@ public static class ContentApiEndpoints
         }
     }
 
+    internal static async Task<IResult> GetSprintBoardAsync(
+        HttpContext httpContext,
+        string? scope,
+        IQuizRepository quizRepository,
+        IMemberAccountRepository memberAccountRepository,
+        CancellationToken cancellationToken)
+    {
+        var (boardScope, scopeName) = scope?.ToLowerInvariant() switch
+        {
+            "all" => (QuizSprintBoardScope.AllTime, "all"),
+            "total" => (QuizSprintBoardScope.Total, "total"),
+            _ => (QuizSprintBoardScope.Daily, "daily"),
+        };
+        var viewerId = await TryGetViewerMemberIdAsync(httpContext);
+        var board = await quizRepository.GetSprintBoardAsync(
+            boardScope,
+            viewerId,
+            top: 20,
+            cancellationToken);
+        var dto = await ToSprintBoardEntriesAsync(board, memberAccountRepository, cancellationToken);
+        return Results.Ok(new SprintBoardDto(scopeName, dto.Top, dto.Viewer, board.Players));
+    }
+
     internal static async Task<IResult> GetSprintDailyBoardAsync(
         HttpContext httpContext,
         IQuizRepository quizRepository,
@@ -662,12 +690,20 @@ public static class ContentApiEndpoints
         CancellationToken cancellationToken)
     {
         var viewerId = await TryGetViewerMemberIdAsync(httpContext);
-        var board = await quizRepository.GetSprintDailyBoardAsync(viewerId, top: 20, cancellationToken);
+        var board = await quizRepository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, viewerId, top: 20, cancellationToken);
+        var dto = await ToSprintBoardEntriesAsync(board, memberAccountRepository, cancellationToken);
+        return Results.Ok(new SprintDailyBoardDto(dto.Top, dto.Viewer, board.Players));
+    }
 
+    private static async Task<(IReadOnlyList<SprintLeaderboardEntryDto> Top, SprintLeaderboardEntryDto? Viewer)> ToSprintBoardEntriesAsync(
+        QuizSprintBoardResult board,
+        IMemberAccountRepository memberAccountRepository,
+        CancellationToken cancellationToken)
+    {
         async Task<SprintLeaderboardEntryDto> ToDtoAsync(QuizSprintLeaderboardEntry entry)
         {
             var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
-            return new SprintLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.BestStreak);
+            return new SprintLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.BestStreak, entry.Runs);
         }
 
         var top = new List<SprintLeaderboardEntryDto>(board.Top.Count);
@@ -677,7 +713,7 @@ public static class ContentApiEndpoints
         }
 
         var viewer = board.Viewer is null ? null : await ToDtoAsync(board.Viewer);
-        return Results.Ok(new SprintDailyBoardDto(top, viewer, board.PlayersToday));
+        return (top, viewer);
     }
 
     private static async Task<IReadOnlyList<QuizLeaderboardEntryDto>> ToLeaderboardEntryDtosAsync(

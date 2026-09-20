@@ -298,7 +298,19 @@ public sealed record SprintResultDto(
     int? Rank,
     IReadOnlyList<SprintReviewItemDto> Answers);
 
-public sealed record SprintLeaderboardEntryDto(int Rank, string DisplayName, int Score, int BestStreak);
+/// <param name="Runs">Runs the member has played in the scope (1 for a single best run; the run count for the total board).</param>
+public sealed record SprintLeaderboardEntryDto(int Rank, string DisplayName, int Score, int BestStreak, int Runs = 1);
+
+/// <summary>
+/// Shape for <c>GET /api/v1/content/quizzes/sprint/leaderboard</c>: <c>Scope</c> is <c>daily</c>,
+/// <c>all</c> (best run ever) or <c>total</c> (points summed over every run); <c>Players</c> counts
+/// the members ranked in that scope.
+/// </summary>
+public sealed record SprintBoardDto(
+    string Scope,
+    IReadOnlyList<SprintLeaderboardEntryDto> Top,
+    SprintLeaderboardEntryDto? Viewer,
+    int Players);
 
 /// <summary>Shape for <c>GET /api/v1/content/quizzes/sprint/daily</c> (today, UTC).</summary>
 public sealed record SprintDailyBoardDto(
