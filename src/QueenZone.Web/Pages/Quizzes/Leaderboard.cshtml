@@ -1,52 +1,24 @@
 @page "/quizzes/leaderboard"
 @model LeaderboardModel
-@using QueenZone.Data
 
-<partial name="_PageHero" model='@(("Standings", "Quiz leaderboard", "Weekly and all-time quiz standings for the Queenzone community.", ""))' />
+<section class="qz-sprint-results qz-band-dark">
+  <partial name="_PictureImage" model='@(("/design-system/assets/crest-white.png", "", false, "qz-sprint-results__crest"))' />
+  <div class="qz-container">
+    <p class="qz-sprint__eyebrow">Quiz Sprint</p>
+    <h1 class="qz-sprint-intro__title">Today's leaderboard</h1>
+    <p class="qz-sprint-intro__standfirst">Each member's best sixty-second run today. The board resets at midnight UTC.</p>
+    <div class="qz-sprint__buttons"><a class="qz-sprint__cta" href="/quizzes/sprint">Play the sprint</a></div>
+  </div>
+</section>
 
-<section class="qz-section">
+<section class="qz-section qz-section--warm">
   <div class="qz-container">
     <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
-
-    <div class="qz-quiz-leaderboard__tabs" role="tablist">
-      <a class="qz-button qz-button--sm @(Model.Scope == QuizLeaderboardScope.Week ? "qz-button--cta" : "qz-button--secondary")" href="/quizzes/leaderboard?scope=week">This week</a>
-      <a class="qz-button qz-button--sm @(Model.Scope == QuizLeaderboardScope.AllTime ? "qz-button--cta" : "qz-button--secondary")" href="/quizzes/leaderboard?scope=all">All time</a>
-    </div>
-
-    @if (Model.Rows.Count == 0)
+    <partial name="_SprintBoard" model='@((Model.Board, false, "No scores yet today. Be the first on the board."))' />
+    <p class="qz-quiz-leaderboard__total">@Model.Board.PlayersToday member@(Model.Board.PlayersToday == 1 ? "" : "s") ranked today.</p>
+    @if (!Model.SignedIn)
     {
-      <p>No quiz results yet@(Model.Scope == QuizLeaderboardScope.Week ? " this week" : "").</p>
+      <p class="qz-quiz-leaderboard__total">Scores are only added for signed-in members. <a href="/account/login?returnUrl=%2Fquizzes%2Fleaderboard">Sign in to be ranked</a>.</p>
     }
-    else
-    {
-      <table class="admin-table qz-quiz-leaderboard__table">
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Member</th>
-            <th>Points</th>
-            <th>Quizzes played</th>
-          </tr>
-        </thead>
-        <tbody>
-          @foreach (var row in Model.Rows)
-          {
-            <tr class="@(Model.ViewerRow is not null && row.Rank == Model.ViewerRow.Rank && row.DisplayName == Model.ViewerRow.DisplayName ? "qz-quiz-leaderboard__row--viewer" : "")">
-              <td>@row.Rank</td>
-              <td>@row.DisplayName</td>
-              <td>@row.Score</td>
-              <td>@row.AttemptCount</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-
-      @if (Model.ViewerRow is { } viewer && !Model.Rows.Any(row => row.Rank == viewer.Rank))
-      {
-        <p class="qz-quiz-leaderboard__viewer-rank">Your rank: #@viewer.Rank &middot; @viewer.Score points</p>
-      }
-    }
-
-    <p class="qz-quiz-leaderboard__total">@Model.TotalMembers member@(Model.TotalMembers == 1 ? "" : "s") ranked.</p>
   </div>
 </section>

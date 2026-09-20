@@ -6,9 +6,18 @@ namespace QueenZone.Web.Pages.Quizzes;
 
 public sealed class SprintModel(QuizSprintService sprintService) : PageModel
 {
+    private const int IntroBoardRows = 5;
+    private const int ResultsBoardRows = 8;
+
+    private const string StartNoticeKey = "QuizSprintStartNotice";
+
+    private const string StartNoticeText = "Press Start to begin a 60-second sprint.";
+
     public IReadOnlyList<SprintQuestionView> Questions { get; private set; } = [];
 
     public SprintResult? Result { get; private set; }
+
+    public SprintBoard Board { get; private set; } = new([], null, 0);
 
     public string? Ticket { get; private set; }
 
@@ -24,14 +33,9 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
 
     public string? StartNotice { get; private set; }
 
-    private const string StartNoticeKey = "QuizSprintStartNotice";
-
-    private const string StartNoticeText = "Press Start to begin a 60-second sprint.";
-
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; } =
     [
         BreadcrumbItem.Home,
-        new BreadcrumbItem("Quiz", "/quizzes"),
         new BreadcrumbItem("Quiz Sprint", "/quizzes/sprint"),
     ];
 
@@ -40,7 +44,9 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
         SetViewData();
         StartNotice = TempData[StartNoticeKey] as string;
         EmptyPool = !await sprintService.HasQuestionsAsync(cancellationToken);
-        SignedIn = await GetCurrentMemberIdAsync() is not null;
+        var memberId = await GetCurrentMemberIdAsync();
+        SignedIn = memberId is not null;
+        Board = await sprintService.GetBoardAsync(memberId, IntroBoardRows, cancellationToken);
     }
 
     public IActionResult OnGetStartAsync()
@@ -98,9 +104,18 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
                 return Page();
             default:
                 Result = outcome.Result;
+                Board = await sprintService.GetBoardAsync(memberId, ResultsBoardRows, cancellationToken);
                 return Page();
         }
     }
+
+    public static string Verdict(int points) => points switch
+    {
+        >= 20 => "A collector's run. That belongs at the top of the board.",
+        >= 12 => "Strong. A steadier streak and the top ten is yours.",
+        >= 6 => "Respectable. The archive rewards a second run.",
+        _ => "The clock wins this one. Try again — the questions reshuffle.",
+    };
 
     private async Task<Guid?> GetCurrentMemberIdAsync()
     {
@@ -117,6 +132,6 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
     {
         ViewData["Title"] = "Quiz Sprint | QueenZone";
         ViewData["CanonicalPath"] = "/quizzes/sprint";
-        ViewData["Description"] = "Answer as many Queen questions as you can in 60 seconds.";
+        ViewData["Description"] = "Sixty seconds on the clock. Answer as many Queen questions as you can and take your place on today's leaderboard.";
     }
 }

@@ -275,6 +275,12 @@ public sealed record SprintRoundDto(
     int DurationSeconds,
     IReadOnlyList<SprintQuestionDto> Questions);
 
+/// <summary>Request body for <c>POST /api/v1/content/quizzes/sprint/answer</c>.</summary>
+public sealed record SprintAnswerRequestDto(string? Ticket, Guid QuestionId, Guid OptionId);
+
+/// <summary>Whether the picked option was right, and which one was, for per-answer feedback.</summary>
+public sealed record SprintAnswerResultDto(bool IsCorrect, Guid CorrectOptionId);
+
 public sealed record SprintFinishRequestDto(string? Ticket, IReadOnlyList<QuizAnswerSubmissionDto>? Answers);
 
 public sealed record SprintReviewItemDto(Guid QuestionId, string QuestionText, bool IsCorrect, string CorrectAnswer);
