@@ -1,8 +1,9 @@
 # Queen quiz question bank
 
-This is a reviewable set of **500 multiple-choice questions** in twenty quizzes
-of 25 questions each. Every question has four distinct options and one correct
-answer. The answer order rotates across questions.
+This directory contains the original **500 multiple-choice questions** and a
+separate **500-question Encore set**. Each set is split into twenty quizzes of
+25 questions. Every question has four distinct options and one correct answer.
+The answer order rotates across questions.
 
 `questions.csv` contains the original 200 questions in eight quizzes (800 option rows).
 `questions_extra.csv` contains 300 additional questions (1,200 option rows)
@@ -10,6 +11,28 @@ across twelve themed quizzes. Both files use the exact eight-column,
 one-option-per-row format described in PR #1583 (`docs/quiz-bulk-import.md`).
 The importer creates unpublished quizzes for an editor to review; it does not
 publish them.
+
+`questions_more.csv` contains the new 500 Encore questions (2,000 option rows)
+in twenty 25-question draft quizzes. `build_more.py` generates it and the
+matching `sources_more.csv` editorial ledger. This set draws mainly on the
+user-supplied *Queen: Complete Works* for original album and solo album track
+order, and on [Queen's official site](https://www.queenonline.com) for member
+biographies and events after Freddie Mercury's death. The source ledger names
+the relevant book section or links to the specific official page for each
+question. The book text remains outside the repository.
+
+The Encore set includes band members, songwriting, album tracks, solo projects,
+the 1992 tribute concert, Queen's later releases, and Queen with Paul Rodgers
+and Adam Lambert. Its editorial `very hard` level is encoded as importer
+`hard` with four points, as described below. Difficulty estimates can be
+adjusted after reviewing player results.
+
+On 20 September 2026, a read-only check found 500 quiz questions in production,
+matching the two earlier CSVs by normalized wording. The Encore questions had
+zero normalized-text matches against production. The generator also checks for
+duplicates against the two earlier files and within the Encore set. This is a
+new import; do not rerun it after it has been loaded, because the importer
+creates new quizzes rather than updating them.
 
 `sources.csv` and `sources_extra.csv` are separate editorial ledgers, keyed by
 quiz title and question text. They are not passed to the importer. Book facts
@@ -46,10 +69,13 @@ levels use 1, 2, and 3 points respectively.
 ```bash
 python3 docs/backlog/queen-quiz-question-bank/build.py
 python3 docs/backlog/queen-quiz-question-bank/build_extra.py
+python3 docs/backlog/queen-quiz-question-bank/build_more.py
 dotnet run --project src/QueenZone.Tools -- import-quiz-questions \
   --csv docs/backlog/queen-quiz-question-bank/questions.csv --dry-run
 dotnet run --project src/QueenZone.Tools -- import-quiz-questions \
   --csv docs/backlog/queen-quiz-question-bank/questions_extra.csv --dry-run
+dotnet run --project src/QueenZone.Tools -- import-quiz-questions \
+  --csv docs/backlog/queen-quiz-question-bank/questions_more.csv --dry-run
 ```
 
 After editorial review, use the import command with a connection string as
