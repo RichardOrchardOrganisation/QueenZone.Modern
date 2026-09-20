@@ -134,6 +134,13 @@ public static class ContentApiEndpoints
             .Produces<SprintRoundDto>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        group.MapPost("/quizzes/sprint/answer", CheckSprintAnswer)
+            .WithName("CheckContentQuizSprintAnswer")
+            .WithSummary("Reveal whether one Sprint pick was right (and which option was) while the round is live, for per-answer feedback. The ticket keeps the answer key server-side.")
+            .Accepts<SprintAnswerRequestDto>("application/json")
+            .Produces<SprintAnswerResultDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         group.MapPost("/quizzes/sprint/finish", FinishSprintAsync)
             .WithName("FinishContentQuizSprint")
             .WithSummary("Score a Quiz Sprint round server-side (+1 per correct answer, +2 once on a streak of 3). A Bearer-authenticated run is recorded on today's leaderboard; anonymous runs are scored but not recorded.")
@@ -587,6 +594,21 @@ public static class ContentApiEndpoints
                     question.Text,
                     question.Options.Select(option => new SprintOptionDto(option.Id, option.Text)).ToList()))
                 .ToList()));
+    }
+
+    internal static IResult CheckSprintAnswer(
+        SprintAnswerRequestDto? request,
+        QuizSprintService sprintService)
+    {
+        var check = request is null
+            ? null
+            : sprintService.CheckAnswer(request.Ticket, request.QuestionId, request.OptionId);
+        return check is null
+            ? Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                detail: "The sprint ticket, question or option is invalid, or the round has ended.")
+            : Results.Ok(new SprintAnswerResultDto(check.IsCorrect, check.CorrectOptionId));
     }
 
     internal static async Task<IResult> FinishSprintAsync(
