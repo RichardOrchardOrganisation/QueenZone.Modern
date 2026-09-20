@@ -1,30 +1,11 @@
-using System.Security.Cryptography;
-using System.Text.Json;
-using Microsoft.AspNetCore.DataProtection;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Quizzes;
 
-public sealed record SprintOptionView(Guid Id, string Text);
-
-public sealed record SprintQuestionView(Guid Id, string Text, IReadOnlyList<SprintOptionView> Options);
-
-public sealed record SprintReviewItem(string QuestionText, bool IsCorrect, string CorrectAnswer);
-
-public sealed record SprintResult(int Attempted, int Correct, IReadOnlyList<SprintReviewItem> Answers);
-
-public sealed class SprintModel(
-    IQuizRepository quizRepository,
-    IDataProtectionProvider dataProtectionProvider,
-    TimeProvider timeProvider) : PageModel
+public sealed class SprintModel(QuizSprintService sprintService) : PageModel
 {
-    private const int DurationSeconds = 60;
-    private const int QuestionLimit = 60;
-    private static readonly JsonSerializerOptions TicketJsonOptions = new(JsonSerializerDefaults.Web);
-    private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("QueenZone.QuizSprint.v1");
-
     public IReadOnlyList<SprintQuestionView> Questions { get; private set; } = [];
 
     public SprintResult? Result { get; private set; }
@@ -38,6 +19,8 @@ public sealed class SprintModel(
     public bool EmptyPool { get; private set; }
 
     public bool Expired { get; private set; }
+
+    public bool SignedIn { get; private set; }
 
     public string? StartNotice { get; private set; }
 
@@ -56,7 +39,8 @@ public sealed class SprintModel(
     {
         SetViewData();
         StartNotice = TempData[StartNoticeKey] as string;
-        EmptyPool = (await quizRepository.GetPublishedSprintQuestionsAsync(cancellationToken)).Count == 0;
+        EmptyPool = !await sprintService.HasQuestionsAsync(cancellationToken);
+        SignedIn = await GetCurrentMemberIdAsync() is not null;
     }
 
     public IActionResult OnGetStartAsync()
@@ -68,44 +52,22 @@ public sealed class SprintModel(
     public async Task<IActionResult> OnPostStartAsync(CancellationToken cancellationToken)
     {
         SetViewData();
-        var pool = (await quizRepository.GetPublishedSprintQuestionsAsync(cancellationToken)).ToList();
-        if (pool.Count == 0)
+        SignedIn = await GetCurrentMemberIdAsync() is not null;
+        var round = await sprintService.StartAsync(cancellationToken);
+        if (round is null)
         {
             EmptyPool = true;
             return Page();
         }
 
-        Shuffle(pool);
-        var selected = pool.Take(QuestionLimit).ToList();
-        var ticketQuestions = new List<TicketQuestion>(selected.Count);
-        var viewQuestions = new List<SprintQuestionView>(selected.Count);
-        foreach (var question in selected)
-        {
-            var correct = question.Options.Single(option => option.IsCorrect);
-            var options = question.Options.ToList();
-            Shuffle(options);
-            ticketQuestions.Add(new TicketQuestion(
-                question.Id,
-                question.Text,
-                correct.Id,
-                correct.Text,
-                options.Select(option => option.Id).ToArray()));
-            viewQuestions.Add(new SprintQuestionView(
-                question.Id,
-                question.Text,
-                options.Select(option => new SprintOptionView(option.Id, option.Text)).ToList()));
-        }
-
-        var now = timeProvider.GetUtcNow();
-        ServerNowUnixMilliseconds = now.ToUnixTimeMilliseconds();
-        ExpiresAtUnixMilliseconds = now.AddSeconds(DurationSeconds).ToUnixTimeMilliseconds();
-        Ticket = protector.Protect(JsonSerializer.Serialize(
-            new SprintTicket(ServerNowUnixMilliseconds, ticketQuestions), TicketJsonOptions));
-        Questions = viewQuestions;
+        Ticket = round.Ticket;
+        ServerNowUnixMilliseconds = round.ServerNowUnixMilliseconds;
+        ExpiresAtUnixMilliseconds = round.ExpiresAtUnixMilliseconds;
+        Questions = round.Questions;
         return Page();
     }
 
-    public IActionResult OnPostFinish()
+    public async Task<IActionResult> OnPostFinishAsync(CancellationToken cancellationToken)
     {
         SetViewData();
         if (!Request.Form.TryGetValue("ticket", out var rawTicket) || rawTicket.Count != 1)
@@ -113,55 +75,42 @@ public sealed class SprintModel(
             return BadRequest();
         }
 
-        SprintTicket? ticket;
-        try
+        var selections = new Dictionary<Guid, Guid>();
+        foreach (var (key, value) in Request.Form)
         {
-            ticket = JsonSerializer.Deserialize<SprintTicket>(
-                protector.Unprotect(rawTicket.ToString()), TicketJsonOptions);
-        }
-        catch (Exception exception) when (exception is CryptographicException or FormatException or JsonException)
-        {
-            return BadRequest();
-        }
-
-        if (ticket is null || ticket.Questions.Count is < 1 or > QuestionLimit
-            || ticket.Questions.Select(question => question.Id).Distinct().Count() != ticket.Questions.Count)
-        {
-            return BadRequest();
-        }
-
-        var now = timeProvider.GetUtcNow();
-        var startedAt = DateTimeOffset.FromUnixTimeMilliseconds(ticket.StartedAtUnixMilliseconds);
-        if (startedAt > now.AddSeconds(5))
-        {
-            return BadRequest();
-        }
-
-        // A small transit allowance lets an automatic submission at zero reach the server.
-        if (now > startedAt.AddSeconds(DurationSeconds + 5))
-        {
-            Expired = true;
-            return Page();
-        }
-
-        var answers = new List<SprintReviewItem>();
-        foreach (var question in ticket.Questions)
-        {
-            if (!Request.Form.TryGetValue($"answer_{question.Id:N}", out var rawAnswer)
-                || !Guid.TryParse(rawAnswer, out var selectedId)
-                || !question.OptionIds.Contains(selectedId))
+            if (key.StartsWith("answer_", StringComparison.Ordinal)
+                && Guid.TryParse(key["answer_".Length..], out var questionId)
+                && Guid.TryParse(value.ToString(), out var optionId))
             {
-                continue;
+                selections[questionId] = optionId;
             }
-
-            answers.Add(new SprintReviewItem(
-                question.Text,
-                selectedId == question.CorrectOptionId,
-                question.CorrectOptionText));
         }
 
-        Result = new SprintResult(answers.Count, answers.Count(answer => answer.IsCorrect), answers);
-        return Page();
+        var memberId = await GetCurrentMemberIdAsync();
+        SignedIn = memberId is not null;
+        var outcome = await sprintService.FinishAsync(rawTicket.ToString(), selections, memberId, cancellationToken);
+        switch (outcome.Status)
+        {
+            case SprintFinishStatus.Invalid:
+                return BadRequest();
+            case SprintFinishStatus.Expired:
+                Expired = true;
+                return Page();
+            default:
+                Result = outcome.Result;
+                return Page();
+        }
+    }
+
+    private async Task<Guid?> GetCurrentMemberIdAsync()
+    {
+        var authResult = await HttpContext.AuthenticateMemberAsync();
+        if (!authResult.Succeeded || authResult.Principal is null)
+        {
+            return null;
+        }
+
+        return Guid.TryParse(authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     }
 
     private void SetViewData()
@@ -170,22 +119,4 @@ public sealed class SprintModel(
         ViewData["CanonicalPath"] = "/quizzes/sprint";
         ViewData["Description"] = "Answer as many Queen questions as you can in 60 seconds.";
     }
-
-    private static void Shuffle<T>(IList<T> items)
-    {
-        for (var index = items.Count - 1; index > 0; index--)
-        {
-            var swapIndex = RandomNumberGenerator.GetInt32(index + 1);
-            (items[index], items[swapIndex]) = (items[swapIndex], items[index]);
-        }
-    }
-
-    private sealed record SprintTicket(long StartedAtUnixMilliseconds, IReadOnlyList<TicketQuestion> Questions);
-
-    private sealed record TicketQuestion(
-        Guid Id,
-        string Text,
-        Guid CorrectOptionId,
-        string CorrectOptionText,
-        IReadOnlyList<Guid> OptionIds);
 }

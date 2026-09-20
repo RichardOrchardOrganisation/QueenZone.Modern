@@ -12,7 +12,15 @@
       <div class="qz-quiz-result">
         <h2>Round complete</h2>
         <p class="qz-quiz-result__score">@result.Correct correct from @result.Attempted answered</p>
-        <p>Wrong answers score zero. There is no point deduction.</p>
+        <p>@result.Points point@(result.Points == 1 ? "" : "s") &middot; best streak @result.BestStreak. Wrong answers score zero. Three correct in a row doubles every answer after.</p>
+        @if (result.Recorded)
+        {
+          <p role="status">Your score is on today's leaderboard@(result.Rank is { } rank ? $" (rank #{rank})" : "").</p>
+        }
+        else if (!Model.SignedIn)
+        {
+          <p role="status">Your score is only added to the leaderboard if you are signed in. <a href="/account/login?returnUrl=%2Fquizzes%2Fsprint">Sign in</a> before your next run to be ranked.</p>
+        }
         @if (result.Answers.Count > 0)
         {
           <h3>Your answers</h3>
@@ -98,7 +106,7 @@
         }
         <h2>Ready for a quick round?</h2>
         <p>You have 60 seconds to answer as many random questions from published Queen quizzes as you can. Each correct answer earns one point. Wrong or skipped answers earn zero, with no deduction.</p>
-        <p>This is a casual round; results do not appear on the leaderboard.</p>
+        <p>Three correct answers in a row doubles every answer after. Your score is added to the daily leaderboard only when you are signed in@(Model.SignedIn ? "." : " &mdash; ")@if (!Model.SignedIn){<a href="/account/login?returnUrl=%2Fquizzes%2Fsprint">sign in now</a><text>.</text>}</p>
         @if (Model.EmptyPool)
         {
           <p>No published questions are available yet.</p>

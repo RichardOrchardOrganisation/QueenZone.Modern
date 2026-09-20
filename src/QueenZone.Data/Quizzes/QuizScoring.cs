@@ -54,6 +54,39 @@ internal static class QuizScoring
             results);
     }
 
+    public static DateTimeOffset GetCurrentDayStartUtc(DateTimeOffset now) =>
+        new(now.UtcDateTime.Date, TimeSpan.Zero);
+
+    public static QuizSprintDailyBoard BuildSprintDailyBoard(
+        IEnumerable<QuizSprintRunEntity> runs,
+        Guid? viewerMemberId,
+        int top)
+    {
+        var ranked = runs
+            .GroupBy(run => run.MemberAccountId)
+            .Select(group => group
+                .OrderByDescending(run => run.Score)
+                .ThenBy(run => run.CompletedAt)
+                .First())
+            .OrderByDescending(run => run.Score)
+            .ThenBy(run => run.CompletedAt)
+            .ThenBy(run => run.MemberAccountId)
+            .Select((run, index) => new QuizSprintLeaderboardEntry(
+                index + 1,
+                run.MemberAccountId,
+                run.Score,
+                run.BestStreak,
+                run.AnsweredCount,
+                run.CompletedAt))
+            .ToList();
+
+        var viewer = viewerMemberId is Guid memberId
+            ? ranked.SingleOrDefault(entry => entry.MemberAccountId == memberId)
+            : null;
+
+        return new QuizSprintDailyBoard(ranked.Take(top).ToList(), viewer, ranked.Count);
+    }
+
     public static DateTimeOffset GetCurrentWeekStartUtc(DateTimeOffset now)
     {
         var today = now.UtcDateTime.Date;

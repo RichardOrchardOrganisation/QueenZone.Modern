@@ -302,4 +302,32 @@ public sealed class InMemoryQuizRepository(
             throw new QuizException(QuizException.HasResults, message);
         }
     }
+
+    public Task RecordSprintRunAsync(
+        Guid memberAccountId,
+        QuizSprintScore score,
+        CancellationToken cancellationToken = default)
+    {
+        store.WriteSprintRuns(runs => runs.Add(new QuizSprintRunEntity
+        {
+            Id = Guid.NewGuid(),
+            MemberAccountId = memberAccountId,
+            Score = score.Points,
+            CorrectCount = score.Correct,
+            AnsweredCount = score.Answered,
+            BestStreak = score.BestStreak,
+            CompletedAt = timeProvider.GetUtcNow(),
+        }));
+        return Task.CompletedTask;
+    }
+
+    public Task<QuizSprintDailyBoard> GetSprintDailyBoardAsync(
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.ReadSprintRuns(runs =>
+        {
+            var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
+            return QuizScoring.BuildSprintDailyBoard(runs.Where(run => run.CompletedAt >= dayStart), viewerMemberId, top);
+        }));
 }
