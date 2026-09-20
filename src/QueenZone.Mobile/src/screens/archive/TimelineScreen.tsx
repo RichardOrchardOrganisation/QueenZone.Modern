@@ -1,12 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { fetchOnThisDay, fetchTimelinePage, type TimelineEvent } from '../../api';
 import { usePagedContent } from '../../hooks/usePagedContent';
 import { HeaderBackButton } from '../../navigation/headerButtons';
 import { goBackOrFallback } from '../../navigation/nestedTab';
 import type { ArchiveStackParamList } from '../../navigation/types';
 import { testIds } from '../../test/testIds';
+import { openExternalUrl } from '../../ui/openExternalUrl';
 import { EmptyBlock, ErrorBlock, ListFooterLoading, LoadingBlock } from '../../ui/ScreenStates';
 import { ThemedRefreshControl } from '../../ui/ThemedRefreshControl';
 import { space, type, useTheme } from '../../theme';
@@ -219,7 +220,7 @@ export function TimelineScreen({ navigation, route }: Props) {
                 {event.sourceUrl ? (
                   <Pressable
                     accessibilityRole="link"
-                    onPress={() => Linking.openURL(event.sourceUrl!)}
+                    onPress={() => void openExternalUrl(event.sourceUrl!)}
                     style={styles.source}
                   >
                     <Text style={[type.button, { color: c.accentPrimary }]}>Source</Text>
