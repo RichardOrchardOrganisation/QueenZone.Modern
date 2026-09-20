@@ -67,6 +67,8 @@ export type ArchiveStackParamList = {
   QuizList: undefined;
   QuizPlay: { id: string };
   QuizLeaderboard: undefined;
+  QuizSprint: undefined;
+  QuizSprintLeaderboard: undefined;
   AboutArchive: undefined;
 } & CommonStackParamList &
   StoryRouteParamList;
