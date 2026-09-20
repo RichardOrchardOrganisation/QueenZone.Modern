@@ -1,118 +1,184 @@
 @page "/quizzes/sprint"
 @model SprintModel
+@{
+  const string loginHref = "/account/login?returnUrl=%2Fquizzes%2Fsprint";
+  var best = Model.Board.Rows.FirstOrDefault();
+}
 
-<partial name="_PageHero" model='@(("Test yourself", "Quiz Sprint", "How many Queen questions can you answer in 60 seconds?", ""))' />
-
-<section class="qz-section">
-  <div class="qz-container">
-    <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
-
-    @if (Model.Result is { } result)
-    {
-      <div class="qz-quiz-result">
-        <h2>Round complete</h2>
-        <p class="qz-quiz-result__score">@result.Correct correct from @result.Attempted answered</p>
-        <p>Wrong answers score zero. There is no point deduction.</p>
-        @if (result.Answers.Count > 0)
+@if (Model.Result is { } result)
+{
+  <section class="qz-sprint-results qz-band-dark">
+    <partial name="_PictureImage" model='@(("/design-system/assets/crest-white.png", "", false, "qz-sprint-results__crest"))' />
+    <div class="qz-container qz-sprint-results__grid">
+      <div>
+        <p class="qz-sprint__eyebrow">Time</p>
+        <p class="qz-sprint-results__score">@result.Points</p>
+        <p class="qz-sprint-results__unit">Points</p>
+        <p class="qz-sprint-results__verdict">@SprintModel.Verdict(result.Points)</p>
+        <p class="qz-sprint-results__detail">@result.Correct correct from @result.Attempted answered &middot; best streak @result.BestStreak</p>
+        @if (result.Recorded)
         {
-          <h3>Your answers</h3>
-          <ol class="qz-quiz-result__list">
-            @foreach (var answer in result.Answers)
-            {
-              <li class="qz-quiz-result__item qz-quiz-result__item--@(answer.IsCorrect ? "correct" : "incorrect")">
-                <p class="qz-quiz-result__question">@answer.QuestionText</p>
-                <p class="qz-quiz-result__answer">@(answer.IsCorrect ? "Correct" : "Incorrect")</p>
-                @if (!answer.IsCorrect)
-                {
-                  <p class="qz-quiz-result__correct-answer">Correct answer: @answer.CorrectAnswer</p>
-                }
-              </li>
-            }
-          </ol>
+          <p class="qz-sprint-results__note" role="status">Your score is on today's leaderboard@(result.Rank is { } rank ? $" (rank #{rank})" : "").</p>
         }
-        <a class="qz-button qz-button--cta" href="/quizzes/sprint">Play again</a>
-      </div>
-    }
-    else if (Model.Expired)
-    {
-      <div class="qz-quiz-result">
-        <h2>Round expired</h2>
-        <p>Your answers arrived after the 60-second round ended. Please try again.</p>
-        <a class="qz-button qz-button--cta" href="/quizzes/sprint">Play again</a>
-      </div>
-    }
-    else if (Model.Ticket is { } ticket)
-    {
-      <div class="qz-sprint" data-sprint-game data-server-now="@Model.ServerNowUnixMilliseconds" data-expires-at="@Model.ExpiresAtUnixMilliseconds">
-        <div class="qz-sprint__timer" role="timer" aria-label="Time remaining">
-          <div class="qz-sprint__timer-row">
-            <span>Time remaining</span>
-            <output class="qz-sprint__seconds" data-sprint-seconds>60s</output>
-          </div>
-          <div class="qz-sprint__track" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="60" aria-valuenow="60" data-sprint-progress>
-            <span class="qz-sprint__fill" data-sprint-fill></span>
-          </div>
-          <span class="visually-hidden" aria-live="polite" data-sprint-announcement></span>
+        else if (!Model.SignedIn)
+        {
+          <p class="qz-sprint-results__note" role="status">Your score is only added to the leaderboard if you are signed in. <a href="@loginHref">Sign in</a> before your next run to be ranked.</p>
+        }
+        <div class="qz-sprint__buttons">
+          <a class="qz-sprint__cta" href="/quizzes/sprint">Run it again</a>
+          <button type="button" class="qz-sprint__ghost" data-sprint-share data-share-text="I scored @result.Points in the Queenzone Quiz Sprint. Can you beat it?">Share your score</button>
         </div>
-
-        <form method="post" asp-page-handler="Finish" data-sprint-form>
-          <input type="hidden" name="ticket" value="@ticket">
-          <p class="qz-sprint__counter" data-sprint-counter>Question 1 of @Model.Questions.Count</p>
-          @for (var index = 0; index < Model.Questions.Count; index++)
-          {
-            var question = Model.Questions[index];
-            <fieldset class="qz-quiz-form__question qz-sprint__question" data-sprint-question hidden="@(index != 0)">
-              <legend tabindex="-1">@question.Text</legend>
-              <ul class="qz-poll__options">
-                @foreach (var option in question.Options)
-                {
-                  <li>
-                    <label class="qz-poll__option">
-                      <input class="visually-hidden" type="radio" name="answer_@question.Id.ToString("N")" value="@option.Id.ToString("N")">
-                      <span class="qz-poll__option-content">
-                        <span class="qz-poll__indicator qz-poll__indicator--circle">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
-                        </span>
-                        <span class="qz-poll__label">@option.Text</span>
-                      </span>
-                    </label>
-                  </li>
-                }
-              </ul>
-            </fieldset>
-          }
-          <div class="qz-sprint__actions">
-            <button type="button" class="qz-button qz-button--secondary" data-sprint-skip>Skip question</button>
-            <button type="submit" class="qz-button qz-button--cta" data-sprint-finish>Finish round</button>
-          </div>
-        </form>
-        <noscript><p>JavaScript is required to advance questions and show the countdown.</p></noscript>
       </div>
-    }
-    else
-    {
-      <div class="qz-quiz-result">
+      <div>
+        <p class="qz-sprint__eyebrow qz-sprint__eyebrow--muted">Daily leaderboard</p>
+        <partial name="_SprintBoard" model='@((Model.Board, true, "No scores on the board yet today."))' />
+      </div>
+    </div>
+  </section>
+
+  @if (result.Answers.Any(answer => !answer.IsCorrect))
+  {
+    <section class="qz-section qz-section--warm">
+      <div class="qz-container">
+        <p class="qz-sprint__eyebrow qz-sprint__eyebrow--purple">Review</p>
+        <h2>The ones that got away</h2>
+        <ol class="qz-quiz-result__list">
+          @foreach (var answer in result.Answers.Where(answer => !answer.IsCorrect))
+          {
+            <li class="qz-quiz-result__item qz-quiz-result__item--incorrect">
+              <p class="qz-quiz-result__question">@answer.QuestionText</p>
+              <p class="qz-quiz-result__correct-answer">Correct answer: @answer.CorrectAnswer</p>
+            </li>
+          }
+        </ol>
+      </div>
+    </section>
+  }
+}
+else if (Model.Expired)
+{
+  <section class="qz-sprint-results qz-band-dark">
+    <div class="qz-container">
+      <p class="qz-sprint__eyebrow">Time</p>
+      <h1 class="qz-sprint-intro__title">Round expired</h1>
+      <p class="qz-sprint-intro__standfirst">Your answers arrived after the 60-second round ended. Please try again.</p>
+      <div class="qz-sprint__buttons"><a class="qz-sprint__cta" href="/quizzes/sprint">Run it again</a></div>
+    </div>
+  </section>
+}
+else if (Model.Ticket is { } ticket)
+{
+  <div class="qz-sprint" data-sprint-game data-server-now="@Model.ServerNowUnixMilliseconds" data-expires-at="@Model.ExpiresAtUnixMilliseconds" data-answer-url="@ContentApiEndpoints.RootPath/quizzes/sprint/answer">
+    <div class="qz-sprint__bar" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="60" aria-valuenow="60" data-sprint-progress>
+      <span class="qz-sprint__bar-fill" data-sprint-fill></span>
+    </div>
+    <div class="qz-sprint__status" role="timer" aria-label="Time remaining">
+      <div class="qz-sprint__clock">
+        <output class="qz-sprint__seconds" data-sprint-seconds>60</output>
+        <span class="qz-sprint__label">Seconds left</span>
+      </div>
+      <div class="qz-sprint__tally">
+        <span class="qz-sprint__streak" data-sprint-streak>No streak</span>
+        <span class="qz-sprint__points"><output data-sprint-score>0</output><span class="qz-sprint__label">Points</span></span>
+      </div>
+    </div>
+    <span class="visually-hidden" aria-live="polite" data-sprint-announcement></span>
+
+    <form method="post" asp-page-handler="Finish" data-sprint-form class="qz-sprint__stage">
+      <input type="hidden" name="ticket" value="@ticket" data-sprint-ticket>
+      @for (var index = 0; index < Model.Questions.Count; index++)
+      {
+        var question = Model.Questions[index];
+        <fieldset class="qz-sprint__question" data-sprint-question data-question-id="@question.Id" hidden="@(index != 0)">
+          <p class="qz-sprint__eyebrow qz-sprint__eyebrow--purple">Question @((index + 1).ToString("00"))</p>
+          <legend class="qz-sprint__prompt" tabindex="-1">@question.Text</legend>
+          <div class="qz-sprint__answers">
+            @for (var optionIndex = 0; optionIndex < question.Options.Count; optionIndex++)
+            {
+              var option = question.Options[optionIndex];
+              <label class="qz-sprint__answer" data-option-id="@option.Id">
+                <input class="visually-hidden" type="radio" name="answer_@question.Id.ToString("N")" value="@option.Id.ToString("N")" data-option-guid="@option.Id">
+                <span class="qz-sprint__letter" aria-hidden="true">@((char)('A' + optionIndex))</span>
+                <span class="qz-sprint__answer-text">@option.Text</span>
+              </label>
+            }
+          </div>
+        </fieldset>
+      }
+    </form>
+    <noscript><p class="qz-sprint__noscript">JavaScript is required to advance questions and show the countdown.</p></noscript>
+  </div>
+}
+else
+{
+  <section class="qz-sprint-intro qz-band-dark">
+    <partial name="_PictureImage" model='@(("/design-system/assets/crest-white.png", "", false, "qz-sprint-intro__crest"))' />
+    <div class="qz-container qz-sprint-intro__grid">
+      <div>
+        <p class="qz-sprint__eyebrow">The daily challenge</p>
+        <h1 class="qz-sprint-intro__title">Sixty seconds<br>on the clock.</h1>
+        <p class="qz-sprint-intro__standfirst">One question at a time, drawn from the Queen archive. Answer fast, build a streak, and take your place on today's leaderboard.</p>
+        <p class="qz-sprint-intro__rules"><span>60 seconds</span><span>Unlimited runs</span><span>No skips</span></p>
         @if (!string.IsNullOrWhiteSpace(Model.StartNotice) && !Model.EmptyPool)
         {
-          <p class="qz-quiz-result__notice" role="status">@Model.StartNotice</p>
+          <p class="qz-sprint-intro__notice" role="status">@Model.StartNotice</p>
         }
-        <h2>Ready for a quick round?</h2>
-        <p>You have 60 seconds to answer as many random questions from published Queen quizzes as you can. Each correct answer earns one point. Wrong or skipped answers earn zero, with no deduction.</p>
-        <p>This is a casual round; results do not appear on the leaderboard.</p>
         @if (Model.EmptyPool)
         {
-          <p>No published questions are available yet.</p>
+          <p class="qz-sprint-intro__notice">No published questions are available yet.</p>
         }
         else
         {
-          <form method="post" asp-page-handler="Start">
-            <button type="submit" class="qz-button qz-button--cta">Start 60-second sprint</button>
-          </form>
+          <div class="qz-sprint__buttons">
+            <form method="post" asp-page-handler="Start">
+              <button type="submit" class="qz-sprint__cta">Begin the sprint</button>
+            </form>
+            <a class="qz-sprint__link" href="/quizzes/leaderboard">View the leaderboard</a>
+          </div>
+          @if (!Model.SignedIn)
+          {
+            <p class="qz-sprint-intro__signin">Scores are only added to the leaderboard for signed-in members. <a href="@loginHref">Sign in to be ranked</a>.</p>
+          }
         }
       </div>
-    }
-  </div>
-</section>
+      <div class="qz-sprint-intro__dial-wrap">
+        <div class="qz-sprint-intro__dial" aria-hidden="true">
+          <span class="qz-sprint-intro__dial-number">60</span>
+          <span class="qz-sprint-intro__dial-label">Seconds</span>
+        </div>
+        @if (best is not null)
+        {
+          <p class="qz-sprint-intro__best">Best today &middot; @best.Score points<br>@best.DisplayName</p>
+        }
+      </div>
+    </div>
+    <div class="qz-container qz-sprint-intro__facts">
+      <div><p class="qz-sprint__eyebrow">Scoring</p><p>One point per correct answer.</p></div>
+      <div><p class="qz-sprint__eyebrow">Streak</p><p>Three in a row doubles every answer after.</p></div>
+      <div><p class="qz-sprint__eyebrow">Leaderboard</p><p>Daily standings, resetting at midnight UTC.</p></div>
+    </div>
+  </section>
+
+  <section class="qz-section qz-section--warm">
+    <div class="qz-container qz-sprint-how">
+      <div>
+        <p class="qz-sprint__eyebrow qz-sprint__eyebrow--purple">How it works</p>
+        <h2>Three rules, no second guesses</h2>
+        <ol class="qz-sprint-how__list">
+          <li><span class="qz-sprint-how__num">I</span><div><h3>The clock starts on your first question</h3><p>No countdown, no warm-up. Tap begin and it runs.</p></div></li>
+          <li><span class="qz-sprint-how__num">II</span><div><h3>One answer each, and it is final</h3><p>A wrong answer costs no time, but it breaks the streak.</p></div></li>
+          <li><span class="qz-sprint-how__num">III</span><div><h3>Questions never repeat within a sprint</h3><p>Every run draws a fresh order from the archive.</p></div></li>
+        </ol>
+        <p class="qz-sprint-how__suggest"><a href="/submit/quiz-question">Suggest a quiz question</a></p>
+      </div>
+      <div>
+        <p class="qz-sprint__eyebrow qz-sprint__eyebrow--burgundy">Daily leaderboard</p>
+        <h2>Today's leaders</h2>
+        <partial name="_SprintBoard" model='@((Model.Board, false, "No scores yet today. Be the first on the board."))' />
+      </div>
+    </div>
+  </section>
+}
 
 @section Scripts {
   <script src="~/js/quiz-sprint.js" asp-append-version="true" defer></script>

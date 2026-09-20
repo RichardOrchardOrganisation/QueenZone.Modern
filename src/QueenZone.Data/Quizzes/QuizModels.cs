@@ -69,6 +69,37 @@ public sealed record QuizSprintQuestion(
 
 public sealed record QuizSprintOption(Guid Id, string Text, bool IsCorrect);
 
+/// <summary>One member's best Quiz Sprint run for the day, ranked.</summary>
+public sealed record QuizSprintLeaderboardEntry(
+    int Rank,
+    Guid MemberAccountId,
+    int Score,
+    int BestStreak,
+    int AnsweredCount,
+    DateTimeOffset CompletedAt,
+    int Runs = 1);
+
+public enum QuizSprintBoardScope
+{
+    /// <summary>Best run per member since 00:00 UTC today.</summary>
+    Daily,
+
+    /// <summary>Best run per member, ever.</summary>
+    AllTime,
+
+    /// <summary>Points summed across every run a member has played, ever.</summary>
+    Total,
+}
+
+/// <summary>
+/// Quiz Sprint standings for a scope: each member's best run, the viewer's own entry even
+/// outside the top page, and how many distinct members are ranked in that scope.
+/// </summary>
+public sealed record QuizSprintBoardResult(
+    IReadOnlyList<QuizSprintLeaderboardEntry> Top,
+    QuizSprintLeaderboardEntry? Viewer,
+    int Players);
+
 public sealed record QuizAnswerSubmission(Guid QuestionId, Guid? SelectedOptionId);
 
 public sealed record QuizAnswerResult(

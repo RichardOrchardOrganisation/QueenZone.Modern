@@ -9,7 +9,7 @@ namespace QueenZone.Web.Tests;
 public sealed class QuizPagesRoutesTests
 {
     [Fact]
-    public async Task List_page_only_shows_published_quizzes()
+    public async Task Quizzes_index_redirects_to_the_sprint_without_listing_quiz_types()
     {
         using var isolated = IsolatedQuizzes();
         using var scope = isolated.Services.CreateScope();
@@ -18,11 +18,15 @@ public sealed class QuizPagesRoutesTests
         var publishedId = await quizzes.CreateAsync(SampleDraft("Visible quiz"), Guid.NewGuid());
         await quizzes.PublishAsync(publishedId);
 
-        using var client = isolated.CreateAnonymousClient();
-        var html = await client.GetStringAsync("/quizzes");
+        using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var response = await client.GetAsync("/quizzes");
 
-        Assert.Contains("Visible quiz", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Hidden draft", html, StringComparison.Ordinal);
+        // The public quiz section is the timed Sprint only: quiz types are no longer listed.
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/quizzes/sprint", response.Headers.Location?.OriginalString);
+        var landing = await client.GetStringAsync("/quizzes/sprint");
+        Assert.DoesNotContain("Visible quiz", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("Hidden draft", landing, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,7 +86,7 @@ public sealed class QuizPagesRoutesTests
     }
 
     [Fact]
-    public async Task Signed_in_member_completing_a_quiz_is_recorded_and_appears_on_the_leaderboard()
+    public async Task Signed_in_member_completing_a_quiz_is_recorded()
     {
         using var isolated = IsolatedQuizzes();
         var quizId = await PublishSampleAsync(isolated);
@@ -110,8 +114,8 @@ public sealed class QuizPagesRoutesTests
         var quizzes = scope.ServiceProvider.GetRequiredService<IQuizRepository>();
         Assert.Equal(1, (await quizzes.GetByIdAsync(quizId))!.AttemptCount);
 
-        var leaderboard = await member.GetStringAsync("/quizzes/leaderboard?scope=all");
-        Assert.Contains("Quiz Champion", leaderboard, StringComparison.Ordinal);
+        // Old-style quiz attempts still feed the app's weekly board, not the public Sprint leaderboard.
+        Assert.Equal(HttpStatusCode.OK, (await member.GetAsync("/quizzes/leaderboard")).StatusCode);
     }
 
     [Fact]
@@ -131,7 +135,7 @@ public sealed class QuizPagesRoutesTests
 
         var landing = await client.GetStringAsync(response.Headers.Location!);
         Assert.Contains("Press Start to begin a 60-second sprint.", landing, StringComparison.Ordinal);
-        Assert.Contains("Start 60-second sprint", landing, StringComparison.Ordinal);
+        Assert.Contains("Begin the sprint", landing, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"ticket\"", landing, StringComparison.Ordinal);
         Assert.DoesNotContain("data-sprint-game", landing, StringComparison.Ordinal);
     }
@@ -162,7 +166,7 @@ public sealed class QuizPagesRoutesTests
 
         var landing = await client.GetStringAsync("/quizzes/sprint");
         Assert.Contains("No published questions are available yet.", landing, StringComparison.Ordinal);
-        Assert.DoesNotContain("Start 60-second sprint", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("Begin the sprint", landing, StringComparison.Ordinal);
 
         var contact = await client.GetStringAsync("/contact");
         var response = await client.PostAsync(
@@ -177,7 +181,7 @@ public sealed class QuizPagesRoutesTests
         Assert.Contains("No published questions are available yet.", body, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"ticket\"", body, StringComparison.Ordinal);
         Assert.DoesNotContain("data-sprint-game", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("Start 60-second sprint", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Begin the sprint", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -194,7 +198,7 @@ public sealed class QuizPagesRoutesTests
 
         using var client = isolated.CreateAnonymousClient();
         var landing = await client.GetStringAsync("/quizzes/sprint");
-        Assert.Contains("Start 60-second sprint", landing, StringComparison.Ordinal);
+        Assert.Contains("Begin the sprint", landing, StringComparison.Ordinal);
         var round = await StartSprintAsync(client, landing);
 
         Assert.Contains("data-sprint-seconds", round, StringComparison.Ordinal);

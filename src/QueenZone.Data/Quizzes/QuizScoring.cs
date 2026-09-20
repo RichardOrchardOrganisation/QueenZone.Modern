@@ -54,6 +54,72 @@ internal static class QuizScoring
             results);
     }
 
+    public static DateTimeOffset GetCurrentDayStartUtc(DateTimeOffset now) =>
+        new(now.UtcDateTime.Date, TimeSpan.Zero);
+
+    public static QuizSprintBoardResult BuildSprintBoard(
+        IEnumerable<QuizSprintRunEntity> runs,
+        Guid? viewerMemberId,
+        int top)
+    {
+        var ranked = runs
+            .GroupBy(run => run.MemberAccountId)
+            .Select(group => (
+                Best: group.OrderByDescending(run => run.Score).ThenBy(run => run.CompletedAt).First(),
+                Runs: group.Count()))
+            .OrderByDescending(row => row.Best.Score)
+            .ThenBy(row => row.Best.CompletedAt)
+            .ThenBy(row => row.Best.MemberAccountId)
+            .Select((row, index) => new QuizSprintLeaderboardEntry(
+                index + 1,
+                row.Best.MemberAccountId,
+                row.Best.Score,
+                row.Best.BestStreak,
+                row.Best.AnsweredCount,
+                row.Best.CompletedAt,
+                row.Runs))
+            .ToList();
+
+        var viewer = viewerMemberId is Guid memberId
+            ? ranked.SingleOrDefault(entry => entry.MemberAccountId == memberId)
+            : null;
+
+        return new QuizSprintBoardResult(ranked.Take(top).ToList(), viewer, ranked.Count);
+    }
+
+    /// <summary>Ranks members by points summed over all their runs; ties fall back to member id.</summary>
+    public static QuizSprintBoardResult BuildSprintTotalBoard(
+        IEnumerable<QuizSprintRunEntity> runs,
+        Guid? viewerMemberId,
+        int top)
+    {
+        var ranked = runs
+            .GroupBy(run => run.MemberAccountId)
+            .Select(group => (
+                MemberAccountId: group.Key,
+                Points: group.Sum(run => run.Score),
+                BestStreak: group.Max(run => run.BestStreak),
+                Answered: group.Sum(run => run.AnsweredCount),
+                Runs: group.Count()))
+            .OrderByDescending(row => row.Points)
+            .ThenBy(row => row.MemberAccountId)
+            .Select((row, index) => new QuizSprintLeaderboardEntry(
+                index + 1,
+                row.MemberAccountId,
+                row.Points,
+                row.BestStreak,
+                row.Answered,
+                default,
+                row.Runs))
+            .ToList();
+
+        var viewer = viewerMemberId is Guid memberId
+            ? ranked.SingleOrDefault(entry => entry.MemberAccountId == memberId)
+            : null;
+
+        return new QuizSprintBoardResult(ranked.Take(top).ToList(), viewer, ranked.Count);
+    }
+
     public static DateTimeOffset GetCurrentWeekStartUtc(DateTimeOffset now)
     {
         var today = now.UtcDateTime.Date;

@@ -128,6 +128,37 @@ public static class ContentApiEndpoints
             .WithSummary("Quiz leaderboard ranked by summed attempt score. 'scope' is 'week' (default, current UTC week) or 'all'. Optional Bearer includes the viewer's own rank even outside the top page.")
             .Produces<QuizLeaderboardDto>();
 
+        group.MapPost("/quizzes/sprint/start", StartSprintAsync)
+            .WithName("StartContentQuizSprint")
+            .WithSummary("Start a 60-second Quiz Sprint round: shuffled questions (no answer key) plus a signed ticket to send back on finish. Open to anonymous callers.")
+            .Produces<SprintRoundDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/quizzes/sprint/answer", CheckSprintAnswer)
+            .WithName("CheckContentQuizSprintAnswer")
+            .WithSummary("Reveal whether one Sprint pick was right (and which option was) while the round is live, for per-answer feedback. The ticket keeps the answer key server-side.")
+            .Accepts<SprintAnswerRequestDto>("application/json")
+            .Produces<SprintAnswerResultDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapPost("/quizzes/sprint/finish", FinishSprintAsync)
+            .WithName("FinishContentQuizSprint")
+            .WithSummary("Score a Quiz Sprint round server-side (+1 per correct answer, +2 once on a streak of 3). A Bearer-authenticated run is recorded on today's leaderboard; anonymous runs are scored but not recorded.")
+            .Accepts<SprintFinishRequestDto>("application/json")
+            .Produces<SprintResultDto>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status410Gone);
+
+        group.MapGet("/quizzes/sprint/leaderboard", GetSprintBoardAsync)
+            .WithName("GetContentQuizSprintBoard")
+            .WithSummary("Quiz Sprint standings using each member's best run. 'scope' is 'daily' (default, today UTC), 'all' (best run ever) or 'total' (points summed over every run). Optional Bearer includes the viewer's own entry even outside the top page.")
+            .Produces<SprintBoardDto>();
+
+        group.MapGet("/quizzes/sprint/daily", GetSprintDailyBoardAsync)
+            .WithName("GetContentQuizSprintDailyBoard")
+            .WithSummary("Today's (UTC) Quiz Sprint standings using each member's best run, plus players today. Optional Bearer includes the viewer's own entry even outside the top page.")
+            .Produces<SprintDailyBoardDto>();
+
         group.MapGet("/quizzes/{id:guid}", GetQuizDetailAsync)
             .WithName("GetContentQuizDetail")
             .WithSummary("A published quiz shaped for play: options only, no correct-answer flag.")
@@ -542,6 +573,147 @@ public static class ContentApiEndpoints
             : (await ToLeaderboardEntryDtosAsync([result.Viewer], memberAccountRepository, cancellationToken)).Single();
 
         return Results.Ok(new QuizLeaderboardDto(top, viewer, result.TotalMembers));
+    }
+
+    internal static async Task<IResult> StartSprintAsync(
+        QuizSprintService sprintService,
+        CancellationToken cancellationToken)
+    {
+        var round = await sprintService.StartAsync(cancellationToken);
+        if (round is null)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Not Found",
+                detail: "No published quiz questions are available yet.");
+        }
+
+        return Results.Ok(new SprintRoundDto(
+            round.Ticket,
+            round.ServerNowUnixMilliseconds,
+            round.ExpiresAtUnixMilliseconds,
+            QuizSprintService.DurationSeconds,
+            round.Questions
+                .Select(question => new SprintQuestionDto(
+                    question.Id,
+                    question.Text,
+                    question.Options.Select(option => new SprintOptionDto(option.Id, option.Text)).ToList()))
+                .ToList()));
+    }
+
+    internal static IResult CheckSprintAnswer(
+        SprintAnswerRequestDto? request,
+        QuizSprintService sprintService)
+    {
+        var check = request is null
+            ? null
+            : sprintService.CheckAnswer(request.Ticket, request.QuestionId, request.OptionId);
+        return check is null
+            ? Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                detail: "The sprint ticket, question or option is invalid, or the round has ended.")
+            : Results.Ok(new SprintAnswerResultDto(check.IsCorrect, check.CorrectOptionId));
+    }
+
+    internal static async Task<IResult> FinishSprintAsync(
+        HttpContext httpContext,
+        SprintFinishRequestDto? request,
+        QuizSprintService sprintService,
+        CancellationToken cancellationToken)
+    {
+        var selections = new Dictionary<Guid, Guid>();
+        foreach (var answer in request?.Answers ?? [])
+        {
+            if (answer.SelectedOptionId is Guid optionId)
+            {
+                selections[answer.QuestionId] = optionId;
+            }
+        }
+
+        var memberId = await TryGetViewerMemberIdAsync(httpContext);
+        var outcome = await sprintService.FinishAsync(request?.Ticket, selections, memberId, cancellationToken);
+        switch (outcome.Status)
+        {
+            case SprintFinishStatus.Invalid:
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Bad Request",
+                    detail: "The sprint ticket is missing or invalid.");
+            case SprintFinishStatus.Expired:
+                return Results.Problem(
+                    statusCode: StatusCodes.Status410Gone,
+                    title: "Round expired",
+                    detail: "Answers arrived after the 60-second round ended.");
+            default:
+                var result = outcome.Result!;
+                return Results.Ok(new SprintResultDto(
+                    result.Attempted,
+                    result.Correct,
+                    result.Points,
+                    result.BestStreak,
+                    result.Recorded,
+                    result.Rank,
+                    result.Answers
+                        .Select(item => new SprintReviewItemDto(item.QuestionId, item.QuestionText, item.IsCorrect, item.CorrectAnswer))
+                        .ToList()));
+        }
+    }
+
+    internal static async Task<IResult> GetSprintBoardAsync(
+        HttpContext httpContext,
+        string? scope,
+        IQuizRepository quizRepository,
+        IMemberAccountRepository memberAccountRepository,
+        CancellationToken cancellationToken)
+    {
+        var (boardScope, scopeName) = scope?.ToLowerInvariant() switch
+        {
+            "all" => (QuizSprintBoardScope.AllTime, "all"),
+            "total" => (QuizSprintBoardScope.Total, "total"),
+            _ => (QuizSprintBoardScope.Daily, "daily"),
+        };
+        var viewerId = await TryGetViewerMemberIdAsync(httpContext);
+        var board = await quizRepository.GetSprintBoardAsync(
+            boardScope,
+            viewerId,
+            top: 20,
+            cancellationToken);
+        var dto = await ToSprintBoardEntriesAsync(board, memberAccountRepository, cancellationToken);
+        return Results.Ok(new SprintBoardDto(scopeName, dto.Top, dto.Viewer, board.Players));
+    }
+
+    internal static async Task<IResult> GetSprintDailyBoardAsync(
+        HttpContext httpContext,
+        IQuizRepository quizRepository,
+        IMemberAccountRepository memberAccountRepository,
+        CancellationToken cancellationToken)
+    {
+        var viewerId = await TryGetViewerMemberIdAsync(httpContext);
+        var board = await quizRepository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, viewerId, top: 20, cancellationToken);
+        var dto = await ToSprintBoardEntriesAsync(board, memberAccountRepository, cancellationToken);
+        return Results.Ok(new SprintDailyBoardDto(dto.Top, dto.Viewer, board.Players));
+    }
+
+    private static async Task<(IReadOnlyList<SprintLeaderboardEntryDto> Top, SprintLeaderboardEntryDto? Viewer)> ToSprintBoardEntriesAsync(
+        QuizSprintBoardResult board,
+        IMemberAccountRepository memberAccountRepository,
+        CancellationToken cancellationToken)
+    {
+        async Task<SprintLeaderboardEntryDto> ToDtoAsync(QuizSprintLeaderboardEntry entry)
+        {
+            var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
+            return new SprintLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.BestStreak, entry.Runs);
+        }
+
+        var top = new List<SprintLeaderboardEntryDto>(board.Top.Count);
+        foreach (var entry in board.Top)
+        {
+            top.Add(await ToDtoAsync(entry));
+        }
+
+        var viewer = board.Viewer is null ? null : await ToDtoAsync(board.Viewer);
+        return (top, viewer);
     }
 
     private static async Task<IReadOnlyList<QuizLeaderboardEntryDto>> ToLeaderboardEntryDtosAsync(

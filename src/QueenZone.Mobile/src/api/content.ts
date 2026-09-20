@@ -24,6 +24,11 @@ import type {
   QuizLeaderboard,
   QuizListItem,
   QuizResult,
+  QuizSprintAnswerCheck,
+  QuizSprintBoard,
+  QuizSprintDailyBoard,
+  QuizSprintResult,
+  QuizSprintRound,
   RandomQuote,
   RandomTrivia,
   TimelineEvent,
@@ -260,6 +265,63 @@ export function fetchQuizLeaderboard(
   accessToken?: string | null,
 ): Promise<QuizLeaderboard> {
   return fetchJson('/content/quizzes/leaderboard', { query: { scope }, signal, accessToken });
+}
+
+/** Starts a 60-second Quiz Sprint round. Open to anonymous callers. */
+export function startQuizSprint(signal?: AbortSignal): Promise<QuizSprintRound> {
+  return sendJson('/content/quizzes/sprint/start', { method: 'POST', signal });
+}
+
+/** Reveals whether one pick was right while the round is live (the ticket keeps the key server-side). */
+export function checkQuizSprintAnswer(
+  ticket: string,
+  questionId: string,
+  optionId: string,
+  signal?: AbortSignal,
+): Promise<QuizSprintAnswerCheck> {
+  return sendJson('/content/quizzes/sprint/answer', {
+    method: 'POST',
+    body: { ticket, questionId, optionId },
+    signal,
+  });
+}
+
+/**
+ * Scores the round server-side. With a Bearer token the run is recorded on today's
+ * leaderboard; without one it is scored but not recorded.
+ */
+export function finishQuizSprint(
+  ticket: string,
+  answers: QuizAnswerSubmission[],
+  accessToken?: string | null,
+  signal?: AbortSignal,
+): Promise<QuizSprintResult> {
+  return sendJson('/content/quizzes/sprint/finish', {
+    method: 'POST',
+    body: { ticket, answers },
+    accessToken,
+    signal,
+  });
+}
+
+/** Today's Quiz Sprint standings. Optional Bearer includes the viewer's own entry. */
+export function fetchQuizSprintDaily(
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizSprintDailyBoard> {
+  return fetchJson('/content/quizzes/sprint/daily', { signal, accessToken });
+}
+
+/**
+ * Quiz Sprint standings: best run today (`daily`), best run ever (`all`), or points summed over
+ * every run (`total`). Optional Bearer includes the viewer.
+ */
+export function fetchQuizSprintLeaderboard(
+  scope: 'daily' | 'all' | 'total',
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizSprintBoard> {
+  return fetchJson('/content/quizzes/sprint/leaderboard', { query: { scope }, signal, accessToken });
 }
 
 export function fetchFreddieTributePage(

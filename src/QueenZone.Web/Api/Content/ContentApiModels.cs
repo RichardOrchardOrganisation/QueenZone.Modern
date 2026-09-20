@@ -260,6 +260,64 @@ public sealed record QuizLeaderboardDto(
     QuizLeaderboardEntryDto? Viewer,
     int TotalMembers);
 
+public sealed record SprintOptionDto(Guid Id, string Text);
+
+public sealed record SprintQuestionDto(Guid Id, string Text, IReadOnlyList<SprintOptionDto> Options);
+
+/// <summary>
+/// Shape for <c>POST /api/v1/content/quizzes/sprint/start</c>. Options carry no correct-answer flag;
+/// <c>Ticket</c> is an opaque signed token to send back on finish. Times are Unix milliseconds (UTC).
+/// </summary>
+public sealed record SprintRoundDto(
+    string Ticket,
+    long ServerNowUnixMilliseconds,
+    long ExpiresAtUnixMilliseconds,
+    int DurationSeconds,
+    IReadOnlyList<SprintQuestionDto> Questions);
+
+/// <summary>Request body for <c>POST /api/v1/content/quizzes/sprint/answer</c>.</summary>
+public sealed record SprintAnswerRequestDto(string? Ticket, Guid QuestionId, Guid OptionId);
+
+/// <summary>Whether the picked option was right, and which one was, for per-answer feedback.</summary>
+public sealed record SprintAnswerResultDto(bool IsCorrect, Guid CorrectOptionId);
+
+public sealed record SprintFinishRequestDto(string? Ticket, IReadOnlyList<QuizAnswerSubmissionDto>? Answers);
+
+public sealed record SprintReviewItemDto(Guid QuestionId, string QuestionText, bool IsCorrect, string CorrectAnswer);
+
+/// <summary>
+/// Result of <c>POST /api/v1/content/quizzes/sprint/finish</c>. <c>Recorded</c> is true only when the
+/// caller was signed in (Bearer) and the run reached today's leaderboard; <c>Rank</c> is then set.
+/// </summary>
+public sealed record SprintResultDto(
+    int Attempted,
+    int Correct,
+    int Points,
+    int BestStreak,
+    bool Recorded,
+    int? Rank,
+    IReadOnlyList<SprintReviewItemDto> Answers);
+
+/// <param name="Runs">Runs the member has played in the scope (1 for a single best run; the run count for the total board).</param>
+public sealed record SprintLeaderboardEntryDto(int Rank, string DisplayName, int Score, int BestStreak, int Runs = 1);
+
+/// <summary>
+/// Shape for <c>GET /api/v1/content/quizzes/sprint/leaderboard</c>: <c>Scope</c> is <c>daily</c>,
+/// <c>all</c> (best run ever) or <c>total</c> (points summed over every run); <c>Players</c> counts
+/// the members ranked in that scope.
+/// </summary>
+public sealed record SprintBoardDto(
+    string Scope,
+    IReadOnlyList<SprintLeaderboardEntryDto> Top,
+    SprintLeaderboardEntryDto? Viewer,
+    int Players);
+
+/// <summary>Shape for <c>GET /api/v1/content/quizzes/sprint/daily</c> (today, UTC).</summary>
+public sealed record SprintDailyBoardDto(
+    IReadOnlyList<SprintLeaderboardEntryDto> Top,
+    SprintLeaderboardEntryDto? Viewer,
+    int PlayersToday);
+
 /// <summary>
 /// Category card for <c>/api/v1/content/photos/categories</c> and
 /// <c>/api/v1/content/photos/categories/{slug}</c>. Cover URLs are CDN

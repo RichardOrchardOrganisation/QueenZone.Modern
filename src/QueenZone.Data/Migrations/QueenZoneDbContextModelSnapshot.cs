@@ -3066,6 +3066,41 @@ namespace QueenZone.Data.Migrations
                     b.ToTable("QuizQuestionSubmissionOptions", (string)null);
                 });
 
+            modelBuilder.Entity("QueenZone.Data.Entities.QuizSprintRunEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AnsweredCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BestStreak")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("CorrectCount")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("MemberAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompletedAt")
+                        .HasDatabaseName("IX_QuizSprintRuns_CompletedAt");
+
+                    b.HasIndex("MemberAccountId", "CompletedAt")
+                        .HasDatabaseName("IX_QuizSprintRuns_MemberAccountId_CompletedAt");
+
+                    b.ToTable("QuizSprintRuns", (string)null);
+                });
+
             modelBuilder.Entity("QueenZone.Data.Entities.QuoteEntity", b =>
                 {
                     b.Property<int>("QuoteId")

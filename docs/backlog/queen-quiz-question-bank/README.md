@@ -1,9 +1,8 @@
 # Queen quiz question bank
 
-This directory contains the original **500 multiple-choice questions** and a
-separate **500-question Encore set**. Each set is split into twenty quizzes of
-25 questions. Every question has four distinct options and one correct answer.
-The answer order rotates across questions.
+This directory contains three sets totalling **1,500 multiple-choice questions**.
+The bank contains sixty quizzes of 25 questions. Every question has four
+distinct options and one correct answer. The answer order rotates across questions.
 
 `questions.csv` contains the original 200 questions in eight quizzes (800 option rows).
 `questions_extra.csv` contains 300 additional questions (1,200 option rows)
@@ -27,12 +26,26 @@ and Adam Lambert. Its editorial `very hard` level is encoded as importer
 `hard` with four points, as described below. Difficulty estimates can be
 adjusted after reviewing player results.
 
-On 20 September 2026, a read-only check found 500 quiz questions in production,
-matching the two earlier CSVs by normalized wording. The Encore questions had
-zero normalized-text matches against production. The generator also checks for
-duplicates against the two earlier files and within the Encore set. This is a
-new import; do not rerun it after it has been loaded, because the importer
-creates new quizzes rather than updating them.
+`questions_third.csv` contains a third set of 500 questions (2,000 option rows)
+in twenty 25-question Archive Explorer quizzes. `build_third.py` generates it
+and `sources_third.csv`. This set draws on the user-supplied *Queen: As It Began*,
+*Queen: A Visual Documentary* and *Queen: Complete Works*, the curated Queen
+concert history, and specific pages on Queen's official site. It covers live
+venues, band milestones, remaining individual songwriting credits, solo work,
+members' lives, archive editions, and the 2018 film. The source ledger links or
+names a source for every question.
+
+The third generator excludes normalized wording found in the first 1,000
+questions and screens timeline entries for close matches to prior question and
+answer pairs. A read-only production comparison on 20 September 2026 found the
+same 1,000 questions live and no normalized wording matches with the third set.
+As with the Encore set, editorial `very hard` is imported as `hard` with four
+points.
+
+Before the Encore import, a read-only production check found 500 questions
+matching the first two CSVs. The Encore generator found no normalized-text
+matches with them. Each importer run creates new quizzes rather than updating
+existing ones, so only import a set once.
 
 `sources.csv` and `sources_extra.csv` are separate editorial ledgers, keyed by
 quiz title and question text. They are not passed to the importer. Book facts
@@ -70,21 +83,24 @@ levels use 1, 2, and 3 points respectively.
 python3 docs/backlog/queen-quiz-question-bank/build.py
 python3 docs/backlog/queen-quiz-question-bank/build_extra.py
 python3 docs/backlog/queen-quiz-question-bank/build_more.py
+python3 docs/backlog/queen-quiz-question-bank/build_third.py
 dotnet run --project src/QueenZone.Tools -- import-quiz-questions \
   --csv docs/backlog/queen-quiz-question-bank/questions.csv --dry-run
 dotnet run --project src/QueenZone.Tools -- import-quiz-questions \
   --csv docs/backlog/queen-quiz-question-bank/questions_extra.csv --dry-run
 dotnet run --project src/QueenZone.Tools -- import-quiz-questions \
   --csv docs/backlog/queen-quiz-question-bank/questions_more.csv --dry-run
+dotnet run --project src/QueenZone.Tools -- import-quiz-questions \
+  --csv docs/backlog/queen-quiz-question-bank/questions_third.csv --dry-run
 ```
 
 After editorial review, use the import command with a connection string as
-documented in PR #1583. **These questions have already been imported into
-production** and the original ten 50-question quizzes were split there into
-twenty 25-question parts. The CSVs now match that structure. Do not run a real
-import against production again: the importer creates new quizzes rather than
-updating existing ones.
+documented in PR #1583. The first two sets (1,000 questions) have already
+been imported and published in dev and production. **The third set has not
+been imported.** Do not rerun a real import for a set already loaded: the
+importer creates new quizzes rather than updating existing ones.
 
-To edit a question, change `build.py` or `build_extra.py` and regenerate that
-file's questions and sources CSVs together. The scripts check question counts,
-uniqueness of question text and options, and field lengths before writing.
+To edit a question, change its generator (`build.py`, `build_extra.py`,
+`build_more.py` or `build_third.py`) and regenerate its questions and sources
+CSVs together. The scripts check question counts, uniqueness of question text
+and options, and field lengths before writing.
