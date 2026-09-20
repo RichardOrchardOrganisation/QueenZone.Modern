@@ -257,7 +257,7 @@ The workflow skips scheduled runs with a summary while `DevSnapshot__Ready` is f
 
 `ForumBlockWorkflowTests` uses two marked mirror member accounts to create a thread through the browser, block its author from the post actions, and verify the post stays collapsed after reload. Teardown removes the thread, block, and members; the nightly residue check catches any leaked markers.
 
-Run it on demand with `scripts/Run-E2E.ps1 -Mode RealData` (requires `ConnectionStrings__QueenZoneLegacy` pointing at the local SQL Express mirror; see `docs/architecture/self-hosted-e2e-runner.md`). Nightly runs it on both self-hosted runners (`ui-e2e-realdata` job, one shard per OS) so the UI suite itself gets coverage on both operating systems, even though the mirror database only lives on the Windows box.
+Run it on demand with `scripts/Run-E2E.ps1 -Mode RealData` (requires `ConnectionStrings__QueenZoneLegacy` pointing at the local SQL Express mirror; see `docs/architecture/self-hosted-e2e-runner.md`). RealData applies pending EF migrations to that mirror before the E2E host starts (`dotnet ef database update` in `Run-E2E.ps1`, plus `E2EMirrorMigrationHostedService` at E2E startup). Sync/skip_sync copies production Azure SQL and can leave Express without modern tables such as `QuizSprintRuns`; the nightly workflow also has a Windows-only `apply-ef-migrations-mirror` job before the OS matrix. Nightly runs the suite on both self-hosted runners (`ui-e2e-realdata` job, one shard per OS) so the UI suite itself gets coverage on both operating systems, even though the mirror database only lives on the Windows box.
 
 #### Selector conventions
 

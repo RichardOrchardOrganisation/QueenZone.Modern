@@ -104,7 +104,8 @@ Use `scripts/Run-E2E.ps1` (same path CI uses). It restores/builds, installs Chro
 # Same as the CI merge gate (in-memory Testing host, Deterministic category):
 powershell -File ./scripts/Run-E2E.ps1 -Mode Deterministic
 
-# Nightly real-data suite against the SQL Express mirror (requires the connection string):
+# Nightly real-data suite against the SQL Express mirror (requires the connection string).
+# Applies pending EF migrations to Express before start.
 $env:ConnectionStrings__QueenZoneLegacy = "Server=localhost\SQLEXPRESS;Database=queenzone_legacy_sync;Integrated Security=True;TrustServerCertificate=True"
 powershell -File ./scripts/Run-E2E.ps1 -Mode RealData
 
