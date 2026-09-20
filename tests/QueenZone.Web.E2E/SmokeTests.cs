@@ -43,15 +43,8 @@ public class SmokeTests : E2EPageTest
         }
     }
 
-    private async Task AssertNoEncodingArtifactsAsync()
-    {
-        var bodyText = await Page.Locator("body").InnerTextAsync();
-        var match = PageShapeAssertions.FindEncodingArtifact(bodyText);
-        Assert.That(
-            match.Success,
-            Is.False,
-            $"Unrendered HTML-encoding artifact in visible text: '{match.Value}'");
-    }
+    private Task AssertNoEncodingArtifactsAsync() =>
+        PageShapeAssertions.AssertNoEncodingArtifactsAsync(Page);
 
     [Test]
     public async Task Homepage_ShowsLatestNews()
@@ -242,7 +235,11 @@ public class SmokeTests : E2EPageTest
         await using var context = await Browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = BaseUrl,
-            ViewportSize = new ViewportSize { Width = 390, Height = 844 },
+            ViewportSize = new ViewportSize
+            {
+                Width = CuratedLayoutPages.PhoneWidth,
+                Height = CuratedLayoutPages.PhoneHeight,
+            },
         });
         var page = await context.NewPageAsync();
 
@@ -250,9 +247,7 @@ public class SmokeTests : E2EPageTest
 
         await Expect(page.GetByText("Latest news")).ToBeVisibleAsync();
 
-        var noHorizontalOverflow = await page.EvaluateAsync<bool>(
-            "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1");
-        Assert.That(noHorizontalOverflow, Is.True, "Homepage should not require horizontal scrolling on a phone viewport.");
+        await PageShapeAssertions.AssertNoHorizontalOverflowAsync(page, "/");
     }
 
     [Test]
@@ -261,7 +256,11 @@ public class SmokeTests : E2EPageTest
         await using var context = await Browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = BaseUrl,
-            ViewportSize = new ViewportSize { Width = 390, Height = 844 },
+            ViewportSize = new ViewportSize
+            {
+                Width = CuratedLayoutPages.PhoneWidth,
+                Height = CuratedLayoutPages.PhoneHeight,
+            },
         });
         var page = await context.NewPageAsync();
 
