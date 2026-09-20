@@ -33,6 +33,67 @@ public sealed class QuizSprintRunTests
     }
 
     [Fact]
+    public async Task Ef_all_time_board_ranks_each_members_best_run_and_includes_the_viewer_outside_the_top()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlite(connection).Options;
+        await using var dbContext = new QueenZoneDbContext(options);
+        dbContext.Database.EnsureCreated();
+        var repository = new EfQuizRepository(dbContext, TimeProvider.System);
+        var leader = Guid.NewGuid();
+        var middle = Guid.NewGuid();
+        var viewer = Guid.NewGuid();
+
+        await repository.RecordSprintRunAsync(leader, new QuizSprintScore(4, 4, 4, 4));
+        await repository.RecordSprintRunAsync(leader, new QuizSprintScore(20, 12, 13, 9));
+        await repository.RecordSprintRunAsync(middle, new QuizSprintScore(10, 8, 9, 5));
+        await repository.RecordSprintRunAsync(viewer, new QuizSprintScore(2, 2, 3, 2));
+
+        var board = await repository.GetSprintBoardAsync(QuizSprintBoardScope.AllTime, viewer, top: 1);
+
+        Assert.Equal(3, board.Players);
+        var only = Assert.Single(board.Top);
+        Assert.Equal((leader, 1, 20, 9), (only.MemberAccountId, only.Rank, only.Score, only.BestStreak));
+        Assert.Equal((viewer, 3, 2), (board.Viewer!.MemberAccountId, board.Viewer.Rank, board.Viewer.Score));
+
+        var withoutViewer = await repository.GetSprintBoardAsync(QuizSprintBoardScope.AllTime, null, top: 10);
+        Assert.Equal([leader, middle, viewer], withoutViewer.Top.Select(entry => entry.MemberAccountId));
+        Assert.Null(withoutViewer.Viewer);
+    }
+
+    [Fact]
+    public async Task Ef_all_time_board_is_empty_without_runs()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlite(connection).Options;
+        await using var dbContext = new QueenZoneDbContext(options);
+        dbContext.Database.EnsureCreated();
+
+        var board = await new EfQuizRepository(dbContext, TimeProvider.System)
+            .GetSprintBoardAsync(QuizSprintBoardScope.AllTime, Guid.NewGuid());
+
+        Assert.Empty(board.Top);
+        Assert.Null(board.Viewer);
+        Assert.Equal(0, board.Players);
+    }
+
+    [Fact]
+    public async Task In_memory_all_time_board_keeps_yesterdays_runs()
+    {
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 19, 12, 0, 0, TimeSpan.Zero));
+        var repository = new InMemoryQuizRepository(new SharedQuizStore(), clock);
+        var old = Guid.NewGuid();
+        await repository.RecordSprintRunAsync(old, new QuizSprintScore(30, 20, 20, 20));
+        clock.Advance(TimeSpan.FromDays(1));
+
+        Assert.Empty((await repository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, null)).Top);
+        var allTime = await repository.GetSprintBoardAsync(QuizSprintBoardScope.AllTime, null);
+        Assert.Equal(old, Assert.Single(allTime.Top).MemberAccountId);
+    }
+
+    [Fact]
     public async Task Daily_board_uses_each_members_best_run_today_and_ignores_yesterday()
     {
         var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 19, 23, 59, 0, TimeSpan.Zero));
@@ -46,9 +107,9 @@ public sealed class QuizSprintRunTests
         await repository.RecordSprintRunAsync(leader, new QuizSprintScore(7, 6, 8, 3));
         await repository.RecordSprintRunAsync(viewer, new QuizSprintScore(2, 2, 3, 2));
 
-        var board = await repository.GetSprintDailyBoardAsync(viewer, top: 1);
+        var board = await repository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, viewer, top: 1);
 
-        Assert.Equal(2, board.PlayersToday);
+        Assert.Equal(2, board.Players);
         var only = Assert.Single(board.Top);
         Assert.Equal(leader, only.MemberAccountId);
         Assert.Equal(10, only.Score);
@@ -64,7 +125,7 @@ public sealed class QuizSprintRunTests
         await repository.RecordSprintRunAsync(low, new QuizSprintScore(3, 3, 3, 3));
         await repository.RecordSprintRunAsync(high, new QuizSprintScore(9, 6, 6, 6));
 
-        var board = await repository.GetSprintDailyBoardAsync(null);
+        var board = await repository.GetSprintBoardAsync(QuizSprintBoardScope.Daily, null);
 
         Assert.Equal([high, low], board.Top.Select(entry => entry.MemberAccountId));
         Assert.Null(board.Viewer);

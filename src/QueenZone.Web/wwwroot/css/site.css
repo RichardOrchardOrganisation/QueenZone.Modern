@@ -185,6 +185,10 @@
   --qz-group-accent: var(--qz-burgundy);
 }
 
+.qz-nav-group--gold {
+  --qz-group-accent: var(--qz-gold);
+}
+
 .qz-nav-group__button,
 .qz-menu-button,
 .qz-icon-button {
@@ -206,6 +210,19 @@
 
 .qz-nav-group__button:hover,
 .qz-nav-group__button[aria-expanded="true"] {
+  color: var(--qz-masthead-accent);
+}
+
+.qz-nav__link {
+  padding: 0.5rem 0.875rem;
+  color: var(--qz-masthead-ink-muted);
+  font: var(--fw-medium) 0.875rem/1 var(--font-body);
+  letter-spacing: 0.03em;
+  text-decoration: none;
+}
+
+.qz-nav__link:hover,
+.qz-nav__link[aria-current="page"] {
   color: var(--qz-masthead-accent);
 }
 
@@ -7170,4 +7187,28 @@ select.qz-input {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 0.15em;
+}
+
+.qz-sprint-tabs {
+  display: flex;
+  gap: 12px;
+  margin: 0 0 28px;
+}
+
+.qz-sprint-tabs__tab {
+  padding: 10px 22px;
+  border: 1px solid var(--qz-grey-300);
+  border-radius: 3px;
+  color: var(--qz-grey-600);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.qz-sprint-tabs__tab--active {
+  border-color: var(--qz-black);
+  background: var(--qz-black);
+  color: var(--qz-white);
 }

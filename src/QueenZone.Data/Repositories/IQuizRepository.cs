@@ -73,10 +73,11 @@ public interface IQuizRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Today's (UTC) Quiz Sprint standings using each member's best run today.
+    /// Quiz Sprint standings using each member's best run today (UTC) or ever.
     /// <paramref name="viewerMemberId"/>'s own entry is included even when outside the top page.
     /// </summary>
-    Task<QuizSprintDailyBoard> GetSprintDailyBoardAsync(
+    Task<QuizSprintBoardResult> GetSprintBoardAsync(
+        QuizSprintBoardScope scope,
         Guid? viewerMemberId,
         int top = 10,
         CancellationToken cancellationToken = default);

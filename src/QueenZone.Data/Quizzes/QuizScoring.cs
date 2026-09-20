@@ -57,7 +57,7 @@ internal static class QuizScoring
     public static DateTimeOffset GetCurrentDayStartUtc(DateTimeOffset now) =>
         new(now.UtcDateTime.Date, TimeSpan.Zero);
 
-    public static QuizSprintDailyBoard BuildSprintDailyBoard(
+    public static QuizSprintBoardResult BuildSprintBoard(
         IEnumerable<QuizSprintRunEntity> runs,
         Guid? viewerMemberId,
         int top)
@@ -84,7 +84,7 @@ internal static class QuizScoring
             ? ranked.SingleOrDefault(entry => entry.MemberAccountId == memberId)
             : null;
 
-        return new QuizSprintDailyBoard(ranked.Take(top).ToList(), viewer, ranked.Count);
+        return new QuizSprintBoardResult(ranked.Take(top).ToList(), viewer, ranked.Count);
     }
 
     public static DateTimeOffset GetCurrentWeekStartUtc(DateTimeOffset now)

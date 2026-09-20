@@ -78,14 +78,23 @@ public sealed record QuizSprintLeaderboardEntry(
     int AnsweredCount,
     DateTimeOffset CompletedAt);
 
+public enum QuizSprintBoardScope
+{
+    /// <summary>Best run per member since 00:00 UTC today.</summary>
+    Daily,
+
+    /// <summary>Best run per member, ever.</summary>
+    AllTime,
+}
+
 /// <summary>
-/// Today's (UTC) Quiz Sprint standings: each member's best run, the viewer's own entry even
-/// outside the top page, and how many distinct members have played today.
+/// Quiz Sprint standings for a scope: each member's best run, the viewer's own entry even
+/// outside the top page, and how many distinct members are ranked in that scope.
 /// </summary>
-public sealed record QuizSprintDailyBoard(
+public sealed record QuizSprintBoardResult(
     IReadOnlyList<QuizSprintLeaderboardEntry> Top,
     QuizSprintLeaderboardEntry? Viewer,
-    int PlayersToday);
+    int Players);
 
 public sealed record QuizAnswerSubmission(Guid QuestionId, Guid? SelectedOptionId);
 

@@ -367,16 +367,82 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<QuizSprintDailyBoard> GetSprintDailyBoardAsync(
+    public async Task<QuizSprintBoardResult> GetSprintBoardAsync(
+        QuizSprintBoardScope scope,
         Guid? viewerMemberId,
         int top = 10,
         CancellationToken cancellationToken = default)
     {
-        var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
+        if (scope == QuizSprintBoardScope.Daily)
+        {
+            var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
+            var runs = await dbContext.QuizSprintRuns
+                .AsNoTracking()
+                .Where(run => run.CompletedAt >= dayStart)
+                .ToListAsync(cancellationToken);
+            return QuizScoring.BuildSprintBoard(runs, viewerMemberId, top);
+        }
+
+        return await GetAllTimeSprintBoardAsync(viewerMemberId, top, cancellationToken);
+    }
+
+    /// <summary>
+    /// All-time board without loading every run: one grouped row per member (their best score),
+    /// then only the top page and the viewer's own runs are read to fill in streak and time.
+    /// Ties on score fall back to member id so the order is stable.
+    /// </summary>
+    private async Task<QuizSprintBoardResult> GetAllTimeSprintBoardAsync(
+        Guid? viewerMemberId,
+        int top,
+        CancellationToken cancellationToken)
+    {
+        var bests = await dbContext.QuizSprintRuns
+            .AsNoTracking()
+            .GroupBy(run => run.MemberAccountId)
+            .Select(group => new { MemberAccountId = group.Key, Best = group.Max(run => run.Score) })
+            .ToListAsync(cancellationToken);
+
+        var ranked = bests
+            .OrderByDescending(row => row.Best)
+            .ThenBy(row => row.MemberAccountId)
+            .Select((row, index) => (Rank: index + 1, row.MemberAccountId, row.Best))
+            .ToList();
+
+        var wanted = ranked.Take(top).ToList();
+        var viewerRank = viewerMemberId is Guid viewerId
+            ? ranked.FirstOrDefault(row => row.MemberAccountId == viewerId)
+            : default;
+        if (viewerRank.MemberAccountId != Guid.Empty && wanted.All(row => row.MemberAccountId != viewerRank.MemberAccountId))
+        {
+            wanted.Add(viewerRank);
+        }
+
+        var memberIds = wanted.Select(row => row.MemberAccountId).ToList();
         var runs = await dbContext.QuizSprintRuns
             .AsNoTracking()
-            .Where(run => run.CompletedAt >= dayStart)
+            .Where(run => memberIds.Contains(run.MemberAccountId))
             .ToListAsync(cancellationToken);
-        return QuizScoring.BuildSprintDailyBoard(runs, viewerMemberId, top);
+
+        QuizSprintLeaderboardEntry ToEntry((int Rank, Guid MemberAccountId, int Best) row)
+        {
+            var bestRun = runs
+                .Where(run => run.MemberAccountId == row.MemberAccountId && run.Score == row.Best)
+                .OrderBy(run => run.CompletedAt)
+                .First();
+            return new QuizSprintLeaderboardEntry(
+                row.Rank,
+                row.MemberAccountId,
+                bestRun.Score,
+                bestRun.BestStreak,
+                bestRun.AnsweredCount,
+                bestRun.CompletedAt);
+        }
+
+        var entries = wanted.Select(ToEntry).ToList();
+        var topEntries = entries.Where(entry => entry.Rank <= top).OrderBy(entry => entry.Rank).ToList();
+        var viewerEntry = viewerRank.MemberAccountId == Guid.Empty
+            ? null
+            : entries.Single(entry => entry.MemberAccountId == viewerRank.MemberAccountId);
+        return new QuizSprintBoardResult(topEntries, viewerEntry, ranked.Count);
     }
 }

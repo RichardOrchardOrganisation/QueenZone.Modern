@@ -300,6 +300,16 @@ public sealed record SprintResultDto(
 
 public sealed record SprintLeaderboardEntryDto(int Rank, string DisplayName, int Score, int BestStreak);
 
+/// <summary>
+/// Shape for <c>GET /api/v1/content/quizzes/sprint/leaderboard</c>: <c>Scope</c> is <c>daily</c> or
+/// <c>all</c>; <c>Players</c> counts the members ranked in that scope.
+/// </summary>
+public sealed record SprintBoardDto(
+    string Scope,
+    IReadOnlyList<SprintLeaderboardEntryDto> Top,
+    SprintLeaderboardEntryDto? Viewer,
+    int Players);
+
 /// <summary>Shape for <c>GET /api/v1/content/quizzes/sprint/daily</c> (today, UTC).</summary>
 public sealed record SprintDailyBoardDto(
     IReadOnlyList<SprintLeaderboardEntryDto> Top,

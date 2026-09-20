@@ -321,13 +321,15 @@ public sealed class InMemoryQuizRepository(
         return Task.CompletedTask;
     }
 
-    public Task<QuizSprintDailyBoard> GetSprintDailyBoardAsync(
+    public Task<QuizSprintBoardResult> GetSprintBoardAsync(
+        QuizSprintBoardScope scope,
         Guid? viewerMemberId,
         int top = 10,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(store.ReadSprintRuns(runs =>
         {
             var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
-            return QuizScoring.BuildSprintDailyBoard(runs.Where(run => run.CompletedAt >= dayStart), viewerMemberId, top);
+            var scoped = scope == QuizSprintBoardScope.Daily ? runs.Where(run => run.CompletedAt >= dayStart) : runs;
+            return QuizScoring.BuildSprintBoard(scoped, viewerMemberId, top);
         }));
 }

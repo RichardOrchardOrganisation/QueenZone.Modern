@@ -102,6 +102,32 @@ public sealed class QuizSprintPagesTests
         Assert.Equal(5, board.Top[0].BestStreak);
     }
 
+    [Fact]
+    public async Task Leaderboard_offers_today_and_all_time_and_the_api_scopes_match()
+    {
+        using var isolated = IsolatedQuizzes();
+        var memberId = Guid.NewGuid();
+        using (var scope = isolated.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IQuizRepository>()
+                .RecordSprintRunAsync(memberId, new QuizSprintScore(9, 7, 8, 6));
+        }
+
+        using var client = isolated.CreateAnonymousClient();
+        var today = await client.GetStringAsync("/quizzes/leaderboard");
+        var allTime = await client.GetStringAsync("/quizzes/leaderboard?scope=all");
+        Assert.Contains("Today&#x27;s leaderboard", today, StringComparison.Ordinal);
+        Assert.Contains("All-time leaderboard", allTime, StringComparison.Ordinal);
+        Assert.Contains("href=\"/quizzes/leaderboard?scope=all\"", today, StringComparison.Ordinal);
+        Assert.Contains("1 member ranked.", allTime, StringComparison.Ordinal);
+
+        var api = $"{ContentApiEndpoints.RootPath}/quizzes/sprint/leaderboard";
+        var daily = await client.GetFromJsonAsync<SprintBoardDto>(api, JsonOptions);
+        var all = await client.GetFromJsonAsync<SprintBoardDto>($"{api}?scope=all", JsonOptions);
+        Assert.Equal(("daily", 1, 9), (daily!.Scope, daily.Players, daily.Top[0].Score));
+        Assert.Equal(("all", 1, 9), (all!.Scope, all.Players, all.Top[0].Score));
+    }
+
     private static async Task<string> StartAsync(HttpClient client, string landing)
     {
         var response = await client.PostAsync("/quizzes/sprint?handler=Start", new FormUrlEncodedContent(new Dictionary<string, string>

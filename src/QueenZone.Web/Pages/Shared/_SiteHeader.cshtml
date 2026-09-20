@@ -143,6 +143,7 @@
           </div>
         </div>
       }
+      <a class="qz-nav__link" href="/quizzes/sprint" aria-current="@(IsActive("/quizzes") ? "page" : null)">Quiz</a>
     </nav>
 
     <div class="qz-masthead__actions">
@@ -265,6 +266,15 @@
             </ul>
           </section>
         }
+        <section class="qz-mobile-nav__section qz-nav-group--gold" aria-labelledby="qz-mobile-nav-quiz">
+          <h2 id="qz-mobile-nav-quiz">Quiz</h2>
+          <p>The Daily Challenge</p>
+          <ul>
+            <li>
+              <a href="/quizzes/sprint" aria-current="@(IsActive("/quizzes") ? "page" : null)"><span>Quiz Sprint</span></a>
+            </li>
+          </ul>
+        </section>
       </nav>
     </div>
   </div>
