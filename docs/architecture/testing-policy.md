@@ -202,7 +202,7 @@ Good targets (covered or expanding):
 
 - Homepage, news archive (including pagination), and news detail (canonical + body).
 - Forum index, category, and topic (posts + breadcrumbs).
-- Articles, biography, photography, and search surface loads.
+- Articles, biography, photography, and search (form submit, known result, type filter, empty state).
 - Mobile viewport + open mobile nav menu.
 - axe-core accessibility smoke: **critical** violations fail the run (serious findings are logged).
 - Admin news list and create-draft flow with `X-Test-User-Email` test auth in the `Testing` environment.
