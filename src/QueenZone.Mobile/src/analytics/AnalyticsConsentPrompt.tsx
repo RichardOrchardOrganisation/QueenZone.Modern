@@ -1,8 +1,9 @@
-import { Linking, Modal, Text, View } from 'react-native';
+import { Modal, Text, View } from 'react-native';
 import { useState } from 'react';
 import { getAppConfig } from '../config/appConfig';
 import { radius, space, type, useTheme } from '../theme';
 import { Button } from '../ui/Button';
+import { openExternalUrl } from '../ui/openExternalUrl';
 import { useAnalyticsConsent } from './consent';
 import { updateAnalyticsConsent } from './telemetry';
 
@@ -60,7 +61,7 @@ export function AnalyticsConsentPrompt() {
           <View style={{ gap: space.sm, paddingTop: space.sm }}>
             <Button label="Allow anonymous analytics" loading={saving} onPress={() => void save(true)} />
             <Button label="Don't allow" variant="outline" disabled={saving} onPress={() => void save(false)} />
-            <Button label="Read privacy policy" variant="ghost" disabled={saving} onPress={() => void Linking.openURL(privacyUrl)} />
+            <Button label="Read privacy policy" variant="ghost" disabled={saving} onPress={() => void openExternalUrl(privacyUrl)} />
           </View>
         </View>
       </View>

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError, fetchTimelineEventById } from '../../api';
 import { useDetailQuery } from '../../hooks/useDetailQuery';
 import { HeaderBackButton } from '../../navigation/headerButtons';
 import { goBackOrFallback } from '../../navigation/nestedTab';
 import type { ArchiveStackParamList } from '../../navigation/types';
+import { openExternalUrl } from '../../ui/openExternalUrl';
 import { LoadingBlock } from '../../ui/ScreenStates';
 import { Button } from '../../ui/Button';
 import { testIds } from '../../test/testIds';
@@ -74,7 +75,7 @@ export function TimelineEventScreen({ navigation, route }: Props) {
         <Text
           testID={testIds.timelineEventSource}
           accessibilityRole="link"
-          onPress={() => Linking.openURL(event.sourceUrl!)}
+          onPress={() => void openExternalUrl(event.sourceUrl!)}
           style={[type.button, { color: c.accentPrimary, marginTop: space.lg }]}
         >
           Source
