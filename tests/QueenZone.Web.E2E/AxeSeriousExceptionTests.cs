@@ -9,11 +9,29 @@ namespace QueenZone.Web.E2E;
 public class AxeSeriousExceptionTests
 {
     [Test]
-    public void IsAllowed_FalseForUnknownRuleOnAnyPath()
+    public void IsAllowed_ColorContrast_IsTheDocumentedChromeException()
     {
-        Assert.That(AxeSeriousExceptions.IsAllowed("/", "color-contrast"), Is.False);
-        Assert.That(AxeSeriousExceptions.IsAllowed("/forum/topic/1002/ranking-every-studio-album", "link-name"), Is.False);
-        Assert.That(AxeSeriousExceptions.IsAllowed("/messages", "button-name"), Is.False);
+        Assert.That(AxeSeriousExceptions.IsAllowed("/", "color-contrast"), Is.True);
+        Assert.That(AxeSeriousExceptions.IsAllowed("/news/1003/queenzone-modernisation-begins", "color-contrast"), Is.True);
+        Assert.That(AxeSeriousExceptions.IsAllowed("/forum/topic/1002/ranking-every-studio-album", "color-contrast"), Is.True);
+    }
+
+    [Test]
+    public void IsAllowed_LinkInTextBlock_OnlyOnNewsDetailPrefix()
+    {
+        Assert.That(
+            AxeSeriousExceptions.IsAllowed("/news/1003/queenzone-modernisation-begins", "link-in-text-block"),
+            Is.True);
+        Assert.That(AxeSeriousExceptions.IsAllowed("/news", "link-in-text-block"), Is.False);
+        Assert.That(AxeSeriousExceptions.IsAllowed("/", "link-in-text-block"), Is.False);
+        Assert.That(AxeSeriousExceptions.IsAllowed("/forum/topic/1002/ranking-every-studio-album", "link-in-text-block"), Is.False);
+    }
+
+    [Test]
+    public void IsAllowed_FalseForUnknownRule()
+    {
+        Assert.That(AxeSeriousExceptions.IsAllowed("/", "button-name"), Is.False);
+        Assert.That(AxeSeriousExceptions.IsAllowed("/messages", "link-name"), Is.False);
     }
 
     [Test]
@@ -25,25 +43,24 @@ public class AxeSeriousExceptionTests
     }
 
     [Test]
-    public void IsAllowed_FalseWhenPagePathMissing()
+    public void PathMatches_SlashPrefixIsExactOnly()
     {
-        Assert.That(AxeSeriousExceptions.IsAllowed(null, "color-contrast"), Is.False);
-        Assert.That(AxeSeriousExceptions.IsAllowed(string.Empty, "color-contrast"), Is.False);
+        Assert.That(AxeSeriousExceptions.PathMatches("/", "/"), Is.True);
+        Assert.That(AxeSeriousExceptions.PathMatches("/news", "/"), Is.False);
+        Assert.That(AxeSeriousExceptions.PathMatches("/news/1003/x", "/news/"), Is.True);
+        Assert.That(AxeSeriousExceptions.PathMatches("/news", "/news/"), Is.False);
+        Assert.That(AxeSeriousExceptions.PathMatches("/forum", "*"), Is.True);
     }
 
     [Test]
-    public void AllowedList_StartsEmptyUntilALegacyFindingIsTriaged()
+    public void AllowedList_StaysTheTriagedPairOnly()
     {
-        var allowed = typeof(AxeSeriousExceptions)
-            .GetField("Allowed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        Assert.That(allowed, Is.Not.Null);
-
-        var rows = ((IEnumerable<(string PathPrefix, string RuleId)>?)allowed!.GetValue(null))?.ToArray();
-        Assert.That(rows, Is.Not.Null);
         Assert.That(
-            rows!,
-            Is.Empty,
-            "Serious axe exceptions must stay empty until a curated-page finding is triaged as known legacy/UGC. " +
-            "Do not pre-seed wildcards.");
+            AxeSeriousExceptions.Allowed,
+            Is.EqualTo(new[]
+            {
+                ("*", "color-contrast"),
+                ("/news/", "link-in-text-block"),
+            }));
     }
 }

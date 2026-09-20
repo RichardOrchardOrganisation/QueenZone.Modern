@@ -62,16 +62,16 @@ internal static class AxeAssertions
         }
 
         Assert.That(
-            critical,
+            critical.Select(v => v.Id).ToList(),
             Is.Empty,
             "Critical axe-core violations:" + Environment.NewLine + FormatViolations(critical));
 
         if (failOnSerious)
         {
             Assert.That(
-                blockingSerious,
+                blockingSerious.Select(v => v.Id).ToList(),
                 Is.Empty,
-                "Serious axe-core violations (add a triaged AxeSeriousExceptions row only for known legacy/UGC):"
+                "Serious axe-core violations (add a triaged AxeSeriousExceptions row only after review):"
                 + Environment.NewLine
                 + FormatViolations(blockingSerious));
         }
