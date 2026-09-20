@@ -151,7 +151,7 @@ public static class ContentApiEndpoints
 
         group.MapGet("/quizzes/sprint/leaderboard", GetSprintBoardAsync)
             .WithName("GetContentQuizSprintBoard")
-            .WithSummary("Quiz Sprint standings using each member's best run. 'scope' is 'daily' (default, today UTC) or 'all' (all-time). Optional Bearer includes the viewer's own entry even outside the top page.")
+            .WithSummary("Quiz Sprint standings using each member's best run. 'scope' is 'daily' (default, today UTC), 'all' (best run ever) or 'total' (points summed over every run). Optional Bearer includes the viewer's own entry even outside the top page.")
             .Produces<SprintBoardDto>();
 
         group.MapGet("/quizzes/sprint/daily", GetSprintDailyBoardAsync)
@@ -667,15 +667,20 @@ public static class ContentApiEndpoints
         IMemberAccountRepository memberAccountRepository,
         CancellationToken cancellationToken)
     {
-        var allTime = string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase);
+        var (boardScope, scopeName) = scope?.ToLowerInvariant() switch
+        {
+            "all" => (QuizSprintBoardScope.AllTime, "all"),
+            "total" => (QuizSprintBoardScope.Total, "total"),
+            _ => (QuizSprintBoardScope.Daily, "daily"),
+        };
         var viewerId = await TryGetViewerMemberIdAsync(httpContext);
         var board = await quizRepository.GetSprintBoardAsync(
-            allTime ? QuizSprintBoardScope.AllTime : QuizSprintBoardScope.Daily,
+            boardScope,
             viewerId,
             top: 20,
             cancellationToken);
         var dto = await ToSprintBoardEntriesAsync(board, memberAccountRepository, cancellationToken);
-        return Results.Ok(new SprintBoardDto(allTime ? "all" : "daily", dto.Top, dto.Viewer, board.Players));
+        return Results.Ok(new SprintBoardDto(scopeName, dto.Top, dto.Viewer, board.Players));
     }
 
     internal static async Task<IResult> GetSprintDailyBoardAsync(
@@ -698,7 +703,7 @@ public static class ContentApiEndpoints
         async Task<SprintLeaderboardEntryDto> ToDtoAsync(QuizSprintLeaderboardEntry entry)
         {
             var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
-            return new SprintLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.BestStreak);
+            return new SprintLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.BestStreak, entry.Runs);
         }
 
         var top = new List<SprintLeaderboardEntryDto>(board.Top.Count);

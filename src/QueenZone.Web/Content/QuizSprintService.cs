@@ -28,10 +28,14 @@ public sealed record SprintResult(
     int? Rank,
     IReadOnlyList<SprintReviewItem> Answers);
 
-public sealed record SprintBoardRow(int Rank, string DisplayName, int Score, int BestStreak, bool IsViewer);
+public sealed record SprintBoardRow(int Rank, string DisplayName, int Score, int BestStreak, bool IsViewer, int Runs = 1);
 
 /// <summary>Today's standings with display names resolved; <c>Viewer</c> is set even outside <c>Rows</c>.</summary>
-public sealed record SprintBoard(IReadOnlyList<SprintBoardRow> Rows, SprintBoardRow? Viewer, int Players);
+public sealed record SprintBoard(
+    IReadOnlyList<SprintBoardRow> Rows,
+    SprintBoardRow? Viewer,
+    int Players,
+    QuizSprintBoardScope Scope = QuizSprintBoardScope.Daily);
 
 /// <summary>Whether a picked option was right, plus the right option so the client can reveal it.</summary>
 public sealed record SprintAnswerCheck(bool IsCorrect, Guid CorrectOptionId);
@@ -177,7 +181,8 @@ public sealed class QuizSprintService(
                 account?.DisplayName ?? "Member",
                 entry.Score,
                 entry.BestStreak,
-                entry.MemberAccountId == viewerMemberId);
+                entry.MemberAccountId == viewerMemberId,
+                entry.Runs);
         }
 
         var rows = new List<SprintBoardRow>(board.Top.Count);
@@ -187,7 +192,7 @@ public sealed class QuizSprintService(
         }
 
         var viewer = board.Viewer is null ? null : await ToRowAsync(board.Viewer);
-        return new SprintBoard(rows, viewer, board.Players);
+        return new SprintBoard(rows, viewer, board.Players, scope);
     }
 
     private (SprintFinishStatus Status, SprintTicket? Ticket) ReadTicket(string? rawTicket)

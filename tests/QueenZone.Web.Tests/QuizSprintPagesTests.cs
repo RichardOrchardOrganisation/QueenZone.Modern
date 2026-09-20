@@ -117,7 +117,10 @@ public sealed class QuizSprintPagesTests
         var today = await client.GetStringAsync("/quizzes/leaderboard");
         var allTime = await client.GetStringAsync("/quizzes/leaderboard?scope=all");
         Assert.Contains("Today&#x27;s leaderboard", today, StringComparison.Ordinal);
-        Assert.Contains("All-time leaderboard", allTime, StringComparison.Ordinal);
+        Assert.Contains("Best runs", allTime, StringComparison.Ordinal);
+        var total = await client.GetStringAsync("/quizzes/leaderboard?scope=total");
+        Assert.Contains("Total points", total, StringComparison.Ordinal);
+        Assert.Contains("1 run &middot; best streak 6", total.Replace("·", "&middot;"), StringComparison.Ordinal);
         Assert.Contains("href=\"/quizzes/leaderboard?scope=all\"", today, StringComparison.Ordinal);
         Assert.Contains("1 member ranked.", allTime, StringComparison.Ordinal);
 
@@ -126,6 +129,8 @@ public sealed class QuizSprintPagesTests
         var all = await client.GetFromJsonAsync<SprintBoardDto>($"{api}?scope=all", JsonOptions);
         Assert.Equal(("daily", 1, 9), (daily!.Scope, daily.Players, daily.Top[0].Score));
         Assert.Equal(("all", 1, 9), (all!.Scope, all.Players, all.Top[0].Score));
+        var totals = await client.GetFromJsonAsync<SprintBoardDto>($"{api}?scope=total", JsonOptions);
+        Assert.Equal(("total", 1, 9, 1), (totals!.Scope, totals.Players, totals.Top[0].Score, totals.Top[0].Runs));
     }
 
     private static async Task<string> StartAsync(HttpClient client, string landing)

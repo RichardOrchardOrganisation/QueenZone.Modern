@@ -312,9 +312,12 @@ export function fetchQuizSprintDaily(
   return fetchJson('/content/quizzes/sprint/daily', { signal, accessToken });
 }
 
-/** Each member's best Quiz Sprint run: today (`daily`) or ever (`all`). Optional Bearer includes the viewer. */
+/**
+ * Quiz Sprint standings: best run today (`daily`), best run ever (`all`), or points summed over
+ * every run (`total`). Optional Bearer includes the viewer.
+ */
 export function fetchQuizSprintLeaderboard(
-  scope: 'daily' | 'all',
+  scope: 'daily' | 'all' | 'total',
   signal?: AbortSignal,
   accessToken?: string | null,
 ): Promise<QuizSprintBoard> {

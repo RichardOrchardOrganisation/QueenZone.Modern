@@ -328,6 +328,11 @@ public sealed class InMemoryQuizRepository(
         CancellationToken cancellationToken = default) =>
         Task.FromResult(store.ReadSprintRuns(runs =>
         {
+            if (scope == QuizSprintBoardScope.Total)
+            {
+                return QuizScoring.BuildSprintTotalBoard(runs, viewerMemberId, top);
+            }
+
             var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
             var scoped = scope == QuizSprintBoardScope.Daily ? runs.Where(run => run.CompletedAt >= dayStart) : runs;
             return QuizScoring.BuildSprintBoard(scoped, viewerMemberId, top);

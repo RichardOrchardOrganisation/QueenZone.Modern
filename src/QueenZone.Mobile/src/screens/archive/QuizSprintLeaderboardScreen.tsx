@@ -11,7 +11,28 @@ import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { QuizSprintBoard } from './QuizSprintBoard';
 
 type Props = NativeStackScreenProps<ArchiveStackParamList, 'QuizSprintLeaderboard'>;
-type Scope = 'daily' | 'all';
+type Scope = 'daily' | 'all' | 'total';
+
+const COPY: Record<Scope, { title: string; subtitle: string; empty: string; suffix: string }> = {
+  daily: {
+    title: "Today's leaderboard",
+    subtitle: "Each member's best sixty-second run today. The board resets at midnight UTC.",
+    empty: 'No scores yet today. Be the first on the board.',
+    suffix: ' today',
+  },
+  all: {
+    title: 'Best runs',
+    subtitle: "Each member's single best sixty-second run, ever.",
+    empty: 'No Sprint scores yet. Be the first on the board.',
+    suffix: '',
+  },
+  total: {
+    title: 'Total points',
+    subtitle: 'Every point a member has scored across all their runs.',
+    empty: 'No Sprint scores yet. Be the first on the board.',
+    suffix: '',
+  },
+};
 
 export function QuizSprintLeaderboardScreen(_props: Props) {
   const { accessToken } = useSession();
@@ -21,7 +42,7 @@ export function QuizSprintLeaderboardScreen(_props: Props) {
     [scope, accessToken],
   );
   const { data: board, error, loading, reload } = useDetailQuery(load);
-  const allTime = scope === 'all';
+  const copy = COPY[scope];
 
   return (
     <ScrollView
@@ -30,24 +51,26 @@ export function QuizSprintLeaderboardScreen(_props: Props) {
       contentContainerStyle={styles.content}
     >
       <Text style={styles.eyebrow}>QUIZ SPRINT</Text>
-      <Text style={styles.title}>{allTime ? 'All-time leaderboard' : "Today's leaderboard"}</Text>
-      <Text style={styles.subtitle}>
-        {allTime
-          ? "Each member's single best sixty-second run, ever."
-          : "Each member's best sixty-second run today. The board resets at midnight UTC."}
-      </Text>
+      <Text style={styles.title}>{copy.title}</Text>
+      <Text style={styles.subtitle}>{copy.subtitle}</Text>
       <View style={styles.tabs}>
         <Tab
           testID={testIds.quizSprintLeaderboardTabDaily}
           label="Today"
-          active={!allTime}
+          active={scope === 'daily'}
           onPress={() => setScope('daily')}
         />
         <Tab
           testID={testIds.quizSprintLeaderboardTabAll}
-          label="All time"
-          active={allTime}
+          label="Best run"
+          active={scope === 'all'}
           onPress={() => setScope('all')}
+        />
+        <Tab
+          testID={testIds.quizSprintLeaderboardTabTotal}
+          label="Total points"
+          active={scope === 'total'}
+          onPress={() => setScope('total')}
         />
       </View>
       {loading ? (
@@ -59,10 +82,11 @@ export function QuizSprintLeaderboardScreen(_props: Props) {
           <QuizSprintBoard
             rows={board.top}
             viewer={board.viewer}
-            emptyText={allTime ? 'No Sprint scores yet. Be the first on the board.' : 'No scores yet today. Be the first on the board.'}
+            emptyText={copy.empty}
+            showRuns={scope === 'total'}
           />
           <Text style={styles.total}>
-            {board.players} member{board.players === 1 ? '' : 's'} ranked{allTime ? '' : ' today'}.
+            {board.players} member{board.players === 1 ? '' : 's'} ranked{copy.suffix}.
           </Text>
         </View>
       )}
@@ -93,10 +117,10 @@ const styles = StyleSheet.create({
   eyebrow: { fontFamily: fonts.titling, fontSize: 10, letterSpacing: 2.2, color: palette.gold },
   title: { fontFamily: fonts.display, fontSize: 34, lineHeight: 36, color: palette.white },
   subtitle: { fontFamily: fonts.body, fontSize: 15, lineHeight: 23, color: 'rgba(255,255,255,0.72)', marginBottom: space.sm },
-  tabs: { flexDirection: 'row', gap: space.md, marginBottom: space.sm },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.sm },
   tab: {
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
     borderRadius: radius.sm,

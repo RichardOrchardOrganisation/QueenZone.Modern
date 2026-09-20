@@ -63,6 +63,52 @@ public sealed class QuizSprintRunTests
     }
 
     [Fact]
+    public async Task Ef_total_board_sums_points_across_runs_and_counts_them()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlite(connection).Options;
+        await using var dbContext = new QueenZoneDbContext(options);
+        dbContext.Database.EnsureCreated();
+        var repository = new EfQuizRepository(dbContext, TimeProvider.System);
+        var grinder = Guid.NewGuid();
+        var sprinter = Guid.NewGuid();
+
+        // The grinder never has the best single run, but wins on total points.
+        await repository.RecordSprintRunAsync(grinder, new QuizSprintScore(8, 6, 7, 3));
+        await repository.RecordSprintRunAsync(grinder, new QuizSprintScore(9, 7, 8, 5));
+        await repository.RecordSprintRunAsync(grinder, new QuizSprintScore(7, 5, 6, 2));
+        await repository.RecordSprintRunAsync(sprinter, new QuizSprintScore(20, 12, 13, 9));
+
+        var total = await repository.GetSprintBoardAsync(QuizSprintBoardScope.Total, sprinter, top: 1);
+        var best = await repository.GetSprintBoardAsync(QuizSprintBoardScope.AllTime, null);
+
+        Assert.Equal(2, total.Players);
+        var leader = Assert.Single(total.Top);
+        Assert.Equal((grinder, 24, 3, 5), (leader.MemberAccountId, leader.Score, leader.Runs, leader.BestStreak));
+        Assert.Equal((2, 20, 1), (total.Viewer!.Rank, total.Viewer.Score, total.Viewer.Runs));
+        Assert.Equal(sprinter, best.Top[0].MemberAccountId);
+        Assert.Equal(3, best.Top[1].Runs);
+    }
+
+    [Fact]
+    public async Task In_memory_total_board_sums_points_across_runs()
+    {
+        var repository = new InMemoryQuizRepository(new SharedQuizStore());
+        var grinder = Guid.NewGuid();
+        var sprinter = Guid.NewGuid();
+        await repository.RecordSprintRunAsync(grinder, new QuizSprintScore(8, 6, 7, 3));
+        await repository.RecordSprintRunAsync(grinder, new QuizSprintScore(9, 7, 8, 5));
+        await repository.RecordSprintRunAsync(sprinter, new QuizSprintScore(12, 8, 9, 6));
+
+        var board = await repository.GetSprintBoardAsync(QuizSprintBoardScope.Total, grinder);
+
+        Assert.Equal([grinder, sprinter], board.Top.Select(entry => entry.MemberAccountId));
+        Assert.Equal((17, 2), (board.Top[0].Score, board.Top[0].Runs));
+        Assert.Equal(1, board.Viewer!.Rank);
+    }
+
+    [Fact]
     public async Task Ef_all_time_board_is_empty_without_runs()
     {
         using var connection = new SqliteConnection("Data Source=:memory:");
