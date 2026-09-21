@@ -59,7 +59,11 @@ public enum SprintFinishStatus
     Invalid,
 }
 
-public sealed record SprintFinishOutcome(SprintFinishStatus Status, SprintResult? Result = null);
+/// <param name="AnsweredQuestionIds">Questions the player actually answered, to feed the recently-seen exclusion.</param>
+public sealed record SprintFinishOutcome(
+    SprintFinishStatus Status,
+    SprintResult? Result = null,
+    IReadOnlyList<Guid>? AnsweredQuestionIds = null);
 
 /// <summary>
 /// Runs a 60-second Quiz Sprint. The round is a signed ticket carrying the answer key, so the
@@ -84,8 +88,14 @@ public sealed class QuizSprintService(
     public async Task<bool> HasQuestionsAsync(CancellationToken cancellationToken) =>
         (await quizRepository.GetPublishedSprintQuestionsAsync(cancellationToken)).Count > 0;
 
-    /// <summary>Starts a round, or returns null when no published questions exist.</summary>
-    public async Task<SprintRound?> StartAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Starts a round, or returns null when no published questions exist. Questions whose
+    /// <see cref="QuizSprintSeenQuestions.Key"/> is in <paramref name="recentlySeen"/> (oldest first) are
+    /// used only when fewer than a full round of fresh ones remain, oldest-seen first.
+    /// </summary>
+    public async Task<SprintRound?> StartAsync(
+        CancellationToken cancellationToken,
+        IReadOnlyList<uint>? recentlySeen = null)
     {
         var pool = (await quizRepository.GetPublishedSprintQuestionsAsync(cancellationToken)).ToList();
         if (pool.Count == 0)
@@ -93,10 +103,10 @@ public sealed class QuizSprintService(
             return null;
         }
 
-        Shuffle(pool);
+        pool = PickRoundQuestions(pool, recentlySeen);
         var ticketQuestions = new List<TicketQuestion>();
         var viewQuestions = new List<SprintQuestionView>();
-        foreach (var question in pool.Take(QuestionLimit))
+        foreach (var question in pool)
         {
             var correct = question.Options.Single(option => option.IsCorrect);
             var options = question.Options.ToList();
@@ -138,6 +148,7 @@ public sealed class QuizSprintService(
 
         var outcomes = new List<bool?>(ticket.Questions.Count);
         var review = new List<SprintReviewItem>();
+        var answeredIds = new List<Guid>();
         foreach (var question in ticket.Questions)
         {
             if (!selections.TryGetValue(question.Id, out var selectedId) || !question.OptionIds.Contains(selectedId))
@@ -148,6 +159,7 @@ public sealed class QuizSprintService(
 
             var isCorrect = selectedId == question.CorrectOptionId;
             outcomes.Add(isCorrect);
+            answeredIds.Add(question.Id);
             review.Add(new SprintReviewItem(question.Id, question.Text, isCorrect, question.CorrectOptionText));
         }
 
@@ -172,7 +184,8 @@ public sealed class QuizSprintService(
 
         return new SprintFinishOutcome(
             SprintFinishStatus.Completed,
-            new SprintResult(score.Answered, score.Correct, score.Points, score.BestStreak, rank is not null, rank, review, claimToken));
+            new SprintResult(score.Answered, score.Correct, score.Points, score.BestStreak, rank is not null, rank, review, claimToken),
+            answeredIds);
     }
 
     /// <summary>
@@ -273,6 +286,36 @@ public sealed class QuizSprintService(
 
         var viewer = board.Viewer is null ? null : await ToRowAsync(board.Viewer);
         return new SprintBoard(rows, viewer, board.Players, scope);
+    }
+
+    internal static List<QuizSprintQuestion> PickRoundQuestions(List<QuizSprintQuestion> pool, IReadOnlyList<uint>? recentlySeen)
+    {
+        if (recentlySeen is not { Count: > 0 })
+        {
+            Shuffle(pool);
+            return pool.Take(QuestionLimit).ToList();
+        }
+
+        // Later entries are newer; a repeated key keeps its most recent position.
+        var seenPosition = new Dictionary<uint, int>();
+        for (var index = 0; index < recentlySeen.Count; index++)
+        {
+            seenPosition[recentlySeen[index]] = index;
+        }
+
+        var fresh = pool.Where(question => !seenPosition.ContainsKey(QuizSprintSeenQuestions.Key(question.Id))).ToList();
+        Shuffle(fresh);
+        var picked = fresh.Take(QuestionLimit).ToList();
+        if (picked.Count < QuestionLimit)
+        {
+            picked.AddRange(pool
+                .Where(question => seenPosition.ContainsKey(QuizSprintSeenQuestions.Key(question.Id)))
+                .OrderBy(question => seenPosition[QuizSprintSeenQuestions.Key(question.Id)])
+                .Take(QuestionLimit - picked.Count));
+            Shuffle(picked);
+        }
+
+        return picked;
     }
 
     private (SprintFinishStatus Status, SprintTicket? Ticket) ReadTicket(string? rawTicket)
