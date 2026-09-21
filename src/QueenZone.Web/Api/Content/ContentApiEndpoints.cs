@@ -586,10 +586,11 @@ public static class ContentApiEndpoints
     }
 
     internal static async Task<IResult> StartSprintAsync(
+        HttpContext httpContext,
         QuizSprintService sprintService,
         CancellationToken cancellationToken)
     {
-        var round = await sprintService.StartAsync(cancellationToken);
+        var round = await sprintService.StartAsync(cancellationToken, QuizSprintSeenQuestions.Read(httpContext.Request));
         if (round is null)
         {
             return Results.Problem(
@@ -656,6 +657,7 @@ public static class ContentApiEndpoints
                     title: "Round expired",
                     detail: "Answers arrived after the 60-second round ended.");
             default:
+                QuizSprintSeenQuestions.Remember(httpContext, outcome.AnsweredQuestionIds ?? []);
                 var result = outcome.Result!;
                 return Results.Ok(new SprintResultDto(
                     result.Attempted,

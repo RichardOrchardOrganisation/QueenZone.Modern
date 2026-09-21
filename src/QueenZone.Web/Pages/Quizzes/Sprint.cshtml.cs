@@ -69,7 +69,7 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
     {
         SetViewData();
         SignedIn = await GetCurrentMemberIdAsync() is not null;
-        var round = await sprintService.StartAsync(cancellationToken);
+        var round = await sprintService.StartAsync(cancellationToken, QuizSprintSeenQuestions.Read(Request));
         if (round is null)
         {
             EmptyPool = true;
@@ -113,6 +113,7 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
                 Expired = true;
                 return Page();
             default:
+                QuizSprintSeenQuestions.Remember(HttpContext, outcome.AnsweredQuestionIds ?? []);
                 Result = outcome.Result;
                 Board = await sprintService.GetBoardAsync(memberId, ResultsBoardRows, cancellationToken);
                 return Page();
