@@ -12,7 +12,8 @@ public sealed class IndexModel(
     IHomePollRepository homePollRepository,
     HomePollVoteService homePollVoteService,
     QuizSprintService quizSprintService,
-    TimeProvider timeProvider) : PageModel
+    TimeProvider timeProvider,
+    ILogger<IndexModel> logger) : PageModel
 {
     /// <summary>Stock archive images cycled deterministically per article, since legacy
     /// article rows carry no per-item image (see <see cref="ArticleItem"/>).</summary>
@@ -51,7 +52,18 @@ public sealed class IndexModel(
         ViewData["Title"] = "QueenZone";
         ViewData["Description"] = "The complete fan resource for Queen – music, news, history, photography and more, from the Queenzone.com archive.";
         ViewData["CanonicalPath"] = "/";
-        SprintBoard = await quizSprintService.GetBoardAsync(null, 3, cancellationToken);
+        try
+        {
+            SprintBoard = await quizSprintService.GetBoardAsync(null, 3, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // Optional chrome: a missing QuizSprintRuns table or other SQL/schema failure on
+            // the RealData Express mirror must not take down GET / (empty board is still 200).
+            logger.LogWarning(exception, "Homepage quiz sprint board failed to load.");
+            SprintBoard = new([], null, 0);
+        }
+
         var latest = await publicQueryCache.GetLatestNewsAsync(5, cancellationToken);
         Latest = await newsDiscussion.ToArchiveItemsAsync(latest, cancellationToken);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);

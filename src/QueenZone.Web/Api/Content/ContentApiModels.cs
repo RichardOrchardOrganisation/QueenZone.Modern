@@ -287,7 +287,8 @@ public sealed record SprintReviewItemDto(Guid QuestionId, string QuestionText, b
 
 /// <summary>
 /// Result of <c>POST /api/v1/content/quizzes/sprint/finish</c>. <c>Recorded</c> is true only when the
-/// caller was signed in (Bearer) and the run reached today's leaderboard; <c>Rank</c> is then set.
+/// caller was signed in (Bearer) and the run reached today's leaderboard; <c>Rank</c> is then set. For an
+/// anonymous run, <c>ClaimToken</c> lets the player sign in within an hour and add it via the claim endpoint.
 /// </summary>
 public sealed record SprintResultDto(
     int Attempted,
@@ -296,9 +297,28 @@ public sealed record SprintResultDto(
     int BestStreak,
     bool Recorded,
     int? Rank,
-    IReadOnlyList<SprintReviewItemDto> Answers);
+    IReadOnlyList<SprintReviewItemDto> Answers,
+    string? ClaimToken = null);
 
-public sealed record SprintLeaderboardEntryDto(int Rank, string DisplayName, int Score, int BestStreak);
+/// <summary>Request body for <c>POST /api/v1/content/quizzes/sprint/claim</c>.</summary>
+public sealed record SprintClaimRequestDto(string? ClaimToken);
+
+/// <summary><c>Status</c> is <c>claimed</c> or <c>already_claimed</c>; <c>Rank</c> is today's rank when the run was today's.</summary>
+public sealed record SprintClaimResultDto(string Status, int Points, int? Rank);
+
+/// <param name="Runs">Runs the member has played in the scope (1 for a single best run; the run count for the total board).</param>
+public sealed record SprintLeaderboardEntryDto(int Rank, string DisplayName, int Score, int BestStreak, int Runs = 1);
+
+/// <summary>
+/// Shape for <c>GET /api/v1/content/quizzes/sprint/leaderboard</c>: <c>Scope</c> is <c>daily</c>,
+/// <c>all</c> (best run ever) or <c>total</c> (points summed over every run); <c>Players</c> counts
+/// the members ranked in that scope.
+/// </summary>
+public sealed record SprintBoardDto(
+    string Scope,
+    IReadOnlyList<SprintLeaderboardEntryDto> Top,
+    SprintLeaderboardEntryDto? Viewer,
+    int Players);
 
 /// <summary>Shape for <c>GET /api/v1/content/quizzes/sprint/daily</c> (today, UTC).</summary>
 public sealed record SprintDailyBoardDto(

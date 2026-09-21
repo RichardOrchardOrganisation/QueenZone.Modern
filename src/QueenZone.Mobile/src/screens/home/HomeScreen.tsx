@@ -77,6 +77,7 @@ export function HomeScreen({ navigation }: Props) {
       style={[styles.flex, { backgroundColor: c.surfacePage }]}
       data={[]}
       renderItem={() => null}
+      alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={data.pull.refreshing} onRefresh={data.pull.onRefresh} />
       }

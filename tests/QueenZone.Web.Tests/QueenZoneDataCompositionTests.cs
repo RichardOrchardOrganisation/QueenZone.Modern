@@ -67,6 +67,24 @@ public sealed class QueenZoneDataCompositionTests
         Assert.IsNotType<EfNewsRepository>(repository);
     }
 
+    [Fact]
+    public void AddQueenZoneData_registers_mirror_migrator_only_for_E2E()
+    {
+        var e2e = BuildServices(
+            environmentName: QueenZoneEnvironments.E2E,
+            connectionString: MirrorConnectionString);
+        var testing = BuildServices(
+            environmentName: QueenZoneEnvironments.Testing,
+            connectionString: MirrorConnectionString);
+
+        Assert.Contains(
+            e2e,
+            registration => registration.ImplementationType == typeof(E2EMirrorMigrationHostedService));
+        Assert.DoesNotContain(
+            testing,
+            registration => registration.ImplementationType == typeof(E2EMirrorMigrationHostedService));
+    }
+
     private static IServiceCollection BuildServices(string environmentName, string? connectionString)
     {
         var services = new ServiceCollection();

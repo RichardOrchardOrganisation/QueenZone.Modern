@@ -50,6 +50,8 @@ export {
   checkQuizSprintAnswer,
   finishQuizSprint,
   fetchQuizSprintDaily,
+  fetchQuizSprintLeaderboard,
+  claimQuizSprintRun,
 } from './content';
 export { fetchSearchPage } from './search';
 export type { SearchPageQuery } from './search';

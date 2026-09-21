@@ -53,6 +53,36 @@ public sealed class QuizSprintPagesTests
     }
 
     [Fact]
+    public async Task Guest_results_offer_to_save_the_score_and_signing_in_adds_it()
+    {
+        using var isolated = IsolatedQuizzes();
+        await PublishPoolAsync(isolated);
+        using var guest = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var landing = await guest.GetStringAsync("/quizzes/sprint");
+        var results = await FinishAsync(guest, await StartAsync(guest, landing), answerCorrectly: true);
+
+        var link = Regex.Match(results, "href=\"(/account/login\\?returnUrl=[^\"]+)\"[^>]*>Sign in to save this score");
+        Assert.True(link.Success, "results should link to sign in with the claim token");
+        var encoded = Regex.Match(System.Net.WebUtility.HtmlDecode(link.Groups[1].Value), "returnUrl=(.+)$").Groups[1].Value;
+        var returnUrl = Uri.UnescapeDataString(encoded);
+        Assert.StartsWith("/quizzes/sprint?claim=", returnUrl, StringComparison.Ordinal);
+
+        using var member = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        member.DefaultRequestHeaders.Add(TestMemberAuthHandler.MemberIdHeader, Guid.NewGuid().ToString());
+        member.DefaultRequestHeaders.Add(TestMemberAuthHandler.DisplayNameHeader, "Late Signer");
+        var saved = await member.GetStringAsync(returnUrl);
+        Assert.Contains("Your score of 3 was added to the leaderboard (rank #1 today).", saved, StringComparison.Ordinal);
+
+        var replay = await member.GetStringAsync(returnUrl);
+        Assert.Contains("already on the leaderboard", replay, StringComparison.Ordinal);
+
+        var signedOut = await guest.GetStringAsync(returnUrl);
+        Assert.Contains("Sign in to save your score", signedOut, StringComparison.Ordinal);
+        var tampered = await member.GetStringAsync("/quizzes/sprint?claim=nonsense");
+        Assert.Contains("save that score", tampered, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Answer_endpoint_reveals_correctness_for_a_live_round_only()
     {
         using var isolated = IsolatedQuizzes();
@@ -100,6 +130,37 @@ public sealed class QuizSprintPagesTests
         Assert.Equal(1, board!.PlayersToday);
         Assert.Equal(7, board.Top[0].Score);
         Assert.Equal(5, board.Top[0].BestStreak);
+    }
+
+    [Fact]
+    public async Task Leaderboard_offers_today_and_all_time_and_the_api_scopes_match()
+    {
+        using var isolated = IsolatedQuizzes();
+        var memberId = Guid.NewGuid();
+        using (var scope = isolated.Services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IQuizRepository>()
+                .RecordSprintRunAsync(memberId, new QuizSprintScore(9, 7, 8, 6));
+        }
+
+        using var client = isolated.CreateAnonymousClient();
+        var today = await client.GetStringAsync("/quizzes/leaderboard");
+        var allTime = await client.GetStringAsync("/quizzes/leaderboard?scope=all");
+        Assert.Contains("Today&#x27;s leaderboard", today, StringComparison.Ordinal);
+        Assert.Contains("Best runs", allTime, StringComparison.Ordinal);
+        var total = await client.GetStringAsync("/quizzes/leaderboard?scope=total");
+        Assert.Contains("Total points", total, StringComparison.Ordinal);
+        Assert.Contains("1 run &middot; best streak 6", total.Replace("·", "&middot;"), StringComparison.Ordinal);
+        Assert.Contains("href=\"/quizzes/leaderboard?scope=all\"", today, StringComparison.Ordinal);
+        Assert.Contains("1 member ranked.", allTime, StringComparison.Ordinal);
+
+        var api = $"{ContentApiEndpoints.RootPath}/quizzes/sprint/leaderboard";
+        var daily = await client.GetFromJsonAsync<SprintBoardDto>(api, JsonOptions);
+        var all = await client.GetFromJsonAsync<SprintBoardDto>($"{api}?scope=all", JsonOptions);
+        Assert.Equal(("daily", 1, 9), (daily!.Scope, daily.Players, daily.Top[0].Score));
+        Assert.Equal(("all", 1, 9), (all!.Scope, all.Players, all.Top[0].Score));
+        var totals = await client.GetFromJsonAsync<SprintBoardDto>($"{api}?scope=total", JsonOptions);
+        Assert.Equal(("total", 1, 9, 1), (totals!.Scope, totals.Players, totals.Top[0].Score, totals.Top[0].Runs));
     }
 
     private static async Task<string> StartAsync(HttpClient client, string landing)

@@ -67,6 +67,7 @@ export function PhotosScreen({ navigation }: Props) {
       columnWrapperStyle={{ gap: GAP, paddingHorizontal: space.xl }}
       contentContainerStyle={{ paddingBottom: space.section }}
       ListEmptyComponent={<EmptyBlock message="No photo collections are available yet." />}
+      alwaysBounceVertical
       ListFooterComponent={
         <View style={{ paddingTop: 26, alignItems: 'center', gap: space.md }}>
           <ListFooterLoading visible={paged.loadingMore} />

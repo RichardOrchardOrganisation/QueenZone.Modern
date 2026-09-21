@@ -33,19 +33,29 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
 
     public string? StartNotice { get; private set; }
 
+    /// <summary>Outcome of saving a guest's earlier score after sign-in (<c>?claim=</c>).</summary>
+    public string? ClaimMessage { get; private set; }
+
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; } =
     [
         BreadcrumbItem.Home,
         new BreadcrumbItem("Quiz Sprint", "/quizzes/sprint"),
     ];
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    public async Task OnGetAsync(string? claim, CancellationToken cancellationToken)
     {
         SetViewData();
         StartNotice = TempData[StartNoticeKey] as string;
         EmptyPool = !await sprintService.HasQuestionsAsync(cancellationToken);
         var memberId = await GetCurrentMemberIdAsync();
         SignedIn = memberId is not null;
+        if (!string.IsNullOrEmpty(claim))
+        {
+            ClaimMessage = memberId is Guid member
+                ? DescribeClaim(await sprintService.ClaimAsync(claim, member, cancellationToken))
+                : "Sign in to save your score to the leaderboard.";
+        }
+
         Board = await sprintService.GetBoardAsync(memberId, IntroBoardRows, cancellationToken);
     }
 
@@ -59,7 +69,7 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
     {
         SetViewData();
         SignedIn = await GetCurrentMemberIdAsync() is not null;
-        var round = await sprintService.StartAsync(cancellationToken);
+        var round = await sprintService.StartAsync(cancellationToken, QuizSprintSeenQuestions.Read(Request));
         if (round is null)
         {
             EmptyPool = true;
@@ -103,11 +113,20 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
                 Expired = true;
                 return Page();
             default:
+                QuizSprintSeenQuestions.Remember(HttpContext, outcome.AnsweredQuestionIds ?? []);
                 Result = outcome.Result;
                 Board = await sprintService.GetBoardAsync(memberId, ResultsBoardRows, cancellationToken);
                 return Page();
         }
     }
+
+    private static string DescribeClaim(SprintClaimOutcome outcome) => outcome.Status switch
+    {
+        SprintClaimStatus.Claimed => $"Your score of {outcome.Points} was added to the leaderboard{(outcome.Rank is { } rank ? $" (rank #{rank} today)" : "")}.",
+        SprintClaimStatus.AlreadyClaimed => "That score is already on the leaderboard.",
+        SprintClaimStatus.Expired => "That run finished too long ago to add to the leaderboard. Play again to be ranked.",
+        _ => "We couldn't save that score. Play again to be ranked.",
+    };
 
     public static string Verdict(int points) => points switch
     {

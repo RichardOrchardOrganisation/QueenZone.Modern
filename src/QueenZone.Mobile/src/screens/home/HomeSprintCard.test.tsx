@@ -1,6 +1,8 @@
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
 import { fetchQuizSprintDaily } from '../../api';
 import { renderWithProviders } from '../../test/render';
+import { testIds } from '../../test/testIds';
+import { light, palette } from '../../theme';
 import { HomeSprintCard, sprintCardLine } from './HomeSprintCard';
 
 jest.mock('../../api', () => {
@@ -42,4 +44,25 @@ describe('HomeSprintCard', () => {
     expect(sprintCardLine(0)).toMatch(/Be first/);
     expect(sprintCardLine(12)).toMatch(/Beat 12/);
   });
+
+  it.each(['light', 'dark'] as const)(
+    'keeps the black / gold / white stage card in %s mode',
+    (preference) => {
+      daily.mockRejectedValue(new Error('offline'));
+      renderWithProviders(<HomeSprintCard onPlay={jest.fn()} />, {
+        navigation: false,
+        themePreference: preference,
+      });
+
+      const stage = screen.getByTestId(testIds.homeSprintCard);
+      expect(stage).toHaveStyle({
+        backgroundColor: palette.black,
+        borderColor: palette.gold,
+      });
+      expect(stage).not.toHaveStyle({ backgroundColor: light.surfaceCard });
+      expect(screen.getByText('DAILY CHALLENGE')).toHaveStyle({ color: palette.gold });
+      expect(screen.getByText('Quiz Sprint')).toHaveStyle({ color: palette.white });
+      expect(screen.getByText('START')).toHaveStyle({ color: palette.black });
+    },
+  );
 });

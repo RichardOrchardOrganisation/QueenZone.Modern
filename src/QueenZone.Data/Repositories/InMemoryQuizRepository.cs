@@ -303,6 +303,36 @@ public sealed class InMemoryQuizRepository(
         }
     }
 
+    public Task<bool> ClaimSprintRunAsync(
+        Guid runId,
+        Guid memberAccountId,
+        QuizSprintScore score,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken = default)
+    {
+        var recorded = false;
+        store.WriteSprintRuns(runs =>
+        {
+            if (runs.Any(run => run.Id == runId))
+            {
+                return;
+            }
+
+            runs.Add(new QuizSprintRunEntity
+            {
+                Id = runId,
+                MemberAccountId = memberAccountId,
+                Score = score.Points,
+                CorrectCount = score.Correct,
+                AnsweredCount = score.Answered,
+                BestStreak = score.BestStreak,
+                CompletedAt = completedAt,
+            });
+            recorded = true;
+        });
+        return Task.FromResult(recorded);
+    }
+
     public Task RecordSprintRunAsync(
         Guid memberAccountId,
         QuizSprintScore score,
@@ -321,13 +351,20 @@ public sealed class InMemoryQuizRepository(
         return Task.CompletedTask;
     }
 
-    public Task<QuizSprintDailyBoard> GetSprintDailyBoardAsync(
+    public Task<QuizSprintBoardResult> GetSprintBoardAsync(
+        QuizSprintBoardScope scope,
         Guid? viewerMemberId,
         int top = 10,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(store.ReadSprintRuns(runs =>
         {
+            if (scope == QuizSprintBoardScope.Total)
+            {
+                return QuizScoring.BuildSprintTotalBoard(runs, viewerMemberId, top);
+            }
+
             var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
-            return QuizScoring.BuildSprintDailyBoard(runs.Where(run => run.CompletedAt >= dayStart), viewerMemberId, top);
+            var scoped = scope == QuizSprintBoardScope.Daily ? runs.Where(run => run.CompletedAt >= dayStart) : runs;
+            return QuizScoring.BuildSprintBoard(scoped, viewerMemberId, top);
         }));
 }

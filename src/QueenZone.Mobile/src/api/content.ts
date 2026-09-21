@@ -25,6 +25,8 @@ import type {
   QuizListItem,
   QuizResult,
   QuizSprintAnswerCheck,
+  QuizSprintBoard,
+  QuizSprintClaimResult,
   QuizSprintDailyBoard,
   QuizSprintResult,
   QuizSprintRound,
@@ -303,12 +305,41 @@ export function finishQuizSprint(
   });
 }
 
+/**
+ * Adds a guest's finished run to the signed-in member's record. Needs the `claimToken` from that
+ * run's finish response; valid for one hour and claimable once (410 once expired).
+ */
+export function claimQuizSprintRun(
+  claimToken: string,
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<QuizSprintClaimResult> {
+  return sendJson('/content/quizzes/sprint/claim', {
+    method: 'POST',
+    body: { claimToken },
+    accessToken,
+    signal,
+  });
+}
+
 /** Today's Quiz Sprint standings. Optional Bearer includes the viewer's own entry. */
 export function fetchQuizSprintDaily(
   signal?: AbortSignal,
   accessToken?: string | null,
 ): Promise<QuizSprintDailyBoard> {
   return fetchJson('/content/quizzes/sprint/daily', { signal, accessToken });
+}
+
+/**
+ * Quiz Sprint standings: best run today (`daily`), best run ever (`all`), or points summed over
+ * every run (`total`). Optional Bearer includes the viewer.
+ */
+export function fetchQuizSprintLeaderboard(
+  scope: 'daily' | 'all' | 'total',
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizSprintBoard> {
+  return fetchJson('/content/quizzes/sprint/leaderboard', { query: { scope }, signal, accessToken });
 }
 
 export function fetchFreddieTributePage(

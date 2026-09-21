@@ -1,6 +1,8 @@
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
 import {
+  ApiError,
   checkQuizSprintAnswer,
+  claimQuizSprintRun,
   fetchQuizSprintDaily,
   finishQuizSprint,
   startQuizSprint,
@@ -16,6 +18,7 @@ jest.mock('../../api', () => {
   return {
     ...actual,
     startQuizSprint: jest.fn(),
+    claimQuizSprintRun: jest.fn(),
     checkQuizSprintAnswer: jest.fn(),
     finishQuizSprint: jest.fn(),
     fetchQuizSprintDaily: jest.fn(),
@@ -34,6 +37,7 @@ const start = startQuizSprint as jest.MockedFunction<typeof startQuizSprint>;
 const check = checkQuizSprintAnswer as jest.MockedFunction<typeof checkQuizSprintAnswer>;
 const finish = finishQuizSprint as jest.MockedFunction<typeof finishQuizSprint>;
 const daily = fetchQuizSprintDaily as jest.MockedFunction<typeof fetchQuizSprintDaily>;
+const claimRun = claimQuizSprintRun as jest.MockedFunction<typeof claimQuizSprintRun>;
 
 function round(): QuizSprintRound {
   const now = Date.now();
@@ -63,10 +67,13 @@ function result(overrides: Partial<QuizSprintResult> = {}): QuizSprintResult {
   return { attempted: 1, correct: 1, points: 1, bestStreak: 1, recorded: false, rank: null, answers: [], ...overrides };
 }
 
-function renderScreen() {
+function renderScreen(params?: { claim?: string }) {
   const navigation = fakeNavigation();
   renderWithProviders(
-    <QuizSprintScreen navigation={navigation as never} route={{ key: 'sprint', name: 'QuizSprint' } as never} />,
+    <QuizSprintScreen
+      navigation={navigation as never}
+      route={{ key: 'sprint', name: 'QuizSprint', params } as never}
+    />,
     { navigation: false },
   );
   return navigation;
@@ -113,6 +120,64 @@ describe('QuizSprintScreen', () => {
     await waitFor(() => expect(screen.getByText('The clock wins this one. Try again — the questions reshuffle.')).toBeOnTheScreen());
     expect(screen.getByText('Your score is only added to the leaderboard if you are signed in.')).toBeOnTheScreen();
     expect(screen.getByText('DAILY LEADERBOARD')).toBeOnTheScreen();
+  });
+
+  it('lets a guest sign in from their results and carries the claim token through', async () => {
+    start.mockResolvedValue(round());
+    check.mockResolvedValue({ isCorrect: true, correctOptionId: 'q1-a' });
+    finish.mockResolvedValue(result({ points: 1, recorded: false, claimToken: 'claim-token' }));
+    const user = userEvent.setup();
+    const navigation = renderScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Begin the sprint' }));
+    await waitFor(() => expect(screen.getByText('Who was the lead singer of Queen?')).toBeOnTheScreen());
+    await user.press(screen.getByRole('button', { name: 'A. Freddie Mercury' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in to save this score' })).toBeOnTheScreen(), {
+      timeout: 3000,
+    });
+    await user.press(screen.getByRole('button', { name: 'Sign in to save this score' }));
+    expect(openSignIn).toHaveBeenCalledWith(navigation, {
+      tab: 'ArchiveTab',
+      screen: 'QuizSprint',
+      params: { claim: 'claim-token' },
+    });
+  });
+
+  it('adds the guest run once signed in and clears the claim param', async () => {
+    mockSession.isSignedIn = true;
+    mockSession.accessToken = 'token';
+    claimRun.mockResolvedValue({ status: 'claimed', points: 12, rank: 4 });
+    const navigation = renderScreen({ claim: 'claim-token' });
+
+    await waitFor(() =>
+      expect(screen.getByText('Your score of 12 was added to the leaderboard (rank #4 today).')).toBeOnTheScreen(),
+    );
+    expect(claimRun).toHaveBeenCalledTimes(1);
+    expect(claimRun).toHaveBeenCalledWith('claim-token', 'token');
+    await waitFor(() => expect(navigation.setParams).toHaveBeenCalledWith({ claim: undefined }));
+  });
+
+  it('reports an already-saved or expired claim without crashing', async () => {
+    mockSession.isSignedIn = true;
+    mockSession.accessToken = 'token';
+    claimRun.mockResolvedValueOnce({ status: 'already_claimed', points: 12, rank: null });
+    renderScreen({ claim: 'claim-token' });
+    await waitFor(() => expect(screen.getByText('That score is already on the leaderboard.')).toBeOnTheScreen());
+  });
+
+  it('explains when the claim window has passed', async () => {
+    mockSession.isSignedIn = true;
+    mockSession.accessToken = 'token';
+    claimRun.mockRejectedValueOnce(ApiError.http(410, 'Claim expired'));
+    renderScreen({ claim: 'old-token' });
+    await waitFor(() => expect(screen.getByText(/finished too long ago/)).toBeOnTheScreen());
+  });
+
+  it('does not claim while still signed out', async () => {
+    renderScreen({ claim: 'claim-token' });
+    await waitFor(() => expect(daily).toHaveBeenCalled());
+    expect(claimRun).not.toHaveBeenCalled();
   });
 
   it('shows the rank for a signed-in run and lets the player run again', async () => {

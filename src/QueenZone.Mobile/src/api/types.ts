@@ -516,6 +516,15 @@ export type QuizSprintResult = {
   recorded: boolean;
   rank: number | null;
   answers: QuizSprintReviewItem[];
+  /** Anonymous runs only: sign in within an hour and send this to the claim endpoint to add the run. */
+  claimToken?: string | null;
+};
+
+/** Shape for `POST /api/v1/content/quizzes/sprint/claim`. */
+export type QuizSprintClaimResult = {
+  status: 'claimed' | 'already_claimed';
+  points: number;
+  rank: number | null;
 };
 
 export type QuizSprintLeaderboardEntry = {
@@ -523,6 +532,19 @@ export type QuizSprintLeaderboardEntry = {
   displayName: string;
   score: number;
   bestStreak: number;
+  /** Runs played in the scope: 1 for a best-run entry, the member's run count on the total board. */
+  runs?: number;
+};
+
+/**
+ * Shape for `GET /api/v1/content/quizzes/sprint/leaderboard`; `players` counts members ranked in `scope`.
+ * `daily` = best run today, `all` = best run ever, `total` = points summed over every run.
+ */
+export type QuizSprintBoard = {
+  scope: 'daily' | 'all' | 'total';
+  top: QuizSprintLeaderboardEntry[];
+  viewer: QuizSprintLeaderboardEntry | null;
+  players: number;
 };
 
 /** Shape for `GET /api/v1/content/quizzes/sprint/daily` (today, UTC). */
