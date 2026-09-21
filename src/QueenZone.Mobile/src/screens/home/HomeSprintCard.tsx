@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fetchQuizSprintDaily } from '../../api';
 import { testIds } from '../../test/testIds';
-import { fonts, palette, radius } from '../../theme';
+import { fonts, palette, radius, useTheme } from '../../theme';
 
 type Props = {
   onPlay: () => void;
@@ -17,6 +17,7 @@ export function sprintCardLine(bestScore: number | null): string {
 
 /** Daily Challenge card: the first interactive element under the masthead on the home screen. */
 export function HomeSprintCard({ onPlay }: Props) {
+  const { c } = useTheme();
   const [bestScore, setBestScore] = useState<number | null>(null);
 
   useEffect(() => {
@@ -30,34 +31,42 @@ export function HomeSprintCard({ onPlay }: Props) {
   }, []);
 
   return (
-    <View testID={testIds.homeSprintCard} style={styles.card}>
-      <View style={styles.copy}>
-        <Text style={styles.eyebrow}>DAILY CHALLENGE</Text>
-        <Text style={styles.title}>Quiz Sprint</Text>
-        <Text style={styles.line}>{sprintCardLine(bestScore)}</Text>
+    <View style={[styles.frame, { borderColor: c.hairline }]}>
+      <View testID={testIds.homeSprintCard} style={styles.card}>
+        <View style={styles.copy}>
+          <Text style={styles.eyebrow}>DAILY CHALLENGE</Text>
+          <Text style={styles.title}>Quiz Sprint</Text>
+          <Text style={styles.line}>{sprintCardLine(bestScore)}</Text>
+        </View>
+        <View style={styles.dial} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Text style={styles.dialNumber}>60</Text>
+          <Text style={styles.dialLabel}>SEC</Text>
+        </View>
+        <Pressable
+          testID={testIds.homeSprintStart}
+          accessibilityRole="button"
+          accessibilityLabel="Start the Quiz Sprint"
+          onPress={onPlay}
+          style={({ pressed }) => [styles.start, pressed && styles.startPressed]}
+        >
+          <Text style={styles.startLabel}>START</Text>
+        </Pressable>
       </View>
-      <View style={styles.dial} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <Text style={styles.dialNumber}>60</Text>
-        <Text style={styles.dialLabel}>SEC</Text>
-      </View>
-      <Pressable
-        testID={testIds.homeSprintStart}
-        accessibilityRole="button"
-        accessibilityLabel="Start the Quiz Sprint"
-        onPress={onPlay}
-        style={({ pressed }) => [styles.start, pressed && styles.startPressed]}
-      >
-        <Text style={styles.startLabel}>START</Text>
-      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  /** Hairline only — the inner card stays the black/gold/white stage in both schemes. */
+  frame: {
     marginHorizontal: 18,
     marginTop: 12,
     marginBottom: 8,
+    padding: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md + 1,
+  },
+  card: {
     paddingVertical: 24,
     paddingHorizontal: 22,
     backgroundColor: palette.black,
