@@ -1,5 +1,5 @@
 import { Text } from 'react-native';
-import { type, useTheme } from '../theme';
+import { dark, type, useTheme } from '../theme';
 
 type Tone = 'accent' | 'primary' | 'muted' | 'onDark';
 
@@ -14,9 +14,11 @@ export function Eyebrow({ children, tone = 'accent', size = 10 }: Props) {
   const color =
     tone === 'accent'
       ? c.accentPrimary
-      : tone === 'primary' || tone === 'onDark'
-        ? c.textPrimary
-        : c.textSecondary;
+      : tone === 'onDark'
+        ? dark.textPrimary
+        : tone === 'primary'
+          ? c.textPrimary
+          : c.textSecondary;
 
   return (
     <Text

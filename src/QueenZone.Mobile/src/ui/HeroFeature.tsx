@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { fonts, imagery, space, type, useTheme } from '../theme';
+import { dark, fonts, imagery, space, type } from '../theme';
 import { ArchiveImage } from './ArchiveImage';
 import { Eyebrow } from './Eyebrow';
 import { MetaLine } from './MetaLine';
@@ -21,7 +21,6 @@ type Props = {
 };
 
 export function HeroFeature({ item, onPress, testID, height = 468, priority = 'normal' }: Props) {
-  const { c } = useTheme();
   const press = usePressProps();
 
   return (
@@ -46,17 +45,17 @@ export function HeroFeature({ item, onPress, testID, height = 468, priority = 'n
         style={StyleSheet.absoluteFill}
       />
       <View style={{ position: 'absolute', left: space.xl, right: space.xl, bottom: 28, gap: space.md }}>
-        <Eyebrow>{item.kicker}</Eyebrow>
-        <Text numberOfLines={3} maxFontSizeMultiplier={1.4} style={[type.heroTitle, { color: c.textPrimary }]}>
+        <Eyebrow tone="onDark">{item.kicker}</Eyebrow>
+        <Text numberOfLines={3} maxFontSizeMultiplier={1.4} style={[type.heroTitle, { color: dark.textPrimary }]}>
           {item.title}
         </Text>
         <Text
           numberOfLines={3}
-          style={{ fontFamily: fonts.body, fontSize: 15, lineHeight: 23, color: c.textSecondary }}
+          style={{ fontFamily: fonts.body, fontSize: 15, lineHeight: 23, color: dark.textSecondary }}
         >
           {item.standfirst}
         </Text>
-        <MetaLine parts={[...item.meta]} />
+        <MetaLine parts={[...item.meta]} tone="onDark" />
       </View>
     </Pressable>
   );
