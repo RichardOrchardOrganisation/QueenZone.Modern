@@ -700,6 +700,33 @@ public sealed class PublicQueryCacheServiceTests
         Assert.Equal(1, discographyRepository.AlbumsCallCount);
     }
 
+    [Fact]
+    public async Task FreddieSample_WarmCache_DoesNotPickIdsAgain()
+    {
+        var tributes = new CountingFreddieTributeRepository(
+            new FreddieTribute(7, "Maya", "Still shining.", "India", "24 November 2001", "10:00"));
+        var photos = new CountingFreddiePhotoRepository();
+        var cache = CreateService(
+            new MemoryCache(new MemoryCacheOptions()),
+            photoRepository: photos,
+            freddieTributeRepository: tributes);
+
+        var first = await cache.GetFeaturedFreddieTributeAsync();
+        var second = await cache.GetFeaturedFreddieTributeAsync();
+        Assert.Equal(7, first!.Id);
+        Assert.Equal(7, second!.Id);
+        Assert.Equal(1, tributes.PickCallCount);
+        Assert.Equal(2, tributes.ByIdCallCount);
+
+        var firstPhotos = await cache.GetFreddieTributePhotosAsync();
+        var secondPhotos = await cache.GetFreddieTributePhotosAsync();
+        Assert.Equal(4, firstPhotos.Count);
+        Assert.Equal(firstPhotos.Select(item => item.PicId), secondPhotos.Select(item => item.PicId));
+        Assert.Equal(1, photos.PickCallCount);
+        Assert.Equal(2, photos.ByIdCallCount);
+        Assert.Equal(1, photos.CategoriesCallCount);
+    }
+
     private static ServiceProvider CreateWarmupProvider(PublicQueryCacheService cache)
     {
         var services = new ServiceCollection();
@@ -720,6 +747,7 @@ public sealed class PublicQueryCacheServiceTests
         ITriviaRepository? triviaRepository = null,
         IBiographyRepository? biographyRepository = null,
         IDiscographyRepository? discographyRepository = null,
+        IFreddieTributeRepository? freddieTributeRepository = null,
         PublicQueryCacheOptions? options = null) =>
         new(
             memoryCache,
@@ -734,7 +762,8 @@ public sealed class PublicQueryCacheServiceTests
             quoteRepository ?? new CountingQuoteRepository(),
             triviaRepository ?? new CountingTriviaRepository(),
             biographyRepository ?? new CountingBiographyRepository(),
-            discographyRepository ?? new CountingDiscographyRepository());
+            discographyRepository ?? new CountingDiscographyRepository(),
+            freddieTributeRepository ?? new UnusedFreddieTributeRepository());
 
     private class CountingLiveActivityQueryService : ILiveActivityQueryService
     {
@@ -1053,7 +1082,7 @@ public sealed class PublicQueryCacheServiceTests
 
     private class CountingPhotoRepository : IPhotoRepository
     {
-        public int CategoriesCallCount { get; private set; }
+        public int CategoriesCallCount { get; protected set; }
 
         public int PageCallCount { get; private set; }
 
@@ -1111,6 +1140,18 @@ public sealed class PublicQueryCacheServiceTests
         public Task<IReadOnlyList<PhotoItem>> GetRandomPublishedInCategoryAsync(
             int catId,
             int take,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public virtual Task<IReadOnlyList<int>> PickRandomPublishedPhotoIdsAsync(
+            int catId,
+            int take,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public virtual Task<IReadOnlyList<PhotoItem>> GetPublishedByIdsAsync(
+            int catId,
+            IReadOnlyList<int> picIds,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -1337,6 +1378,97 @@ public sealed class PublicQueryCacheServiceTests
         {
             await gate.EnterAsync(cancellationToken);
             return await base.GetCategoriesAsync(cancellationToken);
+        }
+    }
+
+    private sealed class UnusedFreddieTributeRepository : IFreddieTributeRepository
+    {
+        public Task<FreddieTributePage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<FreddieTribute?> GetRandomAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<int?> PickRandomVisibleIdAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<FreddieTribute?> GetVisibleByIdAsync(int id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class CountingFreddieTributeRepository(FreddieTribute tribute) : IFreddieTributeRepository
+    {
+        public int PickCallCount { get; private set; }
+
+        public int ByIdCallCount { get; private set; }
+
+        public Task<FreddieTributePage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<FreddieTribute?> GetRandomAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<int?> PickRandomVisibleIdAsync(CancellationToken cancellationToken = default)
+        {
+            PickCallCount++;
+            return Task.FromResult<int?>(tribute.Id);
+        }
+
+        public Task<FreddieTribute?> GetVisibleByIdAsync(int id, CancellationToken cancellationToken = default)
+        {
+            ByIdCallCount++;
+            return Task.FromResult<FreddieTribute?>(id == tribute.Id ? tribute : null);
+        }
+    }
+
+    private sealed class CountingFreddiePhotoRepository : CountingPhotoRepository
+    {
+        public int PickCallCount { get; private set; }
+
+        public int ByIdCallCount { get; private set; }
+
+        public override Task<IReadOnlyList<PhotoCategory>> GetCategoriesAsync(CancellationToken cancellationToken = default)
+        {
+            CategoriesCallCount++;
+            return Task.FromResult<IReadOnlyList<PhotoCategory>>(
+            [
+                new PhotoCategory(18, "Freddie Mercury", "freddie-mercury", 4, null),
+            ]);
+        }
+
+        public override Task<IReadOnlyList<int>> PickRandomPublishedPhotoIdsAsync(
+            int catId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            PickCallCount++;
+            IReadOnlyList<int> ids = [301, 302, 303, 304];
+            return Task.FromResult(ids);
+        }
+
+        public override Task<IReadOnlyList<PhotoItem>> GetPublishedByIdsAsync(
+            int catId,
+            IReadOnlyList<int> picIds,
+            CancellationToken cancellationToken = default)
+        {
+            ByIdCallCount++;
+            IReadOnlyList<PhotoItem> items = picIds
+                .Select(id => new PhotoItem(
+                    id,
+                    catId,
+                    "Freddie Mercury",
+                    "freddie-mercury",
+                    $"Photo {id}",
+                    $"https://cdn.queenzone.org/freddie-mercury/{id}.jpg",
+                    $"https://cdn.queenzone.org/freddie-mercury/{id}-t.jpg",
+                    100,
+                    100,
+                    800,
+                    600,
+                    1986,
+                    new DateTime(1986, 7, 12)))
+                .ToList();
+            return Task.FromResult(items);
         }
     }
 }

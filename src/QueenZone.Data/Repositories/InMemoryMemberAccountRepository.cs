@@ -271,6 +271,49 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
         }
     }
 
+    public Task RecordPasswordFailureAsync(
+        Guid memberId,
+        int failureCount,
+        DateTime windowStartedAt,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            var account = accounts.FirstOrDefault(a => a.Id == memberId);
+            if (account is not null)
+            {
+                account.PasswordFailureCount = failureCount;
+                account.PasswordFailureWindowStartedAt = windowStartedAt;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task RecordPasswordSignInAsync(
+        Guid memberId,
+        DateTime loginAt,
+        string? rehashedPassword,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            var account = accounts.FirstOrDefault(a => a.Id == memberId);
+            if (account is not null)
+            {
+                account.LastLoginAt = loginAt;
+                account.PasswordFailureCount = 0;
+                account.PasswordFailureWindowStartedAt = null;
+                if (rehashedPassword is not null)
+                {
+                    account.PasswordHash = rehashedPassword;
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
     public Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default)
     {
         lock (gate)

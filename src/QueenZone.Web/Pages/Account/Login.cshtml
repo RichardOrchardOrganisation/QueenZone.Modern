@@ -13,6 +13,14 @@
     {
       <p class="qz-account-notice qz-account-notice--error">This account has been suspended. <a href="/contact">Contact us</a> if you believe this is a mistake.</p>
     }
+    @if (Model.ShowUnverifiedExternalEmail)
+    {
+      <p class="qz-account-notice qz-account-notice--error">@ExternalLoginMessages.UnverifiedEmail</p>
+    }
+    @if (Model.ShowExpiredExternalLink)
+    {
+      <p class="qz-account-notice qz-account-notice--error">@ExternalLoginMessages.ExpiredLink</p>
+    }
     <div class="qz-account-providers">
       @if (Model.GoogleEnabled)
       {

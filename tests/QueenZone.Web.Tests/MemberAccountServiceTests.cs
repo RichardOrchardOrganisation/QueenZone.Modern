@@ -1,3 +1,5 @@
+using System.Reflection;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
@@ -16,7 +18,9 @@ public sealed class MemberAccountServiceTests
         IBlobUploadService? blobUploadService = null,
         InMemoryBlobStorageBackend? blobBackend = null,
         MemberUploadQuotaService? uploadQuota = null,
-        TimeSpan? blobDeleteTimeout = null)
+        TimeSpan? blobDeleteTimeout = null,
+        TimeProvider? timeProvider = null,
+        PasswordSignInLockoutOptions? passwordLockout = null)
     {
         var backend = blobBackend ?? new InMemoryBlobStorageBackend();
         var blobs = blobUploadService
@@ -26,10 +30,21 @@ public sealed class MemberAccountServiceTests
             legacyMemberLookupRepository ?? new InMemoryLegacyMemberLookupRepository(
                 new Dictionary<string, LegacyMemberMatch>()),
             blobs,
-            uploadQuota ?? CreateDisabledUploadQuota())
+            uploadQuota ?? CreateDisabledUploadQuota(),
+            timeProvider,
+            passwordLockout is null ? null : Options.Create(passwordLockout))
         {
             BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountService.DefaultBlobDeleteTimeout,
         };
+    }
+
+    private sealed class LockoutClock(DateTimeOffset start) : TimeProvider
+    {
+        private DateTimeOffset now = start;
+
+        public override DateTimeOffset GetUtcNow() => now;
+
+        public void Advance(TimeSpan delta) => now += delta;
     }
 
     private static MemberUploadQuotaService CreateDisabledUploadQuota() =>
@@ -138,7 +153,83 @@ public sealed class MemberAccountServiceTests
         var result = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
 
         Assert.False(result.Succeeded);
-        Assert.Equal(MemberAccountService.SuspendedSignInError, result.Error);
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, result.Error);
+    }
+
+    [Fact]
+    public async Task SignInAsync_UsesTheSameError_ForMissingWrongAndSuspendedAccounts()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        await repository.SuspendAsync(registered.Account!.Id, "Spamming the board", "admin@queenzone.org", DateTime.UtcNow);
+
+        var missing = await service.SignInAsync("ghost@example.com", "whatever");
+        var wrong = await service.SignInAsync("fan@queenzone.org", "WrongPassword!");
+        var suspended = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, missing.Error);
+        Assert.Equal(missing.Error, wrong.Error);
+        Assert.Equal(missing.Error, suspended.Error);
+        Assert.DoesNotContain("suspended", suspended.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("attempt", suspended.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SignInAsync_LocksTheAccount_AndSuccessfulSignInClearsTheCounter()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var clock = new LockoutClock(new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero));
+        var service = CreateService(
+            memberAccountRepository: repository,
+            timeProvider: clock,
+            passwordLockout: new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 });
+        await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+
+        Assert.False((await service.SignInAsync("fan@queenzone.org", "nope-1")).Succeeded);
+        Assert.False((await service.SignInAsync("fan@queenzone.org", "nope-2")).Succeeded);
+        var locked = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+        Assert.False(locked.Succeeded);
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, locked.Error);
+
+        var stored = await repository.FindByEmailAsync("fan@queenzone.org");
+        Assert.Equal(2, stored!.PasswordFailureCount);
+
+        var cleared = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+        Assert.False(cleared.Succeeded);
+
+        clock.Advance(TimeSpan.FromMinutes(15));
+        var afterWindow = await service.SignInAsync("fan@queenzone.org", "nope-3");
+        Assert.False(afterWindow.Succeeded);
+        var success = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+        Assert.True(success.Succeeded);
+        stored = await repository.FindByEmailAsync("fan@queenzone.org");
+        Assert.Equal(0, stored!.PasswordFailureCount);
+        Assert.Null(stored.PasswordFailureWindowStartedAt);
+    }
+
+    [Fact]
+    public async Task SignInAsync_RewritesHash_WhenVerificationNeedsRehash()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        var legacyHasher = new PasswordHasher<MemberAccount>(Options.Create(new PasswordHasherOptions
+        {
+            IterationCount = 1_000,
+        }));
+        var legacyHash = legacyHasher.HashPassword(registered.Account!, "S3curePass!");
+        registered.Account!.PasswordHash = legacyHash;
+
+        var result = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+
+        Assert.True(result.Succeeded);
+        var stored = await repository.FindByEmailAsync("fan@queenzone.org");
+        Assert.NotEqual(legacyHash, stored!.PasswordHash);
+        var current = new PasswordHasher<MemberAccount>();
+        Assert.Equal(
+            PasswordVerificationResult.Success,
+            current.VerifyHashedPassword(stored, stored.PasswordHash!, "S3curePass!"));
     }
 
     [Fact]
@@ -150,7 +241,7 @@ public sealed class MemberAccountServiceTests
         });
         var service = CreateService(legacyMemberLookupRepository: legacyLookup);
 
-        var account = await service.FindOrCreateFromExternalLoginAsync("Google", "google-subject-1", "fan@queenzone.org", "Fan");
+        var account = await SignedInExternalAsync(service, "Google", "google-subject-1", "fan@queenzone.org", "Fan");
 
         Assert.Null(account.LinkedLegacyUserId);
         var state = await service.GetLegacyLinkStateAsync(account);
@@ -415,21 +506,151 @@ public sealed class MemberAccountServiceTests
     {
         var service = CreateService();
 
-        var first = await service.FindOrCreateFromExternalLoginAsync("Google", "google-subject-1", "fan@queenzone.org", "Fan");
-        var second = await service.FindOrCreateFromExternalLoginAsync("Google", "google-subject-1", "fan@queenzone.org", "Fan");
+        var first = await SignedInExternalAsync(service, "Google", "google-subject-1", "fan@queenzone.org", "Fan");
+        var second = await SignedInExternalAsync(service, "Google", "google-subject-1", "fan@queenzone.org", "Fan", emailVerified: false);
 
         Assert.Equal(first.Id, second.Id);
     }
 
     [Fact]
-    public async Task FindOrCreateFromExternalLoginAsync_LinksToExistingNativeAccount_WhenEmailMatches()
+    public async Task FindOrCreateFromExternalLoginAsync_DoesNotLinkVerifiedEmail_UntilTheAccountConfirms()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var (accounts, counter) = CountingMemberAccountRepository.Create(repository);
+        var service = CreateService(memberAccountRepository: accounts);
         var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        var addsBefore = counter.AddExternalLoginCalls;
 
-        var externalAccount = await service.FindOrCreateFromExternalLoginAsync("Google", "google-subject-1", "fan@queenzone.org", "Fan");
+        var resolution = await service.FindOrCreateFromExternalLoginAsync(
+            "Google",
+            "google-subject-1",
+            "fan@queenzone.org",
+            "Fan",
+            emailVerified: true);
 
-        Assert.Equal(registered.Account!.Id, externalAccount.Id);
+        Assert.Equal(ExternalLoginStatus.LinkConfirmationRequired, resolution.Status);
+        Assert.Equal(registered.Account!.Id, resolution.Account!.Id);
+        Assert.Equal(addsBefore, counter.AddExternalLoginCalls);
+        Assert.Null(await repository.FindByExternalLoginAsync("Google", "google-subject-1"));
+        Assert.Empty(await service.ListExternalProvidersAsync(registered.Account.Id));
+    }
+
+    [Fact]
+    public async Task FindOrCreateFromExternalLoginAsync_DoesNotCreateOrLink_WhenEmailIsUnverified()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var (accounts, counter) = CountingMemberAccountRepository.Create(repository);
+        var service = CreateService(memberAccountRepository: accounts);
+        var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        var addsBefore = counter.AddExternalLoginCalls;
+
+        var matched = await service.FindOrCreateFromExternalLoginAsync(
+            "Google",
+            "google-unverified-match",
+            "fan@queenzone.org",
+            "Fan",
+            emailVerified: false);
+        var created = await service.FindOrCreateFromExternalLoginAsync(
+            "Discord",
+            "discord-unverified-new",
+            "new-fan@queenzone.org",
+            "New Fan",
+            emailVerified: false);
+
+        Assert.Equal(ExternalLoginStatus.UnverifiedEmail, matched.Status);
+        Assert.Null(matched.Account);
+        Assert.Equal(ExternalLoginStatus.UnverifiedEmail, created.Status);
+        Assert.Equal(addsBefore, counter.AddExternalLoginCalls);
+        Assert.Null(await repository.FindByExternalLoginAsync("Google", "google-unverified-match"));
+        Assert.Null(await repository.FindByEmailAsync("new-fan@queenzone.org"));
+        Assert.Empty(await service.ListExternalProvidersAsync(registered.Account!.Id));
+    }
+
+    [Fact]
+    public async Task LinkExternalLoginAsync_LinksOnlyAfterTheMatchingAccountConfirms()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var (accounts, counter) = CountingMemberAccountRepository.Create(repository);
+        var legacyLookup = new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>
+        {
+            ["fan@queenzone.org"] = new LegacyMemberMatch(123, "OldFan"),
+        });
+        var service = CreateService(memberAccountRepository: accounts, legacyMemberLookupRepository: legacyLookup);
+        var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        var pending = await service.FindOrCreateFromExternalLoginAsync(
+            "Google",
+            "google-confirm-1",
+            "fan@queenzone.org",
+            "Fan",
+            emailVerified: true);
+        Assert.Equal(ExternalLoginStatus.LinkConfirmationRequired, pending.Status);
+        Assert.Equal(0, counter.AddExternalLoginCalls);
+
+        var wrongMember = await service.RegisterAsync("other@queenzone.org", "S3curePass!", "Other");
+        var mismatch = await service.LinkExternalLoginAsync(
+            wrongMember.Account!.Id,
+            "Google",
+            "google-confirm-1",
+            "fan@queenzone.org");
+        Assert.False(mismatch.Succeeded);
+        Assert.Equal(ExternalLoginMessages.EmailMismatch, mismatch.Error);
+        Assert.Equal(0, counter.AddExternalLoginCalls);
+
+        var linked = await service.LinkExternalLoginAsync(
+            registered.Account!.Id,
+            "Google",
+            "google-confirm-1",
+            "fan@queenzone.org");
+
+        Assert.True(linked.Succeeded);
+        Assert.Equal(registered.Account.Id, linked.Account!.Id);
+        Assert.Equal(1, counter.AddExternalLoginCalls);
+        Assert.Equal(123, linked.Account.LinkedLegacyUserId);
+        Assert.Equal(["Google"], await service.ListExternalProvidersAsync(registered.Account.Id));
+    }
+
+    [Fact]
+    public async Task LinkExternalLoginAsync_RejectsUnknownProviderMissingAccountAndTakenSubject()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var owner = await service.RegisterAsync("owner@queenzone.org", "S3curePass!", "Owner");
+        await service.LinkExternalLoginAsync(owner.Account!.Id, "Google", "taken-subject", "owner@queenzone.org");
+        var other = await service.RegisterAsync("other-taken@queenzone.org", "S3curePass!", "Other");
+
+        var unknown = await service.LinkExternalLoginAsync(other.Account!.Id, "Facebook", "fb-1", "other-taken@queenzone.org");
+        var blank = await service.LinkExternalLoginAsync(other.Account.Id, "Google", " ", "other-taken@queenzone.org");
+        var missing = await service.LinkExternalLoginAsync(Guid.NewGuid(), "Google", "new-subject", "other-taken@queenzone.org");
+        var taken = await service.LinkExternalLoginAsync(other.Account.Id, "Google", "taken-subject", "other-taken@queenzone.org");
+        await repository.SuspendAsync(other.Account.Id, "Spamming the board", "admin@queenzone.org", DateTime.UtcNow);
+        var suspended = await service.LinkExternalLoginAsync(other.Account.Id, "GitHub", "gh-suspended", "other-taken@queenzone.org");
+
+        Assert.Equal(ExternalLoginMessages.UnknownProvider, unknown.Error);
+        Assert.Equal(ExternalLoginMessages.UnverifiedEmail, blank.Error);
+        Assert.Equal("Account not found.", missing.Error);
+        Assert.Equal(ExternalLoginMessages.AlreadyLinked, taken.Error);
+        Assert.Equal(MemberAccountService.SuspendedSignInError, suspended.Error);
+        Assert.Equal(["Google"], await service.ListExternalProvidersAsync(owner.Account.Id));
+        Assert.Empty(await service.ListExternalProvidersAsync(other.Account.Id));
+    }
+
+    [Fact]
+    public async Task FindOrCreateFromExternalLoginAsync_DoesNotLinkSuspendedAccount_ByEmail()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        await repository.SuspendAsync(registered.Account!.Id, "Spamming the board", "admin@queenzone.org", DateTime.UtcNow);
+
+        var resolution = await service.FindOrCreateFromExternalLoginAsync(
+            "Google",
+            "google-suspended-email",
+            "fan@queenzone.org",
+            "Fan",
+            emailVerified: true);
+
+        Assert.Equal(ExternalLoginStatus.Suspended, resolution.Status);
+        Assert.Null(await repository.FindByExternalLoginAsync("Google", "google-suspended-email"));
     }
 
     [Fact]
@@ -567,10 +788,11 @@ public sealed class MemberAccountServiceTests
     public async Task ListExternalProvidersAsync_ReturnsLinkedProviders()
     {
         var service = CreateService();
-        var account = await service.FindOrCreateFromExternalLoginAsync(
-            "Google", "google-providers-1", "providers@example.com", "Provider Fan");
-        await service.FindOrCreateFromExternalLoginAsync(
-            "GitHub", "github-providers-1", "providers@example.com", "Provider Fan");
+        var account = await SignedInExternalAsync(
+            service, "Google", "google-providers-1", "providers@example.com", "Provider Fan");
+        var linked = await service.LinkExternalLoginAsync(
+            account.Id, "GitHub", "github-providers-1", "providers@example.com");
+        Assert.True(linked.Succeeded);
 
         var providers = await service.ListExternalProvidersAsync(account.Id);
 
@@ -719,7 +941,8 @@ public sealed class MemberAccountServiceTests
     {
         var repository = new InMemoryMemberAccountRepository();
         var service = CreateService(memberAccountRepository: repository);
-        var account = await service.FindOrCreateFromExternalLoginAsync(
+        var account = await SignedInExternalAsync(
+            service,
             "Google",
             "deleted-google-subject",
             "deleted-external@example.com",
@@ -727,15 +950,32 @@ public sealed class MemberAccountServiceTests
         await service.RequestDeletionAsync(account.Id);
 
         var returned = await service.FindOrCreateFromExternalLoginAsync(
+            "Google",
+            "deleted-google-subject",
+            "deleted-external@example.com",
+            "External Delete",
+            emailVerified: false);
+        var newProvider = await service.FindOrCreateFromExternalLoginAsync(
             "GitHub",
             "deleted-github-subject",
             "deleted-external@example.com",
-            "External Delete");
+            "External Delete",
+            emailVerified: true);
 
-        Assert.Equal(account.Id, returned.Id);
-        Assert.False(returned.IsSuspended);
-        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, returned.DisplayName);
-        Assert.NotNull(returned.LastLoginAt);
+        Assert.Equal(ExternalLoginStatus.SignedIn, returned.Status);
+        Assert.Equal(account.Id, returned.Account!.Id);
+        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, returned.Account.DisplayName);
+        Assert.NotNull(returned.Account.LastLoginAt);
+        Assert.Equal(ExternalLoginStatus.LinkConfirmationRequired, newProvider.Status);
+        Assert.Equal(["Google"], await service.ListExternalProvidersAsync(account.Id));
+
+        var blocked = await service.LinkExternalLoginAsync(
+            account.Id,
+            "GitHub",
+            "deleted-github-subject",
+            "deleted-external@example.com");
+        Assert.False(blocked.Succeeded);
+        Assert.Equal(MemberAccountService.PendingDeletionEditError, blocked.Error);
         Assert.Equal(["Google"], await service.ListExternalProvidersAsync(account.Id));
     }
 
@@ -847,6 +1087,25 @@ public sealed class MemberAccountServiceTests
         Assert.Equal(oldPath, reloaded!.AvatarUrl);
     }
 
+    private static async Task<MemberAccount> SignedInExternalAsync(
+        MemberAccountService service,
+        string provider,
+        string providerKey,
+        string email,
+        string displayName,
+        bool emailVerified = true)
+    {
+        var result = await service.FindOrCreateFromExternalLoginAsync(
+            provider,
+            providerKey,
+            email,
+            displayName,
+            emailVerified);
+        Assert.Equal(ExternalLoginStatus.SignedIn, result.Status);
+        Assert.NotNull(result.Account);
+        return result.Account;
+    }
+
     /// <summary>
     /// Never completes <see cref="IBlobUploadService.DeleteAsync"/> and ignores the token,
     /// matching an Azure SDK hang on a dead TCP / retry loop.
@@ -931,6 +1190,20 @@ public sealed class MemberAccountServiceTests
         public Task RecordLoginAsync(Guid memberId, DateTime loginAt, CancellationToken cancellationToken = default) =>
             inner.RecordLoginAsync(memberId, loginAt, cancellationToken);
 
+        public Task RecordPasswordFailureAsync(
+            Guid memberId,
+            int failureCount,
+            DateTime windowStartedAt,
+            CancellationToken cancellationToken = default) =>
+            inner.RecordPasswordFailureAsync(memberId, failureCount, windowStartedAt, cancellationToken);
+
+        public Task RecordPasswordSignInAsync(
+            Guid memberId,
+            DateTime loginAt,
+            string? rehashedPassword,
+            CancellationToken cancellationToken = default) =>
+            inner.RecordPasswordSignInAsync(memberId, loginAt, rehashedPassword, cancellationToken);
+
         public Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default) =>
             inner.GetStatsAsync(utcNow, cancellationToken);
 
@@ -1010,5 +1283,34 @@ public sealed class MemberAccountServiceTests
             IReadOnlyList<MemberSocialLink> links,
             CancellationToken cancellationToken = default) =>
             inner.ReplaceSocialLinksAsync(memberId, links, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Counts <see cref="IMemberAccountRepository.AddExternalLoginAsync"/> while delegating every call.
+/// </summary>
+public class CountingMemberAccountRepository : DispatchProxy
+{
+    private IMemberAccountRepository inner = null!;
+
+    public int AddExternalLoginCalls { get; private set; }
+
+    public static (IMemberAccountRepository Proxy, CountingMemberAccountRepository Counter) Create(
+        IMemberAccountRepository inner)
+    {
+        var proxy = DispatchProxy.Create<IMemberAccountRepository, CountingMemberAccountRepository>();
+        var counter = (CountingMemberAccountRepository)(object)proxy;
+        counter.inner = inner;
+        return (proxy, counter);
+    }
+
+    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+    {
+        if (targetMethod?.Name == nameof(IMemberAccountRepository.AddExternalLoginAsync))
+        {
+            AddExternalLoginCalls++;
+        }
+
+        return targetMethod!.Invoke(inner, args);
     }
 }

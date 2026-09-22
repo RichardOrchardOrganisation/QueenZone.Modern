@@ -27,3 +27,16 @@ write-only field; it is ephemeral and cannot enter the plan or state.
 Follow
 [`production-region-migration.md`](../../../docs/architecture/production-region-migration.md)
 for the phased apply, copy, verification, cutover, and retirement gates.
+
+## SQL firewall and auditing
+
+`queenzone-prod-sql` allows the possible outbound IPs of `queenzone-prod` and
+does not manage `AllowAllWindowsAzureIps`. `lifecycle.destroy = false` forgets
+that rule from state and leaves the Azure object in place. After apply, confirm
+`/health/ready`, then delete the live `0.0.0.0` rule only once GitHub-hosted
+migration runners have a firewall path of their own. `queenzone-sql-server`
+keeps its Azure-services rule for `queenzone-dev-db`.
+
+Auditing writes `SQLSecurityAuditEvents` to `queenzone-prod-law` (30-day
+workspace retention). Entra-only SQL authentication is not part of this
+change.

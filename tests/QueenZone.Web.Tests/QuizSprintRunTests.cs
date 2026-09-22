@@ -409,6 +409,7 @@ public sealed class QuizSprintRunTests
 
     private static HttpClient CreateBearerClient(QueenZoneWebApplicationFactory factory, Guid memberId, string displayName)
     {
+        MemberBearerAccounts.Ensure(factory.Services, memberId, $"{memberId:N}@example.test", displayName);
         using var scope = factory.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
         var token = issuer.IssueAccessToken(memberId, $"{memberId:N}@example.test", displayName);

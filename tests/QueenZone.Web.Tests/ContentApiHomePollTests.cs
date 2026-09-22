@@ -165,9 +165,8 @@ public sealed class ContentApiHomePollTests
         using var vote = await client.PostAsJsonAsync(
             $"{ContentApiEndpoints.RootPath}/home-poll/votes",
             new { optionId });
-        Assert.Equal(HttpStatusCode.Forbidden, vote.StatusCode);
-        var problem = await vote.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(ForumPollVoteException.Forbidden, problem.GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.Unauthorized, vote.StatusCode);
+        Assert.Equal("application/problem+json", vote.Content.Headers.ContentType?.MediaType);
     }
 
     private static QueenZoneWebApplicationFactory IsolatedHomePolls()
@@ -200,6 +199,7 @@ public sealed class ContentApiHomePollTests
         Guid memberId,
         string displayName)
     {
+        MemberBearerAccounts.Ensure(factory.Services, memberId, $"{memberId:N}@example.test", displayName);
         using var scope = factory.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
         var token = issuer.IssueAccessToken(memberId, $"{memberId:N}@example.test", displayName);

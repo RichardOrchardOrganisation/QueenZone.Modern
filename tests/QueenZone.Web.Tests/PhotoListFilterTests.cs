@@ -40,8 +40,15 @@ public sealed class PhotoListFilterTests
     public void ToSqlServerAndClause_EmptyWhenInactive()
     {
         Assert.Equal(string.Empty, PhotoListFilter.None.ToSqlServerAndClause("p"));
-        Assert.Contains("1920", new PhotoListFilter(PhotoSizePreset.Desktop).ToSqlServerAndClause("p"), StringComparison.Ordinal);
+        var desktop = new PhotoListFilter(PhotoSizePreset.Desktop).ToSqlServerAndClause("p");
+        Assert.Contains("p.PIC_WIDTH >= 1920", desktop, StringComparison.Ordinal);
+        Assert.DoesNotContain("CAST(", desktop, StringComparison.Ordinal);
+        Assert.DoesNotContain("ISNULL(", desktop, StringComparison.Ordinal);
         Assert.StartsWith(" AND ", new PhotoListFilter(PhotoSizePreset.Landscape).ToSqlServerAndClause("p"), StringComparison.Ordinal);
+        var hd = new PhotoListFilter(PhotoSizePreset.Hd).ToSqlServerAndClause("t");
+        Assert.Contains("t.PIC_LONGEST_SIDE >= 1280", hd, StringComparison.Ordinal);
+        Assert.DoesNotContain("CASE", hd, StringComparison.Ordinal);
+        Assert.DoesNotContain("CAST(", hd, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -99,6 +99,11 @@ public static class QueenZoneWebServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<MobileAuthOptions>, MobileAuthOptionsValidator>();
 
+        services.AddOptions<PasswordSignInLockoutOptions>()
+            .Bind(configuration.GetSection(PasswordSignInLockoutOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<PasswordSignInLockoutOptions>, PasswordSignInLockoutOptionsValidator>();
+
         services.AddOptions<GalleryOrphanSweepOptions>()
             .Bind(configuration.GetSection(GalleryOrphanSweepOptions.SectionName))
             .ValidateOnStart();
@@ -381,6 +386,7 @@ public static class QueenZoneWebServiceCollectionExtensions
             services.AddQueenZoneInMemoryData();
             services.AddHostedService<Search.SearchIndexSeedHostedService>();
             services.AddHostedService<SampleGalleryImageSeedHostedService>();
+            services.AddHostedService<SampleLegacyForumAttachmentSeedHostedService>();
             return services;
         }
 

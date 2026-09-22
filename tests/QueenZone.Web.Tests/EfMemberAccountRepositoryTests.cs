@@ -459,6 +459,29 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         Assert.Empty(result);
     }
 
+    [Fact]
+    public async Task RecordPasswordFailureAndSignIn_PersistsTheCounterAndOptionalHash()
+    {
+        var account = await SeedAccountAsync("lock-ef@example.com", "Lock EF");
+        var started = new DateTime(2026, 9, 22, 12, 0, 0, DateTimeKind.Utc);
+
+        await repository.RecordPasswordFailureAsync(account.Id, 4, started);
+        await repository.RecordPasswordFailureAsync(Guid.NewGuid(), 9, started);
+
+        var failed = await repository.FindByIdAsync(account.Id);
+        Assert.Equal(4, failed!.PasswordFailureCount);
+        Assert.Equal(started, failed.PasswordFailureWindowStartedAt);
+
+        var loginAt = started.AddMinutes(2);
+        await repository.RecordPasswordSignInAsync(account.Id, loginAt, "rewritten-hash");
+
+        var signedIn = await repository.FindByIdAsync(account.Id);
+        Assert.Equal(0, signedIn!.PasswordFailureCount);
+        Assert.Null(signedIn.PasswordFailureWindowStartedAt);
+        Assert.Equal(loginAt, signedIn.LastLoginAt);
+        Assert.Equal("rewritten-hash", signedIn.PasswordHash);
+    }
+
     private async Task<MemberAccount> SeedAccountAsync(string email, string displayName)
     {
         return await repository.CreateAsync(new MemberAccount

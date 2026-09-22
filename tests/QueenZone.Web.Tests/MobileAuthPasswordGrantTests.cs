@@ -88,7 +88,7 @@ public sealed class MobileAuthPasswordGrantTests
     }
 
     [Fact]
-    public async Task PasswordGrant_SuspendedAccount_ReturnsSuspendedWording()
+    public async Task PasswordGrant_SuspendedAccount_ReturnsTheSameInvalidGrantAsAWrongPassword()
     {
         using var factory = new QueenZoneWebApplicationFactory();
         var account = await SeedAccountAsync(
@@ -113,8 +113,10 @@ public sealed class MobileAuthPasswordGrantTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("invalid_grant", payload.GetProperty("error").GetString());
-        Assert.Equal(MemberAccountService.SuspendedSignInError, payload.GetProperty("error_description").GetString());
-        Assert.DoesNotContain("mobile-suspended@example.com", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(MobileAuthService.PasswordGrantInvalidDescription, payload.GetProperty("error_description").GetString());
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("suspended", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("mobile-suspended@example.com", body, StringComparison.Ordinal);
     }
 
     [Fact]
