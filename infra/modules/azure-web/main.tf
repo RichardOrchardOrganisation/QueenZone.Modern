@@ -159,10 +159,14 @@ resource "azurerm_linux_web_app" "production" {
     minimum_tls_version               = "1.2"
     remote_debugging_enabled          = false
     scm_minimum_tls_version           = "1.2"
-    # When direct access is denied, SCM uses the same Cloudflare allow list
-    # and default Deny. Dev and migration keep a separate Allow default.
-    scm_use_main_ip_restriction       = !var.allow_direct_access
-    scm_ip_restriction_default_action = var.allow_direct_access ? "Allow" : "Deny"
+    # SCM stays Allow. deploy.yml (azure/webapps-deploy) and
+    # scripts/Invoke-AppServiceKudu.py reach *.scm.azurewebsites.net from
+    # GitHub-hosted runners, which are not Cloudflare addresses. Copying the
+    # main-site Cloudflare allow list onto SCM would 403 production deploys.
+    # SCM Deny waits for an explicit deploy/operator allow list, or for deploy
+    # to leave public SCM. Do not flip this with the main-site rules.
+    scm_use_main_ip_restriction       = false
+    scm_ip_restriction_default_action = "Allow"
     ip_restriction_default_action     = var.allow_direct_access ? "Allow" : "Deny"
     use_32_bit_worker                 = true
     websockets_enabled                = false

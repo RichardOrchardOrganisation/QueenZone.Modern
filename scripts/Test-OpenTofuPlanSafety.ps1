@@ -12,9 +12,9 @@
   proposal here means stop and investigate, not something to allow through
   CI with an override list.
 
-  Also rejects an App Service `ip_address` that contains a comma (one CIDR
-  per rule) and rejects `scm_ip_restriction_default_action = Allow` when the
-  main site default is Deny (`allow_direct_access` is false).
+  Also rejects a main-site App Service `ip_address` that contains a comma
+  (one CIDR per rule). SCM may stay Allow while the main site is Deny:
+  production deploy still reaches SCM from GitHub-hosted runners.
 
   Declarative `import {}` blocks (see infra/environments/production/imports.tf)
   surface as an entry with `change.importing` set; these are reported
@@ -140,12 +140,6 @@ function Get-OpenTofuPlanIngressFailures {
                     }
                 }
             }
-
-            $mainDefault = $siteConfig.PSObject.Properties["ip_restriction_default_action"]
-            $scmDefault = $siteConfig.PSObject.Properties["scm_ip_restriction_default_action"]
-            if ($null -ne $mainDefault -and [string]$mainDefault.Value -eq "Deny" -and $null -ne $scmDefault -and [string]$scmDefault.Value -eq "Allow") {
-                $failures.Add("$($resourceChange.address): scm_ip_restriction_default_action must not be Allow when the main site default is Deny.")
-            }
         }
     }
 
@@ -222,10 +216,10 @@ if ($PSCmdlet.ParameterSetName -eq "SelfTest") {
     }
 
     $splitRanges = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
-        (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Deny" -IpAddresses @("173.245.48.0/20"))
+        (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Allow" -IpAddresses @("173.245.48.0/20"))
     ))
     if ($splitRanges.Count -ne 0) {
-        $failures.Add("Expected one Cloudflare CIDR and SCM Deny to pass the ingress check.")
+        $failures.Add("Expected one Cloudflare CIDR with main Deny and SCM Allow to pass the ingress check.")
     }
 
     $directDev = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
@@ -236,17 +230,10 @@ if ($PSCmdlet.ParameterSetName -eq "SelfTest") {
     }
 
     $commaRanges = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
-        (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Deny" -IpAddresses @("173.245.48.0/20,103.21.244.0/22"))
+        (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Allow" -IpAddresses @("173.245.48.0/20,103.21.244.0/22"))
     ))
     if ($commaRanges.Count -eq 0) {
         $failures.Add("Expected a comma-separated ip_address to be rejected.")
-    }
-
-    $openScm = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
-        (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Allow" -IpAddresses @("173.245.48.0/20"))
-    ))
-    if ($openScm.Count -eq 0) {
-        $failures.Add("Expected SCM Allow to be rejected when the main site default is Deny.")
     }
 
     $unchangedFixtures = @(Get-OpenTofuPlanIngressFailures -ResourceChanges $safeChanges)

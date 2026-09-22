@@ -25,25 +25,23 @@ not invent one. ADR 0008 keeps App Service settings outside OpenTofu. The narrow
 secrets or the ARM-owned deployment settings.
 
 The main site is Cloudflare allow-only with deny-all. Each published prefix
-is its own `ip_restriction` (one CIDR). The list was refreshed on
-**2026-09-22** from <https://www.cloudflare.com/ips-v4> and
-<https://www.cloudflare.com/ips-v6>. Azure publishes no Cloudflare service
-tag; `AzureFrontDoor.Backend` is not this origin's network.
+is its own `ip_restriction` (one CIDR). That split is the change to ship.
+The list was refreshed on **2026-09-22** from
+<https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6>.
+Azure publishes no Cloudflare service tag; `AzureFrontDoor.Backend` is not
+this origin's network. Dev and migration apps that allow direct access omit
+the Cloudflare list and keep the main-site default at Allow.
 
-When `allow_direct_access` is false, SCM uses that same allow list
-(`scm_use_main_ip_restriction = true`) and
-`scm_ip_restriction_default_action = "Deny"`. Dev and migration apps that
-allow direct access keep both defaults at Allow and do not install the
-Cloudflare list. AzureRM 5.0.1 still needs the default actions set
-explicitly (#626); leaving SCM at Allow on the production app would keep
-Kudu on the public internet.
-
-WebDeploy basic authentication stays enabled because `deploy.yml` and
-`scripts/Invoke-AppServiceKudu.py` still use the publish profile. FTP basic
-authentication stays enabled for the same reason. Applying the SCM deny
-blocks GitHub-hosted runners from `*.scm.azurewebsites.net` until an
-operator supplies an allow list or the deploy path moves. Do not guess
-those addresses in configuration.
+SCM stays `scm_use_main_ip_restriction = false` and
+`scm_ip_restriction_default_action = "Allow"`. AzureRM 5.0.1 still needs
+that default set explicitly (#626). #1653's SCM Deny is not done.
+`deploy.yml` (`azure/webapps-deploy`) and `scripts/Invoke-AppServiceKudu.py`
+reach `*.scm.azurewebsites.net` with the publish profile from GitHub-hosted
+runners. Those addresses are not Cloudflare ranges, so copying only the
+main-site allow list onto SCM would 403 production deploys. SCM Deny waits
+for an explicit deploy or operator allow list, or for deploy to leave public
+SCM. Do not guess those addresses. WebDeploy and FTP basic authentication
+stay enabled because that publish-profile path still uses them.
 
 ## Certificate boundary
 
