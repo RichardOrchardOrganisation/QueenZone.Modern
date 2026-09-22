@@ -24,8 +24,8 @@ mock_provider "azurerm" {
 run "production_defaults" {
   command = plan
   assert {
-    condition     = azurerm_linux_web_app.production.site_config[0].ip_restriction_default_action == "Deny" && length(azurerm_app_service_custom_hostname_binding.production) == 2 && length(azurerm_app_service_managed_certificate.managed) == 0
-    error_message = "Production must preserve Cloudflare ingress and both uploaded TLS bindings."
+    condition     = azurerm_linux_web_app.production.site_config[0].ip_restriction_default_action == "Deny" && azurerm_linux_web_app.production.site_config[0].scm_ip_restriction_default_action == "Deny" && azurerm_linux_web_app.production.site_config[0].scm_use_main_ip_restriction && length(azurerm_app_service_custom_hostname_binding.production) == 2 && length(azurerm_app_service_managed_certificate.managed) == 0
+    error_message = "Production must preserve Cloudflare ingress, deny SCM by default, and keep both uploaded TLS bindings."
   }
   assert {
     condition     = azurerm_service_plan.production.sku_name == "B1" && azurerm_service_plan.production.worker_count == 1 && azurerm_linux_web_app.production.site_config[0].always_on
@@ -41,8 +41,8 @@ run "dev_bootstrap" {
     allow_direct_access = true
   }
   assert {
-    condition     = azurerm_linux_web_app.production.site_config[0].ip_restriction_default_action == "Allow" && length(azurerm_app_service_custom_hostname_binding.production) == 0 && length(azurerm_app_service_custom_hostname_binding.managed) == 0
-    error_message = "Dev must be reachable before DNS and create no premature bindings."
+    condition     = azurerm_linux_web_app.production.site_config[0].ip_restriction_default_action == "Allow" && azurerm_linux_web_app.production.site_config[0].scm_ip_restriction_default_action == "Allow" && !azurerm_linux_web_app.production.site_config[0].scm_use_main_ip_restriction && length(azurerm_linux_web_app.production.site_config[0].ip_restriction) == 0 && length(azurerm_app_service_custom_hostname_binding.production) == 0 && length(azurerm_app_service_custom_hostname_binding.managed) == 0
+    error_message = "Dev must be reachable without Cloudflare and create no premature bindings."
   }
   assert {
     condition     = azurerm_linux_web_app.production.app_settings["WEBSITE_WARMUP_PATH"] == "/health"
@@ -93,8 +93,28 @@ run "migration_candidate_allows_direct_ingress_without_custom_hostnames" {
   }
 
   assert {
-    condition     = azurerm_linux_web_app.production.site_config[0].ip_restriction_default_action == "Allow" && length(azurerm_app_service_custom_hostname_binding.production) == 0
+    condition     = azurerm_linux_web_app.production.site_config[0].ip_restriction_default_action == "Allow" && azurerm_linux_web_app.production.site_config[0].scm_ip_restriction_default_action == "Allow" && length(azurerm_linux_web_app.production.site_config[0].ip_restriction) == 0 && length(azurerm_app_service_custom_hostname_binding.production) == 0
     error_message = "The migration candidate must be directly testable before DNS cutover and must not claim production hostnames."
+  }
+}
+
+run "production_cloudflare_rules_are_single_cidrs" {
+  command = plan
+
+  assert {
+    condition = (
+      length(azurerm_linux_web_app.production.site_config[0].ip_restriction) == 22 &&
+      length(distinct([for rule in azurerm_linux_web_app.production.site_config[0].ip_restriction : rule.priority])) == 22 &&
+      alltrue([
+        for rule in azurerm_linux_web_app.production.site_config[0].ip_restriction :
+        strcontains(rule.ip_address, "/") && !strcontains(rule.ip_address, ",")
+      ]) &&
+      contains([for rule in azurerm_linux_web_app.production.site_config[0].ip_restriction : rule.ip_address], "173.245.48.0/20") &&
+      contains([for rule in azurerm_linux_web_app.production.site_config[0].ip_restriction : rule.ip_address], "2c0f:f248::/32") &&
+      azurerm_linux_web_app.production.ftp_publish_basic_authentication_enabled &&
+      azurerm_linux_web_app.production.webdeploy_publish_basic_authentication_enabled
+    )
+    error_message = "Production must allow one Cloudflare CIDR per rule and keep publish-profile basic auth enabled."
   }
 }
 

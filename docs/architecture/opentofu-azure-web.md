@@ -24,13 +24,26 @@ not invent one. ADR 0008 keeps App Service settings outside OpenTofu. The narrow
 `ignore_changes` entry prevents an incomplete settings map from deleting live
 secrets or the ARM-owned deployment settings.
 
-The live main-site restriction remains Cloudflare allow-only with deny-all.
-SCM retains a separate allow-all policy for the current deployment workflow.
-AzureRM 5.0.1 normalises both explicit terminal rules to empty default-action
-fields during import; #626 now sets `ip_restriction_default_action = "Deny"`
-and `scm_ip_restriction_default_action = "Allow"` explicitly so a plan cannot
-silently open the origin or lock out SCM. The Cloudflare allow ranges remain
-managed alongside them.
+The main site is Cloudflare allow-only with deny-all. Each published prefix
+is its own `ip_restriction` (one CIDR). The list was refreshed on
+**2026-09-22** from <https://www.cloudflare.com/ips-v4> and
+<https://www.cloudflare.com/ips-v6>. Azure publishes no Cloudflare service
+tag; `AzureFrontDoor.Backend` is not this origin's network.
+
+When `allow_direct_access` is false, SCM uses that same allow list
+(`scm_use_main_ip_restriction = true`) and
+`scm_ip_restriction_default_action = "Deny"`. Dev and migration apps that
+allow direct access keep both defaults at Allow and do not install the
+Cloudflare list. AzureRM 5.0.1 still needs the default actions set
+explicitly (#626); leaving SCM at Allow on the production app would keep
+Kudu on the public internet.
+
+WebDeploy basic authentication stays enabled because `deploy.yml` and
+`scripts/Invoke-AppServiceKudu.py` still use the publish profile. FTP basic
+authentication stays enabled for the same reason. Applying the SCM deny
+blocks GitHub-hosted runners from `*.scm.azurewebsites.net` until an
+operator supplies an allow list or the deploy path moves. Do not guess
+those addresses in configuration.
 
 ## Certificate boundary
 

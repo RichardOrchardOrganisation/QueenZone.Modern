@@ -1,23 +1,55 @@
 locals {
+  # Refreshed 2026-09-22 from https://www.cloudflare.com/ips-v4 and
+  # https://www.cloudflare.com/ips-v6. App Service ip_restriction.ip_address
+  # is one CIDR (or one service tag) per rule. Azure publishes no Cloudflare
+  # service tag; AzureFrontDoor.Backend is a different network and is not used.
+  cloudflare_ipv4_prefixes = [
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+  ]
+
+  cloudflare_ipv6_prefixes = [
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32",
+  ]
+
+  cloudflare_ipv4_rules = [for index, prefix in local.cloudflare_ipv4_prefixes : {
+    name        = "Cloudflare-IPv4-${index + 1}"
+    priority    = 100 + index
+    ip_address  = prefix
+    description = "Allow Cloudflare published IPv4 prefix"
+  }]
+
+  cloudflare_ipv6_rules = [for index, prefix in local.cloudflare_ipv6_prefixes : {
+    name        = "Cloudflare-IPv6-${index + 1}"
+    priority    = 200 + index
+    ip_address  = prefix
+    description = "Allow Cloudflare published IPv6 prefix"
+  }]
+
+  # Dev and migration set allow_direct_access and must stay reachable without
+  # Cloudflare, so they get no allow-list rules and a default of Allow.
   cloudflare_ip_restrictions = [
-    {
-      name        = "Cloudflare-IPv4-1"
-      priority    = 100
-      ip_address  = "173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20"
-      description = "Allow Cloudflare published IPv4 ranges 1/2"
-    },
-    {
-      name        = "Cloudflare-IPv4-2"
-      priority    = 110
-      ip_address  = "197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
-      description = "Allow Cloudflare published IPv4 ranges 2/2"
-    },
-    {
-      name        = "Cloudflare-IPv6"
-      priority    = 120
-      ip_address  = "2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,2a06:98c0::/29,2c0f:f248::/32"
-      description = "Allow Cloudflare published IPv6 ranges"
-    },
+    for rule in concat(local.cloudflare_ipv4_rules, local.cloudflare_ipv6_rules) : rule
+    if !var.allow_direct_access
   ]
 }
 
@@ -86,6 +118,12 @@ resource "azurerm_linux_web_app" "production" {
   client_affinity_enabled    = false
   client_certificate_enabled = false
 
+  # deploy.yml and scripts/Invoke-AppServiceKudu.py still authenticate to SCM
+  # with the publish profile (Basic auth), not GitHub OIDC or a managed
+  # identity. Leave both publishing credentials enabled until that path moves.
+  ftp_publish_basic_authentication_enabled       = true
+  webdeploy_publish_basic_authentication_enabled = true
+
   # sensitive({}) rather than omitting the argument: ignore_changes alone
   # does not stop OpenTofu's plan renderer from printing the full live
   # app_settings map (every key/value in plaintext) as unchanged context
@@ -121,8 +159,10 @@ resource "azurerm_linux_web_app" "production" {
     minimum_tls_version               = "1.2"
     remote_debugging_enabled          = false
     scm_minimum_tls_version           = "1.2"
-    scm_use_main_ip_restriction       = false
-    scm_ip_restriction_default_action = "Allow"
+    # When direct access is denied, SCM uses the same Cloudflare allow list
+    # and default Deny. Dev and migration keep a separate Allow default.
+    scm_use_main_ip_restriction       = !var.allow_direct_access
+    scm_ip_restriction_default_action = var.allow_direct_access ? "Allow" : "Deny"
     ip_restriction_default_action     = var.allow_direct_access ? "Allow" : "Deny"
     use_32_bit_worker                 = true
     websockets_enabled                = false
