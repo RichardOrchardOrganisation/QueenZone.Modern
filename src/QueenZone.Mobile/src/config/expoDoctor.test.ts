@@ -24,9 +24,6 @@ describe('Expo Doctor React Native Directory policy', () => {
 
     assert.notEqual(directoryCheck?.enabled, false);
     assert.notEqual(directoryCheck?.listUnknownPackages, false);
-    assert.deepEqual(directoryCheck?.exclude, [
-      'queenzone-wallpaper',
-      'react-native-render-html',
-    ]);
+    assert.deepEqual(directoryCheck?.exclude, ['queenzone-wallpaper']);
   });
 });
