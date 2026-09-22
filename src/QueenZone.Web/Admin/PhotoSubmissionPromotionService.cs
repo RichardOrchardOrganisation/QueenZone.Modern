@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using QueenZone.Data;
 using QueenZone.Storage;
@@ -56,29 +54,15 @@ public sealed class PhotoSubmissionPromotionService(
 
         try
         {
-            return await ExecutePromotionAsync(cancellationToken);
+            return await QueenZoneDbTransactions.ExecuteAsync(
+                serviceProvider,
+                PromoteCoreAsync,
+                cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await CompensateUploadedBlobsAsync(container, originalFileName, thumbFileName, submission.Id, cancellationToken);
             throw;
-        }
-
-        async Task<int> ExecutePromotionAsync(CancellationToken ct)
-        {
-            if (serviceProvider.GetService<QueenZoneDbContext>() is not { } dbContext)
-            {
-                return await PromoteCoreAsync(ct);
-            }
-
-            var strategy = dbContext.Database.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
-            {
-                await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-                var picId = await PromoteCoreAsync(ct);
-                await transaction.CommitAsync(ct);
-                return picId;
-            });
         }
 
         async Task<int> PromoteCoreAsync(CancellationToken ct)

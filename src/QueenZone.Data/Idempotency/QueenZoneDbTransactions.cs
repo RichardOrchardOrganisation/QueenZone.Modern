@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace QueenZone.Data;
 
@@ -9,8 +10,25 @@ namespace QueenZone.Data;
 /// idempotency store's outer transaction so the receipt and resource commit
 /// together.
 /// </summary>
-internal static class QueenZoneDbTransactions
+public static class QueenZoneDbTransactions
 {
+    /// <summary>
+    /// Runs the operation without a transaction when no EF context is registered,
+    /// as in the in-memory Testing host; otherwise uses the retry-safe transaction.
+    /// </summary>
+    public static async Task<T> ExecuteAsync<T>(
+        IServiceProvider? serviceProvider,
+        Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        if (serviceProvider?.GetService<QueenZoneDbContext>() is not { } dbContext)
+        {
+            return await operation(cancellationToken);
+        }
+
+        return await ExecuteAsync(dbContext, operation, cancellationToken);
+    }
+
     public static Task<T> ExecuteAsync<T>(
         QueenZoneDbContext dbContext,
         Func<CancellationToken, Task<T>> operation,
