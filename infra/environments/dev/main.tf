@@ -48,7 +48,7 @@ module "azure_data" {
   # live source containers are production migration scope only.
   containers = {
     "album-or-single-covers"  = "Blob"
-    "attachments"             = "Blob"
+    "attachments"             = "None"
     "avatars"                 = "Blob"
     "brian-may"               = "Blob"
     "css"                     = "Container"

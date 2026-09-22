@@ -63,17 +63,19 @@ Store **container + blob name** in the database. Treat any public/display URL as
 Two Cloudflare hostnames proxy the legacy Azure Blob containers. They behave differently and are not interchangeable:
 
 - **`cdn.queenzone.org`** — straight CDN proxy, no Worker. Azure Storage custom domain on account `queenzoneprod` makes the proxied Host valid. Cannot set custom response headers. Used by `PhotoImageUrl` for photos and images.
-- **`cdn2.queenzone.org`** — Cloudflare Worker **script** `pictures-queenzone-org` on route `cdn2.queenzone.org/*`. That script name is historical; the DNS hostname is **cdn2**. Sets cache/CORS/nosniff headers. Used as the redirect target for **legacy forum attachments** after a member-auth check (`/forum/attachment/legacy/{postId}` → `https://cdn2.queenzone.org/attachments/{fileName}`). The Worker returns 404 for `/songfiles/*`. Retired `pictures.queenzone.org` is a compatibility hostname (Worker `pictures-legacy-redirect` → `cdn`); do not use it for new media URLs.
+- **`cdn2.queenzone.org`** — Cloudflare Worker **script** `pictures-queenzone-org` on route `cdn2.queenzone.org/*`. That script name is historical; the DNS hostname is **cdn2**. Sets cache/CORS/nosniff headers. The Worker snapshot returns 404 for `/songfiles/*` and `/attachments/*`. Retired `pictures.queenzone.org` is a compatibility hostname (Worker `pictures-legacy-redirect` → `cdn`); do not use it for new media URLs.
 
 Fan-performance audio is **not** a public CDN object. The member-authenticated app proxy `GET /fan-performances/{id}/audio` streams from the private `songfiles` container and sets `Content-Disposition`. Do not emit `cdn2.queenzone.org/songfiles/…` or raw blob URLs in HTML.
 
-**ACL note:** `songfiles` is private (#177). Legacy `attachments` remain public blob access; URL guessing still bypasses the app gate for those files. Private modern UGC containers present: `ugc-avatars`, `ugc-forum`, `ugc-photos`, and `ugc-articles` (`ugc-fan-performances` is not created in Azure yet; `CreateIfNotExists` uses `PublicAccessType.None`). Pending fan-performance audio must stay in `ugc-fan-performances` until a later review step copies an approved file into `songfiles`.
+Legacy forum attachments are **not** a public CDN object. The member-authenticated app proxy `GET /forum/attachment/legacy/{postId}` (and the Bearer alias `GET /api/v1/forum/attachments/legacy/{postId}`) streams from the private `attachments` container and sets `Content-Disposition: attachment`. Do not emit `cdn2.queenzone.org/attachments/…` or raw blob URLs.
+
+**ACL note:** `songfiles` is private (#177). Legacy `attachments` desired ACL is `None` (#1656); the app streams the bytes after the member check. Live Azure stays public blob until a reviewed OpenTofu apply — this repository change does not flip the live container. `css` stays `Container` (published site CSS; anonymous listing is the historical ACL, not a member-upload bucket). Other `Blob` containers (`forum`, `avatars`, `mp3`, and the photo galleries) stay public because they are published archive assets; modern member uploads are the private `ugc-*` containers. Private modern UGC containers present: `ugc-avatars`, `ugc-forum`, `ugc-photos`, and `ugc-articles` (`ugc-fan-performances` is not created in Azure yet; `CreateIfNotExists` uses `PublicAccessType.None`). Pending fan-performance audio must stay in `ugc-fan-performances` until a later review step copies an approved file into `songfiles`.
 
 ### Forum attachments
 
 | Kind | Storage | Public HTML link | Download behaviour |
 | --- | --- | --- | --- |
-| Legacy import (`ModernForumPost.Attachment`) | Historical `attachments` blob container | `/forum/attachment/legacy/{legacyPostId}` | Member policy required; redirect to `cdn2.queenzone.org/attachments/…` |
+| Legacy import (`ModernForumPost.Attachment`) | Private `attachments` blob container | `/forum/attachment/legacy/{legacyPostId}` | Member policy required; stream via app with `Content-Disposition: attachment`. No CDN redirect. |
 | New uploads (`ForumPostAttachments`) | Private `ugc-forum` container | `/forum/attachment/{legacyPostId}/{attachmentId}` | Member policy required; stream via app with `Content-Disposition: attachment` and increment `DownloadCount` |
 
 Do not link forum attachments straight to `cdn.queenzone.org` or raw Azure blob URLs in HTML. Inline editor images remain on `/ugc/forum/…` (see serve strategy above).

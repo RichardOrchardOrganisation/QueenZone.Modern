@@ -239,10 +239,11 @@ Photos/images:  https://cdn.queenzone.org/{container}/{blob}
                 Azure Storage custom domain: cdn.queenzone.org on account queenzoneprod
                 Origin: https://queenzoneprod.blob.core.windows.net
 
-Legacy attachments CDN:
+cdn2 Worker proxy:
                 https://cdn2.queenzone.org/{container}/{blob}
                 Cloudflare Worker proxy (script name pictures-queenzone-org)
                 No Azure custom domain on cdn2 — Worker fetches the blob origin host
+                Returns 404 for /songfiles/* and /attachments/*
                 Retired pictures.queenzone.org is compatibility-only (redirects to cdn)
 ```
 
@@ -260,7 +261,7 @@ Proxy status: Proxied
 TTL: Auto
 ```
 
-### `cdn2.queenzone.org` (legacy attachment redirect target)
+### `cdn2.queenzone.org` (Worker proxy; not an attachment download URL)
 
 DNS hostname is **`cdn2.queenzone.org`**. The Cloudflare Worker **script** is still named **`pictures-queenzone-org`**. Do not treat that script name as a hostname. The cdn2 route is **`cdn2.queenzone.org/*`**. Retired `pictures.queenzone.org` is a separate compatibility Worker (`pictures-legacy-redirect` → `cdn`). Source snapshot: [`infra/import/workers/pictures-queenzone-org.js`](../../infra/import/workers/pictures-queenzone-org.js).
 
@@ -268,12 +269,16 @@ Live Worker behaviour (published 2026-08-16):
 
 - Accepts `GET` / `HEAD` only; rewrites path to `https://queenzoneprod.blob.core.windows.net`
 - Returns **404** for `/songfiles` and `/songfiles/*` (fan audio is app-proxied; #177)
+
+Snapshot behaviour not yet published (#1656):
+
+- Returns **404** for `/attachments` and `/attachments/*` after the reviewed apply of `infra/import/workers/pictures-queenzone-org.js`. Until that apply, the live Worker still proxies `/attachments/*` to blob storage.
 - Adds `Access-Control-Allow-Origin: *`
 - Adds `X-Content-Type-Options: nosniff`
 - Sets `Cache-Control: public, max-age=86400, s-maxage=2592000` on HTTP 200
 - Does **not** set `Content-Disposition` (the fan-performance app proxy sets it)
 
-Used by legacy forum attachment redirects after member auth. Do not attach this Worker to `cdn`. #626 declared this Worker in OpenTofu with a source snapshot (`infra/import/workers/pictures-queenzone-org.js`); live script updates still go through the Cloudflare API using Bitwarden `CLOUDFLARE_WORKER_READWRITE`, and the snapshot must be kept in sync with any published change.
+Do not attach this Worker to `cdn`. #626 declared this Worker in OpenTofu with a source snapshot (`infra/import/workers/pictures-queenzone-org.js`); live script updates still go through the Cloudflare API using Bitwarden `CLOUDFLARE_WORKER_READWRITE`, and the snapshot must be kept in sync with any published change. Legacy forum attachments are not a redirect target: members download through the app.
 
 ### Fan-performance audio (#177)
 
@@ -285,12 +290,22 @@ Live as of 2026-08-16 (after #702 deployed):
 2. Worker `pictures-queenzone-org` on `cdn2.queenzone.org/*` returns 404 for `/songfiles/*`.
 3. Azure container `songfiles` is `publicAccess=None`. Applied with ARM (`az rest`) because the OpenTofu apply workflow (#625) is not built yet. Desired state in `infra/modules/azure-data` already matches; the next reviewed apply should be a no-op on that ACL.
 
+### Legacy forum attachments (#1656)
+
+Signed-in members download through `GET /forum/attachment/legacy/{postId}` (Bearer alias `GET /api/v1/forum/attachments/legacy/{postId}`), which streams from the private `attachments` container using `ConnectionStrings:BlobStorage` and sets `Content-Disposition: attachment`. The app must not emit `cdn2.queenzone.org/attachments/…` or raw blob URLs.
+
+Desired state:
+
+1. The app streams the file; it does not redirect to cdn2.
+2. Worker `pictures-queenzone-org` on `cdn2.queenzone.org/*` returns 404 for `/attachments/*`.
+3. Azure container `attachments` is `publicAccess=None`. OpenTofu desired state matches. The live container stays public until a reviewed apply. This change does not call Azure.
+
 ### Azure storage requirements
 
 - Account `queenzoneprod` keeps blob public access enabled for legacy public gallery containers.
 - Public archive containers must remain public where visitor access is expected.
-- `databasebackup`, `ugc-avatars`, `ugc-forum`, and `songfiles` are private.
-- Legacy `attachments` remain public blob access (out of scope for #177).
+- `databasebackup`, `ugc-avatars`, `ugc-forum`, `songfiles`, and `attachments` are private in desired state. `attachments` is still public blob in live Azure until the reviewed apply.
+- `css` stays public container access. It is published site CSS, not a member-upload bucket. `forum`, `avatars`, `mp3`, and the photo galleries stay public blob.
 
 ### Standing smoke (#177)
 

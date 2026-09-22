@@ -15,6 +15,8 @@
       safety-critical contract that fan-performance audio never leaks through
       the public Worker proxy (AGENTS.md "Media Serving",
       docs/architecture/azure-hosting-plan.md).
+    - cdn2.queenzone.org/attachments/* must return 404 — legacy forum
+      attachments are streamed by the member-gated app proxy (#1656).
     - cdn.queenzone.org must still be proxied by Cloudflare (CF-Ray header
       present) — checked generically rather than against a specific photo
       blob, which could be deleted later and cause a false failure.
@@ -151,6 +153,22 @@ elseif ($probe.StatusCode -eq 404) {
 }
 else {
     Write-Host "FAIL  $songfilesUrl -> HTTP $($probe.StatusCode) (expected 404)"
+    $failed++
+}
+
+Write-Host ""
+Write-Host "== cdn2 attachments must stay blocked (404) =="
+$attachmentsUrl = "https://cdn2.queenzone.org/attachments/probe-object-does-not-need-to-exist"
+$probe = Invoke-StatusProbe -Uri $attachmentsUrl
+if ($probe.Error) {
+    Write-Host "FAIL  $attachmentsUrl -> $($probe.Error)"
+    $failed++
+}
+elseif ($probe.StatusCode -eq 404) {
+    Write-Host "OK    $attachmentsUrl -> HTTP 404 (blocked, as expected)"
+}
+else {
+    Write-Host "FAIL  $attachmentsUrl -> HTTP $($probe.StatusCode) (expected 404)"
     $failed++
 }
 

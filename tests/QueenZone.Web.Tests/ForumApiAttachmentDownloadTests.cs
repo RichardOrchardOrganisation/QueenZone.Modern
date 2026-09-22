@@ -23,31 +23,38 @@ public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWeb
     }
 
     [Fact]
-    public async Task Legacy_image_without_thumb_redirects_for_signed_in_member()
+    public async Task Legacy_image_without_thumb_streams_for_signed_in_member()
     {
-        using var client = CreateBearerClient();
+        using var client = CreateBearerClient(WithLegacyBlobs(factory));
 
         using var response = await client.GetAsync(
             $"{ForumApiEndpoints.RootPath}/attachments/legacy/1002");
+        var body = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(
-            "https://cdn2.queenzone.org/attachments/anoto-setlist-scan.jpg",
-            response.Headers.Location!.OriginalString);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("scan-bytes", body);
+        Assert.Null(response.Headers.Location);
+        var disposition = response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty;
+        Assert.Contains("attachment", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("anoto-setlist-scan.jpg", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("cdn2.queenzone.org", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task Legacy_non_image_redirects_for_signed_in_member()
+    public async Task Legacy_non_image_streams_for_signed_in_member()
     {
-        using var client = CreateBearerClient();
+        using var client = CreateBearerClient(WithLegacyBlobs(factory));
 
         using var response = await client.GetAsync(
             $"{ForumApiEndpoints.RootPath}/attachments/legacy/1101");
+        var body = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(
-            "https://cdn2.queenzone.org/attachments/opera-side-two-notes.pdf",
-            response.Headers.Location!.OriginalString);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("%PDF-notes", body);
+        Assert.Null(response.Headers.Location);
+        var disposition = response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty;
+        Assert.Contains("attachment", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("opera-side-two-notes.pdf", disposition, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -146,9 +153,36 @@ public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWeb
         var paths = payload.GetProperty("paths");
 
         Assert.True(paths.TryGetProperty("/api/v1/forum/attachments/legacy/{legacyPostId}", out var legacy));
-        Assert.True(legacy.TryGetProperty("get", out _));
+        Assert.True(legacy.TryGetProperty("get", out var legacyGet));
+        Assert.True(legacyGet.GetProperty("responses").TryGetProperty("200", out _));
+        Assert.False(legacyGet.GetProperty("responses").TryGetProperty("302", out _));
         Assert.True(paths.TryGetProperty("/api/v1/forum/attachments/{legacyPostId}/{attachmentId}", out var modern));
         Assert.True(modern.TryGetProperty("get", out _));
+    }
+
+    private static WebApplicationFactory<Program> WithLegacyBlobs(WebApplicationFactory<Program> sourceFactory)
+    {
+        var memoryBlob = new MemoryBlobUploadService();
+        memoryBlob.UploadAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("scan-bytes")),
+            "anoto-setlist-scan.jpg",
+            ForumAttachmentPaths.LegacyContainerName,
+            new BlobUploadContext { PreferredBlobName = "anoto-setlist-scan.jpg" }).GetAwaiter().GetResult();
+        memoryBlob.UploadAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("%PDF-notes")),
+            "opera-side-two-notes.pdf",
+            ForumAttachmentPaths.LegacyContainerName,
+            new BlobUploadContext { PreferredBlobName = "opera-side-two-notes.pdf" }).GetAwaiter().GetResult();
+
+        return sourceFactory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IBlobUploadService>();
+                services.AddSingleton<IBlobUploadService>(memoryBlob);
+            });
+        });
     }
 
     private HttpClient CreateBearerClient() => CreateBearerClient(factory);
