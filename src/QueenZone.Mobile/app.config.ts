@@ -136,6 +136,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // After expo-media-library: drop READ_MEDIA_* so add-only save does not
       // request photo/video/audio read at install (#1230 / #1232).
       './plugins/withAndroidAddOnlyPhotos.cjs',
+      // expo-build-properties turns on release minification/shrinking. Finish
+      // the AGP 8.12 setup with optimizing defaults + integrated shrinking.
+      './plugins/withAndroidR8Optimization.cjs',
       ...(smokeEmbed ? ['./plugins/smokeEmbed.cjs'] : []),
       // After expo-widgets writes ExpoWidgetsTarget: render On This Day in
       // SwiftUI so the gallery/home snapshot is never a Release EmptyView.
