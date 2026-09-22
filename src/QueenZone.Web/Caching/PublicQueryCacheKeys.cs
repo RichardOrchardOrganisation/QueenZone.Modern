@@ -23,6 +23,8 @@ public static class PublicQueryCacheKeys
 
     public const string LatestArticlesSegment = Prefix + ":articles:latest";
 
+    public const string LatestCommunityArticlesSegment = Prefix + ":articles:community-latest";
+
     public const string ArticlesArchiveSegment = Prefix + ":articles:archive";
 
     public const string ForumCategories = Prefix + ":forum:categories";
@@ -80,6 +82,9 @@ public static class PublicQueryCacheKeys
 
     public static string LatestArticles(string version, int count) =>
         $"{LatestArticlesSegment}:v{version}:{count}";
+
+    public static string LatestCommunityArticles(string version, int count) =>
+        $"{LatestCommunityArticlesSegment}:v{version}:{count}";
 
     public static string ArticlesArchivePage(string version, int page, int pageSize) =>
         $"{ArticlesArchiveSegment}:v{version}:{page}:{pageSize}";

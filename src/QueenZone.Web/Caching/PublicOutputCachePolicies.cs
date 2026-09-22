@@ -36,8 +36,22 @@ public static class PublicOutputCachePolicies
         "/submit",
         "/help",
         "/contact",
+        "/search",
         "/forum/attachment",
         "/trivia",
+    ];
+
+    /// <summary>
+    /// Query values that change public HTML. Marketing/tracking parameters are deliberately
+    /// omitted so they reuse the canonical page's cache entry.
+    /// </summary>
+    public static readonly string[] PublicHtmlQueryKeys =
+    [
+        "page",
+        "pageNumber",
+        "size",
+        "slug",
+        "year",
     ];
 
     public static bool IsPublicReadOnlyRequest(HttpContext httpContext)

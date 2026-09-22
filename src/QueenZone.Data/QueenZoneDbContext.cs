@@ -811,6 +811,7 @@ public sealed class QueenZoneDbContext : DbContext
             entity.Property(a => a.Slug).HasMaxLength(300).IsRequired();
             entity.Property(a => a.Excerpt).HasMaxLength(500);
             entity.Property(a => a.Body).IsRequired();
+            entity.Property(a => a.WordCount).IsRequired();
             entity.Property(a => a.CoverImageBlobPath).HasMaxLength(512);
             entity.Property(a => a.Tags).HasMaxLength(500);
             entity.Property(a => a.Status).HasMaxLength(50).IsRequired();
@@ -853,6 +854,7 @@ public sealed class QueenZoneDbContext : DbContext
             entity.Property(x => x.LiveTitle).HasMaxLength(300);
             entity.Property(x => x.LiveSlug).HasMaxLength(300);
             entity.Property(x => x.LiveExcerpt).HasMaxLength(500);
+            entity.Property(x => x.LiveWordCount).IsRequired();
             entity.Property(x => x.LiveAuthorName).HasMaxLength(200);
             entity.Property(x => x.LiveCategory).HasMaxLength(100);
             entity.Property(x => x.LiveTags).HasMaxLength(500);

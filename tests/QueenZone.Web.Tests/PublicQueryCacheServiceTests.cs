@@ -484,33 +484,43 @@ public sealed class PublicQueryCacheServiceTests
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var articlesRepository = new CountingArticlesRepository();
-        var service = CreateService(memoryCache, articlesRepository: articlesRepository);
+        var communityArticleRepository = new CountingCommunityArticleRepository();
+        var service = CreateService(
+            memoryCache,
+            articlesRepository: articlesRepository,
+            communityArticleRepository: communityArticleRepository);
 
         var firstArchive = await service.GetArticlesArchivePageAsync(1, 12);
         var secondArchive = await service.GetArticlesArchivePageAsync(1, 12);
         var otherArchive = await service.GetArticlesArchivePageAsync(2, 12);
         var firstLatest = await service.GetLatestArticlesAsync(3);
         var secondLatest = await service.GetLatestArticlesAsync(3);
+        var firstCommunity = await service.GetLatestCommunityArticlesAsync(3);
+        var secondCommunity = await service.GetLatestCommunityArticlesAsync(3);
         await service.GetArticlePublishedCountAsync();
         await service.GetArticlePublishedCountAsync();
 
         Assert.Same(firstArchive, secondArchive);
         Assert.NotSame(firstArchive, otherArchive);
         Assert.Same(firstLatest, secondLatest);
+        Assert.Same(firstCommunity, secondCommunity);
         Assert.Equal(2, articlesRepository.ArchivePageCallCount);
         Assert.Equal(1, articlesRepository.LatestCallCount);
         Assert.Equal(1, articlesRepository.PublishedCountCallCount);
+        Assert.Equal(1, communityArticleRepository.PageCallCount);
 
         service.InvalidateArticlesCache();
 
         _ = await service.GetArticlesArchivePageAsync(1, 12);
         _ = await service.GetArticlesArchivePageAsync(2, 12);
         _ = await service.GetLatestArticlesAsync(3);
+        _ = await service.GetLatestCommunityArticlesAsync(3);
         _ = await service.GetArticlePublishedCountAsync();
 
         Assert.Equal(4, articlesRepository.ArchivePageCallCount);
         Assert.Equal(2, articlesRepository.LatestCallCount);
         Assert.Equal(2, articlesRepository.PublishedCountCallCount);
+        Assert.Equal(2, communityArticleRepository.PageCallCount);
     }
 
     [Fact]
@@ -738,6 +748,7 @@ public sealed class PublicQueryCacheServiceTests
         IMemoryCache memoryCache,
         INewsRepository? newsRepository = null,
         IArticlesRepository? articlesRepository = null,
+        IArticleRepository? communityArticleRepository = null,
         IForumRepository? forumRepository = null,
         IQueenHistoryRepository? historyRepository = null,
         IPhotoRepository? photoRepository = null,
@@ -754,6 +765,7 @@ public sealed class PublicQueryCacheServiceTests
             Options.Create(options ?? new PublicQueryCacheOptions()),
             newsRepository ?? new CountingNewsRepository(),
             articlesRepository ?? new CountingArticlesRepository(),
+            communityArticleRepository ?? new CountingCommunityArticleRepository(),
             forumRepository ?? new CountingForumRepository(),
             historyRepository ?? new CountingQueenHistoryRepository(),
             photoRepository ?? new CountingPhotoRepository(),
@@ -931,6 +943,47 @@ public sealed class PublicQueryCacheServiceTests
 
         public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<SitemapContentEntry>>([new SitemapContentEntry(item.Id, item.Title, item.PublishedAt)]);
+    }
+
+    private sealed class CountingCommunityArticleRepository : IArticleRepository
+    {
+        private readonly PublishedArticleSubmission item = new(
+            Guid.NewGuid(),
+            "Cached community article",
+            "cached-community-article",
+            "Cached community excerpt.",
+            string.Empty,
+            null,
+            null,
+            DateTimeOffset.Parse("2026-07-06T00:00:00Z"),
+            "Cached Author",
+            20);
+
+        public int PageCallCount { get; private set; }
+
+        public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
+            Task.FromResult(1);
+
+        public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
+            int page,
+            int pageSize,
+            string? tag = null,
+            CancellationToken ct = default)
+        {
+            PageCallCount++;
+            return Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>([item]);
+        }
+
+        public Task<PublishedArticleSubmission?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
+            Task.FromResult<PublishedArticleSubmission?>(slug == item.Slug ? item : null);
+
+        public Task<(PublishedArticleSubmission? Previous, PublishedArticleSubmission? Next)> GetAdjacentAsync(
+            DateTimeOffset publishedAt,
+            CancellationToken ct = default) =>
+            Task.FromResult<(PublishedArticleSubmission?, PublishedArticleSubmission?)>((null, null));
+
+        public Task<IReadOnlyList<PublishedArticleSubmission>> GetSitemapEntriesAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>([item]);
     }
 
     private class CountingForumRepository : IForumRepository
