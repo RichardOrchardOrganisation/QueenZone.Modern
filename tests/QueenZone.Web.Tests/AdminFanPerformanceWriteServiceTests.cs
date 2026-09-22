@@ -162,6 +162,7 @@ public sealed class AdminFanPerformanceWriteServiceTests
             Options.Create(new PublicQueryCacheOptions()),
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
+            new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
             new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
             new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
             new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
