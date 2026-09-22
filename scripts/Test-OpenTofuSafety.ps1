@@ -19,6 +19,7 @@ $criticalResourceTypes = @(
     "azurerm_mssql_firewall_rule",
     "azurerm_mssql_server_extended_auditing_policy",
     "azurerm_mssql_database_extended_auditing_policy",
+    "azurerm_monitor_diagnostic_setting",
     "azurerm_storage_account",
     "azurerm_storage_container",
     "azurerm_log_analytics_workspace",
