@@ -19,6 +19,7 @@ public static class MeApiEndpoints
             .WithGroupName(ApiV1.OpenApiDocumentName)
             .WithTags("Me")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
         group.MapGet("/me", GetMeAsync)
@@ -33,7 +34,8 @@ public static class MeApiEndpoints
             .Accepts<MemberProfilePatchRequest>("application/json")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/avatar", UploadAvatarAsync)
             .WithName("UploadMemberAvatar")
@@ -41,14 +43,16 @@ public static class MeApiEndpoints
             .Accepts<IFormFile>("multipart/form-data")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapDelete("/me/avatar", RemoveAvatarAsync)
             .WithName("RemoveMemberAvatar")
             .WithSummary("Remove the current avatar.")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/legacy-link", ClaimLegacyAsync)
             .WithName("ClaimLegacyAccount")
@@ -56,14 +60,16 @@ public static class MeApiEndpoints
             .Accepts<ClaimLegacyRequest>("application/json")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapDelete("/me/legacy-link", UnlinkLegacyAsync)
             .WithName("UnlinkLegacyAccount")
             .WithSummary("Unlink the claimed classic forum account.")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/deletion-request", RequestDeletionAsync)
             .WithName("RequestAccountDeletion")
@@ -71,14 +77,16 @@ public static class MeApiEndpoints
             .Accepts<DeletionRequestBody>("application/json")
             .Produces<DeletionRequestedResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/deletion-request/cancel", CancelDeletionAsync)
             .WithName("CancelAccountDeletion")
             .WithSummary("Cancel a scheduled account deletion during the cooling-off period.")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 
     internal static async Task<IResult> GetMeAsync(

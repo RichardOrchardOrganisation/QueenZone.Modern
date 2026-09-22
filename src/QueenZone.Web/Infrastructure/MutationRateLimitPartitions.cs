@@ -6,19 +6,33 @@ namespace QueenZone.Web;
 
 internal static class MutationRateLimitPartitions
 {
+    private const string NoMutationLimit = "mutation:safe-method:none";
+
     private const string NoAuthenticatedIpSafetyNet = "mutation:authenticated-ip:none";
 
     public static RateLimitPartition<string> AnonymousWrite(
         HttpContext context,
-        MutationRateLimitingOptions options) =>
-        RateLimitPartition.GetFixedWindowLimiter(
+        MutationRateLimitingOptions options)
+    {
+        if (!IsMutation(context.Request.Method))
+        {
+            return RateLimitPartition.GetNoLimiter(NoMutationLimit);
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
             $"mutation:anonymous-ip:{ClientKey(context)}",
             _ => FixedWindow(options.AnonymousPermitLimit, options.AnonymousWindowMinutes));
+    }
 
     public static RateLimitPartition<string> AuthenticatedWrite(
         HttpContext context,
         MutationRateLimitingOptions options)
     {
+        if (!IsMutation(context.Request.Method))
+        {
+            return RateLimitPartition.GetNoLimiter(NoMutationLimit);
+        }
+
         var memberId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
         var partition = !string.IsNullOrWhiteSpace(memberId)
             ? $"mutation:member:{memberId}"
@@ -35,7 +49,7 @@ internal static class MutationRateLimitPartitions
         HttpContext context,
         MutationRateLimitingOptions options)
     {
-        if (!UsesAuthenticatedWritePolicy(context))
+        if (!IsMutation(context.Request.Method) || !UsesAuthenticatedWritePolicy(context))
         {
             return RateLimitPartition.GetNoLimiter(NoAuthenticatedIpSafetyNet);
         }
@@ -70,6 +84,12 @@ internal static class MutationRateLimitPartitions
             context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName,
             QueenZoneRateLimitPolicies.AuthenticatedWrite,
             StringComparison.Ordinal);
+
+    public static bool IsMutation(string method) =>
+        !HttpMethods.IsGet(method)
+        && !HttpMethods.IsHead(method)
+        && !HttpMethods.IsOptions(method)
+        && !HttpMethods.IsTrace(method);
 
     private static FixedWindowRateLimiterOptions FixedWindow(int permitLimit, int windowMinutes) =>
         new()

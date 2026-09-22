@@ -167,6 +167,40 @@ public sealed class MutationRateLimitPartitionsTests
         Assert.True(retryAfter > TimeSpan.Zero);
     }
 
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("HEAD")]
+    [InlineData("OPTIONS")]
+    [InlineData("TRACE")]
+    public void Mutation_policies_do_not_limit_safe_methods(string method)
+    {
+        var options = new MutationRateLimitingOptions
+        {
+            AnonymousPermitLimit = 1,
+            AuthenticatedMemberPermitLimit = 1,
+            AuthenticatedIpPermitLimit = 1,
+        };
+        var context = CreateContext(
+            "203.0.113.10",
+            Guid.NewGuid(),
+            QueenZoneRateLimitPolicies.AuthenticatedWrite);
+        context.Request.Method = method;
+
+        var anonymousPartition = MutationRateLimitPartitions.AnonymousWrite(context, options);
+        var authenticatedPartition = MutationRateLimitPartitions.AuthenticatedWrite(context, options);
+        var safetyNetPartition = MutationRateLimitPartitions.AuthenticatedIpSafetyNet(context, options);
+        using var anonymous = anonymousPartition.Factory(anonymousPartition.PartitionKey);
+        using var authenticated = authenticatedPartition.Factory(authenticatedPartition.PartitionKey);
+        using var safetyNet = safetyNetPartition.Factory(safetyNetPartition.PartitionKey);
+
+        using var anonymousLease = anonymous.AttemptAcquire(2);
+        using var authenticatedLease = authenticated.AttemptAcquire(2);
+        using var safetyNetLease = safetyNet.AttemptAcquire(2);
+        Assert.True(anonymousLease.IsAcquired);
+        Assert.True(authenticatedLease.IsAcquired);
+        Assert.True(safetyNetLease.IsAcquired);
+    }
+
     private static DefaultHttpContext CreateContext(
         string ip,
         Guid? memberId = null,

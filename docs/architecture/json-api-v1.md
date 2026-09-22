@@ -63,6 +63,17 @@ HTML `/error` pages are not used for `/api/v1`. Unknown `/api/v1/...` paths retu
 
 Sign-in and token routes are process-local rate limited: per client IP (same `RateLimiting:Auth` policy as website `/account/login`) plus a per-member cap on callback completion, password grants, and refresh grants. See [`hosting-scale-and-cache.md`](hosting-scale-and-cache.md).
 
+All non-admin state-changing API routes opt into a platform-neutral mutation
+policy. Public writes use a processed-client-IP bucket. Authenticated writes use
+the member ID as the normal bucket plus a looser client-IP safety net across
+accounts. Website and mobile equivalents share the same named policy and
+process-local counters. Rejections occur before body binding, uploads,
+idempotency receipts, and handler side effects; they return Problem Details
+`429` with `Retry-After` when available. Safe `GET`, `HEAD`, `OPTIONS`, and
+`TRACE` requests bypass mutation policies. See
+[`mutation-rate-limiting.md`](mutation-rate-limiting.md) for the endpoint map,
+exceptions, thresholds, and single-worker reset behavior.
+
 ## Pagination
 
 Use `ApiPagination.Normalize` and return `ApiPagedResponse<T>` from list endpoints.

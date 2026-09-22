@@ -67,7 +67,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AddFolderApplicationModelConvention(
         "/Submit",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
-            QueenZoneRateLimitPolicies.MemberWrite)));
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
     options.Conventions.AddPageApplicationModelConvention(
         "/Account/ExternalLogin",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
@@ -79,11 +79,46 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AddPageApplicationModelConvention(
         "/Account/Settings",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
-            QueenZoneRateLimitPolicies.Upload)));
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
     options.Conventions.AddPageApplicationModelConvention(
         "/Search",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
             QueenZoneRateLimitPolicies.Search)));
+
+    foreach (var page in new[]
+    {
+        "/Index",
+        "/Account/Delete",
+        "/Account/MySubmissions",
+        "/Forum/Block",
+        "/Forum/EditPost",
+        "/Forum/HideAuthor",
+        "/Forum/NewThread",
+        "/Forum/Report",
+        "/Forum/Topic",
+        "/Forum/TopicPage",
+        "/Members/Profile",
+        "/Quizzes/Play",
+    })
+    {
+        options.Conventions.AddPageApplicationModelConvention(
+            page,
+            model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+                QueenZoneRateLimitPolicies.AuthenticatedWrite)));
+    }
+
+    options.Conventions.AddFolderApplicationModelConvention(
+        "/Messages",
+        model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
+
+    foreach (var page in new[] { "/Help/Index", "/Quizzes/Sprint" })
+    {
+        options.Conventions.AddPageApplicationModelConvention(
+            page,
+            model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+                QueenZoneRateLimitPolicies.AnonymousWrite)));
+    }
 });
 
 var app = builder.Build();

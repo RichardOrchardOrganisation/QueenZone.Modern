@@ -40,6 +40,7 @@ public static class MessagesApiEndpoints
             .WithGroupName(ApiV1.OpenApiDocumentName)
             .WithTags("Messages")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
         group.MapGet("/messages", GetInboxAsync)
@@ -100,26 +101,30 @@ public static class MessagesApiEndpoints
             .WithName("ArchiveMemberConversation")
             .WithSummary("Archive a conversation matching POST /messages/{id} (Archive handler).")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/unarchive", UnarchiveConversationAsync)
             .WithName("UnarchiveMemberConversation")
             .WithSummary("Move an archived conversation back to the inbox, matching POST /messages/archived (Unarchive handler).")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/block", BlockConversationParticipantAsync)
             .WithName("BlockMemberConversationParticipant")
             .WithSummary("Block the other participant in a conversation, matching POST /messages/{id} (Block handler).")
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/unblock", UnblockConversationParticipantAsync)
             .WithName("UnblockMemberConversationParticipant")
             .WithSummary("Unblock the other participant in a conversation, matching POST /messages/{id} (Unblock handler).")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/messages/{messageId:guid}/report", ReportMessageAsync)
             .WithName("ReportMemberMessage")
@@ -129,7 +134,8 @@ public static class MessagesApiEndpoints
             .Produces<ReportMessageDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 
     internal static async Task<IResult> GetInboxAsync(

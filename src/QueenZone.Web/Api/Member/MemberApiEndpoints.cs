@@ -30,6 +30,7 @@ public static class MemberApiEndpoints
         var group = app.MapGroup(RootPath)
             .WithGroupName(ApiV1.OpenApiDocumentName)
             .WithTags("Member")
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
         group.MapPost("/photo-submissions", CreatePhotoSubmissionAsync)
@@ -59,7 +60,6 @@ public static class MemberApiEndpoints
             .WithName("CreateMemberFanPerformanceSubmission")
             .WithSummary("Submit a fan performance for review. Same FanPerformanceSubmissionService and daily quota as /submit/fan-performance.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)
             .Accepts<FanPerformanceSubmissionRequestDto>("multipart/form-data")
             .Produces<FanPerformanceSubmissionCreatedDto>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
