@@ -11,7 +11,8 @@ public static class ArticleAutosaveEndpoint
 
     public static IEndpointRouteBuilder MapArticleAutosaveEndpoint(this IEndpointRouteBuilder app)
     {
-        app.MapPost(Route, HandleAsync);
+        app.MapPost(Route, HandleAsync)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite);
         return app;
     }
 

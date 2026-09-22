@@ -110,13 +110,15 @@ public static class ContentApiEndpoints
             .WithName("VoteContentHomePoll")
             .WithSummary("Cast one ballot on the current Home poll. Votes are final.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<HomePollVoteRequestDto>("application/json")
             .Produces<HomePollDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapGet("/quizzes", GetQuizzesAsync)
             .WithName("GetContentQuizzes")
@@ -131,33 +133,41 @@ public static class ContentApiEndpoints
         group.MapPost("/quizzes/sprint/start", StartSprintAsync)
             .WithName("StartContentQuizSprint")
             .WithSummary("Start a 60-second Quiz Sprint round: shuffled questions (no answer key) plus a signed ticket to send back on finish. Open to anonymous callers.")
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AnonymousWrite)
             .Produces<SprintRoundDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/quizzes/sprint/answer", CheckSprintAnswer)
             .WithName("CheckContentQuizSprintAnswer")
             .WithSummary("Reveal whether one Sprint pick was right (and which option was) while the round is live, for per-answer feedback. The ticket keeps the answer key server-side.")
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AnonymousWrite)
             .Accepts<SprintAnswerRequestDto>("application/json")
             .Produces<SprintAnswerResultDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/quizzes/sprint/finish", FinishSprintAsync)
             .WithName("FinishContentQuizSprint")
             .WithSummary("Score a Quiz Sprint round server-side (+1 per correct answer, +2 once on a streak of 3). A Bearer-authenticated run is recorded on today's leaderboard; anonymous runs are scored but not recorded.")
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AnonymousWrite)
             .Accepts<SprintFinishRequestDto>("application/json")
             .Produces<SprintResultDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status410Gone);
+            .ProducesProblem(StatusCodes.Status410Gone)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/quizzes/sprint/claim", ClaimSprintRunAsync)
             .WithName("ClaimContentQuizSprintRun")
             .WithSummary("Add a guest's finished Sprint run (via the claimToken from its finish response) to the signed-in member's leaderboard record. Valid for one hour; each token can be claimed once.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<SprintClaimRequestDto>("application/json")
             .Produces<SprintClaimResultDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status410Gone);
+            .ProducesProblem(StatusCodes.Status410Gone)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapGet("/quizzes/sprint/leaderboard", GetSprintBoardAsync)
             .WithName("GetContentQuizSprintBoard")
@@ -179,10 +189,12 @@ public static class ContentApiEndpoints
             .WithName("SubmitContentQuizAttempt")
             .WithSummary("Score answers server-side against the quiz's stored correct options and record the attempt. Correct answers are only ever revealed in this response.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<QuizSubmitRequestDto>("application/json")
             .Produces<QuizResultDto>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapGet("/biography", GetBiographyChaptersAsync)
             .WithName("GetContentBiographyChapters")
