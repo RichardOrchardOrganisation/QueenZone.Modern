@@ -996,26 +996,12 @@ public static class ContentApiEndpoints
             cancellationToken);
         if (navigation is null)
         {
-            // Active filter that excludes this photo: fall back to unfiltered navigation
-            // so deep links work, matching Photography/Detail.cshtml.cs.
-            if (filter.IsActive)
-            {
-                navigation = await photoRepository.GetDetailNavigationAsync(
-                    category.CatId,
-                    picId,
-                    PhotoListFilter.None,
-                    cancellationToken);
-                if (navigation is null)
-                {
-                    return PhotoNotFound(slug, picId);
-                }
+            return PhotoNotFound(slug, picId);
+        }
 
-                filter = PhotoListFilter.None;
-            }
-            else
-            {
-                return PhotoNotFound(slug, picId);
-            }
+        if (filter.IsActive && !navigation.MatchedRequestedFilter)
+        {
+            filter = PhotoListFilter.None;
         }
 
         return Results.Ok(ContentApiMapper.ToPhotoDetail(category, navigation, filter));

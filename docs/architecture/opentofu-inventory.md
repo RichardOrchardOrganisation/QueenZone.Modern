@@ -114,17 +114,18 @@ Treatments:
 | Plan `ASP-Queenzone` / site `queenzone-dev` | Australia East resource paths | retired | Removed from state and deleted on **2026-09-14** after the accepted observation period |
 | Rollback certificates `queenzone.org`, `www.queenzone.org` | `…/Microsoft.Web/certificates/…` | retired | Old Australia East certificate resources deleted with the rollback app on **2026-09-14** |
 | Active Canada East SNI certificate | uploaded certificate in the `queenzone-prod` webspace | outside | Cloudflare Origin CA certificate; secret material stays in Bitwarden. OpenTofu manages the target hostname bindings by the non-secret thumbprint recorded in `production-region-migration.md` |
-| Access restrictions (Cloudflare IPv4/IPv6 allow + deny all) | site `ipSecurityRestrictions` | import | Mis-order or drop = either open origin or lock out Cloudflare |
-| SCM access restrictions | site `scmIpSecurityRestrictions` | import | Currently **Allow all**; keep separate from main site rules (deploy path) |
+| Access restrictions (Cloudflare IPv4/IPv6 allow + deny all) | site `ipSecurityRestrictions` | import | One CIDR per rule (refreshed 2026-09-22). A comma-separated `ip_address` does not match Cloudflare. Mis-order or drop = either open origin or lock out Cloudflare |
+| SCM access restrictions | site `scmIpSecurityRestrictions` | import | Stays **Allow all** (`scm_use_main_ip_restriction = false`). Main-site one-CIDR Deny is separate. SCM Deny from #1653 is not done: GitHub-hosted deploy still uses public SCM, and runner addresses are not Cloudflare |
 | App settings (names only) | site config | outside → [ADR 0008](../decisions/0008-app-service-settings-ownership.md) | Names re-listed 2026-08-24. Secret **values** stay in Azure/Bitwarden, never state. `deploy.yml` ARM-owns three non-secret deploy keys outside OpenTofu (see [App Service settings](#app-service-application-setting-names-values-not-recorded)). #622's site resource must omit/`ignore_changes` on `app_settings`/`connection_string` |
 | SQL server `queenzone-prod-sql` | `…/Microsoft.Sql/servers/queenzone-prod-sql` | manage | Canada East live server; SQL auth still used by app |
 | SQL server `queenzone-sql-server` | `…/Microsoft.Sql/servers/queenzone-sql-server` | import | Retained because the active dev environment still uses `queenzone-dev-db` |
-| Firewall `AllowAllWindowsAzureIps` | `…/firewallRules/AllowAllWindowsAzureIps` | import | Required for App Service → SQL |
+| Firewall `AllowAllWindowsAzureIps` on `queenzone-sql-server` | `…/servers/queenzone-sql-server/firewallRules/AllowAllWindowsAzureIps` | import | Still required for `queenzone-devbox` → `queenzone-dev-db`. Production owns the rule. Do not drop it until that app has explicit outbound rules (#1657 deferred this server). |
+| Firewall `AllowAllWindowsAzureIps` on `queenzone-prod-sql` | `…/servers/queenzone-prod-sql/firewallRules/AllowAllWindowsAzureIps` | forget from state | Count is zero and `lifecycle.destroy = false`, so OpenTofu forgets the address and leaves the Azure rule. Replacement rules allow `queenzone-prod` possible outbound IPs. Delete the live rule only after `/health/ready` and a path for GitHub migration runners. |
 | Firewall `ClientIPAddress_2026-6-11_20-28-58` | `…/firewallRules/ClientIPAddress_…` | defer | Operator workstation IP; likely keep outside or replace with named break-glass rule |
 | Database `queenzone-db` on `queenzone-prod-sql` | `…/servers/queenzone-prod-sql/databases/queenzone-db` | manage | Canada East live database; **never recreate** (data loss). Schema via EF only |
 | Database `queenzone-db` on `queenzone-sql-server` | `…/servers/queenzone-sql-server/databases/queenzone-db` | retired | Old Australia East production database removed from state and deleted on **2026-09-14** |
 | Pre-cutover copy `queenzone-db-precutover-20260910-083153` | `…/servers/queenzone-sql-server/databases/queenzone-db-precutover-20260910-083153` | retired | Recorded zero connections during observation; deleted by separate maintainer approval on **2026-09-14** |
-| SQL auditing (server + db) | `…/auditingSettings/Default` | data / defer | Currently **Disabled** — do not “enable by default” in first import |
+| SQL auditing (server + db) | `…/extendedAuditingSettings/Default` | manage | Enabled to `queenzone-prod-law` (`SQLSecurityAuditEvents` on master and `queenzone-db`). Retention is the workspace's 30 days. No storage-account audit destination. |
 | Short-term backup (7 days, LRS) | backup policy | import | Provider default-ish for Basic; LTR all zero |
 | Storage account `queenzoneprod` | `…/storageAccounts/queenzoneprod` | manage | Canada East live account; public blob access allowed; **custom domain `cdn.queenzone.org`** |
 | Storage account `queenzone` | `…/storageAccounts/queenzone` | retired | Removed from state and deleted on **2026-09-15** after content, dependency, no-write, deployment, and post-deletion health checks passed |
@@ -137,7 +138,7 @@ Treatments:
 | Legacy webtest `queenzone-dev-health` | `…/webtests/queenzone-dev-health` | retired | Deleted on **2026-09-14** because it targeted the retired app |
 | Legacy metric / query alerts | listed in import JSON | retired | Five rules scoped only to the old Application Insights or Log Analytics resources were deleted on **2026-09-14** |
 | Smart detector `Failure Anomalies - queenzone-dev-ai` | alertsmanagement | retired | Deleted with the old Application Insights component on **2026-09-14** |
-| Diagnostic settings (web/sql/storage) | n/a | outside | None configured — do not invent |
+| Diagnostic settings (web/sql/storage) | SQL audit only | manage | `sql-security-audit` sends `SQLSecurityAuditEvents` to `queenzone-prod-law`. Do not add other diagnostic categories. |
 
 ### Cloudflare (API inventory complete)
 
@@ -287,7 +288,7 @@ Documented for [#622](https://github.com/richardorchard/QueenZone.Modern/issues/
 | App Insights billing cap 100 GB | Far above LAW 0.1 GB daily cap; LAW cap is the real budget control — do not “harmonise” upward |
 | `use32BitWorkerProcess: true` on a Linux .NET site | Likely portal noise; verify before encoding |
 | Retired metric alert `queenzone-dev-failed-requests` | Deleted with the old telemetry stack on **2026-09-14**; do not recreate |
-| SQL auditing disabled | Import as disabled; enabling is a product decision |
+| SQL auditing | Enabled to `queenzone-prod-law`. Workspace retention is 30 days. Do not add a storage-account audit key. |
 | Storage versioning off | Do not enable in first apply |
 | Operator SQL firewall ClientIP rule | Do not encode personal IPs as production IaC without renaming |
 | Legacy GH secrets alongside Bitwarden | Clean up separately; do not duplicate into OpenTofu |

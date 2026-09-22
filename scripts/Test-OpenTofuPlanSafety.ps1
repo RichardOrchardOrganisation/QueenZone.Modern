@@ -12,9 +12,21 @@
   proposal here means stop and investigate, not something to allow through
   CI with an override list.
 
+  Also rejects a main-site App Service `ip_address` that contains a comma
+  (one CIDR per rule). SCM may stay Allow while the main site is Deny:
+  production deploy still reaches SCM from GitHub-hosted runners.
+
   Declarative `import {}` blocks (see infra/environments/production/imports.tf)
   surface as an entry with `change.importing` set; these are reported
   separately from create/update/delete/replace and never fail the check.
+
+  A `forget` action (`lifecycle.destroy = false`, or a removed block) drops
+  state only.
+  It is reported and does not fail the destructive check.
+
+  A create or update that adds AllowAllWindowsAzureIps, or the 0.0.0.0
+  range, on module.azure_data_target fails. The summary still prints
+  addresses only.
 
 .EXAMPLE
   ./scripts/Test-OpenTofuPlanSafety.ps1 -PlanJsonPath plan.json -SummaryPath summary.md
@@ -46,6 +58,7 @@ function Get-OpenTofuPlanBuckets {
         update  = [System.Collections.Generic.List[string]]::new()
         replace = [System.Collections.Generic.List[string]]::new()
         delete  = [System.Collections.Generic.List[string]]::new()
+        forget  = [System.Collections.Generic.List[string]]::new()
     }
 
     foreach ($resourceChange in $ResourceChanges) {
@@ -68,6 +81,9 @@ function Get-OpenTofuPlanBuckets {
         }
         elseif ($hasCreate) {
             $buckets.create.Add($address)
+        }
+        elseif ($actions -contains "forget") {
+            $buckets.forget.Add($address)
         }
         elseif ($actions -contains "update") {
             $buckets.update.Add($address)
@@ -110,12 +126,104 @@ function Test-OpenTofuPlanDestructive {
     return ($Buckets.replace.Count + $Buckets.delete.Count) -gt 0
 }
 
+function Get-PlanAfterValue {
+    param($Change, [string]$Name)
+
+    if ($null -eq $Change) {
+        return $null
+    }
+
+    $changeProperties = $Change.PSObject.Properties.Name
+    if ($changeProperties -notcontains "after" -or $null -eq $Change.after) {
+        return $null
+    }
+
+    $afterProperties = $Change.after.PSObject.Properties.Name
+    if ($afterProperties -notcontains $Name) {
+        return $null
+    }
+
+    return $Change.after.$Name
+}
+
+function Test-OpenTofuPlanAddsAzureServicesFirewallRule {
+    param([Parameter(Mandatory = $true)]$ResourceChanges)
+
+    foreach ($resourceChange in @($ResourceChanges)) {
+        if ($null -eq $resourceChange) {
+            continue
+        }
+
+        $actions = @($resourceChange.change.actions)
+        $addsRule = ($actions -contains "create") -or ($actions -contains "update")
+        if (-not $addsRule) {
+            continue
+        }
+
+        $address = [string]$resourceChange.address
+        if ($address -notlike "module.azure_data_target.*azurerm_mssql_firewall_rule.*") {
+            continue
+        }
+
+        $name = Get-PlanAfterValue -Change $resourceChange.change -Name "name"
+        $startIp = Get-PlanAfterValue -Change $resourceChange.change -Name "start_ip_address"
+        $endIp = Get-PlanAfterValue -Change $resourceChange.change -Name "end_ip_address"
+        $isWideName = $name -eq "AllowAllWindowsAzureIps" -or $address -like "*azurerm_mssql_firewall_rule.azure_services*"
+        $isWideRange = $startIp -eq "0.0.0.0" -and $endIp -eq "0.0.0.0"
+        if ($isWideName -or $isWideRange) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-OpenTofuPlanIngressFailures {
+    param([Parameter(Mandatory = $true)]$ResourceChanges)
+
+    $failures = [System.Collections.Generic.List[string]]::new()
+    foreach ($resourceChange in $ResourceChanges) {
+        $change = $resourceChange.change
+        $afterProperty = $change.PSObject.Properties["after"]
+        if ($null -eq $afterProperty -or $null -eq $afterProperty.Value) {
+            continue
+        }
+
+        $siteConfigProperty = $afterProperty.Value.PSObject.Properties["site_config"]
+        if ($null -eq $siteConfigProperty -or $null -eq $siteConfigProperty.Value) {
+            continue
+        }
+
+        foreach ($siteConfig in @($siteConfigProperty.Value)) {
+            $restrictionProperty = $siteConfig.PSObject.Properties["ip_restriction"]
+            if ($null -ne $restrictionProperty -and $null -ne $restrictionProperty.Value) {
+                foreach ($rule in @($restrictionProperty.Value)) {
+                    $addressProperty = $rule.PSObject.Properties["ip_address"]
+                    if ($null -ne $addressProperty -and $null -ne $addressProperty.Value -and [string]$addressProperty.Value -match ",") {
+                        $failures.Add("$($resourceChange.address): ip_address must be one CIDR, found '$($addressProperty.Value)'.")
+                    }
+                }
+            }
+        }
+    }
+
+    return $failures
+}
+
 function New-FixtureResourceChange {
-    param([string]$Address, [string[]]$Actions, [switch]$Importing)
+    param(
+        [string]$Address,
+        [string[]]$Actions,
+        [switch]$Importing,
+        [hashtable]$After
+    )
 
     $change = [ordered]@{ actions = $Actions }
     if ($Importing) {
         $change.importing = @{ id = "fixture-id" }
+    }
+    if ($null -ne $After) {
+        $change.after = [pscustomobject]$After
     }
     return [pscustomobject]@{ address = $Address; change = [pscustomobject]$change }
 }
@@ -153,6 +261,112 @@ if ($PSCmdlet.ParameterSetName -eq "SelfTest") {
         $failures.Add("Expected a replace plan to be flagged as destructive.")
     }
 
+    $forgetBuckets = Get-OpenTofuPlanBuckets -ResourceChanges @(
+        (New-FixtureResourceChange -Address "module.azure_data_target.azurerm_mssql_firewall_rule.azure_services[0]" -Actions @("forget"))
+    )
+    if (Test-OpenTofuPlanDestructive -Buckets $forgetBuckets) {
+        $failures.Add("Expected a forget (state removal without an Azure delete) to pass the destructive check.")
+    }
+    if ($forgetBuckets.forget.Count -ne 1) {
+        $failures.Add("Expected the forget action to be reported separately.")
+    }
+
+    $wideRule = @(
+        (New-FixtureResourceChange -Address "module.azure_data_target.azurerm_mssql_firewall_rule.azure_services[0]" -Actions @("create") -After @{
+                name             = "AllowAllWindowsAzureIps"
+                start_ip_address = "0.0.0.0"
+                end_ip_address   = "0.0.0.0"
+            })
+    )
+    if (-not (Test-OpenTofuPlanAddsAzureServicesFirewallRule -ResourceChanges $wideRule)) {
+        $failures.Add("Expected a plan that creates AllowAllWindowsAzureIps on the production target to fail.")
+    }
+
+    $wideRange = @(
+        (New-FixtureResourceChange -Address "module.azure_data_target.azurerm_mssql_firewall_rule.explicit[`"wide`"]" -Actions @("update") -After @{
+                name             = "wide"
+                start_ip_address = "0.0.0.0"
+                end_ip_address   = "0.0.0.0"
+            })
+    )
+    if (-not (Test-OpenTofuPlanAddsAzureServicesFirewallRule -ResourceChanges $wideRange)) {
+        $failures.Add("Expected an update to 0.0.0.0-0.0.0.0 on the production target to fail.")
+    }
+
+    $explicitRule = @(
+        (New-FixtureResourceChange -Address "module.azure_data_target.azurerm_mssql_firewall_rule.explicit[`"AppService-203-0-113-10`"]" -Actions @("create") -After @{
+                name             = "AppService-203-0-113-10"
+                start_ip_address = "203.0.113.10"
+                end_ip_address   = "203.0.113.10"
+            })
+    )
+    if (Test-OpenTofuPlanAddsAzureServicesFirewallRule -ResourceChanges $explicitRule) {
+        $failures.Add("Expected an explicit App Service firewall rule on the production target to pass.")
+    }
+
+    $retainedNoOp = @(
+        (New-FixtureResourceChange -Address "module.azure_data.azurerm_mssql_firewall_rule.azure_services[0]" -Actions @("no-op") -After @{
+                name             = "AllowAllWindowsAzureIps"
+                start_ip_address = "0.0.0.0"
+                end_ip_address   = "0.0.0.0"
+            })
+    )
+    if (Test-OpenTofuPlanAddsAzureServicesFirewallRule -ResourceChanges $retainedNoOp) {
+        $failures.Add("Expected the retained server's existing AllowAllWindowsAzureIps rule to stay a no-op.")
+    }
+
+    function New-FixtureWebAppChange {
+        param(
+            [string]$MainDefaultAction,
+            [string]$ScmDefaultAction,
+            [string[]]$IpAddresses
+        )
+
+        $rules = [System.Collections.Generic.List[object]]::new()
+        foreach ($ip in $IpAddresses) {
+            $rules.Add([pscustomobject]@{ ip_address = $ip })
+        }
+
+        $siteConfig = [pscustomobject]@{
+            ip_restriction                    = $rules
+            ip_restriction_default_action     = $MainDefaultAction
+            scm_ip_restriction_default_action = $ScmDefaultAction
+        }
+        return [pscustomobject]@{
+            address = "module.azure_web.azurerm_linux_web_app.production"
+            change  = [pscustomobject]@{
+                actions = @("update")
+                after   = [pscustomobject]@{ site_config = @($siteConfig) }
+            }
+        }
+    }
+
+    $splitRanges = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
+        (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Allow" -IpAddresses @("173.245.48.0/20"))
+    ))
+    if ($splitRanges.Count -ne 0) {
+        $failures.Add("Expected one Cloudflare CIDR with main Deny and SCM Allow to pass the ingress check.")
+    }
+
+    $directDev = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
+        (New-FixtureWebAppChange -MainDefaultAction "Allow" -ScmDefaultAction "Allow" -IpAddresses @())
+    ))
+    if ($directDev.Count -ne 0) {
+        $failures.Add("Expected direct-access Allow/Allow with no rules to pass the ingress check.")
+    }
+
+    $commaRanges = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
+        (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Allow" -IpAddresses @("173.245.48.0/20,103.21.244.0/22"))
+    ))
+    if ($commaRanges.Count -eq 0) {
+        $failures.Add("Expected a comma-separated ip_address to be rejected.")
+    }
+
+    $unchangedFixtures = @(Get-OpenTofuPlanIngressFailures -ResourceChanges $safeChanges)
+    if ($unchangedFixtures.Count -ne 0) {
+        $failures.Add("Expected plans without site_config to skip the ingress check.")
+    }
+
     if ($failures.Count -gt 0) {
         $failures | ForEach-Object { Write-Error $_ }
         exit 1
@@ -178,6 +392,15 @@ if ($SummaryPath) {
 if (Test-OpenTofuPlanDestructive -Buckets $buckets) {
     $destructiveCount = $buckets.replace.Count + $buckets.delete.Count
     throw "Plan proposes $destructiveCount destructive change(s) (delete/replace). This stack never destroys production resources through CI — stop and investigate before touching this configuration further."
+}
+
+if (Test-OpenTofuPlanAddsAzureServicesFirewallRule -ResourceChanges @($plan.resource_changes)) {
+    throw "Plan adds AllowAllWindowsAzureIps on the production SQL target. That rule allows any Azure tenant to attempt the SQL login."
+}
+
+$ingressFailures = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @($plan.resource_changes))
+if ($ingressFailures.Count -gt 0) {
+    throw ($ingressFailures -join [Environment]::NewLine)
 }
 
 Write-Output "No destructive (delete/replace) changes proposed."

@@ -1,6 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -16,17 +14,28 @@ public sealed class LoginModel(
 
     public bool ShowSuspendedMessage { get; private set; }
 
+    public bool ShowUnverifiedExternalEmail { get; private set; }
+
+    public bool ShowExpiredExternalLink { get; private set; }
+
     [BindProperty]
     public PasswordSignInInput Input { get; set; } = new();
 
     public string? PasswordSignInError { get; private set; }
 
-    public void OnGet(string? returnUrl, string? signedOut = null, string? suspended = null)
+    public void OnGet(
+        string? returnUrl,
+        string? signedOut = null,
+        string? suspended = null,
+        string? externalEmail = null,
+        string? externalLink = null)
     {
         ReturnUrl = ResolveReturnUrl(returnUrl);
         ShowSignedOutMessage = string.Equals(signedOut, "1", StringComparison.OrdinalIgnoreCase)
             || string.Equals(signedOut, "true", StringComparison.OrdinalIgnoreCase);
         ShowSuspendedMessage = string.Equals(suspended, "1", StringComparison.OrdinalIgnoreCase);
+        ShowUnverifiedExternalEmail = string.Equals(externalEmail, "unverified", StringComparison.OrdinalIgnoreCase);
+        ShowExpiredExternalLink = string.Equals(externalLink, "expired", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -51,15 +60,7 @@ public sealed class LoginModel(
             return Page();
         }
 
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, result.Account.Id.ToString()),
-            new Claim(ClaimTypes.Email, result.Account.Email),
-            new Claim(ClaimTypes.Name, result.Account.DisplayName),
-            MemberSessionGate.CreateIssuedAtClaim(DateTimeOffset.UtcNow),
-        };
-        var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie);
-        await HttpContext.SignInAsync(MemberAuthenticationSchemes.MembersCookie, new ClaimsPrincipal(identity));
+        await MemberCookieSignIn.SignInAsync(HttpContext, result.Account);
 
         return Redirect(ReturnUrl);
     }

@@ -227,11 +227,17 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
       headers: { Authorization: `Bearer ${token}` },
       redirect: 'manual',
     });
-    assert.ok(
-      allowed.status === 301 || allowed.status === 302 || allowed.status === 307 || allowed.status === 308,
-      `Contract GET /api/v1/forum/attachments/legacy/1002 failed: expected a redirect for a signed-in member, received ${allowed.status}`,
+    assert.equal(
+      allowed.status,
+      200,
+      `Contract GET /api/v1/forum/attachments/legacy/1002 failed: expected a streamed download for a signed-in member, received ${allowed.status}`,
     );
-    assert.match(allowed.headers.get('location') ?? '', /cdn2\.queenzone\.org\/attachments\//);
+    assert.equal(allowed.headers.get('location'), null);
+    const disposition = allowed.headers.get('content-disposition') ?? '';
+    assert.match(disposition, /attachment/i);
+    assert.match(disposition, /anoto-setlist-scan\.jpg/);
+    const bytes = Buffer.from(await allowed.arrayBuffer());
+    assert.equal(bytes.toString('utf8'), 'scan-bytes');
 
     const performances = parseContract(
       'GET /api/v1/content/fan-performances',

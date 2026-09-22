@@ -120,6 +120,7 @@ public sealed class MobileAuthServiceTests
             "gh-subject-1",
             "fan@example.com",
             "Fan",
+            true,
             CancellationToken.None);
 
         Assert.True(completed.Success);
@@ -171,6 +172,7 @@ public sealed class MobileAuthServiceTests
             "ms-subject-1",
             "msfan@example.com",
             "MS Fan",
+            true,
             CancellationToken.None);
 
         var tokens = await service.ExchangeAuthorizationCodeAsync(
@@ -205,6 +207,7 @@ public sealed class MobileAuthServiceTests
             "suspended-subject",
             "suspended@example.com",
             "Suspended",
+            true,
             CancellationToken.None);
         Assert.True(first.Success);
 
@@ -226,11 +229,97 @@ public sealed class MobileAuthServiceTests
             "suspended-subject",
             "suspended@example.com",
             "Suspended",
+            true,
             CancellationToken.None);
 
         Assert.False(completed.Success);
         Assert.Equal("access_denied", completed.Error);
         Assert.Equal("account_suspended", completed.ErrorDescription);
+    }
+
+    [Fact]
+    public async Task CompleteExternalLogin_DoesNotIssueCode_WhenVerifiedEmailNeedsConfirmation()
+    {
+        var members = new InMemoryMemberAccountRepository();
+        var account = await SeedPasswordAccountAsync(members, "confirm-mobile@example.com", "S3curePass!");
+        var service = CreateService(members);
+        var pair = MobileAuthPkceTestData.CreatePair();
+        var started = service.StartAuthorization(
+            "code",
+            MobileAuthOptions.DefaultClientId,
+            MobileAuthPkceTestData.RedirectUri,
+            pair.Challenge,
+            MobileAuthPkce.MethodS256,
+            "csrf-state",
+            MemberAuthenticationSchemes.Google);
+
+        var pending = await service.CompleteExternalLoginAsync(
+            started.Session!.RequestId,
+            MemberAuthenticationSchemes.Google,
+            "google-mobile-confirm",
+            "confirm-mobile@example.com",
+            "Confirm Fan",
+            emailVerified: true,
+            CancellationToken.None);
+
+        Assert.True(pending.RequiresConfirmation);
+        Assert.False(pending.Success);
+        Assert.Null(pending.Code);
+        Assert.Null(await members.FindByExternalLoginAsync(MemberAuthenticationSchemes.Google, "google-mobile-confirm"));
+
+        var linker = CreateMemberAccountService(members);
+        var linked = await linker.LinkExternalLoginAsync(
+            account.Id,
+            MemberAuthenticationSchemes.Google,
+            "google-mobile-confirm",
+            "confirm-mobile@example.com");
+        Assert.True(linked.Succeeded);
+
+        var completed = await service.CompleteConfirmedLoginAsync(
+            started.Session.RequestId,
+            linked.Account!,
+            CancellationToken.None);
+        Assert.True(completed.Success);
+        Assert.False(string.IsNullOrWhiteSpace(completed.Code));
+
+        var tokens = await service.ExchangeAuthorizationCodeAsync(
+            "authorization_code",
+            MobileAuthOptions.DefaultClientId,
+            MobileAuthPkceTestData.RedirectUri,
+            completed.Code,
+            pair.Verifier,
+            CancellationToken.None);
+        Assert.True(tokens.Success);
+    }
+
+    [Fact]
+    public async Task CompleteExternalLogin_RejectsUnverifiedEmail_WithoutCreatingAnAccount()
+    {
+        var members = new InMemoryMemberAccountRepository();
+        var service = CreateService(members);
+        var started = service.StartAuthorization(
+            "code",
+            MobileAuthOptions.DefaultClientId,
+            MobileAuthPkceTestData.RedirectUri,
+            MobileAuthPkceTestData.CreatePair().Challenge,
+            MobileAuthPkce.MethodS256,
+            "csrf-state",
+            MemberAuthenticationSchemes.Google);
+
+        var completed = await service.CompleteExternalLoginAsync(
+            started.Session!.RequestId,
+            MemberAuthenticationSchemes.Google,
+            "google-mobile-unverified",
+            "unverified-mobile@example.com",
+            "Unverified",
+            emailVerified: false,
+            CancellationToken.None);
+
+        Assert.False(completed.Success);
+        Assert.False(completed.RequiresConfirmation);
+        Assert.Equal(ExternalLoginMessages.UnverifiedEmail, completed.ErrorDescription);
+        Assert.Null(await members.FindByEmailAsync("unverified-mobile@example.com"));
+        Assert.Null(await members.FindByExternalLoginAsync(MemberAuthenticationSchemes.Google, "google-mobile-unverified"));
     }
 
     [Fact]
@@ -242,6 +331,7 @@ public sealed class MobileAuthServiceTests
             "subject",
             "fan@example.com",
             "Fan",
+            true,
             CancellationToken.None);
 
         Assert.False(completed.Success);
@@ -531,6 +621,7 @@ public sealed class MobileAuthServiceTests
             "expired-refresh-subject",
             "expired-refresh@example.com",
             "Expired Refresh",
+            true,
             CancellationToken.None);
         var issued = await service.ExchangeAuthorizationCodeAsync(
             "authorization_code",
@@ -596,6 +687,7 @@ public sealed class MobileAuthServiceTests
             "discord-subject-1",
             "mix@example.com",
             "Mix",
+            true,
             CancellationToken.None);
 
         Assert.False(completed.Success);
@@ -856,6 +948,7 @@ public sealed class MobileAuthServiceTests
             "rate-subject",
             "rate@example.com",
             "Rate Fan",
+            true,
             CancellationToken.None);
 
         Assert.True(first.Success);
@@ -909,6 +1002,7 @@ public sealed class MobileAuthServiceTests
             subject,
             email,
             "Rate Fan",
+            true,
             CancellationToken.None);
     }
 
@@ -940,6 +1034,7 @@ public sealed class MobileAuthServiceTests
             "refresh-subject-1",
             "refresh@example.com",
             "Refresh Fan",
+            true,
             CancellationToken.None);
         var tokens = await service.ExchangeAuthorizationCodeAsync(
             "authorization_code",
@@ -952,21 +1047,23 @@ public sealed class MobileAuthServiceTests
         return (service, tokens.RefreshToken!);
     }
 
-    private static async Task<MemberAccount> SeedPasswordAccountAsync(
-        InMemoryMemberAccountRepository members,
-        string email,
-        string password)
-    {
-        var clock = TimeProvider.System;
-        var accounts = new MemberAccountService(
+    private static MemberAccountService CreateMemberAccountService(InMemoryMemberAccountRepository members) =>
+        new(
             members,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
             new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
             new MemberUploadQuotaService(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(
                     new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
-                clock,
+                TimeProvider.System,
                 Options.Create(new UploadQuotaOptions { Enabled = false })));
+
+    private static async Task<MemberAccount> SeedPasswordAccountAsync(
+        InMemoryMemberAccountRepository members,
+        string email,
+        string password)
+    {
+        var accounts = CreateMemberAccountService(members);
         var registered = await accounts.RegisterAsync(email, password, "Reviewer");
         Assert.True(registered.Succeeded, registered.Error);
         Assert.NotNull(registered.Account);

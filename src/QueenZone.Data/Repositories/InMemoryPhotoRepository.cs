@@ -62,23 +62,27 @@ public sealed class InMemoryPhotoRepository(SharedPhotoStore store) : IPhotoRepo
         PhotoListFilter? filter = null,
         CancellationToken cancellationToken = default)
     {
-        var activeFilter = filter ?? PhotoListFilter.None;
-        var items = store.GetVisiblePhotosByCategory(catId)
-            .Select(ToPhotoItem)
-            .Where(activeFilter.Matches)
-            .ToList();
+        var requested = filter ?? PhotoListFilter.None;
+        var all = store.GetVisiblePhotosByCategory(catId).Select(ToPhotoItem).ToList();
+        var items = requested.IsActive ? all.Where(requested.Matches).ToList() : all;
         var index = items.FindIndex(item => item.PicId == picId);
-        if (index < 0)
+        if (index >= 0)
+        {
+            return Task.FromResult<PhotoDetailNavigation?>(ToNavigation(items, index, matchedRequestedFilter: true));
+        }
+
+        if (!requested.IsActive)
         {
             return Task.FromResult<PhotoDetailNavigation?>(null);
         }
 
-        return Task.FromResult<PhotoDetailNavigation?>(new PhotoDetailNavigation(
-            items[index],
-            index,
-            items.Count,
-            index > 0 ? items[index - 1].PicId : null,
-            index < items.Count - 1 ? items[index + 1].PicId : null));
+        var fallback = all.FindIndex(item => item.PicId == picId);
+        if (fallback < 0)
+        {
+            return Task.FromResult<PhotoDetailNavigation?>(null);
+        }
+
+        return Task.FromResult<PhotoDetailNavigation?>(ToNavigation(all, fallback, matchedRequestedFilter: false));
     }
 
     public Task<IReadOnlyList<PhotoItem>> GetCategoryAllAsync(int catId, CancellationToken cancellationToken = default)
@@ -92,14 +96,77 @@ public sealed class InMemoryPhotoRepository(SharedPhotoStore store) : IPhotoRepo
         int take,
         CancellationToken cancellationToken = default)
     {
-        var safeTake = Math.Clamp(take, 1, 100);
-        IReadOnlyList<PhotoItem> items = store.GetVisiblePhotosByCategory(catId)
-            .Select(ToPhotoItem)
-            .OrderBy(_ => Random.Shared.Next())
-            .Take(safeTake)
-            .ToList();
+        var ids = PickIds(catId, take);
+        IReadOnlyList<PhotoItem> items = LoadByIds(catId, ids);
         return Task.FromResult(items);
     }
+
+    public Task<IReadOnlyList<int>> PickRandomPublishedPhotoIdsAsync(
+        int catId,
+        int take,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(PickIds(catId, take));
+
+    public Task<IReadOnlyList<PhotoItem>> GetPublishedByIdsAsync(
+        int catId,
+        IReadOnlyList<int> picIds,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(LoadByIds(catId, picIds));
+
+    private IReadOnlyList<int> PickIds(int catId, int take)
+    {
+        var safeTake = Math.Clamp(take, 1, 8);
+        var ids = store.GetVisiblePhotosByCategory(catId).Select(item => item.PicId).ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var picked = new List<int>(Math.Min(safeTake, ids.Count));
+        var pool = ids.ToList();
+        while (picked.Count < safeTake && pool.Count > 0)
+        {
+            var index = Random.Shared.Next(pool.Count);
+            picked.Add(pool[index]);
+            pool.RemoveAt(index);
+        }
+
+        return picked;
+    }
+
+    private IReadOnlyList<PhotoItem> LoadByIds(int catId, IReadOnlyList<int> picIds)
+    {
+        if (picIds.Count == 0)
+        {
+            return [];
+        }
+
+        var byId = store.GetVisiblePhotosByCategory(catId)
+            .Select(ToPhotoItem)
+            .ToDictionary(item => item.PicId);
+        var items = new List<PhotoItem>(picIds.Count);
+        foreach (var picId in picIds.Distinct())
+        {
+            if (byId.TryGetValue(picId, out var item))
+            {
+                items.Add(item);
+            }
+        }
+
+        return items;
+    }
+
+    private static PhotoDetailNavigation ToNavigation(
+        IReadOnlyList<PhotoItem> items,
+        int index,
+        bool matchedRequestedFilter) =>
+        new(
+            items[index],
+            index,
+            items.Count,
+            index > 0 ? items[index - 1].PicId : null,
+            index < items.Count - 1 ? items[index + 1].PicId : null,
+            matchedRequestedFilter);
 
     public Task<IReadOnlyList<PhotoSitemapCategory>> GetPublishedSitemapCategoriesAsync(
         CancellationToken cancellationToken = default)

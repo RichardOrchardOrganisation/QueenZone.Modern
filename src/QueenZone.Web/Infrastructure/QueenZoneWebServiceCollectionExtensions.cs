@@ -386,6 +386,7 @@ public static class QueenZoneWebServiceCollectionExtensions
             services.AddQueenZoneInMemoryData();
             services.AddHostedService<Search.SearchIndexSeedHostedService>();
             services.AddHostedService<SampleGalleryImageSeedHostedService>();
+            services.AddHostedService<SampleLegacyForumAttachmentSeedHostedService>();
             return services;
         }
 
