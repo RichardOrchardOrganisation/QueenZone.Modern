@@ -63,6 +63,11 @@ run "existing_production_shape_remains_managed" {
     condition     = var.containers["ugc-articles"] == "None" && var.containers["ugc-photos"] == "None"
     error_message = "Article and photo UGC containers must remain private."
   }
+
+  assert {
+    condition     = var.containers["attachments"] == "None" && var.containers["songfiles"] == "None" && var.containers["freddie-mercury"] == "Blob" && var.containers["album-or-single-covers"] == "Blob" && var.containers["css"] == "Container"
+    error_message = "Legacy attachments and songfiles must stay private. Published gallery containers stay public blob, and css stays listable."
+  }
 }
 
 run "migration_target_uses_write_only_password_and_defers_database" {

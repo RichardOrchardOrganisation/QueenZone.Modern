@@ -86,7 +86,7 @@ Repository docs disagreed. Live behaviour (2026-08-12):
 | Hostname | Live routing | Evidence | Correct doc stance |
 | --- | --- | --- | --- |
 | `cdn.queenzone.org` | **Straight Cloudflare proxy** to Azure Blob. **No Worker header rewriting.** | Successful photo/CSS responses pass through Azure `x-ms-*` headers; Cloudflare `Cache-Control: max-age=14400`; **no** Worker-added `Access-Control-Allow-Origin` / `X-Content-Type-Options`. Azure Storage **custom domain** is registered as `cdn.queenzone.org`. | Matches `AGENTS.md`, `blob-storage-ugc.md`, `picture-library-plan.md`, `PhotoImageUrl.cs`. |
-| `cdn2.queenzone.org` | **Cloudflare Worker** script `pictures-queenzone-org` on route `cdn2.queenzone.org/*`, fetching `https://queenzoneprod.blob.core.windows.net`. | DNS name is **cdn2**, not `pictures`. Script returns 404 for `/songfiles/*` (#177). Live responses add `Access-Control-Allow-Origin: *`, `X-Content-Type-Options: nosniff`, `Cache-Control` on 200. No Azure custom domain for `cdn2`. | Legacy forum attachment redirect target. Fan audio is app-proxied. Do not treat the script name as a hostname. |
+| `cdn2.queenzone.org` | **Cloudflare Worker** script `pictures-queenzone-org` on route `cdn2.queenzone.org/*`, fetching `https://queenzoneprod.blob.core.windows.net`. | DNS name is **cdn2**, not `pictures`. Snapshot returns 404 for `/songfiles/*` (#177) and `/attachments/*` (#1656). Live responses add `Access-Control-Allow-Origin: *`, `X-Content-Type-Options: nosniff`, `Cache-Control` on 200. No Azure custom domain for `cdn2`. | Fan audio and legacy forum attachments are app-proxied. Do not treat the script name as a hostname. The published Worker 404s `/attachments/*` only after the reviewed apply. |
 
 `docs/architecture/azure-hosting-plan.md` previously attributed Worker `pictures-queenzone-org` and route `cdn.queenzone.org/*` to **cdn**, and told operators not to add an Azure Storage custom domain. Both statements are **false against live state** and are corrected in that file as part of this issue.
 
@@ -114,8 +114,8 @@ Treatments:
 | Plan `ASP-Queenzone` / site `queenzone-dev` | Australia East resource paths | retired | Removed from state and deleted on **2026-09-14** after the accepted observation period |
 | Rollback certificates `queenzone.org`, `www.queenzone.org` | `…/Microsoft.Web/certificates/…` | retired | Old Australia East certificate resources deleted with the rollback app on **2026-09-14** |
 | Active Canada East SNI certificate | uploaded certificate in the `queenzone-prod` webspace | outside | Cloudflare Origin CA certificate; secret material stays in Bitwarden. OpenTofu manages the target hostname bindings by the non-secret thumbprint recorded in `production-region-migration.md` |
-| Access restrictions (Cloudflare IPv4/IPv6 allow + deny all) | site `ipSecurityRestrictions` | import | Mis-order or drop = either open origin or lock out Cloudflare |
-| SCM access restrictions | site `scmIpSecurityRestrictions` | import | Currently **Allow all**; keep separate from main site rules (deploy path) |
+| Access restrictions (Cloudflare IPv4/IPv6 allow + deny all) | site `ipSecurityRestrictions` | import | One CIDR per rule (refreshed 2026-09-22). A comma-separated `ip_address` does not match Cloudflare. Mis-order or drop = either open origin or lock out Cloudflare |
+| SCM access restrictions | site `scmIpSecurityRestrictions` | import | Stays **Allow all** (`scm_use_main_ip_restriction = false`). Main-site one-CIDR Deny is separate. SCM Deny from #1653 is not done: GitHub-hosted deploy still uses public SCM, and runner addresses are not Cloudflare |
 | App settings (names only) | site config | outside → [ADR 0008](../decisions/0008-app-service-settings-ownership.md) | Names re-listed 2026-08-24. Secret **values** stay in Azure/Bitwarden, never state. `deploy.yml` ARM-owns three non-secret deploy keys outside OpenTofu (see [App Service settings](#app-service-application-setting-names-values-not-recorded)). #622's site resource must omit/`ignore_changes` on `app_settings`/`connection_string` |
 | SQL server `queenzone-prod-sql` | `…/Microsoft.Sql/servers/queenzone-prod-sql` | manage | Canada East live server; SQL auth still used by app |
 | SQL server `queenzone-sql-server` | `…/Microsoft.Sql/servers/queenzone-sql-server` | import | Retained because the active dev environment still uses `queenzone-dev-db` |
@@ -205,7 +205,7 @@ site; no empty or speculative RBAC resources are declared.
 | Photo/archive galleries (`queen`, `freddie-mercury`, …) | `blob` | Public photos via `cdn` | Keep public blob read |
 | `images`, `css`, `mp3`, `forum`, `avatars`, `album-or-single-covers`, … | `blob` or `container` (`css`) | Legacy public assets | Keep; `css` is listable |
 | `songfiles` | **`None` (private)** | Fan audio streamed by `/fan-performances/{id}/audio` | Live since 2026-08-16 (ARM). Module desired state already `None`. |
-| `attachments` | **`blob` (public)** | Legacy forum files; app redirects after auth | URL guessing bypasses app gate. Relates to #177 / media lockdown |
+| `attachments` | **live `blob`; desired `None`** | Legacy forum files streamed by `/forum/attachment/legacy/{id}` | Module default is `None` (#1656). Live ACL stays public until the reviewed apply. |
 | `databasebackup` | private | Backups | Keep private; **never** public |
 | `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos` | private | Modern UGC | Keep private; app proxy. All four were live at the 2026-09-09 refresh. Relates to [#583](https://github.com/richardorchard/QueenZone.Modern/issues/583), [#584](https://github.com/richardorchard/QueenZone.Modern/issues/584) |
 | `test` | `blob` | Legacy/scratch content | **2,320 blobs / 4,110,472,406 bytes** at the 2026-09-09 refresh. Preserve during migration; review any later deletion separately. |
@@ -300,7 +300,7 @@ Documented for [#622](https://github.com/richardorchard/QueenZone.Modern/issues/
 
 | Issue | Relevance |
 | --- | --- |
-| [#177](https://github.com/richardorchard/QueenZone.Modern/issues/177) | `songfiles` is private and app-proxied. Legacy `attachments` remain public blob access. |
+| [#177](https://github.com/richardorchard/QueenZone.Modern/issues/177) | `songfiles` is private and app-proxied. |
 | [#583](https://github.com/richardorchard/QueenZone.Modern/issues/583) | Anonymous `/ugc` proxy sensitivity — private containers must stay private |
 | [#584](https://github.com/richardorchard/QueenZone.Modern/issues/584) | Upload API container narrowing — affects which containers exist and who may write |
 | [#428](https://github.com/richardorchard/QueenZone.Modern/issues/428) | Cloudflare proxy / origin restriction history — current live state already restricts App Service to Cloudflare IPs |
