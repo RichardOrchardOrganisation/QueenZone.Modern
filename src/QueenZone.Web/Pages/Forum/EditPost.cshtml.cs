@@ -34,11 +34,10 @@ public sealed class EditPostModel(
 
     public async Task<IActionResult> OnGetAsync(int postId, CancellationToken cancellationToken)
     {
-        var memberAuth = await ResolveMemberAuthAsync();
-        var memberId = ForumMember.GetMemberId(memberAuth?.Principal);
-        if (memberId is null || memberAuth?.Principal is null)
+        var access = await ResolveEditAccessAsync();
+        if (access.Denied is not null)
         {
-            return Challenge(MemberAuthenticationSchemes.MembersCookie);
+            return access.Denied;
         }
 
         var post = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
@@ -47,7 +46,8 @@ public sealed class EditPostModel(
             return NotFound();
         }
 
-        var isAdmin = ForumPollEndpoints.IsAdmin(memberAuth.Principal, adminOptions);
+        var isAdmin = access.IsAdmin;
+        var memberId = access.MemberId;
         if (!ForumPostEditRules.CanEdit(
                 post.AuthorMemberId,
                 memberId,
@@ -56,7 +56,7 @@ public sealed class EditPostModel(
                 forumOptions.PostEditWindowMinutes,
                 timeProvider.GetUtcNow()))
         {
-            ErrorMessage = ResolveForbiddenMessage(post, memberId.Value, isAdmin);
+            ErrorMessage = ResolveForbiddenMessage(post, memberId ?? Guid.Empty, isAdmin);
             Response.StatusCode = StatusCodes.Status403Forbidden;
             Post = post;
             PopulatePage(post);
@@ -71,11 +71,10 @@ public sealed class EditPostModel(
 
     public async Task<IActionResult> OnPostAsync(int postId, CancellationToken cancellationToken)
     {
-        var memberAuth = await ResolveMemberAuthAsync();
-        var memberId = ForumMember.GetMemberId(memberAuth?.Principal);
-        if (memberId is null || memberAuth?.Principal is null)
+        var access = await ResolveEditAccessAsync();
+        if (access.Denied is not null)
         {
-            return Challenge(MemberAuthenticationSchemes.MembersCookie);
+            return access.Denied;
         }
 
         var existing = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
@@ -95,10 +94,11 @@ public sealed class EditPostModel(
             return Page();
         }
 
-        var isAdmin = ForumPollEndpoints.IsAdmin(memberAuth.Principal, adminOptions);
+        var isAdmin = access.IsAdmin;
+        var memberId = access.MemberId ?? Guid.Empty;
         var result = await forumWriteRepository.UpdatePostAsync(
             postId,
-            memberId.Value,
+            memberId,
             sanitizedBody,
             isAdmin,
             forumOptions.PostEditWindowMinutes,
@@ -172,6 +172,20 @@ public sealed class EditPostModel(
         }
 
         return "You do not have permission to edit this post.";
+    }
+
+    private async Task<(bool IsAdmin, Guid? MemberId, IActionResult? Denied)> ResolveEditAccessAsync()
+    {
+        // Admin edit-any follows the Entra/test admin scheme. Own-post edits stay on the member cookie.
+        var isAdmin = await ForumAdminAccess.IsAdminAsync(HttpContext, adminOptions);
+        var memberAuth = await ResolveMemberAuthAsync();
+        var memberId = ForumMember.GetMemberId(memberAuth?.Principal);
+        if (!isAdmin && memberId is null)
+        {
+            return (false, null, Challenge(MemberAuthenticationSchemes.MembersCookie));
+        }
+
+        return (isAdmin, memberId, null);
     }
 
     private async Task<AuthenticateResult?> ResolveMemberAuthAsync()
