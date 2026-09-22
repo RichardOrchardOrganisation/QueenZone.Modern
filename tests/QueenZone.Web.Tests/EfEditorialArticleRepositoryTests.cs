@@ -38,6 +38,8 @@ public sealed class EfEditorialArticleRepositoryTests : IDisposable
         var working = await repository.SaveDraftAsync(Draft("Replacement title") with { Id = saved.Id }, "admin");
 
         Assert.Equal(EditorialArticleStatus.Draft, working.Status);
+        var published = Assert.Single(await repository.GetPublishedStandaloneAsync());
+        Assert.Equal(EfArticleSubmissionRepository.EstimateWordCount(published.Body), published.WordCount);
         var live = await repository.GetPublishedBySlugAsync("first-title");
         Assert.NotNull(live);
         Assert.Equal("First title", live.Title);
@@ -85,6 +87,7 @@ public sealed class EfEditorialArticleRepositoryTests : IDisposable
         Assert.True(overlays.ContainsKey(101));
         Assert.Equal(EditorialArticleStatus.Unpublished, overlays[101].Status);
         Assert.Equal("Edited archive", overlays[101].Title);
+        Assert.Equal(1, await repository.GetUnpublishedLegacyOverlayCountAsync());
     }
 
     [Fact]
