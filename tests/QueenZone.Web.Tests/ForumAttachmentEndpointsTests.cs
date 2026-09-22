@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using QueenZone.Data;
 using QueenZone.Storage;
 
@@ -51,11 +52,55 @@ public sealed class ForumAttachmentEndpointsTests : IClassFixture<WebApplication
     }
 
     [Fact]
-    public async Task LegacyDownload_ReturnsNotFound_WhenBlobMissing()
+    public async Task LegacyAttachmentSeed_SkipsWhenSampleBlobAlreadyExists()
+    {
+        _ = factory.CreateClient();
+        var seed = factory.Services.GetServices<IHostedService>()
+            .OfType<SampleLegacyForumAttachmentSeedHostedService>()
+            .Single();
+
+        await seed.StartAsync(CancellationToken.None);
+
+        var client = CreateMemberClient(factory);
+        var response = await client.GetAsync("/forum/attachment/legacy/1002");
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(SampleLegacyForumAttachmentSeedHostedService.ScanBytes, body);
+    }
+
+    [Fact]
+    public async Task LegacyDownload_StreamsSeededSampleForSignedInMembers()
     {
         var client = CreateMemberClient(factory);
 
         var response = await client.GetAsync("/forum/attachment/legacy/1002");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(SampleLegacyForumAttachmentSeedHostedService.ScanBytes, body);
+        Assert.Null(response.Headers.Location);
+        var disposition = response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty;
+        Assert.Contains("attachment", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("anoto-setlist-scan.jpg", disposition, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LegacyDownload_ReturnsNotFound_WhenBlobMissing()
+    {
+        var repo = new InMemoryForumAttachmentRepository();
+        repo.SeedLegacy(new LegacyForumAttachmentLookup(42, "not-in-storage.bin", 10));
+        var testFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IForumAttachmentRepository>();
+                services.AddSingleton<IForumAttachmentRepository>(repo);
+            });
+        });
+        var client = CreateMemberClient(testFactory);
+
+        var response = await client.GetAsync("/forum/attachment/legacy/42");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Null(response.Headers.Location);
