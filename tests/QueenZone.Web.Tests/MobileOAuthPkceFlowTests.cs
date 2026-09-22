@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
+using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
@@ -94,6 +96,66 @@ public sealed class MobileOAuthPkceFlowTests
         var cookieProbe = await client.GetAsync("/account/member-probe");
         Assert.Equal(HttpStatusCode.Redirect, cookieProbe.StatusCode);
         Assert.Contains("/account/login", cookieProbe.Headers.Location!.OriginalString, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Callback_VerifiedEmailMatch_ConfirmsOnTheWebsiteBeforeIssuingACode()
+    {
+        using var factory = CreateFactory();
+        const string email = "mobile-confirm@example.com";
+        const string password = "S3curePass!";
+        using (var scope = factory.Services.CreateScope())
+        {
+            var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+            var registered = await members.RegisterAsync(email, password, "Mobile Confirm");
+            Assert.True(registered.Succeeded, registered.Error);
+        }
+
+        var pair = MobileAuthPkceTestData.CreatePair();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true,
+        });
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.ProviderHeader, MemberAuthenticationSchemes.Google);
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.SubjectHeader, "google-mobile-confirm-route");
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.EmailHeader, email);
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.NameHeader, "Mobile Confirm");
+
+        var authorize = await client.GetAsync(AuthorizeUrl(MemberAuthenticationSchemes.Google, pair.Challenge, "mobile-confirm-state"));
+        var callback = await client.GetAsync(authorize.Headers.Location);
+
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        Assert.Equal("/account/link-external-login", callback.Headers.Location!.OriginalString);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var repository = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
+            Assert.Null(await repository.FindByExternalLoginAsync(MemberAuthenticationSchemes.Google, "google-mobile-confirm-route"));
+        }
+
+        var confirmPage = await client.GetStringAsync("/account/link-external-login");
+        var token = Regex.Match(
+            confirmPage,
+            """name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""",
+            RegexOptions.IgnoreCase).Groups["token"].Value;
+        Assert.False(string.IsNullOrWhiteSpace(token));
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["password"] = password,
+        });
+        var confirmed = await client.PostAsync("/account/link-external-login?handler=Password", content);
+
+        Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
+        Assert.Equal("queenzone", confirmed.Headers.Location!.Scheme);
+        var query = QueryHelpers.ParseQuery(confirmed.Headers.Location.Query);
+        Assert.Equal("mobile-confirm-state", query["state"].ToString());
+        Assert.False(string.IsNullOrWhiteSpace(query["code"].ToString()));
+        using var linkedScope = factory.Services.CreateScope();
+        var linkedRepository = linkedScope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
+        Assert.NotNull(await linkedRepository.FindByExternalLoginAsync(
+            MemberAuthenticationSchemes.Google,
+            "google-mobile-confirm-route"));
     }
 
     [Fact]

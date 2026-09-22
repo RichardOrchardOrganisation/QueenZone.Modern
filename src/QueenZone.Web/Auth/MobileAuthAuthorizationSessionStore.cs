@@ -31,6 +31,22 @@ public sealed class MobileAuthAuthorizationSessionStore(TimeProvider timeProvide
         return session;
     }
 
+    public MobileAuthAuthorizationSession? Peek(string requestId)
+    {
+        if (!sessions.TryGetValue(requestId, out var session))
+        {
+            return null;
+        }
+
+        if (session.ExpiresAt <= timeProvider.GetUtcNow())
+        {
+            sessions.TryRemove(requestId, out _);
+            return null;
+        }
+
+        return session;
+    }
+
     public MobileAuthAuthorizationSession? Take(string requestId)
     {
         if (!sessions.TryRemove(requestId, out var session))
