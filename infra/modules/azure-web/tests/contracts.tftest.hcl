@@ -113,10 +113,11 @@ run "production_cloudflare_rules_are_single_cidrs" {
       contains([for rule in azurerm_linux_web_app.production.site_config[0].ip_restriction : rule.ip_address], "2c0f:f248::/32") &&
       azurerm_linux_web_app.production.site_config[0].scm_ip_restriction_default_action == "Allow" &&
       !azurerm_linux_web_app.production.site_config[0].scm_use_main_ip_restriction &&
+      length(azurerm_linux_web_app.production.site_config[0].scm_ip_restriction) == 0 &&
       azurerm_linux_web_app.production.ftp_publish_basic_authentication_enabled &&
       azurerm_linux_web_app.production.webdeploy_publish_basic_authentication_enabled
     )
-    error_message = "Production must allow one Cloudflare CIDR per rule, keep SCM Allow, and keep publish-profile basic auth enabled."
+    error_message = "Production must allow one Cloudflare CIDR per main-site rule, keep SCM Allow without that list, and keep publish-profile basic auth enabled."
   }
 }
 
