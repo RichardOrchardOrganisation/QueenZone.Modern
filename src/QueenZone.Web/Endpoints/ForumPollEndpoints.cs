@@ -18,6 +18,7 @@ public static class ForumPollEndpoints
                 CancellationToken cancellationToken) =>
             await VoteAsync(pollId, httpContext, pollRepository, antiforgery, cancellationToken))
             .RequireAuthorization(MemberAuthenticationSchemes.MemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery()
             .WithName("VoteForumPoll");
 
@@ -30,6 +31,7 @@ public static class ForumPollEndpoints
                 CancellationToken cancellationToken) =>
             await CloseAsync(pollId, httpContext, pollRepository, antiforgery, adminOptions.Value, cancellationToken))
             .RequireAuthorization(MemberAuthenticationSchemes.MemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery()
             .WithName("CloseForumPoll");
     }

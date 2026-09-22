@@ -9,7 +9,7 @@ using QueenZone.Data;
 namespace QueenZone.Web.Pages.FanPerformances;
 
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
-[EnableRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)]
+[EnableRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)]
 public sealed class ReportModel(
     IFanPerformanceRepository fanPerformanceRepository,
     FanPerformanceReportService fanPerformanceReportService) : PageModel

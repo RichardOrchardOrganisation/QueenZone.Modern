@@ -17,6 +17,7 @@ public static class NotificationPreferencesApiEndpoints
             .WithGroupName(ApiV1.OpenApiDocumentName)
             .WithTags("Notifications")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
         group.MapGet("/notification-preferences", GetAsync)
@@ -31,7 +32,8 @@ public static class NotificationPreferencesApiEndpoints
             .Accepts<NotificationPreferencePatchRequest>("application/json")
             .Produces<NotificationPreferencesResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 
     internal static async Task<IResult> GetAsync(

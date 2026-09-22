@@ -47,7 +47,7 @@ public static class ForumApiEndpoints
         memberGroup.MapPost("/posts/{postId:int}/report", ReportPostAsync)
             .WithName("ReportForumPost")
             .WithSummary("Report a visible forum post. Duplicate submissions return the existing report.")
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<ForumPostReportRequestDto>("application/json")
             .Produces<ForumPostReportResponseDto>(StatusCodes.Status201Created)
             .Produces<ForumPostReportResponseDto>(StatusCodes.Status200OK)
@@ -59,7 +59,7 @@ public static class ForumApiEndpoints
         memberGroup.MapPost("/posts/{postId:int}/block", BlockPostAuthorAsync)
             .WithName("BlockForumPostAuthor")
             .WithSummary("Block the linked member who authored a visible forum post.")
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -69,7 +69,7 @@ public static class ForumApiEndpoints
         memberGroup.MapPost("/posts/{postId:int}/unblock", UnblockPostAuthorAsync)
             .WithName("UnblockForumPostAuthor")
             .WithSummary("Unblock the linked member who authored a visible forum post.")
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -114,6 +114,7 @@ public static class ForumApiEndpoints
             .WithName("CreateForumTopic")
             .WithSummary("Create a topic in a public board. Same validation and rate limit as /forum/c/{slug}/new-thread.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<ForumWriteRequestDto>("application/json", "multipart/form-data")
             .Produces<ForumTopicCreatedDto>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -139,6 +140,7 @@ public static class ForumApiEndpoints
             .WithName("CreateForumReply")
             .WithSummary("Reply to a public topic. Same validation and rate limit as the website topic form.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<ForumWriteRequestDto>("application/json", "multipart/form-data")
             .Produces<ForumPostCreatedDto>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -152,13 +154,15 @@ public static class ForumApiEndpoints
             .WithName("UpdateForumPost")
             .WithSummary("Edit a public forum post. Same owner/admin and edit-window rules as /forum/post/{id}/edit.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<ForumPostUpdateRequestDto>("application/json")
             .Produces<ForumPostCreatedDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapGet("/topics/{id:int}/poll", GetTopicPollAsync)
             .WithName("GetForumTopicPoll")
@@ -170,22 +174,26 @@ public static class ForumApiEndpoints
             .WithName("VoteForumTopicPoll")
             .WithSummary("Cast one ballot on a topic poll. Same one-vote and closed rules as /forum/poll/{id}/vote.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Accepts<ForumPollVoteRequestDto>("application/json")
             .Produces<ForumPollDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/topics/{id:int}/poll/close", CloseTopicPollAsync)
             .WithName("CloseForumTopicPoll")
             .WithSummary("Close a topic poll. Same author-or-admin rule as /forum/poll/{id}/close.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Produces<ForumPollDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapGet("/topics/{id:int}/watch", GetTopicWatchAsync)
             .WithName("GetForumTopicWatch")
@@ -199,17 +207,21 @@ public static class ForumApiEndpoints
             .WithName("WatchForumTopic")
             .WithSummary("Watch a public topic. Idempotent. Does not auto-watch on post.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Produces<ForumTopicWatchDto>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapDelete("/topics/{id:int}/watch", UnwatchTopicAsync)
             .WithName("UnwatchForumTopic")
             .WithSummary("Stop Watching a public topic. Idempotent when not currently Watching.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .Produces<ForumTopicWatchDto>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapGet("/attachments/legacy/{legacyPostId:int}", DownloadLegacyAttachmentAsync)
             .WithName("GetForumLegacyAttachment")
