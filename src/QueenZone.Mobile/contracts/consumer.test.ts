@@ -410,18 +410,18 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
     );
   });
 
-  it('maps forbidden 403, not found 404, and poll conflict 409', async () => {
-    const forbidden = await expectApiError(
+  it('maps unauthorized 401 for a suspended reply, not found 404, and poll conflict 409', async () => {
+    const unauthorized = await expectApiError(
       'POST /api/v1/forum/topics/1002/posts',
-      403,
+      401,
       () => createForumReply(1002, { body: 'Suspended members cannot post.' }, fixture.suspendedMember.accessToken),
     );
     expectedField(
       'POST /api/v1/forum/topics/1002/posts',
       'problem.title',
-      forbidden.problem?.title,
-      (value) => value === 'Forbidden',
-      'Forbidden',
+      unauthorized.problem?.title,
+      (value) => value === 'Unauthorized',
+      'Unauthorized',
     );
 
     const missing = await expectApiError(
