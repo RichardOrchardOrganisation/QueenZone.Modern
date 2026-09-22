@@ -60,6 +60,7 @@ public sealed class EfSiteSearchService(
                 command.Parameters.Add(EfSql.Input("@Offset", offset));
                 command.Parameters.Add(EfSql.Input("@PageSize", take));
                 command.Parameters.Add(EfSql.Input("@RankLimit", SiteSearchLimits.MaxRankedMatches));
+                command.Parameters.Add(EfSql.Input("@TypedRankLimit", SiteSearchLimits.TypedMatchScanLimit));
                 command.Parameters.Add(totalRecords);
             },
             cancellationToken: cancellationToken);
