@@ -6,7 +6,6 @@ namespace QueenZone.Web.Pages;
 
 public sealed class IndexModel(
     PublicQueryCacheService publicQueryCache,
-    IArticleRepository articleRepository,
     NewsDiscussionComposer newsDiscussion,
     IQuoteRepository quoteRepository,
     IHomePollRepository homePollRepository,
@@ -76,7 +75,9 @@ public sealed class IndexModel(
         }
 
         var articles = await publicQueryCache.GetLatestArticlesAsync(ArticlesRoutes.HomeFeaturedCount, cancellationToken);
-        var community = await articleRepository.GetPageAsync(1, ArticlesRoutes.HomeFeaturedCount, ct: cancellationToken);
+        var community = await publicQueryCache.GetLatestCommunityArticlesAsync(
+            ArticlesRoutes.HomeFeaturedCount,
+            cancellationToken);
         var teasers = articles.Select(item => new
         {
             item.PublishedAt,

@@ -31,6 +31,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
             entity.Body = draft.Body ?? string.Empty;
             entity.CoverImageBlobPath = NormalizeOptional(draft.CoverImageBlobPath, 512);
             entity.Tags = NormalizeOptional(draft.Tags, 500);
+            entity.WordCount = EstimateWordCount(entity.Body);
         }
         else
         {
@@ -44,6 +45,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 Body = draft.Body ?? string.Empty,
                 CoverImageBlobPath = NormalizeOptional(draft.CoverImageBlobPath, 512),
                 Tags = NormalizeOptional(draft.Tags, 500),
+                WordCount = EstimateWordCount(draft.Body),
                 Status = ArticleSubmissionStatus.Draft,
             };
             dbContext.ArticleSubmissions.Add(entity);
@@ -178,7 +180,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                     a.Status,
                     a.SubmittedAt,
                     a.PublishedAt,
-                    BodyLength = a.Body.Length,
+                    a.WordCount,
                     DisplayName = a.Author != null ? a.Author.DisplayName : string.Empty,
                 })
                 .ToListAsync(ct);
@@ -195,7 +197,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                     string.IsNullOrWhiteSpace(a.DisplayName) ? "Unknown member" : a.DisplayName,
                     a.SubmittedAt,
                     a.PublishedAt,
-                    a.BodyLength / 5))
+                    a.WordCount))
                 .ToList();
         }
 
@@ -258,6 +260,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         if (status == ArticleSubmissionStatus.Published)
         {
             entity.PublishedAt = DateTimeOffset.UtcNow;
+            entity.WordCount = EstimateWordCount(entity.Body);
         }
 
         await dbContext.SaveChangesAsync(ct);
@@ -280,6 +283,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 a.Tags,
                 a.PublishedAt,
                 a.AuthorMemberId,
+                a.WordCount,
                 DisplayName = a.Author != null ? a.Author.DisplayName : string.Empty,
             })
             .ToListAsync(ct);
@@ -296,7 +300,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 a.Tags,
                 a.PublishedAt!.Value,
                 string.IsNullOrWhiteSpace(a.DisplayName) ? null : a.DisplayName,
-                EstimateWordCount(a.Body),
+                a.WordCount,
                 a.AuthorMemberId))
             .ToList();
     }
@@ -516,7 +520,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 a.Author != null ? a.Author.DisplayName : "Unknown member",
                 a.SubmittedAt,
                 a.PublishedAt,
-                a.Body.Length / 5));
+                a.WordCount));
 
     internal IQueryable<ArticleSubmission> MemberDraftsSqlQuery(int skip, int take, Guid memberId) =>
         dbContext.ArticleSubmissions

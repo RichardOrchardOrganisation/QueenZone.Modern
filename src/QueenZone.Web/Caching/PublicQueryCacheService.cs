@@ -10,6 +10,7 @@ public sealed class PublicQueryCacheService(
     IOptions<PublicQueryCacheOptions> options,
     INewsRepository newsRepository,
     IArticlesRepository articlesRepository,
+    IArticleRepository communityArticleRepository,
     IForumRepository forumRepository,
     IQueenHistoryRepository queenHistoryRepository,
     IPhotoRepository photoRepository,
@@ -93,6 +94,18 @@ public sealed class PublicQueryCacheService(
             PublicQueryCacheKeys.LatestArticles(version, count),
             options.Value.ArticleCountCacheDuration,
             () => articlesRepository.GetLatestAsync(count, cancellationToken),
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyList<PublishedArticleSubmission>> GetLatestCommunityArticlesAsync(
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        var version = GetArticleCacheVersion();
+        return GetOrCreateAsync(
+            PublicQueryCacheKeys.LatestCommunityArticles(version, count),
+            options.Value.ArticleCountCacheDuration,
+            () => communityArticleRepository.GetPageAsync(1, count, ct: cancellationToken),
             cancellationToken);
     }
 
