@@ -7,7 +7,7 @@ import {
 import RenderHTML, {
   defaultSystemFonts,
   type MixedStyleRecord,
-} from 'react-native-render-html';
+} from '@native-html/render';
 import { toPlainText } from '../api/text';
 import { getAppConfig } from '../config';
 import { fonts, space, type, useTheme } from '../theme';

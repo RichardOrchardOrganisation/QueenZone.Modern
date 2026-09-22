@@ -78,12 +78,11 @@ is in [`npm-advisory-allowlist.json`](./npm-advisory-allowlist.json); see
 [`npm-advisory-allowlist.md`](./npm-advisory-allowlist.md). Never run
 `npm audit fix --force`.
 
-The React Native Directory check stays enabled, with two narrow exceptions in
+The React Native Directory check stays enabled, with one narrow exception in
 `package.json`: `queenzone-wallpaper` is a private in-repo Expo module and
-therefore has no public Directory metadata; `react-native-render-html` is the
-existing renderer behind `RichHtmlBody`, covered by the mobile tests and native
-release builds, but currently marked unmaintained by the Directory. Reassess
-the latter exception when replacing or upgrading the renderer.
+therefore has no public Directory metadata. `RichHtmlBody` renders through
+`@native-html/render`, the actively maintained successor to
+`react-native-render-html` (issue #1682), so no exception is needed for it.
 `npm test` discovers every `src/**/*.test.ts` and `src/**/*.test.tsx` file:
 Node's test runner executes pure `*.test.ts` files, and Jest + `jest-expo` +
 React Native Testing Library execute component/hook `*.test.tsx` files. Do
