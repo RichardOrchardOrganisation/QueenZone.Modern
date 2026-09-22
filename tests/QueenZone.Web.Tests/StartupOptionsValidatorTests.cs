@@ -512,6 +512,47 @@ public sealed class StartupOptionsValidatorTests
         Assert.False(result.Failed);
     }
 
+    [Fact]
+    public void MutationRateLimitingOptionsValidator_accepts_defaults()
+    {
+        var result = new MutationRateLimitingOptionsValidator()
+            .Validate(null, new MutationRateLimitingOptions());
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(0, 1, 20, 1, 120, 1)]
+    [InlineData(20, 0, 20, 1, 120, 1)]
+    [InlineData(20, 1, 0, 1, 120, 1)]
+    [InlineData(20, 1, 20, 0, 120, 1)]
+    [InlineData(20, 1, 20, 1, 0, 1)]
+    [InlineData(20, 1, 20, 1, 120, 0)]
+    [InlineData(MutationRateLimitingOptionsValidator.MaxPermitLimit + 1, 1, 20, 1, 120, 1)]
+    [InlineData(20, MutationRateLimitingOptionsValidator.MaxWindowMinutes + 1, 20, 1, 120, 1)]
+    public void MutationRateLimitingOptionsValidator_rejects_non_positive_or_oversized_limits(
+        int anonymousPermit,
+        int anonymousWindow,
+        int memberPermit,
+        int memberWindow,
+        int ipPermit,
+        int ipWindow)
+    {
+        var result = new MutationRateLimitingOptionsValidator().Validate(
+            null,
+            new MutationRateLimitingOptions
+            {
+                AnonymousPermitLimit = anonymousPermit,
+                AnonymousWindowMinutes = anonymousWindow,
+                AuthenticatedMemberPermitLimit = memberPermit,
+                AuthenticatedMemberWindowMinutes = memberWindow,
+                AuthenticatedIpPermitLimit = ipPermit,
+                AuthenticatedIpWindowMinutes = ipWindow,
+            });
+
+        Assert.True(result.Failed);
+        Assert.Contains(MutationRateLimitingOptions.SectionName, result.FailureMessage);
+    }
+
     [Theory]
     [InlineData(0, 1, 10, 1)]
     [InlineData(30, 0, 10, 1)]

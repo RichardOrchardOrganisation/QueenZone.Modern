@@ -122,12 +122,44 @@ public static class QueenZoneWebServiceCollectionExtensions
             .Bind(configuration.GetSection(AuthRateLimitingOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AuthRateLimitingOptions>, AuthRateLimitingOptionsValidator>();
+        services.AddOptions<MutationRateLimitingOptions>()
+            .Bind(configuration.GetSection(MutationRateLimitingOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            IValidateOptions<MutationRateLimitingOptions>,
+            MutationRateLimitingOptionsValidator>();
         services.AddSingleton<MobileAuthAccountRateLimiter>();
 
         services.AddRateLimiter(limiter =>
         {
             limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             limiter.OnRejected = AuthRateLimitRejection.WriteAsync;
+
+            // ASP.NET Core composes the global limiter with an endpoint policy.
+            // Return a no-op partition for every route except an endpoint that has
+            // explicitly opted into AuthenticatedWrite. This provides a coarse
+            // cross-account IP safety net while the named endpoint policy remains
+            // member-partitioned for fairness.
+            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AuthenticatedIpSafetyNet(context, opts);
+            });
+
+            limiter.AddPolicy(QueenZoneRateLimitPolicies.AnonymousWrite, context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AnonymousWrite(context, opts);
+            });
+
+            limiter.AddPolicy(QueenZoneRateLimitPolicies.AuthenticatedWrite, context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AuthenticatedWrite(context, opts);
+            });
 
             limiter.AddPolicy(FanPerformanceRateLimitingOptions.AudioPolicy, context =>
             {
