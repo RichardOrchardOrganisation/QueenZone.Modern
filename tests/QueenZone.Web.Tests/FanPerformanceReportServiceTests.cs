@@ -95,7 +95,8 @@ public sealed class FanPerformanceReportServiceTests
                 new InMemoryQuoteRepository(SampleQuoteData.CreateSeedQuotes()),
                 new InMemoryTriviaRepository(SampleTriviaData.CreateSeedFacts()),
                 new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-                new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums())),
+                new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
+                new InMemoryFreddieTributeRepository(new SharedFreddieTributeStore(SampleFreddieTributeData.CreateSeedTributes()))),
             new CoreSitemapService(
                 new CoreSitemapBuilder(
                     new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),

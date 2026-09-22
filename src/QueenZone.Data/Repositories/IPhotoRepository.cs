@@ -15,8 +15,10 @@ public interface IPhotoRepository
 
     /// <summary>
     /// Loads one photo plus prev/next ids and position without materializing the category.
-    /// When <paramref name="filter"/> is active, totals/neighbors are restricted to matches
-    /// and the current photo must match the filter (otherwise null).
+    /// When <paramref name="filter"/> is active and the photo matches, totals and neighbors
+    /// are restricted to matches. When the photo does not match, one unfiltered navigation
+    /// query is used and <see cref="PhotoDetailNavigation.MatchedRequestedFilter"/> is false.
+    /// Returns null when the photo is not a displayed member of the category.
     /// </summary>
     Task<PhotoDetailNavigation?> GetDetailNavigationAsync(
         int catId,
@@ -31,12 +33,27 @@ public interface IPhotoRepository
     Task<IReadOnlyList<PhotoItem>> GetCategoryAllAsync(int catId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns up to <paramref name="take"/> published photos from a category in random order
-    /// without materializing the full category (SQL <c>TOP</c> / <c>LIMIT</c> + random order).
+    /// Returns up to <paramref name="take"/> published photos from a category.
+    /// The sample is an indexed id pick, not a sort of the category.
     /// </summary>
     Task<IReadOnlyList<PhotoItem>> GetRandomPublishedInCategoryAsync(
         int catId,
         int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Picks up to <paramref name="take"/> published pic ids (capped at 8) by seeking
+    /// a random id in the category's min/max range.
+    /// </summary>
+    Task<IReadOnlyList<int>> PickRandomPublishedPhotoIdsAsync(
+        int catId,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Loads the published photos for the given ids, in that order.</summary>
+    Task<IReadOnlyList<PhotoItem>> GetPublishedByIdsAsync(
+        int catId,
+        IReadOnlyList<int> picIds,
         CancellationToken cancellationToken = default);
 
     /// <summary>

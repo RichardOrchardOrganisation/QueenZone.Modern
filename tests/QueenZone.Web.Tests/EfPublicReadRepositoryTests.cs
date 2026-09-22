@@ -526,7 +526,26 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 FROM FreddieTributes
                 WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
                 """,
-            randomSql: """
+            idBoundsSql: """
+                SELECT MIN(Id) AS MinId, MAX(Id) AS MaxId
+                FROM FreddieTributes
+                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
+                """,
+            idSeekAtOrAfterSql: """
+                SELECT Id AS Value
+                FROM FreddieTributes
+                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL AND Id >= {0}
+                ORDER BY Id
+                LIMIT 1
+                """,
+            idSeekBeforeSql: """
+                SELECT Id AS Value
+                FROM FreddieTributes
+                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL AND Id < {0}
+                ORDER BY Id DESC
+                LIMIT 1
+                """,
+            byIdSql: """
                 SELECT
                     Id,
                     COALESCE(TRIM(Name), 'Anonymous') AS Name,
@@ -535,9 +554,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                     TRIM(DateText) AS DateText,
                     NULLIF(TRIM(COALESCE(TimeText, '')), '') AS TimeText
                 FROM FreddieTributes
-                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
-                ORDER BY Id DESC
-                LIMIT 1
+                WHERE Id = {0} AND Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
                 """);
 
         var page = await repository.GetPageAsync(1, 10);
@@ -553,7 +570,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var random = await repository.GetRandomAsync();
         Assert.NotNull(random);
-        Assert.Equal(4, random.Id);
+        Assert.Contains(random.Id, new[] { 3, 4 });
+
+        var byId = await repository.GetVisibleByIdAsync(3);
+        Assert.NotNull(byId);
+        Assert.Equal("Maya", byId.Name);
+        Assert.Null(await repository.GetVisibleByIdAsync(1));
+        Assert.Null(await repository.GetVisibleByIdAsync(2));
     }
 
     [Fact]

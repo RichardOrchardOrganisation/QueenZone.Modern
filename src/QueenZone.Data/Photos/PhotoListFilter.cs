@@ -121,11 +121,12 @@ public sealed class PhotoListFilter : IEquatable<PhotoListFilter>
     public bool Matches(PhotoItem photo) => Matches(photo.PictureWidth, photo.PictureHeight);
 
     /// <summary>
-    /// SQL Server / SQLite AND-clause fragment starting with a leading space + AND.
-    /// <paramref name="widthExpr"/> / <paramref name="heightExpr"/> must be integer expressions
-    /// (already cast if needed), e.g. <c>CAST(ISNULL(p.PIC_WIDTH, 0) AS int)</c> or <c>p.PIC_WIDTH</c>.
+    /// SQL AND-clause fragment starting with a leading space + AND.
+    /// <paramref name="widthExpr"/> and <paramref name="heightExpr"/> are bare integer columns
+    /// (or SQLite <c>IFNULL</c> expressions). <paramref name="longestSideExpr"/> is the persisted
+    /// <c>PIC_LONGEST_SIDE</c> column on SQL Server; SQLite omits it and uses a <c>CASE</c>.
     /// </summary>
-    public string ToSqlAndClause(string widthExpr, string heightExpr)
+    public string ToSqlAndClause(string widthExpr, string heightExpr, string? longestSideExpr = null)
     {
         if (!IsActive)
         {
@@ -139,10 +140,12 @@ public sealed class PhotoListFilter : IEquatable<PhotoListFilter>
                 $"{usable} AND {widthExpr} >= {DesktopMinWidth} AND {widthExpr} >= {heightExpr}",
             PhotoSizePreset.Phone =>
                 $"{usable} AND {heightExpr} >= {PhoneMinHeight} AND {heightExpr} > {widthExpr}",
-            PhotoSizePreset.Large =>
-                $"{usable} AND (CASE WHEN {widthExpr} > {heightExpr} THEN {widthExpr} ELSE {heightExpr} END) >= {LargeMinLongestSide}",
-            PhotoSizePreset.Hd =>
-                $"{usable} AND (CASE WHEN {widthExpr} > {heightExpr} THEN {widthExpr} ELSE {heightExpr} END) >= {HdMinLongestSide}",
+            PhotoSizePreset.Large => longestSideExpr is null
+                ? $"{usable} AND (CASE WHEN {widthExpr} > {heightExpr} THEN {widthExpr} ELSE {heightExpr} END) >= {LargeMinLongestSide}"
+                : $"{longestSideExpr} >= {LargeMinLongestSide}",
+            PhotoSizePreset.Hd => longestSideExpr is null
+                ? $"{usable} AND (CASE WHEN {widthExpr} > {heightExpr} THEN {widthExpr} ELSE {heightExpr} END) >= {HdMinLongestSide}"
+                : $"{longestSideExpr} >= {HdMinLongestSide}",
             PhotoSizePreset.Landscape =>
                 $"{usable} AND {widthExpr} > {heightExpr}",
             PhotoSizePreset.Portrait =>
@@ -153,13 +156,14 @@ public sealed class PhotoListFilter : IEquatable<PhotoListFilter>
         return " AND " + body;
     }
 
-    /// <summary>Production SQL Server expressions for a table alias (or empty for unqualified).</summary>
+    /// <summary>
+    /// Production SQL Server fragment. Compares bare <c>PIC_WIDTH</c>/<c>PIC_HEIGHT</c>
+    /// or the persisted <c>PIC_LONGEST_SIDE</c> column — never <c>CAST</c> around the column.
+    /// </summary>
     public string ToSqlServerAndClause(string tableAlias)
     {
         var prefix = string.IsNullOrEmpty(tableAlias) ? string.Empty : tableAlias + ".";
-        var w = $"CAST(ISNULL({prefix}PIC_WIDTH, 0) AS int)";
-        var h = $"CAST(ISNULL({prefix}PIC_HEIGHT, 0) AS int)";
-        return ToSqlAndClause(w, h);
+        return ToSqlAndClause($"{prefix}PIC_WIDTH", $"{prefix}PIC_HEIGHT", $"{prefix}PIC_LONGEST_SIDE");
     }
 
     /// <summary>SQLite fixture expressions (integer columns).</summary>
