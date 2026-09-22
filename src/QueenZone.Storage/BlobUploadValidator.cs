@@ -66,24 +66,42 @@ internal sealed class BlobUploadValidator(BlobUploadOptions options)
 
         // Prefer sniff when available; require agreement with extension when both present.
         // Office Open XML (docx/xlsx) files are ZIP containers — allow extension to win.
-        // Audio must be sniffed: a .mp3/.flac name with non-audio bytes is rejected.
-        if (IsAudioContentType(fromExtension) && fromSniff is null)
+        // Legacy .doc/.xls are OLE compound files — same exception, extension wins.
+        // Audio and every other non-image type must match a real signature. A null sniff
+        // must not fall through to the extension for PDF, text, zip, or Office.
+        if (IsAudioContentType(fromExtension) && !IsAudioContentType(fromSniff))
+        {
+            if (fromSniff is null
+                || string.Equals(fromSniff, "text/plain", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BlobUploadException(
+                    $"File content is not recognized as audio for '{originalFileName}'.");
+            }
+        }
+
+        if (fromExtension is not null
+            && !IsImageContentType(fromExtension)
+            && !IsAudioContentType(fromExtension)
+            && fromSniff is null)
         {
             throw new BlobUploadException(
-                $"File content is not recognized as audio for '{originalFileName}'.");
+                $"File content is not recognized for '{originalFileName}'.");
         }
 
         string? contentType = fromSniff ?? fromExtension;
+        var zipOffice = IsZipBasedOfficePackage(fromSniff, fromExtension);
+        var oleOffice = IsOleCompoundOfficePackage(fromSniff, fromExtension);
         if (fromSniff is not null
             && fromExtension is not null
             && !ContentTypesAgree(fromSniff, fromExtension)
-            && !IsZipBasedOfficePackage(fromSniff, fromExtension))
+            && !zipOffice
+            && !oleOffice)
         {
             throw new BlobUploadException(
                 $"File content type '{fromSniff}' does not match extension '{extension}' ({fromExtension}).");
         }
 
-        if (IsZipBasedOfficePackage(fromSniff, fromExtension) && fromExtension is not null)
+        if ((zipOffice || oleOffice) && fromExtension is not null)
         {
             contentType = fromExtension;
         }
@@ -109,6 +127,10 @@ internal sealed class BlobUploadValidator(BlobUploadOptions options)
         contentType is not null
         && contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsImageContentType(string? contentType) =>
+        contentType is not null
+        && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
     internal static bool ContentTypesAgree(string a, string b) =>
         string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
         || (CanonicalAudioType(a) is { } left
@@ -128,4 +150,10 @@ internal sealed class BlobUploadValidator(BlobUploadOptions options)
         && fromExtension is not null
         && (string.Equals(fromExtension, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", StringComparison.OrdinalIgnoreCase)
             || string.Equals(fromExtension, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsOleCompoundOfficePackage(string? sniffed, string? fromExtension) =>
+        string.Equals(sniffed, BlobContentSniffer.OleCompoundContentType, StringComparison.OrdinalIgnoreCase)
+        && fromExtension is not null
+        && (string.Equals(fromExtension, "application/msword", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fromExtension, "application/vnd.ms-excel", StringComparison.OrdinalIgnoreCase));
 }
