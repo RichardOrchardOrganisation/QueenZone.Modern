@@ -4,8 +4,9 @@
 -- 20260827143000_CapSearchDocumentSearchMatches (single FTS pass + rank cap),
 -- 20260908140000_CapTypedSearchAfterContentTypeFilter (typed search caps after
 -- the ContentType filter so a track-title hit is not crowded out of the global top 1000),
--- and 20260914080000_RecompileSearchDocumentSearchMatches (OPTION (RECOMPILE) on both
--- FREETEXTTABLE match inserts).
+-- 20260914080000_RecompileSearchDocumentSearchMatches (OPTION (RECOMPILE) on both
+-- FREETEXTTABLE match inserts), and 20260922090000_CapTypedSearchFullTextCandidates
+-- (finite typed-search candidate window).
 -- See docs/sql/README.md for contributor conventions.
 --
 -- Unlike the per-content-type NEWS_T_SearchPublished / ModernForum_SearchThreads procs, this
@@ -16,9 +17,10 @@
 -- Untyped All keeps FREETEXTTABLE top_n_by_rank as a timeout guard: an uncapped double scan
 -- of a Queen-heavy archive (every thread mentioning "queen" / "freddie") exceeded the
 -- 30-second command timeout and 500'd both /search and GET /api/v1/search.
--- Typed search (@ContentType set) must not reuse that global cap. News and forum rows fill
--- the top 1000 for common terms, so a discography album whose track title lives only in Body
--- never entered #Matches. Filter ContentType first, then apply the same rank cap.
+-- Typed search (@ContentType set) uses a wider finite candidate window. News and forum rows can
+-- fill the global top 1000 for common terms, so a discography album whose track title lives only
+-- in Body needs room to enter the candidate set before ContentType is filtered. The finite 5000
+-- scan cap avoids asking the full-text engine to rank the entire corpus.
 --
 -- Both FREETEXTTABLE match inserts carry OPTION (RECOMPILE). @MatchLimit and @ContentType
 -- are local variables, not literals, so without RECOMPILE the optimizer compiles (and then
@@ -38,7 +40,8 @@ CREATE OR ALTER PROCEDURE dbo.SearchDocument_Search
     @Offset       INT,
     @PageSize     INT,
     @TotalRecords INT OUTPUT,
-    @RankLimit    INT = 1000
+    @RankLimit    INT = 1000,
+    @TypedRankLimit INT = 5000
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -47,6 +50,12 @@ BEGIN
         WHEN @RankLimit IS NULL OR @RankLimit < 1 THEN 1000
         WHEN @RankLimit > 1000 THEN 1000
         ELSE @RankLimit
+    END;
+
+    DECLARE @TypedMatchLimit INT = CASE
+        WHEN @TypedRankLimit IS NULL OR @TypedRankLimit < 1 THEN 5000
+        WHEN @TypedRankLimit > 5000 THEN 5000
+        ELSE @TypedRankLimit
     END;
 
     CREATE TABLE #Matches
@@ -68,7 +77,7 @@ BEGIN
         SELECT TOP (@MatchLimit)
                d.Id,
                ft.[RANK]
-        FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query) ft
+        FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
         INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
         WHERE  d.ContentType = @ContentType
         ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC

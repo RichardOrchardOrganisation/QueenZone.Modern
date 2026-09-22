@@ -8,6 +8,7 @@ public sealed class SearchDocumentSearchSqlTests
     public void Rank_cap_matches_the_sql_source_of_truth()
     {
         Assert.Equal(1000, SiteSearchLimits.MaxRankedMatches);
+        Assert.Equal(5000, SiteSearchLimits.TypedMatchScanLimit);
         Assert.Contains(
             "@RankLimit    INT = 1000",
             ReadSqlSourceOfTruth(),
@@ -44,7 +45,7 @@ public sealed class SearchDocumentSearchSqlTests
 
         Assert.Contains("SELECT TOP (@MatchLimit)", typedBranch, StringComparison.Ordinal);
         Assert.Contains(
-            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query)",
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit)",
             typedBranch,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -56,6 +57,23 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.True(orderIndex > filterIndex, "Typed search must apply TOP after the ContentType filter.");
         Assert.DoesNotContain("[RANK] *", typedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("CONTAINSTABLE", typedBranch, StringComparison.Ordinal);
+        Assert.Contains("SELECT TOP (@MatchLimit)", typedBranch, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Typed_search_candidate_scan_has_a_finite_independent_cap()
+    {
+        var sql = ReadSqlSourceOfTruth();
+
+        Assert.Contains("@TypedRankLimit INT = 5000", sql, StringComparison.Ordinal);
+        Assert.Contains("DECLARE @TypedMatchLimit INT = CASE", sql, StringComparison.Ordinal);
+        Assert.Contains("WHEN @TypedRankLimit > 5000 THEN 5000", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit)",
+            ReadTypedMatchInsert(),
+            StringComparison.Ordinal);
+        Assert.Contains("SiteSearchLimits.TypedMatchScanLimit", ReadRepoFile(
+            Path.Combine("src", "QueenZone.Data", "Repositories", "EfSiteSearchService.cs")));
     }
 
     [Fact]
@@ -150,6 +168,23 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.Contains("SELECT TOP (@MatchLimit)", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("ReplaceContentTypeAsync", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("START FULL POPULATION", migration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Latest_migration_embeds_the_finite_typed_candidate_cap()
+    {
+        var migration = ReadRepoFile(Path.Combine(
+            "src", "QueenZone.Data", "Migrations", "20260922090000_CapTypedSearchFullTextCandidates.cs"));
+        var upStart = migration.IndexOf("protected override void Up", StringComparison.Ordinal);
+        var downStart = migration.IndexOf("protected override void Down", StringComparison.Ordinal);
+        Assert.True(upStart >= 0 && downStart > upStart, "Expected Up before Down.");
+
+        var up = migration[upStart..downStart];
+        Assert.Contains("@TypedRankLimit INT = 5000", up, StringComparison.Ordinal);
+        Assert.Contains("WHEN @TypedRankLimit > 5000 THEN 5000", up, StringComparison.Ordinal);
+        Assert.Contains("@Query, @TypedMatchLimit", up, StringComparison.Ordinal);
+        Assert.Contains("OPTION (RECOMPILE)", up, StringComparison.Ordinal);
+        Assert.DoesNotContain("@TypedRankLimit", migration[downStart..], StringComparison.Ordinal);
     }
 
     private static string ReadSqlSourceOfTruth() =>
