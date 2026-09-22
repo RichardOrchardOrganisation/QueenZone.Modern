@@ -138,8 +138,8 @@ configuration" means differs by resource class:
 after every apply: the general route suite (`Smoke-LiveSite.ps1`), a direct
 Azure origin check (`GET /health` on `queenzone-prod.azurewebsites.net` must
 return 403), `/health/ready` reachability, the `cdn2.queenzone.org/songfiles/*`
-→ 404 contract, and a Cloudflare-proxy reachability check on
-`cdn.queenzone.org`. Application Insights freshness is checked best-effort
+and `cdn2.queenzone.org/attachments/*` → 404 contracts, and a Cloudflare-proxy
+reachability check on `cdn.queenzone.org`. Application Insights freshness is checked best-effort
 and never blocks the workflow.
 
 A failure in this job does not undo the apply (see Rollback guidance above);
