@@ -225,9 +225,9 @@ public static class ForumApiEndpoints
 
         group.MapGet("/attachments/legacy/{legacyPostId:int}", DownloadLegacyAttachmentAsync)
             .WithName("GetForumLegacyAttachment")
-            .WithSummary("Member-gated legacy attachment. Same redirect as /forum/attachment/legacy/{legacyPostId}.")
+            .WithSummary("Member-gated legacy attachment. Same stream as /forum/attachment/legacy/{legacyPostId}.")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .Produces(StatusCodes.Status302Found)
+            .Produces(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
@@ -945,8 +945,13 @@ public static class ForumApiEndpoints
     internal static Task<IResult> DownloadLegacyAttachmentAsync(
         int legacyPostId,
         IForumAttachmentRepository attachmentRepository,
+        IBlobUploadService blobUploadService,
         CancellationToken cancellationToken) =>
-        ForumAttachmentEndpoints.ServeLegacyAsync(legacyPostId, attachmentRepository, cancellationToken);
+        ForumAttachmentEndpoints.ServeLegacyAsync(
+            legacyPostId,
+            attachmentRepository,
+            blobUploadService,
+            cancellationToken);
 
     internal static Task<IResult> DownloadModernAttachmentAsync(
         int legacyPostId,

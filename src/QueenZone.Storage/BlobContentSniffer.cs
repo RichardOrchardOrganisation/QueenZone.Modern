@@ -1,3 +1,6 @@
+using System.Buffers;
+using System.Text;
+
 namespace QueenZone.Storage;
 
 /// <summary>
@@ -5,6 +8,9 @@ namespace QueenZone.Storage;
 /// </summary>
 internal static class BlobContentSniffer
 {
+    /// <summary>OLE compound document (legacy .doc/.xls/.ppt). Not a public MIME type.</summary>
+    public const string OleCompoundContentType = "application/x-cfbf";
+
     public static string? TryDetectContentType(ReadOnlySpan<byte> header)
     {
         if (header.Length >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
@@ -102,7 +108,82 @@ internal static class BlobContentSniffer
             return "audio/mpeg";
         }
 
+        // OLE compound file (legacy Word/Excel/PowerPoint). Checked before text so
+        // embedded NULs are not required for a positive signature.
+        if (header.Length >= 8
+            && header[0] == 0xD0
+            && header[1] == 0xCF
+            && header[2] == 0x11
+            && header[3] == 0xE0
+            && header[4] == 0xA1
+            && header[5] == 0xB1
+            && header[6] == 0x1A
+            && header[7] == 0xE1)
+        {
+            return OleCompoundContentType;
+        }
+
+        if (IsConservativePlainText(header))
+        {
+            return "text/plain";
+        }
+
         return null;
+    }
+
+    /// <summary>
+    /// Plain text has no magic number. Accept only a header with no NUL in the first 64 bytes
+    /// that is valid UTF-8 or Windows-1252.
+    /// </summary>
+    private static bool IsConservativePlainText(ReadOnlySpan<byte> header)
+    {
+        if (header.IsEmpty)
+        {
+            return false;
+        }
+
+        var window = header.Length > 64 ? header[..64] : header;
+        if (window.IndexOf((byte)0) >= 0)
+        {
+            return false;
+        }
+
+        return IsValidUtf8(window) || IsValidWindows1252(window);
+    }
+
+    private static bool IsValidUtf8(ReadOnlySpan<byte> header)
+    {
+        var remaining = header;
+        while (!remaining.IsEmpty)
+        {
+            var status = Rune.DecodeFromUtf8(remaining, out _, out var consumed);
+            if (status == OperationStatus.Done)
+            {
+                remaining = remaining[consumed..];
+                continue;
+            }
+
+            // The sniff window can split a trailing multibyte character.
+            return status == OperationStatus.NeedMoreData;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Windows-1252 defines every byte except 0x81, 0x8D, 0x8F, 0x90, and 0x9D.
+    /// </summary>
+    private static bool IsValidWindows1252(ReadOnlySpan<byte> header)
+    {
+        foreach (var value in header)
+        {
+            if (value is 0x81 or 0x8D or 0x8F or 0x90 or 0x9D)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool HasMpegFrameSync(ReadOnlySpan<byte> header)
