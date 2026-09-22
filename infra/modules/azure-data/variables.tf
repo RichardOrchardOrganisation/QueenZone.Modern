@@ -146,7 +146,7 @@ variable "containers" {
   type        = map(string)
   default = {
     "album-or-single-covers"  = "Blob"
-    "attachments"             = "Blob"
+    "attachments"             = "None"
     "avatars"                 = "Blob"
     "brian-may"               = "Blob"
     "css"                     = "Container"
@@ -182,7 +182,7 @@ variable "containers" {
   }
 
   validation {
-    condition     = var.containers["databasebackup"] == "None" && lookup(var.containers, "ugc-articles", "None") == "None" && var.containers["ugc-avatars"] == "None" && var.containers["ugc-forum"] == "None" && lookup(var.containers, "ugc-photos", "None") == "None" && var.containers["songfiles"] == "None"
-    error_message = "Backup, modern UGC, and songfiles containers must remain private."
+    condition     = var.containers["databasebackup"] == "None" && lookup(var.containers, "ugc-articles", "None") == "None" && var.containers["ugc-avatars"] == "None" && var.containers["ugc-forum"] == "None" && lookup(var.containers, "ugc-photos", "None") == "None" && var.containers["songfiles"] == "None" && var.containers["attachments"] == "None"
+    error_message = "Backup, modern UGC, songfiles, and legacy attachments containers must remain private."
   }
 }
