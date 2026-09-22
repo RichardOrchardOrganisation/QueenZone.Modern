@@ -159,7 +159,6 @@ jobs:
               "BlobUpload__PublicBaseUrl=https://queenzonedev.blob.core.windows.net" \
               "QUEENZONE_PHOTO_PUBLIC_BASE_URL=https://queenzonedev.blob.core.windows.net" \
               "QUEENZONE_PHOTO_BLOB_ENDPOINT=https://queenzonedev.blob.core.windows.net" \
-              "QUEENZONE_FORUM_ATTACHMENTS_BASE_URL=https://queenzonedev.blob.core.windows.net/attachments" \
               "DevSnapshot__Ready=false" \
             --output none
 
