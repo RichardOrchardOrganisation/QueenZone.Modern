@@ -1,18 +1,33 @@
 # Azure data module
 
-This module owns the imported Azure SQL server/database, the Azure-services
-firewall rule, disabled auditing settings, Storage account, Blob protection
-settings, and approved containers. ARM requires the existing SQL administrator
-name in the server resource, but its password remains external. Database schema,
-SQL principals, connection strings, and blob objects remain outside OpenTofu.
+This module owns the Azure SQL server/database, optional explicit firewall
+rules, extended auditing, Storage account, Blob protection settings, and
+approved containers. `create_azure_services_firewall_rule` still defaults to
+the imported `AllowAllWindowsAzureIps` rule for `queenzone-sql-server`.
+`queenzone-prod-sql` sets that flag false and passes App Service outbound
+addresses instead. Turning the flag off drops the instance count to zero.
+`lifecycle.destroy = false` forgets that state address instead of deleting
+the Azure rule. `prevent_destroy` stays set.
+
+SQL extended auditing is off unless `sql_extended_auditing_enabled` is set.
+Production points it at `queenzone-prod-law`. Retention follows that workspace
+(30 days). Do not add a storage-account audit destination. `public_network_access_enabled`
+stays true, and `azuread_authentication_only` stays false while
+`ignore_changes = [azuread_administrator]` is set and the app still uses SQL
+authentication.
+
+ARM requires the existing SQL administrator name in the server resource, but
+its password remains external. Database schema, SQL principals, connection
+strings, and blob objects remain outside OpenTofu.
 
 Storage uses AzAPI so the provider never calls `listKeys` or exports generated
 account keys and connection strings into state. The resources export IDs only.
 
 The SQL database remains Basic 5 DTU with a 2 GB limit, 7-day LRS short-term
 retention, and no long-term retention. The personal workstation firewall rule
-is outside this stack. No diagnostic settings or stack-owned RBAC assignments
-exist, so none are invented.
+is outside this stack. The only diagnostic settings this module creates are
+`sql-security-audit` for `SQLSecurityAuditEvents` when auditing is enabled.
+No stack-owned RBAC assignments exist.
 
 Blob and container soft delete remain seven days. Versioning, change feed,
 point-in-time restore, and lifecycle rules remain disabled or absent. This is a
