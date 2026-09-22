@@ -6,6 +6,16 @@
   "engines": {
     "node": ">=24 <25"
   },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "queenzone-wallpaper",
+          "react-native-render-html"
+        ]
+      }
+    }
+  },
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
@@ -39,6 +49,7 @@
     "expo-asset": "~57.0.18",
     "expo-audio": "~57.0.5",
     "expo-background-task": "~57.0.19",
+    "expo-build-properties": "~57.0.21",
     "expo-constants": "~57.0.19",
     "expo-crypto": "~57.0.3",
     "expo-dev-client": "~57.0.19",
