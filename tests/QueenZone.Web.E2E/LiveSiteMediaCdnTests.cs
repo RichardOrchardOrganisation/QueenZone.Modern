@@ -9,8 +9,10 @@ namespace QueenZone.Web.E2E;
 /// <summary>
 /// Live-site / real-data media host checks (#551). Anonymous public pages only — no admin or
 /// member routes. Fan-performance audio is member-gated and app-proxied (#177); anonymous
-/// <c>cdn2</c> / raw blob <c>songfiles</c> URLs must fail. Photography images may resolve
-/// through <c>cdn.queenzone.org</c> (or follow redirects).
+/// <c>cdn2</c> / raw blob <c>songfiles</c> URLs must fail. Legacy forum attachments are the
+/// same kind of private object (#1656); anonymous <c>cdn2</c> / raw blob <c>attachments</c>
+/// URLs must fail. Photography images may resolve through <c>cdn.queenzone.org</c>
+/// (or follow redirects).
 /// </summary>
 [Parallelizable(ParallelScope.Self)]
 [TestFixture]
@@ -37,11 +39,26 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     private const string KnownAnonymousSongfileBlobUrl =
         "https://queenzoneprod.blob.core.windows.net/songfiles/2014417798057369.mp3";
 
+    /// <summary>
+    /// Probe name does not need to exist. The cdn2 Worker snapshot returns 404 for
+    /// <c>/attachments/*</c> before origin, matching <c>songfiles</c>. A public container
+    /// would still 404 this particular name; a 200 would mean the path was served.
+    /// </summary>
+    private const string AnonymousAttachmentCdnUrl =
+        "https://cdn2.queenzone.org/attachments/probe-object-does-not-need-to-exist";
+
+    private const string AnonymousAttachmentBlobUrl =
+        "https://queenzoneprod.blob.core.windows.net/attachments/probe-object-does-not-need-to-exist";
+
     protected override bool AllowsWrites => false;
 
     [Test]
     public void SongfilesContainerName_IsPrivateSongfiles() =>
         Assert.That(SongFileUrl.ContainerName, Is.EqualTo("songfiles"));
+
+    [Test]
+    public void LegacyAttachmentsContainerName_IsPrivateAttachments() =>
+        Assert.That(ForumAttachmentPaths.LegacyContainerName, Is.EqualTo("attachments"));
 
     [Test]
     public async Task AnonymousCdn2SongfileUrl_IsDeniedAsync() =>
@@ -51,7 +68,18 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     public async Task AnonymousRawBlobSongfileUrl_IsDeniedAsync() =>
         await AssertAnonymousSongfileDeniedAsync(KnownAnonymousSongfileBlobUrl);
 
-    private async Task AssertAnonymousSongfileDeniedAsync(string url)
+    [Test]
+    public async Task AnonymousCdn2AttachmentUrl_IsDeniedAsync() =>
+        await AssertAnonymousPrivateMediaDeniedAsync(AnonymousAttachmentCdnUrl, "attachments");
+
+    [Test]
+    public async Task AnonymousRawBlobAttachmentUrl_IsDeniedAsync() =>
+        await AssertAnonymousPrivateMediaDeniedAsync(AnonymousAttachmentBlobUrl, "attachments");
+
+    private async Task AssertAnonymousSongfileDeniedAsync(string url) =>
+        await AssertAnonymousPrivateMediaDeniedAsync(url, "songfiles");
+
+    private async Task AssertAnonymousPrivateMediaDeniedAsync(string url, string container)
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -63,7 +91,7 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
             new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.NotFound },
             Does.Contain(response.StatusCode),
             FailurePrefix() +
-            $"anonymous GET {url} must fail after songfiles lockdown (#177); " +
+            $"anonymous GET {url} must fail for private {container}; " +
             $"got {(int)response.StatusCode} {response.StatusCode}.");
     }
 

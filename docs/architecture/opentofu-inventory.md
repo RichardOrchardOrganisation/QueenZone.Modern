@@ -86,7 +86,7 @@ Repository docs disagreed. Live behaviour (2026-08-12):
 | Hostname | Live routing | Evidence | Correct doc stance |
 | --- | --- | --- | --- |
 | `cdn.queenzone.org` | **Straight Cloudflare proxy** to Azure Blob. **No Worker header rewriting.** | Successful photo/CSS responses pass through Azure `x-ms-*` headers; Cloudflare `Cache-Control: max-age=14400`; **no** Worker-added `Access-Control-Allow-Origin` / `X-Content-Type-Options`. Azure Storage **custom domain** is registered as `cdn.queenzone.org`. | Matches `AGENTS.md`, `blob-storage-ugc.md`, `picture-library-plan.md`, `PhotoImageUrl.cs`. |
-| `cdn2.queenzone.org` | **Cloudflare Worker** script `pictures-queenzone-org` on route `cdn2.queenzone.org/*`, fetching `https://queenzoneprod.blob.core.windows.net`. | DNS name is **cdn2**, not `pictures`. Script returns 404 for `/songfiles/*` (#177). Live responses add `Access-Control-Allow-Origin: *`, `X-Content-Type-Options: nosniff`, `Cache-Control` on 200. No Azure custom domain for `cdn2`. | Legacy forum attachment redirect target. Fan audio is app-proxied. Do not treat the script name as a hostname. |
+| `cdn2.queenzone.org` | **Cloudflare Worker** script `pictures-queenzone-org` on route `cdn2.queenzone.org/*`, fetching `https://queenzoneprod.blob.core.windows.net`. | DNS name is **cdn2**, not `pictures`. Snapshot returns 404 for `/songfiles/*` (#177) and `/attachments/*` (#1656). Live responses add `Access-Control-Allow-Origin: *`, `X-Content-Type-Options: nosniff`, `Cache-Control` on 200. No Azure custom domain for `cdn2`. | Fan audio and legacy forum attachments are app-proxied. Do not treat the script name as a hostname. The published Worker 404s `/attachments/*` only after the reviewed apply. |
 
 `docs/architecture/azure-hosting-plan.md` previously attributed Worker `pictures-queenzone-org` and route `cdn.queenzone.org/*` to **cdn**, and told operators not to add an Azure Storage custom domain. Both statements are **false against live state** and are corrected in that file as part of this issue.
 
@@ -204,7 +204,7 @@ site; no empty or speculative RBAC resources are declared.
 | Photo/archive galleries (`queen`, `freddie-mercury`, …) | `blob` | Public photos via `cdn` | Keep public blob read |
 | `images`, `css`, `mp3`, `forum`, `avatars`, `album-or-single-covers`, … | `blob` or `container` (`css`) | Legacy public assets | Keep; `css` is listable |
 | `songfiles` | **`None` (private)** | Fan audio streamed by `/fan-performances/{id}/audio` | Live since 2026-08-16 (ARM). Module desired state already `None`. |
-| `attachments` | **`blob` (public)** | Legacy forum files; app redirects after auth | URL guessing bypasses app gate. Relates to #177 / media lockdown |
+| `attachments` | **live `blob`; desired `None`** | Legacy forum files streamed by `/forum/attachment/legacy/{id}` | Module default is `None` (#1656). Live ACL stays public until the reviewed apply. |
 | `databasebackup` | private | Backups | Keep private; **never** public |
 | `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos` | private | Modern UGC | Keep private; app proxy. All four were live at the 2026-09-09 refresh. Relates to [#583](https://github.com/richardorchard/QueenZone.Modern/issues/583), [#584](https://github.com/richardorchard/QueenZone.Modern/issues/584) |
 | `test` | `blob` | Legacy/scratch content | **2,320 blobs / 4,110,472,406 bytes** at the 2026-09-09 refresh. Preserve during migration; review any later deletion separately. |
@@ -299,7 +299,7 @@ Documented for [#622](https://github.com/richardorchard/QueenZone.Modern/issues/
 
 | Issue | Relevance |
 | --- | --- |
-| [#177](https://github.com/richardorchard/QueenZone.Modern/issues/177) | `songfiles` is private and app-proxied. Legacy `attachments` remain public blob access. |
+| [#177](https://github.com/richardorchard/QueenZone.Modern/issues/177) | `songfiles` is private and app-proxied. |
 | [#583](https://github.com/richardorchard/QueenZone.Modern/issues/583) | Anonymous `/ugc` proxy sensitivity — private containers must stay private |
 | [#584](https://github.com/richardorchard/QueenZone.Modern/issues/584) | Upload API container narrowing — affects which containers exist and who may write |
 | [#428](https://github.com/richardorchard/QueenZone.Modern/issues/428) | Cloudflare proxy / origin restriction history — current live state already restricts App Service to Cloudflare IPs |
