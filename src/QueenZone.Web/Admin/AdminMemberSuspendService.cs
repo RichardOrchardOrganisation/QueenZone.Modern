@@ -40,7 +40,7 @@ public sealed class AdminMemberSuspendService(
 
         try
         {
-            var hiddenAndSuspended = await SqlBackedWriteTransaction.ExecuteAsync(
+            var hiddenAndSuspended = await QueenZoneDbTransactions.ExecuteAsync(
                 serviceProvider,
                 async ct =>
                 {
