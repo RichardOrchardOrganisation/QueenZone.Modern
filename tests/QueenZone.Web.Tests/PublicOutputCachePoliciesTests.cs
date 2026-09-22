@@ -32,6 +32,9 @@ public sealed class PublicOutputCachePoliciesTests
 
         var production = CreateContext("/news", authenticated: false, "Production");
         Assert.True(PublicOutputCachePolicies.IsCacheablePublicHtmlRequest(production));
+
+        var search = CreateContext("/search", authenticated: false, "Production");
+        Assert.False(PublicOutputCachePolicies.IsCacheablePublicHtmlRequest(search));
     }
 
     [Theory]
@@ -42,10 +45,22 @@ public sealed class PublicOutputCachePoliciesTests
     [InlineData("/contact")]
     [InlineData("/error")]
     [InlineData("/trivia")]
+    [InlineData("/search")]
+    [InlineData("/search/results")]
     public void IsPublicReadOnlyRequest_excludes_non_html_surfaces(string path)
     {
         var context = CreateContext(path, authenticated: false, "Production");
         Assert.False(PublicOutputCachePolicies.IsPublicReadOnlyRequest(context));
+    }
+
+    [Fact]
+    public void PublicHtmlQueryKeys_include_functional_values_but_not_tracking_parameters()
+    {
+        Assert.Contains("page", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("pageNumber", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("size", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.DoesNotContain("utm_source", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.DoesNotContain("*", PublicOutputCachePolicies.PublicHtmlQueryKeys);
     }
 
     private static DefaultHttpContext CreateContext(string path, bool authenticated, string environmentName)

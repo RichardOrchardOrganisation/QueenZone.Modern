@@ -272,7 +272,7 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .With(context => PublicOutputCachePolicies.IsCacheablePublicHtmlRequest(context.HttpContext))
                 .Expire(PublicOutputCachePolicies.HtmlDuration)
                 .SetVaryByRouteValue("*")
-                .SetVaryByQuery("*")
+                .SetVaryByQuery(PublicOutputCachePolicies.PublicHtmlQueryKeys)
                 .Tag(PublicOutputCachePolicies.PublicHtmlTag));
         });
         services.AddScoped<PublicQueryCacheService>();
