@@ -221,9 +221,11 @@ public sealed class ContentApiFanPerformancesTests : IClassFixture<QueenZoneWebA
 
     private HttpClient CreateBearerClient()
     {
+        var memberId = Guid.NewGuid();
+        MemberBearerAccounts.Ensure(factory.Services, memberId, $"{memberId:N}@example.test", "Fan Stage Member");
         using var scope = factory.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
-        var token = issuer.IssueAccessToken(Guid.NewGuid(), "fanstage@example.com", "Fan Stage Member");
+        var token = issuer.IssueAccessToken(memberId, "fanstage@example.com", "Fan Stage Member");
         var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;

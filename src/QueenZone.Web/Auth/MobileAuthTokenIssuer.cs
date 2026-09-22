@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -5,6 +6,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using QueenZone.Data;
 
 namespace QueenZone.Web;
 
@@ -27,6 +29,7 @@ public sealed class MobileAuthTokenIssuer(
     public string IssueAccessToken(Guid memberId, string email, string displayName)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
+        var issuedAt = new DateTimeOffset(DateTime.SpecifyKind(now, DateTimeKind.Utc));
         var signingKey = options.Value.ResolveSigningKey(QueenZoneEnvironments.IsProductionLike(environment));
         if (string.IsNullOrEmpty(signingKey))
         {
@@ -42,6 +45,10 @@ public sealed class MobileAuthTokenIssuer(
             new Claim(ClaimTypes.NameIdentifier, memberId.ToString()),
             new Claim(ClaimTypes.Email, email),
             new Claim(ClaimTypes.Name, displayName),
+            new Claim(
+                MemberSessionGate.IssuedAtUnixMillisecondsClaim,
+                issuedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+                ClaimValueTypes.Integer64),
         };
 
         var token = new JwtSecurityToken(
@@ -102,6 +109,22 @@ public sealed class MobileAuthTokenIssuer(
                         statusCode: StatusCodes.Status403Forbidden,
                         title: "Forbidden")
                     .ExecuteAsync(context.HttpContext);
+            },
+            OnTokenValidated = async context =>
+            {
+                var memberIdValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!Guid.TryParse(memberIdValue, out var memberId))
+                {
+                    context.Fail("The access token is not valid.");
+                    return;
+                }
+
+                var repository = context.HttpContext.RequestServices.GetRequiredService<IMemberAccountRepository>();
+                var account = await repository.FindByIdAsync(memberId, context.HttpContext.RequestAborted);
+                if (MemberSessionGate.Reject(account, MemberSessionGate.ReadIssuedAt(context.Principal)))
+                {
+                    context.Fail("The access token is not valid.");
+                }
             },
         };
     }

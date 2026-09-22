@@ -450,6 +450,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
             new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()),
             new Claim(ClaimTypes.Email, account.Email),
             new Claim(ClaimTypes.Name, account.DisplayName),
+            MemberSessionGate.CreateIssuedAtClaim(DateTimeOffset.UtcNow),
         };
         var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie);
         await HttpContext.SignInAsync(MemberAuthenticationSchemes.MembersCookie, new ClaimsPrincipal(identity));

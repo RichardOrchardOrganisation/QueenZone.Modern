@@ -302,9 +302,11 @@ public static class QueenZoneAuthServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Re-checks suspension status on every request that carries the members cookie, so a
-    /// suspension takes effect immediately rather than waiting for the 30-day cookie to expire.
-    /// Shared between the test-auth and Entra branches so both sign out a newly suspended member.
+    /// Re-checks the account on every request that carries the members cookie. Suspension,
+    /// a missing account, or a credential issued before a deletion request ends the session
+    /// immediately rather than waiting for the 30-day cookie to expire. A sign-in after the
+    /// deletion request is left in place so the member can cancel during the cooling-off period.
+    /// Shared between the test-auth and Entra branches.
     /// </summary>
     private static CookieAuthenticationEvents MemberCookieEvents { get; } = new()
     {
@@ -318,7 +320,8 @@ public static class QueenZoneAuthServiceCollectionExtensions
 
             var repository = context.HttpContext.RequestServices.GetRequiredService<IMemberAccountRepository>();
             var account = await repository.FindByIdAsync(memberId, context.HttpContext.RequestAborted);
-            if (account is null || account.IsSuspended)
+            var issuedAt = MemberSessionGate.ResolveIssuedAt(context.Principal, context.Properties.IssuedUtc);
+            if (MemberSessionGate.Reject(account, issuedAt))
             {
                 context.RejectPrincipal();
                 await context.HttpContext.SignOutAsync(MemberAuthenticationSchemes.MembersCookie);

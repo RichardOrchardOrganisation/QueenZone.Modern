@@ -155,9 +155,11 @@ public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWeb
 
     private static HttpClient CreateBearerClient(WebApplicationFactory<Program> source)
     {
+        var memberId = Guid.NewGuid();
+        MemberBearerAccounts.Ensure(source.Services, memberId, $"{memberId:N}@example.test", "Forum Attach Member");
         using var scope = source.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
-        var token = issuer.IssueAccessToken(Guid.NewGuid(), "attach@example.test", "Forum Attach Member");
+        var token = issuer.IssueAccessToken(memberId, "attach@example.test", "Forum Attach Member");
         var client = source.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,

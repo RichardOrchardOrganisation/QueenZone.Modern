@@ -56,6 +56,7 @@ public sealed class LoginModel(
             new Claim(ClaimTypes.NameIdentifier, result.Account.Id.ToString()),
             new Claim(ClaimTypes.Email, result.Account.Email),
             new Claim(ClaimTypes.Name, result.Account.DisplayName),
+            MemberSessionGate.CreateIssuedAtClaim(DateTimeOffset.UtcNow),
         };
         var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie);
         await HttpContext.SignInAsync(MemberAuthenticationSchemes.MembersCookie, new ClaimsPrincipal(identity));

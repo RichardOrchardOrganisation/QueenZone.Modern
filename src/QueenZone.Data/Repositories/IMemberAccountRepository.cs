@@ -63,6 +63,25 @@ public interface IMemberAccountRepository
 
     Task RecordLoginAsync(Guid memberId, DateTime loginAt, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Stores the password-failure counter for the current lockout window.
+    /// </summary>
+    Task RecordPasswordFailureAsync(
+        Guid memberId,
+        int failureCount,
+        DateTime windowStartedAt,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records a successful password sign-in: last login, a cleared failure counter,
+    /// and an optional rewritten password hash.
+    /// </summary>
+    Task RecordPasswordSignInAsync(
+        Guid memberId,
+        DateTime loginAt,
+        string? rehashedPassword,
+        CancellationToken cancellationToken = default);
+
     Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<RecentLogin>> GetRecentLoginsAsync(int count, CancellationToken cancellationToken = default);

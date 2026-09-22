@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
@@ -16,7 +17,9 @@ public sealed class MemberAccountServiceTests
         IBlobUploadService? blobUploadService = null,
         InMemoryBlobStorageBackend? blobBackend = null,
         MemberUploadQuotaService? uploadQuota = null,
-        TimeSpan? blobDeleteTimeout = null)
+        TimeSpan? blobDeleteTimeout = null,
+        TimeProvider? timeProvider = null,
+        PasswordSignInLockoutOptions? passwordLockout = null)
     {
         var backend = blobBackend ?? new InMemoryBlobStorageBackend();
         var blobs = blobUploadService
@@ -26,10 +29,21 @@ public sealed class MemberAccountServiceTests
             legacyMemberLookupRepository ?? new InMemoryLegacyMemberLookupRepository(
                 new Dictionary<string, LegacyMemberMatch>()),
             blobs,
-            uploadQuota ?? CreateDisabledUploadQuota())
+            uploadQuota ?? CreateDisabledUploadQuota(),
+            timeProvider,
+            passwordLockout is null ? null : Options.Create(passwordLockout))
         {
             BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountService.DefaultBlobDeleteTimeout,
         };
+    }
+
+    private sealed class LockoutClock(DateTimeOffset start) : TimeProvider
+    {
+        private DateTimeOffset now = start;
+
+        public override DateTimeOffset GetUtcNow() => now;
+
+        public void Advance(TimeSpan delta) => now += delta;
     }
 
     private static MemberUploadQuotaService CreateDisabledUploadQuota() =>
@@ -138,7 +152,83 @@ public sealed class MemberAccountServiceTests
         var result = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
 
         Assert.False(result.Succeeded);
-        Assert.Equal(MemberAccountService.SuspendedSignInError, result.Error);
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, result.Error);
+    }
+
+    [Fact]
+    public async Task SignInAsync_UsesTheSameError_ForMissingWrongAndSuspendedAccounts()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        await repository.SuspendAsync(registered.Account!.Id, "Spamming the board", "admin@queenzone.org", DateTime.UtcNow);
+
+        var missing = await service.SignInAsync("ghost@example.com", "whatever");
+        var wrong = await service.SignInAsync("fan@queenzone.org", "WrongPassword!");
+        var suspended = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, missing.Error);
+        Assert.Equal(missing.Error, wrong.Error);
+        Assert.Equal(missing.Error, suspended.Error);
+        Assert.DoesNotContain("suspended", suspended.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("attempt", suspended.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SignInAsync_LocksTheAccount_AndSuccessfulSignInClearsTheCounter()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var clock = new LockoutClock(new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero));
+        var service = CreateService(
+            memberAccountRepository: repository,
+            timeProvider: clock,
+            passwordLockout: new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 });
+        await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+
+        Assert.False((await service.SignInAsync("fan@queenzone.org", "nope-1")).Succeeded);
+        Assert.False((await service.SignInAsync("fan@queenzone.org", "nope-2")).Succeeded);
+        var locked = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+        Assert.False(locked.Succeeded);
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, locked.Error);
+
+        var stored = await repository.FindByEmailAsync("fan@queenzone.org");
+        Assert.Equal(2, stored!.PasswordFailureCount);
+
+        var cleared = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+        Assert.False(cleared.Succeeded);
+
+        clock.Advance(TimeSpan.FromMinutes(15));
+        var afterWindow = await service.SignInAsync("fan@queenzone.org", "nope-3");
+        Assert.False(afterWindow.Succeeded);
+        var success = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+        Assert.True(success.Succeeded);
+        stored = await repository.FindByEmailAsync("fan@queenzone.org");
+        Assert.Equal(0, stored!.PasswordFailureCount);
+        Assert.Null(stored.PasswordFailureWindowStartedAt);
+    }
+
+    [Fact]
+    public async Task SignInAsync_RewritesHash_WhenVerificationNeedsRehash()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Fan");
+        var legacyHasher = new PasswordHasher<MemberAccount>(Options.Create(new PasswordHasherOptions
+        {
+            IterationCount = 1_000,
+        }));
+        var legacyHash = legacyHasher.HashPassword(registered.Account!, "S3curePass!");
+        registered.Account!.PasswordHash = legacyHash;
+
+        var result = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
+
+        Assert.True(result.Succeeded);
+        var stored = await repository.FindByEmailAsync("fan@queenzone.org");
+        Assert.NotEqual(legacyHash, stored!.PasswordHash);
+        var current = new PasswordHasher<MemberAccount>();
+        Assert.Equal(
+            PasswordVerificationResult.Success,
+            current.VerifyHashedPassword(stored, stored.PasswordHash!, "S3curePass!"));
     }
 
     [Fact]
@@ -930,6 +1020,20 @@ public sealed class MemberAccountServiceTests
 
         public Task RecordLoginAsync(Guid memberId, DateTime loginAt, CancellationToken cancellationToken = default) =>
             inner.RecordLoginAsync(memberId, loginAt, cancellationToken);
+
+        public Task RecordPasswordFailureAsync(
+            Guid memberId,
+            int failureCount,
+            DateTime windowStartedAt,
+            CancellationToken cancellationToken = default) =>
+            inner.RecordPasswordFailureAsync(memberId, failureCount, windowStartedAt, cancellationToken);
+
+        public Task RecordPasswordSignInAsync(
+            Guid memberId,
+            DateTime loginAt,
+            string? rehashedPassword,
+            CancellationToken cancellationToken = default) =>
+            inner.RecordPasswordSignInAsync(memberId, loginAt, rehashedPassword, cancellationToken);
 
         public Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default) =>
             inner.GetStatsAsync(utcNow, cancellationToken);
