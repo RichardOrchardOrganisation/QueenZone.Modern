@@ -5,7 +5,7 @@ namespace QueenZone.Web.Pages.FreddieTribute;
 
 public abstract class FreddieTributeArchivePageModel(
     IFreddieTributeRepository tributeRepository,
-    IPhotoRepository photoRepository) : Microsoft.AspNetCore.Mvc.RazorPages.PageModel
+    PublicQueryCacheService publicQueryCache) : Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 {
     public IReadOnlyList<QueenZone.Data.FreddieTribute> Tributes { get; private set; } = [];
 
@@ -41,8 +41,8 @@ public abstract class FreddieTributeArchivePageModel(
         }
 
         Tributes = archive.Items;
-        FeaturedTribute = await tributeRepository.GetRandomAsync(cancellationToken);
-        FreddiePhotos = await GetFreddiePhotosAsync(cancellationToken);
+        FeaturedTribute = await publicQueryCache.GetFeaturedFreddieTributeAsync(cancellationToken);
+        FreddiePhotos = await publicQueryCache.GetFreddieTributePhotosAsync(cancellationToken);
         CurrentPage = page;
         TotalPages = totalPages;
         TotalCount = archive.TotalCount;
@@ -67,18 +67,5 @@ public abstract class FreddieTributeArchivePageModel(
         }
 
         return Page();
-    }
-
-    private async Task<IReadOnlyList<PhotoItem>> GetFreddiePhotosAsync(CancellationToken cancellationToken)
-    {
-        var categories = await photoRepository.GetCategoriesAsync(cancellationToken);
-        var category = categories.FirstOrDefault(item =>
-            item.Slug.Contains("freddie", StringComparison.OrdinalIgnoreCase));
-        if (category is null)
-        {
-            return [];
-        }
-
-        return await photoRepository.GetRandomPublishedInCategoryAsync(category.CatId, take: 4, cancellationToken);
     }
 }

@@ -18,7 +18,8 @@ public sealed class PublicQueryCacheService(
     IQuoteRepository quoteRepository,
     ITriviaRepository triviaRepository,
     IBiographyRepository biographyRepository,
-    IDiscographyRepository discographyRepository)
+    IDiscographyRepository discographyRepository,
+    IFreddieTributeRepository freddieTributeRepository)
 {
     private static readonly MemoryCacheEntryOptions VersionEntryOptions = new()
     {
@@ -246,6 +247,58 @@ public sealed class PublicQueryCacheService(
             string.Equals(category.Slug, slug, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Caches one visible tribute id for a few minutes. A miss seeks an indexed id range;
+    /// a hit loads that id. Neither path sorts <c>FREDDIE_T</c> with <c>NEWID()</c>.
+    /// </summary>
+    public async Task<FreddieTribute?> GetFeaturedFreddieTributeAsync(CancellationToken cancellationToken = default)
+    {
+        var pick = await GetOrCreateAsync(
+            PublicQueryCacheKeys.FreddieFeaturedTributeId,
+            options.Value.FreddieSampleCacheDuration,
+            async () =>
+            {
+                var id = await freddieTributeRepository.PickRandomVisibleIdAsync(cancellationToken);
+                return new CachedId(id);
+            },
+            cancellationToken);
+        if (pick.Id is not int idValue)
+        {
+            return null;
+        }
+
+        return await freddieTributeRepository.GetVisibleByIdAsync(idValue, cancellationToken);
+    }
+
+    /// <summary>
+    /// Up to four Freddie-category photo ids, cached for a few minutes, then loaded by id.
+    /// Category lookup reuses <see cref="GetPhotoCategoriesAsync"/>.
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoItem>> GetFreddieTributePhotosAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var categories = await GetPhotoCategoriesAsync(cancellationToken);
+        var category = categories.FirstOrDefault(item =>
+            item.Slug.Contains("freddie", StringComparison.OrdinalIgnoreCase));
+        if (category is null)
+        {
+            return [];
+        }
+
+        var version = GetPhotoCacheVersion();
+        var ids = await GetOrCreateAsync(
+            PublicQueryCacheKeys.FreddiePhotoSample(version, category.CatId),
+            options.Value.FreddieSampleCacheDuration,
+            () => photoRepository.PickRandomPublishedPhotoIdsAsync(category.CatId, 4, cancellationToken),
+            cancellationToken);
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        return await photoRepository.GetPublishedByIdsAsync(category.CatId, ids, cancellationToken);
+    }
+
     public Task<PhotoCategoryPage> GetPhotoCategoryPageAsync(
         int catId,
         int page,
@@ -418,6 +471,8 @@ public sealed class PublicQueryCacheService(
             cancellationToken);
 
     private static string CreateCacheVersion() => Guid.NewGuid().ToString("N");
+
+    private sealed record CachedId(int? Id);
 
     private async Task<T> GetOrCreateAsync<T>(
         string key,

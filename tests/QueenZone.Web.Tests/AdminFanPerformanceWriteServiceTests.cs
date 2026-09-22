@@ -170,7 +170,8 @@ public sealed class AdminFanPerformanceWriteServiceTests
             new InMemoryQuoteRepository(SampleQuoteData.CreateSeedQuotes()),
             new InMemoryTriviaRepository(SampleTriviaData.CreateSeedFacts()),
             new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()));
+            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
+            new InMemoryFreddieTributeRepository(new SharedFreddieTributeStore(SampleFreddieTributeData.CreateSeedTributes())));
 
     private static CoreSitemapService CreateSitemapService(IOutputCacheStore outputCache, IMemoryCache cache) =>
         new(
