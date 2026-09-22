@@ -15,4 +15,9 @@ public sealed record PhotoDetailNavigation(
     int Index,
     int Count,
     int? PreviousPicId,
-    int? NextPicId);
+    int? NextPicId,
+    /// <summary>
+    /// False when a requested size filter excluded this photo and navigation
+    /// was resolved against the unfiltered category instead.
+    /// </summary>
+    bool MatchedRequestedFilter = true);

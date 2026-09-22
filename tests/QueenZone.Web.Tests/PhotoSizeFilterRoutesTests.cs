@@ -55,6 +55,18 @@ public sealed class PhotoSizeFilterRoutesTests : IClassFixture<WebApplicationFac
     }
 
     [Fact]
+    public async Task Detail_WhenSizeFilterExcludesPhoto_UsesUnfilteredNeighborsOnce()
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var response = await client.GetAsync("/photography/brian-may/103?size=desktop");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Red Special close-up", body, StringComparison.Ordinal);
+        Assert.Contains("href=\"/photography/brian-may/102\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("size=desktop", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PhotoRoutes_AppendSizeQuery()
     {
         Assert.Equal("/photography/queen", PhotoRoutes.GetCategoryPath("queen"));

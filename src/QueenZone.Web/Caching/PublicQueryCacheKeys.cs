@@ -49,6 +49,8 @@ public static class PublicQueryCacheKeys
 
     public const string PhotoCategoriesSegment = Prefix + ":photo:categories";
 
+    public const string FreddieFeaturedTributeId = Prefix + ":freddie:featured-id";
+
     public const string PhotoCategoryPageSegment = Prefix + ":photo:category-page";
 
     public const string LiveActivityNewForumReplies = Prefix + ":live-activity:new-forum-replies";
@@ -84,6 +86,9 @@ public static class PublicQueryCacheKeys
 
     public static string PhotoCategories(string version) =>
         $"{PhotoCategoriesSegment}:v{version}";
+
+    public static string FreddiePhotoSample(string version, int catId) =>
+        $"{Prefix}:freddie:photo-sample:v{version}:{catId}";
 
     public static string PhotoCategoryPage(
         string version,
