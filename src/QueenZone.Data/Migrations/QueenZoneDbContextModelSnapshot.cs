@@ -1438,6 +1438,10 @@ namespace QueenZone.Data.Migrations
                     b.HasIndex("AuthorMemberId", "PostedAt")
                         .HasDatabaseName("IX_ModernForumPost_AuthorMemberId_PostedAt");
 
+                    b.HasIndex("PostedAt")
+                        .HasDatabaseName("IX_ModernForumPost_PostedAt_Visible")
+                        .HasFilter("[IsHidden] = 0");
+
                     b.ToTable("ModernForumPost", null, t =>
                         {
                             t.ExcludeFromMigrations();
