@@ -47,10 +47,9 @@ absent. The first import deliberately avoids new storage cost or retention.
 
 The imported ACLs match live product behaviour:
 
-- `databasebackup`, `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos`, and `songfiles` are private;
+- `databasebackup`, `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos`, `songfiles`, and legacy `attachments` are private;
 - archive/media containers retain public blob access;
-- `css` retains public container access;
-- `attachments` remain public blob access (legacy forum files; out of scope for #177);
+- `css` retains public container access (published site CSS, not member uploads);
 - `test` retains public blob access and is preserved through the production
   region migration.
 
@@ -58,6 +57,11 @@ Live `songfiles` is already private (ARM apply 2026-08-16 after the #702
 app proxy shipped). The module desired state is `None`. The next reviewed
 OpenTofu apply should not change that ACL. `prevent_destroy` does not block
 container ACL changes; do not flip it back to public.
+
+Legacy `attachments` desired state is `None` (#1656). The live container is
+still public blob until that reviewed apply. The app streams the file after
+member auth; it does not redirect to `cdn2`. Gallery containers
+(`freddie-mercury`, album covers, and the rest) stay public blob.
 
 ## Verification contract
 

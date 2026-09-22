@@ -31,16 +31,34 @@ public sealed class ForumAttachmentEndpointsTests : IClassFixture<WebApplication
     }
 
     [Fact]
-    public async Task LegacyDownload_RedirectsSignedInMembersToPicturesCdn()
+    public async Task LegacyDownload_StreamsSignedInMembersWithAttachmentDisposition()
+    {
+        var testFactory = WithLegacyBlobs(factory);
+        var client = CreateMemberClient(testFactory);
+
+        var response = await client.GetAsync("/forum/attachment/legacy/1002");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("scan-bytes", body);
+        Assert.Null(response.Headers.Location);
+        var disposition = response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty;
+        Assert.Contains("attachment", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("anoto-setlist-scan.jpg", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("cdn2.queenzone.org", body, StringComparison.OrdinalIgnoreCase);
+        Assert.True(response.Headers.TryGetValues("X-Content-Type-Options", out var nosniff));
+        Assert.Contains("nosniff", nosniff!);
+    }
+
+    [Fact]
+    public async Task LegacyDownload_ReturnsNotFound_WhenBlobMissing()
     {
         var client = CreateMemberClient(factory);
 
         var response = await client.GetAsync("/forum/attachment/legacy/1002");
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(
-            "https://cdn2.queenzone.org/attachments/anoto-setlist-scan.jpg",
-            response.Headers.Location!.OriginalString);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Null(response.Headers.Location);
     }
 
     [Fact]
@@ -101,7 +119,34 @@ public sealed class ForumAttachmentEndpointsTests : IClassFixture<WebApplication
         Assert.Contains("/forum/attachment/legacy/1002", body);
         Assert.Contains("anoto-setlist-scan.jpg", body);
         Assert.DoesNotContain("cdn.queenzone.org/attachments/", body);
+        Assert.DoesNotContain("cdn2.queenzone.org/attachments/", body);
+        Assert.DoesNotContain("blob.core.windows.net/attachments/", body);
         Assert.Contains("Members only", body);
+    }
+
+    private static WebApplicationFactory<Program> WithLegacyBlobs(WebApplicationFactory<Program> sourceFactory)
+    {
+        var memoryBlob = new MemoryBlobUploadService();
+        memoryBlob.UploadAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("scan-bytes")),
+            "anoto-setlist-scan.jpg",
+            ForumAttachmentPaths.LegacyContainerName,
+            new BlobUploadContext { PreferredBlobName = "anoto-setlist-scan.jpg" }).GetAwaiter().GetResult();
+        memoryBlob.UploadAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("%PDF-notes")),
+            "opera-side-two-notes.pdf",
+            ForumAttachmentPaths.LegacyContainerName,
+            new BlobUploadContext { PreferredBlobName = "opera-side-two-notes.pdf" }).GetAwaiter().GetResult();
+
+        return sourceFactory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IBlobUploadService>();
+                services.AddSingleton<IBlobUploadService>(memoryBlob);
+            });
+        });
     }
 
     private static HttpClient CreateMemberClient(WebApplicationFactory<Program> sourceFactory)
