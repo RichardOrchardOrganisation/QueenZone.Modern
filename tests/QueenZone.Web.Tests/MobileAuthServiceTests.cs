@@ -582,7 +582,7 @@ public sealed class MobileAuthServiceTests
         Assert.Equal("invalid_grant", result.Error);
         Assert.Single(
             log.Entries,
-            entry => entry.Message.Contains("missing or suspended", StringComparison.OrdinalIgnoreCase));
+            entry => entry.Message.Contains("missing, suspended, or pending deletion", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -835,8 +835,53 @@ public sealed class MobileAuthServiceTests
 
         Assert.False(tokens.Success);
         Assert.Equal("invalid_grant", tokens.Error);
-        Assert.Equal(MemberAccountService.SuspendedSignInError, tokens.ErrorDescription);
+        Assert.Equal(MobileAuthService.PasswordGrantInvalidDescription, tokens.ErrorDescription);
+        Assert.DoesNotContain("suspended", tokens.ErrorDescription, StringComparison.OrdinalIgnoreCase);
         Assert.Null(tokens.AccessToken);
+    }
+
+    [Fact]
+    public async Task ExchangePasswordGrant_SharesTheAccountFailureCounterWithPasswordSignIn()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero));
+        var accounts = new MemberAccountService(
+            repository,
+            new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
+            new MemberUploadQuotaService(
+                new Microsoft.Extensions.Caching.Memory.MemoryCache(
+                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+                clock,
+                Options.Create(new UploadQuotaOptions { Enabled = false })),
+            clock,
+            Options.Create(new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 }));
+        var registered = await accounts.RegisterAsync("shared-lock@example.com", "S3curePass!", "Shared");
+        Assert.True(registered.Succeeded, registered.Error);
+
+        var fromWebsite = await accounts.SignInAsync("shared-lock@example.com", "wrong-password");
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, fromWebsite.Error);
+
+        var service = CreateService(repository, timeProvider: clock, memberAccountService: accounts);
+        var fromMobile = await service.ExchangePasswordGrantAsync(
+            MobileAuthOptions.DefaultClientId,
+            "shared-lock@example.com",
+            "still-wrong",
+            CancellationToken.None);
+        Assert.Equal(MobileAuthService.PasswordGrantInvalidDescription, fromMobile.ErrorDescription);
+
+        var locked = await service.ExchangePasswordGrantAsync(
+            MobileAuthOptions.DefaultClientId,
+            "shared-lock@example.com",
+            "S3curePass!",
+            CancellationToken.None);
+        Assert.False(locked.Success);
+        Assert.Equal(MobileAuthService.PasswordGrantInvalidDescription, locked.ErrorDescription);
+
+        clock.Advance(TimeSpan.FromMinutes(15));
+        var unlocked = await accounts.SignInAsync("shared-lock@example.com", "S3curePass!");
+        Assert.True(unlocked.Succeeded);
+        Assert.Equal(0, (await repository.FindByEmailAsync("shared-lock@example.com"))!.PasswordFailureCount);
     }
 
     [Fact]
@@ -1033,13 +1078,14 @@ public sealed class MobileAuthServiceTests
         ILogger<MobileAuthAccountRateLimiter>? logger = null,
         ILogger<MobileAuthService>? serviceLogger = null,
         IMobileAuthGrantRepository? grants = null,
-        MobileAuthOptions? mobileOptions = null)
+        MobileAuthOptions? mobileOptions = null,
+        MemberAccountService? memberAccountService = null)
     {
         var clock = timeProvider ?? TimeProvider.System;
         var options = Options.Create(mobileOptions ?? new MobileAuthOptions());
         var site = Options.Create(new SiteOptions());
         var environment = new FakeHostEnvironment(environmentName);
-        var members = new MemberAccountService(
+        var members = memberAccountService ?? new MemberAccountService(
             accounts ?? new InMemoryMemberAccountRepository(),
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
             new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),

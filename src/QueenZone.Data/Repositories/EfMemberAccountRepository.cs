@@ -224,6 +224,48 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
         }
     }
 
+    public async Task RecordPasswordFailureAsync(
+        Guid memberId,
+        int failureCount,
+        DateTime windowStartedAt,
+        CancellationToken cancellationToken = default)
+    {
+        await dbContext.MemberAccounts
+            .Where(account => account.Id == memberId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(account => account.PasswordFailureCount, failureCount)
+                    .SetProperty(account => account.PasswordFailureWindowStartedAt, windowStartedAt),
+                cancellationToken);
+    }
+
+    public async Task RecordPasswordSignInAsync(
+        Guid memberId,
+        DateTime loginAt,
+        string? rehashedPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var accounts = dbContext.MemberAccounts.Where(account => account.Id == memberId);
+        if (rehashedPassword is null)
+        {
+            await accounts.ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(account => account.LastLoginAt, loginAt)
+                    .SetProperty(account => account.PasswordFailureCount, 0)
+                    .SetProperty(account => account.PasswordFailureWindowStartedAt, (DateTime?)null),
+                cancellationToken);
+            return;
+        }
+
+        await accounts.ExecuteUpdateAsync(
+            setters => setters
+                .SetProperty(account => account.LastLoginAt, loginAt)
+                .SetProperty(account => account.PasswordFailureCount, 0)
+                .SetProperty(account => account.PasswordFailureWindowStartedAt, (DateTime?)null)
+                .SetProperty(account => account.PasswordHash, rehashedPassword),
+            cancellationToken);
+    }
+
     public async Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default)
     {
         var today = utcNow.Date;

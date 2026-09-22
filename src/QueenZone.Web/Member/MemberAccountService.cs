@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Storage;
@@ -23,8 +24,13 @@ public sealed class MemberAccountService(
     IMemberAccountRepository memberAccountRepository,
     ILegacyMemberLookupRepository legacyMemberLookupRepository,
     IBlobUploadService blobUploadService,
-    MemberUploadQuotaService uploadQuota)
+    MemberUploadQuotaService uploadQuota,
+    TimeProvider? timeProvider = null,
+    IOptions<PasswordSignInLockoutOptions>? passwordLockout = null)
 {
+    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+
+    private readonly PasswordSignInLockoutOptions lockout = passwordLockout?.Value ?? new PasswordSignInLockoutOptions();
     /// <summary>
     /// Bound for each avatar blob delete. <see cref="MemberAccountDeletionHostedService"/>
     /// can invoke this on its first timer tick; Azure.Storage.Blobs often ignores
@@ -63,22 +69,55 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
         if (account is null || account.PasswordHash is null)
         {
-            return MemberAccountResult.Failure("Incorrect email or password.");
+            return MemberAccountResult.Failure(InvalidPasswordSignInError);
+        }
+
+        var now = clock.GetUtcNow().UtcDateTime;
+        var maxFailures = Math.Max(1, lockout.MaxFailures);
+        var window = TimeSpan.FromMinutes(Math.Max(1, lockout.WindowMinutes));
+        var failureCount = account.PasswordFailureCount;
+        var windowStarted = account.PasswordFailureWindowStartedAt;
+        if (windowStarted is null || now - windowStarted.Value >= window)
+        {
+            failureCount = 0;
+            windowStarted = null;
         }
 
         var verification = passwordHasher.VerifyHashedPassword(account, account.PasswordHash, password);
-        if (verification == PasswordVerificationResult.Failed)
+        var locked = failureCount >= maxFailures;
+        if (locked || verification == PasswordVerificationResult.Failed || account.IsSuspended)
         {
-            return MemberAccountResult.Failure("Incorrect email or password.");
+            if (!locked)
+            {
+                failureCount++;
+                windowStarted ??= now;
+                await memberAccountRepository.RecordPasswordFailureAsync(
+                    account.Id,
+                    failureCount,
+                    windowStarted.Value,
+                    cancellationToken);
+            }
+
+            return MemberAccountResult.Failure(InvalidPasswordSignInError);
         }
 
-        if (account.IsSuspended)
-        {
-            return MemberAccountResult.Failure(SuspendedSignInError);
-        }
-
+        var rehashedPassword = verification == PasswordVerificationResult.SuccessRehashNeeded
+            ? passwordHasher.HashPassword(account, password)
+            : null;
         account = await TryBackfillLegacyLinkAsync(account, cancellationToken);
-        await memberAccountRepository.RecordLoginAsync(account.Id, DateTime.UtcNow, cancellationToken);
+        if (rehashedPassword is not null)
+        {
+            account.PasswordHash = rehashedPassword;
+        }
+
+        account.LastLoginAt = now;
+        account.PasswordFailureCount = 0;
+        account.PasswordFailureWindowStartedAt = null;
+        await memberAccountRepository.RecordPasswordSignInAsync(
+            account.Id,
+            now,
+            rehashedPassword,
+            cancellationToken);
         return MemberAccountResult.Success(account);
     }
 
@@ -802,6 +841,8 @@ public sealed class MemberAccountService(
     public const string PendingDeletionEditError = "Cancel account deletion before changing your public profile.";
 
     public const string SuspendedSignInError = "This account has been suspended.";
+
+    public const string InvalidPasswordSignInError = "Incorrect email or password.";
 }
 
 public sealed record MemberAccountResult(bool Succeeded, MemberAccount? Account, string? Error)

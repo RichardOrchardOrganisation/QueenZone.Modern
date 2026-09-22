@@ -255,7 +255,12 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
             new { confirmation = "DELETE" });
         Assert.Equal(HttpStatusCode.OK, requested.StatusCode);
 
-        using var cancelled = await client.PostAsync($"{MeApiEndpoints.Path}/deletion-request/cancel", null);
+        using var stale = await client.PostAsync($"{MeApiEndpoints.Path}/deletion-request/cancel", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+
+        await WaitUntilClockMovesAsync();
+        using var fresh = CreateBearerClient(memberId, "Stay Fan", "cancel-me@example.com");
+        using var cancelled = await fresh.PostAsync($"{MeApiEndpoints.Path}/deletion-request/cancel", null);
         Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
         var profile = await cancelled.Content.ReadFromJsonAsync<MemberProfileDto>(JsonOptions);
         Assert.Equal("Stay Fan", profile!.DisplayName);
@@ -333,6 +338,15 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
         Assert.Contains("Deleted member", body, StringComparison.Ordinal);
         Assert.Contains("30-day", body, StringComparison.Ordinal);
         Assert.Contains(AccountDeletionCopy.RequestedTitle, body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task WaitUntilClockMovesAsync()
+    {
+        var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        while (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() <= start)
+        {
+            await Task.Delay(1);
+        }
     }
 
     private HttpClient CreateBearerClient(Guid memberId, string displayName, string email) =>

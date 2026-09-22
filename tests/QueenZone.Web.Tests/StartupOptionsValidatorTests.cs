@@ -505,6 +505,34 @@ public sealed class StartupOptionsValidatorTests
     }
 
     [Fact]
+    public void PasswordSignInLockoutOptionsValidator_accepts_defaults()
+    {
+        var result = new PasswordSignInLockoutOptionsValidator()
+            .Validate(null, new PasswordSignInLockoutOptions());
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(0, 15)]
+    [InlineData(10, 0)]
+    [InlineData(PasswordSignInLockoutOptionsValidator.MaxFailuresLimit + 1, 15)]
+    [InlineData(10, PasswordSignInLockoutOptionsValidator.MaxWindowMinutes + 1)]
+    public void PasswordSignInLockoutOptionsValidator_rejects_non_positive_or_oversized_limits(
+        int maxFailures,
+        int windowMinutes)
+    {
+        var result = new PasswordSignInLockoutOptionsValidator().Validate(
+            null,
+            new PasswordSignInLockoutOptions
+            {
+                MaxFailures = maxFailures,
+                WindowMinutes = windowMinutes,
+            });
+        Assert.True(result.Failed);
+        Assert.Contains(PasswordSignInLockoutOptions.SectionName, result.FailureMessage);
+    }
+
+    [Fact]
     public void AuthRateLimitingOptionsValidator_accepts_defaults()
     {
         var result = new AuthRateLimitingOptionsValidator()

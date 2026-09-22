@@ -215,6 +215,20 @@ public sealed class MemberAccountDeletionHostedServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task RecordPasswordFailureAsync(
+            Guid memberId,
+            int failureCount,
+            DateTime windowStartedAt,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task RecordPasswordSignInAsync(
+            Guid memberId,
+            DateTime loginAt,
+            string? rehashedPassword,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

@@ -307,13 +307,13 @@ public sealed class MobileAuthService(
                 var recoveredAccount = await memberAccountService.FindByIdAsync(
                     active.MemberAccountId,
                     cancellationToken);
-                if (recoveredAccount is null || recoveredAccount.IsSuspended)
+                if (recoveredAccount is not MemberAccount recovered || RefreshAccountRejected(recovered))
                 {
                     await grants.RevokeAllRefreshTokensForMemberAsync(active.MemberAccountId, now, cancellationToken);
                     return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
                 }
 
-                return await IssueTokenPairAsync(recoveredAccount, now, cancellationToken, active.TokenHash);
+                return await IssueTokenPairAsync(recovered, now, cancellationToken, active.TokenHash);
             }
 
             logger.LogWarning(
@@ -352,16 +352,16 @@ public sealed class MobileAuthService(
         }
 
         var account = await memberAccountService.FindByIdAsync(stored.MemberAccountId, cancellationToken);
-        if (account is null || account.IsSuspended)
+        if (account is not MemberAccount liveAccount || RefreshAccountRejected(liveAccount))
         {
             logger.LogInformation(
-                "Mobile auth refresh rejected for member {MemberId}: account missing or suspended; revoking all grants.",
+                "Mobile auth refresh rejected for member {MemberId}: account missing, suspended, or pending deletion; revoking all grants.",
                 stored.MemberAccountId);
             await grants.RevokeAllRefreshTokensForMemberAsync(stored.MemberAccountId, now, cancellationToken);
             return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
         }
 
-        return await IssueTokenPairAsync(account, now, cancellationToken, tokenHash);
+        return await IssueTokenPairAsync(liveAccount, now, cancellationToken, tokenHash);
     }
 
     public async Task<MobileAuthTokenResult> ExchangePasswordGrantAsync(
@@ -386,11 +386,7 @@ public sealed class MobileAuthService(
         var signIn = await memberAccountService.SignInAsync(username, password, cancellationToken);
         if (!signIn.Succeeded || signIn.Account is null)
         {
-            return MobileAuthTokenResult.Failed(
-                "invalid_grant",
-                string.Equals(signIn.Error, MemberAccountService.SuspendedSignInError, StringComparison.Ordinal)
-                    ? MemberAccountService.SuspendedSignInError
-                    : PasswordGrantInvalidDescription);
+            return MobileAuthTokenResult.Failed("invalid_grant", PasswordGrantInvalidDescription);
         }
 
         if (!accountRateLimiter.IsAllowed(signIn.Account.Id))
@@ -402,6 +398,9 @@ public sealed class MobileAuthService(
     }
 
     public const string PasswordGrantInvalidDescription = "The password grant is invalid.";
+
+    private static bool RefreshAccountRejected(MemberAccount? account) =>
+        account is null || account.IsSuspended || account.DeletionRequestedAt is not null;
 
     public async Task RevokeRefreshTokenAsync(string? refreshToken, CancellationToken cancellationToken)
     {

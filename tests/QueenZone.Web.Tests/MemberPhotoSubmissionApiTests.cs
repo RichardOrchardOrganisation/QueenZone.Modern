@@ -283,6 +283,7 @@ public sealed class MemberPhotoSubmissionApiTests : IClassFixture<QueenZoneWebAp
         Guid memberId,
         string displayName = "Photo Fan")
     {
+        MemberBearerAccounts.Ensure(source.Services, memberId, $"{memberId:N}@example.test", displayName);
         using var scope = source.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
         var token = issuer.IssueAccessToken(memberId, $"{memberId:N}@example.test", displayName);
