@@ -221,35 +221,35 @@ if ($PSCmdlet.ParameterSetName -eq "SelfTest") {
         }
     }
 
-    $splitRanges = Get-OpenTofuPlanIngressFailures -ResourceChanges @(
+    $splitRanges = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
         (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Deny" -IpAddresses @("173.245.48.0/20"))
-    )
+    ))
     if ($splitRanges.Count -ne 0) {
         $failures.Add("Expected one Cloudflare CIDR and SCM Deny to pass the ingress check.")
     }
 
-    $directDev = Get-OpenTofuPlanIngressFailures -ResourceChanges @(
+    $directDev = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
         (New-FixtureWebAppChange -MainDefaultAction "Allow" -ScmDefaultAction "Allow" -IpAddresses @())
-    )
+    ))
     if ($directDev.Count -ne 0) {
         $failures.Add("Expected direct-access Allow/Allow with no rules to pass the ingress check.")
     }
 
-    $commaRanges = Get-OpenTofuPlanIngressFailures -ResourceChanges @(
+    $commaRanges = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
         (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Deny" -IpAddresses @("173.245.48.0/20,103.21.244.0/22"))
-    )
+    ))
     if ($commaRanges.Count -eq 0) {
         $failures.Add("Expected a comma-separated ip_address to be rejected.")
     }
 
-    $openScm = Get-OpenTofuPlanIngressFailures -ResourceChanges @(
+    $openScm = @(Get-OpenTofuPlanIngressFailures -ResourceChanges @(
         (New-FixtureWebAppChange -MainDefaultAction "Deny" -ScmDefaultAction "Allow" -IpAddresses @("173.245.48.0/20"))
-    )
+    ))
     if ($openScm.Count -eq 0) {
         $failures.Add("Expected SCM Allow to be rejected when the main site default is Deny.")
     }
 
-    $unchangedFixtures = Get-OpenTofuPlanIngressFailures -ResourceChanges $safeChanges
+    $unchangedFixtures = @(Get-OpenTofuPlanIngressFailures -ResourceChanges $safeChanges)
     if ($unchangedFixtures.Count -ne 0) {
         $failures.Add("Expected plans without site_config to skip the ingress check.")
     }
