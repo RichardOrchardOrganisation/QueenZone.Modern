@@ -174,7 +174,7 @@ public sealed class SearchDocumentSearchSqlTests
     public void Latest_migration_embeds_the_finite_typed_candidate_cap()
     {
         var migration = ReadRepoFile(Path.Combine(
-            "src", "QueenZone.Data", "Migrations", "20260922090000_CapTypedSearchFullTextCandidates.cs"));
+            "src", "QueenZone.Data", "Migrations", "20260922140000_CapTypedSearchFullTextCandidates.cs"));
         var upStart = migration.IndexOf("protected override void Up", StringComparison.Ordinal);
         var downStart = migration.IndexOf("protected override void Down", StringComparison.Ordinal);
         Assert.True(upStart >= 0 && downStart > upStart, "Expected Up before Down.");

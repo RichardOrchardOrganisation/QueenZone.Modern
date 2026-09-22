@@ -5,7 +5,7 @@
 -- 20260908140000_CapTypedSearchAfterContentTypeFilter (typed search caps after
 -- the ContentType filter so a track-title hit is not crowded out of the global top 1000),
 -- 20260914080000_RecompileSearchDocumentSearchMatches (OPTION (RECOMPILE) on both
--- FREETEXTTABLE match inserts), and 20260922090000_CapTypedSearchFullTextCandidates
+-- FREETEXTTABLE match inserts), and 20260922140000_CapTypedSearchFullTextCandidates
 -- (finite typed-search candidate window).
 -- See docs/sql/README.md for contributor conventions.
 --

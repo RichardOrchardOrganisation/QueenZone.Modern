@@ -14,7 +14,7 @@ namespace QueenZone.Data.Migrations;
 /// No EF model change.
 /// </remarks>
 [DbContext(typeof(QueenZoneDbContext))]
-[Migration("20260922090000_CapTypedSearchFullTextCandidates")]
+[Migration("20260922140000_CapTypedSearchFullTextCandidates")]
 public partial class CapTypedSearchFullTextCandidates : Migration
 {
     /// <inheritdoc />
