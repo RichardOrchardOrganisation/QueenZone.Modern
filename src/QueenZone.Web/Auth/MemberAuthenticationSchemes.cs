@@ -7,6 +7,12 @@ public static class MemberAuthenticationSchemes
     /// <summary>Short-lived cookie used only between an external provider's challenge and callback.</summary>
     public const string ExternalCookie = "MembersExternalCookie";
 
+    /// <summary>
+    /// Short-lived cookie for a new provider subject that matches an existing account and still
+    /// needs that account to confirm the link.
+    /// </summary>
+    public const string ExternalLinkCookie = "MembersExternalLinkCookie";
+
     public const string Google = "Google";
 
     public const string Microsoft = "Microsoft";

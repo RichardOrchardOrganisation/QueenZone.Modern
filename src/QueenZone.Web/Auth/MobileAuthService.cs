@@ -89,7 +89,93 @@ public sealed class MobileAuthService(
         string providerKey,
         string email,
         string displayName,
+        bool emailVerified,
         CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(requestId))
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Missing authorization request.");
+        }
+
+        var session = sessions.Peek(requestId);
+        if (session is null)
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Authorization request expired.");
+        }
+
+        if (!string.Equals(session.Provider, provider, StringComparison.OrdinalIgnoreCase))
+        {
+            sessions.Take(requestId);
+            return MobileAuthCallbackResult.Failed(
+                "access_denied",
+                "Provider mismatch.",
+                session.RedirectUri,
+                session.State);
+        }
+
+        var resolution = await memberAccountService.FindOrCreateFromExternalLoginAsync(
+            session.Provider,
+            providerKey,
+            email,
+            displayName,
+            emailVerified,
+            cancellationToken);
+
+        switch (resolution.Status)
+        {
+            case ExternalLoginStatus.LinkConfirmationRequired:
+                return MobileAuthCallbackResult.ConfirmationRequired(session.RedirectUri, session.State);
+            case ExternalLoginStatus.Suspended:
+                sessions.Take(requestId);
+                return MobileAuthCallbackResult.Failed(
+                    "access_denied",
+                    "account_suspended",
+                    session.RedirectUri,
+                    session.State);
+            case ExternalLoginStatus.SignedIn when resolution.Account is not null:
+                sessions.Take(requestId);
+                return await IssueAuthorizationCodeAsync(session, resolution.Account, cancellationToken);
+            default:
+                sessions.Take(requestId);
+                return MobileAuthCallbackResult.Failed(
+                    "access_denied",
+                    ExternalLoginMessages.UnverifiedEmail,
+                    session.RedirectUri,
+                    session.State);
+        }
+    }
+
+    public async Task<MobileAuthCallbackResult> CompleteConfirmedLoginAsync(
+        string? requestId,
+        MemberAccount account,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        if (string.IsNullOrWhiteSpace(requestId))
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Missing authorization request.");
+        }
+
+        var session = sessions.Take(requestId);
+        if (session is null)
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Authorization request expired.");
+        }
+
+        if (account.IsSuspended)
+        {
+            return MobileAuthCallbackResult.Failed(
+                "access_denied",
+                "account_suspended",
+                session.RedirectUri,
+                session.State);
+        }
+
+        return await IssueAuthorizationCodeAsync(session, account, cancellationToken);
+    }
+
+    public MobileAuthCallbackResult CancelPendingAuthorization(string? requestId)
     {
         if (string.IsNullOrWhiteSpace(requestId))
         {
@@ -102,57 +188,11 @@ public sealed class MobileAuthService(
             return MobileAuthCallbackResult.Failed("invalid_request", "Authorization request expired.");
         }
 
-        if (!string.Equals(session.Provider, provider, StringComparison.OrdinalIgnoreCase))
-        {
-            return MobileAuthCallbackResult.Failed(
-                "access_denied",
-                "Provider mismatch.",
-                session.RedirectUri,
-                session.State);
-        }
-
-        var account = await memberAccountService.FindOrCreateFromExternalLoginAsync(
-            session.Provider,
-            providerKey,
-            email,
-            displayName,
-            cancellationToken);
-
-        if (account.IsSuspended)
-        {
-            return MobileAuthCallbackResult.Failed(
-                "access_denied",
-                "account_suspended",
-                session.RedirectUri,
-                session.State);
-        }
-
-        if (!accountRateLimiter.IsAllowed(account.Id))
-        {
-            return MobileAuthCallbackResult.Failed(
-                "temporarily_unavailable",
-                MobileAuthAccountRateLimiter.ClientMessage,
-                session.RedirectUri,
-                session.State);
-        }
-
-        var rawCode = MobileAuthPkce.CreateOpaqueToken();
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        await grants.StoreAuthorizationCodeAsync(
-            new MobileAuthAuthorizationCodeEntity
-            {
-                Id = Guid.NewGuid(),
-                CodeHash = MobileAuthPkce.Sha256Hex(rawCode),
-                MemberAccountId = account.Id,
-                ClientId = session.ClientId,
-                RedirectUri = session.RedirectUri,
-                CodeChallenge = session.CodeChallenge,
-                CreatedAt = now,
-                ExpiresAt = now.AddMinutes(options.Value.AuthorizationCodeLifetimeMinutes),
-            },
-            cancellationToken);
-
-        return MobileAuthCallbackResult.Succeeded(session.RedirectUri, session.State, rawCode);
+        return MobileAuthCallbackResult.Failed(
+            "access_denied",
+            "Sign-in was cancelled.",
+            session.RedirectUri,
+            session.State);
     }
 
     public async Task<MobileAuthTokenResult> ExchangeAuthorizationCodeAsync(
@@ -385,6 +425,39 @@ public sealed class MobileAuthService(
             timeProvider.GetUtcNow().UtcDateTime,
             cancellationToken);
 
+    private async Task<MobileAuthCallbackResult> IssueAuthorizationCodeAsync(
+        MobileAuthAuthorizationSession session,
+        MemberAccount account,
+        CancellationToken cancellationToken)
+    {
+        if (!accountRateLimiter.IsAllowed(account.Id))
+        {
+            return MobileAuthCallbackResult.Failed(
+                "temporarily_unavailable",
+                MobileAuthAccountRateLimiter.ClientMessage,
+                session.RedirectUri,
+                session.State);
+        }
+
+        var rawCode = MobileAuthPkce.CreateOpaqueToken();
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        await grants.StoreAuthorizationCodeAsync(
+            new MobileAuthAuthorizationCodeEntity
+            {
+                Id = Guid.NewGuid(),
+                CodeHash = MobileAuthPkce.Sha256Hex(rawCode),
+                MemberAccountId = account.Id,
+                ClientId = session.ClientId,
+                RedirectUri = session.RedirectUri,
+                CodeChallenge = session.CodeChallenge,
+                CreatedAt = now,
+                ExpiresAt = now.AddMinutes(options.Value.AuthorizationCodeLifetimeMinutes),
+            },
+            cancellationToken);
+
+        return MobileAuthCallbackResult.Succeeded(session.RedirectUri, session.State, rawCode);
+    }
+
     private async Task<MobileAuthTokenResult> IssueTokenPairAsync(
         MemberAccount account,
         DateTime utcNow,
@@ -494,7 +567,8 @@ public sealed record MobileAuthCallbackResult(
     string? ErrorDescription,
     string? RedirectUri,
     string? State,
-    string? Code)
+    string? Code,
+    bool RequiresConfirmation = false)
 {
     public static MobileAuthCallbackResult Succeeded(string redirectUri, string state, string code) =>
         new(true, null, null, redirectUri, state, code);
@@ -505,6 +579,9 @@ public sealed record MobileAuthCallbackResult(
         string? redirectUri = null,
         string? state = null) =>
         new(false, error, description, redirectUri, state, null);
+
+    public static MobileAuthCallbackResult ConfirmationRequired(string redirectUri, string state) =>
+        new(false, null, null, redirectUri, state, null, RequiresConfirmation: true);
 }
 
 public sealed record MobileAuthTokenResult(

@@ -16,6 +16,8 @@ namespace QueenZone.Web;
 /// backfill only runs when exactly one free match remains.
 /// Existing unlinked accounts get that single-match silent backfill on later sign-in,
 /// repairing accounts that missed create-time linking under the old model.
+/// A new external provider is linked only when its email is verified and the existing
+/// account confirms the link. A returning provider subject signs in without that check.
 /// </remarks>
 public sealed class MemberAccountService(
     IMemberAccountRepository memberAccountRepository,
@@ -80,67 +82,151 @@ public sealed class MemberAccountService(
         return MemberAccountResult.Success(account);
     }
 
-    public async Task<MemberAccount> FindOrCreateFromExternalLoginAsync(
+    public async Task<ExternalLoginResolution> FindOrCreateFromExternalLoginAsync(
         string provider,
         string providerKey,
-        string email,
-        string displayName,
+        string? email,
+        string? displayName,
+        bool emailVerified,
         CancellationToken cancellationToken = default)
     {
-        MemberAccount result;
-        var isNewAccount = false;
+        provider = MemberAuthenticationSchemes.NormalizeExternalProvider(provider) ?? provider;
 
         var existingByLogin = await memberAccountRepository.FindByExternalLoginAsync(provider, providerKey, cancellationToken);
         if (existingByLogin is not null)
         {
-            result = existingByLogin;
-        }
-        else
-        {
-            var existingByEmail = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
-            if (existingByEmail is not null)
+            if (existingByLogin.IsSuspended)
             {
-                if (existingByEmail.DeletionRequestedAt is null)
-                {
-                    await memberAccountRepository.AddExternalLoginAsync(existingByEmail.Id, provider, providerKey, email, cancellationToken);
-                }
-
-                result = existingByEmail;
+                return ExternalLoginResolution.Suspended(existingByLogin);
             }
-            else
+
+            var signedIn = await FinishExistingSignInAsync(existingByLogin, cancellationToken);
+            return ExternalLoginResolution.SignedIn(signedIn);
+        }
+
+        // Email is only a matching key after the provider has verified it.
+        // An unverified address must not create an account that can later collide.
+        if (!emailVerified || string.IsNullOrWhiteSpace(email))
+        {
+            return ExternalLoginResolution.Unverified();
+        }
+
+        email = email.Trim();
+        var existingByEmail = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
+        if (existingByEmail is not null)
+        {
+            if (existingByEmail.IsSuspended)
             {
-                var account = new MemberAccount
-                {
-                    Id = Guid.NewGuid(),
-                    Email = email,
-                    DisplayName = displayName,
-                    CreatedAt = DateTime.UtcNow,
-                };
-
-                var created = await memberAccountRepository.CreateAsync(account, cancellationToken);
-                await memberAccountRepository.AddExternalLoginAsync(created.Id, provider, providerKey, email, cancellationToken);
-                result = created;
-                isNewAccount = true;
+                return ExternalLoginResolution.Suspended(existingByEmail);
             }
+
+            return ExternalLoginResolution.ConfirmationRequired(existingByEmail);
         }
 
-        // Existing accounts only: silent backfill for people who never claimed yet.
-        // New accounts keep LinkedLegacyUserId null so Settings can offer an explicit claim.
-        if (!isNewAccount && result.DeletionRequestedAt is null)
+        var account = new MemberAccount
         {
-            result = await TryBackfillLegacyLinkAsync(result, cancellationToken);
-        }
+            Id = Guid.NewGuid(),
+            Email = email,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? email : displayName.Trim(),
+            CreatedAt = DateTime.UtcNow,
+        };
 
-        if (!result.IsSuspended)
+        var created = await memberAccountRepository.CreateAsync(account, cancellationToken);
+        await memberAccountRepository.AddExternalLoginAsync(created.Id, provider, providerKey, email, cancellationToken);
+        await memberAccountRepository.RecordLoginAsync(created.Id, DateTime.UtcNow, cancellationToken);
+        created = await memberAccountRepository.FindByIdAsync(created.Id, cancellationToken) ?? created;
+        return ExternalLoginResolution.SignedIn(created);
+    }
+
+    /// <summary>
+    /// Attaches a pending provider subject to the account the member just authenticated.
+    /// The caller must already have proved that session with the account password or an
+    /// already-linked provider. The provider email must be that account's email.
+    /// </summary>
+    public async Task<MemberAccountResult> LinkExternalLoginAsync(
+        Guid authenticatedMemberId,
+        string provider,
+        string providerKey,
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedProvider = MemberAuthenticationSchemes.NormalizeExternalProvider(provider);
+        if (normalizedProvider is null)
         {
-            await memberAccountRepository.RecordLoginAsync(result.Id, DateTime.UtcNow, cancellationToken);
+            return MemberAccountResult.Failure(ExternalLoginMessages.UnknownProvider);
         }
 
-        return result;
+        if (string.IsNullOrWhiteSpace(providerKey) || string.IsNullOrWhiteSpace(email))
+        {
+            return MemberAccountResult.Failure(ExternalLoginMessages.UnverifiedEmail);
+        }
+
+        var account = await memberAccountRepository.FindByIdAsync(authenticatedMemberId, cancellationToken);
+        if (account is null)
+        {
+            return MemberAccountResult.Failure("Account not found.");
+        }
+
+        if (account.IsSuspended)
+        {
+            return MemberAccountResult.Failure(SuspendedSignInError);
+        }
+
+        if (!ExternalLoginEmail.EmailsMatch(account.Email, email))
+        {
+            return MemberAccountResult.Failure(ExternalLoginMessages.EmailMismatch);
+        }
+
+        if (account.DeletionRequestedAt is not null)
+        {
+            return MemberAccountResult.Failure(PendingDeletionEditError);
+        }
+
+        var existingLogin = await memberAccountRepository.FindByExternalLoginAsync(
+            normalizedProvider,
+            providerKey,
+            cancellationToken);
+        if (existingLogin is not null && existingLogin.Id != account.Id)
+        {
+            return MemberAccountResult.Failure(ExternalLoginMessages.AlreadyLinked);
+        }
+
+        if (existingLogin is null)
+        {
+            await memberAccountRepository.AddExternalLoginAsync(
+                account.Id,
+                normalizedProvider,
+                providerKey,
+                email.Trim(),
+                cancellationToken);
+        }
+
+        account = await FinishExistingSignInAsync(account, cancellationToken);
+        return MemberAccountResult.Success(account);
+    }
+
+    /// <summary>
+    /// Existing accounts only: silent legacy backfill for people who never claimed yet,
+    /// then record the login. New accounts skip this so Settings can offer an explicit claim.
+    /// </summary>
+    private async Task<MemberAccount> FinishExistingSignInAsync(
+        MemberAccount account,
+        CancellationToken cancellationToken)
+    {
+        if (account.DeletionRequestedAt is null)
+        {
+            account = await TryBackfillLegacyLinkAsync(account, cancellationToken);
+        }
+
+        await memberAccountRepository.RecordLoginAsync(account.Id, DateTime.UtcNow, cancellationToken);
+        return await memberAccountRepository.FindByIdAsync(account.Id, cancellationToken) ?? account;
     }
 
     public async Task<MemberAccount?> FindByIdAsync(Guid memberId, CancellationToken cancellationToken = default) =>
         await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
+
+    public Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default) =>
+        memberAccountRepository.FindByEmailAsync(email, cancellationToken);
 
     public async Task<MemberAccount?> SuspendAsync(
         Guid memberId,
