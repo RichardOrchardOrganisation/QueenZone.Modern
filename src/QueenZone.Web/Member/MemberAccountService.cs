@@ -840,6 +840,8 @@ public sealed class MemberAccountService(
 
     public const string PendingDeletionEditError = "Cancel account deletion before changing your public profile.";
 
+    public const string SuspendedSignInError = "This account has been suspended.";
+
     public const string InvalidPasswordSignInError = "Incorrect email or password.";
 }
 
