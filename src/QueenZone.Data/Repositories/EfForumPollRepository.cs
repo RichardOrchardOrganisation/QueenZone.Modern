@@ -52,9 +52,7 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
 
         var utcNow = timeProvider.GetUtcNow();
         var closed = IsClosed(poll, utcNow);
-        var canClose = !closed
-            && viewerMemberId is Guid closer
-            && (viewerIsAdmin || poll.CreatedByMemberId == closer);
+        var canClose = CanViewerClose(closed, viewerMemberId, viewerIsAdmin, poll.CreatedByMemberId);
 
         HashSet<Guid> viewerSelected = [];
         var viewerHasVoted = false;
@@ -345,9 +343,7 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
 
         var closed = IsClosed(poll, utcNow);
         var canVote = viewerMemberId is not null && !viewerHasVoted && !closed;
-        var canClose = !closed
-            && viewerMemberId is Guid closer
-            && (viewerIsAdmin || poll.CreatedByMemberId == closer);
+        var canClose = CanViewerClose(closed, viewerMemberId, viewerIsAdmin, poll.CreatedByMemberId);
 
         var options = poll.Options
             .OrderBy(option => option.DisplayOrder)
@@ -388,6 +384,18 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
     internal static bool IsClosed(ForumPollEntity poll, DateTimeOffset utcNow) =>
         poll.ClosedAt is not null
         || (poll.ClosesAt is DateTimeOffset closesAt && closesAt <= utcNow);
+
+    /// <summary>
+    /// An admin scheme principal may close a poll without a member account.
+    /// Everyone else must be the member who created the poll.
+    /// </summary>
+    internal static bool CanViewerClose(
+        bool closed,
+        Guid? viewerMemberId,
+        bool viewerIsAdmin,
+        Guid? createdByMemberId) =>
+        !closed && (viewerIsAdmin
+            || (viewerMemberId is Guid closer && createdByMemberId == closer));
 
     private static int ResolveMaxChoices(ForumPollEntity poll)
     {
