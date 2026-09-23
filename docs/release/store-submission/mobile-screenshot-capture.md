@@ -79,6 +79,7 @@ Home Screen so the first action shown is launching QueenZone.
 
 1. Start iPhone Screen Recording, launch QueenZone, and pause briefly on Home.
 2. Open News, Photography, Archive, and Forum to demonstrate the public flow.
+   On a build that includes Quiz, open it from Archive and answer one sample question.
 3. From Forum, choose the new-topic action. On **Sign in**, expand **Other ways
    to sign in** and use the dedicated reviewer email and password.
 4. Dismiss the empty forum composer, return to Home, open the profile, then

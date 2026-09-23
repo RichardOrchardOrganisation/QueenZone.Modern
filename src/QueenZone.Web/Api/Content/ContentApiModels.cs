@@ -112,6 +112,7 @@ public sealed record BiographyChapterListItemDto(
 /// <summary>
 /// Detail shape for <c>/api/v1/content/biography/{id}</c>, including adjacent-chapter
 /// links so the app can render prev/next navigation without a second round trip.
+/// <c>Body</c> is sanitized HTML via <see cref="BiographyContent.FormatBody"/>.
 /// </summary>
 public sealed record BiographyChapterDetailDto(
     int Id,
@@ -140,6 +141,7 @@ public sealed record AlbumListItemDto(
 
 /// <summary>
 /// Detail shape for <c>/api/v1/content/discography/{id}</c>, including the track list.
+/// <c>GeneralNotes</c> is sanitized HTML using the same formatter as the website.
 /// </summary>
 public sealed record AlbumDetailDto(
     int AlbumId,
@@ -152,7 +154,8 @@ public sealed record AlbumDetailDto(
     IReadOnlyList<AlbumSongDto> Songs);
 
 /// <summary>
-/// A single track within an <see cref="AlbumDetailDto"/>.
+/// A single track within an <see cref="AlbumDetailDto"/>. <c>Lyrics</c> is encoded display HTML
+/// via <see cref="LyricsFormatter.Format"/>; <c>Notes</c> remains plain text.
 /// </summary>
 public sealed record AlbumSongDto(int SongId, string Title, bool IsSingle, string? Lyrics, string? Notes);
 

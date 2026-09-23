@@ -42,7 +42,7 @@ describe('saveLocalFileToPhotos', () => {
     expect(requestPermissions).not.toHaveBeenCalled();
     expect(saveToLibrary).toHaveBeenCalledWith('file:///cache/scan.jpg');
     expect(savePhotosPermission).not.toBe(
-      'Allow QueenZone to use your photos for gallery submissions, forum posts, and your member avatar.',
+      'QueenZone accesses photos you choose so you can, for example, submit a concert photo to our moderated gallery, attach it to a forum post, or set your member avatar.',
     );
     expect(saveToPhotosCopy.denied).not.toBe(composerAttachCopy.photosPermission);
   });
