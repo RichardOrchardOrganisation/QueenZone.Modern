@@ -32,6 +32,26 @@ public sealed class ContentApiTimelineTests : IClassFixture<QueenZoneWebApplicat
     }
 
     [Fact]
+    public async Task Timeline_anchor_returns_the_cached_page_containing_the_focus_id()
+    {
+        using var client = factory.CreateAnonymousClient();
+        using var firstResponse = await client.GetAsync($"{ContentApiEndpoints.RootPath}/timeline/anchor/1?pageSize=3");
+        var first = await firstResponse.Content.ReadFromJsonAsync<ApiPagedResponse<TimelineEventDto>>();
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(1, first!.Page);
+        Assert.Contains(first.Items, item => item.Id == 1);
+
+        using var laterResponse = await client.GetAsync($"{ContentApiEndpoints.RootPath}/timeline/anchor/10?pageSize=3");
+        var later = await laterResponse.Content.ReadFromJsonAsync<ApiPagedResponse<TimelineEventDto>>();
+        Assert.Equal(HttpStatusCode.OK, laterResponse.StatusCode);
+        Assert.True(later!.Page > 1);
+        Assert.Contains(later.Items, item => item.Id == 10);
+
+        using var missing = await client.GetAsync($"{ContentApiEndpoints.RootPath}/timeline/anchor/999999?pageSize=3");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
     public async Task Timeline_list_clamps_invalid_paging_query_values()
     {
         using var client = factory.CreateAnonymousClient();

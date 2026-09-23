@@ -32,6 +32,7 @@ export {
   fetchNewsYearRange,
   fetchOnThisDay,
   fetchTimelineEventById,
+  fetchTimelineAnchor,
   fetchPhotoCategories,
   fetchPhotoCategory,
   fetchPhotoCategoryItems,
