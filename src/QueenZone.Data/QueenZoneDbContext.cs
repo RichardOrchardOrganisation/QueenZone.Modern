@@ -742,6 +742,10 @@ public sealed class QueenZoneDbContext : DbContext
             entity.Property(historyEvent => historyEvent.Title).HasMaxLength(200).IsRequired();
             entity.Property(historyEvent => historyEvent.Summary).HasMaxLength(1000).IsRequired();
             entity.Property(historyEvent => historyEvent.EventDate).IsRequired();
+            entity.Property(historyEvent => historyEvent.EventMonthDay)
+                .HasComputedColumnSql(Database.IsSqlServer()
+                    ? "MONTH([EventDate]) * 100 + DAY([EventDate])"
+                    : "CAST(strftime('%m', EventDate) AS INTEGER) * 100 + CAST(strftime('%d', EventDate) AS INTEGER)", stored: true);
             entity.Property(historyEvent => historyEvent.DatePrecision).HasConversion<string>().HasMaxLength(50).IsRequired();
             entity.Property(historyEvent => historyEvent.Category).HasConversion<string>().HasMaxLength(50).IsRequired();
             entity.Property(historyEvent => historyEvent.Importance).IsRequired();
@@ -765,6 +769,9 @@ public sealed class QueenZoneDbContext : DbContext
 
             entity.HasIndex(historyEvent => new { historyEvent.IsPublished, historyEvent.DatePrecision, historyEvent.EventDate })
                 .HasDatabaseName("IX_QueenHistoryEvents_Published_Date");
+
+            entity.HasIndex(historyEvent => new { historyEvent.IsPublished, historyEvent.DatePrecision, historyEvent.EventMonthDay })
+                .HasDatabaseName("IX_QueenHistoryEvents_Published_MonthDay");
 
             entity.HasIndex(historyEvent => new { historyEvent.SourceType, historyEvent.SourceKey })
                 .IsUnique()

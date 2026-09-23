@@ -146,6 +146,14 @@ export function fetchTimelinePage(
   return fetchJson('/content/timeline', { query: pageParams(query), signal: query.signal });
 }
 
+/** The chronological page containing a published event. 404 when the id is unknown. */
+export function fetchTimelineAnchor(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ApiPagedResponse<TimelineEvent>> {
+  return fetchJson(`/content/timeline/anchor/${id}`, { query: { pageSize: 100 }, signal });
+}
+
 /** A published timeline event by id. 404 when missing or unpublished. */
 export function fetchTimelineEventById(id: number, signal?: AbortSignal): Promise<TimelineEvent> {
   return fetchJson(`/content/timeline/${id}`, { signal });
