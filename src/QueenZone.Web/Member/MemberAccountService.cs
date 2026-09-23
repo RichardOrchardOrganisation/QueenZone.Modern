@@ -28,7 +28,8 @@ public sealed class MemberAccountService(
     TimeProvider? timeProvider = null,
     IOptions<PasswordSignInLockoutOptions>? passwordLockout = null,
     AppleAccountTokenService? appleTokens = null,
-    ILogger<MemberAccountService>? logger = null)
+    ILogger<MemberAccountService>? logger = null,
+    IOutboundEmailSender? emailSender = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
@@ -766,6 +767,8 @@ public sealed class MemberAccountService(
             return MemberAccountResult.Failure("Account not found.");
         }
 
+        var recipientEmail = requested.Account.Email;
+
         try
         {
             await PurgeDueDeletionsAsync(clock.GetUtcNow().UtcDateTime, cancellationToken);
@@ -779,6 +782,22 @@ public sealed class MemberAccountService(
         if (purged?.PersonalDataPurgedAt is null)
         {
             return MemberAccountResult.Failure(ImmediatePurgeIncompleteError);
+        }
+
+        if (emailSender is not null)
+        {
+            try
+            {
+                await emailSender.SendAsync(
+                    recipientEmail,
+                    "Your Queenzone account deletion request",
+                    "Your Queenzone account has been deleted. Remaining external cleanup may still be processing. If you did not request this, contact support@queenzone.org.",
+                    cancellationToken: cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger?.LogError("Could not email account deletion confirmation for {MemberId}: {ErrorType}.", memberId, ex.GetType().Name);
+            }
         }
 
         return MemberAccountResult.Success(purged);

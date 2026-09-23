@@ -10,7 +10,10 @@ public sealed class HelpRequestService(
     HelpRequestFormStamp formStamp,
     HelpRequestRateLimiter rateLimiter,
     TimeProvider timeProvider,
-    IOptions<HelpRequestOptions> options)
+    IOptions<HelpRequestOptions> options,
+    IOutboundEmailSender? emailSender = null,
+    IOptions<SmtpEmailOptions>? smtpOptions = null,
+    ILogger<HelpRequestService>? logger = null)
 {
     public const int MaxNameLength = 100;
     public const int MaxEmailLength = 256;
@@ -169,6 +172,23 @@ public sealed class HelpRequestService(
                 null,
                 null),
             cancellationToken);
+
+        if (emailSender is not null && smtpOptions is not null)
+        {
+            try
+            {
+                await emailSender.SendAsync(
+                    smtpOptions.Value.SupportAddress,
+                    "New Queenzone contact request",
+                    $"Topic: {HelpRequestTopic.DisplayName(normalizedTopic)}\nName: {snapshotName}\nEmail: {snapshotEmail}\nSubject: {trimmedSubject}\n\n{trimmedMessage}",
+                    snapshotEmail,
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger?.LogError("Could not email contact request {RequestId}: {ErrorType}.", created.Id, ex.GetType().Name);
+            }
+        }
 
         return new SubmitResult(true, created, null, false);
     }

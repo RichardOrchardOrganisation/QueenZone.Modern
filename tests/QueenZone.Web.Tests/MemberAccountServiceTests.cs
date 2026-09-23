@@ -20,7 +20,8 @@ public sealed class MemberAccountServiceTests
         MemberUploadQuotaService? uploadQuota = null,
         TimeSpan? blobDeleteTimeout = null,
         TimeProvider? timeProvider = null,
-        PasswordSignInLockoutOptions? passwordLockout = null)
+        PasswordSignInLockoutOptions? passwordLockout = null,
+        IOutboundEmailSender? emailSender = null)
     {
         var backend = blobBackend ?? new InMemoryBlobStorageBackend();
         var blobs = blobUploadService
@@ -32,7 +33,8 @@ public sealed class MemberAccountServiceTests
             blobs,
             uploadQuota ?? CreateDisabledUploadQuota(),
             timeProvider,
-            passwordLockout is null ? null : Options.Create(passwordLockout))
+            passwordLockout is null ? null : Options.Create(passwordLockout),
+            emailSender: emailSender)
         {
             BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountService.DefaultBlobDeleteTimeout,
         };
@@ -1026,6 +1028,32 @@ public sealed class MemberAccountServiceTests
         Assert.True(result.Succeeded);
         Assert.NotNull(result.Account!.PersonalDataPurgedAt);
         Assert.NotNull((await repository.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
+    }
+
+    [Fact]
+    public async Task DeleteImmediatelyAsync_EmailsOriginalAddressAfterPurge()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var sender = new RecordingEmailSender();
+        var service = CreateService(memberAccountRepository: repository, emailSender: sender);
+        var registered = await service.RegisterAsync("delete-mail@example.com", "S3curePass!", "Delete Mail");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("delete-mail@example.com", sender.To);
+    }
+
+    private sealed class RecordingEmailSender : IOutboundEmailSender
+    {
+        public string? To { get; private set; }
+
+        public Task SendAsync(string to, string subject, string body, string? replyTo = null,
+            CancellationToken cancellationToken = default)
+        {
+            To = to;
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]
