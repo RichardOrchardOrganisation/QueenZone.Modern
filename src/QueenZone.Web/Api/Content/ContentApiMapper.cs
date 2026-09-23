@@ -196,7 +196,7 @@ public static class ContentApiMapper
             chapter.Id,
             chapter.Title,
             BiographyContent.GetListSummary(chapter),
-            chapter.Body,
+            BiographyContent.FormatBody(chapter.Body),
             chapter.DisplaySequence,
             BiographyRoutes.GetChapterDetailPath(chapter),
             ToBiographyChapterNavDto(navigation.Previous),
@@ -224,14 +224,19 @@ public static class ContentApiMapper
             album.Name,
             album.ReleaseYear,
             album.ArtistName,
-            album.GeneralNotes,
+            album.GeneralNotes is null ? null : NewsArticleContent.FormatBody(album.GeneralNotes),
             album.CoverUrl,
             DiscographyRoutes.GetAlbumPath(album.AlbumId, album.Slug),
             ToAlbumSongs(album.Songs));
 
     private static IReadOnlyList<AlbumSongDto> ToAlbumSongs(IEnumerable<AlbumSong> songs) =>
         songs
-            .Select(song => new AlbumSongDto(song.SongId, song.Title, song.IsSingle, song.Lyrics, song.Notes))
+            .Select(song => new AlbumSongDto(
+                song.SongId,
+                song.Title,
+                song.IsSingle,
+                song.Lyrics is null ? null : LyricsFormatter.Format(song.Lyrics),
+                song.Notes))
             .ToList();
 
     public static FreddieTributeDto ToFreddieTributeDto(FreddieTribute tribute) =>
