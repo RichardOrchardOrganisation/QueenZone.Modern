@@ -225,6 +225,7 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
     public async Task RequestDeletionAsync_AnonymisesImmediately_CancelRestores_AndPurgeMakesPermanent()
     {
         var account = await SeedAccountAsync("delete-me@example.com", "Delete Me");
+        var otherMember = await SeedAccountAsync("other-member@example.com", "Other Member");
         account.AvatarUrl = $"members/{account.Id:N}/avatar.webp";
         await dbContext.SaveChangesAsync();
         dbContext.ModernForumCategories.Add(new ModernForumCategoryEntity
@@ -258,6 +259,18 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
             ImportedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         });
+        dbContext.ModernForumPosts.Add(new ModernForumPostEntity
+        {
+            LegacyPostId = 9002,
+            LegacyThreadTopicId = thread.LegacyTopicId,
+            Thread = thread,
+            LegacyForumId = 1,
+            AuthorMemberId = otherMember.Id,
+            AuthorDisplayName = otherMember.DisplayName,
+            BodyHtml = "<p>Other member reply</p>",
+            ImportedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
         dbContext.ArticleSubmissions.Add(new ArticleSubmissionEntity
         {
             Id = Guid.NewGuid(),
@@ -279,6 +292,19 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
             AuthorDisplayName = account.DisplayName,
             IndexedAt = DateTimeOffset.UtcNow,
         });
+        dbContext.SearchDocuments.Add(new SearchDocumentEntity
+        {
+            Id = Guid.NewGuid(),
+            SourceKey = "forum-thread:8001",
+            ContentType = "forum",
+            Title = thread.Title,
+            Body = "Retained body from starter",
+            Summary = "Retained body from starter",
+            Url = "/forum/topic/8001",
+            AuthorDisplayName = account.DisplayName,
+            ImageUrl = account.AvatarUrl,
+            IndexedAt = DateTimeOffset.UtcNow,
+        });
         await dbContext.SaveChangesAsync();
         var requestedAt = new DateTime(2026, 8, 12, 7, 0, 0, DateTimeKind.Utc);
 
@@ -295,11 +321,18 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         Assert.Null(reloaded.AvatarUrl);
         Assert.Equal("Delete Me", reloaded.DeletionRecoveryDisplayName);
         Assert.Equal($"members/{account.Id:N}/avatar.webp", reloaded.DeletionRecoveryAvatarUrl);
-        var post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync();
+        var post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9001);
         Assert.Equal(account.Id, post.AuthorMemberId);
         Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, post.AuthorDisplayName);
-        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, (await dbContext.ModernForumThreads.AsNoTracking().SingleAsync()).StartedByDisplayName);
-        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, (await dbContext.SearchDocuments.AsNoTracking().SingleAsync()).AuthorDisplayName);
+        var persistedThread = await dbContext.ModernForumThreads.AsNoTracking().SingleAsync();
+        Assert.Equal("Delete test", persistedThread.Title);
+        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, persistedThread.StartedByDisplayName);
+        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, (await dbContext.SearchDocuments.AsNoTracking().SingleAsync(document => document.ContentType == "article")).AuthorDisplayName);
+        var forumSearch = await dbContext.SearchDocuments.AsNoTracking().SingleAsync(document => document.ContentType == "forum");
+        Assert.Equal("Delete test", forumSearch.Body);
+        Assert.Equal("Delete test", forumSearch.Summary);
+        Assert.Null(forumSearch.AuthorDisplayName);
+        Assert.Null(forumSearch.ImageUrl);
         var audit = await dbContext.MemberAccountDeletionAuditLogs.AsNoTracking().SingleAsync();
         Assert.Equal(MemberAccountDeletionPolicy.RequestedAuditAction, audit.Action);
         Assert.Equal(account.Id, audit.MemberAccountId);
@@ -311,11 +344,11 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         Assert.Equal($"members/{account.Id:N}/avatar.webp", reloaded.AvatarUrl);
         Assert.Null(reloaded.DeletionRecoveryDisplayName);
         Assert.Null(reloaded.DeletionRecoveryAvatarUrl);
-        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync();
+        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9001);
         Assert.Equal(account.Id, post.AuthorMemberId);
         Assert.Equal("Delete Me", post.AuthorDisplayName);
         Assert.Equal("Delete Me", (await dbContext.ModernForumThreads.AsNoTracking().SingleAsync()).StartedByDisplayName);
-        Assert.Equal("Delete Me", (await dbContext.SearchDocuments.AsNoTracking().SingleAsync()).AuthorDisplayName);
+        Assert.Equal("Delete Me", (await dbContext.SearchDocuments.AsNoTracking().SingleAsync(document => document.ContentType == "article")).AuthorDisplayName);
 
         var secondRequestAt = requestedAt.AddDays(3);
         await repository.RequestDeletionAsync(account.Id, secondRequestAt);
@@ -323,14 +356,20 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
 
         Assert.Equal(1, purge.PurgedCount);
         Assert.Equal([$"members/{account.Id:N}/avatar.webp"], purge.AvatarBlobPaths);
-        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync();
+        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9001);
         Assert.Null(post.AuthorMemberId);
         Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, post.AuthorDisplayName);
         Assert.Equal("<p>Post deleted by member.</p>", post.BodyHtml);
-        Assert.Equal(
-            MemberAccountDeletionPolicy.DeletedDisplayName,
-            (await dbContext.ModernForumThreads.AsNoTracking().SingleAsync()).StartedByDisplayName);
-        Assert.Empty(await dbContext.SearchDocuments.AsNoTracking().ToListAsync());
+        persistedThread = await dbContext.ModernForumThreads.AsNoTracking().SingleAsync();
+        Assert.Equal("Delete test", persistedThread.Title);
+        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, persistedThread.StartedByDisplayName);
+        var otherPost = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9002);
+        Assert.Equal(otherMember.Id, otherPost.AuthorMemberId);
+        Assert.Equal("Other Member", otherPost.AuthorDisplayName);
+        Assert.Equal("<p>Other member reply</p>", otherPost.BodyHtml);
+        var indexedThread = await dbContext.SearchDocuments.AsNoTracking().SingleAsync();
+        Assert.Equal("forum-thread:8001", indexedThread.SourceKey);
+        Assert.Equal("Delete test", indexedThread.Title);
         var article = await dbContext.ArticleSubmissions.AsNoTracking().SingleAsync();
         Assert.Equal(string.Empty, article.Body);
         Assert.Equal("Deleted", article.Status);

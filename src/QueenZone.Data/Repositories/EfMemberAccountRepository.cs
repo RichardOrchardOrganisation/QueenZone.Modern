@@ -812,15 +812,6 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
                 .SetProperty(quiz => quiz.Description, (string?)null)
                 .SetProperty(quiz => quiz.IsPublished, false), cancellationToken);
 
-        var threadKeys = await dbContext.ModernForumPosts
-            .Where(post => post.AuthorMemberId == memberId)
-            .Select(post => "forum-thread:" + post.LegacyThreadTopicId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        await dbContext.SearchDocuments
-            .Where(document => threadKeys.Contains(document.SourceKey))
-            .ExecuteDeleteAsync(cancellationToken);
-
         var attachments = await dbContext.ForumPostAttachments
             .Where(attachment => attachment.Post!.AuthorMemberId == memberId)
             .Select(attachment => new { attachment.ContainerName, attachment.BlobPath })
@@ -1016,6 +1007,21 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
         bool clearMemberLink,
         CancellationToken cancellationToken)
     {
+        // Forum search documents are title-only. Keep the thread discoverable while
+        // clearing any older index payload that might still contain authored post text.
+        var threadKeys = dbContext.ModernForumPosts
+            .Where(post => post.AuthorMemberId == memberId)
+            .Select(post => "forum-thread:" + post.LegacyThreadTopicId);
+        await dbContext.SearchDocuments
+            .Where(document => threadKeys.Contains(document.SourceKey))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(document => document.Body, document => document.Title)
+                    .SetProperty(document => document.Summary, document => document.Title)
+                    .SetProperty(document => document.AuthorDisplayName, (string?)null)
+                    .SetProperty(document => document.ImageUrl, (string?)null),
+                cancellationToken);
+
         var starterThreadIds = dbContext.ModernForumPosts
             .Where(post =>
                 post.AuthorMemberId == memberId
