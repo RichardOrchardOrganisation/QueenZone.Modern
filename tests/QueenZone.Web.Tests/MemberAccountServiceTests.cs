@@ -1015,6 +1015,55 @@ public sealed class MemberAccountServiceTests
     }
 
     [Fact]
+    public async Task DeleteImmediatelyAsync_ReturnsSuccess_WhenPurgeCompletes()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("immediate-ok@example.com", "S3curePass!", "Immediate Ok");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.Account!.PersonalDataPurgedAt);
+        Assert.NotNull((await repository.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
+    }
+
+    [Fact]
+    public async Task DeleteImmediatelyAsync_ReturnsFailure_WhenPurgeDoesNotTombstone()
+    {
+        var inner = new InMemoryMemberAccountRepository();
+        var (repository, _) = ThrowingPurgeMemberAccountRepository.Create(inner);
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("immediate-fail@example.com", "S3curePass!", "Immediate Fail");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(MemberAccountService.ImmediatePurgeIncompleteError, result.Error);
+        Assert.Null((await inner.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
+    }
+
+    [Fact]
+    public async Task DeleteImmediatelyAsync_ReturnsSuccess_WhenBlobDeleteThrowsAfterPurge()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var hanging = new HangForeverBlobUploadService();
+        var service = CreateService(
+            memberAccountRepository: repository,
+            blobUploadService: hanging,
+            blobDeleteTimeout: TimeSpan.FromMilliseconds(50));
+        var registered = await service.RegisterAsync("immediate-blob@example.com", "S3curePass!", "Immediate Blob");
+        await repository.UpdateAvatarUrlAsync(registered.Account!.Id, "members/hang/avatar.webp");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account.Id);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull((await repository.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
+        Assert.False((await repository.GetDeletionProgressAsync(registered.Account.Id))!.IsComplete);
+        Assert.True(hanging.DeleteCalls >= 1);
+    }
+
+    [Fact]
     public async Task PurgeDueDeletionsAsync_DeletesAvatarBlobs_WhenRetentionHasElapsed()
     {
         var backend = new InMemoryBlobStorageBackend();
@@ -1302,6 +1351,33 @@ public sealed class MemberAccountServiceTests
             IReadOnlyList<MemberSocialLink> links,
             CancellationToken cancellationToken = default) =>
             inner.ReplaceSocialLinksAsync(memberId, links, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Delegates to an inner repository but throws from <see cref="IMemberAccountRepository.PurgeDeletedAccountsAsync"/>.
+/// </summary>
+public class ThrowingPurgeMemberAccountRepository : DispatchProxy
+{
+    private IMemberAccountRepository inner = null!;
+
+    public static (IMemberAccountRepository Proxy, ThrowingPurgeMemberAccountRepository Counter) Create(
+        IMemberAccountRepository inner)
+    {
+        var proxy = DispatchProxy.Create<IMemberAccountRepository, ThrowingPurgeMemberAccountRepository>();
+        var counter = (ThrowingPurgeMemberAccountRepository)(object)proxy;
+        counter.inner = inner;
+        return (proxy, counter);
+    }
+
+    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+    {
+        if (targetMethod?.Name == nameof(IMemberAccountRepository.PurgeDeletedAccountsAsync))
+        {
+            throw new InvalidOperationException("Simulated purge failure.");
+        }
+
+        return targetMethod!.Invoke(inner, args);
     }
 }
 

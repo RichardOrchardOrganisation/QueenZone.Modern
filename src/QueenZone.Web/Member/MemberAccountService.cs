@@ -772,10 +772,16 @@ public sealed class MemberAccountService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // The account is already disabled and due; the hosted service retries cleanup.
-            logger?.LogError(ex, "Immediate account deletion is pending cleanup for {MemberId}.", memberId);
+            logger?.LogError(ex, "Immediate account deletion purge failed for {MemberId}.", memberId);
         }
-        return MemberAccountResult.Success(requested.Account);
+
+        var purged = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
+        if (purged?.PersonalDataPurgedAt is null)
+        {
+            return MemberAccountResult.Failure(ImmediatePurgeIncompleteError);
+        }
+
+        return MemberAccountResult.Success(purged);
     }
 
     public async Task<MemberAccountResult> CancelDeletionAsync(
@@ -882,6 +888,9 @@ public sealed class MemberAccountService(
     public const int MaxDisplayNameLength = 100;
 
     public const string PendingDeletionEditError = "Cancel account deletion before changing your public profile.";
+
+    public const string ImmediatePurgeIncompleteError =
+        "Account deletion could not finish removing personal data. Try again shortly.";
 
     public const string SuspendedSignInError = "This account has been suspended.";
 
