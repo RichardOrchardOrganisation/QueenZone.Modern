@@ -109,6 +109,11 @@ public sealed class IndexModel(HelpRequestService helpRequestService) : PageMode
             return Redirect("/contact/confirmation");
         }
 
+        if (result.Error?.StartsWith("Too many", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        }
+
         ModelState.AddModelError(string.Empty, result.Error ?? "Could not send your message.");
         FormStamp = helpRequestService.IssueFormStamp();
         return Page();
