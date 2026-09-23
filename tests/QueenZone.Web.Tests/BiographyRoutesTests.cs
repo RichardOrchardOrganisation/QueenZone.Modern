@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 
@@ -87,6 +88,34 @@ public sealed class BiographyRoutesTests : IClassFixture<WebApplicationFactory<P
         Assert.Contains("/biography/3/1975", body);
         Assert.Contains(TestSiteConfiguration.CanonicalLink("/biography/2/1970"), body);
         TestHtmlAssertions.AssertPageTitle(body, "1970 | QueenZone biography");
+    }
+
+    [Fact]
+    public async Task BiographyDetailReusesOneCachedListForNavigationAcrossRequests()
+    {
+        var chapters = new[]
+        {
+            new BiographyChapterItem(1, "First", "First summary", "First body", 1, DateTime.UtcNow),
+            new BiographyChapterItem(2, "Second", "Second summary", "Second body", 2, DateTime.UtcNow),
+        };
+        var repository = new CountingBiographyRepository(chapters);
+        using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
+        {
+            services.RemoveAll<IBiographyRepository>();
+            services.AddSingleton<IBiographyRepository>(repository);
+        });
+        using var client = isolated.CreateAnonymousClient();
+
+        var first = await client.GetStringAsync("/biography/2/second");
+        var listCallsAfterFirst = repository.ListCallCount;
+        var second = await client.GetStringAsync("/biography/2/second");
+
+        Assert.Contains("Previous Chapter", first);
+        Assert.Contains("Previous Chapter", second);
+        Assert.InRange(listCallsAfterFirst, 1, 2);
+        Assert.Equal(listCallsAfterFirst, repository.ListCallCount);
+        Assert.True(repository.DetailCallCount >= 2);
+        Assert.Equal(0, repository.AdjacentCallCount);
     }
 
     [Fact]
@@ -205,5 +234,36 @@ public sealed class BiographyRoutesTests : IClassFixture<WebApplicationFactory<P
     public void GetYearMarker_ParsesLegacyTitleYears(string title, string expected)
     {
         Assert.Equal(expected, BiographyTitle.GetYearMarker(title));
+    }
+
+    private sealed class CountingBiographyRepository(IReadOnlyList<BiographyChapterItem> chapters) : IBiographyRepository
+    {
+        public int ListCallCount { get; private set; }
+        public int DetailCallCount { get; private set; }
+        public int AdjacentCallCount { get; private set; }
+
+        public Task<IReadOnlyList<BiographyChapterItem>> GetChaptersAsync(CancellationToken cancellationToken = default)
+        {
+            ListCallCount++;
+            return Task.FromResult(chapters);
+        }
+
+        public Task<BiographyChapterItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        {
+            DetailCallCount++;
+            return Task.FromResult(chapters.SingleOrDefault(chapter => chapter.Id == id));
+        }
+
+        public Task<BiographyChapterNav> GetAdjacentChaptersAsync(int id, CancellationToken cancellationToken = default)
+        {
+            AdjacentCallCount++;
+            return Task.FromResult(new BiographyChapterNav(null, null));
+        }
+
+        public Task<int> CreateAsync(AdminBiographyDraft draft, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task UpdateAsync(int id, AdminBiographyDraft draft, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

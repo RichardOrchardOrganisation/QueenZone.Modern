@@ -241,6 +241,17 @@ public sealed class PublicQueryCacheService(
             () => discographyRepository.GetAlbumsAsync(cancellationToken),
             cancellationToken);
 
+    // The album template renders notes and lyrics for every track, including collapsed details.
+    // Cache the complete archive read so repeat views do not fetch every track LOB again.
+    public Task<AlbumDetail?> GetDiscographyAlbumByIdAsync(
+        int albumId,
+        CancellationToken cancellationToken = default) =>
+        GetOrCreateAsync(
+            PublicQueryCacheKeys.DiscographyAlbum(albumId),
+            options.Value.CatalogCacheDuration,
+            () => discographyRepository.GetAlbumByIdAsync(albumId, cancellationToken),
+            cancellationToken);
+
     public Task<IReadOnlyList<PhotoCategory>> GetPhotoCategoriesAsync(CancellationToken cancellationToken = default)
     {
         var version = GetPhotoCacheVersion();
