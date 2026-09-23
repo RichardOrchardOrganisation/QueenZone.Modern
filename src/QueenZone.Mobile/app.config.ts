@@ -139,6 +139,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // expo-build-properties turns on release minification/shrinking. Finish
       // the AGP 8.12 setup with optimizing defaults + integrated shrinking.
       './plugins/withAndroidR8Optimization.cjs',
+      // Always-on Gradle heap/metaspace floor for Release R8 / bundleRelease
+      // (#1709). Not gated on QUEENZONE_MOBILE_SMOKE_EMBED — store/Play CNG
+      // OOMed on Expo's 2g default; smokeEmbed already used 6g/1g.
+      './plugins/withAndroidGradleJvmArgs.cjs',
       ...(smokeEmbed ? ['./plugins/smokeEmbed.cjs'] : []),
       // After expo-widgets writes ExpoWidgetsTarget: render On This Day in
       // SwiftUI so the gallery/home snapshot is never a Release EmptyView.
