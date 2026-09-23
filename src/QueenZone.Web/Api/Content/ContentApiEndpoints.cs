@@ -1009,7 +1009,6 @@ public static class ContentApiEndpoints
 
     internal static async Task<IResult> GetFanPerformancesAsync(
         PublicQueryCacheService publicQueryCache,
-        FanPerformanceDurationResolver durationResolver,
         FanPerformanceCreditResolver creditResolver,
         int? page,
         int? pageSize,
@@ -1020,10 +1019,8 @@ public static class ContentApiEndpoints
             await publicQueryCache.GetFanPerformancePageAsync(request.Page, request.PageSize, cancellationToken),
             cancellationToken);
         var totalCount = await publicQueryCache.GetFanPerformanceVisibleCountAsync(cancellationToken);
-        var durations = await durationResolver.ResolveManyAsync(items, cancellationToken);
-
         var response = ApiPagedResponse<FanPerformanceDto>.Create(
-            ContentApiMapper.ToFanPerformanceDtos(items, durations),
+            ContentApiMapper.ToFanPerformanceDtos(items),
             request.Page,
             request.PageSize,
             totalCount);

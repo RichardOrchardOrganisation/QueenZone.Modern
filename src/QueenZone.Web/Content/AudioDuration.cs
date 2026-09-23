@@ -1,10 +1,11 @@
+using QueenZone.Data;
+
 namespace QueenZone.Web;
 
 /// <summary>
 /// Null-safe duration estimate for pending fan-performance audio (MPEG or FLAC).
 /// Never throws: unreadable prefixes store <c>null</c> and still accept the upload
-/// when MIME/size validation already passed. Published <c>songfiles</c> reads stay
-/// on <see cref="FanPerformanceDurationResolver"/>.
+/// when MIME/size validation already passed.
 /// </summary>
 internal static class AudioDuration
 {

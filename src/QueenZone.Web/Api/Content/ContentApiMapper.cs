@@ -331,14 +331,12 @@ public static class ContentApiMapper
             performance.ContributorDisplayName);
 
     public static IReadOnlyList<FanPerformanceDto> ToFanPerformanceDtos(
-        IReadOnlyList<FanPerformance> items,
-        IReadOnlyList<int?> durations)
+        IReadOnlyList<FanPerformance> items)
     {
         var mapped = new FanPerformanceDto[items.Count];
         for (var i = 0; i < items.Count; i++)
         {
-            var duration = i < durations.Count ? durations[i] : items[i].DurationSeconds;
-            mapped[i] = ToFanPerformanceDto(items[i], duration);
+            mapped[i] = ToFanPerformanceDto(items[i], items[i].DurationSeconds);
         }
 
         return mapped;
