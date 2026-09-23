@@ -6323,6 +6323,7 @@ select.qz-input {
 
 .qz-htl-rail__decade-btn {
   display: flex;
+  text-decoration: none;
   align-items: baseline;
   gap: var(--space-2);
   position: relative;
@@ -6382,6 +6383,7 @@ select.qz-input {
 
 .qz-htl-rail__year-btn {
   position: relative;
+  text-decoration: none;
   font-family: var(--font-body);
   font-size: var(--fs-eyebrow);
   padding: 5px 0 5px 14px;

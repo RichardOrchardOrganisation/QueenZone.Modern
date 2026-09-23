@@ -69,6 +69,12 @@ public static class ContentApiEndpoints
             .WithSummary("Paged list of published history timeline events, in date order.")
             .Produces<ApiPagedResponse<TimelineEventDto>>();
 
+        group.MapGet("/timeline/anchor/{id:int}", GetTimelineAnchorAsync)
+            .WithName("GetContentTimelineAnchor")
+            .WithSummary("The cached timeline page containing a published event, for direct links.")
+            .Produces<ApiPagedResponse<TimelineEventDto>>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         group.MapGet("/timeline/{id:int}", GetTimelineEventDetailAsync)
             .WithName("GetContentTimelineEventDetail")
             .WithSummary("A single published history timeline event by id. Unpublished or missing events return 404.")
@@ -366,10 +372,7 @@ public static class ContentApiEndpoints
         CancellationToken cancellationToken)
     {
         var request = ApiPagination.Normalize(page, pageSize);
-        var events = (await publicQueryCache.GetAllPublishedHistoryEventsAsync(cancellationToken))
-            .OrderBy(e => e.EventDate)
-            .ThenByDescending(e => e.Importance)
-            .ToList();
+        var events = await GetOrderedTimelineAsync(publicQueryCache, cancellationToken);
 
         var pageItems = events
             .Skip((request.Page - 1) * request.PageSize)
@@ -384,6 +387,38 @@ public static class ContentApiEndpoints
 
         return Results.Ok(response);
     }
+
+    internal static async Task<IResult> GetTimelineAnchorAsync(
+        PublicQueryCacheService publicQueryCache,
+        int id,
+        int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        var request = ApiPagination.Normalize(1, pageSize, 100);
+        var events = await GetOrderedTimelineAsync(publicQueryCache, cancellationToken);
+        var index = events.FindIndex(item => item.Id == id);
+        if (index < 0)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Not Found",
+                detail: $"No published timeline event with id '{id}'.");
+        }
+
+        var page = index / request.PageSize + 1;
+        var items = events.Skip((page - 1) * request.PageSize).Take(request.PageSize).ToList();
+        return Results.Ok(ApiPagedResponse<TimelineEventDto>.Create(
+            ContentApiMapper.ToTimelineEvents(items), page, request.PageSize, events.Count));
+    }
+
+    private static async Task<List<QueenHistoryEvent>> GetOrderedTimelineAsync(
+        PublicQueryCacheService publicQueryCache,
+        CancellationToken cancellationToken) =>
+        (await publicQueryCache.GetAllPublishedHistoryEventsAsync(cancellationToken))
+            .OrderBy(item => item.EventDate)
+            .ThenByDescending(item => item.Importance)
+            .ThenBy(item => item.Id)
+            .ToList();
 
     internal static async Task<IResult> GetTimelineEventDetailAsync(
         PublicQueryCacheService publicQueryCache,
@@ -409,10 +444,10 @@ public static class ContentApiEndpoints
         CancellationToken cancellationToken)
     {
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
-        var events = await publicQueryCache.GetOnThisDayAsync(today, 1, cancellationToken);
+        var events = await publicQueryCache.GetOnThisDayAsync(today, 3, cancellationToken);
         if (events.Count == 0)
         {
-            events = await publicQueryCache.GetAroundThisDayAsync(today, 7, 1, cancellationToken);
+            events = await publicQueryCache.GetAroundThisDayAsync(today, 7, 3, cancellationToken);
         }
 
         // ASP.NET Core Ok(null) / Json(null) write an empty 200. The contract is JSON null.

@@ -14,6 +14,7 @@ import {
   fetchNewsPage,
   fetchOnThisDay,
   fetchTimelineEventById,
+  fetchTimelineAnchor,
   fetchPhotoCategories,
   fetchPhotoCategory,
   fetchPhotoCategoryItems,
@@ -158,6 +159,13 @@ describe('fetchTimelinePage and fetchOnThisDay', () => {
 });
 
 describe('fetchTimelineEventById', () => {
+  it('requests the focus page in one call', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ page: 7, pageSize: 100, totalCount: 700, totalPages: 7, items: [] }));
+    const page = await fetchTimelineAnchor(9999);
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/timeline/anchor/9999?pageSize=100');
+    expect(page.page).toBe(7);
+  });
+
   it('requests a published event by id, including deep off-page ids', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({

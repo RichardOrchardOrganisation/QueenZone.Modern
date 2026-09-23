@@ -20,6 +20,20 @@ public sealed class TimelinePageTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+    public async Task TimelinePageRendersOneDecadeAtATimeWithNavigableLinks()
+    {
+        using var client = factory.CreateClient();
+        var current = await client.GetStringAsync("/timeline");
+        Assert.Contains("id=\"event-10\"", current);
+        Assert.DoesNotContain("id=\"event-5\"", current);
+
+        var eighties = await client.GetStringAsync("/timeline?decade=1980s");
+        Assert.Contains("id=\"event-5\"", eighties);
+        Assert.DoesNotContain("id=\"event-10\"", eighties);
+        Assert.Contains("href=\"/timeline?decade=2020s#decade-2020s\"", eighties);
+    }
+
+    [Fact]
     public async Task TimelinePageRendersEventsGroupedByDecade()
     {
         var client = factory.CreateClient();
@@ -64,11 +78,12 @@ public sealed class TimelinePageTests : IClassFixture<WebApplicationFactory<Prog
     {
         var client = factory.CreateClient();
 
-        var body = await client.GetStringAsync("/timeline");
+        var body = await client.GetStringAsync("/timeline?decade=1980s");
 
         Assert.Contains("data-cat=\"live\"", body);
-        Assert.Contains("data-cat=\"milestone\"", body);
         Assert.Contains("data-year=", body);
+        Assert.DoesNotContain("id=\"event-10\"", body);
+        Assert.Contains("href=\"/timeline?decade=2020s#decade-2020s\"", body);
     }
 
     [Fact]
