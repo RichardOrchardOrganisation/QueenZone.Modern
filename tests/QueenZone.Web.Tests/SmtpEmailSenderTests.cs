@@ -1,6 +1,6 @@
+using System.Net.Mail;
 using Microsoft.Extensions.Options;
 using QueenZone.Web;
-using System.Net.Mail;
 
 namespace QueenZone.Web.Tests;
 
