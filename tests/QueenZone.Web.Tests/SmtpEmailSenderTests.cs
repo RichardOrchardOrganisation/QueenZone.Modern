@@ -15,13 +15,24 @@ public sealed class SmtpEmailSenderTests
             AppPassword = "example-password",
         };
 
-        using var message = SmtpEmailSender.CreateMessage(
-            options, "support@queenzone.org", "Contact request", "Message text", "fan@example.com");
+        using var message = SmtpEmailSender.CreateMessage(options,
+            new OutboundEmail("support@queenzone.org", "Contact request", "Message text", "fan@example.com"));
 
         Assert.Equal("support@queenzone.org", message.From!.Address);
         Assert.Equal("support@queenzone.org", Assert.Single(message.To).Address);
         Assert.Equal("fan@example.com", Assert.Single(message.ReplyToList).Address);
         Assert.Equal("Message text", message.Body);
+    }
+
+    [Fact]
+    public void CreateMessage_AddsOptionalHtmlView()
+    {
+        using var message = SmtpEmailSender.CreateMessage(new SmtpEmailOptions(),
+            new OutboundEmail("fan@example.com", "Subject", "Plain text", HtmlBody: "<p>Rich text</p>"));
+
+        Assert.Equal(2, message.AlternateViews.Count);
+        Assert.Equal("text/plain", message.AlternateViews[0].ContentType.MediaType);
+        Assert.Equal("text/html", message.AlternateViews[1].ContentType.MediaType);
     }
 
     [Fact]
@@ -31,7 +42,7 @@ public sealed class SmtpEmailSenderTests
         var sender = new SmtpEmailSender(Options.Create(new SmtpEmailOptions()), transport);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            sender.SendAsync("fan@example.com", "Subject", "Body"));
+            sender.SendAsync(new OutboundEmail("fan@example.com", "Subject", "Body")));
         Assert.Null(transport.From);
     }
 
@@ -45,7 +56,7 @@ public sealed class SmtpEmailSenderTests
             AppPassword = "example-password",
         }), transport);
 
-        await sender.SendAsync("fan@example.com", "Deletion request", "Your request was received.");
+        await sender.SendAsync(new OutboundEmail("fan@example.com", "Deletion request", "Your request was received."));
 
         Assert.Equal("owner@gmail.com", transport.Username);
         Assert.Equal("support@queenzone.org", transport.From);

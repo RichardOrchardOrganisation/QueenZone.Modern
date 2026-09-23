@@ -134,8 +134,9 @@ deployment if the mapped value is missing or shorter than 32 characters.
 Outbound contact notifications and immediate account deletion confirmations use Gmail SMTP. Both
 `dev-deploy` and `prod-deploy` map the existing Bitwarden entries below through
 `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS`. The deploy workflows reconcile them to the App Service
-settings `SmtpEmail__Username` and `SmtpEmail__AppPassword`; `SmtpEmail__FromAddress` and
-`SmtpEmail__SupportAddress` are set to `support@queenzone.org`. The username authenticates the
+settings `SmtpEmail__Username` and `SmtpEmail__AppPassword`; `SmtpEmail__FromAddress` is set
+to `support@queenzone.org`. The contact recipient is `HelpRequests__NotificationAddress`
+(defaulting to the same support address). The username authenticates the
 Gmail account and is deliberately separate from the verified send-as alias.
 
 ```yaml

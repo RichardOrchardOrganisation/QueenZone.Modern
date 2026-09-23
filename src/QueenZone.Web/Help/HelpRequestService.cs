@@ -11,8 +11,7 @@ public sealed class HelpRequestService(
     HelpRequestRateLimiter rateLimiter,
     TimeProvider timeProvider,
     IOptions<HelpRequestOptions> options,
-    IOutboundEmailSender? emailSender = null,
-    IOptions<SmtpEmailOptions>? smtpOptions = null,
+    IEmailSender? emailSender = null,
     ILogger<HelpRequestService>? logger = null)
 {
     public const int MaxNameLength = 100;
@@ -173,15 +172,16 @@ public sealed class HelpRequestService(
                 null),
             cancellationToken);
 
-        if (emailSender is not null && smtpOptions is not null)
+        if (emailSender is not null)
         {
             try
             {
                 await emailSender.SendAsync(
-                    smtpOptions.Value.SupportAddress,
-                    "New Queenzone contact request",
-                    $"Topic: {HelpRequestTopic.DisplayName(normalizedTopic)}\nName: {snapshotName}\nEmail: {snapshotEmail}\nSubject: {trimmedSubject}\n\n{trimmedMessage}",
-                    snapshotEmail,
+                    new OutboundEmail(
+                        options.Value.NotificationAddress,
+                        "New Queenzone contact request",
+                        $"Topic: {HelpRequestTopic.DisplayName(normalizedTopic)}\nName: {snapshotName}\nEmail: {snapshotEmail}\nSubject: {trimmedSubject}\n\n{trimmedMessage}",
+                        snapshotEmail),
                     cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

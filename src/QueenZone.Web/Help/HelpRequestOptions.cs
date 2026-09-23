@@ -4,6 +4,8 @@ public sealed class HelpRequestOptions
 {
     public const string SectionName = "HelpRequests";
 
+    public string NotificationAddress { get; set; } = "support@queenzone.org";
+
     // Applies to all contact submissions, including signed-in members.
     public int MaxAnonymousPerIpPerHour { get; set; } = 3;
 

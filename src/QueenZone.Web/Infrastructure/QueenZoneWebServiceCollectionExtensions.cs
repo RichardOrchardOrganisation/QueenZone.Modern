@@ -322,7 +322,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<HelpRequestFormStamp>();
         services.AddSingleton<HelpRequestRateLimiter>();
         services.AddSingleton<ISmtpTransport, GmailSmtpTransport>();
-        services.AddSingleton<IOutboundEmailSender, SmtpEmailSender>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<HelpRequestService>();
         services.AddScoped<PublicWarmupService>();
         services.AddScoped<UgcHtml>();

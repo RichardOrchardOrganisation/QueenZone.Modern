@@ -5,10 +5,18 @@ using Microsoft.Extensions.Options;
 
 namespace QueenZone.Web;
 
-public interface IOutboundEmailSender
+/// <summary>Application-wide outbound mail contract for website and mobile API workflows.</summary>
+public interface IEmailSender
 {
-    Task SendAsync(string to, string subject, string body, string? replyTo = null, CancellationToken cancellationToken = default);
+    Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default);
 }
+
+public sealed record OutboundEmail(
+    string ToAddress,
+    string Subject,
+    string TextBody,
+    string? ReplyToAddress = null,
+    string? HtmlBody = null);
 
 public sealed class SmtpEmailOptions
 {
@@ -16,7 +24,6 @@ public sealed class SmtpEmailOptions
     public string Username { get; set; } = string.Empty;
     public string AppPassword { get; set; } = string.Empty;
     public string FromAddress { get; set; } = "support@queenzone.org";
-    public string SupportAddress { get; set; } = "support@queenzone.org";
 }
 
 public interface ISmtpTransport
@@ -24,33 +31,39 @@ public interface ISmtpTransport
     Task SendAsync(SmtpEmailOptions settings, MailMessage message, CancellationToken cancellationToken);
 }
 
-public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ISmtpTransport transport) : IOutboundEmailSender
+public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ISmtpTransport transport) : IEmailSender
 {
-    public async Task SendAsync(string to, string subject, string body, string? replyTo = null, CancellationToken cancellationToken = default)
+    public async Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(email);
         var settings = options.Value;
         if (string.IsNullOrWhiteSpace(settings.Username) || string.IsNullOrWhiteSpace(settings.AppPassword))
         {
             throw new InvalidOperationException("SMTP credentials are not configured.");
         }
 
-        using var message = CreateMessage(settings, to, subject, body, replyTo);
+        using var message = CreateMessage(settings, email);
 
         await transport.SendAsync(settings, message, cancellationToken);
     }
 
-    internal static MailMessage CreateMessage(SmtpEmailOptions settings, string to, string subject, string body, string? replyTo)
+    internal static MailMessage CreateMessage(SmtpEmailOptions settings, OutboundEmail email)
     {
         var message = new MailMessage
         {
             From = new MailAddress(settings.FromAddress, "Queenzone Support"),
-            Subject = subject,
-            Body = body,
+            Subject = email.Subject,
+            Body = email.TextBody,
         };
-        message.To.Add(new MailAddress(to));
-        if (!string.IsNullOrWhiteSpace(replyTo))
+        message.To.Add(new MailAddress(email.ToAddress));
+        if (!string.IsNullOrWhiteSpace(email.ReplyToAddress))
         {
-            message.ReplyToList.Add(new MailAddress(replyTo));
+            message.ReplyToList.Add(new MailAddress(email.ReplyToAddress));
+        }
+        if (!string.IsNullOrWhiteSpace(email.HtmlBody))
+        {
+            message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(email.TextBody, null, "text/plain"));
+            message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(email.HtmlBody, null, "text/html"));
         }
 
         return message;

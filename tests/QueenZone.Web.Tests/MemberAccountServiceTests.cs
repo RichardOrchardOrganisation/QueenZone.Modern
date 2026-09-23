@@ -21,7 +21,7 @@ public sealed class MemberAccountServiceTests
         TimeSpan? blobDeleteTimeout = null,
         TimeProvider? timeProvider = null,
         PasswordSignInLockoutOptions? passwordLockout = null,
-        IOutboundEmailSender? emailSender = null)
+        IEmailSender? emailSender = null)
     {
         var backend = blobBackend ?? new InMemoryBlobStorageBackend();
         var blobs = blobUploadService
@@ -1044,14 +1044,13 @@ public sealed class MemberAccountServiceTests
         Assert.Equal("delete-mail@example.com", sender.To);
     }
 
-    private sealed class RecordingEmailSender : IOutboundEmailSender
+    private sealed class RecordingEmailSender : IEmailSender
     {
         public string? To { get; private set; }
 
-        public Task SendAsync(string to, string subject, string body, string? replyTo = null,
-            CancellationToken cancellationToken = default)
+        public Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default)
         {
-            To = to;
+            To = email.ToAddress;
             return Task.CompletedTask;
         }
     }

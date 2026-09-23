@@ -264,7 +264,7 @@ public sealed class HelpRequestServiceTests
         int dwellSeconds = 0,
         int maxPerEmail = 2,
         int maxPerMember = 5,
-        IOutboundEmailSender? emailSender = null)
+        IEmailSender? emailSender = null)
     {
         var repository = new InMemoryHelpRequestRepository();
         var members = new InMemoryMemberAccountRepository();
@@ -281,8 +281,7 @@ public sealed class HelpRequestServiceTests
             new MemoryCache(new MemoryCacheOptions()),
             timeProvider,
             options);
-        var service = new HelpRequestService(repository, members, stamp, limiter, timeProvider, options,
-            emailSender, Options.Create(new SmtpEmailOptions()));
+        var service = new HelpRequestService(repository, members, stamp, limiter, timeProvider, options, emailSender);
         return new Harness(service, repository, members);
     }
 
@@ -291,18 +290,17 @@ public sealed class HelpRequestServiceTests
         InMemoryHelpRequestRepository Repository,
         InMemoryMemberAccountRepository Members);
 
-    private sealed class RecordingEmailSender : IOutboundEmailSender
+    private sealed class RecordingEmailSender : IEmailSender
     {
         public string? To { get; private set; }
         public string? ReplyTo { get; private set; }
         public string? Body { get; private set; }
 
-        public Task SendAsync(string to, string subject, string body, string? replyTo = null,
-            CancellationToken cancellationToken = default)
+        public Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default)
         {
-            To = to;
-            ReplyTo = replyTo;
-            Body = body;
+            To = email.ToAddress;
+            ReplyTo = email.ReplyToAddress;
+            Body = email.TextBody;
             return Task.CompletedTask;
         }
     }
