@@ -671,6 +671,23 @@ public sealed class PublicQueryCacheServiceTests
     }
 
     [Fact]
+    public async Task DiscographyAlbumDetailsAreCachedPerAlbum()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var repository = new CountingDiscographyRepository();
+        var service = CreateService(memoryCache, discographyRepository: repository);
+
+        var first = await service.GetDiscographyAlbumByIdAsync(1);
+        var second = await service.GetDiscographyAlbumByIdAsync(1);
+        var other = await service.GetDiscographyAlbumByIdAsync(2);
+
+        Assert.Same(first, second);
+        Assert.NotNull(first);
+        Assert.Null(other);
+        Assert.Equal(2, repository.DetailCallCount);
+    }
+
+    [Fact]
     public async Task CatalogInvalidation_does_not_evict_unrelated_families()
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
@@ -1318,14 +1335,21 @@ public sealed class PublicQueryCacheServiceTests
 
         public int AlbumsCallCount { get; private set; }
 
+        public int DetailCallCount { get; private set; }
+
         public Task<IReadOnlyList<AlbumSummary>> GetAlbumsAsync(CancellationToken cancellationToken = default)
         {
             AlbumsCallCount++;
             return Task.FromResult<IReadOnlyList<AlbumSummary>>([album]);
         }
 
-        public Task<AlbumDetail?> GetAlbumByIdAsync(int albumId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<AlbumDetail?>(null);
+        public Task<AlbumDetail?> GetAlbumByIdAsync(int albumId, CancellationToken cancellationToken = default)
+        {
+            DetailCallCount++;
+            return Task.FromResult<AlbumDetail?>(albumId == 1
+                ? new AlbumDetail(1, "Cached album", "cached-album", 1975, "Queen", null, null, [])
+                : null);
+        }
     }
 
     private sealed class ConcurrentEntryGate(int expected)

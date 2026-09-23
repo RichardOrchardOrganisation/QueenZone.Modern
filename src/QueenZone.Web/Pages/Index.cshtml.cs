@@ -7,7 +7,6 @@ namespace QueenZone.Web.Pages;
 public sealed class IndexModel(
     PublicQueryCacheService publicQueryCache,
     NewsDiscussionComposer newsDiscussion,
-    IQuoteRepository quoteRepository,
     IHomePollRepository homePollRepository,
     HomePollVoteService homePollVoteService,
     QuizSprintService quizSprintService,
@@ -111,7 +110,7 @@ public sealed class IndexModel(
             .Take(FeaturedGalleryCount)
             .ToList();
 
-        FeaturedQuote = await quoteRepository.GetRandomPublishedAsync(cancellationToken);
+        FeaturedQuote = await publicQueryCache.GetRandomPublishedQuoteAsync(cancellationToken);
         await LoadHomePollAsync(cancellationToken);
         HomePollError = TempData["HomePollError"] as string;
     }

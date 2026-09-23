@@ -65,6 +65,8 @@ public static class PublicQueryCacheKeys
 
     public const string DiscographyAlbums = Prefix + ":discography:albums";
 
+    public static string DiscographyAlbum(int id) => $"{Prefix}:discography:album:{id}";
+
     public static string LatestNews(string version, int count) =>
         $"{LatestNewsSegment}:v{version}:{count}";
 

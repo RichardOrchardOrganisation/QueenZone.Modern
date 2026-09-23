@@ -4,7 +4,7 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Discography;
 
-public sealed class AlbumModel(IDiscographyRepository discographyRepository) : PageModel
+public sealed class AlbumModel(PublicQueryCacheService publicQueryCache) : PageModel
 {
     public AlbumDetail Album { get; private set; } = null!;
 
@@ -12,7 +12,7 @@ public sealed class AlbumModel(IDiscographyRepository discographyRepository) : P
 
     public async Task<IActionResult> OnGetAsync(int id, string slug, CancellationToken cancellationToken)
     {
-        var album = await discographyRepository.GetAlbumByIdAsync(id, cancellationToken);
+        var album = await publicQueryCache.GetDiscographyAlbumByIdAsync(id, cancellationToken);
         if (album is null)
         {
             return NotFound();
