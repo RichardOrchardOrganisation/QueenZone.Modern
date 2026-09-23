@@ -46,13 +46,19 @@
         }
       ],
       "expo-image",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-web-browser",
       [
         "expo-image-picker",
         {
           "photosPermission": "QueenZone accesses photos you choose so you can, for example, submit a concert photo to our moderated gallery, attach it to a forum post, or set your member avatar.",
-          "cameraPermission": "QueenZone uses the camera when you choose to take a photo, for example to submit a concert photo to our moderated gallery or set your member avatar."
+          "cameraPermission": "QueenZone uses the camera when you choose to take a photo, for example to submit a concert photo to our moderated gallery or set your member avatar.",
+          "microphonePermission": false
         }
       ],
       [
