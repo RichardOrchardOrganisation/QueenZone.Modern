@@ -1,5 +1,5 @@
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
-import { Keyboard } from 'react-native';
+import { Keyboard, ScrollView } from 'react-native';
 import { fallbackAuthProviders } from '../../api/auth';
 import { jsonResponse } from '../../test/fixtures';
 import { createMockSession } from '../../test/mockSession';
@@ -134,6 +134,26 @@ describe('SignInScreen', () => {
       ),
     );
     expect(dismissKeyboard).toHaveBeenCalledTimes(1);
+  });
+
+  it('scrolls the password fields into view when the form and keyboard open', async () => {
+    const scrollToEnd = jest.spyOn(ScrollView.prototype, 'scrollToEnd').mockImplementation(() => {});
+    const addKeyboardListener = jest.spyOn(Keyboard, 'addListener');
+    renderSignIn();
+    await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
+    fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
+
+    fireEvent(screen.UNSAFE_getByType(ScrollView), 'contentSizeChange', 400, 900);
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
+
+    scrollToEnd.mockClear();
+    fireEvent(screen.getByTestId(testIds.signInEmail), 'focus');
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
+
+    scrollToEnd.mockClear();
+    const keyboardShown = addKeyboardListener.mock.calls.find(([event]) => event === 'keyboardDidShow')?.[1];
+    keyboardShown?.({} as never);
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
   });
 
   it('describes OAuth secrets separately from the password fallback', async () => {
