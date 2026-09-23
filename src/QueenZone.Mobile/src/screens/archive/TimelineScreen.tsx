@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { fetchOnThisDay, fetchTimelinePage, type TimelineEvent } from '../../api';
+import { fetchTimelineAnchor, fetchTimelinePage, type TimelineEvent } from '../../api';
 import { usePagedContent } from '../../hooks/usePagedContent';
 import { HeaderBackButton } from '../../navigation/headerButtons';
 import { goBackOrFallback } from '../../navigation/nestedTab';
@@ -70,26 +70,23 @@ export function TimelineScreen({ navigation, route }: Props) {
   }, [focusId]);
 
   useEffect(() => {
-    if (focusId == null || paged.loading) {
-      return;
-    }
-    if (items.some((event) => event.id === focusId)) {
+    if (focusId == null) {
       return;
     }
     let cancelled = false;
-    fetchOnThisDay()
-      .then((event) => {
-        if (!cancelled && event != null && event.id === focusId) {
-          setIncludedFocus(event);
+    fetchTimelineAnchor(focusId)
+      .then((page) => {
+        if (!cancelled) {
+          setIncludedFocus(page.items.find((event) => event.id === focusId) ?? null);
         }
       })
       .catch(() => {
-        /* paging may still surface the row */
+        if (!cancelled) setExpandedId(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [focusId, items, paged.loading]);
+  }, [focusId]);
 
   useEffect(() => {
     if (focusId == null) {
@@ -99,16 +96,7 @@ export function TimelineScreen({ navigation, route }: Props) {
       setExpandedId(focusId);
       return;
     }
-    if (paged.loading || paged.loadingMore) {
-      return;
-    }
-    if (paged.hasMore) {
-      paged.loadMore();
-      return;
-    }
-    setExpandedId(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit the whole paged object; named fields are already listed.
-  }, [focusId, items, paged.hasMore, paged.loadMore, paged.loading, paged.loadingMore]);
+  }, [focusId, items]);
 
   const sections = useMemo(() => {
     const map = new Map<string, TimelineEvent[]>();
