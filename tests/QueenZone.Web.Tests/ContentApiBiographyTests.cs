@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
@@ -58,6 +59,25 @@ public sealed class ContentApiBiographyTests : IClassFixture<QueenZoneWebApplica
         Assert.Equal(1, chapter.Previous!.Id);
         Assert.NotNull(chapter.Next);
         Assert.Equal(3, chapter.Next!.Id);
+    }
+
+    [Fact]
+    public void ToBiographyChapterDetail_sanitizes_body_like_website_FormatBody()
+    {
+        var chapter = new BiographyChapterItem(
+            42,
+            "1975",
+            "Summary",
+            "<script>alert(1)</script><marquee>News</marquee><p>Hello <em>world</em></p>",
+            3,
+            new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc));
+
+        var dto = ContentApiMapper.ToBiographyChapterDetail(chapter, new BiographyChapterNav(null, null));
+
+        Assert.Equal(BiographyContent.FormatBody(chapter.Body), dto.Body);
+        Assert.DoesNotContain("script", dto.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("marquee", dto.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<p>Hello <em>world</em></p>", dto.Body, StringComparison.Ordinal);
     }
 
     [Fact]
