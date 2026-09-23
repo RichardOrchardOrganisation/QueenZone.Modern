@@ -712,29 +712,6 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
         });
     }
 
-    public async Task<DueMemberPromotions> ListDuePromotionsAsync(
-        DateTime purgeBefore,
-        CancellationToken cancellationToken = default)
-    {
-        var dueIds = dbContext.MemberAccounts
-            .Where(account => account.DeletionRequestedAt != null
-                && account.DeletionRequestedAt <= purgeBefore
-                && account.PersonalDataPurgedAt == null)
-            .Select(account => account.Id);
-        var photos = await dbContext.PhotoSubmissions
-            .Where(photo => dueIds.Contains(photo.SubmitterMemberId) && photo.PromotedPicId != null)
-            .Select(photo => photo.PromotedPicId!.Value)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        var performances = await dbContext.FanPerformanceSubmissions
-            .Where(performance => dueIds.Contains(performance.SubmitterMemberId)
-                && performance.PromotedStageId != null)
-            .Select(performance => performance.PromotedStageId!.Value)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        return new DueMemberPromotions(photos, performances);
-    }
-
     public async Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(
         int limit,
         CancellationToken cancellationToken = default) =>
@@ -900,6 +877,7 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
         var photos = await dbContext.PhotoSubmissions
             .Where(photo => photo.SubmitterMemberId == memberId)
             .ToListAsync(cancellationToken);
+        await OutboxAndRemovePromotedGalleryAsync(memberId, photos, blobs, cancellationToken);
         foreach (var photo in photos)
         {
             blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.BlobPath));
@@ -912,11 +890,13 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
             photo.ThumbnailBlobPath = string.Empty;
             photo.OriginalFileName = string.Empty;
             photo.Status = "Deleted";
+            photo.PromotedPicId = null;
         }
 
         var performances = await dbContext.FanPerformanceSubmissions
             .Where(performance => performance.SubmitterMemberId == memberId)
             .ToListAsync(cancellationToken);
+        await OutboxAndRemovePromotedStagesAsync(memberId, performances, blobs, cancellationToken);
         foreach (var performance in performances)
         {
             if (!string.IsNullOrWhiteSpace(performance.BlobPath))
@@ -929,6 +909,7 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
             performance.BlobPath = string.Empty;
             performance.OriginalFileName = string.Empty;
             performance.Status = "Deleted";
+            performance.PromotedStageId = null;
         }
 
         await dbContext.NewsSuggestions
@@ -1125,5 +1106,118 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
             .Where(row => row.MemberId == memberId)
             .ExecuteDeleteAsync(cancellationToken);
 
+    private async Task OutboxAndRemovePromotedGalleryAsync(
+        Guid memberId,
+        IReadOnlyList<PhotoSubmissionEntity> photos,
+        List<MemberDeletionBlob> blobs,
+        CancellationToken cancellationToken)
+    {
+        var picIds = photos
+            .Where(photo => photo.PromotedPicId is int)
+            .Select(photo => photo.PromotedPicId!.Value)
+            .Distinct()
+            .ToList();
+        if (picIds.Count == 0)
+        {
+            return;
+        }
+
+        var rows = await QueryLegacyRowsAsync<PromotedGalleryBlobRow>(
+            $"""
+            SELECT PIC_ID AS PicId, Url AS LegacyUrl, Thumb_URL AS LegacyThumbUrl
+            FROM {LegacyTable("PIC_FILES_T")}
+            WHERE PIC_ID IN ({IdPlaceholders(picIds.Count)})
+            """,
+            picIds,
+            cancellationToken);
+        foreach (var row in rows)
+        {
+            MemberDeletionPromotedMedia.EnqueueGalleryLegacyPaths(
+                memberId,
+                row.LegacyUrl,
+                row.LegacyThumbUrl,
+                blobs);
+        }
+
+        await ExecuteLegacySqlAsync(
+            $"DELETE FROM {LegacyTable("PIC_FILES_T")} WHERE PIC_ID IN ({IdPlaceholders(picIds.Count)})",
+            picIds,
+            cancellationToken);
+    }
+
+    private async Task OutboxAndRemovePromotedStagesAsync(
+        Guid memberId,
+        IReadOnlyList<FanPerformanceSubmissionEntity> performances,
+        List<MemberDeletionBlob> blobs,
+        CancellationToken cancellationToken)
+    {
+        var stageIds = performances
+            .Where(performance => performance.PromotedStageId is int)
+            .Select(performance => performance.PromotedStageId!.Value)
+            .Distinct()
+            .ToList();
+        if (stageIds.Count == 0)
+        {
+            return;
+        }
+
+        var rows = await QueryLegacyRowsAsync<PromotedStageBlobRow>(
+            $"""
+            SELECT CAST(Q_STAGE_ID AS int) AS StageId, URL AS AudioFileName
+            FROM {LegacyTable("Q_STAGE_T")}
+            WHERE Q_STAGE_ID IN ({IdPlaceholders(stageIds.Count)})
+            """,
+            stageIds,
+            cancellationToken);
+        foreach (var row in rows)
+        {
+            MemberDeletionPromotedMedia.EnqueueStageAudio(memberId, row.AudioFileName, blobs);
+        }
+
+        await ExecuteLegacySqlAsync(
+            $"DELETE FROM {LegacyTable("Q_STAGE_T")} WHERE Q_STAGE_ID IN ({IdPlaceholders(stageIds.Count)})",
+            stageIds,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<T>> QueryLegacyRowsAsync<T>(
+        string sql,
+        IReadOnlyList<int> ids,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        return await dbContext.Database
+            .SqlQueryRaw<T>(sql, ids.Cast<object>().ToArray())
+            .ToListAsync(cancellationToken);
+    }
+
+    private Task<int> ExecuteLegacySqlAsync(
+        string sql,
+        IReadOnlyList<int> ids,
+        CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlRawAsync(sql, ids.Cast<object>(), cancellationToken);
+
+    private string LegacyTable(string tableName) =>
+        dbContext.Database.IsSqlServer() ? $"dbo.{tableName}" : tableName;
+
+    private static string IdPlaceholders(int count) =>
+        string.Join(", ", Enumerable.Range(0, count).Select(index => $"{{{index}}}"));
+
     private static string Normalize(string email) => email.Trim().ToUpperInvariant();
+
+    private sealed class PromotedGalleryBlobRow
+    {
+        public int PicId { get; set; }
+
+        public string? LegacyUrl { get; set; }
+
+        public string? LegacyThumbUrl { get; set; }
+    }
+
+    private sealed class PromotedStageBlobRow
+    {
+        public int StageId { get; set; }
+
+        public string? AudioFileName { get; set; }
+    }
 }

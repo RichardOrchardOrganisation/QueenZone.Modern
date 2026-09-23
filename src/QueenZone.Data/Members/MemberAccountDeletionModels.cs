@@ -40,8 +40,4 @@ public sealed record PendingMemberDeletionBlob(Guid Id, Guid MemberAccountId, st
 
 public sealed record PendingAppleRevocation(Guid ExternalLoginId, string ProtectedToken);
 
-public sealed record DueMemberPromotions(
-    IReadOnlyList<int> PhotoIds,
-    IReadOnlyList<int> FanPerformanceIds);
-
 public sealed record MemberDeletionProgress(bool IsComplete);

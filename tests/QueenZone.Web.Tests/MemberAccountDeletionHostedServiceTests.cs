@@ -142,9 +142,6 @@ public sealed class MemberAccountDeletionHostedServiceTests
             return Task.FromResult(new MemberAccountDeletionPurgeResult(0, []));
         }
 
-        public Task<DueMemberPromotions> ListDuePromotionsAsync(DateTime purgeBefore, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new DueMemberPromotions([], []));
-
         public Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(int limit, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<PendingMemberDeletionBlob>>([]);
 

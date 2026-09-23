@@ -186,10 +186,6 @@ public interface IMemberAccountRepository
         DateTime purgedAt,
         CancellationToken cancellationToken = default);
 
-    Task<DueMemberPromotions> ListDuePromotionsAsync(
-        DateTime purgeBefore,
-        CancellationToken cancellationToken = default);
-
     Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(
         int limit,
         CancellationToken cancellationToken = default);

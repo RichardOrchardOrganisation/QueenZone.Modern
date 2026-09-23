@@ -28,9 +28,6 @@ public sealed class MemberAccountService(
     TimeProvider? timeProvider = null,
     IOptions<PasswordSignInLockoutOptions>? passwordLockout = null,
     AppleAccountTokenService? appleTokens = null,
-    AdminPhotoService? adminPhotos = null,
-    AdminFanPerformanceWriteService? adminPerformances = null,
-    IAdminFanPerformanceRepository? fanPerformanceRepository = null,
     ILogger<MemberAccountService>? logger = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
@@ -812,40 +809,6 @@ public sealed class MemberAccountService(
         CancellationToken cancellationToken = default)
     {
         var purgeBefore = utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays);
-        var promotions = await memberAccountRepository.ListDuePromotionsAsync(purgeBefore, cancellationToken);
-        if (adminPhotos is not null)
-        {
-            foreach (var photoId in promotions.PhotoIds)
-            {
-                await adminPhotos.DeleteForAccountDeletionAsync(photoId, cancellationToken);
-            }
-        }
-
-        if (adminPerformances is not null && fanPerformanceRepository is not null)
-        {
-            foreach (var stageId in promotions.FanPerformanceIds)
-            {
-                var stage = await fanPerformanceRepository.GetByIdAsync(stageId, cancellationToken);
-                if (stage is null)
-                {
-                    continue;
-                }
-
-                if (stage.IsVisible)
-                {
-                    await adminPerformances.HideAsync(
-                        stageId, "account-deletion@queenzone.org", cancellationToken: cancellationToken);
-                }
-                if (SongFileUrl.IsSafeBlobName(stage.AudioFileName))
-                {
-                    await blobUploadService.DeleteAsync(
-                        SongFileUrl.ContainerName, stage.AudioFileName, cancellationToken);
-                }
-                await fanPerformanceRepository.DeleteAsync(
-                    stageId, "account-deletion@queenzone.org", cancellationToken);
-            }
-        }
-
         var result = await memberAccountRepository.PurgeDeletedAccountsAsync(
             purgeBefore,
             utcNow,

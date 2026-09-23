@@ -1283,9 +1283,6 @@ public sealed class MemberAccountServiceTests
             CancellationToken cancellationToken = default) =>
             inner.PurgeDeletedAccountsAsync(purgeBefore, purgedAt, cancellationToken);
 
-        public Task<DueMemberPromotions> ListDuePromotionsAsync(DateTime purgeBefore, CancellationToken cancellationToken = default) =>
-            inner.ListDuePromotionsAsync(purgeBefore, cancellationToken);
-
         public Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(int limit, CancellationToken cancellationToken = default) =>
             inner.ListPendingDeletionBlobsAsync(limit, cancellationToken);
 
