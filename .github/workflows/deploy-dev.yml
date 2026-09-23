@@ -328,6 +328,8 @@ jobs:
           AZURE_AD_CLIENT_SECRET: ${{ steps.bitwarden-secrets.outputs.AZURE_AD_CLIENT_SECRET }}
           BLOB_STORAGE_CONNECTION_STRING: ${{ steps.bitwarden-secrets.outputs.BLOB_STORAGE_CONNECTION_STRING }}
           MOBILE_AUTH_SIGNING_KEY: ${{ steps.bitwarden-secrets.outputs.MOBILE_AUTH_SIGNING_KEY }}
+          GMAIL_APP_USERNAME: ${{ steps.bitwarden-secrets.outputs.GMAIL_APP_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ steps.bitwarden-secrets.outputs.GMAIL_APP_PASSWORD }}
           USE_SAMPLE_DATA: ${{ needs.changes.outputs.sample_data }}
         run: |
           required=(
@@ -338,6 +340,8 @@ jobs:
             AZURE_AD_CLIENT_ID
             AZURE_AD_CLIENT_SECRET
             BLOB_STORAGE_CONNECTION_STRING
+            GMAIL_APP_USERNAME
+            GMAIL_APP_PASSWORD
           )
           for name in "${required[@]}"; do
             if [ -z "${!name}" ]; then
@@ -364,6 +368,9 @@ jobs:
             "BlobUpload__PublicBaseUrl=https://queenzonedev.blob.core.windows.net" \
             "ConnectionStrings__BlobStorage=$BLOB_STORAGE_CONNECTION_STRING" \
             "MobileAuth__SigningKey=$MOBILE_AUTH_SIGNING_KEY" \
+            "SmtpEmail__Username=$GMAIL_APP_USERNAME" \
+            "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
+            "SmtpEmail__FromAddress=support@queenzone.org" \
             "QueenZoneHostFiltering__AllowedHosts=dev.queenzone.org;queenzone-devbox.azurewebsites.net" \
             "Site__PublicBaseUrl=https://dev.queenzone.org" \
             "WEBSITE_WARMUP_PATH=/health" | sort)
@@ -371,7 +378,7 @@ jobs:
           current=$(az webapp config appsettings list \
             --name queenzone-devbox \
             --resource-group Queenzone-Dev-RG \
-            --query "[?name=='Admin__AllowedEmails__0' || name=='APPLICATIONINSIGHTS_CONNECTION_STRING' || name=='Authentication__Microsoft__ClientId' || name=='Authentication__Microsoft__ClientSecret' || name=='AzureAd__CallbackPath' || name=='AzureAd__ClientId' || name=='AzureAd__ClientSecret' || name=='AzureAd__Instance' || name=='AzureAd__TenantId' || name=='BlobUpload__PublicBaseUrl' || name=='ConnectionStrings__BlobStorage' || name=='MobileAuth__SigningKey' || name=='QueenZoneHostFiltering__AllowedHosts' || name=='Site__PublicBaseUrl' || name=='WEBSITE_WARMUP_PATH'].[join('=', [name, value])]" \
+            --query "[?name=='Admin__AllowedEmails__0' || name=='APPLICATIONINSIGHTS_CONNECTION_STRING' || name=='Authentication__Microsoft__ClientId' || name=='Authentication__Microsoft__ClientSecret' || name=='AzureAd__CallbackPath' || name=='AzureAd__ClientId' || name=='AzureAd__ClientSecret' || name=='AzureAd__Instance' || name=='AzureAd__TenantId' || name=='BlobUpload__PublicBaseUrl' || name=='ConnectionStrings__BlobStorage' || name=='MobileAuth__SigningKey' || name=='SmtpEmail__Username' || name=='SmtpEmail__AppPassword' || name=='SmtpEmail__FromAddress' || name=='QueenZoneHostFiltering__AllowedHosts' || name=='Site__PublicBaseUrl' || name=='WEBSITE_WARMUP_PATH'].[join('=', [name, value])]" \
             -o tsv | tr -d '\r' | sort)
 
           database_connection=$(az webapp config appsettings list \
@@ -439,6 +446,9 @@ jobs:
                 "BlobUpload__PublicBaseUrl=https://queenzonedev.blob.core.windows.net" \
                 "ConnectionStrings__BlobStorage=$BLOB_STORAGE_CONNECTION_STRING" \
                 "MobileAuth__SigningKey=$MOBILE_AUTH_SIGNING_KEY" \
+                "SmtpEmail__Username=$GMAIL_APP_USERNAME" \
+                "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
+                "SmtpEmail__FromAddress=support@queenzone.org" \
                 "QueenZoneHostFiltering__AllowedHosts=dev.queenzone.org;queenzone-devbox.azurewebsites.net" \
                 "Site__PublicBaseUrl=https://dev.queenzone.org" \
                 "WEBSITE_WARMUP_PATH=/health" \

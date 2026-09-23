@@ -6,7 +6,9 @@ using QueenZone.Web.Infrastructure;
 
 namespace QueenZone.Web.Pages.Account;
 
-public sealed class ExternalLoginCallbackModel(MemberAccountService memberAccountService) : PageModel
+public sealed class ExternalLoginCallbackModel(
+    MemberAccountService memberAccountService,
+    AppleAccountTokenService appleTokens) : PageModel
 {
     public async Task<IActionResult> OnGetAsync(string? returnUrl, CancellationToken cancellationToken)
     {
@@ -24,6 +26,12 @@ public sealed class ExternalLoginCallbackModel(MemberAccountService memberAccoun
         var email = principal.FindFirstValue(ClaimTypes.Email);
         var displayName = principal.FindFirstValue(ClaimTypes.Name) ?? email ?? provider;
         var emailVerified = ExternalLoginEmail.IsVerified(provider, principal);
+        var appleRefreshToken = string.Equals(provider, MemberAuthenticationSchemes.Apple, StringComparison.OrdinalIgnoreCase)
+            ? externalResult.Properties?.GetTokenValue("refresh_token")
+            : null;
+        var protectedAppleToken = string.IsNullOrWhiteSpace(appleRefreshToken)
+            ? null
+            : appleTokens.Protect(appleRefreshToken);
         var safeReturnUrl = LocalReturnUrl.Resolve(returnUrl);
 
         var resolution = await memberAccountService.FindOrCreateFromExternalLoginAsync(
@@ -45,6 +53,11 @@ public sealed class ExternalLoginCallbackModel(MemberAccountService memberAccoun
         switch (resolution.Status)
         {
             case ExternalLoginStatus.SignedIn when resolution.Account is not null:
+                if (protectedAppleToken is not null)
+                {
+                    await appleTokens.SaveProtectedAsync(
+                        resolution.Account.Id, providerKey, protectedAppleToken, cancellationToken);
+                }
                 await MemberCookieSignIn.SignInAsync(HttpContext, resolution.Account);
                 return Redirect(safeReturnUrl);
             case ExternalLoginStatus.LinkConfirmationRequired:
@@ -56,7 +69,8 @@ public sealed class ExternalLoginCallbackModel(MemberAccountService memberAccoun
                         email ?? string.Empty,
                         displayName,
                         safeReturnUrl,
-                        MobileRequestId: null));
+                        MobileRequestId: null,
+                        ProtectedAppleRefreshToken: protectedAppleToken));
                 return Redirect(ExternalLoginLinkCookie.PagePath);
             case ExternalLoginStatus.Suspended:
                 return Redirect("/account/login?suspended=1");

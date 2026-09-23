@@ -201,6 +201,29 @@ public sealed class AdminPhotoService(
             BlobsUnresolved: unresolvedCount);
     }
 
+    /// <summary>Deletes all owned gallery blobs before removing the published row.</summary>
+    public async Task DeleteForAccountDeletionAsync(int picId, CancellationToken cancellationToken = default)
+    {
+        var existing = await adminPhotoRepository.GetByIdAsync(picId, cancellationToken);
+        if (existing is null)
+        {
+            return;
+        }
+
+        var (locations, unresolved) = ResolveBlobLocations(existing, picId);
+        if (unresolved != 0)
+        {
+            throw new InvalidOperationException($"Photo {picId} has unresolved blob locations.");
+        }
+
+        foreach (var (container, blobName) in locations)
+        {
+            await galleryPhotoBlobService.DeleteAsync(container, blobName, cancellationToken);
+        }
+
+        await adminPhotoRepository.DeleteAsync(picId, "account-deletion@queenzone.org", cancellationToken);
+    }
+
     public async Task RegenerateThumbnailAsync(
         int picId,
         string editorEmail,

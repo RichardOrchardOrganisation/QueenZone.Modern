@@ -1,23 +1,22 @@
 # Member account deletion
 
-Issue [#586](https://github.com/richardorchard/QueenZone.Modern/issues/586) defines the self-service account deletion policy. This note also records the account-deletion decision that affects private-message retention in [#473](https://github.com/richardorchard/QueenZone.Modern/issues/473).
+The signed-in member can choose **Delete my account** in the mobile Settings screen or at `/account/delete`. They type `DELETE` to confirm. The API accepts `immediate: true`; older clients that omit it retain the scheduled request contract.
 
-## Lifecycle
+## Immediate lifecycle
 
-1. The signed-in member confirms deletion by typing `DELETE` on `/account/delete`.
-2. The request immediately changes the public display name and retained-content attribution to `Deleted member`, hides the member profile and avatar, signs the member out, and starts a 30-day cooling-off period. The original display name and avatar blob path are held in private recovery fields.
-3. The member can sign back in during the cooling-off period and cancel deletion from `/account/delete`. Cancellation atomically restores the display name, avatar reference, profile, and retained-content attribution, clears the recovery fields, and clears the pending deletion date.
-4. A background service permanently deletes due accounts after 30 days. It suspends the account, deletes the stored avatar, purges the email address, password hash, external login rows, last-login timestamp, and private recovery fields, and makes retained-content anonymisation permanent.
-5. A non-personal member tombstone remains so retained content keeps valid database relationships. `LinkedLegacyUserId` remains unchanged under the current policy.
+1. The request disables the account, hides its public identity and avatar, and signs the member out. All mobile refresh grants are revoked.
+2. The purge removes personal sign-in fields and the legacy-account link. A non-personal member tombstone remains for database relationships. It replaces modern forum post and private message bodies with deleted placeholders; removes submitted article, quiz, trivia, suggestion, photo, and performance content; and removes promoted media where the submission can be traced to its member. A modern forum thread retains its title and other members' replies. Its starter and deleted posts display `Deleted member`, and its title remains in forum and site search.
+3. Blob paths — avatars, attachments, submission uploads, and promoted gallery/stage media — are put in a durable `MemberDeletionBlobs` outbox in the same database transaction as the purge. Public `PIC_FILES_T` / `Q_STAGE_T` rows are removed in that transaction so published media disappears with PII. The request then attempts blob deletion immediately. The hosted deletion service retries failed blob deletes and incomplete purges. Blob failures never abort the purge or other due members. Sign in with Apple refresh tokens, when available, are encrypted at rest and revoked through Apple's token revocation endpoint; failures are retried. Apple logins without a stored token cannot be revoked by the server; the app and website give members the Apple Account removal path.
+4. `MemberAccountDeletionAuditLog` records the account ID, action, and timestamp without copying the member's email or content. The member record remains as `Deleted member` with a synthetic email. Legacy public archive content remains, but `LinkedLegacyUserId` is cleared.
 
-Deletion requests, cancellations, and completed purges are recorded in `MemberAccountDeletionAuditLog`. Audit rows contain the member account ID, action, and timestamp. They do not contain email addresses or other copied personal data.
+The response says deletion **is being processed** because external blob removal and Apple revocation can finish later. Most requests finish within minutes; the hosted service checks unfinished cleanup every six hours. It includes an opaque Data Protection status receipt. The mobile screen retains that receipt locally after sign-out, checks it automatically when opened, and can query `/api/v1/account-deletion-status`; the website redirects to `/account/deletion-status?receipt=...`. The receipt reveals only `processing` or `complete`, remains usable after sign-out, and should be treated as a private link. Completion requires the account purge, its blob outbox to be empty, and any stored Apple refresh token to have been revoked. The account cannot be restored after an immediate request.
 
-## Retained content
+## Existing scheduled requests
 
-- Modern forum posts remain visible. Their stored author name changes to `Deleted member`, and `AuthorMemberId` is cleared so they no longer link to a member profile.
-- Thread-starter attribution and indexed community-article attribution change to `Deleted member`.
-- Published contributions that resolve attribution from `MemberAccounts` display the tombstone name.
-- Private-message bodies and conversation rows remain for the other participant. Sender and participant relationships remain, but visible attribution resolves to `Deleted member`.
-- Pending and permanently deleted accounts are excluded from recipient search. Existing conversations cannot receive new replies while either participant has a pending or completed deletion.
+Members who already have a 30-day scheduled request can still sign in and cancel it before the due date. The original name and avatar reference are kept in private recovery fields until cancellation or purge. Older clients may still create scheduled requests by omitting `immediate: true`; the current mobile and web interfaces submit immediate requests. The hosted service uses the same purge for scheduled requests after 30 days.
 
-This policy does not settle the wider moderation and reported-message retention work in #473. Moderator access, access auditing, and legal hold rules remain in that issue.
+## Other member content and moderation
+
+The other participant's private conversation remains, with the deleted member's messages reduced to placeholders. Modern forum posts similarly remain as placeholders to preserve thread continuity. Reports involving the deleted member are removed, and preceding conversation context in other reports is cleared. This account-deletion rule supersedes the general reported-message retention rule in [ADR 0015](../decisions/0015-private-message-report-retention-and-audit.md) for reports involving a deleted member.
+
+Deleted accounts are excluded from recipient search, and conversations with them cannot receive new replies.

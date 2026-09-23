@@ -24,6 +24,18 @@ public interface IMemberAccountRepository
 
     Task AddExternalLoginAsync(Guid memberAccountId, string provider, string providerKey, string email, CancellationToken cancellationToken = default);
 
+    Task SaveAppleRefreshTokenAsync(
+        Guid memberAccountId,
+        string providerKey,
+        string protectedToken,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Updates <see cref="MemberAccount.DisplayName"/> for the given member.
     /// Display names are not unique — multiple members may share the same name.
@@ -154,7 +166,8 @@ public interface IMemberAccountRepository
     Task<MemberAccountDeletionRequestResult?> RequestDeletionAsync(
         Guid memberId,
         DateTime requestedAt,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool immediate = false);
 
     /// <summary>
     /// Cancels a pending deletion request before personal data has been purged.
@@ -166,12 +179,20 @@ public interface IMemberAccountRepository
 
     /// <summary>
     /// Irreversibly removes personal and authentication data for deletion requests at or before
-    /// <paramref name="purgeBefore"/>. The member tombstone and linked legacy id are retained.
+    /// <paramref name="purgeBefore"/>. A non-personal member tombstone remains.
     /// </summary>
     Task<MemberAccountDeletionPurgeResult> PurgeDeletedAccountsAsync(
         DateTime purgeBefore,
         DateTime purgedAt,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteDeletionBlobAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<MemberDeletionProgress?> GetDeletionProgressAsync(Guid memberId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<MemberSocialLink>> ListSocialLinksAsync(
         Guid memberId,

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QueenZone.Data;
 
@@ -11,9 +12,11 @@ using QueenZone.Data;
 namespace QueenZone.Data.Migrations
 {
     [DbContext(typeof(QueenZoneDbContext))]
-    partial class QueenZoneDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260923074620_AddAppleRefreshTokenForAccountDeletion")]
+    partial class AddAppleRefreshTokenForAccountDeletion
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1061,37 +1064,6 @@ namespace QueenZone.Data.Migrations
                         .HasDatabaseName("IX_MemberAccountDeletionAuditLog_MemberAccountId_OccurredAt");
 
                     b.ToTable("MemberAccountDeletionAuditLog", (string)null);
-                });
-
-            modelBuilder.Entity("QueenZone.Data.Entities.MemberDeletionBlobEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("BlobPath")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("Container")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("MemberAccountId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("MemberAccountId");
-
-                    b.ToTable("MemberDeletionBlobs", (string)null);
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.MemberExternalLogin", b =>

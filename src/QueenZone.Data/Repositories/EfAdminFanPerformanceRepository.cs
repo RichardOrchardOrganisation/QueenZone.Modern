@@ -241,6 +241,16 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
         QueenZoneConcurrency.EnsureUpdated(affected, exists, $"Fan performance {id} was not found.");
     }
 
+    public async Task DeleteAsync(int id, string editorEmail, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(editorEmail);
+        await EfSql.ExecuteNonQuerySqlAsync(
+            dbContext,
+            "DELETE FROM dbo.Q_STAGE_T WHERE Q_STAGE_ID = @Id",
+            command => command.Parameters.Add(EfSql.Input("@Id", id)),
+            cancellationToken: cancellationToken);
+    }
+
     private static void AddFilterParameters(SqlCommand command, AdminFanPerformanceListFilter filter)
     {
         if (filter.IsVisible is bool isVisible)

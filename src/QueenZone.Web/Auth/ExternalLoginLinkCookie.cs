@@ -21,6 +21,8 @@ internal static class ExternalLoginLinkCookie
 
     public const string MobileRequestIdClaimType = "mobile_request_id";
 
+    public const string ProtectedAppleRefreshTokenClaimType = "apple_refresh_token";
+
     public static async Task SignInAsync(HttpContext httpContext, PendingExternalLink link)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
@@ -37,6 +39,10 @@ internal static class ExternalLoginLinkCookie
         if (!string.IsNullOrWhiteSpace(link.MobileRequestId))
         {
             claims.Add(new Claim(MobileRequestIdClaimType, link.MobileRequestId));
+        }
+        if (!string.IsNullOrWhiteSpace(link.ProtectedAppleRefreshToken))
+        {
+            claims.Add(new Claim(ProtectedAppleRefreshTokenClaimType, link.ProtectedAppleRefreshToken));
         }
 
         var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.ExternalLinkCookie);
@@ -68,13 +74,15 @@ internal static class ExternalLoginLinkCookie
         var displayName = result.Principal.FindFirstValue(ClaimTypes.Name) ?? email;
         var returnUrl = LocalReturnUrl.Resolve(result.Principal.FindFirstValue(ReturnUrlClaimType));
         var mobileRequestId = result.Principal.FindFirstValue(MobileRequestIdClaimType);
+        var protectedAppleRefreshToken = result.Principal.FindFirstValue(ProtectedAppleRefreshTokenClaimType);
         return new PendingExternalLink(
             provider,
             providerKey,
             email,
             displayName,
             returnUrl,
-            string.IsNullOrWhiteSpace(mobileRequestId) ? null : mobileRequestId);
+            string.IsNullOrWhiteSpace(mobileRequestId) ? null : mobileRequestId,
+            protectedAppleRefreshToken);
     }
 
     public static Task SignOutAsync(HttpContext httpContext)
@@ -90,4 +98,5 @@ internal sealed record PendingExternalLink(
     string Email,
     string DisplayName,
     string ReturnUrl,
-    string? MobileRequestId);
+    string? MobileRequestId,
+    string? ProtectedAppleRefreshToken = null);

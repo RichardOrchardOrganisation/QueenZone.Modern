@@ -26,7 +26,10 @@ public sealed class MemberAccountService(
     IBlobUploadService blobUploadService,
     MemberUploadQuotaService uploadQuota,
     TimeProvider? timeProvider = null,
-    IOptions<PasswordSignInLockoutOptions>? passwordLockout = null)
+    IOptions<PasswordSignInLockoutOptions>? passwordLockout = null,
+    AppleAccountTokenService? appleTokens = null,
+    ILogger<MemberAccountService>? logger = null,
+    IEmailSender? emailSender = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
@@ -750,6 +753,57 @@ public sealed class MemberAccountService(
         return MemberAccountResult.Success(requested.Account);
     }
 
+    public async Task<MemberAccountResult> DeleteImmediatelyAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var requested = await memberAccountRepository.RequestDeletionAsync(
+            memberId,
+            clock.GetUtcNow().UtcDateTime,
+            cancellationToken,
+            immediate: true);
+        if (requested is null)
+        {
+            return MemberAccountResult.Failure("Account not found.");
+        }
+
+        var recipientEmail = requested.Account.Email;
+
+        try
+        {
+            await PurgeDueDeletionsAsync(clock.GetUtcNow().UtcDateTime, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogError(ex, "Immediate account deletion purge failed for {MemberId}.", memberId);
+        }
+
+        var purged = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
+        if (purged?.PersonalDataPurgedAt is null)
+        {
+            return MemberAccountResult.Failure(ImmediatePurgeIncompleteError);
+        }
+
+        if (emailSender is not null)
+        {
+            try
+            {
+                await emailSender.SendAsync(
+                    new OutboundEmail(
+                        recipientEmail,
+                        "Your Queenzone account deletion request",
+                        "Your Queenzone account has been deleted. Remaining external cleanup may still be processing. If you did not request this, contact support@queenzone.org."),
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger?.LogError("Could not email account deletion confirmation for {MemberId}: {ErrorType}.", memberId, ex.GetType().Name);
+            }
+        }
+
+        return MemberAccountResult.Success(purged);
+    }
+
     public async Task<MemberAccountResult> CancelDeletionAsync(
         Guid memberId,
         CancellationToken cancellationToken = default)
@@ -780,16 +834,31 @@ public sealed class MemberAccountService(
         DateTime utcNow,
         CancellationToken cancellationToken = default)
     {
+        var purgeBefore = utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays);
         var result = await memberAccountRepository.PurgeDeletedAccountsAsync(
-            utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays),
+            purgeBefore,
             utcNow,
             cancellationToken);
-        foreach (var avatarBlobPath in result.AvatarBlobPaths)
+        var pendingBlobs = await memberAccountRepository.ListPendingDeletionBlobsAsync(100, cancellationToken);
+        foreach (var blob in pendingBlobs)
         {
-            await SafeDeleteAsync(
-                avatarBlobPath,
-                MemberAvatarPaths.ToThumbBlobName(avatarBlobPath),
-                cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(BlobDeleteTimeout);
+            try
+            {
+                await blobUploadService.DeleteAsync(blob.Container, blob.Path, timeout.Token)
+                    .WaitAsync(BlobDeleteTimeout, cancellationToken);
+                await memberAccountRepository.CompleteDeletionBlobAsync(blob.Id, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                logger?.LogWarning(ex, "Account deletion blob cleanup will retry for {BlobId}.", blob.Id);
+            }
+        }
+
+        if (appleTokens is not null)
+        {
+            await appleTokens.RevokePendingAsync(cancellationToken);
         }
 
         return result.PurgedCount;
@@ -802,16 +871,16 @@ public sealed class MemberAccountService(
     {
         if (!string.IsNullOrWhiteSpace(avatarBlobName))
         {
-            await DeleteBlobBestEffortAsync(avatarBlobName, cancellationToken);
+            await DeleteBlobBestEffortAsync(MemberAvatarPaths.Container, avatarBlobName, cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(thumbBlobName))
         {
-            await DeleteBlobBestEffortAsync(thumbBlobName, cancellationToken);
+            await DeleteBlobBestEffortAsync(MemberAvatarPaths.Container, thumbBlobName, cancellationToken);
         }
     }
 
-    private async Task DeleteBlobBestEffortAsync(string blobName, CancellationToken cancellationToken)
+    private async Task DeleteBlobBestEffortAsync(string container, string blobName, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(BlobDeleteTimeout);
@@ -821,7 +890,7 @@ public sealed class MemberAccountService(
             // CancelAfter asks the SDK to stop; WaitAsync bounds this await even when
             // the SDK ignores the token (cold first outbound call, dead TCP, retries).
             await blobUploadService
-                .DeleteAsync(MemberAvatarPaths.Container, blobName, timeout.Token)
+                .DeleteAsync(container, blobName, timeout.Token)
                 .WaitAsync(BlobDeleteTimeout, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -839,6 +908,9 @@ public sealed class MemberAccountService(
     public const int MaxDisplayNameLength = 100;
 
     public const string PendingDeletionEditError = "Cancel account deletion before changing your public profile.";
+
+    public const string ImmediatePurgeIncompleteError =
+        "Account deletion could not finish removing personal data. Try again shortly.";
 
     public const string SuspendedSignInError = "This account has been suspended.";
 

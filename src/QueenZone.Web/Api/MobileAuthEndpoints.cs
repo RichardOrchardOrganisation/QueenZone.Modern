@@ -104,6 +104,8 @@ public static class MobileAuthEndpoints
     internal static async Task<IResult> CallbackAsync(
         HttpContext httpContext,
         MobileAuthService mobileAuth,
+        AppleAccountTokenService appleTokens,
+        QueenZone.Data.IMemberAccountRepository memberAccounts,
         IAuthenticationSchemeProvider schemes,
         string? rid,
         CancellationToken cancellationToken)
@@ -123,6 +125,12 @@ public static class MobileAuthEndpoints
         var providerKey = external.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
         var email = external.Principal.FindFirstValue(ClaimTypes.Email);
         var displayName = external.Principal.FindFirstValue(ClaimTypes.Name);
+        var appleRefreshToken = string.Equals(provider, MemberAuthenticationSchemes.Apple, StringComparison.OrdinalIgnoreCase)
+            ? external.Properties?.GetTokenValue("refresh_token")
+            : null;
+        var protectedAppleToken = string.IsNullOrWhiteSpace(appleRefreshToken)
+            ? null
+            : appleTokens.Protect(appleRefreshToken);
 
         if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerKey))
         {
@@ -158,7 +166,8 @@ public static class MobileAuthEndpoints
                     emailValue,
                     displayName,
                     ReturnUrl: "/",
-                    MobileRequestId: rid));
+                    MobileRequestId: rid,
+                    ProtectedAppleRefreshToken: protectedAppleToken));
             await httpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
             return Results.Redirect(ExternalLoginLinkCookie.PagePath);
         }
@@ -175,6 +184,15 @@ public static class MobileAuthEndpoints
                     completed.State,
                     error: completed.Error,
                     description: completed.ErrorDescription);
+        }
+
+        if (protectedAppleToken is not null)
+        {
+            var account = await memberAccounts.FindByExternalLoginAsync(provider, providerKey, cancellationToken);
+            if (account is not null)
+            {
+                await appleTokens.SaveProtectedAsync(account.Id, providerKey, protectedAppleToken, cancellationToken);
+            }
         }
 
         return RedirectToApp(

@@ -144,6 +144,14 @@ describe('formatMemberSince', () => {
 });
 
 describe('parseDeletionRequested', () => {
+  it('accepts an immediate deletion with no scheduled date', () => {
+    const result = parseDeletionRequested({ requested: true, scheduledDeletionAt: null, statusReceipt: 'opaque' });
+    assert.equal(result.scheduledDeletionAt, null);
+    assert.equal(result.statusReceipt, 'opaque');
+    assert.equal(result.title, 'Account deletion requested');
+    assert.match(result.message, /being removed/);
+  });
+
   it('requires requested true', () => {
     const result = parseDeletionRequested({
       requested: true,

@@ -789,10 +789,10 @@ function profileFromIdentityShell(identity: StoredIdentityShell | null | undefin
     limits: fallbackProfileLimits,
     deletion: {
       confirmationPhrase: 'DELETE',
-      confirmationHint: 'Type DELETE to schedule deletion of the account.',
-      requestedTitle: 'Account deletion scheduled',
+      confirmationHint: 'Type DELETE to delete the account.',
+      requestedTitle: 'Account deletion requested',
       requestedMessage:
-        'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.',
+        'Your account has been disabled and your personal data is being removed.',
       whatHappens: [],
     },
   };

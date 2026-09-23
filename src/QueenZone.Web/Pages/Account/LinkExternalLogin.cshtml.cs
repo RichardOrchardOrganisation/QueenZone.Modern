@@ -10,7 +10,8 @@ namespace QueenZone.Web.Pages.Account;
 public sealed class LinkExternalLoginModel(
     IOptions<MemberAuthenticationOptions> memberAuthenticationOptions,
     MemberAccountService memberAccountService,
-    MobileAuthService mobileAuth) : AccountPageModel(memberAuthenticationOptions)
+    MobileAuthService mobileAuth,
+    AppleAccountTokenService appleTokens) : AccountPageModel(memberAuthenticationOptions)
 {
     public string Provider { get; private set; } = string.Empty;
 
@@ -140,6 +141,16 @@ public sealed class LinkExternalLoginModel(
             Error = linked.Error ?? "Could not link that sign-in provider.";
             await PopulateAsync(pending, cancellationToken);
             return Page();
+        }
+
+        if (pending.Provider == MemberAuthenticationSchemes.Apple
+            && pending.ProtectedAppleRefreshToken is not null)
+        {
+            await appleTokens.SaveProtectedAsync(
+                linked.Account.Id,
+                pending.ProviderKey,
+                pending.ProtectedAppleRefreshToken,
+                cancellationToken);
         }
 
         await ExternalLoginLinkCookie.SignOutAsync(HttpContext);
