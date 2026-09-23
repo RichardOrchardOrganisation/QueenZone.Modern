@@ -419,6 +419,9 @@ public sealed class QueenZoneDbContext : DbContext
                 .HasDatabaseName("IX_ModernForumPost_AuthorMemberId_PostedAt");
             entity.HasIndex(post => new { post.AuthorLegacyUserId, post.PostedAt })
                 .HasDatabaseName("IX_ModernForumPost_AuthorLegacyUserId_PostedAt");
+            entity.HasIndex(post => post.PostedAt)
+                .HasDatabaseName("IX_ModernForumPost_PostedAt_Visible")
+                .HasFilter("[IsHidden] = 0");
             entity.HasOne(post => post.Thread)
                 .WithMany()
                 .HasForeignKey(post => post.ThreadId)
