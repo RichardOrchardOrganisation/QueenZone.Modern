@@ -35,6 +35,24 @@ name: App Review walkthrough rehearsal
     visible:
       id: archive-hub-screen
     timeout: 20000
+# Show the Quiz Sprint introduced in the newer review build. The leaderboard
+# is quick to capture; a live timed round would stall the rest of this video.
+- scrollUntilVisible:
+    element: Quiz Sprint
+    direction: DOWN
+    timeout: 20000
+- tapOn: Quiz Sprint
+- extendedWaitUntil:
+    visible:
+      id: quiz-sprint-screen
+    timeout: 20000
+- assertVisible:
+    id: quiz-sprint-begin
+- tapOn: View the leaderboard
+- extendedWaitUntil:
+    visible:
+      id: quiz-sprint-leaderboard-screen
+    timeout: 20000
 - tapOn:
     id: tab-forum
 - extendedWaitUntil:

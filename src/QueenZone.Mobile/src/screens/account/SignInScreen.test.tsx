@@ -1,4 +1,5 @@
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { Keyboard } from 'react-native';
 import { fallbackAuthProviders } from '../../api/auth';
 import { jsonResponse } from '../../test/fixtures';
 import { createMockSession } from '../../test/mockSession';
@@ -21,6 +22,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   global.fetch = fetchMock as unknown as typeof fetch;
   fetchMock.mockResolvedValue(jsonResponse({ providers: fallbackAuthProviders }));
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 function renderSignIn(returnTo?: { tab: 'ForumTab'; screen: 'Composer'; params: { threadId: number } }) {
@@ -106,6 +111,7 @@ describe('SignInScreen', () => {
   });
 
   it('submits the reviewer credentials from the password keyboard', async () => {
+    const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
     mockSession.signInWithPassword.mockResolvedValue(undefined);
     renderSignIn();
     await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
@@ -127,6 +133,7 @@ describe('SignInScreen', () => {
         'correct horse battery staple',
       ),
     );
+    expect(dismissKeyboard).toHaveBeenCalledTimes(1);
   });
 
   it('describes OAuth secrets separately from the password fallback', async () => {

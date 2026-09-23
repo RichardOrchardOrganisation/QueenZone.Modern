@@ -759,16 +759,18 @@ replace the API key if its private key is ever exposed. Signing material must
 never be copied into the repository, workflow artifacts, logs, or issue/PR
 text.
 
-## Install the latest Google Play internal-test build
+## Install the latest Google Play test build
 
-Google Play's equivalent of TestFlight is the **internal testing track**. Run
+Google Play's equivalents of TestFlight are the **internal** and **closed
+testing** tracks. Run
 **Publish Android to Google Play** from the repository's **Actions** tab and
-select `main`. Leave **API environment** set to `production` for normal Play
-candidates; choose `staging` only for a deliberate `https://dev.queenzone.org`
-test build. The workflow runs mobile preflight, builds a signed Android App
-Bundle (`.aab`), verifies its packaged environment and API origin, retains it
-as a seven-day artifact, and uploads it to the `internal` track for opted-in
-testers.
+select `main`. Choose `internal` for the Internal testing track or `closed` for
+the Closed testing track. Leave **API environment** set to `production` for
+normal Play candidates; choose `staging` only for a deliberate
+`https://dev.queenzone.org` test build. The workflow runs mobile preflight,
+builds a signed Android App Bundle (`.aab`), verifies its packaged environment
+and API origin, retains it as a seven-day artifact, and uploads it to the
+selected track for opted-in testers.
 
 The one-time Play Console setup for `org.queenzone.mobile` is:
 
@@ -785,10 +787,14 @@ The one-time Play Console setup for `org.queenzone.mobile` is:
 
 Google Play requires the first bundle for a new app to be uploaded in Play
 Console before API publishing works. For that bootstrap only, run the workflow
-with **Upload the bundle to the Google Play internal track** cleared, download
+with **Upload the bundle to the selected Google Play testing track** cleared,
+download
 its `.aab` artifact, and upload it under **Internal testing → Create new
 release**. After that first release establishes the package and upload key, keep
-the option selected for normal automated internal releases.
+the option selected for normal automated testing releases. The closed track is
+already configured in Play Console as Google's `alpha` track, so selecting
+`closed` in the workflow publishes directly to Closed testing without reusing
+the console's release form.
 
 The workflow reuses the stable Android test key as the Play **upload key**.
 Google Play holds the separate app-signing key and signs the APKs delivered to

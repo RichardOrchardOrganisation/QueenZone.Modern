@@ -46,20 +46,26 @@
         }
       ],
       "expo-image",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-web-browser",
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow QueenZone to use your photos for gallery submissions, forum posts, and your member avatar.",
-          "cameraPermission": "Allow QueenZone to use the camera for gallery submissions and your member avatar."
+          "photosPermission": "QueenZone accesses photos you choose so you can, for example, submit a concert photo to our moderated gallery, attach it to a forum post, or set your member avatar.",
+          "cameraPermission": "QueenZone uses the camera when you choose to take a photo, for example to submit a concert photo to our moderated gallery or set your member avatar.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-media-library",
         {
           "photosPermission": false,
-          "savePhotosPermission": "Allow QueenZone to save pictures to your photo library.",
+          "savePhotosPermission": "QueenZone adds a picture to your photo library when you tap Save, for example to keep a Queen gallery photo on your device.",
           "granularPermissions": [],
           "isAccessMediaLocationEnabled": false
         }

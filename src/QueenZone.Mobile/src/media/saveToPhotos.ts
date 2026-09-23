@@ -6,7 +6,7 @@ import {
 } from 'expo-media-library/legacy';
 
 /** Info.plist `NSPhotoLibraryAddUsageDescription` — not image-picker `photosPermission`. */
-export const savePhotosPermission = 'Allow QueenZone to save pictures to your photo library.';
+export const savePhotosPermission = 'QueenZone adds a picture to your photo library when you tap Save, for example to keep a Queen gallery photo on your device.';
 
 export const saveToPhotosCopy = {
   denied: 'Photo library permission is required to save this picture.',
