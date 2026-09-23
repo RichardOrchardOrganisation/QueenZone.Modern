@@ -14,6 +14,7 @@ public static class AccountDeletionCopy
 
     public const string ImmediateMessage =
         "Your account has been disabled and your personal data is being removed now. " +
+        "Most requests finish within minutes; cleanup that needs a retry is checked every six hours. " +
         "You have been signed out. This cannot be undone.";
 
     public const string RequestedMessage =

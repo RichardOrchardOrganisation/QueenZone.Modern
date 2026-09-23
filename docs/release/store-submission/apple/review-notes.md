@@ -32,7 +32,7 @@ The app uses the camera and photo library only after the user selects a photo-su
 
 Account deletion is available at Settings → Delete my account. After the member types DELETE, the account is disabled and signed out immediately. The backend begins permanent deletion of account data and modern user contributions; a retrying background job completes any outstanding blob removal or Sign in with Apple token revocation. Legacy public archive posts remain disconnected from the modern account.
 
-The app displays an in-app status receipt after sign-out. It can refresh until the backend confirms completion and can open the same private receipt on the website for later checks.
+The app displays an in-app status receipt after sign-out. It checks completion when opened, can be refreshed manually, and can open the same private receipt on the website for later checks. Most requests finish within minutes; the backend checks cleanup that needs another attempt every six hours.
 
 Deploy the backend migration and deletion API before submitting the mobile build. The release-build check should confirm that the production `immediate: true` request returns a null `scheduledDeletionAt` and the account cannot sign in again.
 

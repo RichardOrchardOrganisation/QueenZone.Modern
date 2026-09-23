@@ -67,7 +67,7 @@ function DeletionReceiptView({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
@@ -78,7 +78,11 @@ function DeletionReceiptView({
     } finally {
       setBusy(false);
     }
-  }
+  }, [receipt.token]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const statusUrl = `${getAppConfig().apiBaseUrl}/account/deletion-status?receipt=${encodeURIComponent(receipt.token)}`;
   return (
@@ -92,6 +96,9 @@ function DeletionReceiptView({
       <Text style={[type.body, { color: c.textSecondary }]}>
         This private status receipt works after sign-out. Save the page address if you want to check later.
       </Text>
+      {status === 'processing' ? <Text style={[type.body, { color: c.textSecondary }]}>
+        Most requests finish within minutes. Cleanup that needs another attempt is checked every six hours.
+      </Text> : null}
       {error ? <Text style={[type.body, { color: c.danger }]} accessibilityRole="alert">{error}</Text> : null}
       <Button label="Refresh deletion status" loading={busy} onPress={() => void refresh()} />
       <Button label="Open status receipt" variant="outline" onPress={() => void openExternalUrl(statusUrl)} />

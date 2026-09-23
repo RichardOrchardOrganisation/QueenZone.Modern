@@ -88,12 +88,12 @@ describe('DeleteAccountScreen', () => {
     expect(screen.getByText('You have been signed out.')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Refresh deletion status' })).toBeOnTheScreen();
     expect(await AsyncStorage.getItem('queenzone.accountDeletionReceipt')).toContain('opaque-test-receipt');
+    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledWith('/account-deletion-status', {
+      query: { receipt: 'opaque-test-receipt' },
+    }));
     fetchJsonMock.mockResolvedValueOnce({ status: 'complete' });
     await user.press(screen.getByRole('button', { name: 'Refresh deletion status' }));
     await waitFor(() => expect(screen.getByText('Account deletion complete')).toBeOnTheScreen());
-    expect(fetchJsonMock).toHaveBeenCalledWith('/account-deletion-status', {
-      query: { receipt: 'opaque-test-receipt' },
-    });
   });
 
   it('cancels a scheduled deletion and refreshes the profile', async () => {
