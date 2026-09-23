@@ -291,5 +291,5 @@ jobs:
           serviceAccountJsonPlainText: ${{ steps.bitwarden-secrets.outputs.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: org.queenzone.mobile
           releaseFiles: src/QueenZone.Mobile/android/app/build/outputs/bundle/release/app-release.aab
-          tracks: ${{ inputs.testing_track == 'closed' && 'alpha' || 'internal' }}
+          track: ${{ inputs.testing_track == 'closed' && 'alpha' || 'internal' }}
           status: completed
