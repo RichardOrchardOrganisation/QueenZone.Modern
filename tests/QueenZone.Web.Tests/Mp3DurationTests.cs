@@ -95,7 +95,7 @@ public sealed class FanPerformanceDurationResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsync_PrefersMpegDuration_WhenBlobIsReadable()
+    public async Task ResolveAsync_UsesStoredDuration_WhenBlobIsReadable()
     {
         var performance = new FanPerformance(
             1,
@@ -117,7 +117,7 @@ public sealed class FanPerformanceDurationResolverTests
         var resolver = new FanPerformanceDurationResolver(blobs, new MemoryCache(new MemoryCacheOptions()));
         var seconds = await resolver.ResolveAsync(performance, CancellationToken.None);
 
-        Assert.Equal(1, seconds);
+        Assert.Equal(99, seconds);
     }
 
     [Fact]
@@ -139,33 +139,12 @@ public sealed class FanPerformanceDurationResolverTests
     }
 
     [Fact]
-    public async Task ResolveManyAsync_ReturnsEmpty_WhenThereAreNoItems()
-    {
-        var resolver = new FanPerformanceDurationResolver(new MemoryBlobUploadService(), new MemoryCache(new MemoryCacheOptions()));
-
-        var durations = await resolver.ResolveManyAsync([], CancellationToken.None);
-
-        Assert.Empty(durations);
-    }
-
-    [Fact]
     public async Task ResolveAsync_ReturnsNull_WhenStorageIsNotConfigured()
     {
         var performance = new FanPerformance(3, "Local", "Fan", "", "local.mp3", 10, DateTime.UtcNow);
         var resolver = new FanPerformanceDurationResolver(new NullBlobUploadService(), new MemoryCache(new MemoryCacheOptions()));
 
         Assert.Null(await resolver.ResolveAsync(performance, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task ResolveManyAsync_PreservesItemOrder()
-    {
-        var items = SampleFanPerformanceData.CreateSeedPerformances();
-        var resolver = new FanPerformanceDurationResolver(new MemoryBlobUploadService(), new MemoryCache(new MemoryCacheOptions()));
-
-        var durations = await resolver.ResolveManyAsync(items, CancellationToken.None);
-
-        Assert.Equal(items.Select(item => item.DurationSeconds), durations);
     }
 
     [Fact]
@@ -208,24 +187,14 @@ public sealed class ContentApiFanPerformanceMapperTests
     }
 
     [Fact]
-    public void ToFanPerformanceDtos_PairsDurationsByIndex()
+    public void ToFanPerformanceDtos_UsesStoredDurations()
     {
         var items = SampleFanPerformanceData.CreateSeedPerformances().Take(2).ToList();
 
-        var mapped = ContentApiMapper.ToFanPerformanceDtos(items, [11, 22]);
+        var mapped = ContentApiMapper.ToFanPerformanceDtos(items);
 
-        Assert.Equal(11, mapped[0].DurationSeconds);
-        Assert.Equal(22, mapped[1].DurationSeconds);
-    }
-
-    [Fact]
-    public void ToFanPerformanceDtos_FallsBackToDomainDuration_WhenListIsShorter()
-    {
-        var items = SampleFanPerformanceData.CreateSeedPerformances().Take(2).ToList();
-
-        var mapped = ContentApiMapper.ToFanPerformanceDtos(items, [11]);
-
-        Assert.Equal(11, mapped[0].DurationSeconds);
+        Assert.Equal(items[0].DurationSeconds, mapped[0].DurationSeconds);
         Assert.Equal(items[1].DurationSeconds, mapped[1].DurationSeconds);
     }
+
 }

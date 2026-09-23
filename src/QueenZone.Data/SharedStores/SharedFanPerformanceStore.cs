@@ -86,7 +86,7 @@ public sealed class SharedFanPerformanceStore
                 request.FileSizeBytes,
                 request.DateAdded,
                 request.IsVisible,
-                DurationSeconds: null));
+                request.DurationSeconds));
             return id;
         }
     }
@@ -184,7 +184,8 @@ public sealed class SharedFanPerformanceStore
             performance.AudioFileName,
             performance.FileSizeBytes,
             performance.DateAdded,
-            performance.IsVisible);
+            performance.IsVisible,
+            performance.DurationSeconds);
 
     private static FanPerformance ToPublic(MutablePerformance performance) =>
         new(

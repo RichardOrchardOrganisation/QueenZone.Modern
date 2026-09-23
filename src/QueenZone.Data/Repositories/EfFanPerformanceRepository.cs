@@ -4,10 +4,7 @@ using Microsoft.EntityFrameworkCore;
 namespace QueenZone.Data;
 
 /// <summary>
-/// Reads the legacy fan-stage recordings via <c>Q_STAGE_T_PAGE_SP</c> (DISPLAY=1 + DATE_ADDED DESC)
-/// and direct SQL for count/detail, through EF Core rather than Dapper.
-/// The proc's <c>@ItemCount</c> output counts every row (not only visible), so it is not trusted
-/// for pagination math — <see cref="GetVisibleCountAsync"/> runs a reliable count instead.
+/// Reads visible legacy fan-stage recordings through EF Core rather than Dapper.
 /// </summary>
 public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
 {
@@ -49,7 +46,7 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
     {
         if (useLegacyProcedures)
         {
-            return await GetPageViaProcedureAsync(page, pageSize, cancellationToken);
+            return await GetPageViaSqlServerAsync(page, pageSize, cancellationToken);
         }
 
         var rowsFromSql = await dbContext.Database
@@ -58,21 +55,27 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
         return rowsFromSql.Select(MapRow).ToList();
     }
 
-    [ExcludeFromCodeCoverage] // SQL Server stored procedure path.
-    private async Task<IReadOnlyList<FanPerformance>> GetPageViaProcedureAsync(
+    [ExcludeFromCodeCoverage] // SQL Server legacy table path.
+    private async Task<IReadOnlyList<FanPerformance>> GetPageViaSqlServerAsync(
         int page,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var currentPage = Math.Max(page, 1);
-        var rows = await EfSql.QueryProcAsync<StageRow>(
+        var offset = (Math.Max(page, 1) - 1) * pageSize;
+        var rows = await EfSql.QuerySqlAsync<StageRow>(
             dbContext,
-            "Q_STAGE_T_PAGE_SP",
+            """
+            SELECT CAST(Q_STAGE_ID AS int) AS Q_STAGE_ID, TITLE, PERFORMED_BY,
+                   DESCRIPTION, URL, thesize, DATE_ADDED, DurationSeconds
+            FROM dbo.Q_STAGE_T
+            WHERE DISPLAY = 1
+            ORDER BY DATE_ADDED DESC, Q_STAGE_ID DESC
+            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
+            """,
             command =>
             {
+                command.Parameters.Add(EfSql.Input("@Offset", offset));
                 command.Parameters.Add(EfSql.Input("@PageSize", pageSize));
-                command.Parameters.Add(EfSql.Input("@CurrentPage", currentPage));
-                command.Parameters.Add(EfSql.OutputInt("@ItemCount"));
             },
             cancellationToken: cancellationToken);
 
@@ -127,7 +130,8 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
         var rows = await EfSql.QuerySqlAsync<StageRow>(
             dbContext,
             """
-            SELECT Q_STAGE_ID, TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED
+            SELECT CAST(Q_STAGE_ID AS int) AS Q_STAGE_ID, TITLE, PERFORMED_BY,
+                   DESCRIPTION, URL, thesize, DATE_ADDED, DurationSeconds
             FROM dbo.Q_STAGE_T
             WHERE Q_STAGE_ID = @id AND DISPLAY = 1
             """,
@@ -143,7 +147,8 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
         Description: row.DESCRIPTION ?? string.Empty,
         AudioFileName: row.URL?.Trim() ?? string.Empty,
         FileSizeBytes: ParseFileSize(row.thesize),
-        DateAdded: row.DATE_ADDED);
+        DateAdded: row.DATE_ADDED,
+        DurationSeconds: row.DurationSeconds);
 
     private static long ParseFileSize(string? thesize) =>
         long.TryParse(thesize, out var parsed) ? parsed : 0;
@@ -163,5 +168,7 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
         public string? thesize { get; set; }
 
         public DateTime DATE_ADDED { get; set; }
+
+        public int? DurationSeconds { get; set; }
     }
 }

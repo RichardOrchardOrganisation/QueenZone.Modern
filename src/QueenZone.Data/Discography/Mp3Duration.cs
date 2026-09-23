@@ -1,11 +1,11 @@
-namespace QueenZone.Web;
+namespace QueenZone.Data;
 
 /// <summary>
 /// Estimates MPEG audio duration from a file-prefix plus total length.
 /// CBR files (legacy fan-stage MP3s) are derived from the first valid frame
 /// bitrate; VBR Xing/VBRI headers are not required for this archive.
 /// </summary>
-internal static class Mp3Duration
+public static class Mp3Duration
 {
     public const int PrefixBytes = 64 * 1024;
 

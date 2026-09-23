@@ -8,10 +8,11 @@ public sealed record AdminFanPerformanceItem(
     string AudioFileName,
     long FileSizeBytes,
     DateTime DateAdded,
-    bool IsVisible)
+    bool IsVisible,
+    int? DurationSeconds = null)
 {
     public FanPerformance ToFanPerformance() =>
-        new(Id, Title, PerformedBy, Description, AudioFileName, FileSizeBytes, DateAdded);
+        new(Id, Title, PerformedBy, Description, AudioFileName, FileSizeBytes, DateAdded, DurationSeconds);
 
     public AdminFanPerformanceConcurrencyToken ToConcurrencyToken() =>
         new(Title, PerformedBy, Description, DateAdded, IsVisible);
@@ -34,7 +35,8 @@ public sealed record AdminFanPerformanceCreateRequest(
     string AudioFileName,
     long FileSizeBytes,
     DateTime DateAdded,
-    bool IsVisible);
+    bool IsVisible,
+    int? DurationSeconds = null);
 
 public sealed record AdminFanPerformanceUpdateRequest(
     string Title,

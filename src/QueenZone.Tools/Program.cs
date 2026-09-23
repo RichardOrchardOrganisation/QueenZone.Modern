@@ -8,6 +8,11 @@ internal static class ToolsApp
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], "backfill-fan-performance-durations", StringComparison.OrdinalIgnoreCase))
+        {
+            return await BackfillFanPerformanceDurationsCommand.RunAsync(args[1..]);
+        }
+
         if (args.Length > 0 && string.Equals(args[0], "check-photos", StringComparison.OrdinalIgnoreCase))
         {
             return await CheckPhotosCommand.RunAsync(args[1..]);

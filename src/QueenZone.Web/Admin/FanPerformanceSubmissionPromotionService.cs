@@ -161,7 +161,8 @@ public sealed class FanPerformanceSubmissionPromotionService(
                 publishedName,
                 submission.FileSizeBytes,
                 DateTime.UtcNow,
-                IsVisible: true),
+                IsVisible: true,
+                DurationSeconds: submission.DurationSeconds),
             editorEmail,
             cancellationToken);
 

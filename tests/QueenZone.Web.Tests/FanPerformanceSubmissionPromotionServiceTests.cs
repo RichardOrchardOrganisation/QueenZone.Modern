@@ -44,6 +44,8 @@ public sealed class FanPerformanceSubmissionPromotionServiceTests
         Assert.Equal("Edited title", published.Title);
         Assert.Equal("Edited performer", published.PerformedBy);
         Assert.Equal($"{submission.Id:N}.mp3", published.AudioFileName);
+        Assert.Equal(submission.DurationSeconds, published.DurationSeconds);
+        Assert.Equal(submission.DurationSeconds, (await new InMemoryFanPerformanceRepository(store).GetByIdAsync(stageId))!.DurationSeconds);
         Assert.True(SongFileUrl.IsSafeBlobName(published.AudioFileName));
         Assert.True(backend.Exists(SongFileUrl.ContainerName, published.AudioFileName));
         Assert.False(backend.Exists(BlobUploadContainers.FanPerformances, submission.BlobPath));
