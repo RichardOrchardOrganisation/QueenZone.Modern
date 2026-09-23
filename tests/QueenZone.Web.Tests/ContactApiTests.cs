@@ -182,7 +182,8 @@ public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task Post_SignedInMemberJwt_OmitsContactFieldsAndStoresMemberId()
     {
-        var members = factory.Services.GetRequiredService<IMemberAccountRepository>();
+        using var isolated = QueenZoneWebApplicationFactory.WithServices(_ => { });
+        var members = isolated.Services.GetRequiredService<IMemberAccountRepository>();
         var member = await members.CreateAsync(new MemberAccount
         {
             Id = Guid.NewGuid(),
@@ -190,10 +191,10 @@ public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFacto
             DisplayName = "Contact Member",
             CreatedAt = DateTime.UtcNow,
         });
-        var token = factory.Services.GetRequiredService<MobileAuthTokenIssuer>()
+        var token = isolated.Services.GetRequiredService<MobileAuthTokenIssuer>()
             .IssueAccessToken(member.Id, member.Email, member.DisplayName);
 
-        using var client = factory.CreateAnonymousClient();
+        using var client = isolated.CreateAnonymousClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         using var formResponse = await client.GetAsync(ContactApiEndpoints.Path);
@@ -214,10 +215,66 @@ public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFacto
             });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var stored = await FindOpenBySubjectAsync(subject);
+        var list = await isolated.Services.GetRequiredService<IHelpRequestRepository>()
+            .ListAsync(HelpRequestStatus.Open, 1, 20);
+        var stored = Assert.Single(list.Items, item => item.Subject == subject);
         Assert.Equal(member.Id, stored.MemberId);
         Assert.Equal("Contact Member", stored.Name);
         Assert.Equal("contact-member@example.com", stored.Email);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Post_SignedInMember_IsRateLimitedForCookieAndBearer(bool useBearer)
+    {
+        using var limited = QueenZoneWebApplicationFactory.WithServices(services =>
+        {
+            services.PostConfigure<HelpRequestOptions>(options =>
+            {
+                options.MaxPerMemberPerMinute = 1;
+                options.MaxAnonymousPerIpPerHour = 10;
+            });
+        });
+        var member = await limited.Services.GetRequiredService<IMemberAccountRepository>()
+            .CreateAsync(new MemberAccount
+            {
+                Id = Guid.NewGuid(),
+                Email = $"contact-limit-{Guid.NewGuid():N}@example.com",
+                DisplayName = "Contact Limit Member",
+                CreatedAt = DateTime.UtcNow,
+            });
+        using var client = limited.CreateAnonymousClient();
+        if (useBearer)
+        {
+            var token = limited.Services.GetRequiredService<MobileAuthTokenIssuer>()
+                .IssueAccessToken(member.Id, member.Email, member.DisplayName);
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+        else
+        {
+            client.DefaultRequestHeaders.Add(TestMemberAuthHandler.MemberIdHeader, member.Id.ToString());
+            client.DefaultRequestHeaders.Add(TestMemberAuthHandler.DisplayNameHeader, member.DisplayName);
+            client.DefaultRequestHeaders.Add(TestMemberAuthHandler.EmailHeader, member.Email);
+        }
+
+        using var form = await client.GetAsync(ContactApiEndpoints.Path);
+        var stamp = (await form.Content.ReadFromJsonAsync<ContactFormDto>())!.FormStamp;
+        var request = new
+        {
+            topic = HelpRequestTopic.Account,
+            subject = "First signed-in contact request",
+            message = "This is a valid message to the site administrator.",
+            formStamp = stamp,
+        };
+        using var first = await client.PostAsJsonAsync(ContactApiEndpoints.Path, request);
+        using var second = await client.PostAsJsonAsync(ContactApiEndpoints.Path, request);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        var list = await limited.Services.GetRequiredService<IHelpRequestRepository>()
+            .ListAsync(HelpRequestStatus.Open, 1, 20);
+        Assert.Single(list.Items, item => item.MemberId == member.Id);
     }
 
     [Fact]

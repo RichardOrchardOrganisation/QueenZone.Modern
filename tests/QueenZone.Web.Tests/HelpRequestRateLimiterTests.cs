@@ -11,8 +11,8 @@ public sealed class HelpRequestRateLimiterTests
     {
         var limiter = CreateLimiter();
 
-        Assert.False(limiter.IsAllowed(null));
-        Assert.False(limiter.IsAllowed(" "));
+        Assert.False(limiter.IsAllowed(null, null));
+        Assert.False(limiter.IsAllowed(Guid.NewGuid(), " "));
     }
 
     [Fact]
@@ -20,17 +20,35 @@ public sealed class HelpRequestRateLimiterTests
     {
         var limiter = CreateLimiter(maxPerHour: 2);
 
-        Assert.True(limiter.IsAllowed("203.0.113.10"));
-        Assert.True(limiter.IsAllowed("203.0.113.10"));
-        Assert.False(limiter.IsAllowed("203.0.113.10"));
-        Assert.True(limiter.IsAllowed("203.0.113.11"));
+        Assert.True(limiter.IsAllowed(null, "203.0.113.10"));
+        Assert.True(limiter.IsAllowed(null, "203.0.113.10"));
+        Assert.False(limiter.IsAllowed(null, "203.0.113.10"));
+        Assert.True(limiter.IsAllowed(null, "203.0.113.11"));
     }
 
-    private static HelpRequestRateLimiter CreateLimiter(int maxPerHour = 3)
+    [Fact]
+    public void IsAllowed_AppliesMemberAndIpLimitsTogether()
+    {
+        var limiter = CreateLimiter(maxPerHour: 3, maxPerMemberPerMinute: 1);
+        var firstMember = Guid.NewGuid();
+        var secondMember = Guid.NewGuid();
+
+        Assert.True(limiter.IsAllowed(firstMember, "203.0.113.20"));
+        Assert.False(limiter.IsAllowed(firstMember, "203.0.113.21"));
+        Assert.True(limiter.IsAllowed(secondMember, "203.0.113.20"));
+        Assert.True(limiter.IsAllowed(null, "203.0.113.20"));
+        Assert.False(limiter.IsAllowed(Guid.NewGuid(), "203.0.113.20"));
+    }
+
+    private static HelpRequestRateLimiter CreateLimiter(int maxPerHour = 3, int maxPerMemberPerMinute = 20)
     {
         return new HelpRequestRateLimiter(
             new MemoryCache(new MemoryCacheOptions()),
             TimeProvider.System,
-            Options.Create(new HelpRequestOptions { MaxAnonymousPerIpPerHour = maxPerHour }));
+            Options.Create(new HelpRequestOptions
+            {
+                MaxAnonymousPerIpPerHour = maxPerHour,
+                MaxPerMemberPerMinute = maxPerMemberPerMinute,
+            }));
     }
 }

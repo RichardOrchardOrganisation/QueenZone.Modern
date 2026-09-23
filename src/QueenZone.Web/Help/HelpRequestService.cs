@@ -41,7 +41,7 @@ public sealed class HelpRequestService(
             return new SubmitResult(true, null, null, SilentlyDropped: true);
         }
 
-        if (memberId is null && !rateLimiter.IsAllowed(clientIp))
+        if (!rateLimiter.IsAllowed(memberId, clientIp))
         {
             return new SubmitResult(
                 false,
