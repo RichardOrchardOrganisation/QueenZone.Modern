@@ -25,8 +25,23 @@ export function SignInScreen({ navigation, route }: Props) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finished = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const inputFocused = useRef(false);
   const passwordInput = useRef<TextInput>(null);
   const formBusy = busyProvider !== null || passwordBusy;
+
+  const revealPasswordForm = useCallback(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidShow', () => {
+      if (inputFocused.current) {
+        revealPasswordForm();
+      }
+    });
+    return () => subscription.remove();
+  }, [revealPasswordForm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,9 +129,15 @@ export function SignInScreen({ navigation, route }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1 }}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => {
+          if (otherWaysOpen) {
+            revealPasswordForm();
+          }
+        }}
         contentContainerStyle={{
           paddingHorizontal: space.xl,
           paddingTop: space.section,
@@ -174,6 +195,13 @@ export function SignInScreen({ navigation, route }: Props) {
                 testID={testIds.signInEmail}
                 value={email}
                 onChangeText={setEmail}
+                onFocus={() => {
+                  inputFocused.current = true;
+                  revealPasswordForm();
+                }}
+                onBlur={() => {
+                  inputFocused.current = false;
+                }}
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="username"
@@ -194,6 +222,13 @@ export function SignInScreen({ navigation, route }: Props) {
                 testID={testIds.signInPassword}
                 value={password}
                 onChangeText={setPassword}
+                onFocus={() => {
+                  inputFocused.current = true;
+                  revealPasswordForm();
+                }}
+                onBlur={() => {
+                  inputFocused.current = false;
+                }}
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="password"
