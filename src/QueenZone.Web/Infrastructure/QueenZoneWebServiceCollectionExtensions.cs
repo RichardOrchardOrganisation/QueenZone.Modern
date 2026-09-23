@@ -293,6 +293,10 @@ public static class QueenZoneWebServiceCollectionExtensions
     public static IServiceCollection AddQueenZoneWebAppServices(this IServiceCollection services)
     {
         services.AddScoped<MemberAccountService>();
+        services.AddScoped<AppleAccountTokenService>();
+        services.AddScoped<MemberDeletionReceiptService>();
+        services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
+            client.Timeout = TimeSpan.FromSeconds(15));
         services.AddHostedService<MemberAccountDeletionHostedService>();
         services.AddScoped<PrivateMessageRateLimiter>();
         services.AddScoped<PrivateMessageService>();

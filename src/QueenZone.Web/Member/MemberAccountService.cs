@@ -26,7 +26,12 @@ public sealed class MemberAccountService(
     IBlobUploadService blobUploadService,
     MemberUploadQuotaService uploadQuota,
     TimeProvider? timeProvider = null,
-    IOptions<PasswordSignInLockoutOptions>? passwordLockout = null)
+    IOptions<PasswordSignInLockoutOptions>? passwordLockout = null,
+    AppleAccountTokenService? appleTokens = null,
+    AdminPhotoService? adminPhotos = null,
+    AdminFanPerformanceWriteService? adminPerformances = null,
+    IAdminFanPerformanceRepository? fanPerformanceRepository = null,
+    ILogger<MemberAccountService>? logger = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
@@ -750,6 +755,32 @@ public sealed class MemberAccountService(
         return MemberAccountResult.Success(requested.Account);
     }
 
+    public async Task<MemberAccountResult> DeleteImmediatelyAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var requested = await memberAccountRepository.RequestDeletionAsync(
+            memberId,
+            clock.GetUtcNow().UtcDateTime,
+            cancellationToken,
+            immediate: true);
+        if (requested is null)
+        {
+            return MemberAccountResult.Failure("Account not found.");
+        }
+
+        try
+        {
+            await PurgeDueDeletionsAsync(clock.GetUtcNow().UtcDateTime, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The account is already disabled and due; the hosted service retries cleanup.
+            logger?.LogError(ex, "Immediate account deletion is pending cleanup for {MemberId}.", memberId);
+        }
+        return MemberAccountResult.Success(requested.Account);
+    }
+
     public async Task<MemberAccountResult> CancelDeletionAsync(
         Guid memberId,
         CancellationToken cancellationToken = default)
@@ -780,16 +811,65 @@ public sealed class MemberAccountService(
         DateTime utcNow,
         CancellationToken cancellationToken = default)
     {
+        var purgeBefore = utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays);
+        var promotions = await memberAccountRepository.ListDuePromotionsAsync(purgeBefore, cancellationToken);
+        if (adminPhotos is not null)
+        {
+            foreach (var photoId in promotions.PhotoIds)
+            {
+                await adminPhotos.DeleteForAccountDeletionAsync(photoId, cancellationToken);
+            }
+        }
+
+        if (adminPerformances is not null && fanPerformanceRepository is not null)
+        {
+            foreach (var stageId in promotions.FanPerformanceIds)
+            {
+                var stage = await fanPerformanceRepository.GetByIdAsync(stageId, cancellationToken);
+                if (stage is null)
+                {
+                    continue;
+                }
+
+                if (stage.IsVisible)
+                {
+                    await adminPerformances.HideAsync(
+                        stageId, "account-deletion@queenzone.org", cancellationToken: cancellationToken);
+                }
+                if (SongFileUrl.IsSafeBlobName(stage.AudioFileName))
+                {
+                    await blobUploadService.DeleteAsync(
+                        SongFileUrl.ContainerName, stage.AudioFileName, cancellationToken);
+                }
+                await fanPerformanceRepository.DeleteAsync(
+                    stageId, "account-deletion@queenzone.org", cancellationToken);
+            }
+        }
+
         var result = await memberAccountRepository.PurgeDeletedAccountsAsync(
-            utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays),
+            purgeBefore,
             utcNow,
             cancellationToken);
-        foreach (var avatarBlobPath in result.AvatarBlobPaths)
+        var pendingBlobs = await memberAccountRepository.ListPendingDeletionBlobsAsync(100, cancellationToken);
+        foreach (var blob in pendingBlobs)
         {
-            await SafeDeleteAsync(
-                avatarBlobPath,
-                MemberAvatarPaths.ToThumbBlobName(avatarBlobPath),
-                cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(BlobDeleteTimeout);
+            try
+            {
+                await blobUploadService.DeleteAsync(blob.Container, blob.Path, timeout.Token)
+                    .WaitAsync(BlobDeleteTimeout, cancellationToken);
+                await memberAccountRepository.CompleteDeletionBlobAsync(blob.Id, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                logger?.LogWarning(ex, "Account deletion blob cleanup will retry for {BlobId}.", blob.Id);
+            }
+        }
+
+        if (appleTokens is not null)
+        {
+            await appleTokens.RevokePendingAsync(cancellationToken);
         }
 
         return result.PurgedCount;
@@ -802,16 +882,16 @@ public sealed class MemberAccountService(
     {
         if (!string.IsNullOrWhiteSpace(avatarBlobName))
         {
-            await DeleteBlobBestEffortAsync(avatarBlobName, cancellationToken);
+            await DeleteBlobBestEffortAsync(MemberAvatarPaths.Container, avatarBlobName, cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(thumbBlobName))
         {
-            await DeleteBlobBestEffortAsync(thumbBlobName, cancellationToken);
+            await DeleteBlobBestEffortAsync(MemberAvatarPaths.Container, thumbBlobName, cancellationToken);
         }
     }
 
-    private async Task DeleteBlobBestEffortAsync(string blobName, CancellationToken cancellationToken)
+    private async Task DeleteBlobBestEffortAsync(string container, string blobName, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(BlobDeleteTimeout);
@@ -821,7 +901,7 @@ public sealed class MemberAccountService(
             // CancelAfter asks the SDK to stop; WaitAsync bounds this await even when
             // the SDK ignores the token (cold first outbound call, dead TCP, retries).
             await blobUploadService
-                .DeleteAsync(MemberAvatarPaths.Container, blobName, timeout.Token)
+                .DeleteAsync(container, blobName, timeout.Token)
                 .WaitAsync(BlobDeleteTimeout, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

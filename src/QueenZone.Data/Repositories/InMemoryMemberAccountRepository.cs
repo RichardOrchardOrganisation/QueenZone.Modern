@@ -11,6 +11,8 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
 
     private readonly List<MemberAccountDeletionAuditLogEntity> deletionAuditLogs = [];
 
+    private readonly List<PendingMemberDeletionBlob> pendingDeletionBlobs = [];
+
     public Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         lock (gate)
@@ -77,6 +79,54 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
                 Email = email,
                 LinkedAt = DateTime.UtcNow,
             });
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task SaveAppleRefreshTokenAsync(
+        Guid memberAccountId,
+        string providerKey,
+        string protectedToken,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            var login = externalLogins.FirstOrDefault(login => login.MemberAccountId == memberAccountId
+                && login.Provider == "Apple" && login.ProviderKey == providerKey);
+            if (login is not null)
+            {
+                login.AppleRefreshTokenProtected = protectedToken;
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            IReadOnlyList<PendingAppleRevocation> items = externalLogins
+                .Where(login => login.Provider == "Apple"
+                    && login.AppleRefreshTokenProtected is not null
+                    && accounts.Any(account => account.Id == login.MemberAccountId
+                        && account.PersonalDataPurgedAt is not null))
+                .Take(limit)
+                .Select(login => new PendingAppleRevocation(login.Id, login.AppleRefreshTokenProtected!))
+                .ToList();
+            return Task.FromResult(items);
+        }
+    }
+
+    public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            externalLogins.RemoveAll(login => login.Id == externalLoginId
+                && login.Provider == "Apple"
+                && accounts.Any(account => account.Id == login.MemberAccountId
+                    && account.PersonalDataPurgedAt is not null));
             return Task.CompletedTask;
         }
     }
@@ -456,7 +506,8 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
     public Task<MemberAccountDeletionRequestResult?> RequestDeletionAsync(
         Guid memberId,
         DateTime requestedAt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool immediate = false)
     {
         lock (gate)
         {
@@ -466,22 +517,27 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
                 return Task.FromResult<MemberAccountDeletionRequestResult?>(null);
             }
 
-            if (account.DeletionRequestedAt is not null)
+            if (account.DeletionRequestedAt is not null && !immediate)
             {
                 return Task.FromResult<MemberAccountDeletionRequestResult?>(
                     new(account, AlreadyRequested: true));
             }
 
-            account.DeletionRecoveryDisplayName = account.DisplayName;
-            account.DeletionRecoveryAvatarUrl = account.AvatarUrl;
+            account.DeletionRecoveryDisplayName ??= account.DisplayName;
+            account.DeletionRecoveryAvatarUrl ??= account.AvatarUrl;
             account.DisplayName = MemberAccountDeletionPolicy.DeletedDisplayName;
             account.AvatarUrl = null;
-            account.DeletionRequestedAt = requestedAt;
+            account.DeletionRequestedAt = immediate
+                ? requestedAt.AddDays(-MemberAccountDeletionPolicy.RetentionDays)
+                : requestedAt;
+            account.IsSuspended = immediate;
             socialLinks.RemoveAll(row => row.MemberId == memberId);
             deletionAuditLogs.Add(new MemberAccountDeletionAuditLogEntity
             {
                 MemberAccountId = memberId,
-                Action = MemberAccountDeletionPolicy.RequestedAuditAction,
+                Action = immediate
+                    ? MemberAccountDeletionPolicy.ImmediateRequestedAuditAction
+                    : MemberAccountDeletionPolicy.RequestedAuditAction,
                 OccurredAt = requestedAt,
             });
 
@@ -541,10 +597,22 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Cast<string>()
                 .ToList();
+            foreach (var account in dueAccounts.Where(account => !string.IsNullOrWhiteSpace(account.DeletionRecoveryAvatarUrl)))
+            {
+                var path = account.DeletionRecoveryAvatarUrl!;
+                pendingDeletionBlobs.Add(new PendingMemberDeletionBlob(Guid.NewGuid(), account.Id, "ugc-avatars", path));
+                pendingDeletionBlobs.Add(new PendingMemberDeletionBlob(
+                    Guid.NewGuid(), account.Id, "ugc-avatars", MemberAccountDeletionPolicy.ToAvatarThumbnailPath(path)));
+            }
 
             foreach (var account in dueAccounts)
             {
-                externalLogins.RemoveAll(login => login.MemberAccountId == account.Id);
+                externalLogins.RemoveAll(login => login.MemberAccountId == account.Id
+                    && (login.Provider != "Apple" || login.AppleRefreshTokenProtected is null));
+                foreach (var login in externalLogins.Where(login => login.MemberAccountId == account.Id))
+                {
+                    login.Email = "deleted@deleted.invalid";
+                }
                 socialLinks.RemoveAll(row => row.MemberId == account.Id);
                 var deletedEmail = MemberAccountDeletionPolicy.CreateDeletedEmail(account.Id);
                 account.Email = deletedEmail;
@@ -554,7 +622,10 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
                 account.DeletionRecoveryDisplayName = null;
                 account.DeletionRecoveryAvatarUrl = null;
                 account.PasswordHash = null;
+                account.PasswordFailureCount = 0;
+                account.PasswordFailureWindowStartedAt = null;
                 account.LastLoginAt = null;
+                account.LinkedLegacyUserId = null;
                 account.IsSuspended = true;
                 account.SuspendedAt = purgedAt;
                 account.SuspendedReason = null;
@@ -569,6 +640,51 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
             }
 
             return Task.FromResult(new MemberAccountDeletionPurgeResult(dueAccounts.Count, avatarBlobPaths));
+        }
+    }
+
+    public Task<DueMemberPromotions> ListDuePromotionsAsync(
+        DateTime purgeBefore,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new DueMemberPromotions([], []));
+
+    public Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            return Task.FromResult<IReadOnlyList<PendingMemberDeletionBlob>>(
+                pendingDeletionBlobs.Take(limit).ToList());
+        }
+    }
+
+    public Task CompleteDeletionBlobAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            pendingDeletionBlobs.RemoveAll(blob => blob.Id == id);
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<MemberDeletionProgress?> GetDeletionProgressAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            var account = accounts.FirstOrDefault(candidate => candidate.Id == memberId
+                && candidate.DeletionRequestedAt is not null);
+            if (account is null)
+            {
+                return Task.FromResult<MemberDeletionProgress?>(null);
+            }
+            var pendingBlobs = pendingDeletionBlobs.Any(blob => blob.MemberAccountId == memberId);
+            var pendingApple = externalLogins.Any(login => login.MemberAccountId == memberId
+                && login.Provider == "Apple" && login.AppleRefreshTokenProtected is not null);
+            return Task.FromResult<MemberDeletionProgress?>(new MemberDeletionProgress(
+                account.PersonalDataPurgedAt is not null && !pendingBlobs && !pendingApple));
         }
     }
 

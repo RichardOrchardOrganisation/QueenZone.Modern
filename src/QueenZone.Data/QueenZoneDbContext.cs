@@ -21,6 +21,8 @@ public sealed class QueenZoneDbContext : DbContext
     public DbSet<MemberAccountDeletionAuditLogEntity> MemberAccountDeletionAuditLogs =>
         Set<MemberAccountDeletionAuditLogEntity>();
 
+    public DbSet<MemberDeletionBlobEntity> MemberDeletionBlobs => Set<MemberDeletionBlobEntity>();
+
     public DbSet<ModernForumCategoryEntity> ModernForumCategories => Set<ModernForumCategoryEntity>();
 
     public DbSet<ModernForumThreadEntity> ModernForumThreads => Set<ModernForumThreadEntity>();
@@ -347,6 +349,18 @@ public sealed class QueenZoneDbContext : DbContext
                 .HasDatabaseName("IX_MemberAccountDeletionAuditLog_MemberAccountId_OccurredAt");
         });
 
+        modelBuilder.Entity<MemberDeletionBlobEntity>(entity =>
+        {
+            entity.ToTable("MemberDeletionBlobs");
+            entity.HasKey(blob => blob.Id);
+            entity.Property(blob => blob.MemberAccountId).IsRequired();
+            entity.Property(blob => blob.Container).HasMaxLength(100).IsRequired();
+            entity.Property(blob => blob.BlobPath).HasMaxLength(512).IsRequired();
+            entity.Property(blob => blob.CreatedAt).IsRequired();
+            entity.HasIndex(blob => blob.CreatedAt);
+            entity.HasIndex(blob => blob.MemberAccountId);
+        });
+
         modelBuilder.Entity<MemberExternalLogin>(entity =>
         {
             entity.ToTable("MemberExternalLogins");
@@ -356,6 +370,7 @@ public sealed class QueenZoneDbContext : DbContext
             entity.Property(login => login.ProviderKey).HasMaxLength(256).IsRequired();
             entity.Property(login => login.Email).HasMaxLength(256).IsRequired();
             entity.Property(login => login.LinkedAt).IsRequired();
+            entity.Property(login => login.AppleRefreshTokenProtected);
 
             entity.HasIndex(login => new { login.Provider, login.ProviderKey })
                 .IsUnique()

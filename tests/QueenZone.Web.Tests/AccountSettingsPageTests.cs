@@ -317,8 +317,8 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<WebApplicat
                 AllowAutoRedirect = false,
             });
         var page = await client.GetStringAsync("/account/delete");
-        Assert.Contains("30-day cooling-off period", page);
-        Assert.Contains("sign back in and cancel deletion", page);
+        Assert.Contains("Delete my account now", page);
+        Assert.Contains("Deletion cannot be undone", page);
 
         var response = await client.PostAsync(
             "/account/delete",
@@ -372,6 +372,37 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<WebApplicat
         Assert.Equal("Delete Valid", restored.DisplayName);
         Assert.Null(restored.DeletionRecoveryDisplayName);
         Assert.Equal(HttpStatusCode.OK, (await signedInAgain.GetAsync($"/members/{restored.Id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_Immediate_ProvidesStatusReceiptAfterSignOut()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            "delete-immediate-page@example.com",
+            displayName: "Immediate Page",
+            subject: "google-delete-immediate-page",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+        var page = await client.GetStringAsync("/account/delete");
+
+        using var response = await client.PostAsync(
+            "/account/delete",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(page),
+                ["Confirmation"] = "DELETE",
+                ["Immediate"] = "true",
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.StartsWith("/account/deletion-status?receipt=", response.Headers.Location!.OriginalString);
+        using var status = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        Assert.Contains("Account deletion complete", await status.Content.ReadAsStringAsync());
+        Assert.Equal("no-store", status.Headers.CacheControl?.ToString());
     }
 
     [Fact]

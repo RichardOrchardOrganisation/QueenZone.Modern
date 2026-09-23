@@ -1,0 +1,19 @@
+@page "/account/deletion-status"
+@model DeletionStatusModel
+
+<partial name="_PageHero" model='@(("Members", Model.IsComplete ? "Account deletion complete" : "Account deletion in progress", "Your private status receipt works after sign-out.", ""))' />
+
+<section class="qz-section">
+  <div class="qz-container qz-prose">
+    @if (Model.IsComplete)
+    {
+      <p>Your account data and modern contributions have been removed. Any stored Sign in with Apple token has been revoked. Legacy public archive posts remain without a link to your modern account.</p>
+    }
+    else
+    {
+      <p>Your account is disabled. We are finishing removal of stored files and any Sign in with Apple token. Please save this private page address and check again later.</p>
+      <p><a class="qz-button" asp-page="/Account/DeletionStatus" asp-route-receipt="@Model.Receipt">Refresh status</a></p>
+    }
+    <p>If you use Sign in with Apple and QueenZone was linked before token revocation was available, you can also remove it under Apple Account Settings → Sign in with Apple.</p>
+  </div>
+</section>

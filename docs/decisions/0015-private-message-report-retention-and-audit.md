@@ -4,6 +4,8 @@
 
 Accepted and implemented.
 
+**Account deletion amendment (September 2026):** An immediate account deletion removes reports involving that member and clears copied conversation context from other reports in the affected conversations. This specific deletion rule overrides the general snapshot retention rule below. See [member account deletion](../architecture/member-account-deletion.md).
+
 - **Decision 1** (snapshot survives independent of the live message) was already true of the existing `PrivateMessageReportEntity` snapshot fields; nothing further was needed.
 - **Decision 2** (180-day terminal-status purge) is implemented: `IPrivateMessageRepository.PurgeExpiredReportsAsync` (`src/QueenZone.Data/Repositories/EfPrivateMessageRepository.cs`, `InMemoryPrivateMessageRepository.cs`) deletes reports whose most recent `StatusChanged` audit row is older than `PrivateMessageLimits.ReportRetentionAfterTerminalStatus`, run daily by `PrivateMessageReportPurgeHostedService` (`src/QueenZone.Web/Member/PrivateMessageReportPurgeHostedService.cs`).
 - **Decision 3** (audit log) is implemented end to end: the `PrivateMessageReportAuditLogEntity` table (migration `20260825105513_AddPrivateMessageReportAuditLog`), and the admin moderator review surface at `/admin/private-messages` (issue #470, `src/QueenZone.Web/Pages/Admin/PrivateMessages/`) writes a `Viewed` row on each report detail-page load and a `StatusChanged` row on each status transition, via `IPrivateMessageRepository.AppendReportViewedAuditAsync`/`UpdateReportStatusAsync`.

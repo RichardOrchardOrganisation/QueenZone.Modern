@@ -1166,6 +1166,15 @@ public sealed class MemberAccountServiceTests
         public Task AddExternalLoginAsync(Guid memberAccountId, string provider, string providerKey, string email, CancellationToken cancellationToken = default) =>
             inner.AddExternalLoginAsync(memberAccountId, provider, providerKey, email, cancellationToken);
 
+        public Task SaveAppleRefreshTokenAsync(Guid memberAccountId, string providerKey, string protectedToken, CancellationToken cancellationToken = default) =>
+            inner.SaveAppleRefreshTokenAsync(memberAccountId, providerKey, protectedToken, cancellationToken);
+
+        public Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(int limit, CancellationToken cancellationToken = default) =>
+            inner.ListPendingAppleRevocationsAsync(limit, cancellationToken);
+
+        public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default) =>
+            inner.CompleteAppleRevocationAsync(externalLoginId, cancellationToken);
+
         public Task<MemberAccount?> UpdateDisplayNameAsync(Guid memberId, string displayName, CancellationToken cancellationToken = default) =>
             inner.UpdateDisplayNameAsync(memberId, displayName, cancellationToken);
 
@@ -1258,8 +1267,9 @@ public sealed class MemberAccountServiceTests
         public Task<MemberAccountDeletionRequestResult?> RequestDeletionAsync(
             Guid memberId,
             DateTime requestedAt,
-            CancellationToken cancellationToken = default) =>
-            inner.RequestDeletionAsync(memberId, requestedAt, cancellationToken);
+            CancellationToken cancellationToken = default,
+            bool immediate = false) =>
+            inner.RequestDeletionAsync(memberId, requestedAt, cancellationToken, immediate);
 
         public Task<MemberAccount?> CancelDeletionAsync(
             Guid memberId,
@@ -1272,6 +1282,18 @@ public sealed class MemberAccountServiceTests
             DateTime purgedAt,
             CancellationToken cancellationToken = default) =>
             inner.PurgeDeletedAccountsAsync(purgeBefore, purgedAt, cancellationToken);
+
+        public Task<DueMemberPromotions> ListDuePromotionsAsync(DateTime purgeBefore, CancellationToken cancellationToken = default) =>
+            inner.ListDuePromotionsAsync(purgeBefore, cancellationToken);
+
+        public Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(int limit, CancellationToken cancellationToken = default) =>
+            inner.ListPendingDeletionBlobsAsync(limit, cancellationToken);
+
+        public Task CompleteDeletionBlobAsync(Guid id, CancellationToken cancellationToken = default) =>
+            inner.CompleteDeletionBlobAsync(id, cancellationToken);
+
+        public Task<MemberDeletionProgress?> GetDeletionProgressAsync(Guid memberId, CancellationToken cancellationToken = default) =>
+            inner.GetDeletionProgressAsync(memberId, cancellationToken);
 
         public Task<IReadOnlyList<MemberSocialLink>> ListSocialLinksAsync(
             Guid memberId,

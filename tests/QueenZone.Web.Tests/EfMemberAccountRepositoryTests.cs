@@ -325,12 +325,14 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync();
         Assert.Null(post.AuthorMemberId);
         Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, post.AuthorDisplayName);
+        Assert.Equal("<p>Post deleted by member.</p>", post.BodyHtml);
         Assert.Equal(
             MemberAccountDeletionPolicy.DeletedDisplayName,
             (await dbContext.ModernForumThreads.AsNoTracking().SingleAsync()).StartedByDisplayName);
-        Assert.Equal(
-            MemberAccountDeletionPolicy.DeletedDisplayName,
-            (await dbContext.SearchDocuments.AsNoTracking().SingleAsync()).AuthorDisplayName);
+        Assert.Empty(await dbContext.SearchDocuments.AsNoTracking().ToListAsync());
+        var article = await dbContext.ArticleSubmissions.AsNoTracking().SingleAsync();
+        Assert.Equal(string.Empty, article.Body);
+        Assert.Equal("Deleted", article.Status);
     }
 
     [Fact]
@@ -374,7 +376,7 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task PurgeDeletedAccountsAsync_AfterThirtyDays_RemovesCredentialsAndKeepsLegacyLink()
+    public async Task PurgeDeletedAccountsAsync_AfterThirtyDays_RemovesCredentialsAndLegacyLink()
     {
         var account = await SeedAccountAsync("purge-me@example.com", "Purge Me");
         account.PasswordHash = "hashed-secret";
@@ -397,7 +399,7 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         Assert.Equal(MemberAccountDeletionPolicy.CreateDeletedEmail(account.Id), reloaded.Email);
         Assert.Null(reloaded.PasswordHash);
         Assert.Null(reloaded.LastLoginAt);
-        Assert.Equal(4242, reloaded.LinkedLegacyUserId);
+        Assert.Null(reloaded.LinkedLegacyUserId);
         Assert.Equal(purgedAt, reloaded.PersonalDataPurgedAt);
         Assert.Empty(await repository.ListExternalProvidersAsync(account.Id));
         Assert.Equal(
@@ -406,6 +408,33 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
                 .OrderBy(log => log.OccurredAt)
                 .Select(log => log.Action)
                 .ToListAsync());
+    }
+
+    [Fact]
+    public async Task ImmediateDeletion_PurgesNow_AndQueuesAvatarBlobsForRetry()
+    {
+        var account = await SeedAccountAsync("immediate-ef@example.com", "Immediate EF");
+        await repository.UpdateAvatarUrlAsync(account.Id, $"members/{account.Id:N}/avatar.webp");
+        var requestedAt = new DateTime(2026, 9, 23, 8, 0, 0, DateTimeKind.Utc);
+
+        await repository.RequestDeletionAsync(account.Id, requestedAt, immediate: true);
+        var purge = await repository.PurgeDeletedAccountsAsync(
+            requestedAt.AddDays(-MemberAccountDeletionPolicy.RetentionDays), requestedAt);
+
+        Assert.Equal(1, purge.PurgedCount);
+        var stored = await repository.FindByIdAsync(account.Id);
+        Assert.NotNull(stored!.PersonalDataPurgedAt);
+        Assert.True(stored.IsSuspended);
+        var queued = await repository.ListPendingDeletionBlobsAsync(10);
+        Assert.Equal(2, queued.Count);
+        Assert.All(queued, blob => Assert.Equal(account.Id, blob.MemberAccountId));
+        Assert.False((await repository.GetDeletionProgressAsync(account.Id))!.IsComplete);
+        foreach (var blob in queued)
+        {
+            await repository.CompleteDeletionBlobAsync(blob.Id);
+        }
+        Assert.Empty(await repository.ListPendingDeletionBlobsAsync(10));
+        Assert.True((await repository.GetDeletionProgressAsync(account.Id))!.IsComplete);
     }
 
     [Fact]

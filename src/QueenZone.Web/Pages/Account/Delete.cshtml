@@ -1,7 +1,7 @@
 @page "/account/delete"
 @model DeleteModel
 
-<partial name="_PageHero" model='@(("Members", "Delete account", "Schedule your account and personal sign-in data for deletion.", ""))' />
+<partial name="_PageHero" model='@(("Members", "Delete account", "Delete your account and personal data.", ""))' />
 
 <section class="qz-section">
   <div class="qz-container qz-prose">
@@ -26,25 +26,23 @@
       <ul>
         <li>You are signed out after requesting deletion.</li>
         <li>Your public name changes immediately to <strong>Deleted member</strong>, your profile is hidden, and your avatar is hidden.</li>
-        <li>Your forum posts and private messages remain with anonymised attribution.</li>
-        <li>A <strong>30-day cooling-off period</strong> starts.</li>
-        <li>You can sign back in and cancel deletion before the scheduled date.</li>
-        <li>Cancelling restores your display name, avatar, profile, and content attribution.</li>
-        <li>After 30 days, your sign-in data and stored avatar are permanently removed.</li>
-        <li>Your existing legacy account link is retained.</li>
+        <li>Your account is disabled immediately and removal of your personal data begins.</li>
+        <li>Your modern forum posts and messages become deleted placeholders.</li>
+        <li>Your legacy forum archive posts remain, but your modern account link is removed.</li>
       </ul>
-      <p>Deletion cannot be undone after the 30-day period ends.</p>
+      <p>Deletion cannot be undone.</p>
+      <p>If you use Sign in with Apple, you can also remove QueenZone from your Apple Account under Settings → your name → Sign in with Apple.</p>
 
-      <form method="post" class="qz-account-form" data-busy-submit data-busy-label="Scheduling…">
+      <form method="post" class="qz-account-form" data-busy-submit data-busy-label="Deleting…">
         @Html.AntiForgeryToken()
         <div asp-validation-summary="ModelOnly" class="qz-account-form__errors" role="alert"></div>
         <label class="qz-account-form__field">
-          <span>Type <strong>DELETE</strong> to schedule deletion of the account for @Model.Email</span>
+          <span>Type <strong>DELETE</strong> to delete the account for @Model.Email</span>
           <input asp-for="Confirmation" type="text" autocomplete="off" required />
           <span asp-validation-for="Confirmation" class="qz-account-form__field-error"></span>
         </label>
         <div class="qz-account-form__actions">
-          <button type="submit" class="qz-button qz-button--danger">Schedule account deletion</button>
+          <button type="submit" class="qz-button qz-button--danger" name="Immediate" value="true">Delete my account now</button>
           <a class="qz-button qz-button--outline" href="/account/settings">Cancel</a>
         </div>
         <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>

@@ -57,7 +57,7 @@ Because the listing and feature graphic truthfully use the word “news,” Play
 
 - In-app path: profile/settings → Delete account.
 - Web path: `https://www.queenzone.org/data-deletion`.
-- Explain the immediate anonymisation, 30-day cooling-off period and eventual purge accurately.
+- Explain immediate account disabling and deletion, plus background retries for blob removal and Sign in with Apple token revocation. Older scheduled requests remain cancellable until their due date.
 - Ensure the Play deletion URL is public, functional and specific to QueenZone account deletion.
 
 ## Permissions
@@ -77,4 +77,3 @@ Before review, verify the selected build provides or clearly links to:
 - Blocking/privacy controls for unwanted member contact.
 - Moderation processes and reachable support contact.
 - Appropriate handling of public legacy content and account deletion/anonymisation.
-
