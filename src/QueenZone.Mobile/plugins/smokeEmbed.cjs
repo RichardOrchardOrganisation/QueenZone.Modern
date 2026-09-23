@@ -14,12 +14,14 @@ const {
   withAppBuildGradle,
   withXcodeProject,
   withAndroidManifest,
-  withGradleProperties,
 } = require('expo/config-plugins');
+const {
+  applyAndroidGradleJvmArgs,
+  ANDROID_GRADLE_JVM_ARGS,
+} = require('./withAndroidGradleJvmArgs.cjs');
 
 const TAG = 'queenzone-smoke-embed';
 const EMBED_FLAG = 'QUEENZONE_MOBILE_SMOKE_EMBED';
-const ANDROID_GRADLE_JVM_ARGS = '-Xmx6g -XX:MaxMetaspaceSize=1g';
 
 const DEV_CLIENT_PACKAGES = [
   'expo-dev-client',
@@ -105,30 +107,9 @@ function applyAndroidManifestCleartextTraffic(androidManifest) {
   return androidManifest;
 }
 
-/**
- * Release packaging can exceed Expo's generated 2 GiB Gradle heap after the
- * native libraries and embedded JS bundle have been assembled. Keep the
- * larger heap scoped to generated smoke builds; normal CNG/store builds keep
- * Expo's defaults.
- */
+/** Reuse the always-on Gradle JVM floor; smokeEmbed no longer owns the heap bump. */
 function applyAndroidSmokeGradleProperties(properties) {
-  const list = Array.isArray(properties) ? properties : [];
-  const next = list.filter(
-    (item) => !(item?.type === 'property' && item.key === 'org.gradle.jvmargs'),
-  );
-  next.push({
-    type: 'property',
-    key: 'org.gradle.jvmargs',
-    value: ANDROID_GRADLE_JVM_ARGS,
-  });
-  return next;
-}
-
-function withAndroidSmokeGradleProperties(config) {
-  return withGradleProperties(config, (mod) => {
-    mod.modResults = applyAndroidSmokeGradleProperties(mod.modResults);
-    return mod;
-  });
+  return applyAndroidGradleJvmArgs(properties);
 }
 
 function withAndroidSmokeEmbedManifest(config) {
@@ -166,7 +147,6 @@ function withSmokeEmbeddedBundle(config) {
   }
   config = withAndroidSmokeEmbed(config);
   config = withAndroidSmokeEmbedManifest(config);
-  config = withAndroidSmokeGradleProperties(config);
   config = withIosSmokeEmbed(config);
   return config;
 }
