@@ -4,6 +4,7 @@ import {
   isKeychainLockedError,
   KeychainLockedError,
   readStoredSession,
+  replaceSessionItemChangingAccessibility,
   writeStoredIdentityShell,
   writeStoredSession,
 } from './tokenStore';
@@ -99,27 +100,86 @@ describe('tokenStore', () => {
     }
   });
 
-  it('deletes each session item before setting it so accessibility can migrate', async () => {
+  it('writes grant updates through staging without deleting the live primary first', async () => {
     const order: string[] = [];
-    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (key: string) => {
-      order.push(`delete:${key}`);
-      mockMemory.delete(key);
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      order.push(`get:${storeKey}`);
+      return mockMemory.get(storeKey) ?? null;
     });
-    (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (key: string, value: string) => {
-      order.push(`set:${key}`);
-      mockMemory.set(key, value);
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      order.push(`delete:${storeKey}`);
+      mockMemory.delete(storeKey);
+    });
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (storeKey: string, value: string) => {
+      order.push(`set:${storeKey}`);
+      mockMemory.set(storeKey, value);
     });
 
     await writeStoredSession({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
     const grantKey = key('grant');
-    expect(order.filter((entry) => entry.endsWith(`:${grantKey}`))).toEqual([
-      `delete:${grantKey}`,
+    const grantNextKey = key('grant.next');
+    const grantOps = (entries: string[]) =>
+      entries.filter((entry) => entry.endsWith(`:${grantKey}`) || entry.endsWith(`:${grantNextKey}`));
+    expect(grantOps(order)).toEqual([
+      `set:${grantNextKey}`,
+      `get:${grantNextKey}`,
       `set:${grantKey}`,
+      `delete:${grantNextKey}`,
     ]);
+    expect(order).not.toContain(`delete:${grantKey}`);
 
     order.length = 0;
+    await writeStoredSession({ accessToken: 'b', refreshToken: 's', expiresIn: 900 });
+    expect(grantOps(order)).toEqual([
+      `set:${grantNextKey}`,
+      `get:${grantNextKey}`,
+      `set:${grantKey}`,
+      `delete:${grantNextKey}`,
+    ]);
+    expect(order).not.toContain(`delete:${grantKey}`);
+  });
+
+  it('writes identity updates through staging without deleting the live primary first', async () => {
+    const order: string[] = [];
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      order.push(`get:${storeKey}`);
+      return mockMemory.get(storeKey) ?? null;
+    });
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      order.push(`delete:${storeKey}`);
+      mockMemory.delete(storeKey);
+    });
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (storeKey: string, value: string) => {
+      order.push(`set:${storeKey}`);
+      mockMemory.set(storeKey, value);
+    });
+
     await writeStoredIdentityShell({ displayName: 'Freddie', memberId: 'member-1' });
-    expect(order).toEqual([`delete:${key('identityShell')}`, `set:${key('identityShell')}`]);
+    const identityKey = key('identityShell');
+    const identityNextKey = key('identityShell.next');
+    expect(order).toEqual([
+      `set:${identityNextKey}`,
+      `get:${identityNextKey}`,
+      `set:${identityKey}`,
+      `delete:${identityNextKey}`,
+    ]);
+    expect(order).not.toContain(`delete:${identityKey}`);
+  });
+
+  it('keeps delete-then-set only for an intentional accessibility change', async () => {
+    const order: string[] = [];
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      order.push(`delete:${storeKey}`);
+      mockMemory.delete(storeKey);
+    });
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (storeKey: string, value: string) => {
+      order.push(`set:${storeKey}`);
+      mockMemory.set(storeKey, value);
+    });
+
+    const grantKey = key('grant');
+    await replaceSessionItemChangingAccessibility(grantKey, '{"accessToken":"a","refreshToken":"r","expiresAt":1}');
+    expect(order).toEqual([`delete:${grantKey}`, `set:${grantKey}`]);
   });
 
   it('returns null when there is no grant', async () => {
@@ -131,7 +191,7 @@ describe('tokenStore', () => {
     await expect(readStoredSession()).resolves.toBeNull();
   });
 
-  it('never leaves an access token without a refresh token when the write is interrupted mid-flight', async () => {
+  it('keeps the previous grant if the process dies before staging is written', async () => {
     await writeStoredSession({ accessToken: 'old-a', refreshToken: 'old-r', expiresIn: 900 });
 
     (SecureStore.setItemAsync as jest.Mock).mockImplementationOnce(async () => {
@@ -141,9 +201,99 @@ describe('tokenStore', () => {
       writeStoredSession({ accessToken: 'new-a', refreshToken: 'new-r', expiresIn: 900 }),
     ).rejects.toThrow('process killed mid-write');
 
-    // The delete half of the torn write already ran, so the grant is gone entirely —
-    // never left with a new access token and the old (or no) refresh token.
-    await expect(readStoredSession()).resolves.toBeNull();
+    await expect(readStoredSession()).resolves.toMatchObject({
+      accessToken: 'old-a',
+      refreshToken: 'old-r',
+    });
+  });
+
+  it('adopts staging and promotes it when the live grant is missing after a kill mid-swap', async () => {
+    const staged = { accessToken: 'staged-a', refreshToken: 'staged-r', expiresAt: 12345 };
+    mockMemory.set(key('grant.next'), JSON.stringify(staged));
+
+    const stored = await readStoredSession();
+    expect(stored).toMatchObject({ accessToken: 'staged-a', refreshToken: 'staged-r', expiresAt: 12345 });
+    expect(mockMemory.get(key('grant'))).toBe(JSON.stringify(staged));
+    expect(mockMemory.has(key('grant.next'))).toBe(false);
+  });
+
+  it('adopts identity staging when the live identity shell is missing after a kill mid-swap', async () => {
+    await writeStoredSession({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
+    mockMemory.set(
+      key('identityShell.next'),
+      JSON.stringify({ displayName: 'Freddie', memberId: 'member-1' }),
+    );
+
+    const stored = await readStoredSession();
+    expect(stored?.identity).toEqual({
+      displayName: 'Freddie',
+      memberId: 'member-1',
+      avatarPath: null,
+    });
+    expect(JSON.parse(mockMemory.get(key('identityShell')) ?? '{}')).toMatchObject({
+      displayName: 'Freddie',
+      memberId: 'member-1',
+    });
+    expect(mockMemory.has(key('identityShell.next'))).toBe(false);
+  });
+
+  it('prefers the live grant over leftover staging after a kill mid-cleanup', async () => {
+    mockMemory.set(
+      key('grant'),
+      JSON.stringify({ accessToken: 'live-a', refreshToken: 'live-r', expiresAt: 1 }),
+    );
+    mockMemory.set(
+      key('grant.next'),
+      JSON.stringify({ accessToken: 'staged-a', refreshToken: 'staged-r', expiresAt: 2 }),
+    );
+
+    await expect(readStoredSession()).resolves.toMatchObject({
+      accessToken: 'live-a',
+      refreshToken: 'live-r',
+    });
+  });
+
+  it('does not overwrite the live grant when staging cannot be confirmed', async () => {
+    await writeStoredSession({ accessToken: 'old-a', refreshToken: 'old-r', expiresIn: 900 });
+
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      if (storeKey === key('grant.next')) {
+        return null;
+      }
+      return mockMemory.get(storeKey) ?? null;
+    });
+
+    await expect(
+      writeStoredSession({ accessToken: 'new-a', refreshToken: 'new-r', expiresIn: 900 }),
+    ).rejects.toThrow('SecureStore staging write could not be confirmed');
+
+    await expect(readStoredSession()).resolves.toMatchObject({
+      accessToken: 'old-a',
+      refreshToken: 'old-r',
+    });
+  });
+
+  it('keeps the previous grant if promote is killed after staging is confirmed', async () => {
+    await writeStoredSession({ accessToken: 'old-a', refreshToken: 'old-r', expiresIn: 900 });
+
+    let sets = 0;
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (storeKey: string, value: string) => {
+      sets += 1;
+      if (sets === 2) {
+        throw new Error('process killed mid-promote');
+      }
+      mockMemory.set(storeKey, value);
+    });
+
+    await expect(
+      writeStoredSession({ accessToken: 'new-a', refreshToken: 'new-r', expiresIn: 900 }),
+    ).rejects.toThrow('process killed mid-promote');
+
+    expect(JSON.parse(mockMemory.get(key('grant.next')) ?? '{}')).toMatchObject({ refreshToken: 'new-r' });
+    await expect(readStoredSession()).resolves.toMatchObject({
+      accessToken: 'old-a',
+      refreshToken: 'old-r',
+    });
   });
 
   it('migrates a legacy per-field grant to the scoped combined key without signing the member out', async () => {
@@ -173,10 +323,21 @@ describe('tokenStore', () => {
     expect(mockMemory.has(key('grant'))).toBe(false);
   });
 
-  it('clears stored tokens', async () => {
+  it('clears stored tokens including leftover staging', async () => {
     await writeStoredSession({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
+    mockMemory.set(
+      key('grant.next'),
+      JSON.stringify({ accessToken: 'staged-a', refreshToken: 'staged-r', expiresAt: 1 }),
+    );
+    mockMemory.set(
+      key('identityShell.next'),
+      JSON.stringify({ displayName: 'Freddie', memberId: 'member-1' }),
+    );
     await clearStoredSession();
     await expect(readStoredSession()).resolves.toBeNull();
+    expect(mockMemory.has(key('grant'))).toBe(false);
+    expect(mockMemory.has(key('grant.next'))).toBe(false);
+    expect(mockMemory.has(key('identityShell.next'))).toBe(false);
   });
 
   it('surfaces SecureStore failures instead of swallowing them', async () => {
@@ -208,7 +369,7 @@ describe('tokenStore', () => {
 
   it('surfaces a locked write as isKeychainLockedError instead of a raw Keychain throw', async () => {
     const raw = keychainLockedError();
-    (SecureStore.deleteItemAsync as jest.Mock).mockRejectedValueOnce(raw);
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(raw);
     await expect(
       writeStoredSession({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 }),
     ).rejects.toBeInstanceOf(KeychainLockedError);
