@@ -13,10 +13,10 @@ param(
     [string]$SubscriptionId = "610e3b3a-028d-4f1b-ac1d-a5567a4f8b9d",
     [string]$WorkloadResourceGroup = "Queenzone-RG",
     [string]$WebAppName = "queenzone-prod",
-    [string]$GitHubRepository = "richardorchard/QueenZone.Modern",
-    [string]$OidcOwnerId = "",
-    [string]$OidcRepositoryId = "",
-    [string]$FederatedCredentialName = "github-deploy",
+    [string]$GitHubRepository = "RichardOrchardOrganisation/QueenZone.Modern",
+    [string]$OidcOwnerId = "333232587",
+    [string]$OidcRepositoryId = "1265145026",
+    [string]$FederatedCredentialName = "github-org-prod-deploy",
     [string]$EnvironmentName = "prod-deploy"
 )
 

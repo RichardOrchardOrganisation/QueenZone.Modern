@@ -24,7 +24,7 @@ The job is a required pull-request merge gate. If both runners are offline, the 
 4. Configure the runner against this repo, using the token from step 1:
 
    ```powershell
-   .\config.cmd --url https://github.com/richardorchard/QueenZone.Modern --token <TOKEN_FROM_GITHUB>
+   .\config.cmd --url https://github.com/RichardOrchardOrganisation/QueenZone.Modern --token <TOKEN_FROM_GITHUB>
    ```
 
    - Accept the default runner group.
@@ -46,7 +46,7 @@ The job is a required pull-request merge gate. If both runners are offline, the 
 2. From the extracted runner directory, configure the runner and add the required label:
 
    ```bash
-   ./config.sh --url https://github.com/richardorchard/QueenZone.Modern --token <TOKEN_FROM_GITHUB> --labels e2e
+   ./config.sh --url https://github.com/RichardOrchardOrganisation/QueenZone.Modern --token <TOKEN_FROM_GITHUB> --labels e2e
    ```
 
 3. Install and start the runner service so it remains available without an interactive shell:
