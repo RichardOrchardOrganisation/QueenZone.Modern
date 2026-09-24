@@ -337,7 +337,7 @@ required the following GitHub Actions checks (source App ID `15368`): `build`,
 `test (0)`, `test (1)`, `sql-server-tests`, `coverage`, `smoke-test`,
 `e2e-test`, `Verify formatting`, `Small test projects (Tools/Storage/NewsAgent)`,
 `Mobile typecheck and unit tests`, `Mobile Android build`, and `Mobile iOS build`.
-The workflow also runs `test (2)` and `test (3)` and conditionally runs
+The workflow also runs `test (2)` through `test (5)` and conditionally runs
 `ef-migrations`, `Mobile API consumer contracts`, and `Design token sync check`;
 those names were not in the live required list. Re-read the rule at cutover,
 because it can change after this audit.
