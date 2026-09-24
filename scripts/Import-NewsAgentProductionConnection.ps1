@@ -1,7 +1,12 @@
 #Requires -Version 5.1
 
-# The Windows news tasks must follow the live production database after a cutover.
-# Keep the connection in the process environment only; never write it to local JSON.
+# The Windows news and maintenance tasks must follow the live production database after a
+# cutover. Keep connections in the process environment only; never write them to local JSON.
+# -IncludeBlobStorage also loads the production blob connection for the maintenance worker.
+param(
+    [switch]$IncludeBlobStorage
+)
+
 $projectId = '1c16fd2d-4bfb-4eb7-8357-b49400233490'
 $secretKey = 'ConnectionStrings__QueenZoneLegacyCanadaEast'
 
@@ -50,3 +55,25 @@ if ($connection.DataSource -ine 'tcp:queenzone-prod-sql.database.windows.net,143
 
 $env:ConnectionStrings__QueenZoneLegacy = $matchingSecrets[0].value
 Write-Host 'Loaded NewsAgent production SQL connection from Bitwarden Secrets Manager.'
+
+if ($IncludeBlobStorage) {
+    $blobSecretKey = 'ConnectionStrings__BlobStorageCanadaEast'
+    $matchingBlobSecrets = @($secrets | Where-Object { $_.key -eq $blobSecretKey })
+    if ($matchingBlobSecrets.Count -ne 1 -or [string]::IsNullOrWhiteSpace($matchingBlobSecrets[0].value)) {
+        throw "Expected exactly one non-empty $blobSecretKey secret in Bitwarden project $projectId."
+    }
+
+    $blobConnection = [System.Data.Common.DbConnectionStringBuilder]::new()
+    try {
+        $blobConnection.set_ConnectionString($matchingBlobSecrets[0].value)
+    }
+    catch {
+        throw "$blobSecretKey is not a valid connection string."
+    }
+    if (-not $blobConnection.ContainsKey('AccountName') -or $blobConnection['AccountName'] -ine 'queenzoneprod') {
+        throw "$blobSecretKey does not target the queenzoneprod storage account."
+    }
+
+    $env:ConnectionStrings__BlobStorage = $matchingBlobSecrets[0].value
+    Write-Host 'Loaded production blob storage connection from Bitwarden Secrets Manager.'
+}
