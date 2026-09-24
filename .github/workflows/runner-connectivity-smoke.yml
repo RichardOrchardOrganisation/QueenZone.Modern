@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Verify transferred repository checkout
-        shell: pwsh
+        shell: powershell
         run: |
           if ($env:GITHUB_REPOSITORY -ne 'RichardOrchardOrganisation/QueenZone.Modern') { throw 'Unexpected repository owner.' }
           if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Checkout does not match the workflow commit.' }
