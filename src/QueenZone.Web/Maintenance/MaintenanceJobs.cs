@@ -85,7 +85,7 @@ public static class MaintenanceJobs
         using var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
             "PrivateMessageReportPurge",
             ActivityKind.Internal);
-        var repository = scopedServices.GetRequiredService<IPrivateMessageRepository>();
+        var repository = scopedServices.GetRequiredService<IPrivateMessageModerationRepository>();
         var purged = await repository.PurgeExpiredReportsAsync(
             timeProvider.GetUtcNow(),
             cancellationToken);

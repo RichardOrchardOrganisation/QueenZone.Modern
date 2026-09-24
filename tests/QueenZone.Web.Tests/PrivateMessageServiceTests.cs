@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -70,15 +71,48 @@ public sealed class PrivateMessageServiceTests
 
         var empty = await service.ComposeAsync(alice.Id, bob.Id, "   ");
         Assert.False(empty.Succeeded);
-        Assert.Contains("required", empty.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PrivateMessageService.BodyRequiredMessage, empty.ErrorMessage);
 
         var self = await service.ComposeAsync(alice.Id, alice.Id, "hi");
         Assert.False(self.Succeeded);
-        Assert.Contains("yourself", self.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PrivateMessageService.CannotMessageYourselfMessage, self.ErrorMessage);
 
         var missing = await service.ComposeAsync(alice.Id, Guid.NewGuid(), "hi");
         Assert.False(missing.Succeeded);
         Assert.Contains("not found", missing.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Compose_RejectsSelfSendWithoutCallingTheRepository()
+    {
+        var members = new InMemoryMemberAccountRepository();
+        var alice = await members.CreateAsync(new MemberAccount
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            Email = "alice-self@example.com",
+            DisplayName = "Alice",
+            CreatedAt = DateTime.UtcNow,
+        });
+        var messages = DispatchProxy.Create<IPrivateMessageRepository, RepositoryMustNotBeCalled>();
+        var moderation = DispatchProxy.Create<IPrivateMessageModerationRepository, RepositoryMustNotBeCalled>();
+        var service = new PrivateMessageService(
+            messages,
+            moderation,
+            members,
+            new InMemoryMemberFollowRepository(),
+            new PrivateMessageRateLimiter(
+                messages,
+                TimeProvider.System,
+                Options.Create(PermissiveRateLimitOptions()),
+                NullLogger<PrivateMessageRateLimiter>.Instance),
+            NoOpNotificationDispatcher.Instance,
+            NullLogger<PrivateMessageService>.Instance,
+            TimeProvider.System);
+
+        var self = await service.ComposeAsync(alice.Id, alice.Id, "hi");
+
+        Assert.False(self.Succeeded);
+        Assert.Equal(PrivateMessageService.CannotMessageYourselfMessage, self.ErrorMessage);
     }
 
     [Fact]
@@ -97,7 +131,10 @@ public sealed class PrivateMessageServiceTests
             bob.Id,
             new string('x', PrivateMessageLimits.MaxBodyLength + 1));
         Assert.False(tooLong.Succeeded);
-        Assert.Contains("4000", tooLong.ErrorMessage, StringComparison.Ordinal);
+        Assert.Equal(PrivateMessageService.BodyTooLongMessage, tooLong.ErrorMessage);
+
+        var emptyReply = await service.ReplyAsync(conversationId, bob.Id, "  ");
+        Assert.Equal(PrivateMessageService.BodyRequiredMessage, emptyReply.ErrorMessage);
 
         var detail = await service.GetConversationAsync(conversationId, bob.Id, markRead: false);
         Assert.Equal(markup, detail!.Messages[0].Body);
@@ -762,7 +799,7 @@ public sealed class PrivateMessageServiceTests
     private static (
         PrivateMessageService Service,
         IMemberAccountRepository Members,
-        IPrivateMessageRepository Messages,
+        InMemoryPrivateMessageRepository Messages,
         MemberAccount Alice,
         MemberAccount Bob) CreateSystem(PrivateMessageRateLimitOptions? rateLimitOptions = null)
     {
@@ -773,7 +810,7 @@ public sealed class PrivateMessageServiceTests
     private static (
         PrivateMessageService Service,
         IMemberAccountRepository Members,
-        IPrivateMessageRepository Messages,
+        InMemoryPrivateMessageRepository Messages,
         IMemberFollowRepository Follows,
         MemberAccount Alice,
         MemberAccount Bob) CreateSystemWithFollows(PrivateMessageRateLimitOptions? rateLimitOptions = null)
@@ -804,6 +841,7 @@ public sealed class PrivateMessageServiceTests
             NullLogger<PrivateMessageRateLimiter>.Instance);
         var service = new PrivateMessageService(
             messages,
+            messages,
             members,
             follows,
             rateLimiter,
@@ -827,4 +865,10 @@ public sealed class PrivateMessageServiceTests
         NewAccountMaxMessagesPerWindow = 1000,
         NewAccountMaxNewRecipientsPerWindow = 1000,
     };
+
+    public class RepositoryMustNotBeCalled : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            throw new InvalidOperationException(targetMethod?.Name);
+    }
 }

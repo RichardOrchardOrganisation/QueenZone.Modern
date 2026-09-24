@@ -12,6 +12,7 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     private readonly SqliteConnection connection;
     private readonly QueenZoneDbContext dbContext;
     private readonly EfPrivateMessageRepository repository;
+    private readonly EfPrivateMessageModerationRepository moderation;
     private readonly Guid aliceId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private readonly Guid bobId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private readonly Guid carolId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -54,6 +55,7 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         dbContext.SaveChanges();
 
         repository = new EfPrivateMessageRepository(dbContext);
+        moderation = new EfPrivateMessageModerationRepository(dbContext);
     }
 
     [Fact]
@@ -89,26 +91,26 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         Assert.Equal(bobId, await repository.GetOtherParticipantIdAsync(conversationId, aliceId));
         Assert.Null(await repository.GetOtherParticipantIdAsync(conversationId, carolId));
 
-        await repository.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:05:00Z"));
-        Assert.True(await repository.IsBlockedAsync(aliceId, bobId));
-        Assert.False(await repository.IsBlockedAsync(bobId, aliceId));
-        Assert.True(await repository.IsMessagingBlockedAsync(aliceId, bobId));
+        await moderation.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:05:00Z"));
+        Assert.True(await moderation.IsBlockedAsync(aliceId, bobId));
+        Assert.False(await moderation.IsBlockedAsync(bobId, aliceId));
+        Assert.True(await moderation.IsMessagingBlockedAsync(aliceId, bobId));
 
         // Idempotent second block.
-        await repository.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:06:00Z"));
+        await moderation.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:06:00Z"));
         Assert.Equal(1, await dbContext.MemberMessageBlocks.CountAsync());
 
-        Assert.True(await repository.UnblockAsync(aliceId, bobId));
-        Assert.False(await repository.IsBlockedAsync(aliceId, bobId));
-        Assert.False(await repository.UnblockAsync(aliceId, bobId));
+        Assert.True(await moderation.UnblockAsync(aliceId, bobId));
+        Assert.False(await moderation.IsBlockedAsync(aliceId, bobId));
+        Assert.False(await moderation.UnblockAsync(aliceId, bobId));
     }
 
     [Fact]
     public async Task ListBlockedMemberIdsAsync_ReturnsOnlyBlockedCandidates()
     {
-        await repository.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:05:00Z"));
+        await moderation.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:05:00Z"));
 
-        var blocked = await repository.ListBlockedMemberIdsAsync(aliceId, [bobId, carolId]);
+        var blocked = await moderation.ListBlockedMemberIdsAsync(aliceId, [bobId, carolId]);
 
         Assert.Equal([bobId], blocked);
     }
@@ -116,16 +118,16 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     [Fact]
     public async Task ListBlockedMemberIdsAsync_IsDirectional()
     {
-        await repository.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:05:00Z"));
+        await moderation.BlockAsync(aliceId, bobId, DateTimeOffset.Parse("2026-08-05T10:05:00Z"));
 
         // Bob has not blocked Alice, so the reverse lookup stays empty.
-        Assert.Empty(await repository.ListBlockedMemberIdsAsync(bobId, [aliceId, carolId]));
+        Assert.Empty(await moderation.ListBlockedMemberIdsAsync(bobId, [aliceId, carolId]));
     }
 
     [Fact]
     public async Task ListBlockedMemberIdsAsync_EmptyInput_DoesNotQuery()
     {
-        Assert.Empty(await repository.ListBlockedMemberIdsAsync(aliceId, []));
+        Assert.Empty(await moderation.ListBlockedMemberIdsAsync(aliceId, []));
     }
 
     [Fact]
@@ -840,19 +842,19 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         await repository.ReplyAsync(conversationId, aliceId, "Third", DateTimeOffset.UtcNow);
         var target = (await repository.GetConversationAsync(conversationId, bobId))!.Messages[^1];
 
-        var created = await repository.CreateReportAsync(
+        var created = await moderation.CreateReportAsync(
             bobId,
             conversationId,
             target.Id,
             "Abuse",
             DateTimeOffset.UtcNow);
         Assert.True(created.Succeeded);
-        var report = await repository.GetReportAsync(created.ReportId!.Value);
+        var report = await moderation.GetReportAsync(created.ReportId!.Value);
         Assert.Equal("Third", report!.MessageBodySnapshot);
         Assert.Equal("Alice EF", report.SenderDisplayNameSnapshot);
         Assert.Equal(["First", "Second"], report.PrecedingMessages.Select(m => m.Body).ToArray());
 
-        var again = await repository.CreateReportAsync(
+        var again = await moderation.CreateReportAsync(
             bobId,
             conversationId,
             target.Id,
@@ -861,7 +863,7 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         Assert.True(again.AlreadyReported);
         Assert.Equal(created.ReportId, again.ReportId);
 
-        var outsider = await repository.CreateReportAsync(
+        var outsider = await moderation.CreateReportAsync(
             carolId,
             conversationId,
             target.Id,
@@ -876,34 +878,34 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     {
         var first = await repository.SendNewOrExistingAsync(aliceId, bobId, "First", DateTimeOffset.UtcNow);
         var firstMessageId = (await repository.GetConversationAsync(first.ConversationId!.Value, bobId))!.Messages[^1].Id;
-        var olderReport = await repository.CreateReportAsync(
+        var olderReport = await moderation.CreateReportAsync(
             bobId, first.ConversationId!.Value, firstMessageId, "Older", DateTimeOffset.UtcNow.AddMinutes(-5));
 
         var second = await repository.SendNewOrExistingAsync(aliceId, carolId, "Hi Carol", DateTimeOffset.UtcNow);
         var secondMessageId = (await repository.GetConversationAsync(second.ConversationId!.Value, carolId))!.Messages[^1].Id;
-        var newerReport = await repository.CreateReportAsync(
+        var newerReport = await moderation.CreateReportAsync(
             carolId, second.ConversationId!.Value, secondMessageId, "Newer", DateTimeOffset.UtcNow);
 
-        var openPage = await repository.ListReportsAsync(PrivateMessageReportStatus.Open, 1, 50);
+        var openPage = await moderation.ListReportsAsync(PrivateMessageReportStatus.Open, 1, 50);
         Assert.Equal(2, openPage.TotalCount);
         Assert.Equal(newerReport.ReportId, openPage.Items[0].Id);
         Assert.Equal(olderReport.ReportId, openPage.Items[1].Id);
         Assert.Equal("Alice EF", openPage.Items[0].ReportedDisplayName);
         Assert.Equal("Carol EF", openPage.Items[0].ReporterDisplayName);
 
-        await repository.UpdateReportStatusAsync(
+        await moderation.UpdateReportStatusAsync(
             olderReport.ReportId!.Value, PrivateMessageReportStatus.Dismissed, "mod@example.com");
 
-        var dismissedPage = await repository.ListReportsAsync(PrivateMessageReportStatus.Dismissed, 1, 50);
+        var dismissedPage = await moderation.ListReportsAsync(PrivateMessageReportStatus.Dismissed, 1, 50);
         Assert.Equal(olderReport.ReportId, Assert.Single(dismissedPage.Items).Id);
 
-        var stillOpenPage = await repository.ListReportsAsync(PrivateMessageReportStatus.Open, 1, 50);
+        var stillOpenPage = await moderation.ListReportsAsync(PrivateMessageReportStatus.Open, 1, 50);
         Assert.Equal(newerReport.ReportId, Assert.Single(stillOpenPage.Items).Id);
 
-        var allPage = await repository.ListReportsAsync("all", 1, 50);
+        var allPage = await moderation.ListReportsAsync("all", 1, 50);
         Assert.Equal(2, allPage.TotalCount);
 
-        Assert.Equal(1, await repository.CountOpenReportsAsync());
+        Assert.Equal(1, await moderation.CountOpenReportsAsync());
     }
 
     [Fact]
@@ -911,16 +913,16 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     {
         var sent = await repository.SendNewOrExistingAsync(aliceId, bobId, "Hi", DateTimeOffset.UtcNow);
         var messageId = (await repository.GetConversationAsync(sent.ConversationId!.Value, bobId))!.Messages[^1].Id;
-        var created = await repository.CreateReportAsync(
+        var created = await moderation.CreateReportAsync(
             bobId, sent.ConversationId!.Value, messageId, "Reason", DateTimeOffset.UtcNow);
         var reportId = created.ReportId!.Value;
 
-        var updated = await repository.UpdateReportStatusAsync(
+        var updated = await moderation.UpdateReportStatusAsync(
             reportId, PrivateMessageReportStatus.Reviewed, "mod@example.com");
         Assert.Equal(PrivateMessageReportStatus.Reviewed, updated!.Status);
 
         // Re-applying the same status should not add a second audit row.
-        await repository.UpdateReportStatusAsync(reportId, PrivateMessageReportStatus.Reviewed, "mod@example.com");
+        await moderation.UpdateReportStatusAsync(reportId, PrivateMessageReportStatus.Reviewed, "mod@example.com");
 
         var auditRows = await dbContext.PrivateMessageReportAuditLogs
             .Where(log => log.ReportId == reportId)
@@ -931,7 +933,7 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         Assert.Equal("mod@example.com", statusChangeRow.ActorEmail);
         Assert.Equal($"{PrivateMessageReportStatus.Open} -> {PrivateMessageReportStatus.Reviewed}", statusChangeRow.Details);
 
-        var missing = await repository.UpdateReportStatusAsync(
+        var missing = await moderation.UpdateReportStatusAsync(
             Guid.NewGuid(), PrivateMessageReportStatus.Reviewed, "mod@example.com");
         Assert.Null(missing);
     }
@@ -941,12 +943,12 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     {
         var sent = await repository.SendNewOrExistingAsync(aliceId, bobId, "Hi", DateTimeOffset.UtcNow);
         var messageId = (await repository.GetConversationAsync(sent.ConversationId!.Value, bobId))!.Messages[^1].Id;
-        var created = await repository.CreateReportAsync(
+        var created = await moderation.CreateReportAsync(
             bobId, sent.ConversationId!.Value, messageId, "Reason", DateTimeOffset.UtcNow);
         var reportId = created.ReportId!.Value;
 
-        await repository.AppendReportViewedAuditAsync(reportId, "mod@example.com");
-        await repository.AppendReportViewedAuditAsync(reportId, "mod@example.com");
+        await moderation.AppendReportViewedAuditAsync(reportId, "mod@example.com");
+        await moderation.AppendReportViewedAuditAsync(reportId, "mod@example.com");
 
         var viewedRows = await dbContext.PrivateMessageReportAuditLogs
             .Where(log => log.ReportId == reportId && log.Action == PrivateMessageReportAuditAction.Viewed)
@@ -962,17 +964,17 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         var retention = PrivateMessageLimits.ReportRetentionAfterTerminalStatus;
 
         var sentOpen = await repository.SendNewOrExistingAsync(aliceId, bobId, "Still open", now);
-        var openReport = await repository.CreateReportAsync(
+        var openReport = await moderation.CreateReportAsync(
             bobId, sentOpen.ConversationId!.Value,
             (await repository.GetConversationAsync(sentOpen.ConversationId!.Value, bobId))!.Messages[^1].Id,
             "Reason", now);
 
         var sentExpired = await repository.SendNewOrExistingAsync(aliceId, carolId, "Long dismissed", now);
-        var expiredReport = await repository.CreateReportAsync(
+        var expiredReport = await moderation.CreateReportAsync(
             carolId, sentExpired.ConversationId!.Value,
             (await repository.GetConversationAsync(sentExpired.ConversationId!.Value, carolId))!.Messages[^1].Id,
             "Reason", now);
-        await repository.UpdateReportStatusAsync(
+        await moderation.UpdateReportStatusAsync(
             expiredReport.ReportId!.Value, PrivateMessageReportStatus.Dismissed, "mod@example.com");
         // Backdate the status-change audit row past the retention window (repository writes it at UtcNow).
         var expiredAuditRow = await dbContext.PrivateMessageReportAuditLogs
@@ -981,19 +983,19 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         await dbContext.SaveChangesAsync();
 
         var sentRecent = await repository.SendNewOrExistingAsync(bobId, carolId, "Recently dismissed", now);
-        var recentReport = await repository.CreateReportAsync(
+        var recentReport = await moderation.CreateReportAsync(
             carolId, sentRecent.ConversationId!.Value,
             (await repository.GetConversationAsync(sentRecent.ConversationId!.Value, carolId))!.Messages[^1].Id,
             "Reason", now);
-        await repository.UpdateReportStatusAsync(
+        await moderation.UpdateReportStatusAsync(
             recentReport.ReportId!.Value, PrivateMessageReportStatus.Dismissed, "mod@example.com");
 
-        var purgedCount = await repository.PurgeExpiredReportsAsync(now);
+        var purgedCount = await moderation.PurgeExpiredReportsAsync(now);
 
         Assert.Equal(1, purgedCount);
-        Assert.Null(await repository.GetReportAsync(expiredReport.ReportId!.Value));
-        Assert.NotNull(await repository.GetReportAsync(openReport.ReportId!.Value));
-        Assert.NotNull(await repository.GetReportAsync(recentReport.ReportId!.Value));
+        Assert.Null(await moderation.GetReportAsync(expiredReport.ReportId!.Value));
+        Assert.NotNull(await moderation.GetReportAsync(openReport.ReportId!.Value));
+        Assert.NotNull(await moderation.GetReportAsync(recentReport.ReportId!.Value));
 
         // Audit rows for the purged report are retained (ADR 0015 decision 3).
         var remainingAuditRows = await dbContext.PrivateMessageReportAuditLogs

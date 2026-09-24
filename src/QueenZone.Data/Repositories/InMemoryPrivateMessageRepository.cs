@@ -2,7 +2,8 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-public sealed class InMemoryPrivateMessageRepository : IPrivateMessageRepository
+public sealed class InMemoryPrivateMessageRepository
+    : IPrivateMessageRepository, IPrivateMessageModerationRepository
 {
     private readonly object sync = new();
     private readonly List<PrivateConversationEntity> conversations = [];
@@ -246,23 +247,6 @@ public sealed class InMemoryPrivateMessageRepository : IPrivateMessageRepository
         CancellationToken cancellationToken = default)
     {
         body = NormalizeBody(body);
-        if (body.Length == 0)
-        {
-            return Task.FromResult(new PrivateMessageSendResult(false, null, "Message body is required."));
-        }
-
-        if (body.Length > PrivateMessageLimits.MaxBodyLength)
-        {
-            return Task.FromResult(new PrivateMessageSendResult(
-                false,
-                null,
-                $"Message body must be {PrivateMessageLimits.MaxBodyLength} characters or fewer."));
-        }
-
-        if (senderMemberId == recipientMemberId)
-        {
-            return Task.FromResult(new PrivateMessageSendResult(false, null, "You cannot message yourself."));
-        }
 
         lock (sync)
         {
@@ -352,18 +336,6 @@ public sealed class InMemoryPrivateMessageRepository : IPrivateMessageRepository
         CancellationToken cancellationToken = default)
     {
         body = NormalizeBody(body);
-        if (body.Length == 0)
-        {
-            return Task.FromResult(new PrivateMessageSendResult(false, null, "Message body is required."));
-        }
-
-        if (body.Length > PrivateMessageLimits.MaxBodyLength)
-        {
-            return Task.FromResult(new PrivateMessageSendResult(
-                false,
-                null,
-                $"Message body must be {PrivateMessageLimits.MaxBodyLength} characters or fewer."));
-        }
 
         lock (sync)
         {

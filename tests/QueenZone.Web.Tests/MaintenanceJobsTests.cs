@@ -111,7 +111,7 @@ public sealed class MaintenanceJobsTests
         var logs = new CapturingLoggerProvider();
         await using var provider = BuildWorkerProvider(
             logs,
-            services => services.AddScoped<IPrivateMessageRepository>(
+            services => services.AddScoped<IPrivateMessageModerationRepository>(
                 _ => throw new InvalidOperationException("Simulated repository failure.")));
 
         var exitCode = await provider.GetRequiredService<MaintenanceJobRunner>().RunAsync(MaintenanceJobs.All);
@@ -151,6 +151,7 @@ public sealed class MaintenanceJobsTests
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<FanPerformanceSubmissionPurgeService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<GalleryOrphanSweepService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IPrivateMessageRepository>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IPrivateMessageModerationRepository>());
     }
 
     [Theory]

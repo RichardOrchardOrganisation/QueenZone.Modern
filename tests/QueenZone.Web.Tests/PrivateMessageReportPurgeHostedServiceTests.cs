@@ -99,7 +99,7 @@ public sealed class PrivateMessageReportPurgeHostedServiceTests
         TimeSpan? runInterval = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IPrivateMessageRepository>(repository);
+        services.AddSingleton<IPrivateMessageModerationRepository>(repository);
         var provider = services.BuildServiceProvider();
 
         return new PrivateMessageReportPurgeHostedService(
@@ -112,7 +112,8 @@ public sealed class PrivateMessageReportPurgeHostedServiceTests
         };
     }
 
-    private sealed class RecordingPrivateMessageRepository : IPrivateMessageRepository
+    private sealed class RecordingPrivateMessageRepository
+        : IPrivateMessageRepository, IPrivateMessageModerationRepository
     {
         public int PurgeCalls;
 
