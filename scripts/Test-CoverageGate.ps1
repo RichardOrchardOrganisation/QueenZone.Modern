@@ -10,6 +10,8 @@ param(
 
     [string]$HeadRef = "HEAD",
 
+    [switch]$RequireBaseRef,
+
     [switch]$SelfTest
 )
 
@@ -68,6 +70,7 @@ function Get-ChangedLines {
     )
 
     if ([string]::IsNullOrWhiteSpace($BaseRef)) {
+        if ($RequireBaseRef) { throw "Changed-line coverage requires a base ref." }
         Write-Host "No base ref supplied; skipping changed-line coverage gate."
         return @{}
     }
@@ -83,8 +86,16 @@ function Get-ChangedLines {
 
     git rev-parse --verify --quiet $resolvedBaseRef *> $null
     if ($LASTEXITCODE -ne 0) {
+        if ($RequireBaseRef) { throw "Base ref '$BaseRef' is not available locally." }
         Write-Host "Base ref '$BaseRef' is not available locally; skipping changed-line coverage gate."
         return @{}
+    }
+
+    if ($RequireBaseRef) {
+        git merge-base --is-ancestor $resolvedBaseRef $HeadRef
+        if ($LASTEXITCODE -ne 0) {
+            throw "Base ref '$resolvedBaseRef' is not an ancestor of '$HeadRef'."
+        }
     }
 
     $diffLines = git diff --unified=0 --no-color "$resolvedBaseRef...$HeadRef" -- '*.cs'
@@ -285,6 +296,11 @@ function Invoke-CoverageGateSelfTest {
         $gateText = @($gateOutput) -join [Environment]::NewLine
         if ($gateText -notmatch 'union of 1 reports') {
             throw "Self-test failed: expected the gate to union exactly one valid report. Output:`n$gateText"
+        }
+
+        $requiredBaseOutput = & $pwsh.Source -NoProfile -File $PSCommandPath -Reports $tempRoot -GlobalLineThreshold 0 -ChangedLineThreshold 0 -BaseRef "" -RequireBaseRef 2>&1
+        if ($LASTEXITCODE -eq 0 -or (@($requiredBaseOutput) -join [Environment]::NewLine) -notmatch 'Changed-line coverage requires a base ref') {
+            throw "Self-test failed: a required base ref must fail closed when missing."
         }
 
         $emptyOutput = & $pwsh.Source -NoProfile -File $PSCommandPath -Reports $emptyRoot -GlobalLineThreshold 0 -ChangedLineThreshold 0 -BaseRef "" 2>&1
