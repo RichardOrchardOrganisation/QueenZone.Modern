@@ -9,6 +9,7 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
+[Collection(MaintenanceJobActivityCollection.Name)]
 public sealed class GalleryOrphanSweepHostedServiceTests
 {
     [Fact]
@@ -180,13 +181,13 @@ public sealed class GalleryOrphanSweepHostedServiceTests
         public Task DeleteAsync(string containerName, string blobName, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+        public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
             string containerName,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref ListCalls);
             ActivityDuringWork = Activity.Current;
-            return Task.FromResult<IReadOnlyList<GalleryBlobDescriptor>>([]);
+            return AsyncEnumerable.Empty<GalleryBlobDescriptor>();
         }
     }
 }

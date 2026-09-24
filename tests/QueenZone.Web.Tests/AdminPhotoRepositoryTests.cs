@@ -351,7 +351,7 @@ public sealed class AdminPhotoServiceTests
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException($"Simulated blob delete failure for {containerName}/{blobName}");
 
-        public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+        public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
             string containerName,
             CancellationToken cancellationToken = default) =>
             inner.ListBlobsAsync(containerName, cancellationToken);
