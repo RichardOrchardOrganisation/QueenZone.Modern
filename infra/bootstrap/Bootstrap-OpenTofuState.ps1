@@ -6,11 +6,11 @@ param(
     [string]$StateStorageAccount = "queenzonetfstate",
     [string]$StateContainer = "tfstate",
     [string]$WorkloadResourceGroup = "Queenzone-RG",
-    [string]$GitHubRepository = "richardorchard/QueenZone.Modern",
-    [string]$OidcOwnerId = "",
-    [string]$OidcRepositoryId = "",
-    [string]$PlanFederatedCredentialName = "github-opentofu-plan",
-    [string]$ApplyFederatedCredentialName = "github-opentofu-apply",
+    [string]$GitHubRepository = "RichardOrchardOrganisation/QueenZone.Modern",
+    [string]$OidcOwnerId = "333232587",
+    [string]$OidcRepositoryId = "1265145026",
+    [string]$PlanFederatedCredentialName = "github-org-opentofu-plan",
+    [string]$ApplyFederatedCredentialName = "github-org-opentofu-apply",
     [string]$ApplyReviewer = "richardorchard",
     [ValidateRange(7, 365)]
     [int]$RetentionDays = 30
