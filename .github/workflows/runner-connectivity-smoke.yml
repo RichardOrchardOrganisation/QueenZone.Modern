@@ -1,0 +1,34 @@
+name: Runner connectivity smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows runner checkout
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, e2e]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify transferred repository checkout
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REPOSITORY -ne 'RichardOrchardOrganisation/QueenZone.Modern') { throw 'Unexpected repository owner.' }
+          if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Checkout does not match the workflow commit.' }
+
+  macos:
+    name: macOS runner checkout
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, macOS, ARM64, e2e]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify transferred repository checkout
+        shell: bash
+        run: |
+          test "$GITHUB_REPOSITORY" = 'RichardOrchardOrganisation/QueenZone.Modern'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
