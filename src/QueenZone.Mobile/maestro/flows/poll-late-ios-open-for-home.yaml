@@ -1,0 +1,20 @@
+appId: org.queenzone.mobile
+---
+# One poke for a late "Open in QueenZone?" sheet, then a short optional
+# home-messages wait. open-smoke-auth sequences several of these before
+# stacking a second smoke-auth URL (#1703). Does not wait 15s for Open —
+# that belongs in accept-ios-open-link.yaml right after openLink.
+- runFlow:
+    when:
+      platform: iOS
+      visible:
+        text: '^Open$'
+    commands:
+      - tapOn:
+          text: '^Open$'
+          retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: home-messages
+    timeout: 5000
+    optional: true
