@@ -7,7 +7,7 @@ confirmed that the East US regions were unavailable for this subscription.
 
 ## Context
 
-[Epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) is building a real dev/prod split. As part of that epic, region migration for production (previously deferred) came back into scope as Phase 0 ([#1271](https://github.com/richardorchard/QueenZone.Modern/issues/1271), this ADR) and Phase 7 ([#1272](https://github.com/richardorchard/QueenZone.Modern/issues/1272), the actual cutover).
+[Epic #1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264) is building a real dev/prod split. As part of that epic, region migration for production (previously deferred) came back into scope as Phase 0 ([#1271](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1271), this ADR) and Phase 7 ([#1272](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1272), the actual cutover).
 
 Production (the App Service currently misnamed `queenzone-dev`, its SQL server `queenzone-sql-server`, and its storage account `queenzone`) runs today in **Australia East**. That is a poor origin region for the site's likely audience: Cloudflare's proxy only speeds up the visitor-to-edge leg of a request, not the edge-to-origin leg that every cache miss, forum/auth page, and mobile API call still has to pay in full.
 
@@ -53,9 +53,9 @@ Tradeoffs:
 
 ## Related
 
-- [#1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) — Epic: Dev environment and release promotion flow
-- [#1271](https://github.com/richardorchard/QueenZone.Modern/issues/1271) — Phase 0: Document the target Azure region (this ADR)
-- [#1272](https://github.com/richardorchard/QueenZone.Modern/issues/1272) — Phase 7: Migrate production to the new region and rename to logical resource names
+- [#1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264) — Epic: Dev environment and release promotion flow
+- [#1271](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1271) — Phase 0: Document the target Azure region (this ADR)
+- [#1272](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1272) — Phase 7: Migrate production to the new region and rename to logical resource names
 - [`azure-hosting-plan.md`](../architecture/azure-hosting-plan.md) — overall Azure shape
 - [`hosting-scale-and-cache.md`](../architecture/hosting-scale-and-cache.md) — single-instance, minimal-cost posture this decision is consistent with
 - [`opentofu-inventory.md`](../architecture/opentofu-inventory.md) — live estate ownership for OpenTofu

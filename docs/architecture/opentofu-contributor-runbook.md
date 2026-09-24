@@ -1,6 +1,6 @@
 # OpenTofu contributor runbook
 
-Issue: [#619](https://github.com/richardorchard/QueenZone.Modern/issues/619), step 3 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615).
+Issue: [#619](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/619), step 3 of epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615).
 
 ## Foundation boundary
 

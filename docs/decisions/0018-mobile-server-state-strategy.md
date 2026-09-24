@@ -6,8 +6,8 @@ Accepted.
 
 ## Context
 
-[Issue #1151](https://github.com/richardorchard/QueenZone.Modern/issues/1151)
-(part of the [#1139](https://github.com/richardorchard/QueenZone.Modern/issues/1139)
+[Issue #1151](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1151)
+(part of the [#1139](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1139)
 mobile architecture review) asks for a recorded decision on whether
 `src/QueenZone.Mobile` should adopt `@tanstack/react-query` or keep the
 bespoke server-state stack it has grown.
@@ -45,7 +45,7 @@ member-scoped, keep everything public". The suggestion in #1151 that
 contact with this requirement.
 
 **Offline downloads land next.**
-[Issue #927](https://github.com/richardorchard/QueenZone.Modern/issues/927)
+[Issue #927](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/927)
 (offline playback of fan performances, expected within a month of this ADR)
 introduces member-pinned binary audio downloads with a persisted manifest. That
 is not server state, and it fits neither existing store: React Query garbage-

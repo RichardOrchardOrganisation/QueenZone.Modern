@@ -260,7 +260,7 @@ GitHub Actions workflow `.github/workflows/ci.yml` blocks merge when these fail:
 
 PRs that only change `src/QueenZone.Mobile/` (or docs/infra/design) skip the .NET build, tests, coverage, smoke, e2e, and the App Service deploy. Mixed web + mobile PRs run both. See `scripts/classify-pipeline-changes.sh` and `docs/architecture/testing-policy.md`.
 
-There are two separate deploy workflows, not one: `deploy-dev.yml` auto-deploys every merge to `main` against the `dev` environment (Australia East App Service `queenzone-devbox`, `dev.queenzone.org`); `deploy.yml` deploys **production** to the Canada East App Service `queenzone-prod` and only triggers on a `v*` tag push (or manual dispatch from `main`) — see [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) Phase 4/5. Promote a change to production by tagging the already-merged, already-dev-verified commit: `git tag vX.Y.Z <sha> && git push --tags`. The previous Australia East production app `queenzone-dev` was retired on **14 September 2026**; do not target it for deployment or rollback. See `docs/architecture/azure-hosting-plan.md` ("Environments") for the full picture.
+There are two separate deploy workflows, not one: `deploy-dev.yml` auto-deploys every merge to `main` against the `dev` environment (Australia East App Service `queenzone-devbox`, `dev.queenzone.org`); `deploy.yml` deploys **production** to the Canada East App Service `queenzone-prod` and only triggers on a `v*` tag push (or manual dispatch from `main`) — see [epic #1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264) Phase 4/5. Promote a change to production by tagging the already-merged, already-dev-verified commit: `git tag vX.Y.Z <sha> && git push --tags`. The previous Australia East production app `queenzone-dev` was retired on **14 September 2026**; do not target it for deployment or rollback. See `docs/architecture/azure-hosting-plan.md` ("Environments") for the full picture.
 
 Coverage exclusions are configured in `coverlet.runsettings`. EF Core files under `**/Migrations/**/*.cs` are excluded from coverage metrics.
 
@@ -271,7 +271,7 @@ The changed-line gate compares `git diff origin/main...HEAD` for `*.cs` files. L
 CI parallelizes `QueenZone.Web.Tests` with **mixed** shards (light unit tests + `WebApplicationFactory` tests in every shard). Scripts: `scripts/Get-WebTestShardFilter.ps1`, `scripts/Invoke-WebTestsShard.ps1`. Full policy and anti-patterns: `docs/architecture/testing-policy.md` (section **CI test sharding**).
 
 - Local default remains `dotnet test QueenZone.sln` (no filter).
-- **Do not** split CI/jobs as unit-only vs WAF-only for speed — measured regression in [#442](https://github.com/richardorchard/QueenZone.Modern/issues/442).
+- **Do not** split CI/jobs as unit-only vs WAF-only for speed — measured regression in [#442](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/442).
 - No shard manifest to maintain when adding tests; discovery is automatic from `*Tests` classes.
 
 ### EF migration PRs (required before merge)

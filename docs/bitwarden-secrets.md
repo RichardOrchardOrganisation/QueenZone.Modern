@@ -186,7 +186,7 @@ must match; changing one without the other breaks the password job.
 ### `BITWARDEN_DEV_AUTH_GOOGLE_E2E_SECRETS`
 
 Scaffolding for the planned DEV Google OAuth `DeployedAuth` check
-([#1614](https://github.com/richardorchard/QueenZone.Modern/issues/1614)).
+([#1614](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1614)).
 **Values are not live.** Richard will designate a dedicated Google account with **2FA disabled**.
 Do not create the Bitwarden secrets or the GitHub variable until that account exists. Do not
 start Playwright until Bitwarden holds those credentials. No production OAuth e2e.
@@ -355,7 +355,7 @@ Bitwarden is verified; never add the JSON directly to GitHub Actions secrets or 
 ## Rotation and break-glass (App Service settings)
 
 [ADR 0008](decisions/0008-app-service-settings-ownership.md) keeps App Service application settings outside
-OpenTofu (Option A of [#618](https://github.com/richardorchard/QueenZone.Modern/issues/618)), so rotation and
+OpenTofu (Option A of [#618](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/618)), so rotation and
 break-glass for those settings stay entirely inside the Bitwarden/Azure/GitHub workflow described here — there is
 no OpenTofu apply/plan step to run or wait on.
 

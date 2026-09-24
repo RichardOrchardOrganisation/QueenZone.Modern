@@ -1,6 +1,6 @@
 # Forum Read Performance Benchmark - 2026-06-29
 
-Issue: <https://github.com/richardorchard/QueenZone.Modern/issues/85>
+Issue: <https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/85>
 
 This benchmark compares the current public legacy forum read path with equivalent reads against the populated `ModernForum*` tables in `queenzone-db`.
 

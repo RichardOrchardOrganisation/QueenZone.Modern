@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-[Issue #791](https://github.com/richardorchard/QueenZone.Modern/issues/791)
+[Issue #791](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/791)
 needs a navigation library and a base app shell mapped to Epics 1–6, with
 signed-out and signed-in surfaces separated from the start. The approved mobile
 design spec (`design/Queenzone mobile app design/handoff/QUEENZONE_APP_SPEC.md`)

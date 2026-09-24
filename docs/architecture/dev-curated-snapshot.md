@@ -1,6 +1,6 @@
 # Dev curated snapshot
 
-Issue [#1325](https://github.com/richardorchard/QueenZone.Modern/issues/1325)
+Issue [#1325](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1325)
 defines the isolated dev data contract. Dev uses a small, sanitised production
 sample. It is not a production clone.
 
@@ -38,7 +38,7 @@ The environment uses the same narrowly scoped Azure identity as `dev-deploy`.
 Copy its `ARM_CLIENT_ID`, `ARM_TENANT_ID`, and `ARM_SUBSCRIPTION_ID` environment
 variables to `dev-data-refresh`, then add one federated credential to the
 `QueenZone Dev Deploy` Entra application with subject
-`repo:richardorchard/QueenZone.Modern:environment:dev-data-refresh`. Do not add
+`repo:RichardOrchardOrganisation@333232587/QueenZone.Modern@1265145026:environment:dev-data-refresh`. Do not add
 or widen an Azure role: the existing Website Contributor assignment on
 `queenzone-devbox` is sufficient. The four isolated SQL and Blob credentials,
 not this identity, perform the snapshot data work.

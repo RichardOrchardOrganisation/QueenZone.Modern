@@ -7,7 +7,7 @@ Accepted.
 ## Context
 
 [ADR 0009](0009-react-native-for-mobile-app.md) selects React Native for the
-QueenZone mobile application. [Issue #790](https://github.com/richardorchard/QueenZone.Modern/issues/790)
+QueenZone mobile application. [Issue #790](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/790)
 requires the project's location and initialization approach before client work
 can begin.
 
