@@ -116,7 +116,10 @@ cancel (#1453). Before reading production, the Sync job runs the script's proces
 under the Windows runner account and shell. It publishes into a staging database and replaces the
 named mirror only after a successful publish and required-table check. A failed extract or publish
 therefore leaves the previous mirror intact. Read probes then run from the macOS runner over the LAN.
-Self-cleaning write probes run locally on Windows after the read checks pass:
+`apply-ef-migrations-mirror` runs after Sync (in parallel with those read probes) and
+before write probes so Express has pending EF columns that production Azure SQL may not
+have yet (#1722). Self-cleaning write probes stay hard — they do not skip on a missing
+EF column — and run locally on Windows after the read checks and that migrate pass:
 
 | Probe surface | How nightly runs it |
 | --- | --- |
@@ -355,8 +358,8 @@ required check to get a candidate through.
 | --- | --- |
 | `scripts/Get-WebTestShardFilter.ps1` | Discovers `*Tests` classes and assigns them with greedy balance. Checked-in observed class durations take precedence; new classes fall back to case count × host-kind heuristics. Emits an xUnit `--filter`. |
 | `scripts/Invoke-WebTestsShard.ps1` | Runs one shard's filtered Web.Tests (`-SmallProjectsOnly` runs just the Tools/Storage/NewsAgent projects instead) |
-| `scripts/Update-WebTestDurations.ps1` | Merges shard TRX timings into a noise-damped class-duration map. CI uploads the suggested map for periodic review and commit. |
-| `.github/workflows/ci.yml` jobs `test` + `small-projects-tests` + `coverage` | Matrix `shard: [0, 1, 2, 3]` for Web.Tests, a separate parallel job for the small projects, then merge Cobertura, update observed timings, and run the coverage gate |
+| `scripts/Update-WebTestDurations.ps1` | Merges shard TRX timings into a noise-damped class-duration map. CI uploads the suggested map (`web-test-class-durations-<run id>` artifact from the `coverage` job); commit it to `scripts/web-test-class-durations.json` when shard times drift apart or after large test changes. Without that file every class falls back to heuristics and shards skew badly (330s vs 630s in September 2026). |
+| `.github/workflows/ci.yml` jobs `test` + `small-projects-tests` + `coverage` | Matrix `shard: [0, 1, 2, 3, 4, 5]` for Web.Tests, a separate parallel job for the small projects, then merge Cobertura, update observed timings, and run the coverage gate |
 
 The `build` job uploads `src/**/bin/Release`, `tests/**/bin/Release`, and `src/QueenZone.Web/obj/Release`. Keep PDBs — Coverlet maps executed lines from them, so a `--no-build` shard without symbols collapses global coverage. Keep `*.xml` — NewsAgent tests copy fixture XML into the output directory and `--no-build` shards read those files from disk. Shards must keep the QueenZone.Web `obj` tree — ASP.NET Core’s `WebApplicationFactory` resolves compressed static web assets under `src/QueenZone.Web/obj/.../compressed/`. Uploading only `bin` causes `DirectoryNotFoundException` in Development-environment host tests (for example `StaticAssetCacheHeadersTests`). Other project `obj` trees are not required for `--no-build` shard runs.
 
@@ -366,18 +369,16 @@ The `build` job uploads `src/**/bin/Release`, `tests/**/bin/Release`, and `src/Q
 
 ```powershell
 powershell -File ./scripts/Get-WebTestShardFilter.ps1 -SelfTest
-powershell -File ./scripts/Get-WebTestShardFilter.ps1 -ShardCount 4 -List
+powershell -File ./scripts/Get-WebTestShardFilter.ps1 -ShardCount 6 -List
 dotnet build QueenZone.sln --configuration Release
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 0 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 1 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 2 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 3 -ShardCount 4 -NoBuild -NoRestore
+powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 0 -ShardCount 6 -NoBuild -NoRestore
+# ...repeat for -ShardIndex 1 through 5
 powershell -File ./scripts/Invoke-WebTestsShard.ps1 -SmallProjectsOnly -NoBuild -NoRestore
 ```
 
 (issue #496: the small projects used to ride along on shard 0, making it consistently slower than shard 1 even though the Web.Tests weight split itself was even. `-SmallProjectsOnly` now runs them as CI's own parallel `small-projects-tests` job instead. A later even class-weight split still parked every `Admin*EfRoutes` host on shard 1 because they all had weight 5 and sorted together; case-count × kind multipliers exist so those hosts spread.)
 
-When adding Web.Tests classes: no shard manifest to update — discovery is automatic. Prefer `QueenZoneWebApplicationFactory` for HTTP tests; keep true unit tests free of `WebApplicationFactory` so they stay cheap filler in every shard.
+When adding Web.Tests classes: no shard manifest to update — discovery is automatic. Prefer `QueenZoneWebApplicationFactory` for HTTP tests; keep true unit tests free of `WebApplicationFactory` so they stay cheap filler in every shard. Do not call `factory.WithWebHostBuilder(...)` in a test class constructor: xUnit constructs the class once per test, so that boots a new host for every test (60 classes did this and were about half of all Web.Tests time). Take a class fixture instead — `QueenZoneWebApplicationFactory`, or one of the variants in `EnvironmentWebApplicationFactories.cs` (Production, Development, preview public base URL, external cookie), or a new subclass overriding `ConfigureTestServices`. Keep per-test `WithWebHostBuilder` for tests that genuinely need a one-off host.
 
 If CI wall-clock grows again, prefer (in order): thin theory-heavy smoke HTTP tests; raise `ShardCount` / matrix size with the same mixed algorithm; paid larger runners. Avoid unit-vs-WAF project splits and raising xUnit `maxParallelThreads` (more threads worsened contention in #442). Smaller parked ideas (format `--include`, EF migrations bundle, extra shards today) live in [#657](https://github.com/richardorchard/QueenZone.Modern/issues/657).
 

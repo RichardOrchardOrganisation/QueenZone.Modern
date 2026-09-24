@@ -278,7 +278,7 @@ public sealed class MobileAuthService(
         if (stored.RevokedAt is not null)
         {
             // Refresh-token reuse: the presented grant was already rotated away.
-            // Within a short grace window this is usually a client that never saw
+            // Within the reuse grace window this is usually a client that never saw
             // its rotation response (killed mid launch, dropped connection, ...),
             // not a stolen token — trace forward to whatever grant replaced it and
             // rotate that instead of nuking every device. Outside the window, or

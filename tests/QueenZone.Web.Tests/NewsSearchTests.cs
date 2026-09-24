@@ -299,13 +299,13 @@ public sealed class EfNewsRepositorySearchTests : IAsyncDisposable
 // Web integration tests for /news/search route
 // ---------------------------------------------------------------------------
 
-public sealed class NewsSearchRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class NewsSearchRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public NewsSearchRoutesTests(WebApplicationFactory<Program> factory)
+    public NewsSearchRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     private HttpClient CreateNonRedirectingClient() =>

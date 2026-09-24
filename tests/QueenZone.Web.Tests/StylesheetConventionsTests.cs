@@ -5,14 +5,14 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class StylesheetConventionsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class StylesheetConventionsTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private static readonly string[] AllowedMaxWidths = ["640", "768", "900"];
     private readonly WebApplicationFactory<Program> factory;
 
-    public StylesheetConventionsTests(WebApplicationFactory<Program> factory)
+    public StylesheetConventionsTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

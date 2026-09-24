@@ -21,6 +21,7 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         dbContext = new QueenZoneDbContext(options);
         dbContext.Database.EnsureCreated();
         CreateModernForumTables();
+        CreateLegacyPromotionTables();
         repository = new EfMemberAccountRepository(dbContext);
     }
 
@@ -224,6 +225,7 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
     public async Task RequestDeletionAsync_AnonymisesImmediately_CancelRestores_AndPurgeMakesPermanent()
     {
         var account = await SeedAccountAsync("delete-me@example.com", "Delete Me");
+        var otherMember = await SeedAccountAsync("other-member@example.com", "Other Member");
         account.AvatarUrl = $"members/{account.Id:N}/avatar.webp";
         await dbContext.SaveChangesAsync();
         dbContext.ModernForumCategories.Add(new ModernForumCategoryEntity
@@ -257,6 +259,18 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
             ImportedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         });
+        dbContext.ModernForumPosts.Add(new ModernForumPostEntity
+        {
+            LegacyPostId = 9002,
+            LegacyThreadTopicId = thread.LegacyTopicId,
+            Thread = thread,
+            LegacyForumId = 1,
+            AuthorMemberId = otherMember.Id,
+            AuthorDisplayName = otherMember.DisplayName,
+            BodyHtml = "<p>Other member reply</p>",
+            ImportedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
         dbContext.ArticleSubmissions.Add(new ArticleSubmissionEntity
         {
             Id = Guid.NewGuid(),
@@ -278,6 +292,19 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
             AuthorDisplayName = account.DisplayName,
             IndexedAt = DateTimeOffset.UtcNow,
         });
+        dbContext.SearchDocuments.Add(new SearchDocumentEntity
+        {
+            Id = Guid.NewGuid(),
+            SourceKey = "forum-thread:8001",
+            ContentType = "forum",
+            Title = thread.Title,
+            Body = "Retained body from starter",
+            Summary = "Retained body from starter",
+            Url = "/forum/topic/8001",
+            AuthorDisplayName = account.DisplayName,
+            ImageUrl = account.AvatarUrl,
+            IndexedAt = DateTimeOffset.UtcNow,
+        });
         await dbContext.SaveChangesAsync();
         var requestedAt = new DateTime(2026, 8, 12, 7, 0, 0, DateTimeKind.Utc);
 
@@ -294,11 +321,18 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         Assert.Null(reloaded.AvatarUrl);
         Assert.Equal("Delete Me", reloaded.DeletionRecoveryDisplayName);
         Assert.Equal($"members/{account.Id:N}/avatar.webp", reloaded.DeletionRecoveryAvatarUrl);
-        var post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync();
+        var post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9001);
         Assert.Equal(account.Id, post.AuthorMemberId);
         Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, post.AuthorDisplayName);
-        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, (await dbContext.ModernForumThreads.AsNoTracking().SingleAsync()).StartedByDisplayName);
-        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, (await dbContext.SearchDocuments.AsNoTracking().SingleAsync()).AuthorDisplayName);
+        var persistedThread = await dbContext.ModernForumThreads.AsNoTracking().SingleAsync();
+        Assert.Equal("Delete test", persistedThread.Title);
+        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, persistedThread.StartedByDisplayName);
+        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, (await dbContext.SearchDocuments.AsNoTracking().SingleAsync(document => document.ContentType == "article")).AuthorDisplayName);
+        var forumSearch = await dbContext.SearchDocuments.AsNoTracking().SingleAsync(document => document.ContentType == "forum");
+        Assert.Equal("Delete test", forumSearch.Body);
+        Assert.Equal("Delete test", forumSearch.Summary);
+        Assert.Null(forumSearch.AuthorDisplayName);
+        Assert.Null(forumSearch.ImageUrl);
         var audit = await dbContext.MemberAccountDeletionAuditLogs.AsNoTracking().SingleAsync();
         Assert.Equal(MemberAccountDeletionPolicy.RequestedAuditAction, audit.Action);
         Assert.Equal(account.Id, audit.MemberAccountId);
@@ -310,11 +344,11 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         Assert.Equal($"members/{account.Id:N}/avatar.webp", reloaded.AvatarUrl);
         Assert.Null(reloaded.DeletionRecoveryDisplayName);
         Assert.Null(reloaded.DeletionRecoveryAvatarUrl);
-        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync();
+        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9001);
         Assert.Equal(account.Id, post.AuthorMemberId);
         Assert.Equal("Delete Me", post.AuthorDisplayName);
         Assert.Equal("Delete Me", (await dbContext.ModernForumThreads.AsNoTracking().SingleAsync()).StartedByDisplayName);
-        Assert.Equal("Delete Me", (await dbContext.SearchDocuments.AsNoTracking().SingleAsync()).AuthorDisplayName);
+        Assert.Equal("Delete Me", (await dbContext.SearchDocuments.AsNoTracking().SingleAsync(document => document.ContentType == "article")).AuthorDisplayName);
 
         var secondRequestAt = requestedAt.AddDays(3);
         await repository.RequestDeletionAsync(account.Id, secondRequestAt);
@@ -322,15 +356,23 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
 
         Assert.Equal(1, purge.PurgedCount);
         Assert.Equal([$"members/{account.Id:N}/avatar.webp"], purge.AvatarBlobPaths);
-        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync();
+        post = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9001);
         Assert.Null(post.AuthorMemberId);
         Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, post.AuthorDisplayName);
-        Assert.Equal(
-            MemberAccountDeletionPolicy.DeletedDisplayName,
-            (await dbContext.ModernForumThreads.AsNoTracking().SingleAsync()).StartedByDisplayName);
-        Assert.Equal(
-            MemberAccountDeletionPolicy.DeletedDisplayName,
-            (await dbContext.SearchDocuments.AsNoTracking().SingleAsync()).AuthorDisplayName);
+        Assert.Equal("<p>Post deleted by member.</p>", post.BodyHtml);
+        persistedThread = await dbContext.ModernForumThreads.AsNoTracking().SingleAsync();
+        Assert.Equal("Delete test", persistedThread.Title);
+        Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, persistedThread.StartedByDisplayName);
+        var otherPost = await dbContext.ModernForumPosts.AsNoTracking().SingleAsync(item => item.LegacyPostId == 9002);
+        Assert.Equal(otherMember.Id, otherPost.AuthorMemberId);
+        Assert.Equal("Other Member", otherPost.AuthorDisplayName);
+        Assert.Equal("<p>Other member reply</p>", otherPost.BodyHtml);
+        var indexedThread = await dbContext.SearchDocuments.AsNoTracking().SingleAsync();
+        Assert.Equal("forum-thread:8001", indexedThread.SourceKey);
+        Assert.Equal("Delete test", indexedThread.Title);
+        var article = await dbContext.ArticleSubmissions.AsNoTracking().SingleAsync();
+        Assert.Equal(string.Empty, article.Body);
+        Assert.Equal("Deleted", article.Status);
     }
 
     [Fact]
@@ -374,7 +416,7 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task PurgeDeletedAccountsAsync_AfterThirtyDays_RemovesCredentialsAndKeepsLegacyLink()
+    public async Task PurgeDeletedAccountsAsync_AfterThirtyDays_RemovesCredentialsAndLegacyLink()
     {
         var account = await SeedAccountAsync("purge-me@example.com", "Purge Me");
         account.PasswordHash = "hashed-secret";
@@ -397,7 +439,7 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
         Assert.Equal(MemberAccountDeletionPolicy.CreateDeletedEmail(account.Id), reloaded.Email);
         Assert.Null(reloaded.PasswordHash);
         Assert.Null(reloaded.LastLoginAt);
-        Assert.Equal(4242, reloaded.LinkedLegacyUserId);
+        Assert.Null(reloaded.LinkedLegacyUserId);
         Assert.Equal(purgedAt, reloaded.PersonalDataPurgedAt);
         Assert.Empty(await repository.ListExternalProvidersAsync(account.Id));
         Assert.Equal(
@@ -406,6 +448,86 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
                 .OrderBy(log => log.OccurredAt)
                 .Select(log => log.Action)
                 .ToListAsync());
+    }
+
+    [Fact]
+    public async Task PurgeDeletedAccountsAsync_OutboxesPromotedGalleryAndStage_AndRemovesPublicRows()
+    {
+        var first = await SeedAccountAsync("gallery-one@example.com", "Gallery One");
+        var second = await SeedAccountAsync("gallery-two@example.com", "Gallery Two");
+        await SeedPromotedPhotoAsync(first.Id, picId: 101, "/Brian_May/one.jpg", "/Brian_May/one-thumb.webp");
+        await SeedPromotedPhotoAsync(second.Id, picId: 102, "/Brian_May/two.jpg", "/Brian_May/two-thumb.webp");
+        await SeedPromotedStageAsync(first.Id, stageId: 201, "one.mp3");
+        await SeedPromotedStageAsync(second.Id, stageId: 202, "two.mp3");
+        var requestedAt = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        await repository.RequestDeletionAsync(first.Id, requestedAt, immediate: true);
+        await repository.RequestDeletionAsync(second.Id, requestedAt, immediate: true);
+
+        var purge = await repository.PurgeDeletedAccountsAsync(
+            requestedAt.AddDays(-MemberAccountDeletionPolicy.RetentionDays),
+            requestedAt);
+
+        Assert.Equal(2, purge.PurgedCount);
+        Assert.Equal(0, await CountLegacyRowsAsync("PIC_FILES_T"));
+        Assert.Equal(0, await CountLegacyRowsAsync("Q_STAGE_T"));
+        var queued = await repository.ListPendingDeletionBlobsAsync(50);
+        Assert.Contains(queued, blob => blob is { Container: "brian-may", Path: "one.jpg" });
+        Assert.Contains(queued, blob => blob is { Container: "brian-may", Path: "one-thumb.webp" });
+        Assert.Contains(queued, blob => blob is { Container: "brian-may", Path: "two.jpg" });
+        Assert.Contains(queued, blob => blob.Container == SongFileUrl.ContainerName && blob.Path == "one.mp3");
+        Assert.Contains(queued, blob => blob.Container == SongFileUrl.ContainerName && blob.Path == "two.mp3");
+        Assert.Equal(2, await dbContext.PhotoSubmissions.CountAsync(photo => photo.PromotedPicId == null && photo.Status == "Deleted"));
+        Assert.Equal(2, await dbContext.FanPerformanceSubmissions.CountAsync(performance => performance.PromotedStageId == null && performance.Status == "Deleted"));
+        var firstReloaded = await repository.FindByIdAsync(first.Id);
+        var secondReloaded = await repository.FindByIdAsync(second.Id);
+        Assert.NotNull(firstReloaded!.PersonalDataPurgedAt);
+        Assert.NotNull(secondReloaded!.PersonalDataPurgedAt);
+    }
+
+    [Fact]
+    public async Task PurgeDeletedAccountsAsync_WhenGalleryPathUnresolved_StillRemovesRowAndPurges()
+    {
+        var account = await SeedAccountAsync("unresolved-gallery@example.com", "Unresolved");
+        await SeedPromotedPhotoAsync(account.Id, picId: 303, "not-a-legacy-path", null);
+        var requestedAt = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        await repository.RequestDeletionAsync(account.Id, requestedAt, immediate: true);
+
+        var purge = await repository.PurgeDeletedAccountsAsync(
+            requestedAt.AddDays(-MemberAccountDeletionPolicy.RetentionDays),
+            requestedAt);
+
+        Assert.Equal(1, purge.PurgedCount);
+        Assert.Equal(0, await CountLegacyRowsAsync("PIC_FILES_T"));
+        var queued = await repository.ListPendingDeletionBlobsAsync(50);
+        Assert.DoesNotContain(queued, blob => blob.Path == "not-a-legacy-path");
+        Assert.NotNull((await repository.FindByIdAsync(account.Id))!.PersonalDataPurgedAt);
+    }
+
+    [Fact]
+    public async Task ImmediateDeletion_PurgesNow_AndQueuesAvatarBlobsForRetry()
+    {
+        var account = await SeedAccountAsync("immediate-ef@example.com", "Immediate EF");
+        await repository.UpdateAvatarUrlAsync(account.Id, $"members/{account.Id:N}/avatar.webp");
+        var requestedAt = new DateTime(2026, 9, 23, 8, 0, 0, DateTimeKind.Utc);
+
+        await repository.RequestDeletionAsync(account.Id, requestedAt, immediate: true);
+        var purge = await repository.PurgeDeletedAccountsAsync(
+            requestedAt.AddDays(-MemberAccountDeletionPolicy.RetentionDays), requestedAt);
+
+        Assert.Equal(1, purge.PurgedCount);
+        var stored = await repository.FindByIdAsync(account.Id);
+        Assert.NotNull(stored!.PersonalDataPurgedAt);
+        Assert.True(stored.IsSuspended);
+        var queued = await repository.ListPendingDeletionBlobsAsync(10);
+        Assert.Equal(2, queued.Count);
+        Assert.All(queued, blob => Assert.Equal(account.Id, blob.MemberAccountId));
+        Assert.False((await repository.GetDeletionProgressAsync(account.Id))!.IsComplete);
+        foreach (var blob in queued)
+        {
+            await repository.CompleteDeletionBlobAsync(blob.Id);
+        }
+        Assert.Empty(await repository.ListPendingDeletionBlobsAsync(10));
+        Assert.True((await repository.GetDeletionProgressAsync(account.Id))!.IsComplete);
     }
 
     [Fact]
@@ -491,6 +613,101 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
             DisplayName = displayName,
             CreatedAt = DateTime.UtcNow,
         });
+    }
+
+    private async Task SeedPromotedPhotoAsync(Guid memberId, int picId, string? url, string? thumbUrl)
+    {
+        dbContext.PhotoSubmissions.Add(new PhotoSubmissionEntity
+        {
+            Id = Guid.NewGuid(),
+            SubmitterMemberId = memberId,
+            Title = $"Photo {picId}",
+            BlobPath = $"original/{picId}.jpg",
+            WebOptimizedBlobPath = $"web/{picId}.webp",
+            ThumbnailBlobPath = $"thumb/{picId}.webp",
+            OriginalFileName = $"{picId}.jpg",
+            MimeType = "image/jpeg",
+            Status = PhotoSubmissionStatus.Approved,
+            SubmittedAt = DateTimeOffset.Parse("2026-08-01T08:00:00Z"),
+            PromotedPicId = picId,
+        });
+        await dbContext.SaveChangesAsync();
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO PIC_FILES_T (PIC_ID, Url, Thumb_URL, Name, DISPLAY)
+            VALUES ({0}, {1}, {2}, {3}, 1)
+            """,
+            picId,
+            url ?? string.Empty,
+            thumbUrl ?? string.Empty,
+            $"Photo {picId}");
+    }
+
+    private async Task SeedPromotedStageAsync(Guid memberId, int stageId, string audioFileName)
+    {
+        dbContext.FanPerformanceSubmissions.Add(new FanPerformanceSubmissionEntity
+        {
+            Id = Guid.NewGuid(),
+            SubmitterMemberId = memberId,
+            Title = $"Stage {stageId}",
+            CoveredSong = "Somebody to Love",
+            PerformedBy = "Member",
+            BlobPath = $"ugc/{stageId}.mp3",
+            OriginalFileName = audioFileName,
+            MimeType = "audio/mpeg",
+            Status = FanPerformanceSubmissionStatus.Approved,
+            SubmittedAt = DateTimeOffset.Parse("2026-08-01T08:00:00Z"),
+            RightsDeclaredAt = DateTimeOffset.Parse("2026-08-01T08:00:00Z"),
+            RightsDeclarationVersion = FanPerformanceSubmissionRights.DeclarationVersion,
+            PromotedStageId = stageId,
+        });
+        await dbContext.SaveChangesAsync();
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO Q_STAGE_T (Q_STAGE_ID, URL, TITLE, PERFORMED_BY, DESCRIPTION, DISPLAY)
+            VALUES ({0}, {1}, {2}, {3}, {4}, 1)
+            """,
+            stageId,
+            audioFileName,
+            $"Stage {stageId}",
+            "Member",
+            "A cover");
+    }
+
+    private Task<int> CountLegacyRowsAsync(string tableName) =>
+        tableName switch
+        {
+            "PIC_FILES_T" => dbContext.Database
+                .SqlQueryRaw<int>("SELECT COUNT(1) AS Value FROM PIC_FILES_T")
+                .SingleAsync(),
+            "Q_STAGE_T" => dbContext.Database
+                .SqlQueryRaw<int>("SELECT COUNT(1) AS Value FROM Q_STAGE_T")
+                .SingleAsync(),
+            _ => throw new ArgumentOutOfRangeException(nameof(tableName), tableName, "Unknown legacy table."),
+        };
+
+    private void CreateLegacyPromotionTables()
+    {
+        dbContext.Database.ExecuteSqlRaw("""
+            CREATE TABLE PIC_FILES_T
+            (
+                PIC_ID INTEGER PRIMARY KEY,
+                Url TEXT NULL,
+                Thumb_URL TEXT NULL,
+                Name TEXT NULL,
+                DISPLAY INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE TABLE Q_STAGE_T
+            (
+                Q_STAGE_ID INTEGER PRIMARY KEY,
+                URL TEXT NULL,
+                TITLE TEXT NULL,
+                PERFORMED_BY TEXT NULL,
+                DESCRIPTION TEXT NULL,
+                DISPLAY INTEGER NOT NULL DEFAULT 1
+            );
+            """);
     }
 
     private void CreateModernForumTables()

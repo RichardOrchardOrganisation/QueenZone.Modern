@@ -130,6 +130,30 @@ public sealed class GalleryOrphanSweepServiceTests
         Assert.Equal(2, result.DeleteFailures);
     }
 
+    [Fact]
+    public async Task SweepAsync_never_overlaps_repository_queries_across_parallel_categories()
+    {
+        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
+        var repository = new SingleConnectionAdminPhotoRepository(new InMemoryAdminPhotoRepository(store));
+        var categories = await repository.GetCategoriesAsync();
+        Assert.True(categories.Count > 1);
+        var galleryPhotoBlobService = new RecordingGalleryPhotoBlobService();
+        foreach (var category in categories)
+        {
+            galleryPhotoBlobService.Seed(
+                PhotoLegacyPath.BlobContainerName(category.Name),
+                $"orphan-{category.CatId}.webp",
+                Now - TimeSpan.FromHours(2));
+        }
+
+        var service = CreateService(repository, galleryPhotoBlobService, dryRun: true);
+
+        var result = await service.SweepAsync();
+
+        Assert.Equal(categories.Count, repository.ReferencedNameQueries);
+        Assert.Equal(categories.Count, result.OrphansFound);
+    }
+
     private static GalleryOrphanSweepService CreateService(
         IAdminPhotoRepository adminPhotoRepository,
         IGalleryPhotoBlobService galleryPhotoBlobService,
@@ -140,6 +164,104 @@ public sealed class GalleryOrphanSweepServiceTests
             new FixedClock(Now),
             Options.Create(new GalleryOrphanSweepOptions { DryRun = dryRun, GracePeriodMinutes = 60 }),
             NullLogger<GalleryOrphanSweepService>.Instance);
+
+    /// <summary>
+    /// Mirrors a scoped EF repository on one SQL connection: overlapping queries fail with the
+    /// same error SQL Server raises for a second open DataReader.
+    /// </summary>
+    private sealed class SingleConnectionAdminPhotoRepository(IAdminPhotoRepository inner) : IAdminPhotoRepository
+    {
+        private int active;
+
+        public int ReferencedNameQueries;
+
+        public async Task<IReadOnlyList<string>> GetReferencedBlobNamesAsync(
+            int catId,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref active) > 1)
+            {
+                throw new InvalidOperationException(
+                    "There is already an open DataReader associated with this Connection which must be closed first.");
+            }
+
+            try
+            {
+                Interlocked.Increment(ref ReferencedNameQueries);
+                await Task.Delay(20, cancellationToken);
+                return await inner.GetReferencedBlobNamesAsync(catId, cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref active);
+            }
+        }
+
+        public Task<AdminPhotoPage> GetPageAsync(
+            AdminPhotoListFilter filter,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            inner.GetPageAsync(filter, page, pageSize, cancellationToken);
+
+        public Task<AdminPhotoItem?> GetByIdAsync(int picId, CancellationToken cancellationToken = default) =>
+            inner.GetByIdAsync(picId, cancellationToken);
+
+        public Task<IReadOnlyList<AdminPhotoCategory>> GetCategoriesAsync(CancellationToken cancellationToken = default) =>
+            inner.GetCategoriesAsync(cancellationToken);
+
+        public Task<AdminPhotoCategory?> GetCategoryByIdAsync(int catId, CancellationToken cancellationToken = default) =>
+            inner.GetCategoryByIdAsync(catId, cancellationToken);
+
+        public Task<int> CreateAsync(
+            AdminPhotoCreateRequest request,
+            string editorEmail,
+            CancellationToken cancellationToken = default) =>
+            inner.CreateAsync(request, editorEmail, cancellationToken);
+
+        public Task UpdateAsync(
+            int picId,
+            AdminPhotoUpdateRequest request,
+            string editorEmail,
+            AdminPhotoConcurrencyToken? expected = null,
+            CancellationToken cancellationToken = default) =>
+            inner.UpdateAsync(picId, request, editorEmail, expected, cancellationToken);
+
+        public Task SetVisibilityAsync(
+            int picId,
+            bool isVisible,
+            string editorEmail,
+            bool? expectedIsVisible = null,
+            CancellationToken cancellationToken = default) =>
+            inner.SetVisibilityAsync(picId, isVisible, editorEmail, expectedIsVisible, cancellationToken);
+
+        public Task UpdateAssetsAsync(
+            int picId,
+            AdminPhotoAssetUpdate assets,
+            string editorEmail,
+            CancellationToken cancellationToken = default) =>
+            inner.UpdateAssetsAsync(picId, assets, editorEmail, cancellationToken);
+
+        public Task UpdateThumbnailAsync(
+            int picId,
+            string legacyThumbUrl,
+            int thumbWidth,
+            int thumbHeight,
+            string editorEmail,
+            CancellationToken cancellationToken = default) =>
+            inner.UpdateThumbnailAsync(picId, legacyThumbUrl, thumbWidth, thumbHeight, editorEmail, cancellationToken);
+
+        public Task DeleteAsync(int picId, string editorEmail, CancellationToken cancellationToken = default) =>
+            inner.DeleteAsync(picId, editorEmail, cancellationToken);
+
+        public Task AppendAuditAsync(
+            int picId,
+            string action,
+            string actorEmail,
+            string? details = null,
+            CancellationToken cancellationToken = default) =>
+            inner.AppendAuditAsync(picId, action, actorEmail, details, cancellationToken);
+    }
 
     private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
@@ -193,19 +315,19 @@ public sealed class GalleryOrphanSweepServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+        public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
             string containerName,
             CancellationToken cancellationToken = default)
         {
             if (!blobsByContainer.TryGetValue(containerName, out var list))
             {
-                return Task.FromResult<IReadOnlyList<GalleryBlobDescriptor>>([]);
+                return AsyncEnumerable.Empty<GalleryBlobDescriptor>();
             }
 
-            IReadOnlyList<GalleryBlobDescriptor> result = list
+            return list
                 .Select(b => new GalleryBlobDescriptor(b.BlobName, b.LastModified))
-                .ToList();
-            return Task.FromResult(result);
+                .ToList()
+                .ToAsyncEnumerable();
         }
     }
 }

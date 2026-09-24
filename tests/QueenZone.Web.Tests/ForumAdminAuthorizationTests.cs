@@ -9,24 +9,19 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumAdminAuthorizationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumAdminAuthorizationTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private const string AllowlistedEmail = "admin@test.local";
 
+    // One external identity for the allowlisted member: the class shares a host, and a second
+    // subject for the same email hits the "email already registered" path instead of signing in.
+    private const string AllowlistedSubject = "google-allowlisted-member";
+
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumAdminAuthorizationTests(WebApplicationFactory<Program> factory)
+    public ForumAdminAuthorizationTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]
@@ -36,7 +31,7 @@ public sealed class ForumAdminAuthorizationTests : IClassFixture<WebApplicationF
         var created = await CreateThreadAsync(authorId, "Hide auth author", "Hide auth subject");
         var topicPath = ForumRoutes.GetTopicCanonicalPath(created.TopicId, "Hide auth subject");
 
-        var member = await CreateSignedInMemberClientAsync(AllowlistedEmail, "Allowlisted Member", "google-allowlisted-hide");
+        var member = await CreateSignedInMemberClientAsync(AllowlistedEmail, "Allowlisted Member", AllowlistedSubject);
         var memberPage = await member.GetStringAsync(topicPath);
         Assert.DoesNotContain("Hide all posts by", memberPage);
         var forbidden = await member.PostAsync(
@@ -78,7 +73,7 @@ public sealed class ForumAdminAuthorizationTests : IClassFixture<WebApplicationF
         var (topicId, pollId) = await CreatePollThreadAsync(authorId, subject);
         var topicPath = ForumRoutes.GetTopicCanonicalPath(topicId, subject);
 
-        var stranger = await CreateSignedInMemberClientAsync(AllowlistedEmail, "Allowlisted Member", "google-allowlisted-poll");
+        var stranger = await CreateSignedInMemberClientAsync(AllowlistedEmail, "Allowlisted Member", AllowlistedSubject);
         var strangerPage = await stranger.GetStringAsync(topicPath);
         Assert.DoesNotContain("Close poll", strangerPage);
         Assert.DoesNotContain("Hide all posts by", strangerPage);

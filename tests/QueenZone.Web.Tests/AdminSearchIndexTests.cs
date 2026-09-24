@@ -8,13 +8,13 @@ using QueenZone.Web.Search;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminSearchIndexTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminSearchIndexTests(WebApplicationFactory<Program> factory)
+    public AdminSearchIndexTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

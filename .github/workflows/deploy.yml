@@ -292,9 +292,15 @@ jobs:
         id: apply-settings
         env:
           MOBILE_AUTH_SIGNING_KEY: ${{ steps.bitwarden-secrets.outputs.MOBILE_AUTH_SIGNING_KEY }}
+          GMAIL_APP_USERNAME: ${{ steps.bitwarden-secrets.outputs.GMAIL_APP_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ steps.bitwarden-secrets.outputs.GMAIL_APP_PASSWORD }}
         run: |
           if [ "${#MOBILE_AUTH_SIGNING_KEY}" -lt 32 ]; then
             echo "::error::MOBILE_AUTH_SIGNING_KEY must map to a Bitwarden secret of at least 32 characters."
+            exit 1
+          fi
+          if [ -z "$GMAIL_APP_USERNAME" ] || [ -z "$GMAIL_APP_PASSWORD" ]; then
+            echo "::error::Gmail SMTP Bitwarden mappings are missing."
             exit 1
           fi
 
@@ -326,6 +332,16 @@ jobs:
             --resource-group Queenzone-RG \
             --query "[?name=='MobileAuth__SigningKey'].value | [0]" \
             -o tsv | tr -d '\r')
+
+          desired_smtp=$(printf '%s\n' \
+            "SmtpEmail__Username=$GMAIL_APP_USERNAME" \
+            "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
+            "SmtpEmail__FromAddress=support@queenzone.org" | sort)
+          current_smtp=$(az webapp config appsettings list \
+            --name queenzone-prod \
+            --resource-group Queenzone-RG \
+            --query "[?name=='SmtpEmail__Username' || name=='SmtpEmail__AppPassword' || name=='SmtpEmail__FromAddress'].[join('=', [name, value])]" \
+            -o tsv | tr -d '\r' | sort)
 
           changed=false
           if [ -n "$strict_warmup_status" ]; then
@@ -360,6 +376,18 @@ jobs:
               --name queenzone-prod \
               --resource-group Queenzone-RG \
               --settings "MobileAuth__SigningKey=$MOBILE_AUTH_SIGNING_KEY" \
+              --output none
+            changed=true
+          fi
+
+          if [ "$current_smtp" != "$desired_smtp" ]; then
+            az webapp config appsettings set \
+              --name queenzone-prod \
+              --resource-group Queenzone-RG \
+              --settings \
+                "SmtpEmail__Username=$GMAIL_APP_USERNAME" \
+                "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
+                "SmtpEmail__FromAddress=support@queenzone.org" \
               --output none
             changed=true
           fi

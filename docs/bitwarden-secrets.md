@@ -104,6 +104,8 @@ b6a94e02-3243-411f-8e32-b4af00ce2522 > MOBILE_AUTH_SIGNING_KEY
 
 ```yaml
 b6a94e02-3243-411f-8e32-b4af00ce2522 > MOBILE_AUTH_SIGNING_KEY
+a4e62bc3-f5f8-47b5-be33-b4ce00f089c6 > GMAIL_APP_PASSWORD
+59537bd5-40f7-497a-87d1-b4ce00f141e5 > GMAIL_APP_USERNAME
 ```
 
 `prod-data-read` mapping:
@@ -128,6 +130,24 @@ App Service setting automatically.
 `MOBILE_AUTH_SIGNING_KEY` maps to the `MobileAuth__SigningKey` secret. The deploy workflow reconciles it
 to the same-named App Service setting before every web deployment, including rotations, and fails before
 deployment if the mapped value is missing or shorter than 32 characters.
+
+Outbound contact notifications and immediate account deletion confirmations use Gmail SMTP. Both
+`dev-deploy` and `prod-deploy` map the existing Bitwarden entries below through
+`BITWARDEN_APP_SERVICE_DEPLOY_SECRETS`. The deploy workflows reconcile them to the App Service
+settings `SmtpEmail__Username` and `SmtpEmail__AppPassword`; `SmtpEmail__FromAddress` is set
+to `support@queenzone.org`. The contact recipient is `HelpRequests__NotificationAddress`
+(defaulting to the same support address). The username authenticates the
+Gmail account and is deliberately separate from the verified send-as alias.
+
+```yaml
+a4e62bc3-f5f8-47b5-be33-b4ce00f089c6 > GMAIL_APP_PASSWORD
+59537bd5-40f7-497a-87d1-b4ce00f141e5 > GMAIL_APP_USERNAME
+```
+
+The app uses `smtp.gmail.com:587` with TLS. Keep the Gmail app password in Bitwarden only;
+rotate its value in place so the mapping UUID remains stable. A failed SMTP send is logged
+without an address or message body and does not undo an already stored contact request or
+account deletion. Verify delivery and the displayed From address after deployment.
 
 ### `BITWARDEN_IOS_RUNNER_SECRETS`
 

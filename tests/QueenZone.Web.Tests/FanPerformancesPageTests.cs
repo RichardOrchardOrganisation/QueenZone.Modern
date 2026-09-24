@@ -14,23 +14,13 @@ using QueenZone.Storage;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class FanPerformancesPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class FanPerformancesPageTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public FanPerformancesPageTests(WebApplicationFactory<Program> factory)
+    public FanPerformancesPageTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

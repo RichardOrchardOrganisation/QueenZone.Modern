@@ -8,13 +8,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminDashboardGoogleAnalyticsTrafficTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminDashboardGoogleAnalyticsTrafficTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminDashboardGoogleAnalyticsTrafficTests(WebApplicationFactory<Program> factory)
+    public AdminDashboardGoogleAnalyticsTrafficTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

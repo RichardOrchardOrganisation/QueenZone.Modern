@@ -14,14 +14,14 @@ namespace QueenZone.Web.Tests;
 /// <summary>
 /// Tests for the submission queue tiles on the admin dashboard (issue #291).
 /// </summary>
-public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminDashboardSubmissionQueueTests(WebApplicationFactory<Program> factory)
+    public AdminDashboardSubmissionQueueTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     // ── In-memory repo: photos ──────────────────────────────────────────────

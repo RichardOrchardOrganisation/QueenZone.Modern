@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace QueenZone.Web;
 
 /// <summary>
@@ -32,32 +30,18 @@ public sealed class FanPerformanceSubmissionPurgeHostedService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            using (var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
-                "FanPerformanceSubmissionPurge",
-                ActivityKind.Internal))
+            try
             {
-                try
-                {
-                    await using var scope = scopeFactory.CreateAsyncScope();
-                    var service = scope.ServiceProvider.GetRequiredService<FanPerformanceSubmissionPurgeService>();
-                    var result = await service.PurgeAsync(stoppingToken);
-                    if (result.Deleted > 0 || result.Failures > 0)
-                    {
-                        logger.LogInformation(
-                            "Purged {Deleted} pending fan-performance blob(s) ({Failures} failure(s), {Candidates} candidate(s)).",
-                            result.Deleted,
-                            result.Failures,
-                            result.Candidates);
-                    }
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Fan-performance submission purge failed.");
-                }
+                await using var scope = scopeFactory.CreateAsyncScope();
+                await MaintenanceJobs.RunFanPerformanceSubmissionPurgeAsync(scope.ServiceProvider, logger, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Fan-performance submission purge failed.");
             }
 
             await Task.Delay(RunInterval, timeProvider, stoppingToken);

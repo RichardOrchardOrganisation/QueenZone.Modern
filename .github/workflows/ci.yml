@@ -630,7 +630,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -655,14 +655,14 @@ jobs:
 
       - name: Show shard assignment
         shell: pwsh
-        run: ./scripts/Get-WebTestShardFilter.ps1 -ShardIndex ${{ matrix.shard }} -ShardCount 4 -List
+        run: ./scripts/Get-WebTestShardFilter.ps1 -ShardIndex ${{ matrix.shard }} -ShardCount 6 -List
 
       - name: Test shard ${{ matrix.shard }} with coverage
         shell: pwsh
         run: |
           ./scripts/Invoke-WebTestsShard.ps1 `
             -ShardIndex ${{ matrix.shard }} `
-            -ShardCount 4 `
+            -ShardCount 6 `
             -CollectCoverage `
             -ResultsDirectory ./TestResults `
             -NoBuild `
@@ -730,8 +730,8 @@ jobs:
   # PRs that skip the web suite (docs / infra / design / .github except
   # ci.yml / mobile-only) skip the real `test` matrix above. When a matrix
   # job is skipped entirely, GitHub reports a single check named `test` —
-  # not `test (0)` / `test (1)` / `test (2)` / `test (3)`. Those matrix names are required
-  # status checks on `main`, so skipped PRs would stay blocked forever waiting for
+  # not `test (0)` … `test (5)`. The required ones (`test (0)`, `test (1)`)
+  # are status checks on `main`, so skipped PRs would stay blocked forever waiting for
   # checks that never start. Emit matching success checks instead. See
   # docs/architecture/testing-policy.md.
   test-docs-ok:
@@ -741,7 +741,7 @@ jobs:
     if: needs.changes.outputs.code != 'true'
     strategy:
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - name: No web-app changes — required check satisfied
         run: echo "No web-app changes — marking test (${{ matrix.shard }}) as satisfied without running the .NET suite."

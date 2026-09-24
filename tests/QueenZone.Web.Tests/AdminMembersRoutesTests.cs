@@ -10,24 +10,14 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminMembersRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminMembersRoutesTests(WebApplicationFactory<Program> factory)
+    public AdminMembersRoutesTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

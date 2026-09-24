@@ -91,6 +91,9 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddOptions<HelpRequestOptions>()
             .Bind(configuration.GetSection(HelpRequestOptions.SectionName));
 
+        services.AddOptions<SmtpEmailOptions>()
+            .Bind(configuration.GetSection(SmtpEmailOptions.SectionName));
+
         services.AddOptions<PrivateMessageRateLimitOptions>()
             .Bind(configuration.GetSection(PrivateMessageRateLimitOptions.SectionName));
 
@@ -293,10 +296,12 @@ public static class QueenZoneWebServiceCollectionExtensions
     public static IServiceCollection AddQueenZoneWebAppServices(this IServiceCollection services)
     {
         services.AddScoped<MemberAccountService>();
-        services.AddHostedService<MemberAccountDeletionHostedService>();
+        services.AddScoped<AppleAccountTokenService>();
+        services.AddScoped<MemberDeletionReceiptService>();
+        services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
+            client.Timeout = TimeSpan.FromSeconds(15));
         services.AddScoped<PrivateMessageRateLimiter>();
         services.AddScoped<PrivateMessageService>();
-        services.AddHostedService<PrivateMessageReportPurgeHostedService>();
         services.AddScoped<MemberFollowService>();
         services.AddScoped<TopicWatchService>();
         services.AddScoped<PhotoSubmissionService>();
@@ -308,12 +313,12 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<PhotoSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPurgeService>();
-        services.AddHostedService<FanPerformanceSubmissionPurgeHostedService>();
         services.AddScoped<GalleryOrphanSweepService>();
-        services.AddHostedService<GalleryOrphanSweepHostedService>();
         services.AddScoped<NewsSuggestionService>();
         services.AddSingleton<HelpRequestFormStamp>();
         services.AddSingleton<HelpRequestRateLimiter>();
+        services.AddSingleton<ISmtpTransport, GmailSmtpTransport>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<HelpRequestService>();
         services.AddScoped<PublicWarmupService>();
         services.AddScoped<UgcHtml>();
@@ -431,6 +436,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddQueenZoneRateLimiting(configuration);
         services.AddQueenZoneSitemaps();
         services.AddQueenZoneWebAppServices();
+        services.AddQueenZoneMaintenanceHostedServices(configuration);
 
         if (ResponseCompressionBootstrap.IsEnabled(environment))
         {

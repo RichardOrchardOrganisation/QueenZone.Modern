@@ -294,6 +294,30 @@ public sealed class AdminPhotoServiceTests
         Assert.Equal(0, result.BlobsUnresolved);
     }
 
+    [Fact]
+    public async Task DeleteForAccountDeletion_WhenBlobCleanupFails_KeepsRowForRetry()
+    {
+        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
+        var admin = new InMemoryAdminPhotoRepository(store);
+        var inner = new NullGalleryPhotoBlobService();
+        var blobs = new ThrowingDeleteGalleryPhotoBlobService(inner);
+        var service = new AdminPhotoService(admin, blobs, NullLogger<AdminPhotoService>.Instance);
+
+        await using var imageStream = await CreateJpegAsync(320, 240);
+        var file = new FormFile(imageStream, 0, imageStream.Length, "file", "deletion-retry.jpg")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/jpeg",
+        };
+        var picId = await service.CreateAsync(
+            file, 9, "Deletion retry", null, 2024, DateTime.UtcNow, true, "admin@test.local");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DeleteForAccountDeletionAsync(picId));
+
+        Assert.NotNull(await admin.GetByIdAsync(picId));
+    }
+
     private static async Task<MemoryStream> CreateJpegAsync(int width, int height)
     {
         using var image = new Image<Rgba32>(width, height);
@@ -327,7 +351,7 @@ public sealed class AdminPhotoServiceTests
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException($"Simulated blob delete failure for {containerName}/{blobName}");
 
-        public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+        public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
             string containerName,
             CancellationToken cancellationToken = default) =>
             inner.ListBlobsAsync(containerName, cancellationToken);

@@ -5,13 +5,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class EditorialJsonLdTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class EditorialJsonLdTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public EditorialJsonLdTests(WebApplicationFactory<Program> factory)
+    public EditorialJsonLdTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

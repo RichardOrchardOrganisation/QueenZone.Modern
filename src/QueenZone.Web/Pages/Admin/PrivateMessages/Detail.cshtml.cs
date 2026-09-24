@@ -5,7 +5,7 @@ using QueenZone.Data.Entities;
 namespace QueenZone.Web.Pages.Admin.PrivateMessages;
 
 public sealed class DetailModel(
-    IPrivateMessageRepository privateMessageRepository,
+    IPrivateMessageModerationRepository privateMessageRepository,
     IMemberAccountRepository memberAccountRepository) : AdminPrivateMessageReportsPageModel
 {
     public PrivateMessageReport? Report { get; private set; }

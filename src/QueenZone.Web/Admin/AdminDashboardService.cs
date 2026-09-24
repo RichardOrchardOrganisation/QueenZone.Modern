@@ -50,7 +50,7 @@ public sealed class AdminDashboardService(IServiceScopeFactory scopeFactory)
             sp => sp.GetRequiredService<IHelpRequestRepository>()
                 .CountOpenAsync(cancellationToken));
         var openPrivateMessageReportsTask = RunAsync(
-            sp => sp.GetRequiredService<IPrivateMessageRepository>()
+            sp => sp.GetRequiredService<IPrivateMessageModerationRepository>()
                 .CountOpenReportsAsync(cancellationToken));
         var openForumPostReportsTask = RunAsync(
             sp => sp.GetRequiredService<IForumPostReportRepository>()

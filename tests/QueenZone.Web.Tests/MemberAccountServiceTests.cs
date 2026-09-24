@@ -20,7 +20,8 @@ public sealed class MemberAccountServiceTests
         MemberUploadQuotaService? uploadQuota = null,
         TimeSpan? blobDeleteTimeout = null,
         TimeProvider? timeProvider = null,
-        PasswordSignInLockoutOptions? passwordLockout = null)
+        PasswordSignInLockoutOptions? passwordLockout = null,
+        IEmailSender? emailSender = null)
     {
         var backend = blobBackend ?? new InMemoryBlobStorageBackend();
         var blobs = blobUploadService
@@ -32,7 +33,8 @@ public sealed class MemberAccountServiceTests
             blobs,
             uploadQuota ?? CreateDisabledUploadQuota(),
             timeProvider,
-            passwordLockout is null ? null : Options.Create(passwordLockout))
+            passwordLockout is null ? null : Options.Create(passwordLockout),
+            emailSender: emailSender)
         {
             BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountService.DefaultBlobDeleteTimeout,
         };
@@ -1015,6 +1017,80 @@ public sealed class MemberAccountServiceTests
     }
 
     [Fact]
+    public async Task DeleteImmediatelyAsync_ReturnsSuccess_WhenPurgeCompletes()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("immediate-ok@example.com", "S3curePass!", "Immediate Ok");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(result.Account!.PersonalDataPurgedAt);
+        Assert.NotNull((await repository.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
+    }
+
+    [Fact]
+    public async Task DeleteImmediatelyAsync_EmailsOriginalAddressAfterPurge()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var sender = new RecordingEmailSender();
+        var service = CreateService(memberAccountRepository: repository, emailSender: sender);
+        var registered = await service.RegisterAsync("delete-mail@example.com", "S3curePass!", "Delete Mail");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("delete-mail@example.com", sender.To);
+    }
+
+    private sealed class RecordingEmailSender : IEmailSender
+    {
+        public string? To { get; private set; }
+
+        public Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default)
+        {
+            To = email.ToAddress;
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task DeleteImmediatelyAsync_ReturnsFailure_WhenPurgeDoesNotTombstone()
+    {
+        var inner = new InMemoryMemberAccountRepository();
+        var (repository, _) = ThrowingPurgeMemberAccountRepository.Create(inner);
+        var service = CreateService(memberAccountRepository: repository);
+        var registered = await service.RegisterAsync("immediate-fail@example.com", "S3curePass!", "Immediate Fail");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(MemberAccountService.ImmediatePurgeIncompleteError, result.Error);
+        Assert.Null((await inner.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
+    }
+
+    [Fact]
+    public async Task DeleteImmediatelyAsync_ReturnsSuccess_WhenBlobDeleteThrowsAfterPurge()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var hanging = new HangForeverBlobUploadService();
+        var service = CreateService(
+            memberAccountRepository: repository,
+            blobUploadService: hanging,
+            blobDeleteTimeout: TimeSpan.FromMilliseconds(50));
+        var registered = await service.RegisterAsync("immediate-blob@example.com", "S3curePass!", "Immediate Blob");
+        await repository.UpdateAvatarUrlAsync(registered.Account!.Id, "members/hang/avatar.webp");
+
+        var result = await service.DeleteImmediatelyAsync(registered.Account.Id);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull((await repository.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
+        Assert.False((await repository.GetDeletionProgressAsync(registered.Account.Id))!.IsComplete);
+        Assert.True(hanging.DeleteCalls >= 1);
+    }
+
+    [Fact]
     public async Task PurgeDueDeletionsAsync_DeletesAvatarBlobs_WhenRetentionHasElapsed()
     {
         var backend = new InMemoryBlobStorageBackend();
@@ -1166,6 +1242,15 @@ public sealed class MemberAccountServiceTests
         public Task AddExternalLoginAsync(Guid memberAccountId, string provider, string providerKey, string email, CancellationToken cancellationToken = default) =>
             inner.AddExternalLoginAsync(memberAccountId, provider, providerKey, email, cancellationToken);
 
+        public Task SaveAppleRefreshTokenAsync(Guid memberAccountId, string providerKey, string protectedToken, CancellationToken cancellationToken = default) =>
+            inner.SaveAppleRefreshTokenAsync(memberAccountId, providerKey, protectedToken, cancellationToken);
+
+        public Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(int limit, CancellationToken cancellationToken = default) =>
+            inner.ListPendingAppleRevocationsAsync(limit, cancellationToken);
+
+        public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default) =>
+            inner.CompleteAppleRevocationAsync(externalLoginId, cancellationToken);
+
         public Task<MemberAccount?> UpdateDisplayNameAsync(Guid memberId, string displayName, CancellationToken cancellationToken = default) =>
             inner.UpdateDisplayNameAsync(memberId, displayName, cancellationToken);
 
@@ -1258,8 +1343,9 @@ public sealed class MemberAccountServiceTests
         public Task<MemberAccountDeletionRequestResult?> RequestDeletionAsync(
             Guid memberId,
             DateTime requestedAt,
-            CancellationToken cancellationToken = default) =>
-            inner.RequestDeletionAsync(memberId, requestedAt, cancellationToken);
+            CancellationToken cancellationToken = default,
+            bool immediate = false) =>
+            inner.RequestDeletionAsync(memberId, requestedAt, cancellationToken, immediate);
 
         public Task<MemberAccount?> CancelDeletionAsync(
             Guid memberId,
@@ -1273,6 +1359,15 @@ public sealed class MemberAccountServiceTests
             CancellationToken cancellationToken = default) =>
             inner.PurgeDeletedAccountsAsync(purgeBefore, purgedAt, cancellationToken);
 
+        public Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(int limit, CancellationToken cancellationToken = default) =>
+            inner.ListPendingDeletionBlobsAsync(limit, cancellationToken);
+
+        public Task CompleteDeletionBlobAsync(Guid id, CancellationToken cancellationToken = default) =>
+            inner.CompleteDeletionBlobAsync(id, cancellationToken);
+
+        public Task<MemberDeletionProgress?> GetDeletionProgressAsync(Guid memberId, CancellationToken cancellationToken = default) =>
+            inner.GetDeletionProgressAsync(memberId, cancellationToken);
+
         public Task<IReadOnlyList<MemberSocialLink>> ListSocialLinksAsync(
             Guid memberId,
             CancellationToken cancellationToken = default) =>
@@ -1283,6 +1378,33 @@ public sealed class MemberAccountServiceTests
             IReadOnlyList<MemberSocialLink> links,
             CancellationToken cancellationToken = default) =>
             inner.ReplaceSocialLinksAsync(memberId, links, cancellationToken);
+    }
+}
+
+/// <summary>
+/// Delegates to an inner repository but throws from <see cref="IMemberAccountRepository.PurgeDeletedAccountsAsync"/>.
+/// </summary>
+public class ThrowingPurgeMemberAccountRepository : DispatchProxy
+{
+    private IMemberAccountRepository inner = null!;
+
+    public static (IMemberAccountRepository Proxy, ThrowingPurgeMemberAccountRepository Counter) Create(
+        IMemberAccountRepository inner)
+    {
+        var proxy = DispatchProxy.Create<IMemberAccountRepository, ThrowingPurgeMemberAccountRepository>();
+        var counter = (ThrowingPurgeMemberAccountRepository)(object)proxy;
+        counter.inner = inner;
+        return (proxy, counter);
+    }
+
+    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+    {
+        if (targetMethod?.Name == nameof(IMemberAccountRepository.PurgeDeletedAccountsAsync))
+        {
+            throw new InvalidOperationException("Simulated purge failure.");
+        }
+
+        return targetMethod!.Invoke(inner, args);
     }
 }
 

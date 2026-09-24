@@ -15,14 +15,14 @@ namespace QueenZone.Web.Tests;
 /// used by homepage latest news and archive published counts.
 /// </summary>
 [Collection(AdminNewsDeleteErrorCollection.Name)]
-public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminNewsCacheInvalidationTests(WebApplicationFactory<Program> factory)
+    public AdminNewsCacheInvalidationTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

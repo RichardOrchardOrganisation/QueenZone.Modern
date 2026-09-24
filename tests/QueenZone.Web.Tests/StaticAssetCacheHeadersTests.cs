@@ -6,25 +6,19 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class StaticAssetCacheHeadersTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class StaticAssetCacheHeadersTests :
+    IClassFixture<ProductionWebApplicationFactory>,
+    IClassFixture<DevelopmentWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> productionFactory;
     private readonly WebApplicationFactory<Program> developmentFactory;
 
-    public StaticAssetCacheHeadersTests(WebApplicationFactory<Program> factory)
+    public StaticAssetCacheHeadersTests(
+        ProductionWebApplicationFactory productionFactory,
+        DevelopmentWebApplicationFactory developmentFactory)
     {
-        productionFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Production");
-            ResponseCompressionTests.ApplyProductionHostTestSettings(builder);
-        });
-        developmentFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Development");
-            // testhost already skips Local.json; pin the flag so a runner that is not named
-            // testhost still cannot inherit a half-configured Analytics pair.
-            builder.UseSetting(QueenZoneDevelopmentHost.SkipLocalSettingsKey, "true");
-        });
+        this.productionFactory = productionFactory;
+        this.developmentFactory = developmentFactory;
     }
 
     [Fact]

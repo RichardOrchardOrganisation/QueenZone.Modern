@@ -57,7 +57,7 @@ public sealed class MobileAuthRefreshFlowTests
 
         // Past the reuse grace window, replaying the rotated-away token is theft,
         // not a client that lost its rotation response.
-        time.Advance(TimeSpan.FromSeconds(31));
+        time.Advance(TimeSpan.FromSeconds(301));
         using var reusedRequest = RefreshForm(issued.RefreshToken);
         var reused = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, reusedRequest);
         Assert.Equal(HttpStatusCode.BadRequest, reused.StatusCode);

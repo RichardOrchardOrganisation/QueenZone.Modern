@@ -13,4 +13,7 @@ public sealed class MemberExternalLogin
     public string Email { get; set; } = string.Empty;
 
     public DateTime LinkedAt { get; set; }
+
+    /// <summary>Data Protection ciphertext used only to revoke Sign in with Apple.</summary>
+    public string? AppleRefreshTokenProtected { get; set; }
 }

@@ -312,6 +312,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 options.GenerateClientSecret = true;
                 options.PrivateKey = (_, _) =>
                     Task.FromResult<ReadOnlyMemory<char>>(privateKey.AsMemory());
+                options.SaveTokens = true;
                 options.Events.OnCreatingTicket = async context =>
                 {
                     if (!context.Request.HasFormContentType)

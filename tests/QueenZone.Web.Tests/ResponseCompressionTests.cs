@@ -8,22 +8,22 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ResponseCompressionTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ResponseCompressionTests :
+    IClassFixture<ProductionWebApplicationFactory>,
+    IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> productionFactory;
     private readonly WebApplicationFactory<Program> testingFactory;
 
-    public ResponseCompressionTests(WebApplicationFactory<Program> factory)
+    public ResponseCompressionTests(
+        ProductionWebApplicationFactory productionFactory,
+        QueenZoneWebApplicationFactory testingFactory)
     {
-        productionFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Production");
-            // Host settings + in-memory config: production hosts fail-closed without Entra, blob, and member OAuth.
-            ApplyProductionHostTestSettings(builder);
-        });
-        testingFactory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.productionFactory = productionFactory;
+        this.testingFactory = testingFactory;
     }
 
+    // Host settings + in-memory config: production hosts fail-closed without Entra, blob, and member OAuth.
     internal static void ApplyProductionHostTestSettings(IWebHostBuilder builder)
     {
         // QueenZone host filtering stays inside the visible pipeline; WebApplicationFactory hits localhost.

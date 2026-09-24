@@ -12,27 +12,13 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class ExternalLoginCallbackTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class ExternalLoginCallbackTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ExternalLoginCallbackTests(WebApplicationFactory<Program> factory)
+    public ExternalLoginCallbackTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                // ExternalCookie is not registered in Testing mode (the Testing branch only adds
-                // MembersCookie). Register it here with a test double that reads claims from
-                // request headers instead of a real OAuth-backed cookie, so tests can drive
-                // ExternalLoginCallback without a live OAuth round-trip.
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

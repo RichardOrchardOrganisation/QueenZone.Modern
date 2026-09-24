@@ -244,6 +244,36 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Deletion_ImmediateRequest_PurgesAccountWithoutScheduledDate()
+    {
+        var memberId = Guid.NewGuid();
+        await SeedMemberAsync(memberId, "Immediate Fan", "immediate-delete@example.com");
+        using var client = CreateBearerClient(memberId, "Immediate Fan", "immediate-delete@example.com");
+
+        using var response = await client.PostAsJsonAsync(
+            $"{MeApiEndpoints.Path}/deletion-request",
+            new { confirmation = "DELETE", immediate = true });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<DeletionRequestedResponse>(JsonOptions);
+        Assert.True(payload!.Requested);
+        Assert.Null(payload.ScheduledDeletionAt);
+        Assert.Equal(AccountDeletionCopy.ImmediateTitle, payload.Title);
+        Assert.False(string.IsNullOrWhiteSpace(payload.StatusReceipt));
+        using var status = await client.GetAsync(
+            "/api/v1/account-deletion-status?receipt=" + Uri.EscapeDataString(payload.StatusReceipt));
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        var progress = await status.Content.ReadFromJsonAsync<DeletionProgressResponse>(JsonOptions);
+        Assert.Equal("complete", progress!.Status);
+        using var invalidReceipt = await client.GetAsync("/api/v1/account-deletion-status?receipt=invalid");
+        Assert.Equal(HttpStatusCode.NotFound, invalidReceipt.StatusCode);
+        var stored = await FindMemberAsync(memberId);
+        Assert.NotNull(stored.PersonalDataPurgedAt);
+        Assert.True(stored.IsSuspended);
+        Assert.Equal(MemberAccountDeletionPolicy.CreateDeletedEmail(memberId), stored.Email);
+    }
+
+    [Fact]
     public async Task Deletion_Cancel_RestoresProfile()
     {
         var memberId = Guid.NewGuid();
