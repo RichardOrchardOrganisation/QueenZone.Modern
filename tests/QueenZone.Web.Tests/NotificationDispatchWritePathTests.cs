@@ -112,6 +112,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
         var logger = new CollectingLogger<PrivateMessageService>();
         var service = new PrivateMessageService(
             messages,
+            messages,
             members,
             follows,
             rateLimiter,
@@ -524,6 +525,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
             transport,
             NullLogger<NotificationDispatcher>.Instance);
         var service = new PrivateMessageService(
+            messages,
             messages,
             members,
             follows,
