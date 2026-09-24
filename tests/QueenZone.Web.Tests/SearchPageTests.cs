@@ -11,13 +11,13 @@ using QueenZone.Web.Pages;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class SearchPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SearchPageTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public SearchPageTests(WebApplicationFactory<Program> factory)
+    public SearchPageTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

@@ -10,13 +10,13 @@ using QueenZone.Web.Pages.Timeline;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class TimelinePageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class TimelinePageTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public TimelinePageTests(WebApplicationFactory<Program> factory)
+    public TimelinePageTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

@@ -10,13 +10,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumWriteRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumWriteRoutesTests(WebApplicationFactory<Program> factory)
+    public ForumWriteRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

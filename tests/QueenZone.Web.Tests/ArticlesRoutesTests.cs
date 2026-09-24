@@ -7,13 +7,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ArticlesRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ArticlesRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ArticlesRoutesTests(WebApplicationFactory<Program> factory)
+    public ArticlesRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

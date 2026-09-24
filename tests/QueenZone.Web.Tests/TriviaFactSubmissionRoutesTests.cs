@@ -10,24 +10,14 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class TriviaFactSubmissionRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class TriviaFactSubmissionRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public TriviaFactSubmissionRoutesTests(WebApplicationFactory<Program> factory)
+    public TriviaFactSubmissionRoutesTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

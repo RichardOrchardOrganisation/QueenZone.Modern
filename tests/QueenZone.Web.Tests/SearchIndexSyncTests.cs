@@ -15,13 +15,13 @@ namespace QueenZone.Web.Tests;
 /// sync, rather than relying solely on the next scheduled batch reindex.
 /// </summary>
 [Collection(AdminNewsDeleteErrorCollection.Name)]
-public sealed class SearchIndexSyncTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SearchIndexSyncTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public SearchIndexSyncTests(WebApplicationFactory<Program> factory)
+    public SearchIndexSyncTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

@@ -16,13 +16,13 @@ using QueenZone.Web.Pages.Admin.Articles;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class EditorialArticleEditorRequestGuardFilterTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class EditorialArticleEditorRequestGuardFilterTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public EditorialArticleEditorRequestGuardFilterTests(WebApplicationFactory<Program> factory)
+    public EditorialArticleEditorRequestGuardFilterTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

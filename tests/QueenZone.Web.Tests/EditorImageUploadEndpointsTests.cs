@@ -15,13 +15,13 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class EditorImageUploadEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class EditorImageUploadEndpointsTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public EditorImageUploadEndpointsTests(WebApplicationFactory<Program> factory)
+    public EditorImageUploadEndpointsTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
