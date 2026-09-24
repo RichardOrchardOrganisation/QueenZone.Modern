@@ -312,6 +312,44 @@ Line endings: `.editorconfig` requires CRLF. Root `.gitattributes` sets `* text=
 
 CI also collects coverage from the deterministic test suite (merged across Web.Tests shards) and publishes an HTML/Cobertura report artifact. The coverage report is expected to help reviewers spot untested risk.
 
+### Pull request and merge-group checks
+
+`ci.yml` runs on `pull_request` and on `merge_group.checks_requested` for `main`.
+The latter checks GitHub's temporary combined commit, possibly containing multiple
+PRs. `changes` compares `origin/main...HEAD` and classifies the union of changed
+paths. Docs-only candidates use success stubs for required test and mobile check
+names; mobile-only candidates run mobile gates without the web suite; web and
+migration candidates run their respective gates. A manual `workflow_dispatch`
+run conservatively enables all gates. `scripts/Test-MergeGroupChangeRange.sh`
+checks the docs, mobile, web, migration, and multi-PR path cases.
+
+The 51% global and 70% changed-line C# coverage gates apply to web changes in
+both event types. CI passes `origin/main` explicitly, and the gate fails if the
+base is missing or is not an ancestor of the checked-out commit. A merge-group
+run uses the queue SHA for its build stamp. The SQL Express migration job runs
+for same-repository PRs and merge groups when migration paths change. Each
+queue SHA has its own concurrency group so a later candidate cannot cancel a
+required check already running. Artifact cleanup only deletes artifacts from
+its own run. Dev and production deploy workflows have no `merge_group` trigger.
+
+At the #1734 preparation audit, the live `main` rule had strict status checks and
+required the following GitHub Actions checks (source App ID `15368`): `build`,
+`test (0)`, `test (1)`, `sql-server-tests`, `coverage`, `smoke-test`,
+`e2e-test`, `Verify formatting`, `Small test projects (Tools/Storage/NewsAgent)`,
+`Mobile typecheck and unit tests`, `Mobile Android build`, and `Mobile iOS build`.
+The workflow also runs `test (2)` through `test (5)` and conditionally runs
+`ef-migrations`, `Mobile API consumer contracts`, and `Design token sync check`;
+those names were not in the live required list. Re-read the rule at cutover,
+because it can change after this audit.
+
+If a queued PR waits for a check, inspect the merge-group run and its `changes`
+output, then compare the exact required check name and GitHub App source in the
+`main` branch rule with the job or success stub. A missing run usually means
+the `merge_group` trigger is absent or the workflow on the queued commit does
+not contain it. A missing job can mean its condition skipped it without a
+matching success stub. Requeue after fixing the workflow; do not remove a
+required check to get a candidate through.
+
 ### CI test sharding (Web.Tests)
 
 `QueenZone.Web.Tests` dominates suite wall-clock (~85%). CI runs it as **mixed shards** in parallel so each GitHub-hosted runner keeps a blend of light unit tests and heavier `WebApplicationFactory` tests.
@@ -344,20 +382,20 @@ When adding Web.Tests classes: no shard manifest to update — discovery is auto
 
 If CI wall-clock grows again, prefer (in order): thin theory-heavy smoke HTTP tests; raise `ShardCount` / matrix size with the same mixed algorithm; paid larger runners. Avoid unit-vs-WAF project splits and raising xUnit `maxParallelThreads` (more threads worsened contention in #442). Smaller parked ideas (format `--include`, EF migrations bundle, extra shards today) live in [#657](https://github.com/richardorchard/QueenZone.Modern/issues/657).
 
-### Coverage gates (enforced on every pull request)
+### Coverage gates (enforced on pull requests and merge groups)
 
 Implemented in `scripts/Test-CoverageGate.ps1` and invoked from the `coverage` job in `.github/workflows/ci.yml` after all `test` matrix shards finish. The gate unions every `coverage.cobertura.xml` under the downloaded results (see the script’s union logic).
 
 | Gate | Threshold | What it measures |
 | --- | --- | --- |
 | **Global line coverage** | **≥ 51%** | Line coverage across the union of Cobertura reports from all shards / test projects |
-| **Changed-line coverage** | **≥ 70%** | Coverable `.cs` lines added or modified in the PR diff against the base branch (`main`) |
+| **Changed-line coverage** | **≥ 70%** | Coverable `.cs` lines added or modified in the PR or combined queue diff against `main` |
 
 Rules:
 
 - Changed-line coverage is computed from `git diff origin/main...HEAD` for `*.cs` files only.
 - Only lines that appear in the Cobertura report count as coverable. Non-executable lines, some boilerplate, and excluded files do not count.
-- If a pull request changes no coverable C# lines, the changed-line gate is skipped.
+- If a candidate changes no coverable C# lines, the changed-line gate is skipped.
 - `coverlet.runsettings` excludes `**/obj/**/*.cs` and `**/Migrations/**/*.cs` from coverage collection.
 
 These gates are guardrails, not a replacement for useful assertions. New or changed pure logic should still normally include targeted unit coverage, especially for canonical routes, pagination, visibility rules, date formatting, and HTML sanitisation.
@@ -416,7 +454,7 @@ node ../../scripts/Test-MobileCoverageGate.mjs --self-test
 | `small-projects-tests` | Tools/Storage/NewsAgent test projects, in parallel with the `test` shards | Yes |
 | `sql-server-tests` | `QueenZone.SqlServerTests` against a Docker `mssql` service container | Yes |
 | `coverage` | Merge shard + SQL Server + small-projects Cobertura reports, HTML summary, coverage gates | Yes |
-| `ef-migrations` | When migration-related paths change: snapshot check + `database update` on the SQL Express mirror (no production Azure SQL) | Yes (same-repo PRs only; skipped otherwise) |
+| `ef-migrations` | When migration-related paths change: snapshot check + `database update` on the SQL Express mirror (no production Azure SQL) | Yes (same-repo PRs and merge groups; skipped otherwise) |
 | `smoke-test` | Published app, curl `/health`, `/`, `/news` (starts after `build`, overlaps shards/coverage) | Yes |
 | `e2e-test` | Deterministic Playwright suite on a self-hosted `e2e` runner (`Run-E2E.ps1 -Mode Deterministic` only; starts after `build`, overlaps coverage). RealData and DeployedAuth are not required PR checks (#1597). | Yes (required PR merge gate) |
 | `mobile-js` | `npm ci` + `scripts/check-npm-advisories.mjs` + typecheck + `npm run lint` + `npm run test:coverage` + `scripts/Test-MobileCoverageGate.mjs` + Expo Doctor in `src/QueenZone.Mobile` | Yes — required on `main` after #870; skip-success stub when that tree is unchanged |

@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -11,8 +14,9 @@ env:
   SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
 
 concurrency:
-  group: pr-checks-${{ github.ref }}
-  cancel-in-progress: true
+  # A queued candidate must not cancel another candidate's required checks.
+  group: ${{ github.event_name == 'merge_group' && format('merge-group-{0}', github.sha) || format('pr-checks-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
   changes:
@@ -30,10 +34,12 @@ jobs:
           fetch-depth: 0
       - name: Self-test change classifier
         run: bash ./scripts/classify-pipeline-changes.sh --self-test
+      - name: Self-test merge-group change range
+        run: bash ./scripts/Test-MergeGroupChangeRange.sh
       - name: Check for code changes
         id: check
         run: |
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "code=true" >> $GITHUB_OUTPUT
             echo "migrations=true" >> $GITHUB_OUTPUT
             echo "mobile=true" >> $GITHUB_OUTPUT
@@ -43,6 +49,8 @@ jobs:
             exit 0
           fi
 
+          # For a PR or merge group, HEAD is the combined commit checked out
+          # by Actions. origin/main...HEAD includes every PR in the group.
           git diff --name-only origin/main...HEAD \
             | bash ./scripts/classify-pipeline-changes.sh \
             >> "$GITHUB_OUTPUT"
@@ -510,6 +518,8 @@ jobs:
 
       - name: Build
         run: |
+          # Deploy resolves a PR-head artifact by its head SHA. A merge group
+          # has no pull_request head, so stamp its combined SHA instead.
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           if [ -z "$HEAD_SHA" ]; then
             HEAD_SHA="${{ github.sha }}"
@@ -826,7 +836,7 @@ jobs:
 
       - name: Enforce coverage gate
         shell: pwsh
-        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70
+        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef origin/main -RequireBaseRef
 
       - name: Build observed Web.Tests duration map
         shell: pwsh
@@ -907,8 +917,9 @@ jobs:
     needs: changes
     if: |
       needs.changes.outputs.migrations == 'true' &&
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name == 'merge_group' ||
+       (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
     timeout-minutes: 20
 
     steps:
