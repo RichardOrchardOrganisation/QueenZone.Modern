@@ -28,7 +28,7 @@ flowchart LR
 
 - **Local development.**
 - **`dev`** — always-on environment at `dev.queenzone.org`, App Service `queenzone-devbox` / resource group `Queenzone-Dev-RG`, own SQL database and storage account. Every merge to `main` auto-deploys here via `deploy-dev.yml`. See [`opentofu-dev-environment.md`](opentofu-dev-environment.md).
-- **Production** — `queenzone.org` / `www.queenzone.org`, deployed via `deploy.yml`, which now triggers on `v*` tags rather than every merge to `main` (tag-based promotion, [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) Phase 5). Promote a merged commit by tagging it once it has been exercised on `dev`.
+- **Production** — `queenzone.org` / `www.queenzone.org`, deployed via `deploy.yml`, which now triggers on `v*` tags rather than every merge to `main` (tag-based promotion, [epic #1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264) Phase 5). Promote a merged commit by tagging it once it has been exercised on `dev`.
 
 Production runs on `queenzone-prod` in `Queenzone-RG`. The previous Australia East app, `queenzone-dev`, and its B1 plan were retired on **14 September 2026** after the accepted four-day observation period. The isolated dev environment remains `queenzone-devbox`.
 
@@ -88,7 +88,7 @@ so explicitly configuring the standard key-ring path does not itself invalidate 
 protected payloads.
 
 This mechanism adds no secret or parallel configuration owner while the App Service
-configuration ownership decision in [#618](https://github.com/richardorchard/QueenZone.Modern/issues/618)
+configuration ownership decision in [#618](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/618)
 remains open. App Service manages encryption at rest for the persistent disk, but the
 Data Protection key XML is not separately encrypted by the application. If the site
 later requires application-level key encryption or deployment-slot sharing, move the

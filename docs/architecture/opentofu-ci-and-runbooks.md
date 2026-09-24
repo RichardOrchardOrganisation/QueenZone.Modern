@@ -1,6 +1,6 @@
 # OpenTofu CI, drift detection, and operational runbooks
 
-Issue: [#625](https://github.com/richardorchard/QueenZone.Modern/issues/625), step 8 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615).
+Issue: [#625](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/625), step 8 of epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615).
 
 This is the CI-facing companion to
 [`opentofu-contributor-runbook.md`](opentofu-contributor-runbook.md) (local
@@ -160,7 +160,7 @@ auto-suppress the alert.
 
 ## Disaster recovery
 
-Issue [#596](https://github.com/richardorchard/QueenZone.Modern/issues/596)
+Issue [#596](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/596)
 (production disaster-recovery / restore runbook, RPO/RTO) is **open and
 undecided** as of this writing — there is no finished DR document to link to
 yet. What exists today: OpenTofu's own state backup/restore and lock

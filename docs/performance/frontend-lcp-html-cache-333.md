@@ -1,6 +1,6 @@
 # Frontend LCP / media and anonymous HTML cache headers (#333)
 
-Dated note for issue [#333](https://github.com/richardorchard/QueenZone.Modern/issues/333).
+Dated note for issue [#333](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/333).
 
 ## Changes
 

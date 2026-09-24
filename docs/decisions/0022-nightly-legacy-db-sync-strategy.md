@@ -161,7 +161,7 @@ today. Change only *what Extract reads from*:
 From the first real `DatabaseCopy`-mode run against production
 (`queenzone-db`, confirmed Standard S0, 10 GB / 10 DTU), triggered on-demand
 2026-09-14, workflow run
-[34817774628](https://github.com/richardorchard/QueenZone.Modern/actions/runs/34817774628):
+[34817774628](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/34817774628):
 
 | Phase | Duration |
 | --- | --- |

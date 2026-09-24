@@ -1,7 +1,7 @@
 # OpenTofu Azure web import
 
-Issue: [#622](https://github.com/richardorchard/QueenZone.Modern/issues/622),
-step 4 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615).
+Issue: [#622](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/622),
+step 4 of epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615).
 
 ## Managed boundary
 
