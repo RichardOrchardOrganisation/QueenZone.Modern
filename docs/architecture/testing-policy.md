@@ -116,7 +116,10 @@ cancel (#1453). Before reading production, the Sync job runs the script's proces
 under the Windows runner account and shell. It publishes into a staging database and replaces the
 named mirror only after a successful publish and required-table check. A failed extract or publish
 therefore leaves the previous mirror intact. Read probes then run from the macOS runner over the LAN.
-Self-cleaning write probes run locally on Windows after the read checks pass:
+`apply-ef-migrations-mirror` runs after Sync (in parallel with those read probes) and
+before write probes so Express has pending EF columns that production Azure SQL may not
+have yet (#1722). Self-cleaning write probes stay hard — they do not skip on a missing
+EF column — and run locally on Windows after the read checks and that migrate pass:
 
 | Probe surface | How nightly runs it |
 | --- | --- |

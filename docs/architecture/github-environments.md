@@ -44,7 +44,8 @@ These jobs touch only the SQL Express mirror, or use no environment secrets/vars
 | --- | --- | --- |
 | `ci.yml` | `ef-migrations` | Hard-coded mirror connection string + `Assert-SqlExpressMirrorConnection.ps1`. No Bitwarden, no Azure SQL. |
 | `nightly-legacy-checks.yml` | `legacy-read-probes` | Mirror over LAN. Bitwarden is used only for `QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD` via **repository-level** token/mapping. |
-| `nightly-legacy-checks.yml` | `legacy-write-probes` | `localhost\SQLEXPRESS` Integrated Security. No environment secrets. |
+| `nightly-legacy-checks.yml` | `apply-ef-migrations-mirror` | After Sync, before write probes (#1722). `localhost\SQLEXPRESS` Integrated Security + `Assert-SqlExpressMirrorConnection.ps1`. No environment secrets. |
+| `nightly-legacy-checks.yml` | `legacy-write-probes` | `localhost\SQLEXPRESS` Integrated Security. No environment secrets. Waits on `apply-ef-migrations-mirror`. |
 | `nightly-legacy-checks.yml` | `ui-e2e-realdata` | Windows: Integrated Security. macOS: repository-level Bitwarden probe password. |
 | `nightly-legacy-checks.yml` | `residue-check` | Local mirror only. |
 | `test-migrations-against-mirror.yml` | `test-migrations` | Local mirror Integrated Security. |
