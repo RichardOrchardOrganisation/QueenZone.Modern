@@ -147,7 +147,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
         var follows = host.Services.GetRequiredService<IMemberFollowRepository>();
         await follows.FollowAsync(viewer.Id, blockedId, DateTimeOffset.UtcNow);
         await follows.FollowAsync(viewer.Id, deletedId, DateTimeOffset.UtcNow);
-        await host.Services.GetRequiredService<IPrivateMessageRepository>()
+        await host.Services.GetRequiredService<IPrivateMessageModerationRepository>()
             .BlockAsync(viewer.Id, blockedId, DateTimeOffset.UtcNow);
         await host.Services.GetRequiredService<IMemberAccountRepository>()
             .RequestDeletionAsync(deletedId, DateTime.UtcNow);
@@ -178,7 +178,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
         var follows = host.Services.GetRequiredService<IMemberFollowRepository>();
         await follows.FollowAsync(viewer.Id, visibleId, DateTimeOffset.UtcNow);
         await follows.FollowAsync(viewer.Id, blockedId, DateTimeOffset.UtcNow);
-        await host.Services.GetRequiredService<IPrivateMessageRepository>()
+        await host.Services.GetRequiredService<IPrivateMessageModerationRepository>()
             .BlockAsync(viewer.Id, blockedId, DateTimeOffset.UtcNow);
 
         var html = await client.GetStringAsync("/following");

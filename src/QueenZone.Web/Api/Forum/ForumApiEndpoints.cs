@@ -1,31 +1,22 @@
 using System.Security.Claims;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
 using QueenZone.Data;
-using QueenZone.Storage;
 
 namespace QueenZone.Web;
 
 /// <summary>
 /// <c>/api/v1/forum/*</c> routes for browsing boards, topics, and topic threads
-/// (issues #731 / #732), authenticated create-topic and reply writes (#733),
-/// plus poll state, vote, and close (#734). Reads require no authentication:
-/// the website forum index, category, and topic pages are public. Visibility
-/// is the same <see cref="IForumRepository"/> path used by Razor Pages —
-/// synthetic boards and unvalidated topic starters stay hidden. Topic posts
-/// default and clamp <c>pageSize</c> to <see cref="ForumRoutes.PostsPageSize"/>.
-/// Writes require <see cref="MemberAuthenticationSchemes.MobileMemberPolicy"/>
-/// and reuse <see cref="ForumPostWriteService"/> (sanitization, attachments,
-/// <see cref="ForumPostRateLimiter"/>). Poll vote/close reuse
-/// <see cref="IForumPollRepository"/> plus <see cref="ForumPollVoteMapper"/>
-/// (the same one-vote-per-member and closed rules as
-/// <c>/forum/poll/{id}/vote</c>). Topic Watch (#735) is <c>GET</c>/<c>POST</c>/
-/// <c>DELETE /topics/{id}/watch</c> under <see cref="MemberAuthenticationSchemes.MobileMemberPolicy"/>
-/// via <see cref="TopicWatchService"/>. Attachment metadata includes the existing
-/// cookie-gated <c>/forum/attachment/...</c> <c>url</c> plus additive
-/// <c>downloadUrl</c> under <c>/api/v1/forum/attachments/...</c>
-/// (<see cref="MemberAuthenticationSchemes.MobileMemberPolicy"/>). The mobile
-/// client opens <c>downloadUrl</c> only.
+/// (issues #731 / #732), plus authenticated create-topic, reply, and edit
+/// writes (#733). Reads require no authentication: the website forum index,
+/// category, and topic pages are public. Visibility is the same
+/// <see cref="IForumRepository"/> path used by Razor Pages — synthetic boards
+/// and unvalidated topic starters stay hidden. Topic posts default and clamp
+/// <c>pageSize</c> to <see cref="ForumRoutes.PostsPageSize"/>. Writes require
+/// <see cref="MemberAuthenticationSchemes.MobileMemberPolicy"/> and reuse
+/// <see cref="ForumPostWriteService"/> (sanitization, attachments,
+/// <see cref="ForumPostRateLimiter"/>). Poll, topic watch, attachment download,
+/// and <c>/api/v1/me/forum</c> moderation routes are registered here from
+/// sibling endpoint types with the same paths and route names.
 /// </summary>
 public static class ForumApiEndpoints
 {
@@ -44,44 +35,7 @@ public static class ForumApiEndpoints
             .DisableAntiforgery()
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy);
 
-        memberGroup.MapPost("/posts/{postId:int}/report", ReportPostAsync)
-            .WithName("ReportForumPost")
-            .WithSummary("Report a visible forum post. Duplicate submissions return the existing report.")
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
-            .Accepts<ForumPostReportRequestDto>("application/json")
-            .Produces<ForumPostReportResponseDto>(StatusCodes.Status201Created)
-            .Produces<ForumPostReportResponseDto>(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests);
-
-        memberGroup.MapPost("/posts/{postId:int}/block", BlockPostAuthorAsync)
-            .WithName("BlockForumPostAuthor")
-            .WithSummary("Block the linked member who authored a visible forum post.")
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
-            .Produces(StatusCodes.Status204NoContent)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests);
-
-        memberGroup.MapPost("/posts/{postId:int}/unblock", UnblockPostAuthorAsync)
-            .WithName("UnblockForumPostAuthor")
-            .WithSummary("Unblock the linked member who authored a visible forum post.")
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
-            .Produces(StatusCodes.Status204NoContent)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests);
-
-        memberGroup.MapPost("/posts/moderation-state", GetPostModerationStateAsync)
-            .WithName("GetForumPostModerationState")
-            .WithSummary("Return report and block state for the supplied forum post page.")
-            .Accepts<ForumPostModerationStateRequestDto>("application/json")
-            .Produces<ForumPostModerationStateDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+        memberGroup.MapForumModerationApiEndpoints();
 
         group.MapGet("/categories", GetCategoriesAsync)
             .WithName("GetForumCategories")
@@ -164,80 +118,11 @@ public static class ForumApiEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
-        group.MapGet("/topics/{id:int}/poll", GetTopicPollAsync)
-            .WithName("GetForumTopicPoll")
-            .WithSummary("Poll on a public topic. Same vote-vs-results flags as the website topic page.")
-            .Produces<ForumPollDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapForumPollApiEndpoints();
 
-        group.MapPost("/topics/{id:int}/poll/vote", VoteTopicPollAsync)
-            .WithName("VoteForumTopicPoll")
-            .WithSummary("Cast one ballot on a topic poll. Same one-vote and closed rules as /forum/poll/{id}/vote.")
-            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
-            .Accepts<ForumPollVoteRequestDto>("application/json")
-            .Produces<ForumPollDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        group.MapForumTopicWatchApiEndpoints();
 
-        group.MapPost("/topics/{id:int}/poll/close", CloseTopicPollAsync)
-            .WithName("CloseForumTopicPoll")
-            .WithSummary("Close a topic poll. Same author-or-admin rule as /forum/poll/{id}/close.")
-            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
-            .Produces<ForumPollDto>()
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests);
-
-        group.MapGet("/topics/{id:int}/watch", GetTopicWatchAsync)
-            .WithName("GetForumTopicWatch")
-            .WithSummary("Whether the signed-in member is Watching this public topic. Watch is the opt-in for forum reply pushes.")
-            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .Produces<ForumTopicWatchDto>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
-
-        group.MapPost("/topics/{id:int}/watch", WatchTopicAsync)
-            .WithName("WatchForumTopic")
-            .WithSummary("Watch a public topic. Idempotent. Does not auto-watch on post.")
-            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
-            .Produces<ForumTopicWatchDto>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests);
-
-        group.MapDelete("/topics/{id:int}/watch", UnwatchTopicAsync)
-            .WithName("UnwatchForumTopic")
-            .WithSummary("Stop Watching a public topic. Idempotent when not currently Watching.")
-            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
-            .Produces<ForumTopicWatchDto>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests);
-
-        group.MapGet("/attachments/legacy/{legacyPostId:int}", DownloadLegacyAttachmentAsync)
-            .WithName("GetForumLegacyAttachment")
-            .WithSummary("Member-gated legacy attachment. Same stream as /forum/attachment/legacy/{legacyPostId}.")
-            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .Produces(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
-
-        group.MapGet("/attachments/{legacyPostId:int}/{attachmentId:guid}", DownloadModernAttachmentAsync)
-            .WithName("GetForumAttachment")
-            .WithSummary("Member-gated modern attachment. Same stream as /forum/attachment/{legacyPostId}/{attachmentId}.")
-            .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .Produces(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapForumAttachmentApiEndpoints();
     }
 
     internal static async Task<IResult> GetCategoriesAsync(
@@ -261,107 +146,6 @@ public static class ForumApiEndpoints
             categories.Count);
 
         return Results.Ok(response);
-    }
-
-    internal static async Task<IResult> ReportPostAsync(
-        ClaimsPrincipal user,
-        int postId,
-        ForumPostReportRequestDto request,
-        ForumPostReportService reportService,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        var result = await reportService.ReportAsync(memberId.Value, postId, request.Category, request.Details, cancellationToken);
-        if (!result.Succeeded)
-        {
-            var notFound = result.ErrorMessage == ForumPostReportText.PostNotFound;
-            return Results.Problem(
-                statusCode: notFound ? StatusCodes.Status404NotFound : StatusCodes.Status400BadRequest,
-                title: notFound ? "Not Found" : "Bad Request",
-                detail: result.ErrorMessage);
-        }
-
-        var dto = new ForumPostReportResponseDto(result.ReportId!.Value, PrivateMessageReportStatus.Open, result.AlreadyReported);
-        return result.AlreadyReported ? Results.Ok(dto) : Results.Created($"/api/v1/me/forum/reports/{dto.ReportId}", dto);
-    }
-
-    internal static async Task<IResult> BlockPostAuthorAsync(
-        ClaimsPrincipal user,
-        int postId,
-        ForumPostReportService reportService,
-        PrivateMessageService privateMessageService,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        var post = await reportService.GetVisiblePostAsync(postId, cancellationToken);
-        if (post?.AuthorMemberId is not Guid authorMemberId)
-        {
-            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not Found",
-                detail: "This post does not belong to an active member account.");
-        }
-
-        var result = await privateMessageService.BlockAsync(memberId.Value, authorMemberId, cancellationToken);
-        return result.Succeeded
-            ? Results.NoContent()
-            : Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Bad Request", detail: result.ErrorMessage);
-    }
-
-    internal static async Task<IResult> UnblockPostAuthorAsync(
-        ClaimsPrincipal user,
-        int postId,
-        ForumPostReportService reportService,
-        PrivateMessageService privateMessageService,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Unauthorized();
-        }
-
-        var post = await reportService.GetVisiblePostAsync(postId, cancellationToken);
-        if (post?.AuthorMemberId is not Guid authorMemberId)
-        {
-            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not Found",
-                detail: "This post does not belong to an active member account.");
-        }
-
-        await privateMessageService.UnblockAsync(memberId.Value, authorMemberId, cancellationToken);
-        return Results.NoContent();
-    }
-
-    internal static async Task<IResult> GetPostModerationStateAsync(
-        HttpContext httpContext,
-        ClaimsPrincipal user,
-        ForumPostModerationStateRequestDto request,
-        IForumPostReportRepository reports,
-        PrivateMessageService privateMessageService,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Unauthorized();
-        }
-        if (request.PostIds.Count > ForumRoutes.PostsPageSize || request.AuthorMemberIds.Count > ForumRoutes.PostsPageSize)
-        {
-            return Results.BadRequest();
-        }
-
-        var reported = await reports.GetReportedPostIdsAsync(memberId.Value, request.PostIds, cancellationToken);
-        var blocked = await privateMessageService.ListBlockedMemberIdsAsync(memberId.Value, request.AuthorMemberIds, cancellationToken);
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(new ForumPostModerationStateDto(reported.ToList(), blocked.ToList()));
     }
 
     internal static async Task<IResult> GetStatsAsync(
@@ -663,105 +447,6 @@ public static class ForumApiEndpoints
         };
     }
 
-    internal static async Task<IResult> GetTopicPollAsync(
-        HttpContext httpContext,
-        IForumRepository forumRepository,
-        IForumPollRepository pollRepository,
-        int id,
-        CancellationToken cancellationToken)
-    {
-        var loaded = await LoadPublicPollAsync(
-            forumRepository,
-            pollRepository,
-            id,
-            await TryGetBearerMemberIdAsync(httpContext),
-            cancellationToken);
-        return loaded.Result ?? Results.Ok(ForumApiMapper.ToPoll(loaded.Poll!));
-    }
-
-    internal static async Task<IResult> VoteTopicPollAsync(
-        ClaimsPrincipal user,
-        IForumRepository forumRepository,
-        IForumPollRepository pollRepository,
-        int id,
-        ForumPollVoteRequestDto? request,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status401Unauthorized,
-                title: "Unauthorized");
-        }
-
-        var loaded = await LoadPublicPollAsync(
-            forumRepository,
-            pollRepository,
-            id,
-            memberId,
-            cancellationToken);
-        if (loaded.Result is not null)
-        {
-            return loaded.Result;
-        }
-
-        var optionIds = ForumPollVoteMapper.ParseOptionIds(request?.OptionIds, request?.OptionId);
-        try
-        {
-            await pollRepository.CastVoteAsync(loaded.Poll!.PollId, memberId.Value, optionIds, cancellationToken);
-        }
-        catch (ForumPollVoteException ex)
-        {
-            return ForumPollVoteMapper.ToProblemResult(ex);
-        }
-
-        return await ReloadPollAsync(pollRepository, id, memberId.Value, cancellationToken);
-    }
-
-    internal static async Task<IResult> CloseTopicPollAsync(
-        ClaimsPrincipal user,
-        IForumRepository forumRepository,
-        IForumPollRepository pollRepository,
-        int id,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status401Unauthorized,
-                title: "Unauthorized");
-        }
-
-        var loaded = await LoadPublicPollAsync(
-            forumRepository,
-            pollRepository,
-            id,
-            memberId,
-            cancellationToken);
-        if (loaded.Result is not null)
-        {
-            return loaded.Result;
-        }
-
-        try
-        {
-            // Mobile JWTs are never treated as admin (see json-api-v1.md).
-            await pollRepository.ClosePollAsync(
-                loaded.Poll!.PollId,
-                memberId.Value,
-                isAdmin: false,
-                cancellationToken);
-        }
-        catch (ForumPollVoteException ex)
-        {
-            return ForumPollVoteMapper.ToProblemResult(ex);
-        }
-
-        return await ReloadPollAsync(pollRepository, id, memberId.Value, cancellationToken);
-    }
-
     private static IResult MapWriteFailure(ForumWriteOutcome outcome, int? categoryId, int? topicId)
     {
         return outcome.Status switch
@@ -835,155 +520,7 @@ public static class ForumApiEndpoints
         return null;
     }
 
-    private static async Task<(ForumPollResults? Poll, IResult? Result)> LoadPublicPollAsync(
-        IForumRepository forumRepository,
-        IForumPollRepository pollRepository,
-        int topicId,
-        Guid? viewerMemberId,
-        CancellationToken cancellationToken)
-    {
-        var topicPage = await forumRepository.GetTopicPostsPageAsync(topicId, 1, 1, cancellationToken);
-        if (topicPage is null)
-        {
-            return (null, TopicNotFound(topicId));
-        }
-
-        var poll = await pollRepository.GetPollWithResultsAsync(
-            topicId,
-            viewerMemberId,
-            viewerIsAdmin: false,
-            cancellationToken);
-        if (poll is null)
-        {
-            return (null, PollNotFound(topicId));
-        }
-
-        return (poll, null);
-    }
-
-    private static async Task<IResult> ReloadPollAsync(
-        IForumPollRepository pollRepository,
-        int topicId,
-        Guid memberId,
-        CancellationToken cancellationToken)
-    {
-        var poll = await pollRepository.GetPollWithResultsAsync(
-            topicId,
-            memberId,
-            viewerIsAdmin: false,
-            cancellationToken);
-        return poll is null
-            ? PollNotFound(topicId)
-            : Results.Ok(ForumApiMapper.ToPoll(poll));
-    }
-
-    internal static async Task<IResult> GetTopicWatchAsync(
-        HttpContext httpContext,
-        ClaimsPrincipal user,
-        int id,
-        TopicWatchService topicWatchService,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status401Unauthorized,
-                title: "Unauthorized");
-        }
-
-        var status = await topicWatchService.GetStatusAsync(memberId.Value, id, cancellationToken);
-        if (status is null)
-        {
-            return TopicNotFound(id);
-        }
-
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(new ForumTopicWatchDto(status.Watching));
-    }
-
-    internal static async Task<IResult> WatchTopicAsync(
-        ClaimsPrincipal user,
-        int id,
-        TopicWatchService topicWatchService,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status401Unauthorized,
-                title: "Unauthorized");
-        }
-
-        var status = await topicWatchService.WatchAsync(memberId.Value, id, cancellationToken);
-        return status is null
-            ? TopicNotFound(id)
-            : Results.Ok(new ForumTopicWatchDto(status.Watching));
-    }
-
-    internal static async Task<IResult> UnwatchTopicAsync(
-        ClaimsPrincipal user,
-        int id,
-        TopicWatchService topicWatchService,
-        CancellationToken cancellationToken)
-    {
-        var memberId = ForumMember.GetMemberId(user);
-        if (memberId is null)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status401Unauthorized,
-                title: "Unauthorized");
-        }
-
-        var status = await topicWatchService.UnwatchAsync(memberId.Value, id, cancellationToken);
-        return status is null
-            ? TopicNotFound(id)
-            : Results.Ok(new ForumTopicWatchDto(status.Watching));
-    }
-
-    internal static Task<IResult> DownloadLegacyAttachmentAsync(
-        int legacyPostId,
-        IForumAttachmentRepository attachmentRepository,
-        IBlobUploadService blobUploadService,
-        CancellationToken cancellationToken) =>
-        ForumAttachmentEndpoints.ServeLegacyAsync(
-            legacyPostId,
-            attachmentRepository,
-            blobUploadService,
-            cancellationToken);
-
-    internal static Task<IResult> DownloadModernAttachmentAsync(
-        int legacyPostId,
-        Guid attachmentId,
-        IForumAttachmentRepository attachmentRepository,
-        IBlobUploadService blobUploadService,
-        CancellationToken cancellationToken) =>
-        ForumAttachmentEndpoints.ServeModernAsync(
-            legacyPostId,
-            attachmentId,
-            attachmentRepository,
-            blobUploadService,
-            cancellationToken);
-
-    private static async Task<Guid?> TryGetBearerMemberIdAsync(HttpContext httpContext)
-    {
-        if (!httpContext.Request.Headers.ContainsKey("Authorization"))
-        {
-            return null;
-        }
-
-        var bearer = await httpContext.AuthenticateAsync(MemberAuthenticationSchemes.MembersBearer);
-        return bearer.Succeeded ? ForumMember.GetMemberId(bearer.Principal) : null;
-    }
-
-    private static IResult PollNotFound(int topicId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Not Found",
-            detail: $"No poll on public forum topic '{topicId}'.");
-
-    private static IResult TopicNotFound(int id) =>
+    internal static IResult TopicNotFound(int id) =>
         Results.Problem(
             statusCode: StatusCodes.Status404NotFound,
             title: "Not Found",
