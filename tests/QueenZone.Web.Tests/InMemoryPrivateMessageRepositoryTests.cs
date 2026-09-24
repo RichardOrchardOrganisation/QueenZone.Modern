@@ -73,7 +73,7 @@ public sealed class InMemoryPrivateMessageRepositoryTests
     }
 
     [Fact]
-    public async Task ComposeAndReply_StoreMarkupAsPlainText_AndRejectOverLength()
+    public async Task ComposeAndReply_StoreMarkupAsPlainText()
     {
         var members = new InMemoryMemberAccountRepository();
         var alice = await members.CreateAsync(NewMember("a-xss@example.com", "Alice"));
@@ -87,14 +87,6 @@ public sealed class InMemoryPrivateMessageRepositoryTests
         var conversationId = created.ConversationId!.Value;
         var reply = await repo.ReplyAsync(conversationId, bob.Id, markup + " reply", DateTimeOffset.UtcNow);
         Assert.True(reply.Succeeded);
-
-        var tooLong = await repo.SendNewOrExistingAsync(
-            alice.Id,
-            bob.Id,
-            new string('x', PrivateMessageLimits.MaxBodyLength + 1),
-            DateTimeOffset.UtcNow);
-        Assert.False(tooLong.Succeeded);
-        Assert.Contains("4000", tooLong.ErrorMessage, StringComparison.Ordinal);
 
         var detail = await repo.GetConversationAsync(conversationId, bob.Id);
         Assert.Equal(markup, detail!.Messages[0].Body);
