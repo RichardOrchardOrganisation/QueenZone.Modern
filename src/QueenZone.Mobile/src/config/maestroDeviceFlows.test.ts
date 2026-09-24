@@ -193,6 +193,46 @@ describe('Maestro device flows (#1281)', () => {
     assert.match(readMaestro('flows/10-forum-attach.yaml'), /runFlow: open-smoke-auth\.yaml/);
   });
 
+  it('polls a late first iOS Open confirm before stacking a second smoke-auth URL (#1703)', () => {
+    const openAuth = readMaestro('flows/open-smoke-auth.yaml');
+    const poll = readMaestro('flows/poll-late-ios-open-for-home.yaml');
+    const accept = readMaestro('flows/accept-ios-open-link.yaml');
+
+    const firstOpenLink = openAuth.indexOf('openLink: ${SMOKE_AUTH_URL}');
+    const secondOpenLink = openAuth.indexOf('openLink: ${SMOKE_AUTH_URL}', firstOpenLink + 1);
+    assert.ok(firstOpenLink >= 0 && secondOpenLink > firstOpenLink);
+    const beforeRetry = openAuth.slice(firstOpenLink, secondOpenLink);
+    assert.match(beforeRetry, /runFlow: accept-ios-open-link\.yaml/);
+    assert.match(beforeRetry, /poll-late-ios-open-for-home\.yaml/);
+    assert.equal((beforeRetry.match(/poll-late-ios-open-for-home\.yaml/g) ?? []).length, 4);
+    assert.match(beforeRetry, /notVisible:[\s\S]*id: home-messages/);
+
+    assert.match(poll, /visible:[\s\S]*text: '\^Open\$'/);
+    assert.match(poll, /tapOn:[\s\S]*text: '\^Open\$'[\s\S]*retryTapIfNoChange: true/);
+    assert.match(
+      poll,
+      /extendedWaitUntil:[\s\S]*visible:[\s\S]*id: home-messages[\s\S]*timeout: 5000[\s\S]*optional: true/,
+    );
+
+    const afterRetry = openAuth.slice(secondOpenLink);
+    assert.match(afterRetry, /runFlow: accept-ios-open-link\.yaml/);
+    assert.match(
+      afterRetry,
+      /retry:[\s\S]*visible:[\s\S]*text: '\^Open\$'[\s\S]*extendedWaitUntil:[\s\S]*id: home-messages[\s\S]*timeout: 8000/,
+    );
+    assert.doesNotMatch(afterRetry, /timeout: 8000[\s\S]*optional: true/);
+    assert.match(
+      afterRetry,
+      /platform: Android[\s\S]*extendedWaitUntil:[\s\S]*id: home-messages[\s\S]*timeout: 20000/,
+    );
+
+    assert.match(accept, /timeout: 15000/);
+    assert.doesNotMatch(accept, /timeout: 30000|timeout: 45000/);
+    assert.doesNotMatch(openAuth, /#.*id: home-messages/);
+    assert.match(readMaestro('journeys.yaml'), /flows\/10-forum-attach\.yaml/);
+    assert.match(readMaestro('flows/10-forum-attach.yaml'), /runFlow: open-smoke-auth\.yaml/);
+  });
+
   it('matches the seeded inbox row when iOS merges its accessibility label', () => {
     const authenticated = readRepo('flows/09-authenticated.yaml', maestroDir);
     assert.match(authenticated, /text: '\^Contract Other\.\*'/);
