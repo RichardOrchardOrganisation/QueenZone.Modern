@@ -1,0 +1,37 @@
+name: OIDC identity smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  login:
+    name: OIDC login (${{ matrix.identity }})
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        identity: [dev-deploy, dev-data-refresh, prod-deploy, opentofu-plan, opentofu-apply]
+    environment: ${{ matrix.identity }}
+    steps:
+      - name: Report OIDC subject without logging the token
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const token = await core.getIDToken('api://AzureADTokenExchange');
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+            core.info(`OIDC subject: ${payload.sub}`);
+            core.info(`OIDC audience: ${payload.aud}`);
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      - name: Confirm subscription access without changing resources
+        run: test "$(az account show --query state -o tsv)" = Enabled
