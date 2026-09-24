@@ -29,7 +29,7 @@ public sealed class MobileAuthOptions
     /// dropped connection, ...) rather than a stolen token. Set to 0 to disable
     /// and revoke on first reuse, as before.
     /// </summary>
-    public int RefreshTokenReuseGraceSeconds { get; init; } = 30;
+    public int RefreshTokenReuseGraceSeconds { get; init; } = 300;
 
     /// <summary>HMAC-SHA256 key, at least 32 characters. Never commit a production value.</summary>
     public string SigningKey { get; init; } = string.Empty;
