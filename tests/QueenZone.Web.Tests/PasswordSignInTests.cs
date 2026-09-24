@@ -13,13 +13,13 @@ namespace QueenZone.Web.Tests;
 /// QueenZone.Tools create-reviewer-account), so these tests seed accounts directly through
 /// MemberAccountService, the same way that tool does.
 /// </summary>
-public sealed partial class PasswordSignInTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class PasswordSignInTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PasswordSignInTests(WebApplicationFactory<Program> factory)
+    public PasswordSignInTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

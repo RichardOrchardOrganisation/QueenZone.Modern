@@ -12,7 +12,7 @@ using QueenZone.Web.Pages.Admin.NewsDiscovery;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class AdminNewsDiscoveryRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class AdminNewsDiscoveryRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
 
@@ -34,9 +34,9 @@ public sealed partial class AdminNewsDiscoveryRoutesTests : IClassFixture<WebApp
         """;
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminNewsDiscoveryRoutesTests(WebApplicationFactory<Program> factory)
+    public AdminNewsDiscoveryRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

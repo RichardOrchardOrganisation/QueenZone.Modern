@@ -4,14 +4,14 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class SitemapEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SitemapEndpointsTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private const string BaseUrl = "https://www.queenzone.org";
     private readonly WebApplicationFactory<Program> factory;
 
-    public SitemapEndpointsTests(WebApplicationFactory<Program> factory)
+    public SitemapEndpointsTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

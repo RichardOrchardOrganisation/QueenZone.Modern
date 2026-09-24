@@ -8,16 +8,13 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class FreddieTributePageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class FreddieTributePageTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public FreddieTributePageTests(WebApplicationFactory<Program> factory)
+    public FreddieTributePageTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-        });
+        this.factory = factory;
     }
 
     [Fact]

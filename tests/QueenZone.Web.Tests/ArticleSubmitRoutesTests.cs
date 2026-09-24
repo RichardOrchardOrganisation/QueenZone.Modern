@@ -18,24 +18,14 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class ArticleSubmitRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public ArticleSubmitRoutesTests(WebApplicationFactory<Program> factory)
+    public ArticleSubmitRoutesTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

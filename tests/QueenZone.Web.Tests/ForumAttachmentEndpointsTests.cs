@@ -11,13 +11,13 @@ using QueenZone.Storage;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumAttachmentEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumAttachmentEndpointsTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumAttachmentEndpointsTests(WebApplicationFactory<Program> factory)
+    public ForumAttachmentEndpointsTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

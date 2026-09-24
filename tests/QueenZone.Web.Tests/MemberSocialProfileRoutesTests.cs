@@ -9,13 +9,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MemberSocialProfileRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class MemberSocialProfileRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public MemberSocialProfileRoutesTests(WebApplicationFactory<Program> factory)
+    public MemberSocialProfileRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

@@ -11,24 +11,14 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class NewsSuggestionRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class NewsSuggestionRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public NewsSuggestionRoutesTests(WebApplicationFactory<Program> factory)
+    public NewsSuggestionRoutesTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

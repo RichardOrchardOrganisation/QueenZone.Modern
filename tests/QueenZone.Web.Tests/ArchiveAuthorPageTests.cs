@@ -7,13 +7,13 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ArchiveAuthorPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ArchiveAuthorPageTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ArchiveAuthorPageTests(WebApplicationFactory<Program> factory)
+    public ArchiveAuthorPageTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

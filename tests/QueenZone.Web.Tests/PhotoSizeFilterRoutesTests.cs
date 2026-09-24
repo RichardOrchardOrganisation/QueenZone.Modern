@@ -5,13 +5,13 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PhotoSizeFilterRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PhotoSizeFilterRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PhotoSizeFilterRoutesTests(WebApplicationFactory<Program> factory)
+    public PhotoSizeFilterRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

@@ -6,14 +6,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class UgcProxyEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class UgcProxyEndpointsTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public UgcProxyEndpointsTests(WebApplicationFactory<Program> factory)
+    public UgcProxyEndpointsTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-            builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
