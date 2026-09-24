@@ -37,6 +37,10 @@ public sealed class GalleryOrphanSweepService(
         var deleted = 0;
         var failures = 0;
 
+        // Categories sweep blob storage in parallel, but the scoped repository shares one
+        // DbContext/connection, which rejects overlapping queries ("already an open DataReader").
+        using var databaseGate = new SemaphoreSlim(1, 1);
+
         await Parallel.ForEachAsync(
             categories,
             new ParallelOptions
@@ -55,11 +59,10 @@ public sealed class GalleryOrphanSweepService(
                     Interlocked.Increment(ref scanned);
 
                     // Loaded on the first blob so empty containers skip the database query.
-                    referencedNames ??= new HashSet<string>(
-                        await adminPhotoRepository.GetReferencedBlobNamesAsync(
-                            category.CatId,
-                            categoryCancellationToken),
-                        StringComparer.OrdinalIgnoreCase);
+                    referencedNames ??= await LoadReferencedNamesAsync(
+                        category.CatId,
+                        databaseGate,
+                        categoryCancellationToken);
 
                     if (referencedNames.Contains(blob.BlobName) || blob.LastModified > cutoff)
                     {
@@ -100,5 +103,22 @@ public sealed class GalleryOrphanSweepService(
             });
 
         return new GalleryOrphanSweepResult(scanned, found, deleted, failures);
+    }
+
+    private async Task<HashSet<string>> LoadReferencedNamesAsync(
+        int catId,
+        SemaphoreSlim databaseGate,
+        CancellationToken cancellationToken)
+    {
+        await databaseGate.WaitAsync(cancellationToken);
+        try
+        {
+            var referenced = await adminPhotoRepository.GetReferencedBlobNamesAsync(catId, cancellationToken);
+            return new HashSet<string>(referenced, StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            databaseGate.Release();
+        }
     }
 }

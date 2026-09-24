@@ -373,7 +373,7 @@ public sealed class MobileAuthServiceTests
 
         // Past the reuse grace window, a replay of the rotated-away token is
         // theft, not a lost rotation response.
-        time.Advance(TimeSpan.FromSeconds(31));
+        time.Advance(TimeSpan.FromSeconds(301));
         var reused = await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
             issued.RefreshToken,
@@ -401,7 +401,7 @@ public sealed class MobileAuthServiceTests
             issued.RefreshToken,
             CancellationToken.None);
 
-        time.Advance(TimeSpan.FromSeconds(31));
+        time.Advance(TimeSpan.FromSeconds(301));
         var reused = await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
             issued.RefreshToken,
@@ -450,6 +450,61 @@ public sealed class MobileAuthServiceTests
             retried.RefreshToken,
             CancellationToken.None);
         Assert.True(next.Success);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AtGraceBoundary_StillRecoversInsteadOfRevoking()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var issued = await IssueTokensAsync(timeProvider: time);
+        var firstRotation = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+        Assert.True(firstRotation.Success);
+
+        time.Advance(TimeSpan.FromSeconds(300));
+        var retried = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.True(retried.Success);
+        Assert.False(string.IsNullOrWhiteSpace(retried.RefreshToken));
+        Assert.NotEqual(firstRotation.RefreshToken, retried.RefreshToken);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AfterGraceWindow_RevokesEveryGrantTheMemberHolds()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var accounts = new InMemoryMemberAccountRepository();
+        var grants = new InMemoryMobileAuthGrantRepository(new SharedMobileAuthGrantStore());
+        var first = await IssueTokensAsync(accounts: accounts, grants: grants, timeProvider: time);
+        var second = await IssueTokensAsync(accounts: accounts, grants: grants, timeProvider: time);
+        Assert.NotEqual(first.RefreshToken, second.RefreshToken);
+
+        var rotated = await first.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            first.RefreshToken,
+            CancellationToken.None);
+        Assert.True(rotated.Success);
+
+        time.Advance(TimeSpan.FromSeconds(301));
+        var reused = await first.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            first.RefreshToken,
+            CancellationToken.None);
+
+        Assert.False(reused.Success);
+        Assert.Equal("invalid_grant", reused.Error);
+
+        var sibling = await second.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            second.RefreshToken,
+            CancellationToken.None);
+        Assert.False(sibling.Success);
+        Assert.Equal("invalid_grant", sibling.Error);
     }
 
     [Fact]
