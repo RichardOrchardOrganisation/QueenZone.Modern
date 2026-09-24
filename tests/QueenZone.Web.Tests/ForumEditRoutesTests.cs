@@ -8,13 +8,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumEditRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumEditRoutesTests(WebApplicationFactory<Program> factory)
+    public ForumEditRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

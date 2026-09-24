@@ -4,13 +4,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class HomeImageDeliveryTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HomeImageDeliveryTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public HomeImageDeliveryTests(WebApplicationFactory<Program> factory)
+    public HomeImageDeliveryTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

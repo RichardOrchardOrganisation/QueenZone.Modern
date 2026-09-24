@@ -11,13 +11,13 @@ using QueenZone.Web.Pages.Members;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PrivateMessageRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PrivateMessageRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PrivateMessageRoutesTests(WebApplicationFactory<Program> factory)
+    public PrivateMessageRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

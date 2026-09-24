@@ -27,13 +27,13 @@ namespace QueenZone.Web.Tests;
 /// </item>
 /// </list>
 /// </summary>
-public sealed class PublicOutputCacheTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PublicOutputCacheTests(WebApplicationFactory<Program> factory)
+    public PublicOutputCacheTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

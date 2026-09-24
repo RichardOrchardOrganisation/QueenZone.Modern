@@ -10,14 +10,14 @@ using QueenZone.Web.Pages.Admin.NewsDiscovery;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminNewsAgentGuidanceRoutesTests(WebApplicationFactory<Program> factory)
+    public AdminNewsAgentGuidanceRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

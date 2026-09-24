@@ -4,23 +4,13 @@ using Microsoft.Extensions.Configuration;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PageSeoTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PageSeoTests : IClassFixture<PreviewPublicBaseUrlWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PageSeoTests(WebApplicationFactory<Program> factory)
+    public PageSeoTests(PreviewPublicBaseUrlWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Site:PublicBaseUrl"] = "https://preview.queenzone.test"
-                });
-            });
-        });
+        this.factory = factory;
     }
 
     [Theory]
