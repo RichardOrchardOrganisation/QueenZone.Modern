@@ -332,15 +332,31 @@ queue SHA has its own concurrency group so a later candidate cannot cancel a
 required check already running. Artifact cleanup only deletes artifacts from
 its own run. Dev and production deploy workflows have no `merge_group` trigger.
 
-At the #1734 preparation audit, the live `main` rule had strict status checks and
-required the following GitHub Actions checks (source App ID `15368`): `build`,
+The organization-owned, exact `main` branch protection rule requires a pull
+request and merge queue, with strict up-to-date branches disabled because the
+queue tests each candidate on the latest base. The queue uses squash, build
+concurrency 1, a maximum of one PR per merge, a 120-minute required-check
+timeout, and the all-green strategy to limit self-hosted runner contention and
+dev deployments. Its minimum merge count is 1, with no additional wait.
+The rule retains admin enforcement, forbids force pushes and deletions, and
+requires the following GitHub Actions checks (source App ID `15368`): `build`,
 `test (0)`, `test (1)`, `sql-server-tests`, `coverage`, `smoke-test`,
 `e2e-test`, `Verify formatting`, `Small test projects (Tools/Storage/NewsAgent)`,
 `Mobile typecheck and unit tests`, `Mobile Android build`, and `Mobile iOS build`.
 The workflow also runs `test (2)` through `test (5)` and conditionally runs
 `ef-migrations`, `Mobile API consumer contracts`, and `Design token sync check`;
-those names were not in the live required list. Re-read the rule at cutover,
-because it can change after this audit.
+those names are not in the required list. Re-read the live rule when changing
+CI because check names or sources can change.
+
+Use `gh pr merge --auto --squash` while PR checks are pending, or
+`gh pr merge --squash` after they pass. GitHub then places the PR in the queue
+and checks the temporary merge-group SHA. The PR page's **Remove from queue**
+control withdraws a queued PR. Changing its head branch also removes it and
+restarts checks. A failed, timed-out, or conflicting merge group leaves the PR
+unmerged and records the reason in its timeline; inspect the run, fix the
+cause, and enqueue it again. Avoid queue jumping because it rebuilds later
+candidates. A merge-group event never deploys; the merged `main` push starts
+the normal dev deploy once. Production remains tag/manual only.
 
 If a queued PR waits for a check, inspect the merge-group run and its `changes`
 output, then compare the exact required check name and GitHub App source in the

@@ -74,21 +74,15 @@ When an agent finishes a task that changed tracked files, commit the work, push 
 
 Exceptions: skip auto-opening a PR when the user says they'll commit or push themselves, when work is explicitly a draft/spike not meant for review, or when repo/session instructions say not to. If a git identity, push access, or `gh` auth isn't available, say so instead of silently skipping.
 
-### Update from `main` before opening a pull request
+### Check `main` before opening a pull request
 
-The default branch is **`main`** (not `master`). `main` is protected: required CI checks and merge gates evaluate the PR against the current tip of `main`. If a feature branch was cut hours or days earlier, `main` may have moved — an outdated PR base can block or confuse checks (coverage vs `origin/main`, migration jobs, mergeability) until the branch is updated.
-
-**Before creating a PR** (and before asking for review on a long-lived branch), always:
+The default branch is **`main`** (not `master`). Fetch it before opening a PR so coverage and conflict checks use the current base:
 
 ```powershell
 git fetch origin main
-git merge origin/main
-# or: git rebase origin/main
 ```
 
-Prefer a merge of `origin/main` into the feature branch unless the user or stack workflow asks for a rebase. Resolve any conflicts, re-run the default verification (or the subset relevant to the conflicted files), then push and open or update the PR.
-
-Do this even when the branch was originally created from `main` — time between branch creation and PR open is when `main` usually changes.
+If there is a conflict, stale changed-line coverage result, or another concrete reason to update the branch, merge `origin/main` (or rebase when the stack workflow calls for it), resolve conflicts, and rerun relevant verification. A moving `main` alone does not require an update: the merge queue tests the candidate against the latest base. Updating a queued branch removes it from the queue and starts its checks again.
 
 Before merging to `main`, open a pull request and fill in `.github/pull_request_template.md`. The pull request should include:
 
@@ -100,9 +94,9 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 
-### Auto-merge is enabled repo-wide
+### Merge queue on `main`
 
-GitHub auto-merge is on for this repository: once you enable it on a PR (`gh pr merge --auto --squash`, or the "Enable auto-merge" button), GitHub merges it itself as soon as required checks pass and any branch-protection requirements (reviews, etc.) are satisfied — no need to poll CI and merge manually. Turn it on right after opening the PR rather than waiting for checks to go green first.
+Every merge to `main` goes through GitHub's merge queue with squash. After opening a PR, use `gh pr merge --auto --squash` to enable auto-merge while checks are pending; when checks are ready, `gh pr merge --squash` adds it to the queue. GitHub tests the temporary merge-group commit and merges only after all required checks pass. To withdraw a queued PR, use the PR's **Remove from queue** control in GitHub. A failed or timed-out merge group is removed automatically; inspect its CI run and PR timeline, fix the cause, then enqueue again. Do not bypass the queue or remove required checks to force a merge. See `docs/architecture/testing-policy.md` for the queue CI contract.
 
 ### Linking issues so merge auto-closes them
 
