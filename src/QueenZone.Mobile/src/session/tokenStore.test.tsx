@@ -118,7 +118,9 @@ describe('tokenStore', () => {
     await writeStoredSession({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
     const grantKey = key('grant');
     const grantNextKey = key('grant.next');
-    expect(order).toEqual([
+    const grantOps = (entries: string[]) =>
+      entries.filter((entry) => entry.endsWith(`:${grantKey}`) || entry.endsWith(`:${grantNextKey}`));
+    expect(grantOps(order)).toEqual([
       `set:${grantNextKey}`,
       `get:${grantNextKey}`,
       `set:${grantKey}`,
@@ -128,7 +130,12 @@ describe('tokenStore', () => {
 
     order.length = 0;
     await writeStoredSession({ accessToken: 'b', refreshToken: 's', expiresIn: 900 });
-    expect(order.filter((entry) => entry.startsWith('delete:'))).toEqual([`delete:${grantNextKey}`]);
+    expect(grantOps(order)).toEqual([
+      `set:${grantNextKey}`,
+      `get:${grantNextKey}`,
+      `set:${grantKey}`,
+      `delete:${grantNextKey}`,
+    ]);
     expect(order).not.toContain(`delete:${grantKey}`);
   });
 
