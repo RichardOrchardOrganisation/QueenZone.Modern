@@ -164,5 +164,6 @@ Never commit API keys or connection strings. Use:
 ## Related
 
 - `docs/architecture/news-agent.md` — pipeline, admin review, smoke test
+- `docs/architecture/maintenance-jobs-scheduling.md` — retention and gallery sweep jobs on the same operator machine
 - `docs/backlog/news-agent-mvp-handoff.md` — MVP scope and GitHub issues (#107)
 - `scripts/Smoke-NewsAgent.bat` — manual OpenRouter smoke (fetch + triage)

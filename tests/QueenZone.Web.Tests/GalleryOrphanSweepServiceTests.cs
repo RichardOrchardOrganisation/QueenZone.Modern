@@ -193,19 +193,19 @@ public sealed class GalleryOrphanSweepServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+        public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
             string containerName,
             CancellationToken cancellationToken = default)
         {
             if (!blobsByContainer.TryGetValue(containerName, out var list))
             {
-                return Task.FromResult<IReadOnlyList<GalleryBlobDescriptor>>([]);
+                return AsyncEnumerable.Empty<GalleryBlobDescriptor>();
             }
 
-            IReadOnlyList<GalleryBlobDescriptor> result = list
+            return list
                 .Select(b => new GalleryBlobDescriptor(b.BlobName, b.LastModified))
-                .ToList();
-            return Task.FromResult(result);
+                .ToList()
+                .ToAsyncEnumerable();
         }
     }
 }

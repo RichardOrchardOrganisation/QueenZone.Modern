@@ -207,8 +207,9 @@ project, key name, and intended expiry first.
 
 ### Load legacy SQL connection for tools (never print the value)
 
-The Windows NewsAgent scheduling scripts load `ConnectionStrings__QueenZoneLegacyCanadaEast`
-automatically on every run. Use that same secret for tools targeting production;
+The Windows NewsAgent and maintenance scheduling scripts load `ConnectionStrings__QueenZoneLegacyCanadaEast`
+automatically on every run. `scripts/Run-MaintenanceJobs.ps1` also loads
+`ConnectionStrings__BlobStorageCanadaEast`. Use that same secret for tools targeting production;
 `ConnectionStrings__QueenZoneLegacy` still contains the retired Australia East target.
 
 ```powershell

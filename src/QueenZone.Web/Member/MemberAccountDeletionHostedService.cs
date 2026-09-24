@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace QueenZone.Web;
 
 public sealed class MemberAccountDeletionHostedService(
@@ -34,32 +32,18 @@ public sealed class MemberAccountDeletionHostedService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            using (var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
-                "MemberAccountDeletion",
-                ActivityKind.Internal))
+            try
             {
-                try
-                {
-                    await using var scope = scopeFactory.CreateAsyncScope();
-                    var service = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
-                    var purged = await service.PurgeDueDeletionsAsync(
-                        timeProvider.GetUtcNow().UtcDateTime,
-                        stoppingToken);
-                    if (purged > 0)
-                    {
-                        logger.LogInformation(
-                            "Purged personal data for {PurgedAccountCount} deleted member account(s).",
-                            purged);
-                    }
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Member account deletion purge failed.");
-                }
+                await using var scope = scopeFactory.CreateAsyncScope();
+                await MaintenanceJobs.RunMemberAccountDeletionAsync(scope.ServiceProvider, timeProvider, logger, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Member account deletion purge failed.");
             }
 
             await Task.Delay(RunInterval, timeProvider, stoppingToken);

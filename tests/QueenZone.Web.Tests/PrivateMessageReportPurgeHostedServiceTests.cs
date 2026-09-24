@@ -6,6 +6,7 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
+[Collection(MaintenanceJobActivityCollection.Name)]
 public sealed class PrivateMessageReportPurgeHostedServiceTests
 {
     [Fact]

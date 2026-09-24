@@ -47,20 +47,20 @@ public sealed class GalleryOrphanSweepService(
             async (category, categoryCancellationToken) =>
             {
                 var container = PhotoLegacyPath.BlobContainerName(category.Name);
-                var blobs = await galleryPhotoBlobService.ListBlobsAsync(container, categoryCancellationToken);
-                if (blobs.Count == 0)
-                {
-                    return;
-                }
+                HashSet<string>? referencedNames = null;
 
-                Interlocked.Add(ref scanned, blobs.Count);
-                var referenced = await adminPhotoRepository.GetReferencedBlobNamesAsync(
-                    category.CatId,
-                    categoryCancellationToken);
-                var referencedNames = new HashSet<string>(referenced, StringComparer.OrdinalIgnoreCase);
-
-                foreach (var blob in blobs)
+                // Stream the listing page by page instead of holding a whole container (#1677).
+                await foreach (var blob in galleryPhotoBlobService.ListBlobsAsync(container, categoryCancellationToken))
                 {
+                    Interlocked.Increment(ref scanned);
+
+                    // Loaded on the first blob so empty containers skip the database query.
+                    referencedNames ??= new HashSet<string>(
+                        await adminPhotoRepository.GetReferencedBlobNamesAsync(
+                            category.CatId,
+                            categoryCancellationToken),
+                        StringComparer.OrdinalIgnoreCase);
+
                     if (referencedNames.Contains(blob.BlobName) || blob.LastModified > cutoff)
                     {
                         continue;

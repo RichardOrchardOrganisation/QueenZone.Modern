@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Options;
 
 namespace QueenZone.Web;
@@ -36,34 +35,18 @@ public sealed class GalleryOrphanSweepHostedService(
                 continue;
             }
 
-            using (var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
-                "GalleryOrphanSweep",
-                ActivityKind.Internal))
+            try
             {
-                try
-                {
-                    await using var scope = scopeFactory.CreateAsyncScope();
-                    var service = scope.ServiceProvider.GetRequiredService<GalleryOrphanSweepService>();
-                    var result = await service.SweepAsync(stoppingToken);
-                    if (result.OrphansFound > 0)
-                    {
-                        logger.LogInformation(
-                            "Gallery orphan sweep scanned {BlobsScanned} blob(s), found {OrphansFound} orphan(s), " +
-                            "deleted {OrphansDeleted}, {DeleteFailures} delete failure(s).",
-                            result.BlobsScanned,
-                            result.OrphansFound,
-                            result.OrphansDeleted,
-                            result.DeleteFailures);
-                    }
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Gallery orphan sweep failed.");
-                }
+                await using var scope = scopeFactory.CreateAsyncScope();
+                await MaintenanceJobs.RunGalleryOrphanSweepAsync(scope.ServiceProvider, logger, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Gallery orphan sweep failed.");
             }
 
             await Task.Delay(RunInterval, timeProvider, stoppingToken);

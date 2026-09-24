@@ -300,10 +300,8 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<MemberDeletionReceiptService>();
         services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
             client.Timeout = TimeSpan.FromSeconds(15));
-        services.AddHostedService<MemberAccountDeletionHostedService>();
         services.AddScoped<PrivateMessageRateLimiter>();
         services.AddScoped<PrivateMessageService>();
-        services.AddHostedService<PrivateMessageReportPurgeHostedService>();
         services.AddScoped<MemberFollowService>();
         services.AddScoped<TopicWatchService>();
         services.AddScoped<PhotoSubmissionService>();
@@ -315,9 +313,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<PhotoSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPurgeService>();
-        services.AddHostedService<FanPerformanceSubmissionPurgeHostedService>();
         services.AddScoped<GalleryOrphanSweepService>();
-        services.AddHostedService<GalleryOrphanSweepHostedService>();
         services.AddScoped<NewsSuggestionService>();
         services.AddSingleton<HelpRequestFormStamp>();
         services.AddSingleton<HelpRequestRateLimiter>();
@@ -440,6 +436,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddQueenZoneRateLimiting(configuration);
         services.AddQueenZoneSitemaps();
         services.AddQueenZoneWebAppServices();
+        services.AddQueenZoneMaintenanceHostedServices(configuration);
 
         if (ResponseCompressionBootstrap.IsEnabled(environment))
         {
