@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
@@ -109,6 +110,107 @@ public sealed class EfForumWriteLiveProbeTests
             }
             await CleanupAsync(cleanup, [authorId, reporterId], topicId, marker);
         }
+    }
+
+    [Fact]
+    public async Task Leftover_probe_open_reports_do_not_break_count_open_delta()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = new QueenZoneDbContext(
+            new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+
+        var leftoverReporter = NewProbeMember(
+            Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeea1"),
+            "leftover-reporter@queenzone.local",
+            "Leftover Reporter");
+        var syncedReporter = NewProbeMember(
+            Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeea2"),
+            "synced-reporter@queenzone.local",
+            "Synced Reporter");
+        var createdReporter = NewProbeMember(
+            Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeea3"),
+            "created-reporter@queenzone.local",
+            "Created Reporter");
+        db.MemberAccounts.AddRange(leftoverReporter, syncedReporter, createdReporter);
+        await db.SaveChangesAsync();
+
+        var leftoverId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee1");
+        var syncedOpenId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2");
+        db.ForumPostReports.AddRange(
+            new ForumPostReportEntity
+            {
+                Id = leftoverId,
+                PostId = 101,
+                TopicId = 201,
+                ReporterMemberId = leftoverReporter.Id,
+                Category = ForumPostReportCategories.Other,
+                CreatedAt = DateTimeOffset.Parse("2026-09-22T00:00:00Z"),
+                Status = PrivateMessageReportStatus.Open,
+                PostBodySnapshot = "<p>forum-report-probe-202609220000000 leftover evidence</p>",
+                AuthorDisplayNameSnapshot = "Leftover Author",
+                PostCreatedAtSnapshot = DateTimeOffset.Parse("2026-09-22T00:00:00Z"),
+                ThreadTitleSnapshot = "forum-report-probe-202609220000000 leftover subject",
+            },
+            new ForumPostReportEntity
+            {
+                Id = syncedOpenId,
+                PostId = 102,
+                TopicId = 202,
+                ReporterMemberId = syncedReporter.Id,
+                Category = ForumPostReportCategories.Spam,
+                CreatedAt = DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
+                Status = PrivateMessageReportStatus.Open,
+                PostBodySnapshot = "Synced production open report",
+                AuthorDisplayNameSnapshot = "Synced Author",
+                PostCreatedAtSnapshot = DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
+                ThreadTitleSnapshot = "Production thread",
+            });
+        db.ForumPostReportAuditLogs.Add(new ForumPostReportAuditLogEntity
+        {
+            ReportId = leftoverId,
+            Action = "Viewed",
+            ActorEmail = "probe@queenzone.local",
+            OccurredAt = DateTimeOffset.Parse("2026-09-22T00:01:00Z"),
+            Details = "forum-report-probe-202609220000000 leftover audit",
+        });
+        await db.SaveChangesAsync();
+
+        await DeleteLeftoverProbeOpenReportsAsync(db);
+
+        Assert.False(await db.ForumPostReports.AnyAsync(report => report.Id == leftoverId));
+        Assert.False(await db.ForumPostReportAuditLogs.AnyAsync(log => log.ReportId == leftoverId));
+        Assert.True(await db.ForumPostReports.AnyAsync(report => report.Id == syncedOpenId));
+
+        var reports = new EfForumPostReportRepository(db);
+        var baseline = await reports.CountOpenAsync();
+        Assert.Equal(1, baseline);
+
+        var createdId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee3");
+        db.ForumPostReports.Add(new ForumPostReportEntity
+        {
+            Id = createdId,
+            PostId = 103,
+            TopicId = 203,
+            ReporterMemberId = createdReporter.Id,
+            Category = ForumPostReportCategories.Harassment,
+            CreatedAt = DateTimeOffset.Parse("2026-09-24T00:00:00Z"),
+            Status = PrivateMessageReportStatus.Open,
+            PostBodySnapshot = "<p>forum-report-probe-now evidence</p>",
+            AuthorDisplayNameSnapshot = "Probe Author",
+            PostCreatedAtSnapshot = DateTimeOffset.Parse("2026-09-24T00:00:00Z"),
+            ThreadTitleSnapshot = "forum-report-probe-now subject",
+        });
+        await db.SaveChangesAsync();
+
+        var storedStatus = await db.ForumPostReports
+            .Where(report => report.Id == createdId)
+            .Select(report => report.Status)
+            .SingleAsync();
+        Assert.Equal(PrivateMessageReportStatus.Open, storedStatus);
+        Assert.Equal(baseline + 1, await reports.CountOpenAsync());
+        Assert.True(await db.ForumPostReports.AnyAsync(report => report.Id == syncedOpenId));
     }
 
     [Fact]
