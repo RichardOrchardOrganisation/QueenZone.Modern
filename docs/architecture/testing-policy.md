@@ -320,8 +320,8 @@ CI also collects coverage from the deterministic test suite (merged across Web.T
 | --- | --- |
 | `scripts/Get-WebTestShardFilter.ps1` | Discovers `*Tests` classes and assigns them with greedy balance. Checked-in observed class durations take precedence; new classes fall back to case count × host-kind heuristics. Emits an xUnit `--filter`. |
 | `scripts/Invoke-WebTestsShard.ps1` | Runs one shard's filtered Web.Tests (`-SmallProjectsOnly` runs just the Tools/Storage/NewsAgent projects instead) |
-| `scripts/Update-WebTestDurations.ps1` | Merges shard TRX timings into a noise-damped class-duration map. CI uploads the suggested map for periodic review and commit. |
-| `.github/workflows/ci.yml` jobs `test` + `small-projects-tests` + `coverage` | Matrix `shard: [0, 1, 2, 3]` for Web.Tests, a separate parallel job for the small projects, then merge Cobertura, update observed timings, and run the coverage gate |
+| `scripts/Update-WebTestDurations.ps1` | Merges shard TRX timings into a noise-damped class-duration map. CI uploads the suggested map (`web-test-class-durations-<run id>` artifact from the `coverage` job); commit it to `scripts/web-test-class-durations.json` when shard times drift apart or after large test changes. Without that file every class falls back to heuristics and shards skew badly (330s vs 630s in September 2026). |
+| `.github/workflows/ci.yml` jobs `test` + `small-projects-tests` + `coverage` | Matrix `shard: [0, 1, 2, 3, 4, 5]` for Web.Tests, a separate parallel job for the small projects, then merge Cobertura, update observed timings, and run the coverage gate |
 
 The `build` job uploads `src/**/bin/Release`, `tests/**/bin/Release`, and `src/QueenZone.Web/obj/Release`. Keep PDBs — Coverlet maps executed lines from them, so a `--no-build` shard without symbols collapses global coverage. Keep `*.xml` — NewsAgent tests copy fixture XML into the output directory and `--no-build` shards read those files from disk. Shards must keep the QueenZone.Web `obj` tree — ASP.NET Core’s `WebApplicationFactory` resolves compressed static web assets under `src/QueenZone.Web/obj/.../compressed/`. Uploading only `bin` causes `DirectoryNotFoundException` in Development-environment host tests (for example `StaticAssetCacheHeadersTests`). Other project `obj` trees are not required for `--no-build` shard runs.
 
@@ -331,12 +331,10 @@ The `build` job uploads `src/**/bin/Release`, `tests/**/bin/Release`, and `src/Q
 
 ```powershell
 powershell -File ./scripts/Get-WebTestShardFilter.ps1 -SelfTest
-powershell -File ./scripts/Get-WebTestShardFilter.ps1 -ShardCount 4 -List
+powershell -File ./scripts/Get-WebTestShardFilter.ps1 -ShardCount 6 -List
 dotnet build QueenZone.sln --configuration Release
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 0 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 1 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 2 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 3 -ShardCount 4 -NoBuild -NoRestore
+powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 0 -ShardCount 6 -NoBuild -NoRestore
+# ...repeat for -ShardIndex 1 through 5
 powershell -File ./scripts/Invoke-WebTestsShard.ps1 -SmallProjectsOnly -NoBuild -NoRestore
 ```
 
