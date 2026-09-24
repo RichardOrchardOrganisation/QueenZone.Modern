@@ -10,6 +10,8 @@ namespace QueenZone.Web.Tests;
 [Collection(LiveDatabaseProbeCollection.Name)]
 public sealed class EfForumWriteLiveProbeTests
 {
+    private const string LeftoverProbeSnapshotMarker = "forum-report-probe-";
+
     [Fact]
     public async Task Create_and_moderate_forum_report_on_mirror_when_enabled()
     {
@@ -38,6 +40,11 @@ public sealed class EfForumWriteLiveProbeTests
         try
         {
             await using var setup = CreateContext(connectionString);
+            // Prior failed probes or Sync can leave Open ForumPostReports.
+            // Scrub only leftover probe-marked rows so residue does not grow;
+            // do not wipe Sync/prod Open reports on the shared mirror (#1702).
+            await DeleteLeftoverProbeOpenReportsAsync(setup);
+
             var category = await setup.ModernForumCategories.AsNoTracking()
                 .Where(c => !c.IsSynthetic)
                 .OrderBy(c => c.LegacyForumId)
@@ -58,6 +65,7 @@ public sealed class EfForumWriteLiveProbeTests
             topicId = created.TopicId;
 
             var reports = new EfForumPostReportRepository(setup);
+            var baseline = await reports.CountOpenAsync();
             var first = await reports.CreateAsync(
                 reporterId,
                 created.StarterPostId,
@@ -78,9 +86,10 @@ public sealed class EfForumWriteLiveProbeTests
 
             var stored = await reports.GetAsync(reportId!.Value);
             Assert.NotNull(stored);
-            Assert.Equal(authorId, stored!.ReportedMemberId);
+            Assert.Equal(PrivateMessageReportStatus.Open, stored!.Status);
+            Assert.Equal(authorId, stored.ReportedMemberId);
             Assert.Contains(marker, stored.PostBodySnapshot, StringComparison.Ordinal);
-            Assert.Equal(1, await reports.CountOpenAsync());
+            Assert.Equal(baseline + 1, await reports.CountOpenAsync());
 
             await reports.AppendViewedAuditAsync(reportId.Value, "probe@queenzone.local");
             var updated = await reports.UpdateStatusAsync(
@@ -163,6 +172,28 @@ public sealed class EfForumWriteLiveProbeTests
         {
             await CleanupAsync(connectionString, memberId, topicId, marker);
         }
+    }
+
+    private static async Task DeleteLeftoverProbeOpenReportsAsync(QueenZoneDbContext db)
+    {
+        var leftoverIds = await db.ForumPostReports
+            .Where(report =>
+                report.Status == PrivateMessageReportStatus.Open
+                && (report.PostBodySnapshot.Contains(LeftoverProbeSnapshotMarker)
+                    || report.ThreadTitleSnapshot.Contains(LeftoverProbeSnapshotMarker)))
+            .Select(report => report.Id)
+            .ToListAsync();
+        if (leftoverIds.Count == 0)
+        {
+            return;
+        }
+
+        await db.ForumPostReportAuditLogs
+            .Where(log => leftoverIds.Contains(log.ReportId))
+            .ExecuteDeleteAsync();
+        await db.ForumPostReports
+            .Where(report => leftoverIds.Contains(report.Id))
+            .ExecuteDeleteAsync();
     }
 
     private static QueenZoneDbContext CreateContext(string connectionString)
