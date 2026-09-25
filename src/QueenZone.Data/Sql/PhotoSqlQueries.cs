@@ -42,58 +42,65 @@ public sealed class PhotoSqlQueries
     /// up the already-resolved prev/next pic ids. Production uses SQL Server
     /// PIC_FILES_T; the SQLite fixture uses PhotoItems.
     /// </summary>
-    private static string WithNeighborMedia(string innerSql, bool sqlite) =>
-        sqlite
-            ? $"""
+    private const string InnerNavSqlPlaceholder = "__INNER_NAV_SQL__";
+
+    private static string WithNeighborMedia(string innerSql, bool sqlite)
+    {
+        // Regular raw strings keep EF `{0}` placeholders literal. Interpolated
+        // raw strings (`$""" {{0}}`) fail CS9006 because `{` starts interpolation.
+        var wrapper = sqlite
+            ? """
                 SELECT
                     nav.*,
-                    (SELECT URL FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.PreviousPicId) AS PreviousUrl,
-                    (SELECT PIC_WIDTH FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.PreviousPicId) AS PreviousWidth,
-                    (SELECT PIC_HEIGHT FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.PreviousPicId) AS PreviousHeight,
-                    (SELECT URL FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.NextPicId) AS NextUrl,
-                    (SELECT PIC_WIDTH FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.NextPicId) AS NextWidth,
-                    (SELECT PIC_HEIGHT FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.NextPicId) AS NextHeight
+                    (SELECT URL FROM PhotoItems t WHERE t.cat_id = {0} AND t.pic_id = nav.PreviousPicId) AS PreviousUrl,
+                    (SELECT PIC_WIDTH FROM PhotoItems t WHERE t.cat_id = {0} AND t.pic_id = nav.PreviousPicId) AS PreviousWidth,
+                    (SELECT PIC_HEIGHT FROM PhotoItems t WHERE t.cat_id = {0} AND t.pic_id = nav.PreviousPicId) AS PreviousHeight,
+                    (SELECT URL FROM PhotoItems t WHERE t.cat_id = {0} AND t.pic_id = nav.NextPicId) AS NextUrl,
+                    (SELECT PIC_WIDTH FROM PhotoItems t WHERE t.cat_id = {0} AND t.pic_id = nav.NextPicId) AS NextWidth,
+                    (SELECT PIC_HEIGHT FROM PhotoItems t WHERE t.cat_id = {0} AND t.pic_id = nav.NextPicId) AS NextHeight
                 FROM (
-                {innerSql}
+                __INNER_NAV_SQL__
                 ) nav
                 """
-            : $"""
+            : """
                 SELECT
                     nav.*,
                     (
                         SELECT ISNULL(t.Url, N'')
                         FROM dbo.PIC_FILES_T t
-                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
+                        WHERE t.Cat_ID = {0} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
                     ) AS PreviousUrl,
                     (
                         SELECT CAST(ISNULL(t.PIC_WIDTH, 0) AS int)
                         FROM dbo.PIC_FILES_T t
-                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
+                        WHERE t.Cat_ID = {0} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
                     ) AS PreviousWidth,
                     (
                         SELECT CAST(ISNULL(t.PIC_HEIGHT, 0) AS int)
                         FROM dbo.PIC_FILES_T t
-                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
+                        WHERE t.Cat_ID = {0} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
                     ) AS PreviousHeight,
                     (
                         SELECT ISNULL(t.Url, N'')
                         FROM dbo.PIC_FILES_T t
-                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
+                        WHERE t.Cat_ID = {0} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
                     ) AS NextUrl,
                     (
                         SELECT CAST(ISNULL(t.PIC_WIDTH, 0) AS int)
                         FROM dbo.PIC_FILES_T t
-                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
+                        WHERE t.Cat_ID = {0} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
                     ) AS NextWidth,
                     (
                         SELECT CAST(ISNULL(t.PIC_HEIGHT, 0) AS int)
                         FROM dbo.PIC_FILES_T t
-                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
+                        WHERE t.Cat_ID = {0} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
                     ) AS NextHeight
                 FROM (
-                {innerSql}
+                __INNER_NAV_SQL__
                 ) nav
                 """;
+        return wrapper.Replace(InnerNavSqlPlaceholder, innerSql, StringComparison.Ordinal);
+    }
 
     public required string CategoriesWithCountsSql { get; init; }
 

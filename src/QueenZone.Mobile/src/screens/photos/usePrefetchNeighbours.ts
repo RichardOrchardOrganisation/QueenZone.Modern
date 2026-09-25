@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef } from 'react';
  */
 export function usePrefetchNeighbours(
   currentUri: string | null | undefined,
-  neighbourUris: Array<string | null | undefined>,
+  neighbourUris: (string | null | undefined)[],
 ): (uri: string) => void {
   const currentUriRef = useRef(currentUri);
   const neighbourUrisRef = useRef(neighbourUris);
