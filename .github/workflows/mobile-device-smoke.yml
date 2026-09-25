@@ -19,7 +19,13 @@ on:
           - journeys
           - release
           - both
+          - proof
         default: smoke
+      feature:
+        description: "Feature-map id when suite is proof (for example mobile.photos.viewer)"
+        required: false
+        type: string
+        default: ""
       platform:
         description: "Device platform to run"
         required: false
@@ -61,7 +67,7 @@ jobs:
     if: >-
       (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5')
       || (github.event_name == 'workflow_dispatch'
-        && (github.event.inputs.suite == 'smoke' || github.event.inputs.suite == 'both')
+        && (github.event.inputs.suite == 'smoke' || github.event.inputs.suite == 'both' || github.event.inputs.suite == 'proof')
         && (github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'))
     # Same labels as P0 Android release. Isolated AVD/port in the smoke wrapper.
     # Reversible: previous path was GitHub-hosted Linux qemu.
@@ -178,6 +184,8 @@ jobs:
         env:
           ANDROID_SMOKE_AVD: QueenZone_CI_Smoke_API_36
           ANDROID_SMOKE_EMULATOR_PORT: "5558"
+          DEVICE_SUITE: ${{ github.event.inputs.suite || 'smoke' }}
+          DEVICE_FEATURE: ${{ github.event.inputs.feature }}
         run: |
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
@@ -219,6 +227,8 @@ jobs:
           ANDROID_SMOKE_AVD: QueenZone_CI_Smoke_API_36_retry
           ANDROID_SMOKE_EMULATOR_PORT: "5558"
           ANDROID_SMOKE_FORCE_AVD: "1"
+          DEVICE_SUITE: ${{ github.event.inputs.suite || 'smoke' }}
+          DEVICE_FEATURE: ${{ github.event.inputs.feature }}
         run: |
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
@@ -262,6 +272,17 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload Android proof
+        if: always() && github.event.inputs.suite == 'proof'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: proof-${{ github.event.inputs.feature }}-android-${{ github.run_id }}
+          path: |
+            artifacts/proof/
+            src/QueenZone.Mobile/maestro-results/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Fail Android smoke after unrecovered failure
         if: >-
           always()
@@ -282,7 +303,7 @@ jobs:
     if: >-
       (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5')
       || (github.event_name == 'workflow_dispatch'
-        && (github.event.inputs.suite == 'smoke' || github.event.inputs.suite == 'both')
+        && (github.event.inputs.suite == 'smoke' || github.event.inputs.suite == 'both' || github.event.inputs.suite == 'proof')
         && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'))
     runs-on: macos-26
     timeout-minutes: 90
@@ -403,12 +424,30 @@ jobs:
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
           APP=$(ls -d src/QueenZone.Mobile/ios/build/Build/Products/Release-iphonesimulator/*.app | head -n 1)
+          SUITE="${{ github.event.inputs.suite }}"
+          FEATURE="${{ github.event.inputs.feature }}"
+          EXTRA=""
+          if [ "$SUITE" = "proof" ]; then
+            EXTRA="--suite proof --feature $FEATURE"
+          fi
           ./scripts/run-mobile-device-smoke.sh \
             --platform ios \
             --skip-build \
             --no-build \
             --app "$APP" \
-            $PROVE
+            $PROVE \
+            $EXTRA
+
+      - name: Upload iOS proof
+        if: always() && github.event.inputs.suite == 'proof'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: proof-${{ github.event.inputs.feature }}-ios-${{ github.run_id }}
+          path: |
+            artifacts/proof/
+            src/QueenZone.Mobile/maestro-results/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload iOS smoke diagnostics
         if: failure()
@@ -425,7 +464,7 @@ jobs:
     if: >-
       (github.event_name == 'schedule' && github.event.schedule == '0 16 * * 1-5')
       || (github.event_name == 'workflow_dispatch'
-        && (github.event.inputs.suite == 'journeys' || github.event.inputs.suite == 'both')
+        && (github.event.inputs.suite == 'journeys' || github.event.inputs.suite == 'both' || github.event.inputs.suite == 'proof')
         && (github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -526,7 +565,11 @@ jobs:
             echo "job=mobile-android-journeys"
             echo "prepared_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > src/QueenZone.Mobile/maestro-results/harness.log
-          echo "DEVICE_SUITE_ARGS=--suite journeys" >> "$GITHUB_ENV"
+          if [ "${{ github.event.inputs.suite }}" = "proof" ]; then
+            echo "DEVICE_SUITE_ARGS=--suite proof --feature ${{ github.event.inputs.feature }}" >> "$GITHUB_ENV"
+          else
+            echo "DEVICE_SUITE_ARGS=--suite journeys" >> "$GITHUB_ENV"
+          fi
 
       # Hosted GHA Linux only: API 34 + stable emulator channel (#1458).
       - name: Run Android device journeys
@@ -617,6 +660,17 @@ jobs:
             src/QueenZone.Mobile/maestro-results-transport-first/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Upload hosted Android proof
+        if: always() && github.event.inputs.suite == 'proof'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: proof-${{ github.event.inputs.feature }}-android-hosted-${{ github.run_id }}
+          path: |
+            artifacts/proof/
+            src/QueenZone.Mobile/maestro-results/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Fail Android journeys after unrecovered failure
         if: >-

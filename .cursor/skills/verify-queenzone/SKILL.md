@@ -5,7 +5,7 @@ description: Drive the QueenZone public web archive the way a visitor does — l
 
 # Verify QueenZone (public web)
 
-QueenZone.Web is the visitor-facing ASP.NET Core Razor site. This skill launches a disposable `Testing` host (in-memory sample data, no SQL) and drives real pages. Read `features/README.md` before a run, then the matching feature file.
+QueenZone.Web is the visitor-facing ASP.NET Core Razor site. This skill launches a disposable `Testing` host (in-memory sample data, no SQL) and drives real pages. Resolve the change through `docs/feature-map/` first, then read `features/README.md` and the matching feature file.
 
 Other surfaces exist and are out of scope unless a feature file says otherwise: `/api/v1` and admin editorial screens. Drive the Expo client with `verify-queenzone-mobile`, not this skill.
 
@@ -75,9 +75,21 @@ Seeded Testing titles that must stay stable:
 
 Admin on this host uses test header `X-Test-User-Email: admin@test.local` (see `appsettings.Testing.json`). That is not a visitor path; do not use it for public-feature proof.
 
+## Capture proof
+
+UI PRs need a `## Verification` section. After `launch`, capture proof from the map id:
+
+```powershell
+pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 capture-proof -Feature web.home.index
+```
+
+That screenshots the entry URL through the E2E project's `playwright.ps1 screenshot --full-page` and runs the mapped spec when one exists. Output is `artifacts/proof/<id>/web/<timestamp>/`. A missing host or Playwright build writes `NOT RUN: <reason>, needs <named check>` and exits non-zero.
+
+Worked example: a homepage change uses `web.home.index` (`Pages/Index.cshtml`, `#qz-hero-archive`, `SmokeTests`). Attach the PNG and `proof.md` under `## Verification`.
+
 ## Evidence
 
-Write proof under `.cursor/skills/verify-queenzone/artifacts/<feature-id>/`. Cleanup must not delete this directory.
+Write proof under `artifacts/proof/<feature-id>/web/<timestamp>/` (and the skill `artifacts/` folder if you also keep an ARIA snapshot). Cleanup must not delete this directory.
 
 Proof standards:
 
@@ -108,6 +120,7 @@ All commands below are from the repository root. The script is `pwsh`-compatible
 pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 launch
 pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 doctor
 pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 url
+pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 capture-proof -Feature web.home.index
 pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 cleanup
 ```
 

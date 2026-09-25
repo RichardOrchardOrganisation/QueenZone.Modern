@@ -1,0 +1,102 @@
+{
+  "area": "photos",
+  "surface": "mobile",
+  "entries": [
+    {
+      "aliases": [
+        "photos tab",
+        "photo gallery"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/photos/PhotosScreen.tsx"
+      ],
+      "testIds": [
+        "photosScreen",
+        "tabPhotos"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/photography.md",
+      "id": "mobile.photos.index",
+      "name": "Photography index",
+      "screen": "PhotosStack/PhotoIndex",
+      "entry": "Tap the Photography tab"
+    },
+    {
+      "aliases": [
+        "brian may photos",
+        "photo category"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/photos/PhotoCategoryScreen.tsx"
+      ],
+      "testIds": [
+        "photoCategoryScreen"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/photography.md",
+      "id": "mobile.photos.category",
+      "name": "Photo collection",
+      "screen": "PhotosStack/PhotoCategory",
+      "entry": "Photography tab → collection (e.g. Brian May)"
+    },
+    {
+      "aliases": [
+        "black screen single photo",
+        "black screen when viewing a single photo",
+        "photos",
+        "photo page is black",
+        "single photo"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/photos/PhotoViewerScreen.tsx",
+        "src/QueenZone.Mobile/src/screens/photos/ZoomableArchiveImage.tsx"
+      ],
+      "testIds": [
+        "photoViewerScreen",
+        "photoViewerClose",
+        "photoViewerImageOverlay",
+        "photoViewerImageRetry",
+        "photoViewerMeta"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/05-photography.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/photography.md",
+      "id": "mobile.photos.viewer",
+      "name": "Photo viewer",
+      "screen": "PhotosStack/PhotoViewer",
+      "entry": "Photography tab → collection → photograph",
+      "drive": {
+        "photos": "src/QueenZone.Mobile/maestro/flows/05-photography.yaml"
+      }
+    },
+    {
+      "aliases": [
+        "upload photo",
+        "photo submission"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/photos/PhotoSubmitScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.photos.submit",
+      "name": "Submit a photo",
+      "screen": "PhotosStack/PhotoSubmit",
+      "entry": "Photography tab → submit a photo"
+    }
+  ]
+}

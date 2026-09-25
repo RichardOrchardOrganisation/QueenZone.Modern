@@ -5,7 +5,7 @@ description: Drive the QueenZone Expo mobile client the way a member does — la
 
 # Verify QueenZone.Mobile
 
-`src/QueenZone.Mobile` is the Expo development-build client (`org.queenzone.mobile`). This skill launches a disposable `Testing` contract host (in-memory sample data, `QUEENZONE_MOBILE_CONTRACT_HOST=1`) and drives the real Android or iOS app through Maestro. Read `features/README.md` before a run, then the matching feature file.
+`src/QueenZone.Mobile` is the Expo development-build client (`org.queenzone.mobile`). This skill launches a disposable `Testing` contract host (in-memory sample data, `QUEENZONE_MOBILE_CONTRACT_HOST=1`) and drives the real Android or iOS app through Maestro. Resolve the change through `docs/feature-map/` first, then read `features/README.md` and the matching feature file.
 
 Do not use `verify-queenzone` (the Razor website) to prove mobile screens. Do not use Expo Go. Do not point this host at Azure SQL, a live site, or OAuth.
 
@@ -72,7 +72,19 @@ From the repository root, with the helper host still up and `SMOKE_AUTH_URL` onl
 pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobile.ps1 drive -Flow news
 ```
 
-That runs `src/QueenZone.Mobile/maestro/flows/04-news-story.yaml` against `org.queenzone.mobile`. Other `-Flow` values: `launch`, `tabs`, `home`, `news`, `photos`, `search`, `forum`, `profile`, `auth`, `attach`, `discussion`, `unread`.
+`drive` resolves `-Flow` through `docs/feature-map/` (`news` → `mobile.news.story` → `04-news-story.yaml`). Other drive aliases: `launch`, `tabs`, `home`, `news`, `photos`, `search`, `forum`, `profile`, `auth`, `attach`, `discussion`, `unread`.
+
+## Capture proof
+
+UI PRs need a `## Verification` section. Capture proof from the map id:
+
+```powershell
+pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobile.ps1 capture-proof -Feature mobile.photos.viewer -Platform android
+```
+
+Output is `artifacts/proof/<id>/<platform>/<timestamp>/` (`proof.md`, JUnit, PNG). If no device or emulator is reachable, the command writes `NOT RUN: <reason>, needs <named check>` and exits non-zero. Cloud agents cannot run the Android emulator (KVM vCPU creation crashes) or iOS; say so and dispatch `mobile-device-smoke.yml` with `suite: proof` and `feature: <id>`. Expo web is not mobile proof.
+
+Worked example: a PhotoViewer change uses `mobile.photos.viewer` (`PhotoViewerScreen.tsx`, `ZoomableArchiveImage.tsx`, `05-photography.yaml`). After a CI proof run, the PR Verification section links `proof-mobile.photos.viewer-android-<run_id>`. If the agent cannot dispatch workflows: `Not verified: dispatch proof for mobile.photos.viewer`.
 
 Full CI-shaped suite (rebuilds and reinstalls the Release-embedded binary):
 
@@ -99,7 +111,7 @@ Seeded Testing titles that must stay stable:
 
 ## Evidence
 
-Write proof under `.cursor/skills/verify-queenzone-mobile/artifacts/<feature-id>/`. Cleanup must not delete this directory.
+Write proof under `artifacts/proof/<feature-id>/<platform>/<timestamp>/` (and the skill `artifacts/` folder if you also keep a local copy). Cleanup must not delete those directories.
 
 Proof standards:
 
@@ -128,6 +140,7 @@ pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobi
 pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobile.ps1 doctor
 pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobile.ps1 url
 pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobile.ps1 drive -Flow news
+pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobile.ps1 capture-proof -Feature mobile.photos.viewer -Platform android
 pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobile.ps1 cleanup
 ```
 

@@ -1,0 +1,126 @@
+{
+  "area": "photos",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [
+        "photo gallery",
+        "photography index"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Photography/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/SmokeTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/photography.md",
+      "id": "web.photos.index",
+      "name": "Photography",
+      "page": "Pages/Photography/Index.cshtml",
+      "url": "/photography",
+      "entry": "Header Photography, or open /photography"
+    },
+    {
+      "aliases": [
+        "brian may collection"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Photography/Category.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/photography.md",
+      "id": "web.photos.category",
+      "name": "Photo collection",
+      "page": "Pages/Photography/Category.cshtml",
+      "url": "/photography/{slug}",
+      "entry": "Photography → collection"
+    },
+    {
+      "aliases": [
+        "photo collection pagination"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Photography/CategoryPage.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.photos.categoryPage",
+      "name": "Photo collection page",
+      "page": "Pages/Photography/CategoryPage.cshtml",
+      "url": "/photography/{slug}/page/{pageNumber}",
+      "entry": "Photography collection → next page"
+    },
+    {
+      "aliases": [
+        "photo page",
+        "single photo",
+        "photo 101",
+        "lightbox"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Photography/Detail.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/PhotographyLightboxTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/photography.md",
+      "id": "web.photos.detail",
+      "name": "Photograph",
+      "page": "Pages/Photography/Detail.cshtml",
+      "url": "/photography/{slug}/{picId}",
+      "entry": "Photography → collection → photograph"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/Photo.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CommunitySubmissionWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.photos.submit",
+      "name": "Submit a photo",
+      "page": "Pages/Submit/Photo.cshtml",
+      "url": "/submit/photo",
+      "entry": "Open /submit/photo"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/PhotoConfirmation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.photos.submitConfirmation",
+      "name": "Photo submission confirmation",
+      "page": "Pages/Submit/PhotoConfirmation.cshtml",
+      "url": "/submit/photo/confirmation/{id}",
+      "entry": "Submit photo → confirmation"
+    }
+  ]
+}

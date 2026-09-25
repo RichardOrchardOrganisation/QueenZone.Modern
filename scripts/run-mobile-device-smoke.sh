@@ -12,6 +12,7 @@
 #   ./scripts/run-mobile-device-smoke.sh --platform android --prove-failure
 #   ./scripts/run-mobile-device-smoke.sh --platform android --suite journeys
 #   ./scripts/run-mobile-device-smoke.sh --platform android --suite release
+#   ./scripts/run-mobile-device-smoke.sh --platform android --suite proof --feature mobile.photos.viewer
 #   ./scripts/run-mobile-device-smoke.sh --dump-android-host
 #   ./scripts/run-mobile-device-smoke.sh --self-test-adb-timeout
 #
@@ -38,6 +39,7 @@ prove_failure=false
 dump_android_host=false
 self_test_adb_timeout=false
 suite="smoke"
+feature=""
 apk=""
 app=""
 port="${SMOKE_PORT:-5098}"
@@ -75,6 +77,10 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --suite)
       suite="${2:-}"
+      shift 2
+      ;;
+    --feature)
+      feature="${2:-}"
       shift 2
       ;;
     --apk)
@@ -118,8 +124,13 @@ if [[ "$dump_android_host" != true ]] && [[ "$self_test_adb_timeout" != true ]] 
   exit 2
 fi
 
-if [[ "$suite" != "smoke" ]] && [[ "$suite" != "journeys" ]] && [[ "$suite" != "release" ]]; then
-  echo "--suite smoke|journeys|release is required (default smoke)." >&2
+if [[ "$suite" != "smoke" ]] && [[ "$suite" != "journeys" ]] && [[ "$suite" != "release" ]] && [[ "$suite" != "proof" ]]; then
+  echo "--suite smoke|journeys|release|proof is required (default smoke)." >&2
+  exit 2
+fi
+
+if [[ "$suite" = "proof" ]] && [[ -z "$feature" ]]; then
+  echo "--feature <map-id> is required with --suite proof." >&2
   exit 2
 fi
 
@@ -794,6 +805,7 @@ if ! command -v maestro >/dev/null; then
 fi
 
 flow="src/QueenZone.Mobile/maestro/smoke.yaml"
+proof_flows=()
 if [[ "$prove_failure" = true ]]; then
   flow="src/QueenZone.Mobile/maestro/prove-failure.yaml"
   echo "Running forced-assertion flow to prove failure artifacts."
@@ -803,15 +815,26 @@ elif [[ "$suite" = "journeys" ]]; then
 elif [[ "$suite" = "release" ]]; then
   flow="src/QueenZone.Mobile/maestro/release.yaml"
   echo "Running the P0 Maestro release suite (#1411)."
+elif [[ "$suite" = "proof" ]]; then
+  mapfile -t proof_flows < <(node "$root/scripts/check-feature-map.mjs" --flows "$feature")
+  if [[ "${#proof_flows[@]}" -eq 0 ]]; then
+    echo "Feature '$feature' has no Maestro flows in the feature map." >&2
+    exit 1
+  fi
+  echo "Running feature-map proof for $feature."
 fi
 
-echo "Running Maestro ($flow). Selector and assertion failures are not retried."
+echo "Running Maestro ($flow ${proof_flows[*]}). Selector and assertion failures are not retried."
 maestro_args=()
 if [[ -n "${MAESTRO_TARGET_DEVICE:-}" ]]; then
   maestro_args+=(--device "$MAESTRO_TARGET_DEVICE")
 fi
+if [[ "$suite" = "proof" ]]; then
+  maestro_args+=(test "${proof_flows[@]}")
+else
+  maestro_args+=(test "$flow")
+fi
 maestro_args+=(
-  test "$flow"
   --format junit
   --output "$results_dir/junit.xml"
   --debug-output "$results_dir/debug"
@@ -966,6 +989,51 @@ if [[ "$platform" = "ios" ]] \
   run_maestro_once
   maestro_status=$?
   set -e
+fi
+
+write_proof_bundle() {
+  local stamp proof_dir result detail
+  stamp="$(date -u +%Y%m%d-%H%M%S)"
+  proof_dir="$root/artifacts/proof/${feature}/${platform}/${stamp}"
+  mkdir -p "$proof_dir"
+  if [[ -f "$results_dir/junit.xml" ]]; then
+    cp "$results_dir/junit.xml" "$proof_dir/junit.xml"
+  fi
+  if [[ -d "$results_dir/debug" ]]; then
+    cp -a "$results_dir/debug" "$proof_dir/debug" || true
+  fi
+  if [[ "$platform" = "android" ]] && command -v adb >/dev/null; then
+    adb exec-out screencap -p > "$proof_dir/screenshot.png" 2>/dev/null || true
+  elif [[ "$platform" = "ios" ]] && command -v xcrun >/dev/null; then
+    xcrun simctl io booted screenshot "$proof_dir/screenshot.png" >/dev/null 2>&1 || true
+  fi
+  if [[ "$maestro_status" -eq 0 ]]; then
+    result="PASS"
+    detail="Maestro proof for ${feature} passed on ${platform}."
+  else
+    result="FAIL"
+    detail="Maestro proof for ${feature} failed on ${platform} with status ${maestro_status}."
+  fi
+  {
+    echo "# Proof"
+    echo
+    echo "- Feature: ${feature}"
+    echo "- SHA: $(git -C "$root" rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "- Platform: ${platform}"
+    echo "- Result: ${result}"
+    echo
+    echo "## Flows / specs"
+    printf '%s\n' "${proof_flows[@]/#/- }"
+    echo
+    echo "## Detail"
+    echo "$detail"
+  } > "$proof_dir/proof.md"
+  echo "PROOF_DIR=$proof_dir" >> "$results_dir/harness.log"
+  echo "Wrote proof bundle $proof_dir"
+}
+
+if [[ "$suite" = "proof" ]]; then
+  write_proof_bundle
 fi
 
 if [[ "$maestro_status" -ne 0 ]]; then
