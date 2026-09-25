@@ -12,6 +12,18 @@ describe('contactApiUrl', () => {
   it('joins the versioned contact path onto the API origin', () => {
     assert.equal(contactApiUrl('http://localhost:5146'), 'http://localhost:5146/api/v1/contact');
     assert.equal(contactApiUrl('http://localhost:5146/'), 'http://localhost:5146/api/v1/contact');
+    assert.equal(contactApiUrl('http://localhost:5146///'), 'http://localhost:5146/api/v1/contact');
+    assert.equal(contactApiUrl(''), '/api/v1/contact');
+    assert.equal(contactApiUrl('   '), '   /api/v1/contact');
+  });
+
+  it('finishes quickly when the origin is a long slash run', () => {
+    const started = performance.now();
+    assert.equal(
+      contactApiUrl(`http://localhost:5146${'/'.repeat(40_000)}`),
+      'http://localhost:5146/api/v1/contact',
+    );
+    assert.ok(performance.now() - started < 100);
   });
 });
 

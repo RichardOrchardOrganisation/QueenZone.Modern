@@ -1,4 +1,5 @@
 import { Directory, File, FileMode, Paths } from 'expo-file-system';
+import { trimTrailingChar } from '../text/trimRuns';
 import type { DownloadAudioExtension } from './audioBytes';
 import { DOWNLOAD_EMPTY_PART_MESSAGE, DOWNLOAD_PART_MISSING_MESSAGE } from './messages';
 import { DOWNLOAD_DIRECTORY_NAME } from './types';
@@ -31,7 +32,7 @@ export type DownloadFileHost = {
 };
 
 function joinUri(root: string, name: string): string {
-  return `${root.replace(/\/+$/, '')}/${name}`;
+  return `${trimTrailingChar(root, '/')}/${name}`;
 }
 
 export function opaqueFileName(

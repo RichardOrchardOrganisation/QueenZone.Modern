@@ -1,5 +1,7 @@
 /** Public `/api/v1/contact` contract (issue #755). Matches website `/contact`. */
 
+import { trimTrailingChar } from '../text/trimRuns';
+
 
 export const contactApiPath = '/contact';
 
@@ -55,7 +57,7 @@ export const fallbackContactLimits: ContactFieldLimits = {
 };
 
 export function contactApiUrl(apiBaseUrl: string): string {
-  const origin = apiBaseUrl.replace(/\/+$/, '');
+  const origin = trimTrailingChar(apiBaseUrl, '/');
   return `${origin}/api/v1${contactApiPath}`;
 }
 

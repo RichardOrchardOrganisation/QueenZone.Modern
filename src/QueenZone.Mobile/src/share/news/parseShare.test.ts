@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { leftoverAfterUrls, parseShare } from './parseShare.ts';
+import { findLinks, leftoverAfterUrls, normalizeShareUrl, parseShare } from './parseShare.ts';
 
 describe('parseShare', () => {
   it('accepts a dedicated url field', () => {
@@ -116,5 +116,88 @@ describe('parseShare', () => {
       return;
     }
     assert.equal(intake.reason, 'noUrl');
+  });
+
+  it('rejects empty, whitespace-only, data, file, intent, and digit-prefixed custom schemes', () => {
+    assert.equal(parseShare({ text: '', hasFiles: false }).kind, 'rejected');
+    assert.equal(parseShare({ text: '   \n', hasFiles: false }).kind, 'rejected');
+    assert.equal(
+      (parseShare({ text: 'data:text/html,hello', hasFiles: false }) as { reason: string }).reason,
+      'unsupportedScheme',
+    );
+    assert.equal(
+      (parseShare({ text: 'FILE:C:/secret', hasFiles: false }) as { reason: string }).reason,
+      'unsupportedScheme',
+    );
+    assert.equal(
+      (parseShare({ text: 'intent://scan', hasFiles: false }) as { reason: string }).reason,
+      'unsupportedScheme',
+    );
+    assert.equal(
+      (parseShare({ text: '1queenzone://story/9', hasFiles: false }) as { reason: string }).reason,
+      'unsupportedScheme',
+    );
+    assert.equal(
+      (parseShare({ text: 'ftp://example.com/a', hasFiles: false }) as { reason: string }).reason,
+      'unsupportedScheme',
+    );
+  });
+});
+
+describe('findLinks', () => {
+  it('keeps http(s) hrefs and strips trailing punctuation', () => {
+    assert.deepEqual(findLinks(''), []);
+    assert.deepEqual(findLinks('   '), []);
+    assert.deepEqual(findLinks('https://example.com/x.'), [
+      { scheme: 'https', href: 'https://example.com/x' },
+    ]);
+    assert.deepEqual(findLinks('See http://example.com/x).," tonight'), [
+      { scheme: 'http', href: 'http://example.com/x' },
+    ]);
+    assert.deepEqual(findLinks('https://example.com/x'), [
+      { scheme: 'https', href: 'https://example.com/x' },
+    ]);
+  });
+
+  it('finishes quickly on a long trailing-punctuation run', () => {
+    const started = performance.now();
+    assert.deepEqual(findLinks(`https://example.com/x${'.'.repeat(40_000)}`), [
+      { scheme: 'https', href: 'https://example.com/x' },
+    ]);
+    assert.ok(performance.now() - started < 100);
+  });
+});
+
+describe('normalizeShareUrl', () => {
+  it('drops default ports, hashes, and trailing slashes on non-root paths', () => {
+    assert.equal(
+      normalizeShareUrl('https://WWW.Example.com:443/news/story/?q=1#hash'),
+      'https://www.example.com/news/story?q=1',
+    );
+    assert.equal(normalizeShareUrl('http://example.com:80/'), 'http://example.com/');
+    assert.equal(normalizeShareUrl('https://example.com/foo///'), 'https://example.com/foo');
+    assert.equal(normalizeShareUrl('  '), '');
+    assert.equal(normalizeShareUrl('not a url'), 'not a url');
+  });
+
+  it('finishes quickly on a long trailing-slash pathname', () => {
+    const started = performance.now();
+    assert.equal(
+      normalizeShareUrl(`https://example.com/foo${'/'.repeat(40_000)}`),
+      'https://example.com/foo',
+    );
+    assert.ok(performance.now() - started < 100);
+  });
+});
+
+describe('unsupported-scheme scan', () => {
+  it('finishes quickly on a long letter run that used to backtrack', () => {
+    const started = performance.now();
+    const intake = parseShare({ text: 'a'.repeat(40_000), hasFiles: false });
+    assert.equal(intake.kind, 'rejected');
+    if (intake.kind === 'rejected') {
+      assert.equal(intake.reason, 'noUrl');
+    }
+    assert.ok(performance.now() - started < 100);
   });
 });

@@ -1,3 +1,5 @@
+import { trimTrailingChar, trimTrailingSet } from '../../text/trimRuns';
+
 /** Native bits we are willing to look at. Files are a reject, not a field. */
 export type ShareRaw = {
   text?: string | null;
@@ -26,9 +28,8 @@ export type ShareIntake =
   | { kind: 'rejected'; reason: ShareRejectReason; detail: string };
 
 const httpUrlPattern = /https?:\/\/[^\s<>"'`]+/gi;
-const trailingPunctuation = /[.,;:!?)\]}'"]+$/g;
-const unsupportedSchemePattern =
-  /(?:javascript:|data:|file:|intent:|(?!https?:)[a-z][a-z0-9+.-]*:\/\/)/i;
+const trailingPunctuationChars = new Set(['.', ',', ';', ':', '!', '?', ')', ']', '}', "'", '"']);
+const namedUnsupportedSchemes = ['javascript:', 'data:', 'file:', 'intent:'] as const;
 
 const fileRejectDetail = 'Share a link, not a file or photo.';
 const notHttpsDetail = 'News suggestions need an https:// link.';
@@ -78,7 +79,7 @@ export function findLinks(text: string): FoundLink[] {
 
   const found: FoundLink[] = [];
   for (const raw of text.match(httpUrlPattern) ?? []) {
-    const href = raw.replace(trailingPunctuation, '');
+    const href = trimTrailingSet(raw, trailingPunctuationChars);
     if (href.startsWith('https://')) {
       found.push({ scheme: 'https', href });
     } else if (href.startsWith('http://')) {
@@ -110,7 +111,7 @@ export function normalizeShareUrl(url: string): string {
       parsed.port = '';
     }
     if (parsed.pathname.length > 1) {
-      parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+      parsed.pathname = trimTrailingChar(parsed.pathname, '/');
     }
     return parsed.href;
   } catch {
@@ -141,5 +142,50 @@ function uniqPreserveOrder(hrefs: string[]): string[] {
 }
 
 function containsUnsupportedScheme(text: string): boolean {
-  return unsupportedSchemePattern.test(text);
+  const lower = text.toLowerCase();
+  for (const scheme of namedUnsupportedSchemes) {
+    if (lower.includes(scheme)) {
+      return true;
+    }
+  }
+
+  let from = 0;
+  while (from < lower.length) {
+    const sep = lower.indexOf('://', from);
+    if (sep === -1) {
+      return false;
+    }
+    const scheme = readSchemeBefore(lower, sep);
+    if (scheme && scheme !== 'http' && scheme !== 'https') {
+      return true;
+    }
+    from = sep + 3;
+  }
+  return false;
+}
+
+/** `[a-z][a-z0-9+.-]*` immediately before `://`, same as the old lookahead regex. */
+function readSchemeBefore(lower: string, colonIndex: number): string | null {
+  let start = colonIndex;
+  while (start > 0 && isSchemeContinue(lower.charCodeAt(start - 1))) {
+    start -= 1;
+  }
+  while (start < colonIndex) {
+    const code = lower.charCodeAt(start);
+    if (code >= 97 && code <= 122) {
+      return lower.slice(start, colonIndex);
+    }
+    start += 1;
+  }
+  return null;
+}
+
+function isSchemeContinue(code: number): boolean {
+  return (
+    (code >= 97 && code <= 122) ||
+    (code >= 48 && code <= 57) ||
+    code === 43 ||
+    code === 46 ||
+    code === 45
+  );
 }
