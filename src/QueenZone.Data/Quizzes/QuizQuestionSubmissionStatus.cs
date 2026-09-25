@@ -15,18 +15,12 @@ public static class QuizQuestionSubmissionStatus
         Rejected,
     ];
 
-    public static bool IsKnown(string? status) =>
-        !string.IsNullOrWhiteSpace(status)
-        && All.Contains(status.Trim(), StringComparer.OrdinalIgnoreCase);
+    internal static readonly SubmissionStatusSet Statuses = new("quiz question submission", All);
+
+    public static bool IsKnown(string? status) => Statuses.IsKnown(status);
 
     public static bool IsPendingReview(string status) =>
         string.Equals(Normalize(status), Pending, StringComparison.Ordinal);
 
-    public static string Normalize(string status)
-    {
-        var match = All.FirstOrDefault(s =>
-            string.Equals(s, status.Trim(), StringComparison.OrdinalIgnoreCase));
-        return match
-            ?? throw new ArgumentException($"Unknown quiz question submission status '{status}'.", nameof(status));
-    }
+    public static string Normalize(string status) => Statuses.Normalize(status);
 }
