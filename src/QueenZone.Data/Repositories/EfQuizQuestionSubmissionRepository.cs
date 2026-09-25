@@ -70,7 +70,7 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         // SQLite cannot order by DateTimeOffset server-side (see IsSqliteDatabase); materialize
         // then sort/page client-side. Row counts here are small enough (admin queue) for this
         // to be safe on SQL Server too, but keep the server-side path there for scale.
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var rows = await dbContext.QuizQuestionSubmissions
                 .AsNoTracking()
@@ -122,7 +122,7 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
             .AsNoTracking()
             .Where(row => row.Status == QuizQuestionSubmissionStatus.Approved && row.AddedToQuizId == null);
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var rows = await query
                 .Select(row => new
@@ -185,7 +185,7 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
 
         var totalCount = await query.CountAsync(cancellationToken);
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var all = await query
                 .Include(row => row.Submitter)
@@ -368,37 +368,20 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         return await GetByIdAsync(id, cancellationToken);
     }
 
-    public async Task<SubmissionTypeCounts> GetDashboardCountsAsync(
+    public Task<SubmissionTypeCounts> GetDashboardCountsAsync(
         DateTimeOffset utcNow,
-        CancellationToken cancellationToken = default)
-    {
-        var monthAgo = utcNow.AddDays(-30);
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-
-        var rows = await dbContext.QuizQuestionSubmissions
+        CancellationToken cancellationToken = default) =>
+        dbContext.QuizQuestionSubmissions
             .AsNoTracking()
-            .Select(row => new { row.Status, row.SubmittedAt })
-            .ToListAsync(cancellationToken);
-
-        var pending = rows.Count(row => row.Status == QuizQuestionSubmissionStatus.Pending);
-        var receivedToday = rows.Count(row => row.SubmittedAt.UtcDateTime.Date >= today);
-        var receivedThisWeek = rows.Count(row => row.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-        var last30 = rows.Where(row => row.SubmittedAt >= monthAgo).ToList();
-        var approvedLast30 = last30.Count(row => row.Status == QuizQuestionSubmissionStatus.Approved);
-        var rejectedLast30 = last30.Count(row => row.Status == QuizQuestionSubmissionStatus.Rejected);
-        var pendingLast30 = last30.Count(row => row.Status == QuizQuestionSubmissionStatus.Pending);
-
-        return new SubmissionTypeCounts(
-            pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30);
-    }
-
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
+            .Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == QuizQuestionSubmissionStatus.Pending,
+                IsApproved = row.Status == QuizQuestionSubmissionStatus.Approved,
+                IsRejected = row.Status == QuizQuestionSubmissionStatus.Rejected,
+                IsStillPending = row.Status == QuizQuestionSubmissionStatus.Pending,
+            })
+            .ToDashboardCountsAsync(utcNow, aggregateInSql: false, cancellationToken);
 
     private static string? NormalizeOptional(string? value, int maxLength)
     {

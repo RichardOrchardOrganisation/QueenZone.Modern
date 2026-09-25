@@ -57,7 +57,7 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
         pageSize = Math.Clamp(pageSize, 1, 100);
         var skip = (page - 1) * pageSize;
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var rows = await dbContext.PhotoSubmissions
                 .AsNoTracking()
@@ -124,7 +124,7 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
         var totalCount = await query.CountAsync(cancellationToken);
         var skip = (page - 1) * pageSize;
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var sqliteRows = await query
                 .Select(row => new
@@ -302,147 +302,35 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
     public Task<SubmissionTypeCounts> GetDashboardCountsAsync(
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default) =>
-        IsSqliteDatabase()
-            ? GetDashboardCountsInMemoryAsync(utcNow, cancellationToken)
-            : GetDashboardCountsViaSqlAggregateAsync(utcNow, cancellationToken);
-
-    // SQLite fallback (also exercised in tests): the provider cannot translate DateTimeOffset
-    // comparisons inside conditional aggregates, so materialise then count in memory.
-    private async Task<SubmissionTypeCounts> GetDashboardCountsInMemoryAsync(
-        DateTimeOffset utcNow,
-        CancellationToken cancellationToken)
-    {
-        var monthAgo = utcNow.AddDays(-30);
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-
-        var rows = await dbContext.PhotoSubmissions
+        dbContext.PhotoSubmissions
             .AsNoTracking()
-            .Select(r => new { r.Status, r.SubmittedAt })
-            .ToListAsync(cancellationToken);
-
-        var pending = rows.Count(r =>
-            r.Status is PhotoSubmissionStatus.Pending
-                or PhotoSubmissionStatus.UnderReview
-                or PhotoSubmissionStatus.NeedsInfo);
-
-        var receivedToday = rows.Count(r => r.SubmittedAt.UtcDateTime.Date >= today);
-        var receivedThisWeek = rows.Count(r => r.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-        var last30 = rows.Where(r => r.SubmittedAt >= monthAgo).ToList();
-        var approvedLast30 = last30.Count(r => r.Status == PhotoSubmissionStatus.Approved);
-        var rejectedLast30 = last30.Count(r => r.Status == PhotoSubmissionStatus.Rejected);
-        var pendingLast30 = last30.Count(r =>
-            r.Status is PhotoSubmissionStatus.Pending
-                or PhotoSubmissionStatus.UnderReview
-                or PhotoSubmissionStatus.NeedsInfo);
-
-        return new SubmissionTypeCounts(
-            pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30);
-    }
-
-    // SQL Server only: the EF Core SQLite provider cannot translate DateTimeOffset comparisons
-    // inside conditional aggregates, so this path has no coverage from the default SQLite-backed
-    // QueenZone.Web.Tests suite. Covered instead by tests/QueenZone.SqlServerTests against a
-    // real SQL Server (Docker in CI, LocalDB locally) — see docs/architecture/testing-policy.md.
-    private async Task<SubmissionTypeCounts> GetDashboardCountsViaSqlAggregateAsync(
-        DateTimeOffset utcNow,
-        CancellationToken cancellationToken)
-    {
-        var monthAgo = utcNow.AddDays(-30);
-        var todayUtc = new DateTimeOffset(utcNow.UtcDateTime.Date, TimeSpan.Zero);
-        var weekAgoUtc = todayUtc.AddDays(-6);
-
-        var counts = await dbContext.PhotoSubmissions
-            .AsNoTracking()
-            .GroupBy(_ => 1)
-            .Select(g => new SubmissionTypeCounts(
-                g.Count(r => r.Status == PhotoSubmissionStatus.Pending
-                    || r.Status == PhotoSubmissionStatus.UnderReview
-                    || r.Status == PhotoSubmissionStatus.NeedsInfo),
-                g.Count(r => r.SubmittedAt >= todayUtc),
-                g.Count(r => r.SubmittedAt >= weekAgoUtc),
-                g.Count(r => r.SubmittedAt >= monthAgo && r.Status == PhotoSubmissionStatus.Approved),
-                g.Count(r => r.SubmittedAt >= monthAgo && r.Status == PhotoSubmissionStatus.Rejected),
-                g.Count(r => r.SubmittedAt >= monthAgo
-                    && (r.Status == PhotoSubmissionStatus.Pending
-                        || r.Status == PhotoSubmissionStatus.UnderReview
-                        || r.Status == PhotoSubmissionStatus.NeedsInfo))))
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return counts ?? SubmissionTypeCounts.Empty;
-    }
+            .Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == PhotoSubmissionStatus.Pending
+                    || row.Status == PhotoSubmissionStatus.UnderReview
+                    || row.Status == PhotoSubmissionStatus.NeedsInfo,
+                IsApproved = row.Status == PhotoSubmissionStatus.Approved,
+                IsRejected = row.Status == PhotoSubmissionStatus.Rejected,
+                IsStillPending = row.Status == PhotoSubmissionStatus.Pending
+                    || row.Status == PhotoSubmissionStatus.UnderReview
+                    || row.Status == PhotoSubmissionStatus.NeedsInfo,
+            })
+            .ToDashboardCountsAsync(utcNow, aggregateInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
 
     public Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsThisMonthAsync(
         DateTimeOffset monthStart,
         int maxCount,
         CancellationToken cancellationToken = default) =>
-        IsSqliteDatabase()
-            ? GetTopContributorsInMemoryAsync(monthStart, maxCount, cancellationToken)
-            : GetTopContributorsViaSqlAggregateAsync(monthStart, maxCount, cancellationToken);
-
-    // SQLite fallback (also exercised in tests): the provider cannot translate DateTimeOffset
-    // comparisons.
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsInMemoryAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken cancellationToken)
-    {
-        var rows = await dbContext.PhotoSubmissions
+        dbContext.PhotoSubmissions
             .AsNoTracking()
-            .Select(r => new
+            .Select(row => new SubmissionContributorRow
             {
-                r.SubmitterMemberId,
-                DisplayName = r.Submitter != null ? r.Submitter.DisplayName : string.Empty,
-                r.SubmittedAt,
+                MemberId = row.SubmitterMemberId,
+                DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
+                SubmittedAt = row.SubmittedAt,
             })
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .Where(r => r.SubmittedAt >= monthStart)
-            .GroupBy(r => r.SubmitterMemberId)
-            .Select(g => new SubmissionContributor(
-                g.Key,
-                g.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.DisplayName))?.DisplayName ?? "Unknown member",
-                g.Count()))
-            .OrderByDescending(c => c.Count)
-            .Take(maxCount)
-            .ToList();
-    }
-
-    // SQL Server only: see the note on GetDashboardCountsViaSqlAggregateAsync.
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsViaSqlAggregateAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken cancellationToken)
-    {
-        var aggregated = await dbContext.PhotoSubmissions
-            .AsNoTracking()
-            .Where(r => r.SubmittedAt >= monthStart)
-            .GroupBy(r => r.SubmitterMemberId)
-            .Select(g => new
-            {
-                SubmitterMemberId = g.Key,
-                DisplayName = g.Max(r => r.Submitter != null ? r.Submitter.DisplayName : null),
-                Count = g.Count(),
-            })
-            .OrderByDescending(c => c.Count)
-            .Take(maxCount)
-            .ToListAsync(cancellationToken);
-
-        return aggregated
-            .Select(c => new SubmissionContributor(
-                c.SubmitterMemberId,
-                string.IsNullOrWhiteSpace(c.DisplayName) ? "Unknown member" : c.DisplayName,
-                c.Count))
-            .ToList();
-    }
-
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
+            .ToTopContributorsAsync(monthStart, maxCount, aggregateInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
 
     private static string? BuildAuditDetails(string status, PhotoSubmissionEntity entity) =>
         status switch
