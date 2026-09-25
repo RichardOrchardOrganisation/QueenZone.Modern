@@ -7,44 +7,13 @@ namespace QueenZone.Web;
 public sealed class FanPerformanceSubmissionPurgeHostedService(
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
-    ILogger<FanPerformanceSubmissionPurgeHostedService> logger) : BackgroundService
+    ILogger<FanPerformanceSubmissionPurgeHostedService> logger)
+    : PeriodicScopedHostedService(scopeFactory, timeProvider, logger, DefaultRunInterval)
 {
-    internal static readonly TimeSpan DefaultStartupDelay = TimeSpan.FromMinutes(5);
-
     internal static readonly TimeSpan DefaultRunInterval = TimeSpan.FromHours(24);
 
-    internal TimeSpan StartupDelay { get; init; } = DefaultStartupDelay;
+    protected override string FailureMessage => "Fan-performance submission purge failed.";
 
-    internal TimeSpan RunInterval { get; init; } = DefaultRunInterval;
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await Task.Delay(StartupDelay, timeProvider, stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                await using var scope = scopeFactory.CreateAsyncScope();
-                await MaintenanceJobs.RunFanPerformanceSubmissionPurgeAsync(scope.ServiceProvider, logger, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Fan-performance submission purge failed.");
-            }
-
-            await Task.Delay(RunInterval, timeProvider, stoppingToken);
-        }
-    }
+    protected override Task RunJobAsync(IServiceProvider scopedServices, CancellationToken cancellationToken) =>
+        MaintenanceJobs.RunFanPerformanceSubmissionPurgeAsync(scopedServices, Logger, cancellationToken);
 }
