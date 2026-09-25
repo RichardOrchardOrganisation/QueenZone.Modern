@@ -64,7 +64,8 @@
               <input type="radio" name="correctOptionIndex" value="@index" checked="@(option.IsCorrect ? "checked" : null)">
               Option @(index + 1)
             </label>
-            <input type="text" name="optionTexts" value="@option.Text" maxlength="@QuizValidation.OptionMaxLength">
+            <label class="visually-hidden" for="quiz-option-text-@index">Option @(index + 1) text</label>
+            <input id="quiz-option-text-@index" type="text" name="optionTexts" value="@option.Text" maxlength="@QuizValidation.OptionMaxLength">
           }
         </fieldset>
         <label>

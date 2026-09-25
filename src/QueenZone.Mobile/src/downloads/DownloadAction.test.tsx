@@ -34,6 +34,17 @@ function reset() {
 
 describe('DownloadAction', () => {
   beforeEach(reset);
+
+  it('shows Download when idle, signed in or signed out', () => {
+    const signedIn = renderWithProviders(<DownloadAction track={track} />, { navigation: false });
+    expect(screen.getByText('Download')).toBeOnTheScreen();
+    signedIn.unmount();
+
+    mockSession.accessToken = null;
+    mockSession.isSignedIn = false;
+    renderWithProviders(<DownloadAction track={track} />, { navigation: false });
+    expect(screen.getByText('Download')).toBeOnTheScreen();
+  });
   afterEach(() => {
     setDownloadFileHostForTests(null);
     setDownloadManifestStorageForTests(null);
