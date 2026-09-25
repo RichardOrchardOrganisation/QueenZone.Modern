@@ -101,7 +101,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         var totalCount = await query.CountAsync(ct);
         var skip = (page - 1) * pageSize;
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var sqliteRows = await query
                 .Select(a => new
@@ -170,7 +170,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 || a.Status == ArticleSubmissionStatus.UnderReview
                 || a.Status == ArticleSubmissionStatus.ApprovedForPublishing);
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var sqliteRows = await filtered
                 .Select(a => new
@@ -308,151 +308,36 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
     public Task<SubmissionTypeCounts> GetDashboardCountsAsync(
         DateTimeOffset utcNow,
         CancellationToken ct = default) =>
-        IsSqliteDatabase()
-            ? GetDashboardCountsInMemoryAsync(utcNow, ct)
-            : GetDashboardCountsViaSqlAggregateAsync(utcNow, ct);
-
-    // SQLite fallback (also exercised in tests): the provider cannot translate DateTimeOffset?
-    // comparisons inside conditional aggregates, so materialise then count in memory.
-    private async Task<SubmissionTypeCounts> GetDashboardCountsInMemoryAsync(
-        DateTimeOffset utcNow,
-        CancellationToken ct)
-    {
-        var monthAgo = utcNow.AddDays(-30);
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-
-        var rows = await dbContext.ArticleSubmissions
+        dbContext.ArticleSubmissions
             .AsNoTracking()
-            .Select(a => new { a.Status, a.SubmittedAt })
-            .ToListAsync(ct);
-
-        var pending = rows.Count(a =>
-            a.Status is ArticleSubmissionStatus.Submitted
-                or ArticleSubmissionStatus.UnderReview
-                or ArticleSubmissionStatus.ApprovedForPublishing);
-
-        var submitted = rows.Where(a => a.SubmittedAt.HasValue).ToList();
-        var receivedToday = submitted.Count(a => a.SubmittedAt!.Value.UtcDateTime.Date >= today);
-        var receivedThisWeek = submitted.Count(a => a.SubmittedAt!.Value.UtcDateTime.Date >= weekAgo);
-
-        var last30 = submitted.Where(a => a.SubmittedAt!.Value >= monthAgo).ToList();
-        var approvedLast30 = last30.Count(a =>
-            a.Status is ArticleSubmissionStatus.Published or ArticleSubmissionStatus.ApprovedForPublishing);
-        var rejectedLast30 = last30.Count(a =>
-            a.Status is ArticleSubmissionStatus.Rejected or ArticleSubmissionStatus.RequiresRevision);
-        var pendingLast30 = last30.Count(a =>
-            a.Status is ArticleSubmissionStatus.Submitted or ArticleSubmissionStatus.UnderReview);
-
-        return new SubmissionTypeCounts(
-            pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30);
-    }
-
-    // SQL Server only: the EF Core SQLite provider cannot translate DateTimeOffset? comparisons
-    // inside conditional aggregates, so this path has no coverage from the default SQLite-backed
-    // QueenZone.Web.Tests suite. Covered instead by tests/QueenZone.SqlServerTests against a
-    // real SQL Server (Docker in CI, LocalDB locally) — see docs/architecture/testing-policy.md.
-    private async Task<SubmissionTypeCounts> GetDashboardCountsViaSqlAggregateAsync(
-        DateTimeOffset utcNow,
-        CancellationToken ct)
-    {
-        var monthAgo = utcNow.AddDays(-30);
-        var todayUtc = new DateTimeOffset(utcNow.UtcDateTime.Date, TimeSpan.Zero);
-        var weekAgoUtc = todayUtc.AddDays(-6);
-
-        var counts = await dbContext.ArticleSubmissions
-            .AsNoTracking()
-            .GroupBy(_ => 1)
-            .Select(g => new SubmissionTypeCounts(
-                g.Count(a => a.Status == ArticleSubmissionStatus.Submitted
-                    || a.Status == ArticleSubmissionStatus.UnderReview
-                    || a.Status == ArticleSubmissionStatus.ApprovedForPublishing),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= todayUtc),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= weekAgoUtc),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthAgo
-                    && (a.Status == ArticleSubmissionStatus.Published
-                        || a.Status == ArticleSubmissionStatus.ApprovedForPublishing)),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthAgo
-                    && (a.Status == ArticleSubmissionStatus.Rejected
-                        || a.Status == ArticleSubmissionStatus.RequiresRevision)),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthAgo
-                    && (a.Status == ArticleSubmissionStatus.Submitted
-                        || a.Status == ArticleSubmissionStatus.UnderReview))))
-            .SingleOrDefaultAsync(ct);
-
-        return counts ?? SubmissionTypeCounts.Empty;
-    }
+            .Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == ArticleSubmissionStatus.Submitted
+                    || row.Status == ArticleSubmissionStatus.UnderReview
+                    || row.Status == ArticleSubmissionStatus.ApprovedForPublishing,
+                IsApproved = row.Status == ArticleSubmissionStatus.Published
+                    || row.Status == ArticleSubmissionStatus.ApprovedForPublishing,
+                IsRejected = row.Status == ArticleSubmissionStatus.Rejected
+                    || row.Status == ArticleSubmissionStatus.RequiresRevision,
+                IsStillPending = row.Status == ArticleSubmissionStatus.Submitted
+                    || row.Status == ArticleSubmissionStatus.UnderReview,
+            })
+            .ToDashboardCountsAsync(utcNow, aggregateInSql: !dbContext.Database.IsSqliteProvider(), ct);
 
     public Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsThisMonthAsync(
         DateTimeOffset monthStart,
         int maxCount,
         CancellationToken ct = default) =>
-        IsSqliteDatabase()
-            ? GetTopContributorsInMemoryAsync(monthStart, maxCount, ct)
-            : GetTopContributorsViaSqlAggregateAsync(monthStart, maxCount, ct);
-
-    // SQLite fallback (also exercised in tests): the provider cannot translate DateTimeOffset?
-    // comparisons.
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsInMemoryAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken ct)
-    {
-        var rows = await dbContext.ArticleSubmissions
+        dbContext.ArticleSubmissions
             .AsNoTracking()
-            .Select(a => new
+            .Select(row => new SubmissionContributorRow
             {
-                MemberId = a.AuthorMemberId,
-                DisplayName = a.Author != null ? a.Author.DisplayName : string.Empty,
-                a.SubmittedAt,
+                MemberId = row.AuthorMemberId,
+                DisplayName = row.Author != null ? row.Author.DisplayName : null,
+                SubmittedAt = row.SubmittedAt,
             })
-            .ToListAsync(ct);
-
-        return rows
-            .Where(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthStart)
-            .GroupBy(a => a.MemberId)
-            .Select(g => new SubmissionContributor(
-                g.Key,
-                g.FirstOrDefault(a => !string.IsNullOrWhiteSpace(a.DisplayName))?.DisplayName ?? "Unknown member",
-                g.Count()))
-            .OrderByDescending(c => c.Count)
-            .Take(maxCount)
-            .ToList();
-    }
-
-    // SQL Server only: see the note on GetDashboardCountsViaSqlAggregateAsync.
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsViaSqlAggregateAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken ct)
-    {
-        var aggregated = await dbContext.ArticleSubmissions
-            .AsNoTracking()
-            .Where(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthStart)
-            .GroupBy(a => a.AuthorMemberId)
-            .Select(g => new
-            {
-                MemberId = g.Key,
-                DisplayName = g.Max(a => a.Author != null ? a.Author.DisplayName : null),
-                Count = g.Count(),
-            })
-            .OrderByDescending(c => c.Count)
-            .Take(maxCount)
-            .ToListAsync(ct);
-
-        return aggregated
-            .Select(c => new SubmissionContributor(
-                c.MemberId,
-                string.IsNullOrWhiteSpace(c.DisplayName) ? "Unknown member" : c.DisplayName,
-                c.Count))
-            .ToList();
-    }
-
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
+            .ToTopContributorsAsync(monthStart, maxCount, aggregateInSql: !dbContext.Database.IsSqliteProvider(), ct);
 
     internal static int CountVisibleChars(string? html)
     {
@@ -462,7 +347,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         }
 
         // Strip HTML tags; collapse whitespace; count remaining chars.
-        var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ", System.Text.RegularExpressions.RegexOptions.None, RegexDefaults.MatchTimeout);
         var decoded = System.Net.WebUtility.HtmlDecode(stripped);
         var collapsed = string.Join(" ", decoded.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return collapsed.Length;
@@ -471,7 +356,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
     internal static int EstimateWordCount(string? body) =>
         string.IsNullOrWhiteSpace(body)
             ? 0
-            : System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", " ")
+            : System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", " ", System.Text.RegularExpressions.RegexOptions.None, RegexDefaults.MatchTimeout)
                 .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
     private static string GenerateSlug(string title)

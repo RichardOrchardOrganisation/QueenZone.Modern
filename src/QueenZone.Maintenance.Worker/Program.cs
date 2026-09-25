@@ -1,8 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QueenZone.Data;
 using QueenZone.Web;
 
+// Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
+RegexDefaults.ApplyProcessDefault();
 var options = MaintenanceJobCommandOptions.Parse(args);
 if (options is null)
 {

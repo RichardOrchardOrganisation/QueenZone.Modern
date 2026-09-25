@@ -52,10 +52,16 @@ jobs:
           # Structural write protection: RealDataPageTest throws if a write-capable
           # fixture is selected while this is set (also set inside Run-E2E LiveSite).
           E2E_READONLY: "true"
+          BASE_URL: ${{ inputs.base_url }}
         run: |
-          $baseUrl = "${{ inputs.base_url }}"
+          $baseUrl = $env:BASE_URL
           if ([string]::IsNullOrWhiteSpace($baseUrl)) {
             $baseUrl = "https://www.queenzone.org"
+          }
+          $uri = $null
+          if (-not [Uri]::TryCreate($baseUrl, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne [Uri]::UriSchemeHttps) {
+            Write-Host "::error::base_url must be an https:// URL."
+            exit 1
           }
           Write-Host "::notice::Live-site read-only public sweep against production (not the SQL Express mirror)."
           Write-Host "Failures here mean production/CDN/deploy drift — different signal from nightly ui-e2e-realdata."
@@ -65,10 +71,17 @@ jobs:
       - name: Summarize production sweep result
         if: always()
         shell: pwsh
+        env:
+          BASE_URL: ${{ inputs.base_url }}
         run: |
-          $baseUrl = "${{ inputs.base_url }}"
+          $baseUrl = $env:BASE_URL
           if ([string]::IsNullOrWhiteSpace($baseUrl)) {
             $baseUrl = "https://www.queenzone.org"
+          }
+          $uri = $null
+          if (-not [Uri]::TryCreate($baseUrl, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne [Uri]::UriSchemeHttps) {
+            Write-Host "::error::base_url must be an https:// URL."
+            exit 1
           }
           $status = "${{ job.status }}"
           if ($status -eq "success") {

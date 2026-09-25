@@ -3,10 +3,13 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.FileProviders.Physical;
+using QueenZone.Data;
 using QueenZone.Web;
 using QueenZone.Web.Health;
 using QueenZone.Web.Sitemap;
 
+// Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
+RegexDefaults.ApplyProcessDefault();
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
