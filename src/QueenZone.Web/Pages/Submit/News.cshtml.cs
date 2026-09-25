@@ -29,7 +29,7 @@ public sealed class NewsModel(NewsSuggestionService newsSuggestionService) : Pag
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (await GetCurrentMemberIdAsync() is null)
+        if (await HttpContext.AuthenticateMemberIdAsync() is null)
         {
             return Redirect("/account/login");
         }
@@ -40,7 +40,7 @@ public sealed class NewsModel(NewsSuggestionService newsSuggestionService) : Pag
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -79,17 +79,5 @@ public sealed class NewsModel(NewsSuggestionService newsSuggestionService) : Pag
                 string.IsNullOrEmpty(message) ? "Could not submit suggestion." : message);
             return Page();
         }
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
     }
 }

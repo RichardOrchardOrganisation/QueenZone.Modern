@@ -10,52 +10,19 @@ namespace QueenZone.Web;
 public sealed class PrivateMessageReportPurgeHostedService(
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
-    ILogger<PrivateMessageReportPurgeHostedService> logger) : BackgroundService
+    ILogger<PrivateMessageReportPurgeHostedService> logger)
+    : PeriodicScopedHostedService(scopeFactory, timeProvider, logger, DefaultRunInterval)
 {
-    /// <summary>
-    /// Same startup-delay rationale as <see cref="MemberAccountDeletionHostedService"/>: avoid
-    /// running background purge work inside the App Service container start probe window.
-    /// </summary>
-    internal static readonly TimeSpan DefaultStartupDelay = TimeSpan.FromMinutes(5);
-
     /// <summary>
     /// The retention window is 180 days; a daily sweep is frequent enough that no report is
     /// retained meaningfully longer than the documented policy.
     /// </summary>
     internal static readonly TimeSpan DefaultRunInterval = TimeSpan.FromHours(24);
 
-    internal TimeSpan StartupDelay { get; init; } = DefaultStartupDelay;
+    private readonly TimeProvider _timeProvider = timeProvider;
 
-    internal TimeSpan RunInterval { get; init; } = DefaultRunInterval;
+    protected override string FailureMessage => "Private-message report purge failed.";
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await Task.Delay(StartupDelay, timeProvider, stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                await using var scope = scopeFactory.CreateAsyncScope();
-                await MaintenanceJobs.RunPrivateMessageReportPurgeAsync(scope.ServiceProvider, timeProvider, logger, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Private-message report purge failed.");
-            }
-
-            await Task.Delay(RunInterval, timeProvider, stoppingToken);
-        }
-    }
+    protected override Task RunJobAsync(IServiceProvider scopedServices, CancellationToken cancellationToken) =>
+        MaintenanceJobs.RunPrivateMessageReportPurgeAsync(scopedServices, _timeProvider, Logger, cancellationToken);
 }
