@@ -52,6 +52,8 @@ public sealed class PrivateMessageRoutesTests : IClassFixture<QueenZoneWebApplic
 
         var composePage = await aliceClient.GetStringAsync($"/messages/compose?to={bob.Id}");
         Assert.Contains("PM Bob", composePage);
+        Assert.Contains("<span>To</span>", composePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("<label>To</label>", composePage, StringComparison.Ordinal);
 
         var sendResponse = await aliceClient.PostAsync("/messages/compose", new FormUrlEncodedContent(new Dictionary<string, string>
         {

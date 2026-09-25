@@ -27,18 +27,20 @@
     </div>
 
     <div class="qz-field qz-field--spaced">
-      <label class="qz-label">Options</label>
-      <div class="qz-forum-poll-compose__options" data-poll-options>
+      <span id="poll-options-label" class="qz-label">Options</span>
+      <div class="qz-forum-poll-compose__options" role="group" aria-labelledby="poll-options-label" data-poll-options>
         @{
           var optionList = poll.Options is { Count: > 0 } ? poll.Options : new List<string> { "", "" };
           for (var i = 0; i < optionList.Count; i++)
           {
             <div class="qz-forum-poll-compose__option-row" data-poll-option-row>
-              <input type="text"
+              <input id="Poll_Option_@i"
+                     type="text"
                      name="Poll.Options[@i]"
                      maxlength="200"
                      value="@optionList[i]"
-                     placeholder="Option @(i + 1)" />
+                     placeholder="Option @(i + 1)"
+                     aria-label="Option @(i + 1)" />
               <button type="button" class="qz-button qz-button--ghost" data-poll-remove-option aria-label="Remove option">Remove</button>
             </div>
           }
@@ -98,7 +100,13 @@
     var rows = options.querySelectorAll("[data-poll-option-row]");
     rows.forEach(function (row, index) {
       var input = row.querySelector("input[type=text]");
-      if (input) input.name = "Poll.Options[" + index + "]";
+      if (input) {
+        var optionNumber = index + 1;
+        input.name = "Poll.Options[" + index + "]";
+        input.id = "Poll_Option_" + index;
+        input.placeholder = "Option " + optionNumber;
+        input.setAttribute("aria-label", "Option " + optionNumber);
+      }
       var remove = row.querySelector("[data-poll-remove-option]");
       if (remove) remove.hidden = rows.length <= minOptions;
     });
@@ -123,7 +131,7 @@
     row.className = "qz-forum-poll-compose__option-row";
     row.setAttribute("data-poll-option-row", "");
     row.innerHTML =
-      '<input type="text" maxlength="200" placeholder="Option" />' +
+      '<input type="text" maxlength="200" />' +
       '<button type="button" class="qz-button qz-button--ghost" data-poll-remove-option aria-label="Remove option">Remove</button>';
     options.appendChild(row);
     reindex();

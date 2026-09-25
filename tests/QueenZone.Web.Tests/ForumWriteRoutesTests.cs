@@ -60,6 +60,23 @@ public sealed class ForumWriteRoutesTests : IClassFixture<QueenZoneWebApplicatio
     }
 
     [Fact]
+    public async Task NewThreadGet_LabelsEachPollOptionAndTheOptionsGroup()
+    {
+        var client = CreateMemberClient(factory, Guid.NewGuid());
+
+        var page = await client.GetStringAsync("/forum/c/the-music/new-thread");
+
+        Assert.Contains("id=\"poll-options-label\"", page);
+        Assert.Contains("role=\"group\"", page);
+        Assert.Contains("aria-labelledby=\"poll-options-label\"", page);
+        Assert.Contains("id=\"Poll_Option_0\"", page);
+        Assert.Contains("aria-label=\"Option 1\"", page);
+        Assert.Contains("id=\"Poll_Option_1\"", page);
+        Assert.Contains("aria-label=\"Option 2\"", page);
+        Assert.DoesNotContain("<label class=\"qz-label\">Options</label>", page);
+    }
+
+    [Fact]
     public async Task ValidNewThreadPost_CreatesThreadAndRedirectsToExistingTopicRoute()
     {
         var client = CreateMemberClient(factory, Guid.NewGuid());
