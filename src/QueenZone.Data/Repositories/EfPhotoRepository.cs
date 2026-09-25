@@ -123,7 +123,9 @@ public sealed class EfPhotoRepository : IPhotoRepository
             row.TotalCount,
             row.PreviousPicId,
             row.NextPicId,
-            matched);
+            matched,
+            NeighborMedia(row.PreviousPicId, row.PreviousUrl, row.PreviousWidth, row.PreviousHeight),
+            NeighborMedia(row.NextPicId, row.NextUrl, row.NextWidth, row.NextHeight));
     }
 
     public async Task<IReadOnlyList<PhotoItem>> GetCategoryAllAsync(
@@ -296,6 +298,15 @@ public sealed class EfPhotoRepository : IPhotoRepository
             Year: row.DATE_TIME.Year,
             DateTime: row.DATE_TIME);
 
+    private static PhotoNeighborMedia? NeighborMedia(
+        int? picId,
+        string? filePath,
+        int? width,
+        int? height) =>
+        picId is null
+            ? null
+            : new PhotoNeighborMedia(filePath, width ?? 0, height ?? 0);
+
     private static PhotoItem MapDetailItem(DetailNavigationRow row, int catId, string categoryName, string categorySlug) =>
         MapItem(row, catId, categoryName, categorySlug) with
         {
@@ -392,6 +403,18 @@ public sealed class EfPhotoRepository : IPhotoRepository
         public int? PreviousPicId { get; set; }
 
         public int? NextPicId { get; set; }
+
+        public string? PreviousUrl { get; set; }
+
+        public int? PreviousWidth { get; set; }
+
+        public int? PreviousHeight { get; set; }
+
+        public string? NextUrl { get; set; }
+
+        public int? NextWidth { get; set; }
+
+        public int? NextHeight { get; set; }
     }
 
     private sealed class NameRow

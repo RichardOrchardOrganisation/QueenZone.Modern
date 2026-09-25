@@ -22,6 +22,7 @@ import { saveGalleryPhoto, saveGalleryPhotoCopy } from './saveGalleryPhoto';
 import { setAndroidGalleryWallpaper } from './setGalleryWallpaper';
 import { WallpaperTargetSheet } from './WallpaperTargetSheet';
 import { wallpaperCopy, type WallpaperTarget } from './wallpaperMeta';
+import { usePrefetchNeighbours } from './usePrefetchNeighbours';
 import { ZoomableArchiveImage } from './ZoomableArchiveImage';
 
 type Props = NativeStackScreenProps<PhotosStackParamList, 'PhotoViewer'>;
@@ -159,6 +160,23 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
 
   const previousPicId = photo?.previous?.picId ?? null;
   const nextPicId = photo?.next?.picId ?? null;
+  const neighborNav =
+    photo != null && photo.picId !== picId
+      ? photo.previous?.picId === picId
+        ? photo.previous
+        : photo.next?.picId === picId
+          ? photo.next
+          : null
+      : null;
+  const neighborSource = photoCdnSource(neighborNav?.imageUrl);
+  const displayingNeighbor = neighborSource != null;
+  const currentSource = photoCdnSource(photo?.imageUrl);
+  const image = displayingNeighbor ? neighborSource : currentSource;
+  const neighbourUris =
+    photo != null && photo.picId === picId
+      ? [photoCdnSource(photo.previous?.imageUrl)?.uri, photoCdnSource(photo.next?.imageUrl)?.uri]
+      : [];
+  const onCurrentLoaded = usePrefetchNeighbours(image?.uri, neighbourUris);
 
   const handleGallerySwipe = useCallback(
     (direction: 'previous' | 'next') => {
@@ -368,7 +386,6 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
     return <ErrorBlock message={error ?? 'Photograph not found.'} onRetry={retry} />;
   }
 
-  const image = photoCdnSource(photo.imageUrl);
   const actionBusy = saveBusy || wallpaperBusy;
   const saveIcon = photosCooldown && !saveBusy ? Check : Download;
   const wallpaperOnCooldown = Platform.OS === 'ios' ? photosCooldown : wallpaperCooldown;
@@ -381,15 +398,16 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
           <ZoomableArchiveImage
             source={image}
             label={photo.title}
-            recyclingKey={`photo-full-${photo.picId}`}
-            imageWidth={photo.pictureWidth}
-            imageHeight={photo.pictureHeight}
-            resetKey={photo.picId}
+            recyclingKey={`photo-full-${displayingNeighbor ? picId : photo.picId}`}
+            imageWidth={displayingNeighbor ? (neighborNav?.pictureWidth ?? 0) : photo.pictureWidth}
+            imageHeight={displayingNeighbor ? (neighborNav?.pictureHeight ?? 0) : photo.pictureHeight}
+            resetKey={displayingNeighbor ? picId : photo.picId}
             canSwipePrevious={previousPicId != null}
             canSwipeNext={nextPicId != null}
             onGallerySwipe={handleGallerySwipe}
             onToggleChrome={toggleChrome}
-            pending={photo.picId !== picId}
+            pending={photo.picId !== picId && !displayingNeighbor}
+            onLoaded={onCurrentLoaded}
           />
         ) : (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

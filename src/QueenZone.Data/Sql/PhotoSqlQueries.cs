@@ -37,6 +37,64 @@ public sealed class PhotoSqlQueries
     private static string EmbedSubmittedBy(string sql) =>
         sql.Replace(SubmittedByPlaceholder, SubmittedByDisplayNameSql, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Adds neighbor file path and dimensions in the same round-trip by looking
+    /// up the already-resolved prev/next pic ids. Production uses SQL Server
+    /// PIC_FILES_T; the SQLite fixture uses PhotoItems.
+    /// </summary>
+    private static string WithNeighborMedia(string innerSql, bool sqlite) =>
+        sqlite
+            ? $"""
+                SELECT
+                    nav.*,
+                    (SELECT URL FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.PreviousPicId) AS PreviousUrl,
+                    (SELECT PIC_WIDTH FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.PreviousPicId) AS PreviousWidth,
+                    (SELECT PIC_HEIGHT FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.PreviousPicId) AS PreviousHeight,
+                    (SELECT URL FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.NextPicId) AS NextUrl,
+                    (SELECT PIC_WIDTH FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.NextPicId) AS NextWidth,
+                    (SELECT PIC_HEIGHT FROM PhotoItems t WHERE t.cat_id = {{0}} AND t.pic_id = nav.NextPicId) AS NextHeight
+                FROM (
+                {innerSql}
+                ) nav
+                """
+            : $"""
+                SELECT
+                    nav.*,
+                    (
+                        SELECT ISNULL(t.Url, N'')
+                        FROM dbo.PIC_FILES_T t
+                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
+                    ) AS PreviousUrl,
+                    (
+                        SELECT CAST(ISNULL(t.PIC_WIDTH, 0) AS int)
+                        FROM dbo.PIC_FILES_T t
+                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
+                    ) AS PreviousWidth,
+                    (
+                        SELECT CAST(ISNULL(t.PIC_HEIGHT, 0) AS int)
+                        FROM dbo.PIC_FILES_T t
+                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.PreviousPicId
+                    ) AS PreviousHeight,
+                    (
+                        SELECT ISNULL(t.Url, N'')
+                        FROM dbo.PIC_FILES_T t
+                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
+                    ) AS NextUrl,
+                    (
+                        SELECT CAST(ISNULL(t.PIC_WIDTH, 0) AS int)
+                        FROM dbo.PIC_FILES_T t
+                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
+                    ) AS NextWidth,
+                    (
+                        SELECT CAST(ISNULL(t.PIC_HEIGHT, 0) AS int)
+                        FROM dbo.PIC_FILES_T t
+                        WHERE t.Cat_ID = {{0}} AND t.DISPLAY = 1 AND t.PIC_ID = nav.NextPicId
+                    ) AS NextHeight
+                FROM (
+                {innerSql}
+                ) nav
+                """;
+
     public required string CategoriesWithCountsSql { get; init; }
 
     /// <summary>Parameters: offset, pageSize, catId.</summary>
@@ -53,7 +111,8 @@ public sealed class PhotoSqlQueries
 
     /// <summary>
     /// Parameters: catId, picId. Single round-trip for detail navigation:
-    /// photo fields + TotalCount + IndexBefore + PreviousPicId + NextPicId.
+    /// photo fields + TotalCount + IndexBefore + PreviousPicId + NextPicId
+    /// plus neighbor file path and original dimensions.
     /// </summary>
     public required string DetailNavigationSql { get; init; }
 
@@ -192,7 +251,7 @@ public sealed class PhotoSqlQueries
             // (seek-friendly UNION ALL; relies on IX_PIC_FILES_T_Cat_Display_Date).
             // {PHOTO_FILTER_*} placeholders are filled by PhotoSqlFilter for size presets (#437).
             // Submitted-by: linked modern member, else promoted PhotoSubmissions submitter, else legacy username.
-            DetailNavigationSql = EmbedSubmittedBy("""
+            DetailNavigationSql = WithNeighborMedia(EmbedSubmittedBy("""
                 SELECT
                     ISNULL(p.Name, N'') AS NAME,
                     p.Date_time AS DATE_TIME,
@@ -265,7 +324,7 @@ public sealed class PhotoSqlQueries
                 INNER JOIN dbo.PIC_CAT_T c ON c.cat_id = p.Cat_ID
                 LEFT JOIN dbo.USERS_T u ON u.USER_ID = p.user_id
                 WHERE p.Cat_ID = {0} AND p.PIC_ID = {1} AND p.DISPLAY = 1{PHOTO_FILTER_P}
-                """),
+                """), sqlite: false),
             // Seek-friendly UNION ALL (avoids OR residual predicates that scan the whole category).
             // Relies on IX_PIC_FILES_T_Cat_Display_Date (Cat_ID, DISPLAY, Date_time DESC, PIC_ID DESC).
             PreviousPicIdSql = """
@@ -435,7 +494,7 @@ public sealed class PhotoSqlQueries
                 FROM PhotoItems p
                 WHERE p.cat_id = {0} AND p.pic_id = {1}{PHOTO_FILTER_P}
                 """,
-            DetailNavigationSql = """
+            DetailNavigationSql = WithNeighborMedia("""
                 SELECT
                     p.NAME,
                     p.DATE_TIME,
@@ -504,7 +563,7 @@ public sealed class PhotoSqlQueries
                     ) AS NextPicId
                 FROM PhotoItems p
                 WHERE p.cat_id = {0} AND p.pic_id = {1}{PHOTO_FILTER_P}
-                """,
+                """, sqlite: true),
             PreviousPicIdSql = """
                 SELECT pic_id AS Value
                 FROM (

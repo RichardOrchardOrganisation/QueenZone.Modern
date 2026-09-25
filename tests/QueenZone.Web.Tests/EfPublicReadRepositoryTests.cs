@@ -267,6 +267,11 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Equal(3, middle.Count);
         Assert.Equal(11, middle.PreviousPicId);
         Assert.Equal(9, middle.NextPicId);
+        Assert.Equal("n.jpg", middle.PreviousMedia?.FilePath);
+        Assert.Equal(1920, middle.PreviousMedia?.PictureWidth);
+        Assert.Equal(1080, middle.PreviousMedia?.PictureHeight);
+        Assert.Equal("o.jpg", middle.NextMedia?.FilePath);
+        Assert.Equal(0, middle.NextMedia?.PictureWidth);
         Assert.Equal(800, middle.Photo.PictureWidth);
         Assert.Equal(600, middle.Photo.PictureHeight);
         Assert.Equal("YourValentine", middle.Photo.SubmittedByDisplayName);

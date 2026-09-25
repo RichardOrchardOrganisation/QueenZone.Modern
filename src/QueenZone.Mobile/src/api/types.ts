@@ -183,6 +183,9 @@ export type PhotoListItem = {
 export type PhotoNav = {
   picId: number;
   detailPath: string;
+  imageUrl?: string | null;
+  pictureWidth?: number | null;
+  pictureHeight?: number | null;
 };
 
 export type PhotoDetail = {

@@ -55,6 +55,7 @@ export const testIds = {
   photoViewerStatus: 'photo-viewer-status',
   photoViewerMeta: 'photo-viewer-meta',
   photoViewerImageOverlay: 'photo-viewer-image-overlay',
+  photoViewerImageRetry: 'photo-viewer-image-retry',
   photoViewerWallpaperSheet: 'photo-viewer-wallpaper-sheet',
   photoViewerWallpaperHome: 'photo-viewer-wallpaper-home',
   photoViewerWallpaperLock: 'photo-viewer-wallpaper-lock',

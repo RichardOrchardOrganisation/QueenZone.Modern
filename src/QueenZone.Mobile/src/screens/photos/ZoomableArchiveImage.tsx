@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   cancelAnimation,
@@ -29,8 +29,9 @@ import {
   photoZoomSpringConfig,
 } from './photoZoomMeta';
 import { testIds } from '../../test/testIds';
+import { fonts, radius, space, type, useTheme } from '../../theme';
 import { ArchiveImage } from '../../ui/ArchiveImage';
-import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
+import { LoadingBlock } from '../../ui/ScreenStates';
 
 /** Delay before the spinner so a cached hit does not flicker (AC4). */
 export const photoImageLoadOverlayDelayMs = 150;
@@ -38,7 +39,7 @@ export const photoImageLoadOverlayDelayMs = 150;
 export const photoImageLoadErrorMessage = 'This photograph could not be loaded.';
 
 type LoadStatus = 'loading' | 'loaded' | 'error';
-type LoadState = { uri: string; status: LoadStatus };
+type LoadState = { uri: string; attempt: number; status: LoadStatus };
 
 type Props = {
   source: { uri: string };
@@ -54,6 +55,8 @@ type Props = {
   onToggleChrome: () => void;
   /** True while the screen is still showing the previous picture's metadata. */
   pending?: boolean;
+  /** Fires only for the current uri after a successful load. */
+  onLoaded?: (uri: string) => void;
 };
 
 export function ZoomableArchiveImage({
@@ -68,7 +71,9 @@ export function ZoomableArchiveImage({
   onGallerySwipe,
   onToggleChrome,
   pending = false,
+  onLoaded,
 }: Props) {
+  const { c } = useTheme();
   const scale = useSharedValue(photoZoomMinScale);
   const savedScale = useSharedValue(photoZoomMinScale);
   const translateX = useSharedValue(0);
@@ -85,6 +90,7 @@ export function ZoomableArchiveImage({
   const [zoomed, setZoomed] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>({
     uri: source.uri,
+    attempt: 0,
     status: 'loading',
   });
   const [spinnerVisible, setSpinnerVisible] = useState(false);
@@ -149,6 +155,7 @@ export function ZoomableArchiveImage({
     [containerHeight, containerWidth],
   );
 
+  const attempt = loadState.uri === source.uri ? loadState.attempt : 0;
   const imageStatus: LoadStatus =
     loadState.uri === source.uri ? loadState.status : 'loading';
   const waiting = pending || imageStatus === 'loading';
@@ -165,29 +172,40 @@ export function ZoomableArchiveImage({
       setSpinnerVisible(true);
     }, photoImageLoadOverlayDelayMs);
     return () => clearTimeout(timer);
-  }, [source.uri, waiting]);
+  }, [attempt, source.uri, waiting]);
 
   const currentUriRef = useRef(source.uri);
+  const currentAttemptRef = useRef(attempt);
+  const onLoadedRef = useRef(onLoaded);
   currentUriRef.current = source.uri;
+  currentAttemptRef.current = attempt;
+  onLoadedRef.current = onLoaded;
 
-  const applyLoadStatus = useCallback((uri: string, status: LoadStatus) => {
-    if (uri !== currentUriRef.current) {
+  const applyLoadStatus = useCallback((uri: string, nextAttempt: number, status: LoadStatus) => {
+    if (uri !== currentUriRef.current || nextAttempt !== currentAttemptRef.current) {
       return;
     }
-    setLoadState({ uri, status });
+    setLoadState({ uri, attempt: nextAttempt, status });
   }, []);
 
   const handleLoadStart = useCallback(() => {
-    applyLoadStatus(source.uri, 'loading');
-  }, [applyLoadStatus, source.uri]);
+    applyLoadStatus(source.uri, attempt, 'loading');
+  }, [applyLoadStatus, attempt, source.uri]);
 
   const handleLoad = useCallback(() => {
-    applyLoadStatus(source.uri, 'loaded');
-  }, [applyLoadStatus, source.uri]);
+    applyLoadStatus(source.uri, attempt, 'loaded');
+    if (source.uri === currentUriRef.current && attempt === currentAttemptRef.current) {
+      onLoadedRef.current?.(source.uri);
+    }
+  }, [applyLoadStatus, attempt, source.uri]);
 
   const handleError = useCallback(() => {
-    applyLoadStatus(source.uri, 'error');
-  }, [applyLoadStatus, source.uri]);
+    applyLoadStatus(source.uri, attempt, 'error');
+  }, [applyLoadStatus, attempt, source.uri]);
+
+  const handleRetry = useCallback(() => {
+    setLoadState({ uri: source.uri, attempt: attempt + 1, status: 'loading' });
+  }, [attempt, source.uri]);
 
   const composedGesture = useMemo(() => {
     const resetZoomAnimated = (announce: boolean) => {
@@ -377,6 +395,7 @@ export function ZoomableArchiveImage({
         >
           <Animated.View style={[styles.imageWrap, animatedStyle]}>
             <ArchiveImage
+              key={`${source.uri}#${attempt}`}
               source={source}
               label={label}
               contentFit="contain"
@@ -393,11 +412,36 @@ export function ZoomableArchiveImage({
       {showOverlay ? (
         <View
           testID={testIds.photoViewerImageOverlay}
-          pointerEvents="none"
+          pointerEvents={showError ? 'box-none' : 'none'}
           style={[StyleSheet.absoluteFill, styles.overlay]}
         >
           {showError ? (
-            <ErrorBlock message={photoImageLoadErrorMessage} />
+            <>
+              <View pointerEvents="none" style={styles.errorCopy}>
+                <Text style={[type.cardTitle, { color: c.textPrimary, textAlign: 'center' }]}>
+                  Unable to load
+                </Text>
+                <Text
+                  style={[type.body, { color: c.textSecondary, textAlign: 'center', marginTop: space.sm }]}
+                >
+                  {photoImageLoadErrorMessage}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Tap to retry"
+                testID={testIds.photoViewerImageRetry}
+                onPress={handleRetry}
+                style={({ pressed }) => [
+                  styles.retry,
+                  { borderColor: c.border, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={[type.button, { color: c.accentPrimary, fontFamily: fonts.bodyMedium }]}>
+                  Tap to retry
+                </Text>
+              </Pressable>
+            </>
           ) : (
             <LoadingBlock label="Loading photograph…" />
           )}
@@ -419,6 +463,20 @@ const styles = StyleSheet.create({
   overlay: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  errorCopy: {
+    alignItems: 'center',
+    paddingHorizontal: space.xl,
+  },
+  retry: {
+    marginTop: space.base,
+    minHeight: 44,
+    minWidth: 44,
+    paddingHorizontal: space.base,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: radius.xs,
   },
   imageWrap: {
     flex: 1,

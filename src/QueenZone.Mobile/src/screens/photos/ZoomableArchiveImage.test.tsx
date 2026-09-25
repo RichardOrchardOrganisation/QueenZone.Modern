@@ -259,17 +259,45 @@ describe('ZoomableArchiveImage', () => {
       expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
     });
 
-    it('shows error text and no retry when the image fails', () => {
+    it('shows error text and a compact retry control when the image fails', () => {
       jest.useFakeTimers();
       renderZoom();
       fireImageError();
       expect(screen.getByText('Unable to load')).toBeOnTheScreen();
       expect(screen.getByText(photoImageLoadErrorMessage)).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Tap to retry' })).toBeOnTheScreen();
       expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
       expect(screen.queryByLabelText('Loading photograph…')).toBeNull();
       expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
+        'box-none',
+      );
+    });
+
+    it('remounts the image on retry and shows the spinner after the delay', () => {
+      jest.useFakeTimers();
+      renderZoom();
+      fireImageError();
+      fireEvent.press(screen.getByTestId(testIds.photoViewerImageRetry));
+      expect(screen.queryByTestId(testIds.photoViewerImageRetry)).toBeNull();
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+      expect(screen.getByLabelText('Live Aid')).toBeOnTheScreen();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.getByLabelText('Loading photograph…')).toBeOnTheScreen();
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
         'none',
       );
+    });
+
+    it('does not show retry until the image fails', () => {
+      jest.useFakeTimers();
+      renderZoom();
+      expect(screen.queryByTestId(testIds.photoViewerImageRetry)).toBeNull();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.queryByTestId(testIds.photoViewerImageRetry)).toBeNull();
     });
 
     it('ignores a stale onLoad after the source changes', () => {
@@ -311,6 +339,17 @@ describe('ZoomableArchiveImage', () => {
       );
       galleryPanEnd(80, 0);
       expect(onGallerySwipe).toHaveBeenCalledWith('previous');
+      galleryPanEnd(-80, 0);
+      expect(onGallerySwipe).toHaveBeenCalledWith('next');
+    });
+
+    it('fires swipe callbacks while the error overlay is showing', () => {
+      jest.useFakeTimers();
+      const { onGallerySwipe } = renderZoom();
+      fireImageError();
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
+        'box-none',
+      );
       galleryPanEnd(-80, 0);
       expect(onGallerySwipe).toHaveBeenCalledWith('next');
     });
