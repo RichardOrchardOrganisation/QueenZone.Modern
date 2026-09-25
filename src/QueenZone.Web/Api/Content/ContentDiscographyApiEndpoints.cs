@@ -11,16 +11,17 @@ public static class ContentDiscographyApiEndpoints
 {
     internal static void MapContentDiscographyApiEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/discography", GetAlbumsAsync)
-            .WithName("GetContentDiscographyAlbums")
-            .WithSummary("Paged list of studio albums.")
-            .Produces<ApiPagedResponse<AlbumListItemDto>>();
+        group.MapPagedList<AlbumListItemDto>(
+            "/discography",
+            GetAlbumsAsync,
+            "GetContentDiscographyAlbums",
+            "Paged list of studio albums.");
 
-        group.MapGet("/discography/{id:int}", GetAlbumDetailAsync)
-            .WithName("GetContentDiscographyAlbumDetail")
-            .WithSummary("A single studio album, with its track list.")
-            .Produces<AlbumDetailDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<AlbumDetailDto>(
+            "/discography/{id:int}",
+            GetAlbumDetailAsync,
+            "GetContentDiscographyAlbumDetail",
+            "A single studio album, with its track list.");
     }
 
     internal static async Task<IResult> GetAlbumsAsync(
@@ -29,21 +30,12 @@ public static class ContentDiscographyApiEndpoints
         int? pageSize,
         CancellationToken cancellationToken)
     {
-        var request = ApiPagination.Normalize(page, pageSize);
         var albums = await publicQueryCache.GetDiscographyAlbumsAsync(cancellationToken);
-
-        var pageItems = albums
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .ToList();
-
-        var response = ApiPagedResponse<AlbumListItemDto>.Create(
-            ContentApiMapper.ToAlbumListItems(pageItems),
-            request.Page,
-            request.PageSize,
-            albums.Count);
-
-        return Results.Ok(response);
+        return ApiV1EndpointHelpers.OkPagedSlice(
+            albums,
+            page,
+            pageSize,
+            ContentApiMapper.ToAlbumListItems);
     }
 
     internal static async Task<IResult> GetAlbumDetailAsync(
@@ -54,10 +46,7 @@ public static class ContentDiscographyApiEndpoints
         var album = await discographyRepository.GetAlbumByIdAsync(id, cancellationToken);
         if (album is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No album with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No album with id '{id}'.");
         }
 
         return Results.Ok(ContentApiMapper.ToAlbumDetail(album));

@@ -13,9 +13,7 @@ public static class NotificationPreferencesApiEndpoints
 
     public static void MapNotificationPreferencesApiEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/me")
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Notifications")
+        var group = app.MapApiV1Group("/api/v1/me", "Notifications")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
             .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();

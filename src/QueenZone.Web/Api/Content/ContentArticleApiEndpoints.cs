@@ -11,16 +11,17 @@ public static class ContentArticleApiEndpoints
 {
     internal static void MapContentArticleApiEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/articles", GetArticlesListAsync)
-            .WithName("GetContentArticlesList")
-            .WithSummary("Paged list of published long-form archive articles. Editorial archive only — not news and not community submissions.")
-            .Produces<ApiPagedResponse<ArticleListItemDto>>();
+        group.MapPagedList<ArticleListItemDto>(
+            "/articles",
+            GetArticlesListAsync,
+            "GetContentArticlesList",
+            "Paged list of published long-form archive articles. Editorial archive only — not news and not community submissions.");
 
-        group.MapGet("/articles/{id:int}", GetArticleDetailAsync)
-            .WithName("GetContentArticleDetail")
-            .WithSummary("A single published long-form archive article.")
-            .Produces<ArticleDetailDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<ArticleDetailDto>(
+            "/articles/{id:int}",
+            GetArticleDetailAsync,
+            "GetContentArticleDetail",
+            "A single published long-form archive article.");
     }
 
     internal static async Task<IResult> GetArticlesListAsync(
@@ -36,13 +37,11 @@ public static class ContentArticleApiEndpoints
             cancellationToken);
         var totalCount = await publicQueryCache.GetArticlePublishedCountAsync(cancellationToken);
 
-        var response = ApiPagedResponse<ArticleListItemDto>.Create(
+        return ApiV1EndpointHelpers.OkPaged(
             ContentApiMapper.ToArticleListItems(items),
             request.Page,
             request.PageSize,
             totalCount);
-
-        return Results.Ok(response);
     }
 
     internal static async Task<IResult> GetArticleDetailAsync(
@@ -53,10 +52,7 @@ public static class ContentArticleApiEndpoints
         var item = await articlesRepository.GetByIdAsync(id, cancellationToken);
         if (item is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No published article with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No published article with id '{id}'.");
         }
 
         return Results.Ok(ContentApiMapper.ToArticleDetail(item));
