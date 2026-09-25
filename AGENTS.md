@@ -96,7 +96,7 @@ For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 
 ### Merge queue on `main`
 
-Every merge to `main` goes through GitHub's merge queue with squash. After opening a PR, use `gh pr merge --auto --squash` to enable auto-merge while checks are pending; when checks are ready, `gh pr merge --squash` adds it to the queue. GitHub tests the temporary merge-group commit and merges only after all required checks pass. To withdraw a queued PR, use the PR's **Remove from queue** control in GitHub. A failed or timed-out merge group is removed automatically; inspect its CI run and PR timeline, fix the cause, then enqueue again. Do not bypass the queue or remove required checks to force a merge. See `docs/architecture/testing-policy.md` for the queue CI contract.
+Every merge to `main` goes through GitHub's merge queue with squash. After opening a PR, use `gh pr merge --auto --squash` to enable auto-merge while checks are pending; when checks are ready, `gh pr merge --squash` adds it to the queue. GitHub tests the temporary merge-group commit and merges only after all required checks pass. To withdraw a queued PR, use the PR's **Remove from queue** control in GitHub. A failed or timed-out merge group is removed automatically; inspect its CI run and PR timeline, fix the cause, then enqueue again. Do not bypass the queue or remove required checks to force a merge. On PRs the `coverage` job diffs against the PR event's base SHA, so a `main` that moved after the push should not fail it; only merge groups require `origin/main` as an ancestor. See `docs/architecture/testing-policy.md` for the queue CI contract.
 
 ### Linking issues so merge auto-closes them
 

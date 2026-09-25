@@ -12,7 +12,8 @@ for expected in \
   "github.event_name != 'merge_group'" \
   'if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then' \
   'git diff --name-only origin/main...HEAD' \
-  '-BaseRef origin/main -RequireBaseRef'; do
+  "COVERAGE_BASE_REF: \${{ github.event.pull_request.base.sha || 'origin/main' }}" \
+  '-BaseRef $env:COVERAGE_BASE_REF -RequireBaseRef'; do
   grep -Fq -- "$expected" "$ci_workflow" || {
     printf 'CI workflow is missing merge-group contract: %s\n' "$expected" >&2
     exit 1

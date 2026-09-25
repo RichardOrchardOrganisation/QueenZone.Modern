@@ -324,8 +324,15 @@ run conservatively enables all gates. `scripts/Test-MergeGroupChangeRange.sh`
 checks the docs, mobile, web, migration, and multi-PR path cases.
 
 The 51% global and 70% changed-line C# coverage gates apply to web changes in
-both event types. CI passes `origin/main` explicitly, and the gate fails if the
-base is missing or is not an ancestor of the checked-out commit. A merge-group
+both event types, and the gate fails if its base is missing or is not an
+ancestor of the checked-out commit. Merge groups (and manual runs) pass
+`origin/main`, so a candidate must provably contain `main` and the diff covers
+every PR in the group. Pull requests pass `github.event.pull_request.base.sha`
+instead: the `refs/pull/N/merge` checkout is built against that base, while the
+full-history fetch sees the current `origin/main`, which may already have moved
+on. Comparing a PR with the live `origin/main` failed the ancestor check whenever
+another PR merged in between, so a moving `main` alone must not fail `coverage`.
+A merge-group
 run uses the queue SHA for its build stamp. The SQL Express migration job runs
 for same-repository PRs and merge groups when migration paths change. Each
 queue SHA has its own concurrency group so a later candidate cannot cancel a
@@ -409,7 +416,7 @@ Implemented in `scripts/Test-CoverageGate.ps1` and invoked from the `coverage` j
 
 Rules:
 
-- Changed-line coverage is computed from `git diff origin/main...HEAD` for `*.cs` files only.
+- Changed-line coverage is computed from `git diff <base>...HEAD` for `*.cs` files only, where `<base>` is the PR event's base SHA on pull requests and `origin/main` on merge groups (see [Pull request and merge-group checks](#pull-request-and-merge-group-checks)). Locally, pass `-BaseRef origin/main` after `git fetch origin main`.
 - Only lines that appear in the Cobertura report count as coverable. Non-executable lines, some boilerplate, and excluded files do not count.
 - If a candidate changes no coverable C# lines, the changed-line gate is skipped.
 - `coverlet.runsettings` excludes `**/obj/**/*.cs` and `**/Migrations/**/*.cs` from coverage collection.

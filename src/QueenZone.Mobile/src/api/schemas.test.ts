@@ -7,6 +7,7 @@ import {
   newsListItemSchema,
   notificationPreferencesSchema,
   parseContract,
+  photoNavSchema,
   searchResultSchema,
 } from './schemas.ts';
 
@@ -131,6 +132,34 @@ describe('parseContract', () => {
     });
     assert.equal(item.sourceKey, 'news:1003');
     assert.equal(item.id, 1003);
+  });
+
+  it('accepts photo nav with and without prefetch fields', () => {
+    const legacy = parseContract('GET /api/v1/content/photos/nav', photoNavSchema, {
+      picId: 102,
+      detailPath: '/photography/brian-may/102',
+    });
+    assert.equal(legacy.picId, 102);
+    assert.equal(legacy.imageUrl, undefined);
+
+    const withImage = parseContract('GET /api/v1/content/photos/nav', photoNavSchema, {
+      picId: 102,
+      detailPath: '/photography/brian-may/102',
+      imageUrl: 'https://cdn.queenzone.org/brian-may/img-102.jpg',
+      pictureWidth: 1600,
+      pictureHeight: 1200,
+    });
+    assert.equal(withImage.imageUrl, 'https://cdn.queenzone.org/brian-may/img-102.jpg');
+    assert.equal(withImage.pictureWidth, 1600);
+
+    const nullImage = parseContract('GET /api/v1/content/photos/nav', photoNavSchema, {
+      picId: 102,
+      detailPath: '/photography/brian-may/102',
+      imageUrl: null,
+      pictureWidth: null,
+      pictureHeight: null,
+    });
+    assert.equal(nullImage.imageUrl, null);
   });
 
   it('accepts notification preference toggles', () => {
