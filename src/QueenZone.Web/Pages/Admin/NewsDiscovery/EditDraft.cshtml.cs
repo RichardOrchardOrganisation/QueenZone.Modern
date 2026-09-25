@@ -79,7 +79,8 @@ public sealed class EditDraftModel(
                 string.IsNullOrWhiteSpace(Form.SourceNotes) ? null : Form.SourceNotes.Trim(),
                 string.IsNullOrWhiteSpace(Form.ConfidenceNotes) ? null : Form.ConfidenceNotes.Trim(),
                 Form.SuggestedPublishAt,
-                existing.AiRunId));
+                existing.AiRunId),
+            cancellationToken);
 
         if (NewsCandidateWorkflow.CanMarkDrafted(Candidate.Status))
         {

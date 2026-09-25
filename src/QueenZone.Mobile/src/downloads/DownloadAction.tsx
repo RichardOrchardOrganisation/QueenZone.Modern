@@ -40,7 +40,7 @@ export function downloadStatusLabel(
 
 export function DownloadAction({ track, compact = false, onNeedSignIn }: Props) {
   const { c } = useTheme();
-  const { accessToken, isRestoring, ensureAccessToken } = useSession();
+  const { isRestoring, ensureAccessToken } = useSession();
   const memberId = useDownloadMemberId();
   const performanceId = String(track.id);
   const snapshot = useDownloadUi(performanceId);
@@ -93,9 +93,7 @@ export function DownloadAction({ track, compact = false, onNeedSignIn }: Props) 
             ? error ?? 'Retry download'
             : status === 'removing'
               ? 'Removing'
-              : accessToken
-                ? 'Download'
-                : 'Download';
+              : 'Download';
 
   const showCaption = !compact || status === 'downloading' || status === 'failed';
 

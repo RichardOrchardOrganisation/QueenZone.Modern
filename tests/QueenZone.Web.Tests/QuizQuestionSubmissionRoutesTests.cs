@@ -102,6 +102,9 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
         Assert.Contains("Original wording?", queue, StringComparison.Ordinal);
 
         var detail = await admin.GetStringAsync($"/admin/quiz-question-submissions/{submissionId}");
+        Assert.Contains("for=\"quiz-option-text-0\"", detail, StringComparison.Ordinal);
+        Assert.Contains("id=\"quiz-option-text-0\"", detail, StringComparison.Ordinal);
+        Assert.Contains("Option 1 text", detail, StringComparison.Ordinal);
         var token = AdminHttpTestHelpers.ExtractAntiforgeryToken(detail);
         var approve = await admin.PostAsync(
             $"/admin/quiz-question-submissions/{submissionId}/approve",

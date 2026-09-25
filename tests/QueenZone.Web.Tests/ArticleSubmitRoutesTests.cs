@@ -91,6 +91,9 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<ExternalCoo
         Assert.Contains("Author", body);
         Assert.Contains("Category", body);
         Assert.Contains("Tags", body);
+        Assert.Contains("for=\"article-image-file\"", body);
+        Assert.Contains("id=\"article-image-file\"", body);
+        Assert.Contains(">Article image</label>", body);
     }
 
     [Fact]

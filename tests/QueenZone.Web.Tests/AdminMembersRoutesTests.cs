@@ -32,6 +32,9 @@ public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApp
         var admin = CreateAdminClient(AdminEmail);
         var body = await admin.GetStringAsync("/admin/members");
         Assert.Contains("Members", body);
+        Assert.Contains("for=\"member-search\"", body);
+        Assert.Contains("id=\"member-search\"", body);
+        Assert.Contains("Search by display name or email", body);
     }
 
     [Fact]
