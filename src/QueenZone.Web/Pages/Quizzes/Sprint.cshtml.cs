@@ -47,7 +47,7 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
         SetViewData();
         StartNotice = TempData[StartNoticeKey] as string;
         EmptyPool = !await sprintService.HasQuestionsAsync(cancellationToken);
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         SignedIn = memberId is not null;
         if (!string.IsNullOrEmpty(claim))
         {
@@ -68,7 +68,7 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
     public async Task<IActionResult> OnPostStartAsync(CancellationToken cancellationToken)
     {
         SetViewData();
-        SignedIn = await GetCurrentMemberIdAsync() is not null;
+        SignedIn = await HttpContext.AuthenticateMemberIdAsync() is not null;
         var round = await sprintService.StartAsync(cancellationToken, QuizSprintSeenQuestions.Read(Request));
         if (round is null)
         {
@@ -102,7 +102,7 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
             }
         }
 
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         SignedIn = memberId is not null;
         var outcome = await sprintService.FinishAsync(rawTicket.ToString(), selections, memberId, cancellationToken);
         switch (outcome.Status)
@@ -135,17 +135,6 @@ public sealed class SprintModel(QuizSprintService sprintService) : PageModel
         >= 6 => "Respectable. The archive rewards a second run.",
         _ => "The clock wins this one. Try again — the questions reshuffle.",
     };
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        return Guid.TryParse(authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
-    }
 
     private void SetViewData()
     {
