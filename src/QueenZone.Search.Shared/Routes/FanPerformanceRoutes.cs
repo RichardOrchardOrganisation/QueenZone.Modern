@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using QueenZone.Data;
 
 namespace QueenZone.Routing;
 
@@ -29,7 +30,7 @@ public static class FanPerformanceRoutes
     public static string GetDownloadFileName(string title) =>
         $"{ToUrlSafeFilename(title)}.mp3";
 
-    private static readonly Regex NonAlphanumericRun = new(@"[^a-zA-Z0-9]+", RegexOptions.Compiled);
+    private static readonly Regex NonAlphanumericRun = new(@"[^a-zA-Z0-9]+", RegexOptions.Compiled, RegexDefaults.MatchTimeout);
 
     private static string ToUrlSafeFilename(string title)
     {

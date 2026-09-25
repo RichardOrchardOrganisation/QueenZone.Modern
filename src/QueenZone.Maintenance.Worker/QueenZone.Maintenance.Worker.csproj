@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\QueenZone.Data\QueenZone.Data.csproj" />
     <!-- Reuses the web project's purge and sweep services as-is (#1677); do not fork them here. -->
     <ProjectReference Include="..\QueenZone.Web\QueenZone.Web.csproj" />
   </ItemGroup>

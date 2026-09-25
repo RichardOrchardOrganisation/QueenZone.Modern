@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Html;
+using QueenZone.Data;
 
 namespace QueenZone.Web.Search;
 
@@ -27,12 +28,27 @@ public static class SearchResultHighlighter
         }
 
         var pattern = string.Join('|', terms);
-        var highlighted = Regex.Replace(
-            encodedSummary,
-            pattern,
-            match => $"<mark>{match.Value}</mark>",
-            RegexOptions.IgnoreCase);
+        return new HtmlString(ReplaceHighlighted(encodedSummary, pattern, RegexDefaults.MatchTimeout));
+    }
 
-        return new HtmlString(highlighted);
+    /// <summary>
+    /// Query terms can come from user input. A timeout returns the encoded summary
+    /// without highlights rather than failing the search page.
+    /// </summary>
+    internal static string ReplaceHighlighted(string encodedSummary, string pattern, TimeSpan matchTimeout)
+    {
+        try
+        {
+            return Regex.Replace(
+                encodedSummary,
+                pattern,
+                static match => $"<mark>{match.Value}</mark>",
+                RegexOptions.IgnoreCase,
+                matchTimeout);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return encodedSummary;
+        }
     }
 }

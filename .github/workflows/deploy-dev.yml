@@ -7,10 +7,7 @@ on:
       - master
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: read
-  pull-requests: read
+permissions: {}
 
 env:
   SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
@@ -133,6 +130,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.code == 'true'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     outputs:
       found: ${{ steps.find.outputs.found }}
       run_id: ${{ steps.find.outputs.run_id }}
@@ -214,6 +215,8 @@ jobs:
       needs.changes.outputs.code == 'true' &&
       needs.changes.outputs.migrations == 'true'
     environment: dev-migrate
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -494,6 +497,9 @@ jobs:
     # manual cancel on the #666 rollout run. Fail loudly instead.
     # Fallback publish adds restore+compile, so keep headroom above the reuse path.
     timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
 
     steps:
       - name: Checkout
@@ -578,6 +584,8 @@ jobs:
       needs.deploy.result == 'success'
     # Allow retry loop (~8 min) plus request time; avoid false fails during App Service recycle.
     timeout-minutes: 12
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout

@@ -62,6 +62,18 @@ public sealed class QuizSprintSeenQuestionsTests
         Assert.Empty(QuizSprintSeenQuestions.Read(context.Request));
     }
 
+    [Fact]
+    public void Remember_sets_secure_cookie_on_http_requests()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = "http";
+        Assert.False(context.Request.IsHttps);
+
+        QuizSprintSeenQuestions.Remember(context, [Guid.NewGuid()]);
+
+        Assert.Contains("secure", context.Response.Headers.SetCookie.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>Feeds the cookie just written to the response back in as the next request's cookie.</summary>
     private static void Replay(DefaultHttpContext context)
     {
