@@ -116,7 +116,10 @@ cancel (#1453). Before reading production, the Sync job runs the script's proces
 under the Windows runner account and shell. It publishes into a staging database and replaces the
 named mirror only after a successful publish and required-table check. A failed extract or publish
 therefore leaves the previous mirror intact. Read probes then run from the macOS runner over the LAN.
-Self-cleaning write probes run locally on Windows after the read checks pass:
+`apply-ef-migrations-mirror` runs after Sync (in parallel with those read probes) and
+before write probes so Express has pending EF columns that production Azure SQL may not
+have yet (#1722). Self-cleaning write probes stay hard — they do not skip on a missing
+EF column — and run locally on Windows after the read checks and that migrate pass:
 
 | Probe surface | How nightly runs it |
 | --- | --- |
@@ -202,15 +205,38 @@ Good targets (covered or expanding):
 
 - Homepage, news archive (including pagination), and news detail (canonical + body).
 - Forum index, category, and topic (posts + breadcrumbs).
-- Articles, biography, photography, and search surface loads.
+- Articles, biography, photography, and search (form submit, known result, type filter, empty state).
 - Mobile viewport + open mobile nav menu.
-- axe-core accessibility smoke: **critical** violations fail the run (serious findings are logged).
+- Curated high-value public and member pages: hard-fail 390px overflow, visible encoding artifacts, and skip-link keyboard access (#1597).
+- axe-core accessibility smoke on those curated pages: **critical** always fails; **serious** fails unless a triaged legacy/UGC pair is listed in `AxeSeriousExceptions` (see [Axe serious policy](#axe-serious-policy)).
 - Admin news list and create-draft flow with `X-Test-User-Email` test auth in the `Testing` environment.
 - Editorial discovery promote → publish → public visibility journey.
+- Forum post report → moderator review, including own-post denial and duplicate-report handling.
 
 Keep the PR-gate end-to-end suite small. It should prove critical user journeys and browser behavior, not duplicate all route integration tests, and it must stay small, deterministic, and in-memory — see "Nightly UI Regression (Real Data)" below for the separate tier that intentionally trades that speed for real-data coverage.
 
 On failure, tests write screenshots and Playwright traces under `test-results/e2e/` (gitignored). CI uploads that folder as an artifact when the e2e job fails.
+
+#### Axe serious policy
+
+The deterministic PR-gate axe smoke (`AccessibilitySmokeTests`) fails on **critical** and on **serious** WCAG 2 A/AA findings. Serious is fail-closed by default so chrome regressions cannot hide in log output.
+
+Narrow exceptions live in `tests/QueenZone.Web.E2E/AxeSeriousExceptions.cs` as `(path prefix, rule id)` pairs. A prefix of `/` is exact-only. `*` is allowed only for a single already-triaged rule.
+
+Current triaged rows:
+
+- `*` / `color-contrast` — muted meta (`--text-muted`, 3.46:1 on white) and dark-band footer links (2.2:1). Design-token debt, not a new chrome regression. Raise the tokens in a design follow-up; do not reuse `*` for other rules.
+- `/news/` / `link-in-text-block` — editorial/sample article HTML inlines links without underline.
+
+Add a row only after triaging the finding as known design-token debt or **legacy/UGC content**. Allowed serious findings are still logged. New serious rules (button-name, link-name, and so on) still fail the PR gate.
+
+The sampled live-site / nightly sitemap sweep (`SitemapPublicRouteSweepTests`) keeps the older **critical-only** axe rule and logs serious findings. That sweep stays read-only and sampled on purpose: promoting every archive URL to serious-fail or hard 390px overflow would make the PR gate brittle against legacy UGC (#1597).
+
+#### Curated mobile layout and encoding gate
+
+`CuratedPageLayoutSmokeTests` is the hard 390px / encoding / keyboard set. It is a small catalog in `CuratedLayoutPages` (home, news list/detail, forum index/topic, sign-in, messages, following). Overflow and unrendered HTML-encoding artifacts fail those tests. The sitemap sweep continues to log the same signals as `SOFT:` on sampled archive URLs and is not a PR merge gate.
+
+CI `e2e-test` stays `scripts/Run-E2E.ps1 -Mode Deterministic`. Do **not** promote `RealData` (nightly mirror or live-site sweep) or `DeployedAuth` (dev member cookie) to required PR checks. Those stay scheduled or on-demand.
 
 ### Nightly UI Regression (Real Data)
 
@@ -218,15 +244,23 @@ On failure, tests write screenshots and Playwright traces under `test-results/e2
 
 This is a second, separate layer from the End-To-End Tests above, sharing the same `tests/QueenZone.Web.E2E` project but running under the `E2E` hosting environment (real SQL Express mirror + test auth, see `AGENTS.md`) instead of `Testing` (in-memory). It runs nightly through `.github/workflows/nightly-legacy-checks.yml`, not on pull requests.
 
-`SitemapPublicRouteSweepTests` (`[Category("RealData")]`, `[Category("ReadOnly")]`) discovers URLs at runtime from `/sitemap.xml` (sampling first/last/seeded-random per section, capped and logged for reproducibility), plus a fixed list of routes not in the sitemap, and asserts page *shape* rather than content — HTTP 200, a single non-empty `<h1>`, a single matching canonical link, no console errors, no horizontal overflow at 390px, and no unrendered HTML-encoding artifacts. It also checks the negative cases (unknown path → styled 404, stale slug → redirect) and runs the axe-core critical-violation check on one representative page per section. It performs no writes and passes with `E2E_READONLY=true`, so the live-site job can reuse it unchanged.
+`SitemapPublicRouteSweepTests` (`[Category("RealData")]`, `[Category("ReadOnly")]`) discovers URLs at runtime from `/sitemap.xml` (sampling first/last/seeded-random per section, capped and logged for reproducibility), plus a fixed list of routes not in the sitemap, and asserts page *shape* rather than content — HTTP 200, a single non-empty `<h1>`, a single matching canonical link, and no actionable console errors. Horizontal overflow at 390px and unrendered HTML-encoding artifacts are **logged as `SOFT:`** on this sweep so legacy archive UGC cannot fail the nightly or live-site job (#1597); those signals hard-fail only on the curated Deterministic catalog. It also checks the negative cases (unknown path → styled 404, stale slug → redirect) and runs the axe-core **critical-only** check on one representative page per section (serious findings are logged). It performs no writes and passes with `E2E_READONLY=true`, so the live-site job can reuse it unchanged.
 
-**Live-site read-only public sweep** (`.github/workflows/livesite-readonly-sweep.yml`, issue #551): its own scheduled workflow (06:00 UTC daily, plus `workflow_dispatch`) on the Mac runner against `https://www.queenzone.org` via `scripts/Run-E2E.ps1 -Mode LiveSite`. Separate from `nightly-legacy-checks.yml` so it needs no database and does not wait on mirror sync. That mode sets `E2E_READONLY=true`, filters to `TestCategory=RealData&TestCategory=ReadOnly` (currently `SitemapPublicRouteSweepTests` + `LiveSiteMediaCdnTests` + `LiveSiteContentApiTests`), refuses a localhost base URL, and caps NUnit to one worker so production rate limiting is not tripped. Write-capable RealData fixtures throw at setup under `E2E_READONLY` (`RealDataWriteGuard`). Failures are production/CDN signal (messages prefix `PRODUCTION LIVE-SITE`), not mirror/code-path signal — continuous only, never a PR gate.
+**Live-site read-only public sweep** (`.github/workflows/livesite-readonly-sweep.yml`, issue #551): its own scheduled workflow (06:00 UTC daily, plus `workflow_dispatch`) on the Mac runner against `https://www.queenzone.org` via `scripts/Run-E2E.ps1 -Mode LiveSite`. Separate from `nightly-legacy-checks.yml` so it needs no database and does not wait on mirror sync. That mode sets `E2E_READONLY=true`, filters to `TestCategory=RealData&TestCategory=ReadOnly` (currently `SitemapPublicRouteSweepTests` + `LiveSiteMediaCdnTests` + `LiveSiteContentApiTests`), refuses a localhost base URL, and caps NUnit to one worker so production rate limiting is not tripped. Write-capable RealData fixtures throw at setup under `E2E_READONLY` (`RealDataWriteGuard`). Sitemap HTTP fetches and Playwright `goto` retry once on `TaskCanceledException` / socket cancel (and Playwright navigation timeout) when `E2E_READONLY` is set — same spirit as the #1432 harness retry; the 120s sitemap discovery budget and shape asserts stay unchanged, and nightly RealData does not retry (#1543). Failures are production/CDN signal (messages prefix `PRODUCTION LIVE-SITE`), not mirror/code-path signal — continuous only, never a PR gate.
+
+**Deployed dev member authentication** (`.github/workflows/dev-member-auth-e2e.yml`, issue #1594) runs daily at 07:00 UTC and on demand against `https://dev.queenzone.org`. It uses the synthetic member from the curated dev snapshot and its password from Bitwarden. It checks anonymous access, password sign-in, cookie persistence across reload, sign-out, and denial after sign-out.
+
+This is a separate `DeployedAuth` Playwright category, not a PR gate or production test. The target guard accepts only the exact dev HTTPS origin. The fixture records no Playwright trace or screenshot because those could contain the password form.
+
+The workflow skips scheduled runs with a summary while `DevSnapshot__Ready` is false; a manual run fails early in that state. Repository variable `BITWARDEN_DEV_AUTH_E2E_SECRETS` maps only the existing `DEV_SNAPSHOT_MEMBER_PASSWORD` Bitwarden secret. A planned Google OAuth job ([#1614](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1614)) will use a separate repository variable `BITWARDEN_DEV_AUTH_GOOGLE_E2E_SECRETS` (see [`docs/bitwarden-secrets.md`](../bitwarden-secrets.md)); values are not live until a dedicated 2FA-off Google account exists.
 
 `LiveSiteContentApiTests` is an HTTP (not Playwright page) shape sweep of the public mobile JSON API: discovery document, OpenAPI, `/api/v1/content/*` list envelopes, one detail per resource using an id from that list (never hardcoded), and Problem Details 404 for an unknown `/api/v1` path. It does not call `/api/v1/auth` or `/api/v1/admin`. The same fixture also runs in the nightly RealData suite against the SQL Express mirror. In-memory contract tests stay in `QueenZone.Web.Tests` (`ApiV1RoutesTests`, `ContentApi*Tests`). Post-deploy smoke (`scripts/Smoke-LiveSite.ps1` / `scripts/Invoke-PostDeploySmoke.sh`) hits `GET /api/v1` and one content list as a cheap deploy canary.
 
-`CommunitySubmissionWorkflowTests` (`[Category("RealData")]`, write-capable — **not** `ReadOnly`) covers the member-facing content submission pipeline against the SQL Express mirror: photo submission (title, description, category, upload) through to a Pending status badge on `/account/my-submissions`; article submission through the shared Quill editor (`Shared/_RichTextEditor.cshtml`) including an attached cover image, through to a Submitted status; news suggestion submission through to the admin suggestion queue (`/admin/news-suggestions`) as Pending; an account settings display-name change that persists across a subsequent submission; and one validation case per form (missing required field or wrong-type upload), asserted on the user-visible `asp-validation-for` copy. It seeds a real `MemberAccounts` row per test via direct EF access (`QueenZone.Data`, referenced only by the E2E project, not the web app) before impersonating that member with `X-Test-Member-Id`/`-Name`/`-Email`, since the submission and account pages look the member up through `MemberAccountService`/the submission repositories rather than trusting the test-auth claim alone. Every row it creates carries a `uie2e-{runId}-{fixture}-{n}` marker (`RealDataMarkers`/`RealDataPageTest`); teardown deletes them via the same EF context, and `EfLegacyProbeResidueTests` in `QueenZone.Web.Tests` also scans for that marker as a nightly backstop.
+`CommunitySubmissionWorkflowTests` (`[Category("RealData")]`, write-capable — **not** `ReadOnly`) covers the member-facing content submission pipeline against the SQL Express mirror: photo submission (title, description, category, upload) through to a Pending status badge on `/account/my-submissions`; article submission through the shared Quill editor (`Shared/_RichTextEditor.cshtml`) including an attached cover image, through to a Submitted status; news suggestion submission through to the admin suggestion queue (`/admin/news-suggestions`) as Pending; trivia fact submission through to `/account/my-submissions?tab=trivia` and `/admin/trivia-submissions`, plus one reject that persists for the member; fan-performance submission through to `/account/my-submissions?tab=performances` and `/admin/fan-performance-submissions`, plus one reject (approve/publish is out of this fixture — it would write `Q_STAGE_T` and copy audio); an account settings display-name change that persists across a subsequent submission; and one validation case per form (missing required field or wrong-type upload), asserted on the user-visible `asp-validation-for` copy. It seeds a real `MemberAccounts` row per test via direct EF access (`QueenZone.Data`, referenced only by the E2E project, not the web app) before impersonating that member with `X-Test-Member-Id`/`-Name`/`-Email`, since the submission and account pages look the member up through `MemberAccountService`/the submission repositories rather than trusting the test-auth claim alone. Every row it creates carries a `uie2e-{runId}-{fixture}-{n}` marker (`RealDataMarkers`/`RealDataPageTest`); teardown deletes them via the same EF context, and `EfLegacyProbeResidueTests` in `QueenZone.Web.Tests` also scans for that marker as a nightly backstop (including `TriviaFactSubmissions` / `FanPerformanceSubmissions` and their audit logs).
 
-Run it on demand with `scripts/Run-E2E.ps1 -Mode RealData` (requires `ConnectionStrings__QueenZoneLegacy` pointing at the local SQL Express mirror; see `docs/architecture/self-hosted-e2e-runner.md`). Nightly runs it on both self-hosted runners (`ui-e2e-realdata` job, one shard per OS) so the UI suite itself gets coverage on both operating systems, even though the mirror database only lives on the Windows box.
+`ForumBlockWorkflowTests` uses two marked mirror member accounts to create a thread through the browser, block its author from the post actions, and verify the post stays collapsed after reload. Teardown removes the thread, block, and members; the nightly residue check catches any leaked markers.
+
+Run it on demand with `scripts/Run-E2E.ps1 -Mode RealData` (requires `ConnectionStrings__QueenZoneLegacy` pointing at the local SQL Express mirror; see `docs/architecture/self-hosted-e2e-runner.md`). RealData applies pending EF migrations to that mirror before the E2E host starts (`dotnet ef database update` in `Run-E2E.ps1`, plus `E2EMirrorMigrationHostedService` at E2E startup). Sync/skip_sync copies production Azure SQL and can leave Express without modern tables such as `QuizSprintRuns`; the nightly workflow also has a Windows-only `apply-ef-migrations-mirror` job before the OS matrix. Nightly runs the suite on both self-hosted runners (`ui-e2e-realdata` job, one shard per OS) so the UI suite itself gets coverage on both operating systems, even though the mirror database only lives on the Windows box.
 
 #### Selector conventions
 
@@ -278,6 +312,60 @@ Line endings: `.editorconfig` requires CRLF. Root `.gitattributes` sets `* text=
 
 CI also collects coverage from the deterministic test suite (merged across Web.Tests shards) and publishes an HTML/Cobertura report artifact. The coverage report is expected to help reviewers spot untested risk.
 
+### Pull request and merge-group checks
+
+`ci.yml` runs on `pull_request` and on `merge_group.checks_requested` for `main`.
+The latter checks GitHub's temporary combined commit, possibly containing multiple
+PRs. `changes` compares `origin/main...HEAD` and classifies the union of changed
+paths. Docs-only candidates use success stubs for required test and mobile check
+names; mobile-only candidates run mobile gates without the web suite; web and
+migration candidates run their respective gates. A manual `workflow_dispatch`
+run conservatively enables all gates. `scripts/Test-MergeGroupChangeRange.sh`
+checks the docs, mobile, web, migration, and multi-PR path cases.
+
+The 51% global and 70% changed-line C# coverage gates apply to web changes in
+both event types. CI passes `origin/main` explicitly, and the gate fails if the
+base is missing or is not an ancestor of the checked-out commit. A merge-group
+run uses the queue SHA for its build stamp. The SQL Express migration job runs
+for same-repository PRs and merge groups when migration paths change. Each
+queue SHA has its own concurrency group so a later candidate cannot cancel a
+required check already running. Artifact cleanup only deletes artifacts from
+its own run. Dev and production deploy workflows have no `merge_group` trigger.
+
+The organization-owned, exact `main` branch protection rule requires a pull
+request and merge queue, with strict up-to-date branches disabled because the
+queue tests each candidate on the latest base. The queue uses squash, build
+concurrency 1, a maximum of one PR per merge, a 120-minute required-check
+timeout, and the all-green strategy to limit self-hosted runner contention and
+dev deployments. Its minimum merge count is 1, with no additional wait.
+The rule retains admin enforcement, forbids force pushes and deletions, and
+requires the following GitHub Actions checks (source App ID `15368`): `build`,
+`test (0)`, `test (1)`, `sql-server-tests`, `coverage`, `smoke-test`,
+`e2e-test`, `Verify formatting`, `Small test projects (Tools/Storage/NewsAgent)`,
+`Mobile typecheck and unit tests`, `Mobile Android build`, and `Mobile iOS build`.
+The workflow also runs `test (2)` through `test (5)` and conditionally runs
+`ef-migrations`, `Mobile API consumer contracts`, and `Design token sync check`;
+those names are not in the required list. Re-read the live rule when changing
+CI because check names or sources can change.
+
+Use `gh pr merge --auto --squash` while PR checks are pending, or
+`gh pr merge --squash` after they pass. GitHub then places the PR in the queue
+and checks the temporary merge-group SHA. The PR page's **Remove from queue**
+control withdraws a queued PR. Changing its head branch also removes it and
+restarts checks. A failed, timed-out, or conflicting merge group leaves the PR
+unmerged and records the reason in its timeline; inspect the run, fix the
+cause, and enqueue it again. Avoid queue jumping because it rebuilds later
+candidates. A merge-group event never deploys; the merged `main` push starts
+the normal dev deploy once. Production remains tag/manual only.
+
+If a queued PR waits for a check, inspect the merge-group run and its `changes`
+output, then compare the exact required check name and GitHub App source in the
+`main` branch rule with the job or success stub. A missing run usually means
+the `merge_group` trigger is absent or the workflow on the queued commit does
+not contain it. A missing job can mean its condition skipped it without a
+matching success stub. Requeue after fixing the workflow; do not remove a
+required check to get a candidate through.
+
 ### CI test sharding (Web.Tests)
 
 `QueenZone.Web.Tests` dominates suite wall-clock (~85%). CI runs it as **mixed shards** in parallel so each GitHub-hosted runner keeps a blend of light unit tests and heavier `WebApplicationFactory` tests.
@@ -286,46 +374,44 @@ CI also collects coverage from the deterministic test suite (merged across Web.T
 | --- | --- |
 | `scripts/Get-WebTestShardFilter.ps1` | Discovers `*Tests` classes and assigns them with greedy balance. Checked-in observed class durations take precedence; new classes fall back to case count × host-kind heuristics. Emits an xUnit `--filter`. |
 | `scripts/Invoke-WebTestsShard.ps1` | Runs one shard's filtered Web.Tests (`-SmallProjectsOnly` runs just the Tools/Storage/NewsAgent projects instead) |
-| `scripts/Update-WebTestDurations.ps1` | Merges shard TRX timings into a noise-damped class-duration map. CI uploads the suggested map for periodic review and commit. |
-| `.github/workflows/ci.yml` jobs `test` + `small-projects-tests` + `coverage` | Matrix `shard: [0, 1, 2, 3]` for Web.Tests, a separate parallel job for the small projects, then merge Cobertura, update observed timings, and run the coverage gate |
+| `scripts/Update-WebTestDurations.ps1` | Merges shard TRX timings into a noise-damped class-duration map. CI uploads the suggested map (`web-test-class-durations-<run id>` artifact from the `coverage` job); commit it to `scripts/web-test-class-durations.json` when shard times drift apart or after large test changes. Without that file every class falls back to heuristics and shards skew badly (330s vs 630s in September 2026). |
+| `.github/workflows/ci.yml` jobs `test` + `small-projects-tests` + `coverage` | Matrix `shard: [0, 1, 2, 3, 4, 5]` for Web.Tests, a separate parallel job for the small projects, then merge Cobertura, update observed timings, and run the coverage gate |
 
 The `build` job uploads `src/**/bin/Release`, `tests/**/bin/Release`, and `src/QueenZone.Web/obj/Release`. Keep PDBs — Coverlet maps executed lines from them, so a `--no-build` shard without symbols collapses global coverage. Keep `*.xml` — NewsAgent tests copy fixture XML into the output directory and `--no-build` shards read those files from disk. Shards must keep the QueenZone.Web `obj` tree — ASP.NET Core’s `WebApplicationFactory` resolves compressed static web assets under `src/QueenZone.Web/obj/.../compressed/`. Uploading only `bin` causes `DirectoryNotFoundException` in Development-environment host tests (for example `StaticAssetCacheHeadersTests`). Other project `obj` trees are not required for `--no-build` shard runs.
 
-**Do not** split CI as “all unit tests in job A / all WAF integration tests in job B”. That was measured in [#442](https://github.com/richardorchard/QueenZone.Modern/issues/442) and **regressed** wall-clock: isolating every `WebApplicationFactory` host onto one runner increases contention, and that job became slower than the old single-suite run. Mixed shards are required.
+**Do not** split CI as “all unit tests in job A / all WAF integration tests in job B”. That was measured in [#442](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/442) and **regressed** wall-clock: isolating every `WebApplicationFactory` host onto one runner increases contention, and that job became slower than the old single-suite run. Mixed shards are required.
 
 **Local development:** keep using `dotnet test QueenZone.sln` (full suite, no filter). Sharding is a CI wall-clock optimization, not a new project layout. To inspect or time shards locally:
 
 ```powershell
 powershell -File ./scripts/Get-WebTestShardFilter.ps1 -SelfTest
-powershell -File ./scripts/Get-WebTestShardFilter.ps1 -ShardCount 4 -List
+powershell -File ./scripts/Get-WebTestShardFilter.ps1 -ShardCount 6 -List
 dotnet build QueenZone.sln --configuration Release
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 0 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 1 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 2 -ShardCount 4 -NoBuild -NoRestore
-powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 3 -ShardCount 4 -NoBuild -NoRestore
+powershell -File ./scripts/Invoke-WebTestsShard.ps1 -ShardIndex 0 -ShardCount 6 -NoBuild -NoRestore
+# ...repeat for -ShardIndex 1 through 5
 powershell -File ./scripts/Invoke-WebTestsShard.ps1 -SmallProjectsOnly -NoBuild -NoRestore
 ```
 
 (issue #496: the small projects used to ride along on shard 0, making it consistently slower than shard 1 even though the Web.Tests weight split itself was even. `-SmallProjectsOnly` now runs them as CI's own parallel `small-projects-tests` job instead. A later even class-weight split still parked every `Admin*EfRoutes` host on shard 1 because they all had weight 5 and sorted together; case-count × kind multipliers exist so those hosts spread.)
 
-When adding Web.Tests classes: no shard manifest to update — discovery is automatic. Prefer `QueenZoneWebApplicationFactory` for HTTP tests; keep true unit tests free of `WebApplicationFactory` so they stay cheap filler in every shard.
+When adding Web.Tests classes: no shard manifest to update — discovery is automatic. Prefer `QueenZoneWebApplicationFactory` for HTTP tests; keep true unit tests free of `WebApplicationFactory` so they stay cheap filler in every shard. Do not call `factory.WithWebHostBuilder(...)` in a test class constructor: xUnit constructs the class once per test, so that boots a new host for every test (60 classes did this and were about half of all Web.Tests time). Take a class fixture instead — `QueenZoneWebApplicationFactory`, or one of the variants in `EnvironmentWebApplicationFactories.cs` (Production, Development, preview public base URL, external cookie), or a new subclass overriding `ConfigureTestServices`. Keep per-test `WithWebHostBuilder` for tests that genuinely need a one-off host.
 
-If CI wall-clock grows again, prefer (in order): thin theory-heavy smoke HTTP tests; raise `ShardCount` / matrix size with the same mixed algorithm; paid larger runners. Avoid unit-vs-WAF project splits and raising xUnit `maxParallelThreads` (more threads worsened contention in #442). Smaller parked ideas (format `--include`, EF migrations bundle, extra shards today) live in [#657](https://github.com/richardorchard/QueenZone.Modern/issues/657).
+If CI wall-clock grows again, prefer (in order): thin theory-heavy smoke HTTP tests; raise `ShardCount` / matrix size with the same mixed algorithm; paid larger runners. Avoid unit-vs-WAF project splits and raising xUnit `maxParallelThreads` (more threads worsened contention in #442). Smaller parked ideas (format `--include`, EF migrations bundle, extra shards today) live in [#657](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/657).
 
-### Coverage gates (enforced on every pull request)
+### Coverage gates (enforced on pull requests and merge groups)
 
 Implemented in `scripts/Test-CoverageGate.ps1` and invoked from the `coverage` job in `.github/workflows/ci.yml` after all `test` matrix shards finish. The gate unions every `coverage.cobertura.xml` under the downloaded results (see the script’s union logic).
 
 | Gate | Threshold | What it measures |
 | --- | --- | --- |
 | **Global line coverage** | **≥ 51%** | Line coverage across the union of Cobertura reports from all shards / test projects |
-| **Changed-line coverage** | **≥ 70%** | Coverable `.cs` lines added or modified in the PR diff against the base branch (`main`) |
+| **Changed-line coverage** | **≥ 70%** | Coverable `.cs` lines added or modified in the PR or combined queue diff against `main` |
 
 Rules:
 
 - Changed-line coverage is computed from `git diff origin/main...HEAD` for `*.cs` files only.
 - Only lines that appear in the Cobertura report count as coverable. Non-executable lines, some boilerplate, and excluded files do not count.
-- If a pull request changes no coverable C# lines, the changed-line gate is skipped.
+- If a candidate changes no coverable C# lines, the changed-line gate is skipped.
 - `coverlet.runsettings` excludes `**/obj/**/*.cs` and `**/Migrations/**/*.cs` from coverage collection.
 
 These gates are guardrails, not a replacement for useful assertions. New or changed pure logic should still normally include targeted unit coverage, especially for canonical routes, pagination, visibility rules, date formatting, and HTML sanitisation.
@@ -384,9 +470,9 @@ node ../../scripts/Test-MobileCoverageGate.mjs --self-test
 | `small-projects-tests` | Tools/Storage/NewsAgent test projects, in parallel with the `test` shards | Yes |
 | `sql-server-tests` | `QueenZone.SqlServerTests` against a Docker `mssql` service container | Yes |
 | `coverage` | Merge shard + SQL Server + small-projects Cobertura reports, HTML summary, coverage gates | Yes |
-| `ef-migrations` | When migration-related paths change: snapshot check + `database update` on the SQL Express mirror (no production Azure SQL) | Yes (same-repo PRs only; skipped otherwise) |
+| `ef-migrations` | When migration-related paths change: snapshot check + `database update` on the SQL Express mirror (no production Azure SQL) | Yes (same-repo PRs and merge groups; skipped otherwise) |
 | `smoke-test` | Published app, curl `/health`, `/`, `/news` (starts after `build`, overlaps shards/coverage) | Yes |
-| `e2e-test` | Playwright suite on a self-hosted `e2e` runner (Windows or macOS; starts after `build`, overlaps coverage) | Yes (required PR merge gate) |
+| `e2e-test` | Deterministic Playwright suite on a self-hosted `e2e` runner (`Run-E2E.ps1 -Mode Deterministic` only; starts after `build`, overlaps coverage). RealData and DeployedAuth are not required PR checks (#1597). | Yes (required PR merge gate) |
 | `mobile-js` | `npm ci` + `scripts/check-npm-advisories.mjs` + typecheck + `npm run lint` + `npm run test:coverage` + `scripts/Test-MobileCoverageGate.mjs` + Expo Doctor in `src/QueenZone.Mobile` | Yes — required on `main` after #870; skip-success stub when that tree is unchanged |
 | `mobile-android` | Unsigned debug APK compile (GitHub-hosted Linux) | Yes — required on `main` after #870; skip-success stub when that tree is unchanged |
 | `mobile-ios` | Unsigned Simulator compile (idle self-hosted `ios-build` Mac preferred; `macos-26` fallback) | Yes — required on `main` after #870; skip-success stub when that tree is unchanged |
@@ -485,7 +571,7 @@ The script starts `QueenZone.Web` with `ASPNETCORE_ENVIRONMENT=Testing` and `QUE
 
 CI/CD uses three workflows. `.github/workflows/ci.yml` runs the pull-request build, deterministic tests, coverage gates, conditional `ef-migrations`, smoke test, and required e2e merge gate. After merge, `.github/workflows/deploy-dev.yml` deploys qualifying web changes automatically to the isolated dev environment; workflow/docs-only and mobile-only changes skip the web deploy. Dev temporarily uses deterministic sample data and skips migrations while separate work completes its legacy database baseline. Once the exact commit is verified on dev, a `v*` tag triggers `.github/workflows/deploy.yml` for deliberate production promotion; an operator can run the same production workflow manually against `main` from the Actions page. The production workflow resolves the selected commit, then the `ci.yml` run that built and tested its PR head (via merge-commit second parent, or the commit→PR association for squash/rebase merges), and **reuses** its `web-publish` artifact when that zip is still present. If resolve cannot find `web-publish` and a website Deploy is still required, it publishes from the checked-out `main`/tag SHA and stamps that SHA (issue #1370). It does **not** rebuild on every Deploy, and it does **not** walk back to an older web tip. `workflow_dispatch` classifies tip vs previous `main` commit; `v*` tags classify the previous-tag…this-tag span (`scripts/Resolve-DeployChangeRange.sh`). Mobile-only / docs-only / workflow-only ranges skip resolve/migrate/deploy/smoke. It runs `migrate` → `deploy` (zip-pushes, Kudu recycle, polls `/warmup` **and** `data-build-version` on `/`) → `post-deploy-smoke`. Migrations follow the same classifier (no dispatch fail-closed). Resolution keys off a non-expired `web-publish-*` artifact for that head SHA (`scripts/Resolve-CiPublishRun.sh` soft-outputs `found=true|false`), not overall workflow `conclusion == success`: mixed web+mobile PRs keep `ci.yml` in_progress on native Mobile iOS/Android builds after required web checks (and often merge) already passed, which previously failed deploy on #860 / #866 even though the zip existed. Deploys use plain extract mode (`WEBSITE_RUN_FROM_PACKAGE` was removed after it repeatedly served stale builds post-deploy); #688 showed that skipping the extra Kudu recycle after the zip push leaves `/warmup` on HTTP 500 regardless, so keep the restart. Skipping migrate must not skip smoke: `post-deploy-smoke` uses `if: always()` and requires `deploy` to have succeeded. Smoke requires `data-build-version` on `/` to match the reused PR-head stamp or the fallback checkout SHA, `/health/ready` status `Healthy` (whitespace-tolerant), and `/health` plus `/warmup` status `ok`. The PR `ef-migrations` job applies to the SQL Express mirror only (issue #1377 Option B). Production Azure SQL `database update` is `deploy.yml` migrate after merge / tag / dispatch. Express ≠ Azure (filegroups, collation, DTU-bound DDL); those failures move to the post-merge migrate. See [`github-environments.md`](github-environments.md). It does not replace the outstanding dev baseline work.
 
-Three further workflows run on a schedule and/or `workflow_dispatch` and never gate a PR merge or a deploy: `.github/workflows/nightly-legacy-checks.yml` (legacy read/write probes, then the real-data Playwright UI suite, then a residue check — see "Data Integration Tests" and "Nightly UI Regression (Real Data)" above), `.github/workflows/livesite-readonly-sweep.yml` (the live-site read-only sweep), and `.github/workflows/mobile-device-smoke.yml` (weekday/on-demand Maestro Android + iOS smoke at 04:00 UTC, plus weekday/on-demand journeys at 16:00 UTC, #872 / #1071). These are continuous signal, not merge gates; a failure there does not block or revert anything automatically.
+Four further workflows run on a schedule and/or `workflow_dispatch` and never gate a PR merge or a deploy: `.github/workflows/nightly-legacy-checks.yml` (legacy read/write probes, then the real-data Playwright UI suite, then a residue check — see "Data Integration Tests" and "Nightly UI Regression (Real Data)" above), `.github/workflows/livesite-readonly-sweep.yml` (the live-site read-only sweep), `.github/workflows/dev-member-auth-e2e.yml` (deployed dev member sign-in, when the curated snapshot is connected), and `.github/workflows/mobile-device-smoke.yml` (weekday/on-demand Maestro Android + iOS smoke at 04:00 UTC, plus weekday/on-demand journeys at 16:00 UTC, #872 / #1071). These are continuous signal, not merge gates; a failure there does not block or revert anything automatically.
 
 Pull requests that do not change the website skip `build` / `test` / coverage / smoke / e2e. Classification lives in `scripts/classify-pipeline-changes.sh`:
 

@@ -87,6 +87,7 @@ public sealed class FanPerformanceReportServiceTests
                 Options.Create(new PublicQueryCacheOptions()),
                 new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
                 new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
+                new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
                 new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
                 new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
                 new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
@@ -95,7 +96,8 @@ public sealed class FanPerformanceReportServiceTests
                 new InMemoryQuoteRepository(SampleQuoteData.CreateSeedQuotes()),
                 new InMemoryTriviaRepository(SampleTriviaData.CreateSeedFacts()),
                 new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-                new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums())),
+                new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
+                new InMemoryFreddieTributeRepository(new SharedFreddieTributeStore(SampleFreddieTributeData.CreateSeedTributes()))),
             new CoreSitemapService(
                 new CoreSitemapBuilder(
                     new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),

@@ -25,6 +25,7 @@ public sealed class LogoutModel : PageModel
     {
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.MembersCookie);
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
+        await HttpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalLinkCookie);
     }
 
     private RedirectResult RedirectToSignedOutLogin() =>

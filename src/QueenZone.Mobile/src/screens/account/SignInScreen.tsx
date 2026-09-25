@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { getAppConfig } from '../../config/appConfig';
 import { authProvidersUrl, fallbackAuthProviders, parseAuthProviders, type AuthProvider } from '../../api/auth';
@@ -25,7 +25,23 @@ export function SignInScreen({ navigation, route }: Props) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finished = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const inputFocused = useRef(false);
+  const passwordInput = useRef<TextInput>(null);
   const formBusy = busyProvider !== null || passwordBusy;
+
+  const revealPasswordForm = useCallback(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidShow', () => {
+      if (inputFocused.current) {
+        revealPasswordForm();
+      }
+    });
+    return () => subscription.remove();
+  }, [revealPasswordForm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +104,7 @@ export function SignInScreen({ navigation, route }: Props) {
       return;
     }
 
+    Keyboard.dismiss();
     const trimmedEmail = email.trim();
     if (!trimmedEmail || password.length === 0) {
       setError('Enter your email and password.');
@@ -107,106 +124,140 @@ export function SignInScreen({ navigation, route }: Props) {
   }, [email, formBusy, leaveAfterSignIn, password, signInWithPassword]);
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.surfacePage }}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{
-        paddingHorizontal: space.xl,
-        paddingTop: space.section,
-        paddingBottom: space.section,
-        gap: space.lg,
-      }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={{ alignItems: 'center', gap: space.md }}>
-        <CrestSeal height={48} opacity={0.5} />
-        <Text style={[type.pageTitle, { color: c.textPrimary, textAlign: 'center' }]}>Sign in</Text>
-        <Text style={[type.body, { color: c.textSecondary, textAlign: 'center' }]}>
-          Sign in to QueenZone with Google, Microsoft, Discord, GitHub or Apple. OAuth never sends a provider
-          secret to the app. Email and password is for operator-created accounts that cannot use social sign-in.
-        </Text>
-      </View>
-      {error ? (
-        <Text style={[type.body, { color: c.danger }]} accessibilityRole="alert">
-          {error}
-        </Text>
-      ) : null}
-      <View style={{ gap: 10 }}>
-        {providers.map((provider) => {
-          const props = {
-            label: provider.label,
-            loading: busyProvider === provider.id,
-            disabled: formBusy && busyProvider !== provider.id,
-            onPress: () => {
-              void onProvider(provider);
-            },
-          };
-
-          return provider.id === 'Apple' ? (
-            <AppleSignInButton key={provider.id} {...props} />
-          ) : (
-            <Button key={provider.id} {...props} variant="outline" />
-          );
-        })}
-      </View>
-      <View style={styles.fallback}>
-        <Pressable
-          testID={testIds.signInOtherWays}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: otherWaysOpen }}
-          onPress={() => setOtherWaysOpen((open) => !open)}
-        >
-          <Text style={[type.listTitle, { color: c.accentPrimary }]}>Other ways to sign in</Text>
-        </Pressable>
-        {otherWaysOpen ? (
-          <View style={styles.fallbackFields}>
-            <Text style={[type.caption, { color: c.textMuted }]}>
-              For reviewers and accounts without access to a social provider.
-            </Text>
-            <Text style={[type.listTitle, { color: c.textMuted }]}>Email</Text>
-            <TextInput
-              testID={testIds.signInEmail}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="username"
-              keyboardType="email-address"
-              textContentType="username"
-              accessibilityLabel="Email"
-              placeholder="you@example.com"
-              placeholderTextColor={c.textMuted}
-              editable={!formBusy}
-              style={[styles.input, { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard }]}
-            />
-            <Text style={[type.listTitle, { color: c.textMuted }]}>Password</Text>
-            <TextInput
-              testID={testIds.signInPassword}
-              value={password}
-              onChangeText={setPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="password"
-              textContentType="password"
-              secureTextEntry
-              accessibilityLabel="Password"
-              placeholder="Password"
-              placeholderTextColor={c.textMuted}
-              editable={!formBusy}
-              style={[styles.input, { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard }]}
-            />
-            <Button
-              label="Sign in"
-              testID={testIds.signInPasswordSubmit}
-              loading={passwordBusy}
-              disabled={formBusy && !passwordBusy}
-              onPress={() => {
-                void onPasswordSignIn();
-              }}
-            />
-          </View>
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => {
+          if (otherWaysOpen) {
+            revealPasswordForm();
+          }
+        }}
+        contentContainerStyle={{
+          paddingHorizontal: space.xl,
+          paddingTop: space.section,
+          paddingBottom: space.section,
+          gap: space.lg,
+        }}
+      >
+        <View style={{ alignItems: 'center', gap: space.md }}>
+          <CrestSeal height={48} opacity={0.5} />
+          <Text style={[type.pageTitle, { color: c.textPrimary, textAlign: 'center' }]}>Sign in</Text>
+          <Text style={[type.body, { color: c.textSecondary, textAlign: 'center' }]}>
+            Sign in to QueenZone with Google, Microsoft, Discord, GitHub or Apple. OAuth never sends a provider
+            secret to the app. Email and password is for operator-created accounts that cannot use social sign-in.
+          </Text>
+        </View>
+        {error ? (
+          <Text style={[type.body, { color: c.danger }]} accessibilityRole="alert">
+            {error}
+          </Text>
         ) : null}
-      </View>
-    </ScrollView>
+        <View style={{ gap: 10 }}>
+          {providers.map((provider) => {
+            const props = {
+              label: provider.label,
+              loading: busyProvider === provider.id,
+              disabled: formBusy && busyProvider !== provider.id,
+              onPress: () => {
+                void onProvider(provider);
+              },
+            };
+
+            return provider.id === 'Apple' ? (
+              <AppleSignInButton key={provider.id} {...props} />
+            ) : (
+              <Button key={provider.id} {...props} variant="outline" />
+            );
+          })}
+        </View>
+        <View style={styles.fallback}>
+          <Pressable
+            testID={testIds.signInOtherWays}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: otherWaysOpen }}
+            onPress={() => setOtherWaysOpen((open) => !open)}
+          >
+            <Text style={[type.listTitle, { color: c.accentPrimary }]}>Other ways to sign in</Text>
+          </Pressable>
+          {otherWaysOpen ? (
+            <View style={styles.fallbackFields}>
+              <Text style={[type.caption, { color: c.textMuted }]}>
+                For reviewers and accounts without access to a social provider.
+              </Text>
+              <Text style={[type.listTitle, { color: c.textMuted }]}>Email</Text>
+              <TextInput
+                testID={testIds.signInEmail}
+                value={email}
+                onChangeText={setEmail}
+                onFocus={() => {
+                  inputFocused.current = true;
+                  revealPasswordForm();
+                }}
+                onBlur={() => {
+                  inputFocused.current = false;
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="username"
+                keyboardType="email-address"
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => passwordInput.current?.focus()}
+                textContentType="username"
+                accessibilityLabel="Email"
+                placeholder="you@example.com"
+                placeholderTextColor={c.textMuted}
+                editable={!formBusy}
+                style={[styles.input, { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard }]}
+              />
+              <Text style={[type.listTitle, { color: c.textMuted }]}>Password</Text>
+              <TextInput
+                ref={passwordInput}
+                testID={testIds.signInPassword}
+                value={password}
+                onChangeText={setPassword}
+                onFocus={() => {
+                  inputFocused.current = true;
+                  revealPasswordForm();
+                }}
+                onBlur={() => {
+                  inputFocused.current = false;
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="password"
+                returnKeyType="go"
+                onSubmitEditing={() => {
+                  void onPasswordSignIn();
+                }}
+                textContentType="password"
+                secureTextEntry
+                accessibilityLabel="Password"
+                placeholder="Password"
+                placeholderTextColor={c.textMuted}
+                editable={!formBusy}
+                style={[styles.input, { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard }]}
+              />
+              <Button
+                label="Sign in"
+                testID={testIds.signInPasswordSubmit}
+                loading={passwordBusy}
+                disabled={formBusy && !passwordBusy}
+                onPress={() => {
+                  void onPasswordSignIn();
+                }}
+              />
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

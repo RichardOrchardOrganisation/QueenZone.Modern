@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Require explicit confirmation
         shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           if [ "${{ github.ref }}" != "refs/heads/main" ]; then
             echo "::error::The refresh may run only from main."
@@ -35,7 +37,7 @@ jobs:
             echo "::error::Configure required reviewers on dev-data-refresh, then set DEV_SNAPSHOT_APPROVAL_GATE_CONFIGURED=true."
             exit 1
           fi
-          if [ "${{ inputs.confirmation }}" != "REFRESH DEV SNAPSHOT" ]; then
+          if [ "$CONFIRMATION" != "REFRESH DEV SNAPSHOT" ]; then
             echo "::error::Confirmation must be exactly REFRESH DEV SNAPSHOT."
             exit 1
           fi
@@ -159,7 +161,6 @@ jobs:
               "BlobUpload__PublicBaseUrl=https://queenzonedev.blob.core.windows.net" \
               "QUEENZONE_PHOTO_PUBLIC_BASE_URL=https://queenzonedev.blob.core.windows.net" \
               "QUEENZONE_PHOTO_BLOB_ENDPOINT=https://queenzonedev.blob.core.windows.net" \
-              "QUEENZONE_FORUM_ATTACHMENTS_BASE_URL=https://queenzonedev.blob.core.windows.net/attachments" \
               "DevSnapshot__Ready=false" \
             --output none
 

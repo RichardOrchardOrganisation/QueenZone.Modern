@@ -1,4 +1,5 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { Keyboard, ScrollView } from 'react-native';
 import { fallbackAuthProviders } from '../../api/auth';
 import { jsonResponse } from '../../test/fixtures';
 import { createMockSession } from '../../test/mockSession';
@@ -21,6 +22,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   global.fetch = fetchMock as unknown as typeof fetch;
   fetchMock.mockResolvedValue(jsonResponse({ providers: fallbackAuthProviders }));
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 function renderSignIn(returnTo?: { tab: 'ForumTab'; screen: 'Composer'; params: { threadId: number } }) {
@@ -103,6 +108,52 @@ describe('SignInScreen', () => {
     await user.press(screen.getByTestId(testIds.signInPasswordSubmit));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Incorrect email or password.'));
     expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+
+  it('submits the reviewer credentials from the password keyboard', async () => {
+    const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
+    mockSession.signInWithPassword.mockResolvedValue(undefined);
+    renderSignIn();
+    await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
+    fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
+
+    const email = screen.getByTestId(testIds.signInEmail);
+    const password = screen.getByTestId(testIds.signInPassword);
+    expect(email.props.returnKeyType).toBe('next');
+    expect(password.props.returnKeyType).toBe('go');
+
+    fireEvent.changeText(email, 'reviewer@example.com');
+    fireEvent(email, 'submitEditing');
+    fireEvent.changeText(password, 'correct horse battery staple');
+    fireEvent(password, 'submitEditing');
+
+    await waitFor(() =>
+      expect(mockSession.signInWithPassword).toHaveBeenCalledWith(
+        'reviewer@example.com',
+        'correct horse battery staple',
+      ),
+    );
+    expect(dismissKeyboard).toHaveBeenCalledTimes(1);
+  });
+
+  it('scrolls the password fields into view when the form and keyboard open', async () => {
+    const scrollToEnd = jest.spyOn(ScrollView.prototype, 'scrollToEnd').mockImplementation(() => {});
+    const addKeyboardListener = jest.spyOn(Keyboard, 'addListener');
+    renderSignIn();
+    await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
+    fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
+
+    fireEvent(screen.UNSAFE_getByType(ScrollView), 'contentSizeChange', 400, 900);
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
+
+    scrollToEnd.mockClear();
+    fireEvent(screen.getByTestId(testIds.signInEmail), 'focus');
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
+
+    scrollToEnd.mockClear();
+    const keyboardShown = addKeyboardListener.mock.calls.find(([event]) => event === 'keyboardDidShow')?.[1];
+    keyboardShown?.({} as never);
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
   });
 
   it('describes OAuth secrets separately from the password fallback', async () => {

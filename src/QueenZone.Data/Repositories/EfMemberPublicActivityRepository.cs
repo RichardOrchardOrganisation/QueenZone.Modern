@@ -56,9 +56,9 @@ public sealed class EfMemberPublicActivityRepository(
         var forumPosts = BuildForumQuery(authorIds);
         var submissionsQuery = BuildSubmissionsQuery(authorIds);
 
-        // Five round trips (two counts, two pages, names) rather than the previous nine. Both
-        // sources are ordered and truncated in the database — the SQLite branch this replaced
-        // fetched every matching row with no Take at all.
+        // Five metadata round trips (two counts, two pages, names), plus one body lookup when the
+        // returned page contains forum posts. Both sources are ordered and truncated in the
+        // database — the SQLite branch this replaced fetched every matching row with no Take at all.
         var totalCount = await forumPosts.CountAsync(cancellationToken)
             + await submissionsQuery.CountAsync(cancellationToken);
 
@@ -77,10 +77,10 @@ public sealed class EfMemberPublicActivityRepository(
                 .Take(take)
                 .Select(post => new
                 {
+                    post.Id,
                     post.LegacyPostId,
                     post.LegacyThreadTopicId,
                     ThreadTitle = post.Thread!.Title,
-                    post.BodyHtml,
                     post.PostedAt,
                     AuthorId = post.AuthorMemberId!.Value,
                     post.AuthorDisplayName,
@@ -90,12 +90,12 @@ public sealed class EfMemberPublicActivityRepository(
             {
                 Type = MemberPublicActivityType.ForumPost,
                 Title = row.ThreadTitle,
-                Summary = row.BodyHtml,
                 PublishedAt = ToOffset(row.PostedAt),
                 ContentId = row.LegacyPostId,
                 ParentId = row.LegacyThreadTopicId,
                 AuthorId = row.AuthorId,
                 AuthorDisplayName = row.AuthorDisplayName,
+                ForumPostRowId = row.Id,
             })
             .ToList();
 
@@ -123,7 +123,7 @@ public sealed class EfMemberPublicActivityRepository(
             .Take(pageSize)
             .ToList();
 
-        await LoadLegacyBodiesAsync(pageRows, cancellationToken);
+        await LoadForumBodiesAsync(pageRows, cancellationToken);
         var names = await LoadAuthorNamesAsync(pageRows, cancellationToken);
 
         var items = pageRows
@@ -203,28 +203,32 @@ public sealed class EfMemberPublicActivityRepository(
                 ParentId = row.LegacyThreadTopicId,
                 AuthorId = memberId,
                 AuthorDisplayName = row.AuthorDisplayName,
-                LegacyForumPostRowId = row.Id,
+                ForumPostRowId = row.Id,
             })
             .ToList());
     }
 
-    private async Task LoadLegacyBodiesAsync(IReadOnlyList<FeedRow> rows, CancellationToken cancellationToken)
+    /// <summary>
+    /// Loads the forum post LOB only after all activity sources have been merged and paged.
+    /// Both profile activity and the Following feed use this path through <see cref="GetPageCoreAsync"/>.
+    /// </summary>
+    private async Task LoadForumBodiesAsync(IReadOnlyList<FeedRow> rows, CancellationToken cancellationToken)
     {
-        var legacyRows = rows.Where(row => row.LegacyForumPostRowId is not null).ToList();
-        if (legacyRows.Count == 0)
+        var forumRows = rows.Where(row => row.ForumPostRowId is not null).ToList();
+        if (forumRows.Count == 0)
         {
             return;
         }
 
-        var ids = legacyRows.Select(row => row.LegacyForumPostRowId!.Value).ToList();
+        var ids = forumRows.Select(row => row.ForumPostRowId!.Value).ToList();
         var bodies = await dbContext.ModernForumPosts
             .AsNoTracking()
             .Where(post => ids.Contains(post.Id))
             .Select(post => new { post.Id, post.BodyHtml })
             .ToDictionaryAsync(post => post.Id, post => post.BodyHtml, cancellationToken);
-        foreach (var row in legacyRows)
+        foreach (var row in forumRows)
         {
-            row.Summary = bodies.GetValueOrDefault(row.LegacyForumPostRowId!.Value);
+            row.Summary = bodies.GetValueOrDefault(row.ForumPostRowId!.Value);
         }
     }
 
@@ -360,7 +364,7 @@ public sealed class EfMemberPublicActivityRepository(
 
         public string? AuthorDisplayName { get; set; }
 
-        /// <summary>Set on linked legacy archive rows whose body is loaded after paging.</summary>
-        public long? LegacyForumPostRowId { get; set; }
+        /// <summary>Set on forum rows whose body is loaded after cross-source paging.</summary>
+        public long? ForumPostRowId { get; set; }
     }
 }

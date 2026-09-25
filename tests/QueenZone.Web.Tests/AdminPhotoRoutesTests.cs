@@ -10,13 +10,13 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminPhotoRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminPhotoRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminPhotoRoutesTests(WebApplicationFactory<Program> factory)
+    public AdminPhotoRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

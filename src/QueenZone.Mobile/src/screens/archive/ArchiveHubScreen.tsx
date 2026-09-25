@@ -47,6 +47,9 @@ export function ArchiveHubScreen({ navigation }: Props) {
       case 'trivia':
         navigation.navigate('Trivia');
         return;
+      case 'quiz':
+        navigation.navigate('QuizSprint');
+        return;
       case 'about':
         navigation.navigate('AboutArchive');
         return;

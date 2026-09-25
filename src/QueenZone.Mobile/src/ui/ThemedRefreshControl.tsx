@@ -1,3 +1,5 @@
+import * as Haptics from 'expo-haptics';
+import { useCallback } from 'react';
 import { RefreshControl, type RefreshControlProps } from 'react-native';
 import { palette, useTheme } from '../theme';
 
@@ -14,9 +16,16 @@ type ThemedRefreshControlProps = Omit<
  */
 export function ThemedRefreshControl(props: ThemedRefreshControlProps) {
   const { c, mode } = useTheme();
+  const { onRefresh, ...refreshControlProps } = props;
+  const handleRefresh = useCallback(() => {
+    void Haptics.selectionAsync().catch(() => undefined);
+    onRefresh?.();
+  }, [onRefresh]);
+
   return (
     <RefreshControl
-      {...props}
+      {...refreshControlProps}
+      onRefresh={onRefresh ? handleRefresh : undefined}
       tintColor={c.accentPrimary}
       colors={[c.accentPrimary]}
       progressBackgroundColor={mode === 'dark' ? palette.grey800 : palette.grey100}

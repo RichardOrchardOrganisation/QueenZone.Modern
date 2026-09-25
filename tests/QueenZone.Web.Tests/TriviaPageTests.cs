@@ -53,21 +53,20 @@ public sealed class TriviaPageTests : IClassFixture<QueenZoneWebApplicationFacto
     }
 
     [Fact]
-    public async Task Next_fact_is_a_distinct_post_that_loads_another_published_fact()
+    public async Task Next_fact_reuses_the_published_pool_without_random_repository_reads()
     {
+        var repository = new SequentialTriviaRepository(
+            new TriviaFactItem(41, FirstPublishedText, DateTime.UtcNow, true, "Band", TriviaDifficulty.Easy, null),
+            new TriviaFactItem(43, UnpublishedText, DateTime.UtcNow, false, "Band", TriviaDifficulty.Hard, "Draft"));
         using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
         {
             services.RemoveAll<ITriviaRepository>();
-            services.AddSingleton<ITriviaRepository>(new SequentialTriviaRepository(
-                new TriviaFactItem(41, FirstPublishedText, DateTime.UtcNow, true, "Band", TriviaDifficulty.Easy, null),
-                new TriviaFactItem(42, SecondPublishedText, DateTime.UtcNow, true, "Albums", TriviaDifficulty.Medium, null),
-                new TriviaFactItem(43, UnpublishedText, DateTime.UtcNow, false, "Band", TriviaDifficulty.Hard, "Draft")));
+            services.AddSingleton<ITriviaRepository>(repository);
         });
         using var client = isolated.CreateAnonymousClient();
 
         var first = await client.GetStringAsync("/trivia");
         Assert.Contains(FirstPublishedText, first);
-        Assert.DoesNotContain(SecondPublishedText, first);
         Assert.DoesNotContain(UnpublishedText, first);
 
         using var next = await client.PostAsync(
@@ -79,10 +78,10 @@ public sealed class TriviaPageTests : IClassFixture<QueenZoneWebApplicationFacto
 
         Assert.Equal(HttpStatusCode.OK, next.StatusCode);
         var second = await next.Content.ReadAsStringAsync();
-        Assert.Contains(SecondPublishedText, second);
-        Assert.DoesNotContain(FirstPublishedText, second);
+        Assert.Contains(FirstPublishedText, second);
         Assert.DoesNotContain(UnpublishedText, second);
-        Assert.Contains("Next fact", second);
+        Assert.Equal(1, repository.AllCallCount);
+        Assert.Equal(0, repository.RandomCallCount);
     }
 
     private static QueenZoneWebApplicationFactory IsolatedTrivia(params TriviaFactItem[] facts) =>
@@ -94,25 +93,23 @@ public sealed class TriviaPageTests : IClassFixture<QueenZoneWebApplicationFacto
 
     private sealed class SequentialTriviaRepository(params TriviaFactItem[] facts) : ITriviaRepository
     {
-        private int nextPublishedIndex;
+        public int AllCallCount { get; private set; }
 
-        public Task<IReadOnlyList<TriviaFactItem>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<TriviaFactItem>>(facts);
+        public int RandomCallCount { get; private set; }
+
+        public Task<IReadOnlyList<TriviaFactItem>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            AllCallCount++;
+            return Task.FromResult<IReadOnlyList<TriviaFactItem>>(facts);
+        }
 
         public Task<TriviaFactItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
             Task.FromResult(facts.SingleOrDefault(fact => fact.Id == id));
 
         public Task<TriviaFactItem?> GetRandomPublishedAsync(CancellationToken cancellationToken = default)
         {
-            var published = facts.Where(fact => fact.IsPublished).ToArray();
-            if (published.Length == 0)
-            {
-                return Task.FromResult<TriviaFactItem?>(null);
-            }
-
-            var fact = published[Math.Min(nextPublishedIndex, published.Length - 1)];
-            nextPublishedIndex++;
-            return Task.FromResult<TriviaFactItem?>(fact);
+            RandomCallCount++;
+            return Task.FromResult<TriviaFactItem?>(null);
         }
 
         public Task<int> CreateAsync(AdminTriviaDraft draft, CancellationToken cancellationToken = default) =>

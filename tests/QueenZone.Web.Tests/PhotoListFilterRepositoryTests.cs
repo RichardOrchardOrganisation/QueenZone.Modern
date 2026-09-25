@@ -1,4 +1,6 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
@@ -37,7 +39,14 @@ public sealed class PhotoListFilterRepositoryTests
         Assert.Null(nav.PreviousPicId);
         Assert.Null(nav.NextPicId);
 
-        Assert.Null(await repository.GetDetailNavigationAsync(queen.CatId, 202, filter));
+        var excluded = await repository.GetDetailNavigationAsync(queen.CatId, 202, filter);
+        Assert.NotNull(excluded);
+        Assert.False(excluded.MatchedRequestedFilter);
+        Assert.Equal(202, excluded.Photo.PicId);
+        Assert.Equal(0, excluded.Index);
+        Assert.Equal(4, excluded.Count);
+        Assert.Null(excluded.PreviousPicId);
+        Assert.Equal(201, excluded.NextPicId);
     }
 
     [Fact]
@@ -58,6 +67,93 @@ public sealed class PhotoListFilterRepositoryTests
         Assert.NotNull(nav);
         Assert.Equal(0, nav.Index);
         Assert.Equal(1, nav.Count);
+    }
+
+    [Fact]
+    public async Task EfSqlite_FilterMiss_RunsOneNavigationQueryAndKeepsUnfilteredNeighbors()
+    {
+        var commands = new List<string>();
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<QueenZoneDbContext>()
+            .UseSqlite(connection)
+            .AddInterceptors(new RecordingReaderInterceptor(commands))
+            .Options;
+        await using var db = new QueenZoneDbContext(options);
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE PhotoCategories (cat_id INTEGER NOT NULL, name TEXT NOT NULL);
+            CREATE TABLE PhotoItems (
+                NAME TEXT NOT NULL,
+                DATE_TIME TEXT NOT NULL,
+                URL TEXT NOT NULL,
+                THUMB_URL TEXT NOT NULL,
+                T_HEIGHT INTEGER NOT NULL,
+                T_WIDTH INTEGER NOT NULL,
+                PIC_WIDTH INTEGER NOT NULL,
+                PIC_HEIGHT INTEGER NOT NULL,
+                pic_id INTEGER NOT NULL,
+                category_name TEXT,
+                cat_id INTEGER NOT NULL,
+                submitted_by_display_name TEXT
+            );
+            INSERT INTO PhotoCategories (cat_id, name) VALUES (7, 'Sizes');
+            INSERT INTO PhotoItems (NAME, DATE_TIME, URL, THUMB_URL, T_HEIGHT, T_WIDTH, PIC_WIDTH, PIC_HEIGHT, pic_id, category_name, cat_id, submitted_by_display_name)
+            VALUES
+                ('Small', '2020-01-03', 's.jpg', 's-t.jpg', 40, 60, 640, 480, 3, 'Sizes', 7, NULL),
+                ('Desktop', '2020-01-02', 'd.jpg', 'd-t.jpg', 100, 150, 1920, 1080, 2, 'Sizes', 7, NULL),
+                ('Phone', '2020-01-01', 'p.jpg', 'p-t.jpg', 150, 100, 1080, 1920, 1, 'Sizes', 7, NULL);
+            """);
+
+        var repository = new EfPhotoRepository(db, PhotoSqlQueries.CreateSqliteFixture());
+        var desktop = new PhotoListFilter(PhotoSizePreset.Desktop);
+
+        commands.Clear();
+        var matched = await repository.GetDetailNavigationAsync(7, 2, desktop);
+        Assert.NotNull(matched);
+        Assert.True(matched.MatchedRequestedFilter);
+        Assert.Equal(0, matched.Index);
+        Assert.Equal(1, matched.Count);
+        Assert.Null(matched.PreviousPicId);
+        Assert.Null(matched.NextPicId);
+        Assert.Equal(1, commands.Count(sql => sql.Contains("AS TotalCount", StringComparison.Ordinal)));
+        Assert.Contains(commands, sql => sql.Contains("1920", StringComparison.Ordinal));
+
+        commands.Clear();
+        var missed = await repository.GetDetailNavigationAsync(7, 3, desktop);
+        Assert.NotNull(missed);
+        Assert.False(missed.MatchedRequestedFilter);
+        Assert.Equal(3, missed.Photo.PicId);
+        Assert.Equal(0, missed.Index);
+        Assert.Equal(3, missed.Count);
+        Assert.Null(missed.PreviousPicId);
+        Assert.Equal(2, missed.NextPicId);
+        var navigationSql = commands.Where(sql => sql.Contains("AS TotalCount", StringComparison.Ordinal)).ToList();
+        Assert.Single(navigationSql);
+        Assert.DoesNotContain("1920", navigationSql[0], StringComparison.Ordinal);
+
+        commands.Clear();
+        Assert.Null(await repository.GetDetailNavigationAsync(7, 999, desktop));
+        Assert.DoesNotContain(commands, sql => sql.Contains("AS TotalCount", StringComparison.Ordinal));
+
+        var ids = await repository.PickRandomPublishedPhotoIdsAsync(7, 3);
+        Assert.Equal(3, ids.Distinct().Count());
+        Assert.All(ids, id => Assert.Contains(id, new[] { 1, 2, 3 }));
+        var loaded = await repository.GetPublishedByIdsAsync(7, ids);
+        Assert.Equal(ids, loaded.Select(item => item.PicId));
+    }
+
+    private sealed class RecordingReaderInterceptor(List<string> commands) : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            commands.Add(command.CommandText);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 }
 

@@ -86,7 +86,7 @@ public sealed class SharedFanPerformanceStore
                 request.FileSizeBytes,
                 request.DateAdded,
                 request.IsVisible,
-                DurationSeconds: null));
+                request.DurationSeconds));
             return id;
         }
     }
@@ -146,6 +146,15 @@ public sealed class SharedFanPerformanceStore
         }
     }
 
+    public bool Delete(int id, string editorEmail)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(editorEmail);
+        lock (sync)
+        {
+            return performances.RemoveAll(performance => performance.Id == id) == 1;
+        }
+    }
+
     private static bool Matches(MutablePerformance existing, AdminFanPerformanceConcurrencyToken expected) =>
         string.Equals(existing.Title, expected.Title.Trim(), StringComparison.Ordinal)
         && string.Equals(existing.PerformedBy, expected.PerformedBy.Trim(), StringComparison.Ordinal)
@@ -184,7 +193,8 @@ public sealed class SharedFanPerformanceStore
             performance.AudioFileName,
             performance.FileSizeBytes,
             performance.DateAdded,
-            performance.IsVisible);
+            performance.IsVisible,
+            performance.DurationSeconds);
 
     private static FanPerformance ToPublic(MutablePerformance performance) =>
         new(

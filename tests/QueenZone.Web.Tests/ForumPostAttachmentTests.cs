@@ -100,30 +100,11 @@ public sealed class ForumPostAttachmentTests
     }
 
     [Fact]
-    public void BuildLegacyCdnUrl_UsesCdn2WorkerHost()
+    public void LegacyContainerName_IsPrivateAttachmentsContainer()
     {
-        Assert.Equal(
-            "https://cdn2.queenzone.org/attachments/scan.jpg",
-            ForumAttachmentPaths.BuildLegacyCdnUrl("scan.jpg"));
-    }
-
-    [Fact]
-    public void BuildLegacyCdnUrl_UsesIsolatedDevOriginWhenConfigured()
-    {
-        var previous = Environment.GetEnvironmentVariable(ForumAttachmentPaths.LegacyAttachmentsBaseUrlEnvironmentVariable);
-        try
-        {
-            Environment.SetEnvironmentVariable(
-                ForumAttachmentPaths.LegacyAttachmentsBaseUrlEnvironmentVariable,
-                "https://queenzonedev.blob.core.windows.net/attachments");
-
-            Assert.Equal(
-                "https://queenzonedev.blob.core.windows.net/attachments/scan.jpg",
-                ForumAttachmentPaths.BuildLegacyCdnUrl("scan.jpg"));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(ForumAttachmentPaths.LegacyAttachmentsBaseUrlEnvironmentVariable, previous);
-        }
+        Assert.Equal("attachments", ForumAttachmentPaths.LegacyContainerName);
+        Assert.Equal("/forum/attachment/legacy/42", ForumAttachmentPaths.LegacyDownloadPath(42));
+        Assert.DoesNotContain("cdn", ForumAttachmentPaths.LegacyDownloadPath(42), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("blob.core.windows.net", ForumAttachmentPaths.LegacyDownloadPath(42), StringComparison.OrdinalIgnoreCase);
     }
 }

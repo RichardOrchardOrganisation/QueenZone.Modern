@@ -1,13 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data;
+using QueenZone.Data.Configurations;
 using QueenZone.Data.Entities;
 
 namespace QueenZone.SqlServerTests;
 
 /// <summary>
 /// Exercises the SQL-Server-only conditional-aggregate paths in
-/// <see cref="EfNewsSuggestionRepository"/>, <see cref="EfPhotoSubmissionRepository"/>, and
-/// <see cref="EfArticleSubmissionRepository"/> against a real SQL Server instance.
+/// <see cref="EfNewsSuggestionRepository"/>, <see cref="EfPhotoSubmissionRepository"/>,
+/// <see cref="EfArticleSubmissionRepository"/>, and <see cref="EfFanPerformanceSubmissionRepository"/> against a real SQL Server instance.
 /// </summary>
 /// <remarks>
 /// EF Core's SQLite provider cannot translate <see cref="DateTimeOffset"/> comparisons at all,
@@ -21,7 +22,7 @@ namespace QueenZone.SqlServerTests;
 /// The full <see cref="QueenZoneDbContext"/> model can't <c>EnsureCreated</c>/<c>Migrate</c> on
 /// a blank database — several tables are marked <c>ExcludeFromMigrations</c> because they're
 /// expected to already exist via the legacy BACPAC import, but other tables still carry live
-/// FKs to them. So this creates just the four tables under test (mirroring the real Fluent
+/// FKs to them. So this creates just the five tables under test (mirroring the real Fluent
 /// config for those entities) via a minimal scratch <see cref="DbContext"/>, then points the
 /// real repositories at the same database — EF only generates SQL against the tables a given
 /// LINQ query actually touches.
@@ -153,6 +154,8 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
         var byMember = contributors.ToDictionary(c => c.MemberId);
         Assert.Equal(2, byMember[memberA].Count); // today, -4d (the -40d row is outside the window)
         Assert.Equal(2, byMember[memberB].Count); // -15d, -29d
+        Assert.Equal("Carol", byMember[memberA].DisplayName);
+        Assert.Equal("Dave", byMember[memberB].DisplayName);
 
         static PhotoSubmissionEntity New(Guid member, string status, DateTimeOffset submittedAt) => new()
         {
@@ -202,6 +205,8 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
         var byMember = contributors.ToDictionary(c => c.MemberId);
         Assert.Equal(1, byMember[memberA].Count); // only "today" row; the null-SubmittedAt draft and -50d row are excluded
         Assert.Equal(2, byMember[memberB].Count); // -6d, -28d
+        Assert.Equal("Erin", byMember[memberA].DisplayName);
+        Assert.Equal("Frank", byMember[memberB].DisplayName);
 
         static ArticleSubmissionEntity New(Guid member, string status, DateTimeOffset? submittedAt) => new()
         {
@@ -212,6 +217,63 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
             Body = "Body text",
             Status = status,
             SubmittedAt = submittedAt,
+        };
+    }
+
+    [Fact]
+    public async Task FanPerformanceSubmissions_dashboard_and_top_contributors_match_expected()
+    {
+        var now = new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
+        var memberA = Guid.NewGuid();
+        var memberB = Guid.NewGuid();
+        SeedMembers(memberA, "Gina", memberB, "Hal");
+
+        var seed = new[]
+        {
+            New(memberA, FanPerformanceSubmissionStatus.Pending, now),
+            New(memberA, FanPerformanceSubmissionStatus.NeedsInfo, now.AddDays(-9)),
+            New(memberB, FanPerformanceSubmissionStatus.Approved, now.AddDays(-12)),
+            New(memberB, FanPerformanceSubmissionStatus.Rejected, now.AddDays(-2)),
+            New(memberA, FanPerformanceSubmissionStatus.UnderReview, now.AddDays(-40)),
+        };
+        dbContext.FanPerformanceSubmissions.AddRange(seed);
+        await dbContext.SaveChangesAsync();
+
+        var repo = new EfFanPerformanceSubmissionRepository(dbContext);
+        var counts = await repo.GetDashboardCountsAsync(now, staleAfterDays: 7);
+
+        Assert.Equal(3, counts.Pending); // Pending + NeedsInfo + UnderReview
+        Assert.Equal(1, counts.ReceivedToday);
+        Assert.Equal(2, counts.ReceivedThisWeek); // today + -2d
+        Assert.Equal(1, counts.ApprovedLast30Days);
+        Assert.Equal(1, counts.RejectedLast30Days);
+        Assert.Equal(2, counts.StillPendingFromLast30Days); // today + -9d
+        Assert.Equal(2, counts.StalePendingCount); // -9d + -40d
+        Assert.Equal(40, counts.OldestOpenAgeDays);
+
+        var contributors = await repo.GetTopContributorsThisMonthAsync(now.AddDays(-30), 10);
+        var byMember = contributors.ToDictionary(c => c.MemberId);
+        Assert.Equal(2, byMember[memberA].Count); // today, -9d (the -40d row is outside the window)
+        Assert.Equal(2, byMember[memberB].Count); // -2d, -12d
+        Assert.Equal("Gina", byMember[memberA].DisplayName);
+        Assert.Equal("Hal", byMember[memberB].DisplayName);
+
+        var topOne = await repo.GetTopContributorsThisMonthAsync(now.AddDays(-30), 1);
+        Assert.Single(topOne);
+
+        static FanPerformanceSubmissionEntity New(Guid member, string status, DateTimeOffset submittedAt) => new()
+        {
+            Id = Guid.NewGuid(),
+            SubmitterMemberId = member,
+            Title = "Test performance",
+            CoveredSong = "Bohemian Rhapsody",
+            PerformedBy = "Test band",
+            BlobPath = $"{Guid.NewGuid():N}.mp4",
+            OriginalFileName = "performance.mp4",
+            MimeType = "video/mp4",
+            Status = status,
+            SubmittedAt = submittedAt,
+            RightsDeclaredAt = submittedAt,
         };
     }
 
@@ -343,7 +405,7 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
         dbContext.SaveChanges();
     }
 
-    // Minimal model covering only MemberAccounts + the three submission tables, mirroring the
+    // Minimal model covering only MemberAccounts + the four submission tables, mirroring the
     // Fluent config in QueenZoneDbContext for those entities.
     private sealed class ScratchSchemaDbContext(DbContextOptions<ScratchSchemaDbContext> options)
         : DbContext(options)
@@ -355,6 +417,8 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
         public DbSet<PhotoSubmissionEntity> PhotoSubmissions => Set<PhotoSubmissionEntity>();
 
         public DbSet<ArticleSubmissionEntity> ArticleSubmissions => Set<ArticleSubmissionEntity>();
+
+        public DbSet<FanPerformanceSubmissionEntity> FanPerformanceSubmissions => Set<FanPerformanceSubmissionEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -369,6 +433,7 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
                     .HasConversion<byte>()
                     .IsRequired()
                     .HasDefaultValue(MemberMessagePrivacy.Members);
+                entity.Property(a => a.PasswordFailureCount).IsRequired().HasDefaultValue(0);
                 entity.Property(a => a.IsSuspended).IsRequired().HasDefaultValue(false);
             });
 
@@ -411,6 +476,9 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
                 entity.HasOne(a => a.Author).WithMany().HasForeignKey(a => a.AuthorMemberId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
+            modelBuilder.ApplyConfiguration(new FanPerformanceSubmissionEntityConfiguration());
+            modelBuilder.Entity<FanPerformanceSubmissionEntity>().Ignore(s => s.AuditLogs);
         }
     }
 }

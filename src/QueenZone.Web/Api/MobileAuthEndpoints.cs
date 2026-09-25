@@ -104,6 +104,8 @@ public static class MobileAuthEndpoints
     internal static async Task<IResult> CallbackAsync(
         HttpContext httpContext,
         MobileAuthService mobileAuth,
+        AppleAccountTokenService appleTokens,
+        QueenZone.Data.IMemberAccountRepository memberAccounts,
         IAuthenticationSchemeProvider schemes,
         string? rid,
         CancellationToken cancellationToken)
@@ -122,24 +124,53 @@ public static class MobileAuthEndpoints
         var provider = external.Principal.Identities.FirstOrDefault()?.AuthenticationType;
         var providerKey = external.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
         var email = external.Principal.FindFirstValue(ClaimTypes.Email);
-        var displayName = external.Principal.FindFirstValue(ClaimTypes.Name) ?? email;
+        var displayName = external.Principal.FindFirstValue(ClaimTypes.Name);
+        var appleRefreshToken = string.Equals(provider, MemberAuthenticationSchemes.Apple, StringComparison.OrdinalIgnoreCase)
+            ? external.Properties?.GetTokenValue("refresh_token")
+            : null;
+        var protectedAppleToken = string.IsNullOrWhiteSpace(appleRefreshToken)
+            ? null
+            : appleTokens.Protect(appleRefreshToken);
 
-        if (string.IsNullOrWhiteSpace(provider)
-            || string.IsNullOrWhiteSpace(providerKey)
-            || string.IsNullOrWhiteSpace(email)
-            || string.IsNullOrWhiteSpace(displayName))
+        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerKey))
         {
             await httpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
             return ErrorJson("server_error", "The identity provider did not return the required profile.", StatusCodes.Status400BadRequest);
         }
 
+        var emailValue = email ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = string.IsNullOrWhiteSpace(emailValue) ? provider : emailValue;
+        }
+
+        var emailVerified = !string.IsNullOrWhiteSpace(emailValue)
+            && ExternalLoginEmail.IsVerified(provider, external.Principal);
+
         var completed = await mobileAuth.CompleteExternalLoginAsync(
             rid,
             provider,
             providerKey,
-            email,
+            emailValue,
             displayName,
+            emailVerified,
             cancellationToken);
+
+        if (completed.RequiresConfirmation)
+        {
+            await ExternalLoginLinkCookie.SignInAsync(
+                httpContext,
+                new PendingExternalLink(
+                    MemberAuthenticationSchemes.NormalizeExternalProvider(provider) ?? provider,
+                    providerKey,
+                    emailValue,
+                    displayName,
+                    ReturnUrl: "/",
+                    MobileRequestId: rid,
+                    ProtectedAppleRefreshToken: protectedAppleToken));
+            await httpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
+            return Results.Redirect(ExternalLoginLinkCookie.PagePath);
+        }
 
         await httpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
 
@@ -153,6 +184,15 @@ public static class MobileAuthEndpoints
                     completed.State,
                     error: completed.Error,
                     description: completed.ErrorDescription);
+        }
+
+        if (protectedAppleToken is not null)
+        {
+            var account = await memberAccounts.FindByExternalLoginAsync(provider, providerKey, cancellationToken);
+            if (account is not null)
+            {
+                await appleTokens.SaveProtectedAsync(account.Id, providerKey, protectedAppleToken, cancellationToken);
+            }
         }
 
         return RedirectToApp(
@@ -297,8 +337,7 @@ public static class MobileAuthEndpoints
         });
     }
 
-    private static IResult RedirectToApp(
-        HttpContext httpContext,
+    internal static string BuildAppRedirect(
         string redirectUri,
         string? state,
         string? code = null,
@@ -325,8 +364,19 @@ public static class MobileAuthEndpoints
             location += "&state=" + Uri.EscapeDataString(state);
         }
 
+        return location;
+    }
+
+    private static IResult RedirectToApp(
+        HttpContext httpContext,
+        string redirectUri,
+        string? state,
+        string? code = null,
+        string? error = null,
+        string? description = null)
+    {
         // Response.Redirect accepts custom app schemes (queenzone://); Results.Redirect does not.
-        httpContext.Response.Redirect(location);
+        httpContext.Response.Redirect(BuildAppRedirect(redirectUri, state, code, error, description));
         return Results.Empty;
     }
 

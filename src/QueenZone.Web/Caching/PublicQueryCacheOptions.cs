@@ -25,4 +25,7 @@ public sealed class PublicQueryCacheOptions
     /// Stable catalog slices (published quotes/trivia pools, biography chapters, discography albums).
     /// </summary>
     public TimeSpan CatalogCacheDuration { get; init; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>Featured Freddie tribute id and the four tribute-page photo ids.</summary>
+    public TimeSpan FreddieSampleCacheDuration { get; init; } = TimeSpan.FromMinutes(5);
 }

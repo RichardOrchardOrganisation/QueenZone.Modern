@@ -22,6 +22,7 @@ public sealed class EditorialArticleEntity
     public string? LiveSlug { get; set; }
     public string? LiveExcerpt { get; set; }
     public string? LiveBody { get; set; }
+    public int LiveWordCount { get; set; }
     public string? LiveAuthorName { get; set; }
     public string? LiveCategory { get; set; }
     public string? LiveTags { get; set; }

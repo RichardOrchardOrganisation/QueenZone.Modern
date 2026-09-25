@@ -37,6 +37,10 @@ public sealed class GalleryOrphanSweepService(
         var deleted = 0;
         var failures = 0;
 
+        // Categories sweep blob storage in parallel, but the scoped repository shares one
+        // DbContext/connection, which rejects overlapping queries ("already an open DataReader").
+        using var databaseGate = new SemaphoreSlim(1, 1);
+
         await Parallel.ForEachAsync(
             categories,
             new ParallelOptions
@@ -47,20 +51,19 @@ public sealed class GalleryOrphanSweepService(
             async (category, categoryCancellationToken) =>
             {
                 var container = PhotoLegacyPath.BlobContainerName(category.Name);
-                var blobs = await galleryPhotoBlobService.ListBlobsAsync(container, categoryCancellationToken);
-                if (blobs.Count == 0)
-                {
-                    return;
-                }
+                HashSet<string>? referencedNames = null;
 
-                Interlocked.Add(ref scanned, blobs.Count);
-                var referenced = await adminPhotoRepository.GetReferencedBlobNamesAsync(
-                    category.CatId,
-                    categoryCancellationToken);
-                var referencedNames = new HashSet<string>(referenced, StringComparer.OrdinalIgnoreCase);
-
-                foreach (var blob in blobs)
+                // Stream the listing page by page instead of holding a whole container (#1677).
+                await foreach (var blob in galleryPhotoBlobService.ListBlobsAsync(container, categoryCancellationToken))
                 {
+                    Interlocked.Increment(ref scanned);
+
+                    // Loaded on the first blob so empty containers skip the database query.
+                    referencedNames ??= await LoadReferencedNamesAsync(
+                        category.CatId,
+                        databaseGate,
+                        categoryCancellationToken);
+
                     if (referencedNames.Contains(blob.BlobName) || blob.LastModified > cutoff)
                     {
                         continue;
@@ -100,5 +103,22 @@ public sealed class GalleryOrphanSweepService(
             });
 
         return new GalleryOrphanSweepResult(scanned, found, deleted, failures);
+    }
+
+    private async Task<HashSet<string>> LoadReferencedNamesAsync(
+        int catId,
+        SemaphoreSlim databaseGate,
+        CancellationToken cancellationToken)
+    {
+        await databaseGate.WaitAsync(cancellationToken);
+        try
+        {
+            var referenced = await adminPhotoRepository.GetReferencedBlobNamesAsync(catId, cancellationToken);
+            return new HashSet<string>(referenced, StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            databaseGate.Release();
+        }
     }
 }

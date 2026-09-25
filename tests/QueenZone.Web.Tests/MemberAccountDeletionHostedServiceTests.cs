@@ -9,6 +9,7 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
+[Collection(MaintenanceJobActivityCollection.Name)]
 public sealed class MemberAccountDeletionHostedServiceTests
 {
     [Fact]
@@ -142,6 +143,15 @@ public sealed class MemberAccountDeletionHostedServiceTests
             return Task.FromResult(new MemberAccountDeletionPurgeResult(0, []));
         }
 
+        public Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(int limit, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PendingMemberDeletionBlob>>([]);
+
+        public Task CompleteDeletionBlobAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<MemberDeletionProgress?> GetDeletionProgressAsync(Guid memberId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<MemberDeletionProgress?>(null);
+
         public Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -174,6 +184,15 @@ public sealed class MemberAccountDeletionHostedServiceTests
             string email,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task SaveAppleRefreshTokenAsync(Guid memberAccountId, string providerKey, string protectedToken, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(int limit, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PendingAppleRevocation>>([]);
+
+        public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
 
         public Task<MemberAccount?> UpdateDisplayNameAsync(
             Guid memberId,
@@ -212,6 +231,20 @@ public sealed class MemberAccountDeletionHostedServiceTests
         public Task RecordLoginAsync(
             Guid memberId,
             DateTime loginAt,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task RecordPasswordFailureAsync(
+            Guid memberId,
+            int failureCount,
+            DateTime windowStartedAt,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task RecordPasswordSignInAsync(
+            Guid memberId,
+            DateTime loginAt,
+            string? rehashedPassword,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -275,7 +308,8 @@ public sealed class MemberAccountDeletionHostedServiceTests
         public Task<MemberAccountDeletionRequestResult?> RequestDeletionAsync(
             Guid memberId,
             DateTime requestedAt,
-            CancellationToken cancellationToken = default) =>
+            CancellationToken cancellationToken = default,
+            bool immediate = false) =>
             throw new NotSupportedException();
 
         public Task<MemberAccount?> CancelDeletionAsync(

@@ -398,6 +398,162 @@ export type HomePollOption = {
   percentage: number;
 };
 
+/** Shape for `GET /api/v1/content/quizzes` list items. */
+export type QuizListItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  questionCount: number;
+};
+
+/** An answer option shaped for play — no correct-answer flag. */
+export type QuizOption = {
+  id: string;
+  text: string;
+};
+
+export type QuizQuestion = {
+  id: string;
+  text: string;
+  points: number;
+  options: QuizOption[];
+};
+
+/**
+ * Shape for `GET /api/v1/content/quizzes/{id}`. Options only — the correct answer is
+ * never sent to the client before submit.
+ */
+export type QuizDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  questions: QuizQuestion[];
+};
+
+export type QuizAnswerSubmission = {
+  questionId: string;
+  selectedOptionId: string | null;
+};
+
+export type QuizAnswerResult = {
+  questionId: string;
+  questionText: string;
+  selectedOptionId: string | null;
+  selectedOptionText: string | null;
+  correctOptionId: string;
+  correctOptionText: string;
+  isCorrect: boolean;
+  pointsAwarded: number;
+};
+
+/**
+ * Result of `POST /api/v1/content/quizzes/{id}/attempts`. Scoring is computed
+ * server-side; this is the only place the correct answers are ever revealed.
+ */
+export type QuizResult = {
+  quizId: string;
+  quizTitle: string;
+  score: number;
+  maxScore: number;
+  correctCount: number;
+  questionCount: number;
+  recorded: boolean;
+  answers: QuizAnswerResult[];
+};
+
+export type QuizLeaderboardEntry = {
+  rank: number;
+  displayName: string;
+  score: number;
+  attemptCount: number;
+};
+
+/** Shape for `GET /api/v1/content/quizzes/leaderboard`. */
+export type QuizLeaderboard = {
+  top: QuizLeaderboardEntry[];
+  viewer: QuizLeaderboardEntry | null;
+  totalMembers: number;
+};
+
+/** A Quiz Sprint question: options only, the answer key stays on the server. */
+export type QuizSprintQuestion = {
+  id: string;
+  text: string;
+  options: QuizOption[];
+};
+
+/** Shape for `POST /api/v1/content/quizzes/sprint/start`. Times are Unix milliseconds (UTC). */
+export type QuizSprintRound = {
+  ticket: string;
+  serverNowUnixMilliseconds: number;
+  expiresAtUnixMilliseconds: number;
+  durationSeconds: number;
+  questions: QuizSprintQuestion[];
+};
+
+/** Shape for `POST /api/v1/content/quizzes/sprint/answer`. */
+export type QuizSprintAnswerCheck = {
+  isCorrect: boolean;
+  correctOptionId: string;
+};
+
+export type QuizSprintReviewItem = {
+  questionId: string;
+  questionText: string;
+  isCorrect: boolean;
+  correctAnswer: string;
+};
+
+/**
+ * Shape for `POST /api/v1/content/quizzes/sprint/finish`. `recorded` is true only when the
+ * caller was signed in and the run reached today's leaderboard.
+ */
+export type QuizSprintResult = {
+  attempted: number;
+  correct: number;
+  points: number;
+  bestStreak: number;
+  recorded: boolean;
+  rank: number | null;
+  answers: QuizSprintReviewItem[];
+  /** Anonymous runs only: sign in within an hour and send this to the claim endpoint to add the run. */
+  claimToken?: string | null;
+};
+
+/** Shape for `POST /api/v1/content/quizzes/sprint/claim`. */
+export type QuizSprintClaimResult = {
+  status: 'claimed' | 'already_claimed';
+  points: number;
+  rank: number | null;
+};
+
+export type QuizSprintLeaderboardEntry = {
+  rank: number;
+  displayName: string;
+  score: number;
+  bestStreak: number;
+  /** Runs played in the scope: 1 for a best-run entry, the member's run count on the total board. */
+  runs?: number;
+};
+
+/**
+ * Shape for `GET /api/v1/content/quizzes/sprint/leaderboard`; `players` counts members ranked in `scope`.
+ * `daily` = best run today, `all` = best run ever, `total` = points summed over every run.
+ */
+export type QuizSprintBoard = {
+  scope: 'daily' | 'all' | 'total';
+  top: QuizSprintLeaderboardEntry[];
+  viewer: QuizSprintLeaderboardEntry | null;
+  players: number;
+};
+
+/** Shape for `GET /api/v1/content/quizzes/sprint/daily` (today, UTC). */
+export type QuizSprintDailyBoard = {
+  top: QuizSprintLeaderboardEntry[];
+  viewer: QuizSprintLeaderboardEntry | null;
+  playersToday: number;
+};
+
 /** One hit from `GET /api/v1/search`. `id` is parsed from numeric source keys. */
 export type SearchResult = {
   contentType: string;

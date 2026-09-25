@@ -6,12 +6,12 @@ namespace QueenZone.Web.Pages;
 
 public sealed class IndexModel(
     PublicQueryCacheService publicQueryCache,
-    IArticleRepository articleRepository,
     NewsDiscussionComposer newsDiscussion,
-    IQuoteRepository quoteRepository,
     IHomePollRepository homePollRepository,
     HomePollVoteService homePollVoteService,
-    TimeProvider timeProvider) : PageModel
+    QuizSprintService quizSprintService,
+    TimeProvider timeProvider,
+    ILogger<IndexModel> logger) : PageModel
 {
     /// <summary>Stock archive images cycled deterministically per article, since legacy
     /// article rows carry no per-item image (see <see cref="ArticleItem"/>).</summary>
@@ -37,6 +37,8 @@ public sealed class IndexModel(
 
     public QuoteItem? FeaturedQuote { get; private set; }
 
+    public SprintBoard SprintBoard { get; private set; } = new([], null, 0);
+
     public HomePollResults? HomePoll { get; private set; }
 
     public bool HomePollViewerCanVote { get; private set; }
@@ -48,6 +50,18 @@ public sealed class IndexModel(
         ViewData["Title"] = "QueenZone";
         ViewData["Description"] = "The complete fan resource for Queen – music, news, history, photography and more, from the Queenzone.com archive.";
         ViewData["CanonicalPath"] = "/";
+        try
+        {
+            SprintBoard = await quizSprintService.GetBoardAsync(null, 3, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // Optional chrome: a missing QuizSprintRuns table or other SQL/schema failure on
+            // the RealData Express mirror must not take down GET / (empty board is still 200).
+            logger.LogWarning(exception, "Homepage quiz sprint board failed to load.");
+            SprintBoard = new([], null, 0);
+        }
+
         var latest = await publicQueryCache.GetLatestNewsAsync(5, cancellationToken);
         Latest = await newsDiscussion.ToArchiveItemsAsync(latest, cancellationToken);
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
@@ -60,7 +74,9 @@ public sealed class IndexModel(
         }
 
         var articles = await publicQueryCache.GetLatestArticlesAsync(ArticlesRoutes.HomeFeaturedCount, cancellationToken);
-        var community = await articleRepository.GetPageAsync(1, ArticlesRoutes.HomeFeaturedCount, ct: cancellationToken);
+        var community = await publicQueryCache.GetLatestCommunityArticlesAsync(
+            ArticlesRoutes.HomeFeaturedCount,
+            cancellationToken);
         var teasers = articles.Select(item => new
         {
             item.PublishedAt,
@@ -94,7 +110,7 @@ public sealed class IndexModel(
             .Take(FeaturedGalleryCount)
             .ToList();
 
-        FeaturedQuote = await quoteRepository.GetRandomPublishedAsync(cancellationToken);
+        FeaturedQuote = await publicQueryCache.GetRandomPublishedQuoteAsync(cancellationToken);
         await LoadHomePollAsync(cancellationToken);
         HomePollError = TempData["HomePollError"] as string;
     }

@@ -65,6 +65,40 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public Task SaveAppleRefreshTokenAsync(
+        Guid memberAccountId,
+        string providerKey,
+        string protectedToken,
+        CancellationToken cancellationToken = default) =>
+        dbContext.MemberExternalLogins
+            .Where(login => login.MemberAccountId == memberAccountId
+                && login.Provider == "Apple"
+                && login.ProviderKey == providerKey)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(login => login.AppleRefreshTokenProtected, protectedToken), cancellationToken);
+
+    public async Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.MemberExternalLogins
+            .AsNoTracking()
+            .Where(login => login.Provider == "Apple"
+                && login.AppleRefreshTokenProtected != null
+                && dbContext.MemberAccounts.Any(account =>
+                    account.Id == login.MemberAccountId && account.PersonalDataPurgedAt != null))
+            .OrderBy(login => login.LinkedAt)
+            .Take(limit)
+            .Select(login => new PendingAppleRevocation(login.Id, login.AppleRefreshTokenProtected!))
+            .ToListAsync(cancellationToken);
+
+    public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default) =>
+        dbContext.MemberExternalLogins
+            .Where(login => login.Id == externalLoginId
+                && login.Provider == "Apple"
+                && dbContext.MemberAccounts.Any(account =>
+                    account.Id == login.MemberAccountId && account.PersonalDataPurgedAt != null))
+            .ExecuteDeleteAsync(cancellationToken);
+
     public async Task<IReadOnlyList<string>> ListExternalProvidersAsync(Guid memberAccountId, CancellationToken cancellationToken = default) =>
         await dbContext.MemberExternalLogins
             .AsNoTracking()
@@ -222,6 +256,48 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
             account.LastLoginAt = loginAt;
             await dbContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    public async Task RecordPasswordFailureAsync(
+        Guid memberId,
+        int failureCount,
+        DateTime windowStartedAt,
+        CancellationToken cancellationToken = default)
+    {
+        await dbContext.MemberAccounts
+            .Where(account => account.Id == memberId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(account => account.PasswordFailureCount, failureCount)
+                    .SetProperty(account => account.PasswordFailureWindowStartedAt, windowStartedAt),
+                cancellationToken);
+    }
+
+    public async Task RecordPasswordSignInAsync(
+        Guid memberId,
+        DateTime loginAt,
+        string? rehashedPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var accounts = dbContext.MemberAccounts.Where(account => account.Id == memberId);
+        if (rehashedPassword is null)
+        {
+            await accounts.ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(account => account.LastLoginAt, loginAt)
+                    .SetProperty(account => account.PasswordFailureCount, 0)
+                    .SetProperty(account => account.PasswordFailureWindowStartedAt, (DateTime?)null),
+                cancellationToken);
+            return;
+        }
+
+        await accounts.ExecuteUpdateAsync(
+            setters => setters
+                .SetProperty(account => account.LastLoginAt, loginAt)
+                .SetProperty(account => account.PasswordFailureCount, 0)
+                .SetProperty(account => account.PasswordFailureWindowStartedAt, (DateTime?)null)
+                .SetProperty(account => account.PasswordHash, rehashedPassword),
+            cancellationToken);
     }
 
     public async Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default)
@@ -417,7 +493,8 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
     public Task<MemberAccountDeletionRequestResult?> RequestDeletionAsync(
         Guid memberId,
         DateTime requestedAt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool immediate = false)
     {
         var strategy = dbContext.Database.CreateExecutionStrategy();
         return strategy.ExecuteAsync<MemberAccountDeletionRequestResult?>(async () =>
@@ -430,16 +507,19 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
                 return null;
             }
 
-            if (account.DeletionRequestedAt is not null)
+            if (account.DeletionRequestedAt is not null && !immediate)
             {
                 return new MemberAccountDeletionRequestResult(account, AlreadyRequested: true);
             }
 
-            account.DeletionRecoveryDisplayName = account.DisplayName;
-            account.DeletionRecoveryAvatarUrl = account.AvatarUrl;
+            account.DeletionRecoveryDisplayName ??= account.DisplayName;
+            account.DeletionRecoveryAvatarUrl ??= account.AvatarUrl;
             account.DisplayName = MemberAccountDeletionPolicy.DeletedDisplayName;
             account.AvatarUrl = null;
-            account.DeletionRequestedAt = requestedAt;
+            account.DeletionRequestedAt = immediate
+                ? requestedAt.AddDays(-MemberAccountDeletionPolicy.RetentionDays)
+                : requestedAt;
+            account.IsSuspended = immediate;
 
             await DeleteSocialLinksAsync(memberId, cancellationToken);
             await AnonymiseRetainedAttributionAsync(memberId, requestedAt, clearMemberLink: false, cancellationToken);
@@ -447,7 +527,9 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
             dbContext.MemberAccountDeletionAuditLogs.Add(new MemberAccountDeletionAuditLogEntity
             {
                 MemberAccountId = memberId,
-                Action = MemberAccountDeletionPolicy.RequestedAuditAction,
+                Action = immediate
+                    ? MemberAccountDeletionPolicy.ImmediateRequestedAuditAction
+                    : MemberAccountDeletionPolicy.RequestedAuditAction,
                 OccurredAt = requestedAt,
             });
 
@@ -559,15 +641,42 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Cast<string>()
                 .ToList();
+            var contentBlobs = new List<MemberDeletionBlob>();
 
             foreach (var account in accounts)
             {
+                await RemoveMemberContributionsAsync(account.Id, contentBlobs, purgedAt, cancellationToken);
                 await AnonymiseRetainedAttributionAsync(account.Id, purgedAt, clearMemberLink: true, cancellationToken);
             }
+            var allBlobs = contentBlobs
+                .Concat(accounts.Where(account => !string.IsNullOrWhiteSpace(account.DeletionRecoveryAvatarUrl)).SelectMany(account => new[]
+                {
+                    new MemberDeletionBlob(account.Id, "ugc-avatars", account.DeletionRecoveryAvatarUrl!),
+                    new MemberDeletionBlob(account.Id, "ugc-avatars", MemberAccountDeletionPolicy.ToAvatarThumbnailPath(account.DeletionRecoveryAvatarUrl!)),
+                }))
+                .Where(blob => !string.IsNullOrWhiteSpace(blob.Path))
+                .Distinct()
+                .ToList();
+            dbContext.MemberDeletionBlobs.AddRange(allBlobs.Select(blob => new MemberDeletionBlobEntity
+            {
+                Id = Guid.NewGuid(),
+                MemberAccountId = blob.MemberAccountId,
+                Container = blob.Container,
+                BlobPath = blob.Path,
+                CreatedAt = purgedAt,
+            }));
 
             await dbContext.MemberExternalLogins
-                .Where(login => memberIds.Contains(login.MemberAccountId))
+                .Where(login => memberIds.Contains(login.MemberAccountId)
+                    && (login.Provider != "Apple" || login.AppleRefreshTokenProtected == null))
                 .ExecuteDeleteAsync(cancellationToken);
+
+            await dbContext.MemberExternalLogins
+                .Where(login => memberIds.Contains(login.MemberAccountId)
+                    && login.Provider == "Apple"
+                    && login.AppleRefreshTokenProtected != null)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(login => login.Email, "deleted@deleted.invalid"), cancellationToken);
 
             foreach (var account in accounts)
             {
@@ -579,7 +688,10 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
                 account.DeletionRecoveryDisplayName = null;
                 account.DeletionRecoveryAvatarUrl = null;
                 account.PasswordHash = null;
+                account.PasswordFailureCount = 0;
+                account.PasswordFailureWindowStartedAt = null;
                 account.LastLoginAt = null;
+                account.LinkedLegacyUserId = null;
                 account.IsSuspended = true;
                 account.SuspendedAt = purgedAt;
                 account.SuspendedReason = null;
@@ -596,8 +708,297 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
 
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new MemberAccountDeletionPurgeResult(accounts.Count, avatarBlobPaths);
+            return new MemberAccountDeletionPurgeResult(accounts.Count, avatarBlobPaths, contentBlobs);
         });
+    }
+
+    public async Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.MemberDeletionBlobs
+            .AsNoTracking()
+            .OrderBy(blob => blob.CreatedAt)
+            .Take(limit)
+            .Select(blob => new PendingMemberDeletionBlob(blob.Id, blob.MemberAccountId, blob.Container, blob.BlobPath))
+            .ToListAsync(cancellationToken);
+
+    public Task CompleteDeletionBlobAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.MemberDeletionBlobs
+            .Where(blob => blob.Id == id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+    public async Task<MemberDeletionProgress?> GetDeletionProgressAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await dbContext.MemberAccounts.AsNoTracking()
+            .Where(candidate => candidate.Id == memberId && candidate.DeletionRequestedAt != null)
+            .Select(candidate => new { candidate.PersonalDataPurgedAt })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (account is null)
+        {
+            return null;
+        }
+
+        var pendingBlobs = await dbContext.MemberDeletionBlobs
+            .AnyAsync(blob => blob.MemberAccountId == memberId, cancellationToken);
+        var pendingApple = await dbContext.MemberExternalLogins
+            .AnyAsync(login => login.MemberAccountId == memberId
+                && login.Provider == "Apple"
+                && login.AppleRefreshTokenProtected != null, cancellationToken);
+        return new MemberDeletionProgress(account.PersonalDataPurgedAt is not null
+            && !pendingBlobs && !pendingApple);
+    }
+
+    private async Task RemoveMemberContributionsAsync(
+        Guid memberId,
+        List<MemberDeletionBlob> blobs,
+        DateTime occurredAt,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.DeviceTokens.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.NotificationPreferences.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.MobileAuthAuthorizationCodes.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.MobileAuthRefreshTokens.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.IdempotencyReceipts.Where(row => row.MemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.MemberTopicWatches.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.MemberFollows.Where(row => row.FollowerMemberId == memberId || row.FollowedMemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.MemberMessageBlocks.Where(row => row.BlockerMemberId == memberId || row.BlockedMemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.HomePollVotes.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.ForumPollVotes.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.QuizAttempts.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.QuizSprintRuns.Where(row => row.MemberAccountId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.HelpRequests.Where(row => row.MemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var homePollIds = await dbContext.HomePolls
+            .Where(poll => poll.CreatedByMemberId == memberId)
+            .Select(poll => poll.Id)
+            .ToListAsync(cancellationToken);
+        await dbContext.HomePollOptions.Where(option => homePollIds.Contains(option.PollId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(option => option.OptionText, "Deleted option"), cancellationToken);
+        await dbContext.HomePolls.Where(poll => homePollIds.Contains(poll.Id))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(poll => poll.Question, "Deleted poll")
+                .SetProperty(poll => poll.IsCurrent, false), cancellationToken);
+
+        var authoredQuizIds = await dbContext.Quizzes
+            .Where(quiz => quiz.CreatedByMemberId == memberId)
+            .Select(quiz => quiz.Id)
+            .ToListAsync(cancellationToken);
+        var authoredQuestionIds = await dbContext.QuizQuestions
+            .Where(question => authoredQuizIds.Contains(question.QuizId))
+            .Select(question => question.Id)
+            .ToListAsync(cancellationToken);
+        await dbContext.QuizOptions.Where(option => authoredQuestionIds.Contains(option.QuestionId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(option => option.OptionText, "Deleted option"), cancellationToken);
+        await dbContext.QuizQuestions.Where(question => authoredQuestionIds.Contains(question.Id))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(question => question.QuestionText, "Deleted question"), cancellationToken);
+        await dbContext.Quizzes.Where(quiz => authoredQuizIds.Contains(quiz.Id))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(quiz => quiz.Title, "Deleted quiz")
+                .SetProperty(quiz => quiz.Description, (string?)null)
+                .SetProperty(quiz => quiz.IsPublished, false), cancellationToken);
+
+        var attachments = await dbContext.ForumPostAttachments
+            .Where(attachment => attachment.Post!.AuthorMemberId == memberId)
+            .Select(attachment => new { attachment.ContainerName, attachment.BlobPath })
+            .ToListAsync(cancellationToken);
+        blobs.AddRange(attachments.Select(attachment =>
+            new MemberDeletionBlob(memberId, attachment.ContainerName, attachment.BlobPath)));
+        await dbContext.ForumPostAttachments
+            .Where(attachment => attachment.Post!.AuthorMemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await dbContext.ModernForumPosts
+            .Where(post => post.AuthorMemberId == memberId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(post => post.BodyHtml, "<p>Post deleted by member.</p>")
+                .SetProperty(post => post.SignatureHtml, (string?)null)
+                .SetProperty(post => post.Attachment, (string?)null)
+                .SetProperty(post => post.FileSize, (string?)null)
+                .SetProperty(post => post.AttachCount, 0)
+                .SetProperty(post => post.UpdatedAt, occurredAt), cancellationToken);
+
+        await dbContext.PrivateMessages
+            .Where(message => message.SenderMemberId == memberId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(message => message.Body, "Message deleted by member."), cancellationToken);
+        await dbContext.PrivateConversations
+            .Where(conversation => conversation.LastMessageSenderId == memberId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(conversation => conversation.LastMessagePreview, "Message deleted by member."),
+                cancellationToken);
+
+        var articles = await dbContext.ArticleSubmissions
+            .Where(article => article.AuthorMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        var articleKeys = articles.Select(article => "article:" + article.Slug).ToList();
+        await dbContext.SearchDocuments
+            .Where(document => articleKeys.Contains(document.SourceKey))
+            .ExecuteDeleteAsync(cancellationToken);
+        foreach (var article in articles)
+        {
+            if (!string.IsNullOrWhiteSpace(article.CoverImageBlobPath))
+            {
+                blobs.Add(new MemberDeletionBlob(memberId, "ugc-articles", article.CoverImageBlobPath));
+            }
+            article.Title = "Deleted article";
+            article.Slug = $"deleted-{article.Id:N}";
+            article.Excerpt = null;
+            article.Body = string.Empty;
+            article.WordCount = 0;
+            article.CoverImageBlobPath = null;
+            article.Tags = null;
+            article.Status = "Deleted";
+        }
+
+        var photos = await dbContext.PhotoSubmissions
+            .Where(photo => photo.SubmitterMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        await OutboxAndRemovePromotedGalleryAsync(memberId, photos, blobs, cancellationToken);
+        foreach (var photo in photos)
+        {
+            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.BlobPath));
+            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.WebOptimizedBlobPath));
+            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.ThumbnailBlobPath));
+            photo.Title = "Deleted photo";
+            photo.Description = null;
+            photo.BlobPath = string.Empty;
+            photo.WebOptimizedBlobPath = string.Empty;
+            photo.ThumbnailBlobPath = string.Empty;
+            photo.OriginalFileName = string.Empty;
+            photo.Status = "Deleted";
+            photo.PromotedPicId = null;
+        }
+
+        var performances = await dbContext.FanPerformanceSubmissions
+            .Where(performance => performance.SubmitterMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        await OutboxAndRemovePromotedStagesAsync(memberId, performances, blobs, cancellationToken);
+        foreach (var performance in performances)
+        {
+            if (!string.IsNullOrWhiteSpace(performance.BlobPath))
+            {
+                blobs.Add(new MemberDeletionBlob(memberId, "ugc-fan-performances", performance.BlobPath));
+            }
+            performance.Title = "Deleted performance";
+            performance.Description = null;
+            performance.PerformedBy = "Deleted member";
+            performance.BlobPath = string.Empty;
+            performance.OriginalFileName = string.Empty;
+            performance.Status = "Deleted";
+            performance.PromotedStageId = null;
+        }
+
+        await dbContext.NewsSuggestions
+            .Where(suggestion => suggestion.SubmitterMemberId == memberId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(suggestion => suggestion.Url, string.Empty)
+                .SetProperty(suggestion => suggestion.UrlHash, string.Empty)
+                .SetProperty(suggestion => suggestion.Title, (string?)null)
+                .SetProperty(suggestion => suggestion.Notes, (string?)null)
+                .SetProperty(suggestion => suggestion.Status, "Deleted"), cancellationToken);
+
+        var trivia = await dbContext.TriviaFactSubmissions
+            .Where(submission => submission.SubmitterMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        var promotedTriviaIds = trivia
+            .Where(submission => submission.PromotedTriviaId is not null)
+            .Select(submission => submission.PromotedTriviaId!.Value)
+            .ToList();
+        await dbContext.TriviaFacts
+            .Where(fact => promotedTriviaIds.Contains(fact.Id))
+            .ExecuteDeleteAsync(cancellationToken);
+        foreach (var submission in trivia)
+        {
+            submission.Text = "Deleted suggestion";
+            submission.SourceNote = null;
+            submission.Status = "Deleted";
+            submission.PromotedTriviaId = null;
+        }
+
+        var quizSubmissions = await dbContext.QuizQuestionSubmissions
+            .Where(submission => submission.SubmitterMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        foreach (var submission in quizSubmissions)
+        {
+            if (submission.AddedToQuizId is Guid quizId)
+            {
+                var questionIds = await dbContext.QuizQuestions
+                    .Where(question => question.QuizId == quizId
+                        && question.QuestionText == submission.QuestionText)
+                    .Select(question => question.Id)
+                    .ToListAsync(cancellationToken);
+                await dbContext.QuizOptions
+                    .Where(option => questionIds.Contains(option.QuestionId))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(option => option.OptionText, "Deleted option"), cancellationToken);
+                await dbContext.QuizQuestions
+                    .Where(question => questionIds.Contains(question.Id))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(question => question.QuestionText, "Deleted question"), cancellationToken);
+            }
+
+            submission.QuestionText = "Deleted question";
+            submission.SourceNote = null;
+            submission.Status = "Deleted";
+        }
+        var submissionIds = quizSubmissions.Select(submission => submission.Id).ToList();
+        await dbContext.QuizQuestionSubmissionOptions
+            .Where(option => submissionIds.Contains(option.QuizQuestionSubmissionId))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(option => option.OptionText, "Deleted option"), cancellationToken);
+
+        await dbContext.ForumPolls
+            .Where(poll => poll.CreatedByMemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var conversationIds = await dbContext.PrivateConversations
+            .Where(conversation => conversation.MemberLowId == memberId || conversation.MemberHighId == memberId)
+            .Select(conversation => conversation.Id)
+            .ToListAsync(cancellationToken);
+        await dbContext.PrivateMessageReports
+            .Where(report => report.ReporterMemberId == memberId || report.ReportedMemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.PrivateMessageReports
+            .Where(report => conversationIds.Contains(report.ConversationId))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(report => report.PrecedingContextJson, (string?)null), cancellationToken);
+        await dbContext.ForumPostReports
+            .Where(report => report.ReporterMemberId == memberId || report.ReportedMemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await dbContext.FanPerformanceReports
+            .Where(report => report.ReporterMemberId == memberId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var photoIds = photos.Select(photo => photo.Id).ToList();
+        var performanceIds = performances.Select(performance => performance.Id).ToList();
+        var triviaIds = trivia.Select(submission => submission.Id).ToList();
+        await dbContext.PhotoSubmissionAuditLogs
+            .Where(log => photoIds.Contains(log.PhotoSubmissionId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(log => log.Details, (string?)null), cancellationToken);
+        await dbContext.FanPerformanceSubmissionAuditLogs
+            .Where(log => performanceIds.Contains(log.FanPerformanceSubmissionId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(log => log.Details, (string?)null), cancellationToken);
+        await dbContext.TriviaFactSubmissionAuditLogs
+            .Where(log => triviaIds.Contains(log.TriviaFactSubmissionId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(log => log.Details, (string?)null), cancellationToken);
+        await dbContext.QuizQuestionSubmissionAuditLogs
+            .Where(log => submissionIds.Contains(log.QuizQuestionSubmissionId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(log => log.Details, (string?)null), cancellationToken);
     }
 
     private async Task AnonymiseRetainedAttributionAsync(
@@ -606,6 +1007,21 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
         bool clearMemberLink,
         CancellationToken cancellationToken)
     {
+        // Forum search documents are title-only. Keep the thread discoverable while
+        // clearing any older index payload that might still contain authored post text.
+        var threadKeys = dbContext.ModernForumPosts
+            .Where(post => post.AuthorMemberId == memberId)
+            .Select(post => "forum-thread:" + post.LegacyThreadTopicId);
+        await dbContext.SearchDocuments
+            .Where(document => threadKeys.Contains(document.SourceKey))
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(document => document.Body, document => document.Title)
+                    .SetProperty(document => document.Summary, document => document.Title)
+                    .SetProperty(document => document.AuthorDisplayName, (string?)null)
+                    .SetProperty(document => document.ImageUrl, (string?)null),
+                cancellationToken);
+
         var starterThreadIds = dbContext.ModernForumPosts
             .Where(post =>
                 post.AuthorMemberId == memberId
@@ -696,5 +1112,118 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
             .Where(row => row.MemberId == memberId)
             .ExecuteDeleteAsync(cancellationToken);
 
+    private async Task OutboxAndRemovePromotedGalleryAsync(
+        Guid memberId,
+        IReadOnlyList<PhotoSubmissionEntity> photos,
+        List<MemberDeletionBlob> blobs,
+        CancellationToken cancellationToken)
+    {
+        var picIds = photos
+            .Where(photo => photo.PromotedPicId is int)
+            .Select(photo => photo.PromotedPicId!.Value)
+            .Distinct()
+            .ToList();
+        if (picIds.Count == 0)
+        {
+            return;
+        }
+
+        var rows = await QueryLegacyRowsAsync<PromotedGalleryBlobRow>(
+            $"""
+            SELECT PIC_ID AS PicId, Url AS LegacyUrl, Thumb_URL AS LegacyThumbUrl
+            FROM {LegacyTable("PIC_FILES_T")}
+            WHERE PIC_ID IN ({IdPlaceholders(picIds.Count)})
+            """,
+            picIds,
+            cancellationToken);
+        foreach (var row in rows)
+        {
+            MemberDeletionPromotedMedia.EnqueueGalleryLegacyPaths(
+                memberId,
+                row.LegacyUrl,
+                row.LegacyThumbUrl,
+                blobs);
+        }
+
+        await ExecuteLegacySqlAsync(
+            $"DELETE FROM {LegacyTable("PIC_FILES_T")} WHERE PIC_ID IN ({IdPlaceholders(picIds.Count)})",
+            picIds,
+            cancellationToken);
+    }
+
+    private async Task OutboxAndRemovePromotedStagesAsync(
+        Guid memberId,
+        IReadOnlyList<FanPerformanceSubmissionEntity> performances,
+        List<MemberDeletionBlob> blobs,
+        CancellationToken cancellationToken)
+    {
+        var stageIds = performances
+            .Where(performance => performance.PromotedStageId is int)
+            .Select(performance => performance.PromotedStageId!.Value)
+            .Distinct()
+            .ToList();
+        if (stageIds.Count == 0)
+        {
+            return;
+        }
+
+        var rows = await QueryLegacyRowsAsync<PromotedStageBlobRow>(
+            $"""
+            SELECT CAST(Q_STAGE_ID AS int) AS StageId, URL AS AudioFileName
+            FROM {LegacyTable("Q_STAGE_T")}
+            WHERE Q_STAGE_ID IN ({IdPlaceholders(stageIds.Count)})
+            """,
+            stageIds,
+            cancellationToken);
+        foreach (var row in rows)
+        {
+            MemberDeletionPromotedMedia.EnqueueStageAudio(memberId, row.AudioFileName, blobs);
+        }
+
+        await ExecuteLegacySqlAsync(
+            $"DELETE FROM {LegacyTable("Q_STAGE_T")} WHERE Q_STAGE_ID IN ({IdPlaceholders(stageIds.Count)})",
+            stageIds,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<T>> QueryLegacyRowsAsync<T>(
+        string sql,
+        IReadOnlyList<int> ids,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        return await dbContext.Database
+            .SqlQueryRaw<T>(sql, ids.Cast<object>().ToArray())
+            .ToListAsync(cancellationToken);
+    }
+
+    private Task<int> ExecuteLegacySqlAsync(
+        string sql,
+        IReadOnlyList<int> ids,
+        CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlRawAsync(sql, ids.Cast<object>(), cancellationToken);
+
+    private string LegacyTable(string tableName) =>
+        dbContext.Database.IsSqlServer() ? $"dbo.{tableName}" : tableName;
+
+    private static string IdPlaceholders(int count) =>
+        string.Join(", ", Enumerable.Range(0, count).Select(index => $"{{{index}}}"));
+
     private static string Normalize(string email) => email.Trim().ToUpperInvariant();
+
+    private sealed class PromotedGalleryBlobRow
+    {
+        public int PicId { get; set; }
+
+        public string? LegacyUrl { get; set; }
+
+        public string? LegacyThumbUrl { get; set; }
+    }
+
+    private sealed class PromotedStageBlobRow
+    {
+        public int StageId { get; set; }
+
+        public string? AudioFileName { get; set; }
+    }
 }

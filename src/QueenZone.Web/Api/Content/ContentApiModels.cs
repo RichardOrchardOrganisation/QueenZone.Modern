@@ -112,6 +112,7 @@ public sealed record BiographyChapterListItemDto(
 /// <summary>
 /// Detail shape for <c>/api/v1/content/biography/{id}</c>, including adjacent-chapter
 /// links so the app can render prev/next navigation without a second round trip.
+/// <c>Body</c> is sanitized HTML via <see cref="BiographyContent.FormatBody"/>.
 /// </summary>
 public sealed record BiographyChapterDetailDto(
     int Id,
@@ -140,6 +141,7 @@ public sealed record AlbumListItemDto(
 
 /// <summary>
 /// Detail shape for <c>/api/v1/content/discography/{id}</c>, including the track list.
+/// <c>GeneralNotes</c> is sanitized HTML using the same formatter as the website.
 /// </summary>
 public sealed record AlbumDetailDto(
     int AlbumId,
@@ -152,7 +154,8 @@ public sealed record AlbumDetailDto(
     IReadOnlyList<AlbumSongDto> Songs);
 
 /// <summary>
-/// A single track within an <see cref="AlbumDetailDto"/>.
+/// A single track within an <see cref="AlbumDetailDto"/>. <c>Lyrics</c> is encoded display HTML
+/// via <see cref="LyricsFormatter.Format"/>; <c>Notes</c> remains plain text.
 /// </summary>
 public sealed record AlbumSongDto(int SongId, string Title, bool IsSingle, string? Lyrics, string? Notes);
 
@@ -208,6 +211,123 @@ public sealed record HomePollDto(
 public sealed record HomePollOptionDto(Guid Id, string Text, int Count, double Percentage);
 
 public sealed record HomePollVoteRequestDto(Guid? OptionId);
+
+/// <summary>Shape for <c>GET /api/v1/content/quizzes</c> list items.</summary>
+public sealed record QuizListItemDto(Guid Id, string Title, string? Description, int QuestionCount);
+
+/// <summary>An answer option shaped for play — no correct-answer flag.</summary>
+public sealed record QuizOptionDto(Guid Id, string Text);
+
+public sealed record QuizQuestionDto(Guid Id, string Text, int Points, IReadOnlyList<QuizOptionDto> Options);
+
+/// <summary>
+/// Shape for <c>GET /api/v1/content/quizzes/{id}</c>. Options only, no correct-answer flag —
+/// the correct option is never sent to the client before submit.
+/// </summary>
+public sealed record QuizDetailDto(Guid Id, string Title, string? Description, IReadOnlyList<QuizQuestionDto> Questions);
+
+public sealed record QuizAnswerSubmissionDto(Guid QuestionId, Guid? SelectedOptionId);
+
+/// <summary>Request body for <c>POST /api/v1/content/quizzes/{id}/attempts</c>.</summary>
+public sealed record QuizSubmitRequestDto(IReadOnlyList<QuizAnswerSubmissionDto>? Answers);
+
+public sealed record QuizAnswerResultDto(
+    Guid QuestionId,
+    string QuestionText,
+    Guid? SelectedOptionId,
+    string? SelectedOptionText,
+    Guid CorrectOptionId,
+    string CorrectOptionText,
+    bool IsCorrect,
+    int PointsAwarded);
+
+/// <summary>
+/// Result of <c>POST /api/v1/content/quizzes/{id}/attempts</c>. Scoring is computed
+/// server-side; this is the only place the correct answers are ever revealed to the client.
+/// </summary>
+public sealed record QuizResultDto(
+    Guid QuizId,
+    string QuizTitle,
+    int Score,
+    int MaxScore,
+    int CorrectCount,
+    int QuestionCount,
+    bool Recorded,
+    IReadOnlyList<QuizAnswerResultDto> Answers);
+
+public sealed record QuizLeaderboardEntryDto(int Rank, string DisplayName, int Score, int AttemptCount);
+
+/// <summary>Shape for <c>GET /api/v1/content/quizzes/leaderboard</c>.</summary>
+public sealed record QuizLeaderboardDto(
+    IReadOnlyList<QuizLeaderboardEntryDto> Top,
+    QuizLeaderboardEntryDto? Viewer,
+    int TotalMembers);
+
+public sealed record SprintOptionDto(Guid Id, string Text);
+
+public sealed record SprintQuestionDto(Guid Id, string Text, IReadOnlyList<SprintOptionDto> Options);
+
+/// <summary>
+/// Shape for <c>POST /api/v1/content/quizzes/sprint/start</c>. Options carry no correct-answer flag;
+/// <c>Ticket</c> is an opaque signed token to send back on finish. Times are Unix milliseconds (UTC).
+/// </summary>
+public sealed record SprintRoundDto(
+    string Ticket,
+    long ServerNowUnixMilliseconds,
+    long ExpiresAtUnixMilliseconds,
+    int DurationSeconds,
+    IReadOnlyList<SprintQuestionDto> Questions);
+
+/// <summary>Request body for <c>POST /api/v1/content/quizzes/sprint/answer</c>.</summary>
+public sealed record SprintAnswerRequestDto(string? Ticket, Guid QuestionId, Guid OptionId);
+
+/// <summary>Whether the picked option was right, and which one was, for per-answer feedback.</summary>
+public sealed record SprintAnswerResultDto(bool IsCorrect, Guid CorrectOptionId);
+
+public sealed record SprintFinishRequestDto(string? Ticket, IReadOnlyList<QuizAnswerSubmissionDto>? Answers);
+
+public sealed record SprintReviewItemDto(Guid QuestionId, string QuestionText, bool IsCorrect, string CorrectAnswer);
+
+/// <summary>
+/// Result of <c>POST /api/v1/content/quizzes/sprint/finish</c>. <c>Recorded</c> is true only when the
+/// caller was signed in (Bearer) and the run reached today's leaderboard; <c>Rank</c> is then set. For an
+/// anonymous run, <c>ClaimToken</c> lets the player sign in within an hour and add it via the claim endpoint.
+/// </summary>
+public sealed record SprintResultDto(
+    int Attempted,
+    int Correct,
+    int Points,
+    int BestStreak,
+    bool Recorded,
+    int? Rank,
+    IReadOnlyList<SprintReviewItemDto> Answers,
+    string? ClaimToken = null);
+
+/// <summary>Request body for <c>POST /api/v1/content/quizzes/sprint/claim</c>.</summary>
+public sealed record SprintClaimRequestDto(string? ClaimToken);
+
+/// <summary><c>Status</c> is <c>claimed</c> or <c>already_claimed</c>; <c>Rank</c> is today's rank when the run was today's.</summary>
+public sealed record SprintClaimResultDto(string Status, int Points, int? Rank);
+
+/// <param name="Runs">Runs the member has played in the scope (1 for a single best run; the run count for the total board).</param>
+public sealed record SprintLeaderboardEntryDto(int Rank, string DisplayName, int Score, int BestStreak, int Runs = 1);
+
+/// <summary>
+/// Shape for <c>GET /api/v1/content/quizzes/sprint/leaderboard</c>: <c>Scope</c> is <c>daily</c>,
+/// <c>all</c> (best run ever) or <c>total</c> (points summed over every run); <c>Players</c> counts
+/// the members ranked in that scope.
+/// </summary>
+public sealed record SprintBoardDto(
+    string Scope,
+    IReadOnlyList<SprintLeaderboardEntryDto> Top,
+    SprintLeaderboardEntryDto? Viewer,
+    int Players);
+
+/// <summary>Shape for <c>GET /api/v1/content/quizzes/sprint/daily</c> (today, UTC).</summary>
+public sealed record SprintDailyBoardDto(
+    IReadOnlyList<SprintLeaderboardEntryDto> Top,
+    SprintLeaderboardEntryDto? Viewer,
+    int PlayersToday);
 
 /// <summary>
 /// Category card for <c>/api/v1/content/photos/categories</c> and

@@ -101,6 +101,7 @@ export function ForumScreen({ navigation }: Props) {
         ListHeaderComponent={header}
         ListEmptyComponent={<EmptyBlock message="No forum boards are available yet." />}
         ListFooterComponent={<ListFooterLoading visible={paged.loadingMore} />}
+        alwaysBounceVertical
         refreshControl={
           <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={refresh} />
         }

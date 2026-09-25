@@ -10,10 +10,14 @@ namespace QueenZone.Web.Pages.Account;
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
 public sealed class DeleteModel(
     MemberAccountService memberAccountService,
-    IMobileAuthGrantRepository mobileAuthGrantRepository) : PageModel
+    IMobileAuthGrantRepository mobileAuthGrantRepository,
+    MemberDeletionReceiptService deletionReceipts) : PageModel
 {
     [BindProperty]
     public string Confirmation { get; set; } = string.Empty;
+
+    [BindProperty]
+    public bool Immediate { get; set; }
 
     public string Email { get; private set; } = string.Empty;
 
@@ -48,7 +52,9 @@ public sealed class DeleteModel(
             return Page();
         }
 
-        var result = await memberAccountService.RequestDeletionAsync(account.Id, cancellationToken);
+        var result = Immediate
+            ? await memberAccountService.DeleteImmediatelyAsync(account.Id, cancellationToken)
+            : await memberAccountService.RequestDeletionAsync(account.Id, cancellationToken);
         if (!result.Succeeded)
         {
             ModelState.AddModelError(string.Empty, result.Error ?? "Could not request account deletion.");
@@ -60,7 +66,9 @@ public sealed class DeleteModel(
             DateTime.UtcNow,
             cancellationToken);
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.MembersCookie);
-        return RedirectToPage("/Account/DeletionRequested");
+        return Redirect(Immediate
+            ? "/account/deletion-status?receipt=" + Uri.EscapeDataString(deletionReceipts.Issue(account.Id))
+            : "/account/deletion-requested");
     }
 
     public async Task<IActionResult> OnPostCancelAsync(CancellationToken cancellationToken)

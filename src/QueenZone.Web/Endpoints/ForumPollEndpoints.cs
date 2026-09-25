@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -18,10 +19,14 @@ public static class ForumPollEndpoints
                 CancellationToken cancellationToken) =>
             await VoteAsync(pollId, httpContext, pollRepository, antiforgery, cancellationToken))
             .RequireAuthorization(MemberAuthenticationSchemes.MemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery()
             .WithName("VoteForumPoll");
 
-        app.MapPost("/forum/poll/{pollId:guid}/close", async (
+        // Authors close their own poll with the member cookie. Closing someone else's poll
+        // requires the admin scheme (see CloseAsync). MemberPolicy alone would block an
+        // Entra admin who has no member cookie; Admin policy alone would block authors.
+        var closePoll = app.MapPost("/forum/poll/{pollId:guid}/close", async (
                 Guid pollId,
                 HttpContext httpContext,
                 IForumPollRepository pollRepository,
@@ -29,9 +34,21 @@ public static class ForumPollEndpoints
                 IOptions<AdminOptions> adminOptions,
                 CancellationToken cancellationToken) =>
             await CloseAsync(pollId, httpContext, pollRepository, antiforgery, adminOptions.Value, cancellationToken))
-            .RequireAuthorization(MemberAuthenticationSchemes.MemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery()
             .WithName("CloseForumPoll");
+
+        closePoll.RequireAuthorization(policy =>
+        {
+            policy.AuthenticationSchemes.Add(AdminAuthenticationSchemes.CompositeScheme);
+            policy.AuthenticationSchemes.Add(MemberAuthenticationSchemes.MembersCookie);
+            if (QueenZoneEnvironments.UsesTestAuth(app.Environment))
+            {
+                policy.AuthenticationSchemes.Add(TestMemberAuthHandler.SchemeName);
+            }
+
+            policy.RequireAuthenticatedUser();
+        });
     }
 
     internal static async Task<IResult> VoteAsync(
@@ -86,7 +103,22 @@ public static class ForumPollEndpoints
         CancellationToken cancellationToken)
     {
         var memberId = ForumMember.GetMemberId(httpContext.User);
-        if (memberId is null)
+        var isAdmin = false;
+        // Direct unit calls have no authentication service and stay unauthorized.
+        if (httpContext.RequestServices.GetService<IAuthenticationService>() is not null)
+        {
+            isAdmin = await ForumAdminAccess.IsAdminAsync(httpContext, adminOptions);
+            if (memberId is null)
+            {
+                var memberAuth = await httpContext.AuthenticateMemberAsync();
+                if (memberAuth.Succeeded)
+                {
+                    memberId = ForumMember.GetMemberId(memberAuth.Principal);
+                }
+            }
+        }
+
+        if (!isAdmin && memberId is null)
         {
             return Results.Unauthorized();
         }
@@ -107,11 +139,10 @@ public static class ForumPollEndpoints
         }
 
         var returnUrl = ResolveReturnUrl(form);
-        var isAdmin = IsAdmin(httpContext.User, adminOptions);
 
         try
         {
-            await pollRepository.ClosePollAsync(pollId, memberId.Value, isAdmin, cancellationToken);
+            await pollRepository.ClosePollAsync(pollId, memberId ?? Guid.Empty, isAdmin, cancellationToken);
             return Results.Redirect(returnUrl + "#poll");
         }
         catch (ForumPollVoteException ex)

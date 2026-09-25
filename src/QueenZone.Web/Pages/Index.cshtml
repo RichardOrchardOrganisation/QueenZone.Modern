@@ -1,5 +1,5 @@
 @page "/"
-@model IndexModel
+@model QueenZone.Web.Pages.IndexModel
 @using System.Text.Json
 @inject IFileVersionProvider FileVersionProvider
 @{
@@ -92,6 +92,8 @@
     </div>
   </div>
 </section>
+
+<partial name="_SprintCallout" model="Model.SprintBoard" />
 
 @if (Model.FeaturedQuote is not null)
 {

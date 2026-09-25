@@ -7,23 +7,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PublicRssFeedTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PublicRssFeedTests : IClassFixture<PreviewPublicBaseUrlWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PublicRssFeedTests(WebApplicationFactory<Program> factory)
+    public PublicRssFeedTests(PreviewPublicBaseUrlWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Site:PublicBaseUrl"] = "https://preview.queenzone.test",
-                });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

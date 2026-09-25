@@ -8,23 +8,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class MemberLogoutTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class MemberLogoutTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public MemberLogoutTests(WebApplicationFactory<Program> factory)
+    public MemberLogoutTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

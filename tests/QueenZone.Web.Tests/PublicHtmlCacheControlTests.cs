@@ -83,13 +83,13 @@ public sealed class PublicHtmlCacheControlUnitTests
     }
 }
 
-public sealed class PublicHtmlCacheControlIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PublicHtmlCacheControlIntegrationTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PublicHtmlCacheControlIntegrationTests(WebApplicationFactory<Program> factory)
+    public PublicHtmlCacheControlIntegrationTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

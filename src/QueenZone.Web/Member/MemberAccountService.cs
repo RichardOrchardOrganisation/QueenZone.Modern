@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Storage;
@@ -16,13 +17,23 @@ namespace QueenZone.Web;
 /// backfill only runs when exactly one free match remains.
 /// Existing unlinked accounts get that single-match silent backfill on later sign-in,
 /// repairing accounts that missed create-time linking under the old model.
+/// A new external provider is linked only when its email is verified and the existing
+/// account confirms the link. A returning provider subject signs in without that check.
 /// </remarks>
 public sealed class MemberAccountService(
     IMemberAccountRepository memberAccountRepository,
     ILegacyMemberLookupRepository legacyMemberLookupRepository,
     IBlobUploadService blobUploadService,
-    MemberUploadQuotaService uploadQuota)
+    MemberUploadQuotaService uploadQuota,
+    TimeProvider? timeProvider = null,
+    IOptions<PasswordSignInLockoutOptions>? passwordLockout = null,
+    AppleAccountTokenService? appleTokens = null,
+    ILogger<MemberAccountService>? logger = null,
+    IEmailSender? emailSender = null)
 {
+    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+
+    private readonly PasswordSignInLockoutOptions lockout = passwordLockout?.Value ?? new PasswordSignInLockoutOptions();
     /// <summary>
     /// Bound for each avatar blob delete. <see cref="MemberAccountDeletionHostedService"/>
     /// can invoke this on its first timer tick; Azure.Storage.Blobs often ignores
@@ -61,13 +72,141 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
         if (account is null || account.PasswordHash is null)
         {
-            return MemberAccountResult.Failure("Incorrect email or password.");
+            return MemberAccountResult.Failure(InvalidPasswordSignInError);
+        }
+
+        var now = clock.GetUtcNow().UtcDateTime;
+        var maxFailures = Math.Max(1, lockout.MaxFailures);
+        var window = TimeSpan.FromMinutes(Math.Max(1, lockout.WindowMinutes));
+        var failureCount = account.PasswordFailureCount;
+        var windowStarted = account.PasswordFailureWindowStartedAt;
+        if (windowStarted is null || now - windowStarted.Value >= window)
+        {
+            failureCount = 0;
+            windowStarted = null;
         }
 
         var verification = passwordHasher.VerifyHashedPassword(account, account.PasswordHash, password);
-        if (verification == PasswordVerificationResult.Failed)
+        var locked = failureCount >= maxFailures;
+        if (locked || verification == PasswordVerificationResult.Failed || account.IsSuspended)
         {
-            return MemberAccountResult.Failure("Incorrect email or password.");
+            if (!locked)
+            {
+                failureCount++;
+                windowStarted ??= now;
+                await memberAccountRepository.RecordPasswordFailureAsync(
+                    account.Id,
+                    failureCount,
+                    windowStarted.Value,
+                    cancellationToken);
+            }
+
+            return MemberAccountResult.Failure(InvalidPasswordSignInError);
+        }
+
+        var rehashedPassword = verification == PasswordVerificationResult.SuccessRehashNeeded
+            ? passwordHasher.HashPassword(account, password)
+            : null;
+        account = await TryBackfillLegacyLinkAsync(account, cancellationToken);
+        if (rehashedPassword is not null)
+        {
+            account.PasswordHash = rehashedPassword;
+        }
+
+        account.LastLoginAt = now;
+        account.PasswordFailureCount = 0;
+        account.PasswordFailureWindowStartedAt = null;
+        await memberAccountRepository.RecordPasswordSignInAsync(
+            account.Id,
+            now,
+            rehashedPassword,
+            cancellationToken);
+        return MemberAccountResult.Success(account);
+    }
+
+    public async Task<ExternalLoginResolution> FindOrCreateFromExternalLoginAsync(
+        string provider,
+        string providerKey,
+        string? email,
+        string? displayName,
+        bool emailVerified,
+        CancellationToken cancellationToken = default)
+    {
+        provider = MemberAuthenticationSchemes.NormalizeExternalProvider(provider) ?? provider;
+
+        var existingByLogin = await memberAccountRepository.FindByExternalLoginAsync(provider, providerKey, cancellationToken);
+        if (existingByLogin is not null)
+        {
+            if (existingByLogin.IsSuspended)
+            {
+                return ExternalLoginResolution.Suspended(existingByLogin);
+            }
+
+            var signedIn = await FinishExistingSignInAsync(existingByLogin, cancellationToken);
+            return ExternalLoginResolution.SignedIn(signedIn);
+        }
+
+        // Email is only a matching key after the provider has verified it.
+        // An unverified address must not create an account that can later collide.
+        if (!emailVerified || string.IsNullOrWhiteSpace(email))
+        {
+            return ExternalLoginResolution.Unverified();
+        }
+
+        email = email.Trim();
+        var existingByEmail = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
+        if (existingByEmail is not null)
+        {
+            if (existingByEmail.IsSuspended)
+            {
+                return ExternalLoginResolution.Suspended(existingByEmail);
+            }
+
+            return ExternalLoginResolution.ConfirmationRequired(existingByEmail);
+        }
+
+        var account = new MemberAccount
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? email : displayName.Trim(),
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        var created = await memberAccountRepository.CreateAsync(account, cancellationToken);
+        await memberAccountRepository.AddExternalLoginAsync(created.Id, provider, providerKey, email, cancellationToken);
+        await memberAccountRepository.RecordLoginAsync(created.Id, DateTime.UtcNow, cancellationToken);
+        created = await memberAccountRepository.FindByIdAsync(created.Id, cancellationToken) ?? created;
+        return ExternalLoginResolution.SignedIn(created);
+    }
+
+    /// <summary>
+    /// Attaches a pending provider subject to the account the member just authenticated.
+    /// The caller must already have proved that session with the account password or an
+    /// already-linked provider. The provider email must be that account's email.
+    /// </summary>
+    public async Task<MemberAccountResult> LinkExternalLoginAsync(
+        Guid authenticatedMemberId,
+        string provider,
+        string providerKey,
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedProvider = MemberAuthenticationSchemes.NormalizeExternalProvider(provider);
+        if (normalizedProvider is null)
+        {
+            return MemberAccountResult.Failure(ExternalLoginMessages.UnknownProvider);
+        }
+
+        if (string.IsNullOrWhiteSpace(providerKey) || string.IsNullOrWhiteSpace(email))
+        {
+            return MemberAccountResult.Failure(ExternalLoginMessages.UnverifiedEmail);
+        }
+
+        var account = await memberAccountRepository.FindByIdAsync(authenticatedMemberId, cancellationToken);
+        if (account is null)
+        {
+            return MemberAccountResult.Failure("Account not found.");
         }
 
         if (account.IsSuspended)
@@ -75,72 +214,61 @@ public sealed class MemberAccountService(
             return MemberAccountResult.Failure(SuspendedSignInError);
         }
 
-        account = await TryBackfillLegacyLinkAsync(account, cancellationToken);
-        await memberAccountRepository.RecordLoginAsync(account.Id, DateTime.UtcNow, cancellationToken);
+        if (!ExternalLoginEmail.EmailsMatch(account.Email, email))
+        {
+            return MemberAccountResult.Failure(ExternalLoginMessages.EmailMismatch);
+        }
+
+        if (account.DeletionRequestedAt is not null)
+        {
+            return MemberAccountResult.Failure(PendingDeletionEditError);
+        }
+
+        var existingLogin = await memberAccountRepository.FindByExternalLoginAsync(
+            normalizedProvider,
+            providerKey,
+            cancellationToken);
+        if (existingLogin is not null && existingLogin.Id != account.Id)
+        {
+            return MemberAccountResult.Failure(ExternalLoginMessages.AlreadyLinked);
+        }
+
+        if (existingLogin is null)
+        {
+            await memberAccountRepository.AddExternalLoginAsync(
+                account.Id,
+                normalizedProvider,
+                providerKey,
+                email.Trim(),
+                cancellationToken);
+        }
+
+        account = await FinishExistingSignInAsync(account, cancellationToken);
         return MemberAccountResult.Success(account);
     }
 
-    public async Task<MemberAccount> FindOrCreateFromExternalLoginAsync(
-        string provider,
-        string providerKey,
-        string email,
-        string displayName,
-        CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Existing accounts only: silent legacy backfill for people who never claimed yet,
+    /// then record the login. New accounts skip this so Settings can offer an explicit claim.
+    /// </summary>
+    private async Task<MemberAccount> FinishExistingSignInAsync(
+        MemberAccount account,
+        CancellationToken cancellationToken)
     {
-        MemberAccount result;
-        var isNewAccount = false;
-
-        var existingByLogin = await memberAccountRepository.FindByExternalLoginAsync(provider, providerKey, cancellationToken);
-        if (existingByLogin is not null)
+        if (account.DeletionRequestedAt is null)
         {
-            result = existingByLogin;
-        }
-        else
-        {
-            var existingByEmail = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
-            if (existingByEmail is not null)
-            {
-                if (existingByEmail.DeletionRequestedAt is null)
-                {
-                    await memberAccountRepository.AddExternalLoginAsync(existingByEmail.Id, provider, providerKey, email, cancellationToken);
-                }
-
-                result = existingByEmail;
-            }
-            else
-            {
-                var account = new MemberAccount
-                {
-                    Id = Guid.NewGuid(),
-                    Email = email,
-                    DisplayName = displayName,
-                    CreatedAt = DateTime.UtcNow,
-                };
-
-                var created = await memberAccountRepository.CreateAsync(account, cancellationToken);
-                await memberAccountRepository.AddExternalLoginAsync(created.Id, provider, providerKey, email, cancellationToken);
-                result = created;
-                isNewAccount = true;
-            }
+            account = await TryBackfillLegacyLinkAsync(account, cancellationToken);
         }
 
-        // Existing accounts only: silent backfill for people who never claimed yet.
-        // New accounts keep LinkedLegacyUserId null so Settings can offer an explicit claim.
-        if (!isNewAccount && result.DeletionRequestedAt is null)
-        {
-            result = await TryBackfillLegacyLinkAsync(result, cancellationToken);
-        }
-
-        if (!result.IsSuspended)
-        {
-            await memberAccountRepository.RecordLoginAsync(result.Id, DateTime.UtcNow, cancellationToken);
-        }
-
-        return result;
+        await memberAccountRepository.RecordLoginAsync(account.Id, DateTime.UtcNow, cancellationToken);
+        return await memberAccountRepository.FindByIdAsync(account.Id, cancellationToken) ?? account;
     }
 
     public async Task<MemberAccount?> FindByIdAsync(Guid memberId, CancellationToken cancellationToken = default) =>
         await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
+
+    public Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default) =>
+        memberAccountRepository.FindByEmailAsync(email, cancellationToken);
 
     public async Task<MemberAccount?> SuspendAsync(
         Guid memberId,
@@ -625,6 +753,57 @@ public sealed class MemberAccountService(
         return MemberAccountResult.Success(requested.Account);
     }
 
+    public async Task<MemberAccountResult> DeleteImmediatelyAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var requested = await memberAccountRepository.RequestDeletionAsync(
+            memberId,
+            clock.GetUtcNow().UtcDateTime,
+            cancellationToken,
+            immediate: true);
+        if (requested is null)
+        {
+            return MemberAccountResult.Failure("Account not found.");
+        }
+
+        var recipientEmail = requested.Account.Email;
+
+        try
+        {
+            await PurgeDueDeletionsAsync(clock.GetUtcNow().UtcDateTime, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogError(ex, "Immediate account deletion purge failed for {MemberId}.", memberId);
+        }
+
+        var purged = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
+        if (purged?.PersonalDataPurgedAt is null)
+        {
+            return MemberAccountResult.Failure(ImmediatePurgeIncompleteError);
+        }
+
+        if (emailSender is not null)
+        {
+            try
+            {
+                await emailSender.SendAsync(
+                    new OutboundEmail(
+                        recipientEmail,
+                        "Your Queenzone account deletion request",
+                        "Your Queenzone account has been deleted. Remaining external cleanup may still be processing. If you did not request this, contact support@queenzone.org."),
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger?.LogError("Could not email account deletion confirmation for {MemberId}: {ErrorType}.", memberId, ex.GetType().Name);
+            }
+        }
+
+        return MemberAccountResult.Success(purged);
+    }
+
     public async Task<MemberAccountResult> CancelDeletionAsync(
         Guid memberId,
         CancellationToken cancellationToken = default)
@@ -655,16 +834,31 @@ public sealed class MemberAccountService(
         DateTime utcNow,
         CancellationToken cancellationToken = default)
     {
+        var purgeBefore = utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays);
         var result = await memberAccountRepository.PurgeDeletedAccountsAsync(
-            utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays),
+            purgeBefore,
             utcNow,
             cancellationToken);
-        foreach (var avatarBlobPath in result.AvatarBlobPaths)
+        var pendingBlobs = await memberAccountRepository.ListPendingDeletionBlobsAsync(100, cancellationToken);
+        foreach (var blob in pendingBlobs)
         {
-            await SafeDeleteAsync(
-                avatarBlobPath,
-                MemberAvatarPaths.ToThumbBlobName(avatarBlobPath),
-                cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(BlobDeleteTimeout);
+            try
+            {
+                await blobUploadService.DeleteAsync(blob.Container, blob.Path, timeout.Token)
+                    .WaitAsync(BlobDeleteTimeout, cancellationToken);
+                await memberAccountRepository.CompleteDeletionBlobAsync(blob.Id, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                logger?.LogWarning(ex, "Account deletion blob cleanup will retry for {BlobId}.", blob.Id);
+            }
+        }
+
+        if (appleTokens is not null)
+        {
+            await appleTokens.RevokePendingAsync(cancellationToken);
         }
 
         return result.PurgedCount;
@@ -677,16 +871,16 @@ public sealed class MemberAccountService(
     {
         if (!string.IsNullOrWhiteSpace(avatarBlobName))
         {
-            await DeleteBlobBestEffortAsync(avatarBlobName, cancellationToken);
+            await DeleteBlobBestEffortAsync(MemberAvatarPaths.Container, avatarBlobName, cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(thumbBlobName))
         {
-            await DeleteBlobBestEffortAsync(thumbBlobName, cancellationToken);
+            await DeleteBlobBestEffortAsync(MemberAvatarPaths.Container, thumbBlobName, cancellationToken);
         }
     }
 
-    private async Task DeleteBlobBestEffortAsync(string blobName, CancellationToken cancellationToken)
+    private async Task DeleteBlobBestEffortAsync(string container, string blobName, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(BlobDeleteTimeout);
@@ -696,7 +890,7 @@ public sealed class MemberAccountService(
             // CancelAfter asks the SDK to stop; WaitAsync bounds this await even when
             // the SDK ignores the token (cold first outbound call, dead TCP, retries).
             await blobUploadService
-                .DeleteAsync(MemberAvatarPaths.Container, blobName, timeout.Token)
+                .DeleteAsync(container, blobName, timeout.Token)
                 .WaitAsync(BlobDeleteTimeout, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -715,7 +909,12 @@ public sealed class MemberAccountService(
 
     public const string PendingDeletionEditError = "Cancel account deletion before changing your public profile.";
 
+    public const string ImmediatePurgeIncompleteError =
+        "Account deletion could not finish removing personal data. Try again shortly.";
+
     public const string SuspendedSignInError = "This account has been suspended.";
+
+    public const string InvalidPasswordSignInError = "Incorrect email or password.";
 }
 
 public sealed record MemberAccountResult(bool Succeeded, MemberAccount? Account, string? Error)

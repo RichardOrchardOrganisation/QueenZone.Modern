@@ -28,10 +28,10 @@
           data-busy-label="Creating thread…">
       @Html.AntiForgeryToken()
       <div asp-validation-summary="All" class="qz-form__validation"></div>
-      <div class="qz-form__field">
-        <label asp-for="Subject">Subject</label>
-        <input asp-for="Subject" maxlength="200" minlength="5" required />
-        <span asp-validation-for="Subject"></span>
+      <div class="qz-field qz-field--spaced">
+        <label class="qz-label" asp-for="Subject">Subject</label>
+        <input class="qz-input" asp-for="Subject" maxlength="200" minlength="5" required />
+        <span class="qz-error qz-error--text" asp-validation-for="Subject"></span>
       </div>
       <partial name="_RichTextEditor" />
       <span asp-validation-for="Body"></span>

@@ -66,9 +66,10 @@ Use `scripts/Run-NewsAgentDiscovery.ps1` for automatic gathering and `scripts/Pr
 
 ### One-time setup
 
-1. Copy `src/QueenZone.NewsAgent.Worker/appsettings.Local.json.example` to `appsettings.Local.json` and set `ConnectionStrings:QueenZoneLegacy` and `OpenRouter:ApiKey`.
-2. Ensure the database has discovery migrations applied.
-3. Smoke-test manually: `scripts/Smoke-NewsAgent.bat` or `scripts/Run-NewsAgentDiscovery.ps1 -Scheduled`.
+1. Configure `bws` and the scheduled-task account's user-scoped `BWS_ACCESS_TOKEN` per `docs/agent-bitwarden-secrets.md`. Both scheduling scripts load `ConnectionStrings__QueenZoneLegacyCanadaEast` from the `Queenzone Development` Bitwarden project on every run. They validate the production SQL target and override any stale local JSON or inherited connection setting. They fail before starting the worker if Bitwarden is unavailable or the secret is invalid.
+2. Copy `src/QueenZone.NewsAgent.Worker/appsettings.Local.json.example` to `appsettings.Local.json` and set `OpenRouter:ApiKey`. The scheduled scripts do not use its database connection value.
+3. Ensure the database has discovery migrations applied.
+4. Smoke-test manually: `scripts/Process-NewsAgentRunRequests.ps1` and `scripts/Run-NewsAgentDiscovery.ps1 -Scheduled`.
 
 ### Create the task
 
@@ -163,5 +164,6 @@ Never commit API keys or connection strings. Use:
 ## Related
 
 - `docs/architecture/news-agent.md` — pipeline, admin review, smoke test
+- `docs/architecture/maintenance-jobs-scheduling.md` — retention and gallery sweep jobs on the same operator machine
 - `docs/backlog/news-agent-mvp-handoff.md` — MVP scope and GitHub issues (#107)
 - `scripts/Smoke-NewsAgent.bat` — manual OpenRouter smoke (fetch + triage)

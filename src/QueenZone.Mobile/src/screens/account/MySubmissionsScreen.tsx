@@ -18,6 +18,7 @@ import {
   type SubmissionStatusTone,
 } from '../../api/submissions';
 import { readProblemDetail } from '../../api/problemDetail';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { MemberGate } from '../../session/MemberGate';
 import { useSession } from '../../session/SessionContext';
 import { radius, space, type, useTheme, type ColorScheme } from '../../theme';
@@ -51,7 +52,6 @@ function MySubmissionsList() {
   const [articles, setArticles] = useState<ArticleSubmissionItem[]>([]);
   const [performances, setPerformances] = useState<FanPerformanceSubmissionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
@@ -115,14 +115,7 @@ function MySubmissionsList() {
     void load();
   }, [load]);
 
-  async function onRefresh() {
-    setRefreshing(true);
-    try {
-      await load();
-    } finally {
-      setRefreshing(false);
-    }
-  }
+  const pull = usePullToRefresh([load]);
 
   const emptyCopy =
     kind === 'photos'
@@ -146,8 +139,9 @@ function MySubmissionsList() {
       testID={testIds.mySubmissionsScreen}
       style={[styles.flex, { backgroundColor: c.surfacePage }]}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
+      alwaysBounceVertical
       refreshControl={
-        <ThemedRefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />
+        <ThemedRefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />
       }
     >
       <Text style={[type.eyebrow, { color: c.accentPrimary }]}>Members</Text>

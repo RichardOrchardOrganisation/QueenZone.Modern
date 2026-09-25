@@ -40,6 +40,20 @@ public sealed class QueenHistoryRepositoryTests
     }
 
     [Fact]
+    public void OnThisDaySqlServerQuery_UsesIndexedMonthDayColumn()
+    {
+        var options = new DbContextOptionsBuilder<QueenZoneDbContext>()
+            .UseSqlServer("Server=localhost;Database=query-shape-only;TrustServerCertificate=True")
+            .Options;
+        using var dbContext = new QueenZoneDbContext(options);
+        var sql = new EfQueenHistoryRepository(dbContext)
+            .BuildOnThisDayQuery(new DateOnly(2026, 7, 13)).ToQueryString();
+
+        Assert.Contains("[EventMonthDay] =", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("DATEPART", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task EfRepositoryReadsPublishedExactMatches()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");
@@ -60,6 +74,10 @@ public sealed class QueenHistoryRepositoryTests
 
         await using var dbContext = new QueenZoneDbContext(options);
         var repository = new EfQueenHistoryRepository(dbContext);
+
+        var sql = repository.BuildOnThisDayQuery(new DateOnly(2026, 7, 13)).ToQueryString();
+        Assert.Contains("EventMonthDay", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("strftime", sql, StringComparison.OrdinalIgnoreCase);
 
         var events = await repository.GetOnThisDayAsync(new DateOnly(2026, 7, 13), 5);
 

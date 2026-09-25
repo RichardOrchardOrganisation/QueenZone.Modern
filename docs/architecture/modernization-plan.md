@@ -18,7 +18,7 @@ Much of this plan is **shipped** on App Service (single B1 worker). Treat the ph
 | Modern forum read + member write path | Done | `docs/sql/`, forum pages |
 | Data access client library | **EF Core only** (Dapper package removed) | [ADR 0006](../decisions/0006-hybrid-ef-core-admin-writes.md) |
 | Hosting scale / cache model | Single instance; process-local cache | [`hosting-scale-and-cache.md`](hosting-scale-and-cache.md) |
-| Remaining architecture/perf backlog | Open epics | [#312](https://github.com/richardorchard/QueenZone.Modern/issues/312), [#391](https://github.com/richardorchard/QueenZone.Modern/issues/391) |
+| Remaining architecture/perf backlog | Open epics | [#312](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/312), [#391](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/391) |
 | Living backlog index | Open vs completed | [`../backlog/migration-backlog.md`](../backlog/migration-backlog.md) |
 
 ## Current Legacy Shape

@@ -13,12 +13,18 @@ param(
     [string]$SubscriptionId = "610e3b3a-028d-4f1b-ac1d-a5567a4f8b9d",
     [string]$WorkloadResourceGroup = "Queenzone-RG",
     [string]$WebAppName = "queenzone-prod",
-    [string]$GitHubRepository = "richardorchard/QueenZone.Modern",
+    [string]$GitHubRepository = "RichardOrchardOrganisation/QueenZone.Modern",
+    [string]$OidcOwnerId = "333232587",
+    [string]$OidcRepositoryId = "1265145026",
+    [string]$FederatedCredentialName = "github-org-prod-deploy",
     [string]$EnvironmentName = "prod-deploy"
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+. (Join-Path $PSScriptRoot "Resolve-GitHubOidcRepositorySegment.ps1")
+$OidcRepositorySegment = Resolve-GitHubOidcRepositorySegment -GitHubRepository $GitHubRepository -OidcOwnerId $OidcOwnerId -OidcRepositoryId $OidcRepositoryId
 
 function Invoke-Native {
     param(
@@ -124,7 +130,7 @@ function Ensure-WorkloadIdentity {
         throw "The service principal for '$DisplayName' was not created."
     }
 
-    $subject = "repo:$GitHubRepository`:environment:$EnvironmentName"
+    $subject = "repo:$OidcRepositorySegment`:environment:$EnvironmentName"
     $credential = @{
         name        = $FederatedCredentialName
         issuer      = "https://token.actions.githubusercontent.com"
@@ -136,8 +142,13 @@ function Ensure-WorkloadIdentity {
     $existingCredentials = @(Invoke-AzJson @("ad", "app", "federated-credential", "list", "--id", $application.id))
     $existingCredential = $existingCredentials | Where-Object { $_.name -eq $FederatedCredentialName } | Select-Object -First 1
     if ($null -ne $existingCredential -and
-        ($existingCredential.subject -ne $subject -or $existingCredential.issuer -ne $credential.issuer)) {
+        ($existingCredential.subject -ne $subject -or $existingCredential.issuer -ne $credential.issuer -or
+         @($existingCredential.audiences).Count -ne 1 -or $existingCredential.audiences[0] -ne "api://AzureADTokenExchange")) {
         throw "Federated credential '$FederatedCredentialName' exists with a different issuer or subject. Review it before changing trust."
+    }
+
+    if ($null -eq $existingCredential -and $existingCredentials.Count -ge 20) {
+        throw "'$DisplayName' has reached the 20 federated-credential limit."
     }
 
     if ($null -eq $existingCredential -and $PSCmdlet.ShouldProcess($DisplayName, "Create GitHub OIDC federated credential")) {
@@ -219,11 +230,12 @@ if ($account.id -ne $SubscriptionId) {
 
 if ($WhatIfPreference) {
     Write-Output "Would create or verify the deploy OIDC identity, Website Contributor role assignment on $WebAppName, and the $EnvironmentName GitHub environment."
+    Write-Output "OIDC subject repository segment: $OidcRepositorySegment"
     Write-Output "Would not import or change any QueenZone application resource setting."
     return
 }
 
-$deployIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone Deploy" -FederatedCredentialName "github-deploy" -EnvironmentName $EnvironmentName
+$deployIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone Deploy" -FederatedCredentialName $FederatedCredentialName -EnvironmentName $EnvironmentName
 
 $webApp = Invoke-AzJson @("webapp", "show", "--name", $WebAppName, "--resource-group", $WorkloadResourceGroup)
 $siteScope = $webApp.id

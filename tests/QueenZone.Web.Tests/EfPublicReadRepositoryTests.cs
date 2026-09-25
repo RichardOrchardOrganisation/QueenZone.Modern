@@ -53,7 +53,8 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 DESCRIPTION TEXT,
                 URL TEXT NOT NULL,
                 thesize TEXT,
-                DATE_ADDED TEXT NOT NULL
+                DATE_ADDED TEXT NOT NULL,
+                DurationSeconds INTEGER
             );
             CREATE TABLE UsersLookup (
                 USER_ID INTEGER NOT NULL,
@@ -154,19 +155,19 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
     {
         dbContext.Database.ExecuteSqlRaw(
             """
-            INSERT INTO StageList (Q_STAGE_ID, TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED)
-            VALUES (5, 'Show Must Go On', 'Fan Band', 'Cover', 'show.mp3', '1024', '2020-01-02');
+            INSERT INTO StageList (Q_STAGE_ID, TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED, DurationSeconds)
+            VALUES (5, 'Show Must Go On', 'Fan Band', 'Cover', 'show.mp3', '1024', '2020-01-02', 123);
             """);
 
         var repository = new EfFanPerformanceRepository(
             dbContext,
             useLegacyProcedures: false,
             pageSelectSql: """
-                SELECT Q_STAGE_ID, TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED FROM StageList
+                SELECT Q_STAGE_ID, TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED, DurationSeconds FROM StageList
                 """,
             countSql: "SELECT COUNT(*) AS Value FROM StageList",
             byIdSql: id => $"""
-                SELECT Q_STAGE_ID, TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED
+                SELECT Q_STAGE_ID, TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED, DurationSeconds
                 FROM StageList WHERE Q_STAGE_ID = {id}
                 """);
 
@@ -174,6 +175,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Single(page);
         Assert.Equal(5, page[0].Id);
         Assert.Equal(1024, page[0].FileSizeBytes);
+        Assert.Equal(123, page[0].DurationSeconds);
 
         Assert.Equal(1, await repository.GetVisibleCountAsync());
         Assert.NotNull(await repository.GetByIdAsync(5));
@@ -526,7 +528,26 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 FROM FreddieTributes
                 WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
                 """,
-            randomSql: """
+            idBoundsSql: """
+                SELECT MIN(Id) AS MinId, MAX(Id) AS MaxId
+                FROM FreddieTributes
+                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
+                """,
+            idSeekAtOrAfterSql: """
+                SELECT Id AS Value
+                FROM FreddieTributes
+                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL AND Id >= {0}
+                ORDER BY Id
+                LIMIT 1
+                """,
+            idSeekBeforeSql: """
+                SELECT Id AS Value
+                FROM FreddieTributes
+                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL AND Id < {0}
+                ORDER BY Id DESC
+                LIMIT 1
+                """,
+            byIdSql: """
                 SELECT
                     Id,
                     COALESCE(TRIM(Name), 'Anonymous') AS Name,
@@ -535,9 +556,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                     TRIM(DateText) AS DateText,
                     NULLIF(TRIM(COALESCE(TimeText, '')), '') AS TimeText
                 FROM FreddieTributes
-                WHERE Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
-                ORDER BY Id DESC
-                LIMIT 1
+                WHERE Id = {0} AND Display = 1 AND NULLIF(TRIM(COALESCE(Thought, '')), '') IS NOT NULL
                 """);
 
         var page = await repository.GetPageAsync(1, 10);
@@ -553,7 +572,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var random = await repository.GetRandomAsync();
         Assert.NotNull(random);
-        Assert.Equal(4, random.Id);
+        Assert.Contains(random.Id, new[] { 3, 4 });
+
+        var byId = await repository.GetVisibleByIdAsync(3);
+        Assert.NotNull(byId);
+        Assert.Equal("Maya", byId.Name);
+        Assert.Null(await repository.GetVisibleByIdAsync(1));
+        Assert.Null(await repository.GetVisibleByIdAsync(2));
     }
 
     [Fact]

@@ -1,9 +1,9 @@
 # OpenTofu live-estate inventory and ownership boundaries
 
-Issue: [#624](https://github.com/richardorchard/QueenZone.Modern/issues/624) (OpenTofu 1/8 under epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615)).
+Issue: [#624](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/624) (OpenTofu 1/8 under epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615)).
 
 **Audit date:** 2026-08-12  
-**Settings / GitHub refresh:** 2026-08-24 — added the four live APNs App Service setting names created for [#846](https://github.com/richardorchard/QueenZone.Modern/issues/846) and the Android FCM setting names for [#847](https://github.com/richardorchard/QueenZone.Modern/issues/847). GitHub environment names, Azure/Cloudflare resource IDs, storage ACLs, and `cdn`/`cdn2` probes were not re-run.
+**Settings / GitHub refresh:** 2026-08-24 — added the four live APNs App Service setting names created for [#846](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/846) and the Android FCM setting names for [#847](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/847). GitHub environment names, Azure/Cloudflare resource IDs, storage ACLs, and `cdn`/`cdn2` probes were not re-run.
 
 **#1394 GitHub Environment refresh:** 2026-09-07 — legacy `dev` / `deploy` **deleted in Settings** (`gh api …/environments`: neither name present). Workflows already use `prod-*`. Azure/Cloudflare IDs were not re-probed.
 
@@ -28,7 +28,7 @@ These resources are **provisioned and verified** in `australiaeast`:
 | Log Analytics | `queenzone-devbox-law` |
 | Application Insights | `queenzone-devbox-ai` |
 
-The [approved dev-only apply](https://github.com/richardorchard/QueenZone.Modern/actions/runs/33847788695)
+The [approved dev-only apply](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/33847788695)
 succeeded after the resource-group bootstrap. Azure confirmed B1, one worker,
 Always On, .NET 10 and HTTPS-only. The default Azure hostname returned HTTP 200
 with its welcome page; a fresh remote-state plan returned no changes.
@@ -46,7 +46,7 @@ APK-distribution workflow. The production Cloudflare root now declares the
 `prevent_destroy` protection. The dev hostname binding and Azure-managed
 certificate are applied; `https://dev.queenzone.org` serves the application
 and has passed repeated deployment warmup and public/API smoke checks. See
-[#1267](https://github.com/richardorchard/QueenZone.Modern/issues/1267) and the
+[#1267](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1267) and the
 [dev provisioning runbook](opentofu-dev-environment.md) for the required apply
 order and verification steps. The CNAME remains DNS-only so Azure can renew its
 managed certificate; dev permits direct ingress while production remains
@@ -86,7 +86,7 @@ Repository docs disagreed. Live behaviour (2026-08-12):
 | Hostname | Live routing | Evidence | Correct doc stance |
 | --- | --- | --- | --- |
 | `cdn.queenzone.org` | **Straight Cloudflare proxy** to Azure Blob. **No Worker header rewriting.** | Successful photo/CSS responses pass through Azure `x-ms-*` headers; Cloudflare `Cache-Control: max-age=14400`; **no** Worker-added `Access-Control-Allow-Origin` / `X-Content-Type-Options`. Azure Storage **custom domain** is registered as `cdn.queenzone.org`. | Matches `AGENTS.md`, `blob-storage-ugc.md`, `picture-library-plan.md`, `PhotoImageUrl.cs`. |
-| `cdn2.queenzone.org` | **Cloudflare Worker** script `pictures-queenzone-org` on route `cdn2.queenzone.org/*`, fetching `https://queenzoneprod.blob.core.windows.net`. | DNS name is **cdn2**, not `pictures`. Script returns 404 for `/songfiles/*` (#177). Live responses add `Access-Control-Allow-Origin: *`, `X-Content-Type-Options: nosniff`, `Cache-Control` on 200. No Azure custom domain for `cdn2`. | Legacy forum attachment redirect target. Fan audio is app-proxied. Do not treat the script name as a hostname. |
+| `cdn2.queenzone.org` | **Cloudflare Worker** script `pictures-queenzone-org` on route `cdn2.queenzone.org/*`, fetching `https://queenzoneprod.blob.core.windows.net`. | DNS name is **cdn2**, not `pictures`. Snapshot returns 404 for `/songfiles/*` (#177) and `/attachments/*` (#1656). Live responses add `Access-Control-Allow-Origin: *`, `X-Content-Type-Options: nosniff`, `Cache-Control` on 200. No Azure custom domain for `cdn2`. | Fan audio and legacy forum attachments are app-proxied. Do not treat the script name as a hostname. The published Worker 404s `/attachments/*` only after the reviewed apply. |
 
 `docs/architecture/azure-hosting-plan.md` previously attributed Worker `pictures-queenzone-org` and route `cdn.queenzone.org/*` to **cdn**, and told operators not to add an Azure Storage custom domain. Both statements are **false against live state** and are corrected in that file as part of this issue.
 
@@ -114,17 +114,18 @@ Treatments:
 | Plan `ASP-Queenzone` / site `queenzone-dev` | Australia East resource paths | retired | Removed from state and deleted on **2026-09-14** after the accepted observation period |
 | Rollback certificates `queenzone.org`, `www.queenzone.org` | `…/Microsoft.Web/certificates/…` | retired | Old Australia East certificate resources deleted with the rollback app on **2026-09-14** |
 | Active Canada East SNI certificate | uploaded certificate in the `queenzone-prod` webspace | outside | Cloudflare Origin CA certificate; secret material stays in Bitwarden. OpenTofu manages the target hostname bindings by the non-secret thumbprint recorded in `production-region-migration.md` |
-| Access restrictions (Cloudflare IPv4/IPv6 allow + deny all) | site `ipSecurityRestrictions` | import | Mis-order or drop = either open origin or lock out Cloudflare |
-| SCM access restrictions | site `scmIpSecurityRestrictions` | import | Currently **Allow all**; keep separate from main site rules (deploy path) |
+| Access restrictions (Cloudflare IPv4/IPv6 allow + deny all) | site `ipSecurityRestrictions` | import | One CIDR per rule (refreshed 2026-09-22). A comma-separated `ip_address` does not match Cloudflare. Mis-order or drop = either open origin or lock out Cloudflare |
+| SCM access restrictions | site `scmIpSecurityRestrictions` | import | Stays **Allow all** (`scm_use_main_ip_restriction = false`). Main-site one-CIDR Deny is separate. SCM Deny from #1653 is not done: GitHub-hosted deploy still uses public SCM, and runner addresses are not Cloudflare |
 | App settings (names only) | site config | outside → [ADR 0008](../decisions/0008-app-service-settings-ownership.md) | Names re-listed 2026-08-24. Secret **values** stay in Azure/Bitwarden, never state. `deploy.yml` ARM-owns three non-secret deploy keys outside OpenTofu (see [App Service settings](#app-service-application-setting-names-values-not-recorded)). #622's site resource must omit/`ignore_changes` on `app_settings`/`connection_string` |
 | SQL server `queenzone-prod-sql` | `…/Microsoft.Sql/servers/queenzone-prod-sql` | manage | Canada East live server; SQL auth still used by app |
 | SQL server `queenzone-sql-server` | `…/Microsoft.Sql/servers/queenzone-sql-server` | import | Retained because the active dev environment still uses `queenzone-dev-db` |
-| Firewall `AllowAllWindowsAzureIps` | `…/firewallRules/AllowAllWindowsAzureIps` | import | Required for App Service → SQL |
+| Firewall `AllowAllWindowsAzureIps` on `queenzone-sql-server` | `…/servers/queenzone-sql-server/firewallRules/AllowAllWindowsAzureIps` | import | Still required for `queenzone-devbox` → `queenzone-dev-db`. Production owns the rule. Do not drop it until that app has explicit outbound rules (#1657 deferred this server). |
+| Firewall `AllowAllWindowsAzureIps` on `queenzone-prod-sql` | `…/servers/queenzone-prod-sql/firewallRules/AllowAllWindowsAzureIps` | forget from state | Count is zero and `lifecycle.destroy = false`, so OpenTofu forgets the address and leaves the Azure rule. Replacement rules allow `queenzone-prod` possible outbound IPs. Delete the live rule only after `/health/ready` and a path for GitHub migration runners. |
 | Firewall `ClientIPAddress_2026-6-11_20-28-58` | `…/firewallRules/ClientIPAddress_…` | defer | Operator workstation IP; likely keep outside or replace with named break-glass rule |
 | Database `queenzone-db` on `queenzone-prod-sql` | `…/servers/queenzone-prod-sql/databases/queenzone-db` | manage | Canada East live database; **never recreate** (data loss). Schema via EF only |
 | Database `queenzone-db` on `queenzone-sql-server` | `…/servers/queenzone-sql-server/databases/queenzone-db` | retired | Old Australia East production database removed from state and deleted on **2026-09-14** |
 | Pre-cutover copy `queenzone-db-precutover-20260910-083153` | `…/servers/queenzone-sql-server/databases/queenzone-db-precutover-20260910-083153` | retired | Recorded zero connections during observation; deleted by separate maintainer approval on **2026-09-14** |
-| SQL auditing (server + db) | `…/auditingSettings/Default` | data / defer | Currently **Disabled** — do not “enable by default” in first import |
+| SQL auditing (server + db) | `…/extendedAuditingSettings/Default` | manage | Enabled to `queenzone-prod-law` (`SQLSecurityAuditEvents` on master and `queenzone-db`). Retention is the workspace's 30 days. No storage-account audit destination. |
 | Short-term backup (7 days, LRS) | backup policy | import | Provider default-ish for Basic; LTR all zero |
 | Storage account `queenzoneprod` | `…/storageAccounts/queenzoneprod` | manage | Canada East live account; public blob access allowed; **custom domain `cdn.queenzone.org`** |
 | Storage account `queenzone` | `…/storageAccounts/queenzone` | retired | Removed from state and deleted on **2026-09-15** after content, dependency, no-write, deployment, and post-deletion health checks passed |
@@ -137,7 +138,7 @@ Treatments:
 | Legacy webtest `queenzone-dev-health` | `…/webtests/queenzone-dev-health` | retired | Deleted on **2026-09-14** because it targeted the retired app |
 | Legacy metric / query alerts | listed in import JSON | retired | Five rules scoped only to the old Application Insights or Log Analytics resources were deleted on **2026-09-14** |
 | Smart detector `Failure Anomalies - queenzone-dev-ai` | alertsmanagement | retired | Deleted with the old Application Insights component on **2026-09-14** |
-| Diagnostic settings (web/sql/storage) | n/a | outside | None configured — do not invent |
+| Diagnostic settings (web/sql/storage) | SQL audit only | manage | `sql-security-audit` sends `SQLSecurityAuditEvents` to `queenzone-prod-law`. Do not add other diagnostic categories. |
 
 ### Cloudflare (API inventory complete)
 
@@ -204,9 +205,9 @@ site; no empty or speculative RBAC resources are declared.
 | Photo/archive galleries (`queen`, `freddie-mercury`, …) | `blob` | Public photos via `cdn` | Keep public blob read |
 | `images`, `css`, `mp3`, `forum`, `avatars`, `album-or-single-covers`, … | `blob` or `container` (`css`) | Legacy public assets | Keep; `css` is listable |
 | `songfiles` | **`None` (private)** | Fan audio streamed by `/fan-performances/{id}/audio` | Live since 2026-08-16 (ARM). Module desired state already `None`. |
-| `attachments` | **`blob` (public)** | Legacy forum files; app redirects after auth | URL guessing bypasses app gate. Relates to #177 / media lockdown |
+| `attachments` | **live `blob`; desired `None`** | Legacy forum files streamed by `/forum/attachment/legacy/{id}` | Module default is `None` (#1656). Live ACL stays public until the reviewed apply. |
 | `databasebackup` | private | Backups | Keep private; **never** public |
-| `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos` | private | Modern UGC | Keep private; app proxy. All four were live at the 2026-09-09 refresh. Relates to [#583](https://github.com/richardorchard/QueenZone.Modern/issues/583), [#584](https://github.com/richardorchard/QueenZone.Modern/issues/584) |
+| `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos` | private | Modern UGC | Keep private; app proxy. All four were live at the 2026-09-09 refresh. Relates to [#583](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/583), [#584](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/584) |
 | `test` | `blob` | Legacy/scratch content | **2,320 blobs / 4,110,472,406 bytes** at the 2026-09-09 refresh. Preserve during migration; review any later deletion separately. |
 
 No storage lifecycle policy exists. Soft delete is 7 days for blobs and containers; versioning is off.
@@ -219,7 +220,7 @@ Required on `queenzone-prod` after the 2026-09-10 cutover (`az webapp config app
 
 
 Ownership of App Service settings is decided in [ADR 0008](../decisions/0008-app-service-settings-ownership.md)
-([#618](https://github.com/richardorchard/QueenZone.Modern/issues/618)): OpenTofu stays out of `app_settings`/
+([#618](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/618)): OpenTofu stays out of `app_settings`/
 `connection_string` entirely (Option A). This same name list (`infra/import/github-bitwarden.json`'s
 `appServiceSettingNames`) is checked nightly for missing names by `scripts/Test-AppServiceSettingNames.ps1` — see
 `.github/workflows/app-service-setting-names-check.yml`.
@@ -264,7 +265,7 @@ retained.
 
 ## Suggested import order (later issues)
 
-Documented for [#622](https://github.com/richardorchard/QueenZone.Modern/issues/622) / [#628](https://github.com/richardorchard/QueenZone.Modern/issues/628) / [#626](https://github.com/richardorchard/QueenZone.Modern/issues/626) — do not execute until remote state (#616) and safety controls (#619) exist.
+Documented for [#622](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/622) / [#628](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/628) / [#626](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/626) — do not execute until remote state (#616) and safety controls (#619) exist.
 
 1. Resource group (or data-source it).
 2. Log Analytics workspace → Application Insights.
@@ -287,7 +288,7 @@ Documented for [#622](https://github.com/richardorchard/QueenZone.Modern/issues/
 | App Insights billing cap 100 GB | Far above LAW 0.1 GB daily cap; LAW cap is the real budget control — do not “harmonise” upward |
 | `use32BitWorkerProcess: true` on a Linux .NET site | Likely portal noise; verify before encoding |
 | Retired metric alert `queenzone-dev-failed-requests` | Deleted with the old telemetry stack on **2026-09-14**; do not recreate |
-| SQL auditing disabled | Import as disabled; enabling is a product decision |
+| SQL auditing | Enabled to `queenzone-prod-law`. Workspace retention is 30 days. Do not add a storage-account audit key. |
 | Storage versioning off | Do not enable in first apply |
 | Operator SQL firewall ClientIP rule | Do not encode personal IPs as production IaC without renaming |
 | Legacy GH secrets alongside Bitwarden | Clean up separately; do not duplicate into OpenTofu |
@@ -299,18 +300,18 @@ Documented for [#622](https://github.com/richardorchard/QueenZone.Modern/issues/
 
 | Issue | Relevance |
 | --- | --- |
-| [#177](https://github.com/richardorchard/QueenZone.Modern/issues/177) | `songfiles` is private and app-proxied. Legacy `attachments` remain public blob access. |
-| [#583](https://github.com/richardorchard/QueenZone.Modern/issues/583) | Anonymous `/ugc` proxy sensitivity — private containers must stay private |
-| [#584](https://github.com/richardorchard/QueenZone.Modern/issues/584) | Upload API container narrowing — affects which containers exist and who may write |
-| [#428](https://github.com/richardorchard/QueenZone.Modern/issues/428) | Cloudflare proxy / origin restriction history — current live state already restricts App Service to Cloudflare IPs |
-| [#618](https://github.com/richardorchard/QueenZone.Modern/issues/618) | Secret-safe App Service configuration ownership. Live state is already a split: `deploy.yml` ARM-owns `WEBSITE_WARMUP_PATH` and keeps `WEBSITE_WARMUP_STATUSES` / `WEBSITE_RUN_FROM_PACKAGE` absent; Bitwarden still owns secrets. |
-| [#666](https://github.com/richardorchard/QueenZone.Modern/issues/666) | ARM Application Settings for run-from-package and warmup; dedicated `deploy` OIDC identity. Explicitly left OpenTofu out of the settings map. |
+| [#177](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/177) | `songfiles` is private and app-proxied. |
+| [#583](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/583) | Anonymous `/ugc` proxy sensitivity — private containers must stay private |
+| [#584](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/584) | Upload API container narrowing — affects which containers exist and who may write |
+| [#428](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/428) | Cloudflare proxy / origin restriction history — current live state already restricts App Service to Cloudflare IPs |
+| [#618](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/618) | Secret-safe App Service configuration ownership. Live state is already a split: `deploy.yml` ARM-owns `WEBSITE_WARMUP_PATH` and keeps `WEBSITE_WARMUP_STATUSES` / `WEBSITE_RUN_FROM_PACKAGE` absent; Bitwarden still owns secrets. |
+| [#666](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/666) | ARM Application Settings for run-from-package and warmup; dedicated `deploy` OIDC identity. Explicitly left OpenTofu out of the settings map. |
 
 ## Follow-ups (non-blocking for #624)
 
 1. Optional: **Storage Blob Data Reader** on `queenzone` for private-container object audits without account keys.
 2. Confirm Azure App Service certificate renewal path (GeoTrust uploads expire **2026-12-29**). #622 preserves the SNI bindings and thumbprints but leaves the uploaded certificate resources outside state because AzureRM would require private PFX material.
 3. Product decision whether Worker should set `Content-Disposition` for audio downloads (capability exists; live script does not).
-4. [#618](https://github.com/richardorchard/QueenZone.Modern/issues/618) should classify the ARM-owned deploy keys separately from Bitwarden secrets before `infra/modules/azure-web` imports any settings.
+4. [#618](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/618) should classify the ARM-owned deploy keys separately from Bitwarden secrets before `infra/modules/azure-web` imports any settings.
 
 No infrastructure mutation was performed for this audit.

@@ -23,6 +23,8 @@ public static class PublicQueryCacheKeys
 
     public const string LatestArticlesSegment = Prefix + ":articles:latest";
 
+    public const string LatestCommunityArticlesSegment = Prefix + ":articles:community-latest";
+
     public const string ArticlesArchiveSegment = Prefix + ":articles:archive";
 
     public const string ForumCategories = Prefix + ":forum:categories";
@@ -49,6 +51,8 @@ public static class PublicQueryCacheKeys
 
     public const string PhotoCategoriesSegment = Prefix + ":photo:categories";
 
+    public const string FreddieFeaturedTributeId = Prefix + ":freddie:featured-id";
+
     public const string PhotoCategoryPageSegment = Prefix + ":photo:category-page";
 
     public const string LiveActivityNewForumReplies = Prefix + ":live-activity:new-forum-replies";
@@ -60,6 +64,8 @@ public static class PublicQueryCacheKeys
     public const string BiographyChapters = Prefix + ":biography:chapters";
 
     public const string DiscographyAlbums = Prefix + ":discography:albums";
+
+    public static string DiscographyAlbum(int id) => $"{Prefix}:discography:album:{id}";
 
     public static string LatestNews(string version, int count) =>
         $"{LatestNewsSegment}:v{version}:{count}";
@@ -79,11 +85,17 @@ public static class PublicQueryCacheKeys
     public static string LatestArticles(string version, int count) =>
         $"{LatestArticlesSegment}:v{version}:{count}";
 
+    public static string LatestCommunityArticles(string version, int count) =>
+        $"{LatestCommunityArticlesSegment}:v{version}:{count}";
+
     public static string ArticlesArchivePage(string version, int page, int pageSize) =>
         $"{ArticlesArchiveSegment}:v{version}:{page}:{pageSize}";
 
     public static string PhotoCategories(string version) =>
         $"{PhotoCategoriesSegment}:v{version}";
+
+    public static string FreddiePhotoSample(string version, int catId) =>
+        $"{Prefix}:freddie:photo-sample:v{version}:{catId}";
 
     public static string PhotoCategoryPage(
         string version,

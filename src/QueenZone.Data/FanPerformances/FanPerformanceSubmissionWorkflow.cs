@@ -36,6 +36,8 @@ public static class FanPerformanceSubmissionWorkflow
             [FanPerformanceSubmissionStatus.Withdrawn] = [],
         };
 
+    private static readonly SubmissionWorkflowRules Rules = new(FanPerformanceSubmissionStatus.Statuses, AllowedTransitions);
+
     public static bool IsTerminal(string status) =>
         string.Equals(status, FanPerformanceSubmissionStatus.Approved, StringComparison.OrdinalIgnoreCase)
         || string.Equals(status, FanPerformanceSubmissionStatus.Rejected, StringComparison.OrdinalIgnoreCase)
@@ -54,49 +56,9 @@ public static class FanPerformanceSubmissionWorkflow
     public static bool CanAdminAct(string status) =>
         FanPerformanceSubmissionStatus.IsKnown(status) && !IsTerminal(status);
 
-    public static bool CanTransition(string current, string next)
-    {
-        if (!FanPerformanceSubmissionStatus.IsKnown(current) || !FanPerformanceSubmissionStatus.IsKnown(next))
-        {
-            return false;
-        }
+    public static bool CanTransition(string current, string next) =>
+        Rules.CanTransition(current, next);
 
-        var normalizedCurrent = FanPerformanceSubmissionStatus.Normalize(current);
-        var normalizedNext = FanPerformanceSubmissionStatus.Normalize(next);
-        return AllowedTransitions.TryGetValue(normalizedCurrent, out var allowed)
-            && allowed.Contains(normalizedNext, StringComparer.Ordinal);
-    }
-
-    public static bool TryValidateStatusChange(string current, string next, out string? error)
-    {
-        if (!FanPerformanceSubmissionStatus.IsKnown(current))
-        {
-            error = $"Unknown current status '{current}'.";
-            return false;
-        }
-
-        if (!FanPerformanceSubmissionStatus.IsKnown(next))
-        {
-            error = $"Unknown target status '{next}'.";
-            return false;
-        }
-
-        var normalizedCurrent = FanPerformanceSubmissionStatus.Normalize(current);
-        var normalizedNext = FanPerformanceSubmissionStatus.Normalize(next);
-
-        if (string.Equals(normalizedCurrent, normalizedNext, StringComparison.Ordinal))
-        {
-            error = $"This submission is already {normalizedNext}.";
-            return false;
-        }
-
-        if (CanTransition(normalizedCurrent, normalizedNext))
-        {
-            error = null;
-            return true;
-        }
-
-        error = $"Cannot transition fan-performance submission status from {normalizedCurrent} to {normalizedNext}.";
-        return false;
-    }
+    public static bool TryValidateStatusChange(string current, string next, out string? error) =>
+        Rules.TryValidateStatusChange(current, next, out error);
 }

@@ -36,6 +36,12 @@ export default {
       return new Response('Not Found', { status: 404 });
     }
 
+    // Legacy forum attachments are member-gated and streamed by the app (#1656).
+    // Do not anonymously proxy /attachments/* even if the container ACL lags.
+    if (incomingUrl.pathname === '/attachments' || incomingUrl.pathname.startsWith('/attachments/')) {
+      return new Response('Not Found', { status: 404 });
+    }
+
     const originUrl = new URL(incomingUrl.pathname + incomingUrl.search, ORIGIN);
     const hasRange = request.headers.has('Range');
     const cache = caches.default;

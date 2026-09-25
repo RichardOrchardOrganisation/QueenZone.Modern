@@ -1,0 +1,14 @@
+@page "/admin/quizzes/{id:guid}"
+@model EditPostModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+  ViewData["AntiforgeryToken"] = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+}
+
+<div class="admin-shell">
+<partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+@if (Model.Form is not null)
+{
+  <partial name="_QuizForm" model="Model.Form" />
+}
+</div>

@@ -24,3 +24,4 @@ The bootstrap is idempotent. It creates or verifies:
 The script does not create Cloudflare tokens, import application resources, or run an OpenTofu apply against production resources.
 
 See [`docs/architecture/opentofu-state-and-identity.md`](../../docs/architecture/opentofu-state-and-identity.md) for recovery, rotation, and Cloudflare token controls.
+For the organization transfer and immutable GitHub OIDC subjects, see [`docs/architecture/github-organization-oidc.md`](../../docs/architecture/github-organization-oidc.md). The bootstrap defaults remain on the old owner until the transfer is verified; a new owner requires explicit immutable IDs.

@@ -212,6 +212,21 @@ jobs:
             echo "::error::ITSAppUsesNonExemptEncryption must be false."
             exit 1
           fi
+          scene_delegate=$(/usr/libexec/PlistBuddy \
+            -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' \
+            "$info_plist" 2>/dev/null || true)
+          if [ "$scene_delegate" != '$(PRODUCT_MODULE_NAME).SceneDelegate' ]; then
+            echo "::error::The generated app does not declare the required iOS scene delegate."
+            exit 1
+          fi
+          app_delegate=$(find ios -path '*/AppDelegate.swift' -not -path '*/Pods/*' -print -quit)
+          if [ -z "$app_delegate" ] \
+            || ! grep -Fq 'class SceneDelegate: UIResponder, UIWindowSceneDelegate' "$app_delegate" \
+            || ! grep -Fq 'configurationForConnecting connectingSceneSession' "$app_delegate"; then
+            echo "::error::The generated AppDelegate is missing the QueenZone iOS scene lifecycle."
+            exit 1
+          fi
+          echo "iOS scene lifecycle is present (delegate ${scene_delegate})."
           # expo-share-intent also generates ShareExtension.entitlements, but
           # that extension must not carry the main app's push entitlement.
           # Resolve the entitlements beside the already-identified app
@@ -627,6 +642,17 @@ jobs:
             echo "::error::Exported IPA is missing the exempt-encryption declaration."
             exit 1
           fi
+
+          scene_delegate=$(/usr/libexec/PlistBuddy \
+            -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' \
+            "$app_path/Info.plist" 2>/dev/null || true)
+          app_module=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Info.plist")
+          expected_scene_delegate="${app_module}.SceneDelegate"
+          if [ "$scene_delegate" != "$expected_scene_delegate" ]; then
+            echo "::error::Exported IPA scene delegate is ${scene_delegate:-<missing>}, expected ${expected_scene_delegate}."
+            exit 1
+          fi
+          echo "IPA scene delegate=${scene_delegate}"
 
           constants_config="$app_path/EXConstants.bundle/app.config"
           expected_api_base_url=$(node -e "const { resolveApiBaseUrl } = require('./apiEnvironments.cjs'); process.stdout.write(resolveApiBaseUrl({ appEnv: process.env.EXPO_PUBLIC_APP_ENV }));")

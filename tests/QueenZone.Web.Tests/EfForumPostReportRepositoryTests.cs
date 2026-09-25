@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 
@@ -41,6 +43,10 @@ public sealed class EfForumPostReportRepositoryTests : IAsyncDisposable
         Assert.False(first.AlreadyReported);
         Assert.True(duplicate.AlreadyReported);
         Assert.Equal(first.ReportId, duplicate.ReportId);
+
+        var stored = await dbContext.ForumPostReports.AsNoTracking()
+            .SingleAsync(item => item.Id == first.ReportId);
+        Assert.True(string.IsNullOrWhiteSpace(stored.ContextJson));
 
         var report = await repository.GetAsync(first.ReportId!.Value);
         Assert.NotNull(report);
@@ -85,6 +91,79 @@ public sealed class EfForumPostReportRepositoryTests : IAsyncDisposable
         Assert.Equal(ForumPostReportText.PostNotFound, hidden.ErrorMessage);
         Assert.Equal(ForumPostReportText.PostNotFound, missing.ErrorMessage);
         Assert.Null(await repository.UpdateStatusAsync(Guid.NewGuid(), PrivateMessageReportStatus.Dismissed, "admin@test.local"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_SucceedsWhenPriorPostContextQueryWouldFail()
+    {
+        var reporter = await SeedMemberAsync("context-fail-reporter@example.test", "Reporter");
+        var author = await SeedMemberAsync("context-fail-author@example.test", "Reported author");
+        await SeedThreadAsync(author, isHidden: false);
+        await SeedPostAsync(5001, author, "Earlier context", DateTime.Parse("2026-09-14T01:00:00Z"));
+        await SeedPostAsync(5002, author, "Reported body", DateTime.Parse("2026-09-14T02:00:00Z"));
+
+        await using var failingContext = new QueenZoneDbContext(
+            new DbContextOptionsBuilder<QueenZoneDbContext>()
+                .UseSqlite(connection)
+                .AddInterceptors(new ThrowOnPriorPostContextInterceptor())
+                .Options);
+        var failingRepository = new EfForumPostReportRepository(failingContext);
+
+        var created = await failingRepository.CreateAsync(
+            reporter.Id, 5002, ForumPostReportCategories.Harassment, "Stiff", DateTimeOffset.UtcNow);
+
+        Assert.True(created.Succeeded);
+        Assert.False(created.AlreadyReported);
+        Assert.NotNull(created.ReportId);
+        var stored = await dbContext.ForumPostReports.AsNoTracking()
+            .SingleAsync(item => item.Id == created.ReportId);
+        Assert.Equal(5002, stored.PostId);
+        Assert.Equal("Reported body", stored.PostBodySnapshot);
+        Assert.True(string.IsNullOrWhiteSpace(stored.ContextJson));
+
+        var report = await repository.GetAsync(created.ReportId.Value);
+        Assert.NotNull(report);
+        Assert.Single(report!.Context);
+        Assert.Equal(5001, report.Context[0].PostId);
+        Assert.Equal("Earlier context", report.Context[0].Body);
+    }
+
+    [Fact]
+    public async Task GetAsync_KeepsStoredContextJson_WhenAlreadySnapshotted()
+    {
+        var reporter = await SeedMemberAsync("stored-context-reporter@example.test", "Reporter");
+        var author = await SeedMemberAsync("stored-context-author@example.test", "Reported author");
+        await SeedThreadAsync(author, isHidden: false);
+        await SeedPostAsync(6001, author, "Live prior post", DateTime.Parse("2026-09-14T01:00:00Z"));
+        await SeedPostAsync(6002, author, "Reported body", DateTime.Parse("2026-09-14T02:00:00Z"));
+
+        var reportId = Guid.NewGuid();
+        dbContext.ForumPostReports.Add(new ForumPostReportEntity
+        {
+            Id = reportId,
+            PostId = 6002,
+            TopicId = 1001,
+            ReporterMemberId = reporter.Id,
+            ReportedMemberId = author.Id,
+            Category = ForumPostReportCategories.Other,
+            CreatedAt = DateTimeOffset.UtcNow,
+            PostBodySnapshot = "Reported body",
+            AuthorDisplayNameSnapshot = author.DisplayName,
+            PostCreatedAtSnapshot = DateTimeOffset.UtcNow,
+            ThreadTitleSnapshot = "Reportable thread",
+            ContextJson = ForumPostReportContextSerializer.Serialize(
+            [
+                new ForumPostReportContextItem(
+                    5999, "Stored author", "Stored snapshot", DateTimeOffset.Parse("2026-01-01T00:00:00Z")),
+            ]),
+        });
+        await dbContext.SaveChangesAsync();
+
+        var report = await repository.GetAsync(reportId);
+        Assert.NotNull(report);
+        Assert.Single(report!.Context);
+        Assert.Equal(5999, report.Context[0].PostId);
+        Assert.Equal("Stored snapshot", report.Context[0].Body);
     }
 
     [Fact]
@@ -241,5 +320,37 @@ public sealed class EfForumPostReportRepositoryTests : IAsyncDisposable
     {
         await dbContext.DisposeAsync();
         await connection.DisposeAsync();
+    }
+
+    private sealed class ThrowOnPriorPostContextInterceptor : DbCommandInterceptor
+    {
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result)
+        {
+            ThrowIfPriorPostContext(command);
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowIfPriorPostContext(command);
+            return new ValueTask<InterceptionResult<DbDataReader>>(result);
+        }
+
+        private static void ThrowIfPriorPostContext(DbCommand command)
+        {
+            var sql = command.CommandText;
+            if (sql.Contains("\"LegacyPostId\" <", StringComparison.Ordinal)
+                || sql.Contains("LegacyPostId <", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Prior-post context query should not run during CreateAsync.");
+            }
+        }
     }
 }

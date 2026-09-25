@@ -101,6 +101,7 @@ export function PagedListScreen<T>({
           {footerAfter}
         </>
       }
+      alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={paged.refresh} />
       }

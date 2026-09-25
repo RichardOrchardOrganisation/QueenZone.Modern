@@ -48,7 +48,7 @@ public sealed class PhotoModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (await GetCurrentMemberIdAsync() is null)
+        if (await HttpContext.AuthenticateMemberIdAsync() is null)
         {
             return Redirect("/account/login");
         }
@@ -60,7 +60,7 @@ public sealed class PhotoModel(
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -99,17 +99,5 @@ public sealed class PhotoModel(
         }
 
         return Redirect($"/submit/photo/confirmation/{result.Submission.Id:D}");
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
     }
 }

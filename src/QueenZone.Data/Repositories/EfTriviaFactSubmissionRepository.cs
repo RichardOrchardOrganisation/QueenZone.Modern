@@ -48,7 +48,7 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
         pageSize = Math.Clamp(pageSize, 1, 100);
         var skip = (page - 1) * pageSize;
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var rows = await dbContext.TriviaFactSubmissions
                 .AsNoTracking()
@@ -108,7 +108,7 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
         var totalCount = await query.CountAsync(cancellationToken);
         var skip = (page - 1) * pageSize;
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var sqliteRows = await query
                 .Select(row => new
@@ -223,9 +223,10 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
             throw new InvalidOperationException(error);
         }
 
-        entity.Status = TriviaFactSubmissionStatus.Rejected;
-        entity.RejectionReason = NormalizeOptional(rejectionReason, 500)
+        var normalizedReason = NormalizeOptional(rejectionReason, 500)
             ?? throw new InvalidOperationException("A rejection reason is required.");
+        entity.Status = TriviaFactSubmissionStatus.Rejected;
+        entity.RejectionReason = normalizedReason;
         entity.ReviewedAt = DateTimeOffset.UtcNow;
         entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
         entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
@@ -243,32 +244,20 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
         return Map(entity);
     }
 
-    public async Task<SubmissionTypeCounts> GetDashboardCountsAsync(
+    public Task<SubmissionTypeCounts> GetDashboardCountsAsync(
         DateTimeOffset utcNow,
-        CancellationToken cancellationToken = default)
-    {
-        // Materialize first so DateTimeOffset comparisons work on SQLite and SQL Server.
-        var monthAgo = utcNow.AddDays(-30);
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-
-        var rows = await dbContext.TriviaFactSubmissions
+        CancellationToken cancellationToken = default) =>
+        dbContext.TriviaFactSubmissions
             .AsNoTracking()
-            .Select(row => new { row.Status, row.SubmittedAt })
-            .ToListAsync(cancellationToken);
-
-        var pending = rows.Count(row => row.Status == TriviaFactSubmissionStatus.Pending);
-        var receivedToday = rows.Count(row => row.SubmittedAt.UtcDateTime.Date >= today);
-        var receivedThisWeek = rows.Count(row => row.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-        var last30 = rows.Where(row => row.SubmittedAt >= monthAgo).ToList();
-        var approvedLast30 = last30.Count(row => row.Status == TriviaFactSubmissionStatus.Approved);
-        var rejectedLast30 = last30.Count(row => row.Status == TriviaFactSubmissionStatus.Rejected);
-        var pendingLast30 = last30.Count(row => row.Status == TriviaFactSubmissionStatus.Pending);
-
-        return new SubmissionTypeCounts(
-            pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30);
-    }
+            .Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == TriviaFactSubmissionStatus.Pending,
+                IsApproved = row.Status == TriviaFactSubmissionStatus.Approved,
+                IsRejected = row.Status == TriviaFactSubmissionStatus.Rejected,
+                IsStillPending = row.Status == TriviaFactSubmissionStatus.Pending,
+            })
+            .ToDashboardCountsAsync(utcNow, aggregateInSql: false, cancellationToken);
 
     private static string? NormalizeDifficulty(string? value)
     {
@@ -327,12 +316,6 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
                 row.PromotedTriviaId,
                 row.Submitter != null ? row.Submitter.DisplayName : null,
                 row.Submitter != null ? row.Submitter.Email : null));
-
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
 
     private static TriviaFactSubmission Map(TriviaFactSubmissionEntity entity) =>
         new(

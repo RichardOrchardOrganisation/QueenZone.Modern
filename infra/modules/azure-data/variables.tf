@@ -101,13 +101,54 @@ variable "manage_sql_database" {
 }
 
 variable "create_azure_services_firewall_rule" {
-  description = "Whether this module owns the server-wide AllowAllWindowsAzureIps firewall rule."
+  description = "Whether this module owns the server-wide AllowAllWindowsAzureIps firewall rule. Production queenzone-prod-sql leaves this false."
   type        = bool
   default     = true
 
   validation {
     condition     = var.existing_sql_server_id == null || !var.create_azure_services_firewall_rule
     error_message = "A caller using an existing SQL server must not create a server-wide firewall rule."
+  }
+}
+
+variable "sql_firewall_rules" {
+  description = "Explicit public SQL firewall rules. Names are the Azure rule names. Use this for known clients such as App Service outbound addresses."
+  type = map(object({
+    start_ip_address = string
+    end_ip_address   = string
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for name, rule in var.sql_firewall_rules : (
+        can(regex("^[0-9A-Za-z][0-9A-Za-z_-]{0,127}$", name))
+        && name != "AllowAllWindowsAzureIps"
+        && !(rule.start_ip_address == "0.0.0.0" && rule.end_ip_address == "0.0.0.0")
+      )
+    ])
+    error_message = "SQL firewall rules must use an explicit range. AllowAllWindowsAzureIps and 0.0.0.0-0.0.0.0 are not accepted."
+  }
+}
+
+variable "sql_extended_auditing_enabled" {
+  description = "Enable server and database extended auditing to Azure Monitor. Retention follows the Log Analytics workspace."
+  type        = bool
+  default     = false
+}
+
+variable "log_analytics_workspace_id" {
+  description = "Log Analytics workspace that receives SQLSecurityAuditEvents when SQL extended auditing is enabled."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = (
+      var.log_analytics_workspace_id == null ||
+      can(regex("^/subscriptions/[0-9a-f-]+/resourceGroups/[^/]+/providers/Microsoft\\.OperationalInsights/workspaces/[^/]+$", var.log_analytics_workspace_id))
+    )
+    error_message = "log_analytics_workspace_id must be a Log Analytics workspace ARM ID."
   }
 }
 
@@ -146,7 +187,7 @@ variable "containers" {
   type        = map(string)
   default = {
     "album-or-single-covers"  = "Blob"
-    "attachments"             = "Blob"
+    "attachments"             = "None"
     "avatars"                 = "Blob"
     "brian-may"               = "Blob"
     "css"                     = "Container"
@@ -182,7 +223,7 @@ variable "containers" {
   }
 
   validation {
-    condition     = var.containers["databasebackup"] == "None" && lookup(var.containers, "ugc-articles", "None") == "None" && var.containers["ugc-avatars"] == "None" && var.containers["ugc-forum"] == "None" && lookup(var.containers, "ugc-photos", "None") == "None" && var.containers["songfiles"] == "None"
-    error_message = "Backup, modern UGC, and songfiles containers must remain private."
+    condition     = var.containers["databasebackup"] == "None" && lookup(var.containers, "ugc-articles", "None") == "None" && var.containers["ugc-avatars"] == "None" && var.containers["ugc-forum"] == "None" && lookup(var.containers, "ugc-photos", "None") == "None" && var.containers["songfiles"] == "None" && var.containers["attachments"] == "None"
+    error_message = "Backup, modern UGC, songfiles, and legacy attachments containers must remain private."
   }
 }

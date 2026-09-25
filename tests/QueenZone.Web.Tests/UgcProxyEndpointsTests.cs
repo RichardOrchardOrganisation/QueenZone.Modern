@@ -6,14 +6,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class UgcProxyEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class UgcProxyEndpointsTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public UgcProxyEndpointsTests(WebApplicationFactory<Program> factory)
+    public UgcProxyEndpointsTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-            builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
@@ -75,8 +74,11 @@ public sealed class UgcProxyEndpointsTests : IClassFixture<WebApplicationFactory
             stub,
             CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status200OK, await GetStatusCodeAsync(result));
+        var httpContext = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+        Assert.Equal(UgcProxyEndpoints.CacheControlHeaderValue, httpContext.Response.Headers.CacheControl.ToString());
         Assert.Equal("editors/x-thumb.webp", stub.LastBlobName);
+        Assert.Equal(["editors/x-thumb.webp"], stub.OpenedBlobNames);
     }
 
     [Fact]
@@ -93,7 +95,7 @@ public sealed class UgcProxyEndpointsTests : IClassFixture<WebApplicationFactory
     }
 
     [Fact]
-    public async Task ServeAsync_falls_back_to_full_when_thumb_missing()
+    public async Task ServeAsync_returns_not_found_when_thumb_missing()
     {
         var stub = new StubBlobUploadService
         {
@@ -114,15 +116,58 @@ public sealed class UgcProxyEndpointsTests : IClassFixture<WebApplicationFactory
             stub,
             CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status200OK, await GetStatusCodeAsync(result));
-        Assert.Equal("editors/x.webp", stub.LastBlobName);
+        var httpContext = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status404NotFound, httpContext.Response.StatusCode);
+        Assert.Equal(["editors/x-thumb.webp"], stub.OpenedBlobNames);
+        Assert.DoesNotContain(
+            "immutable",
+            httpContext.Response.Headers.CacheControl.ToString(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("application/pdf")]
+    [InlineData("text/plain")]
+    [InlineData("image/tiff")]
+    public async Task ServeAsync_returns_not_found_for_non_image_content_type(string contentType)
+    {
+        var stub = new StubBlobUploadService
+        {
+            Content = new BlobContent
+            {
+                Stream = new MemoryStream("%PDF"u8.ToArray()),
+                ContentType = contentType,
+            },
+        };
+
+        var result = await UgcProxyEndpoints.ServeAsync(
+            "forum",
+            "notes.pdf",
+            size: null,
+            stub,
+            CancellationToken.None);
+
+        var httpContext = await ExecuteAsync(result);
+        Assert.Equal(StatusCodes.Status404NotFound, httpContext.Response.StatusCode);
+        Assert.DoesNotContain(
+            "immutable",
+            httpContext.Response.Headers.CacheControl.ToString(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, httpContext.Response.Body.Length);
     }
 
     private async Task<int> GetStatusCodeAsync(IResult result)
     {
-        var httpContext = new DefaultHttpContext { RequestServices = factory.Services };
-        await result.ExecuteAsync(httpContext);
+        var httpContext = await ExecuteAsync(result);
         return httpContext.Response.StatusCode;
+    }
+
+    private async Task<HttpContext> ExecuteAsync(IResult result)
+    {
+        var httpContext = new DefaultHttpContext { RequestServices = factory.Services };
+        httpContext.Response.Body = new MemoryStream();
+        await result.ExecuteAsync(httpContext);
+        return httpContext;
     }
 
     private sealed class StubBlobUploadService : IBlobUploadService
@@ -134,6 +179,8 @@ public sealed class UgcProxyEndpointsTests : IClassFixture<WebApplicationFactory
         public string? LastContainer { get; private set; }
 
         public string? LastBlobName { get; private set; }
+
+        public List<string> OpenedBlobNames { get; } = [];
 
         public Task<BlobUploadResult> UploadAsync(
             Stream content,
@@ -156,6 +203,7 @@ public sealed class UgcProxyEndpointsTests : IClassFixture<WebApplicationFactory
         {
             LastContainer = containerName;
             LastBlobName = blobName;
+            OpenedBlobNames.Add(blobName);
             if (ContentByName is not null)
             {
                 return Task.FromResult(

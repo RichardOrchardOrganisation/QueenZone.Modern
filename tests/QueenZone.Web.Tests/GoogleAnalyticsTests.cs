@@ -5,14 +5,14 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class GoogleAnalyticsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class GoogleAnalyticsTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private const string MeasurementId = "G-V2W56BZ3KZ";
     private readonly WebApplicationFactory<Program> factory;
 
-    public GoogleAnalyticsTests(WebApplicationFactory<Program> factory)
+    public GoogleAnalyticsTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

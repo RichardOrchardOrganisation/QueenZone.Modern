@@ -28,6 +28,7 @@ public static class ContactApiEndpoints
         group.MapPost("/contact", SubmitAsync)
             .WithName("SubmitContactRequest")
             .WithSummary("Submit a contact message to the site admin inbox.")
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AnonymousWrite)
             .Accepts<ContactSubmitRequest>("application/json")
             .Produces<ContactSubmitResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)

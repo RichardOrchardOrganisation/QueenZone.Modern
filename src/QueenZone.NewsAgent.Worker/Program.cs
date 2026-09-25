@@ -5,6 +5,8 @@ using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.NewsAgent;
 
+// Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
+RegexDefaults.ApplyProcessDefault();
 var discoverOptions = DiscoverNewsCommandOptions.Parse(args);
 var queuedRunOptions = NewsAgentQueuedRunCommandOptions.Parse(args);
 if (discoverOptions is null && queuedRunOptions is null)

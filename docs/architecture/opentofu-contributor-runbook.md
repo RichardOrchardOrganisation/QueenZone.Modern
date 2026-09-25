@@ -1,6 +1,6 @@
 # OpenTofu contributor runbook
 
-Issue: [#619](https://github.com/richardorchard/QueenZone.Modern/issues/619), step 3 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615).
+Issue: [#619](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/619), step 3 of epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615).
 
 ## Foundation boundary
 
@@ -84,7 +84,7 @@ Import commands belong in the relevant issue/PR evidence, not reusable scripts c
 
 ## State moves and removals
 
-Prefer committed `moved` blocks. Use `tofu state mv` only when a declarative move is impossible, after a state backup and with all applies stopped. `tofu state rm` removes management without deleting the live resource, but it can cause a later plan to recreate it; require explicit review and document the intended ownership change.
+Prefer committed `moved` blocks. Use `tofu state mv` only when a declarative move is impossible, after a state backup and with all applies stopped. `tofu state rm` removes management without deleting the live resource, but it can cause a later plan to recreate it; require explicit review and document the intended ownership change. A committed `removed` block with `lifecycle { destroy = false }` is the reviewable form of that state-only removal when the resource block itself is gone. It plans a forget, not a delete. A resource block that remains, with `count` dropping to zero, can set literal `lifecycle { destroy = false }` beside `prevent_destroy` for the same forget. Do not use either form to hide a destroy of SQL, Storage, or App Service.
 
 Lock recovery, backend restoration, credential rotation, and force-unlock controls remain in [`opentofu-state-and-identity.md`](opentofu-state-and-identity.md).
 

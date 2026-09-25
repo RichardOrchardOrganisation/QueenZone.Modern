@@ -1,10 +1,11 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace QueenZone.Web.E2E;
 
 /// <summary>
 /// Ensures every concrete Playwright fixture is tagged so CI filters cannot silently
-/// drop new tests into neither the PR gate nor the nightly RealData suite.
+/// drop new tests outside the PR gate, nightly mirror suite, or deployed dev auth check.
 /// </summary>
 [TestFixture]
 [Category(E2ECategories.Deterministic)]
@@ -14,11 +15,12 @@ public class E2ECategoryGuardTests
     private static readonly string[] SuiteCategories =
     [
         E2ECategories.Deterministic,
-        E2ECategories.RealData
+        E2ECategories.RealData,
+        E2ECategories.DeployedAuth
     ];
 
     [Test]
-    public void EveryConcreteFixtureHasDeterministicOrRealDataCategory()
+    public void EveryConcreteFixtureHasASuiteCategory()
     {
         var assembly = typeof(E2EPageTest).Assembly;
         var fixtures = assembly.GetTypes()
@@ -37,7 +39,7 @@ public class E2ECategoryGuardTests
         Assert.That(
             missing,
             Is.Empty,
-            "These fixtures need [Category(\"Deterministic\")] or [Category(\"RealData\")] " +
+            "These fixtures need [Category(\"Deterministic\")], [Category(\"RealData\")], or [Category(\"DeployedAuth\")] " +
             "(and optionally [Category(\"ReadOnly\")]): " + string.Join(", ", missing));
     }
 
@@ -59,9 +61,14 @@ public class E2ECategoryGuardTests
         {
             nameof(AccessibilitySmokeTests),
             nameof(AdminSmokeTests),
+            nameof(AxeSeriousExceptionTests),
+            nameof(CuratedPageLayoutSmokeTests),
             nameof(E2ECategoryGuardTests),
             nameof(EditorWorkflowTests),
             nameof(ForumPostingWorkflowTests),
+            nameof(ForumSafetyWorkflowTests),
+            nameof(LiveSiteTransportRetryTests),
+            nameof(PageShapeAssertionTests),
             nameof(PhotographyLightboxTests),
             nameof(PrivateMessagingMobileTests),
             nameof(RealDataDbTests),
@@ -95,6 +102,7 @@ public class E2ECategoryGuardTests
         {
             nameof(AdminModerationWorkflowTests),
             nameof(CommunitySubmissionWorkflowTests),
+            nameof(ForumBlockWorkflowTests),
             nameof(LiveSiteContentApiTests),
             nameof(LiveSiteMediaCdnTests),
             nameof(PrivateMessagingWorkflowTests),
@@ -131,6 +139,46 @@ public class E2ECategoryGuardTests
             "Mark new read-only RealData fixtures with [Category(\"ReadOnly\")].");
     }
 
+    [Test]
+    public void DeployedAuthFilterSelectsOnlyTheDevMemberFixture()
+    {
+        var fixtures = typeof(E2EPageTest).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false, IsPublic: true })
+            .Where(IsNUnitFixture)
+            .Where(t => HasCategory(t, E2ECategories.DeployedAuth))
+            .Select(t => t.Name)
+            .ToList();
+
+        Assert.That(fixtures, Is.EqualTo(new[] { nameof(DeployedMemberAuthTests) }));
+    }
+
+    [TestCase("https://dev.queenzone.org")]
+    [TestCase("https://dev.queenzone.org/")]
+    public void DeployedAuthTargetAcceptsOnlyTheDevOrigin(string url) =>
+        Assert.That(DeployedAuthTarget.RequireDevUrl(url).Host, Is.EqualTo("dev.queenzone.org"));
+
+    [TestCase("https://www.queenzone.org")]
+    [TestCase("https://dev.queenzone.org.evil.example")]
+    [TestCase("http://dev.queenzone.org")]
+    [TestCase("https://dev.queenzone.org:444")]
+    [TestCase("https://dev.queenzone.org/account/login")]
+    public void DeployedAuthTargetRejectsOtherOriginsAndPaths(string url) =>
+        Assert.Throws<InvalidOperationException>(() => DeployedAuthTarget.RequireDevUrl(url));
+
+    [Test]
+    public void CiPullRequestE2eJobStaysDeterministicOnly()
+    {
+        // #1597: RealData (nightly/live-site) and DeployedAuth (dev member cookie)
+        // must not become required PR checks. The merge-gate job pins Mode=Deterministic.
+        var ciPath = Path.GetFullPath(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
+        Assert.That(File.Exists(ciPath), Is.True, $"Expected CI workflow at {ciPath}.");
+
+        var ci = File.ReadAllText(ciPath);
+        Assert.That(ci, Does.Contain("-Mode Deterministic"));
+        Assert.That(ci, Does.Not.Contain("-Mode RealData"));
+        Assert.That(ci, Does.Not.Contain("-Mode LiveSite"));
+        Assert.That(ci, Does.Not.Contain("TestCategory=DeployedAuth"));
+    }
 
     private static bool IsNUnitFixture(Type type)
     {
@@ -150,4 +198,11 @@ public class E2ECategoryGuardTests
         type.GetCustomAttributes(typeof(CategoryAttribute), inherit: true)
             .OfType<CategoryAttribute>()
             .Any(a => string.Equals(a.Name, category, StringComparison.Ordinal));
+
+    private static string RepoRoot([CallerFilePath] string thisFile = "")
+    {
+        var directory = Path.GetDirectoryName(thisFile);
+        Assert.That(directory, Is.Not.Null.And.Not.Empty);
+        return Path.GetFullPath(Path.Combine(directory!, "..", ".."));
+    }
 }

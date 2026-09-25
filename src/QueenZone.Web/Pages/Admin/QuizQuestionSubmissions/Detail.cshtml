@@ -1,0 +1,94 @@
+@page "/admin/quiz-question-submissions/{id:guid}"
+@model DetailModel
+@using QueenZone.Data
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+  var antiforgeryToken = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+  var submission = Model.Submission!;
+  var canAct = submission.Status == QuizQuestionSubmissionStatus.Pending;
+  var optionSlots = new List<QuizQuestionSubmissionOptionView>(submission.Options);
+  while (optionSlots.Count < QuizValidation.MaxOptions)
+  {
+    optionSlots.Add(new QuizQuestionSubmissionOptionView(Guid.Empty, string.Empty, optionSlots.Count, false));
+  }
+}
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <h1>Review quiz question suggestion</h1>
+
+  @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+  {
+    <p class="qz-account-notice @(Model.StatusMessageKind == "error" ? "qz-account-notice--error" : "qz-account-notice--success")" role="status">
+      @Model.StatusMessage
+    </p>
+  }
+
+  <dl>
+    <dt>Submitter</dt>
+    <dd>@(submission.SubmitterDisplayName ?? "Unknown") @(string.IsNullOrWhiteSpace(submission.SubmitterEmail) ? "" : $"({submission.SubmitterEmail})")</dd>
+    <dt>Status</dt>
+    <dd><partial name="_SubmissionStatusBadge" model="submission.Status" /></dd>
+    <dt>Submitted</dt>
+    <dd>@submission.SubmittedAt.ToString("u")</dd>
+    <dt>Explanation or source note</dt>
+    <dd>@(string.IsNullOrWhiteSpace(submission.SourceNote) ? "—" : submission.SourceNote)</dd>
+    <dt>Review notes</dt>
+    <dd>@(submission.ReviewNotes ?? "—")</dd>
+    <dt>Rejection reason</dt>
+    <dd>@(submission.RejectionReason ?? "—")</dd>
+    @if (submission.AddedToQuizId is Guid quizId)
+    {
+      <dt>Added to quiz</dt>
+      <dd><a href="/admin/quizzes/@quizId/edit">@quizId</a></dd>
+    }
+  </dl>
+
+  @if (canAct)
+  {
+    <section>
+      <h2>Approve for the question bank</h2>
+      <p>Approving makes this question available in the <a href="/admin/quizzes">quiz builder's</a> question bank. It does not add it to a live quiz — an admin must do that explicitly.</p>
+      <form method="post" action="/admin/quiz-question-submissions/@submission.Id/approve" class="admin-inline-form">
+        @Html.AntiForgeryToken()
+        <label>
+          Question text
+          <textarea name="questionText" maxlength="@QuizValidation.QuestionMaxLength" rows="3" required>@submission.QuestionText</textarea>
+        </label>
+        <fieldset>
+          <legend>Options (2–4) — you may lightly edit wording before approving</legend>
+          @for (var index = 0; index < optionSlots.Count; index++)
+          {
+            var option = optionSlots[index];
+            <label>
+              <input type="radio" name="correctOptionIndex" value="@index" checked="@(option.IsCorrect ? "checked" : null)">
+              Option @(index + 1)
+            </label>
+            <input type="text" name="optionTexts" value="@option.Text" maxlength="@QuizValidation.OptionMaxLength">
+          }
+        </fieldset>
+        <label>
+          Internal review notes
+          <input name="reviewNotes" maxlength="500">
+        </label>
+        <button type="submit">Approve</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Reject</h2>
+      <form method="post" action="/admin/quiz-question-submissions/@submission.Id/reject" class="admin-inline-form" onsubmit="return confirm('Reject this suggestion?');">
+        @Html.AntiForgeryToken()
+        <label>
+          Rejection reason (shown to submitter)
+          <input name="rejectionReason" required maxlength="500">
+        </label>
+        <label>
+          Internal review notes
+          <input name="reviewNotes" maxlength="500">
+        </label>
+        <button type="submit">Reject</button>
+      </form>
+    </section>
+  }
+</div>

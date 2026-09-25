@@ -6,7 +6,11 @@ param(
     [string]$StateStorageAccount = "queenzonetfstate",
     [string]$StateContainer = "tfstate",
     [string]$WorkloadResourceGroup = "Queenzone-RG",
-    [string]$GitHubRepository = "richardorchard/QueenZone.Modern",
+    [string]$GitHubRepository = "RichardOrchardOrganisation/QueenZone.Modern",
+    [string]$OidcOwnerId = "333232587",
+    [string]$OidcRepositoryId = "1265145026",
+    [string]$PlanFederatedCredentialName = "github-org-opentofu-plan",
+    [string]$ApplyFederatedCredentialName = "github-org-opentofu-apply",
     [string]$ApplyReviewer = "richardorchard",
     [ValidateRange(7, 365)]
     [int]$RetentionDays = 30
@@ -14,6 +18,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+. (Join-Path $PSScriptRoot "Resolve-GitHubOidcRepositorySegment.ps1")
+$OidcRepositorySegment = Resolve-GitHubOidcRepositorySegment -GitHubRepository $GitHubRepository -OidcOwnerId $OidcOwnerId -OidcRepositoryId $OidcRepositoryId
 
 function Invoke-Native {
     param(
@@ -162,7 +169,7 @@ function Ensure-WorkloadIdentity {
         throw "The service principal for '$DisplayName' was not created."
     }
 
-    $subject = "repo:$GitHubRepository`:environment:$EnvironmentName"
+    $subject = "repo:$OidcRepositorySegment`:environment:$EnvironmentName"
     $credential = @{
         name        = $FederatedCredentialName
         issuer      = "https://token.actions.githubusercontent.com"
@@ -174,8 +181,13 @@ function Ensure-WorkloadIdentity {
     $existingCredentials = @(Invoke-AzJson @("ad", "app", "federated-credential", "list", "--id", $application.id))
     $existingCredential = $existingCredentials | Where-Object { $_.name -eq $FederatedCredentialName } | Select-Object -First 1
     if ($null -ne $existingCredential -and
-        ($existingCredential.subject -ne $subject -or $existingCredential.issuer -ne $credential.issuer)) {
+        ($existingCredential.subject -ne $subject -or $existingCredential.issuer -ne $credential.issuer -or
+         @($existingCredential.audiences).Count -ne 1 -or $existingCredential.audiences[0] -ne "api://AzureADTokenExchange")) {
         throw "Federated credential '$FederatedCredentialName' exists with a different issuer or subject. Review it before changing trust."
+    }
+
+    if ($null -eq $existingCredential -and $existingCredentials.Count -ge 20) {
+        throw "'$DisplayName' has reached the 20 federated-credential limit."
     }
 
     if ($null -eq $existingCredential -and $PSCmdlet.ShouldProcess($DisplayName, "Create GitHub OIDC federated credential")) {
@@ -267,6 +279,7 @@ $operatorObjectId = (Invoke-Native -FilePath "az" -Arguments @("ad", "signed-in-
 
 if ($WhatIfPreference) {
     Write-Output "Would create or verify state storage, data protection, OIDC identities, scoped role assignments, and GitHub environments."
+    Write-Output "OIDC subject repository segment: $OidcRepositorySegment"
     Write-Output "Would not import or change any QueenZone application resource."
     return
 }
@@ -330,8 +343,8 @@ if ($null -eq $container -and $PSCmdlet.ShouldProcess($StateContainer, "Create p
     }
 }
 
-$planIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone OpenTofu Plan" -FederatedCredentialName "github-opentofu-plan" -EnvironmentName "opentofu-plan"
-$applyIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone OpenTofu Apply" -FederatedCredentialName "github-opentofu-apply" -EnvironmentName "opentofu-apply"
+$planIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone OpenTofu Plan" -FederatedCredentialName $PlanFederatedCredentialName -EnvironmentName "opentofu-plan"
+$applyIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone OpenTofu Apply" -FederatedCredentialName $ApplyFederatedCredentialName -EnvironmentName "opentofu-apply"
 
 $workloadScope = "/subscriptions/$SubscriptionId/resourceGroups/$WorkloadResourceGroup"
 Ensure-RoleAssignment -PrincipalObjectId $operatorObjectId -PrincipalType User -Role "Storage Blob Data Contributor" -Scope $containerScope

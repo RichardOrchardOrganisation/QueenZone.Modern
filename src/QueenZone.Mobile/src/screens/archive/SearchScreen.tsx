@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type RouteProp } from '@react-navigation/native';
 import * as WebBrowser from 'expo-web-browser';
 import { Search } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
@@ -22,9 +22,11 @@ import {
   type SearchTypeFilter,
 } from './searchMeta';
 import { applySearchTarget, targetForSearchResult, websiteUrl, type SearchOpenTarget } from './searchNavigation';
+import type { CommonStackParamList } from '../../navigation/types';
 
 type Props = {
   onOpen?: (target: SearchOpenTarget, item: SearchResult) => void;
+  initialQuery?: string;
 };
 
 function SearchResults({
@@ -81,22 +83,32 @@ function SearchResults({
   );
 }
 
-export function SearchScreen({ onOpen }: Props) {
+export function SearchScreen({ onOpen, initialQuery = '' }: Props) {
   const { c, chrome } = useTheme();
-  const [query, setQuery] = useState('');
-  const [committedQuery, setCommittedQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const [committedQuery, setCommittedQuery] = useState(initialQuery);
   const [typeFilter, setTypeFilter] = useState<SearchTypeFilter>(null);
   const fieldRadius = Platform.OS === 'ios' ? chrome.ios.searchFieldRadius : chrome.android.searchFieldRadius;
   const shouldSearch = committedQuery.length >= searchMinQueryLength;
+
+  useEffect(() => {
+    setQuery(initialQuery);
+    setCommittedQuery(initialQuery);
+  }, [initialQuery]);
 
   useEffect(() => {
     const handle = setTimeout(() => setCommittedQuery(query.trim()), 300);
     return () => clearTimeout(handle);
   }, [query]);
 
+  const commitQuery = useCallback((value: string) => {
+    const next = value.trim();
+    setQuery(next);
+    setCommittedQuery(next);
+  }, []);
+
   const applyPreset = (preset: string) => {
-    setQuery(preset);
-    setCommittedQuery(preset);
+    commitQuery(preset);
   };
 
   return (
@@ -121,12 +133,14 @@ export function SearchScreen({ onOpen }: Props) {
             autoFocus
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={(event) => commitQuery(event.nativeEvent.text)}
             placeholder="Search news, articles and discussions"
             placeholderTextColor={c.textMuted}
             accessibilityLabel="Search the archive"
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
+            blurOnSubmit
             style={{
               flex: 1,
               color: c.textPrimary,
@@ -190,10 +204,11 @@ export function SearchScreen({ onOpen }: Props) {
   );
 }
 
-export function SearchRouteScreen() {
+export function SearchRouteScreen({ route }: { route?: RouteProp<CommonStackParamList, 'Search'> }) {
   const navigation = useNavigation();
   return (
     <SearchScreen
+      initialQuery={route?.params?.query ?? ''}
       onOpen={(target, item) => {
         applySearchTarget(
           target,

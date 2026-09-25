@@ -10,13 +10,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumWriteRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumWriteRoutesTests(WebApplicationFactory<Program> factory)
+    public ForumWriteRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
@@ -41,6 +41,22 @@ public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<
         Assert.Contains("validation-summary-valid", page);
         Assert.Contains(".validation-summary-valid", css);
         Assert.Matches(@"\.validation-summary-valid\s*\{\s*display:\s*none;\s*\}", css);
+    }
+
+    [Fact]
+    public async Task NewThreadGet_UsesSharedFormFieldClasses()
+    {
+        var client = CreateMemberClient(factory, Guid.NewGuid());
+
+        var page = await client.GetStringAsync("/forum/c/the-music/new-thread");
+        var css = await client.GetStringAsync("/css/site.css");
+
+        Assert.DoesNotContain("qz-form__field", page);
+        Assert.DoesNotContain(".qz-form__field", css);
+        Assert.Contains("qz-field qz-field--spaced", page);
+        Assert.Contains("class=\"qz-label\"", page);
+        Assert.Contains("class=\"qz-input\"", page);
+        Assert.Contains("qz-error qz-error--text", page);
     }
 
     [Fact]

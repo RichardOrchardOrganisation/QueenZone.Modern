@@ -13,12 +13,12 @@
 ## Product page copy
 
 - **Subtitle:** Queen archive and community
-- **Promotional text:** Explore decades of Queen history, restored stories, photography and news—then join the QueenZone community from your iPhone or iPad.
+- **Promotional text:** Explore decades of Queen history, restored stories, photography and news—then join the QueenZone community from your iPhone.
 - **Keywords:** Queen,Freddie Mercury,archive,music,rock,photography,discography,fan,forum,history
 
 ### Description
 
-QueenZone brings a long-running independent Queen fan archive to iPhone and iPad.
+QueenZone brings a long-running independent Queen fan archive to iPhone.
 
 Explore decades of Queen history through restored news, long-form stories, photography, biography, discography, timelines and fan performances. Search the archive, save material for later and keep favourite stories close at hand.
 

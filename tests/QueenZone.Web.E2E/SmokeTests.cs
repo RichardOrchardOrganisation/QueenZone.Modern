@@ -43,15 +43,8 @@ public class SmokeTests : E2EPageTest
         }
     }
 
-    private async Task AssertNoEncodingArtifactsAsync()
-    {
-        var bodyText = await Page.Locator("body").InnerTextAsync();
-        var match = PageShapeAssertions.FindEncodingArtifact(bodyText);
-        Assert.That(
-            match.Success,
-            Is.False,
-            $"Unrendered HTML-encoding artifact in visible text: '{match.Value}'");
-    }
+    private Task AssertNoEncodingArtifactsAsync() =>
+        PageShapeAssertions.AssertNoEncodingArtifactsAsync(Page);
 
     [Test]
     public async Task Homepage_ShowsLatestNews()
@@ -192,12 +185,61 @@ public class SmokeTests : E2EPageTest
     }
 
     [Test]
+    public async Task Search_SubmitsKnownQuery_PersistsFilterAndOpensResult()
+    {
+        await Page.GotoAsync("/search");
+
+        await Page.Locator("#qz-search").FillAsync("modernisation");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+
+        await Expect(Page).ToHaveURLAsync(new Regex(@".*/search\?q=modernisation$"));
+        await Expect(Page.Locator("#qz-search")).ToHaveValueAsync("modernisation");
+
+        var result = Page.GetByRole(AriaRole.Link, new() { Name = "QueenZone modernisation begins" });
+        await Expect(result).ToBeVisibleAsync();
+
+        var filters = Page.GetByRole(AriaRole.Navigation, new() { Name = "Filter search results by content type" });
+        await Expect(filters).ToBeVisibleAsync();
+        await filters.GetByRole(AriaRole.Link, new() { Name = "News", Exact = true }).ClickAsync();
+
+        await Expect(Page).ToHaveURLAsync(new Regex(@".*/search\?q=modernisation&type=news$"));
+        await Expect(Page.Locator("#qz-search")).ToHaveValueAsync("modernisation");
+        await Expect(result).ToBeVisibleAsync();
+
+        await result.ClickAsync();
+        await Expect(Page).ToHaveURLAsync(new Regex(".*/news/1003/queenzone-modernisation-begins/?$"));
+        await Expect(Page.GetByRole(AriaRole.Heading, new()
+        {
+            Name = "QueenZone modernisation begins",
+            Level = 1
+        })).ToBeVisibleAsync();
+    }
+
+    [Test]
+    public async Task Search_UnknownQuery_ShowsNoResults()
+    {
+        await Page.GotoAsync("/search");
+
+        await Page.Locator("#qz-search").FillAsync("volcano-xyz-no-match");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Search", Exact = true }).ClickAsync();
+
+        await Expect(Page).ToHaveURLAsync(new Regex(@".*/search\?q=volcano-xyz-no-match$"));
+        await Expect(Page.Locator("#qz-search")).ToHaveValueAsync("volcano-xyz-no-match");
+        await Expect(Page.GetByText("No results found for")).ToBeVisibleAsync();
+        await Expect(Page.GetByText("volcano-xyz-no-match")).ToBeVisibleAsync();
+    }
+
+    [Test]
     public async Task Homepage_RendersOnMobileViewport()
     {
         await using var context = await Browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = BaseUrl,
-            ViewportSize = new ViewportSize { Width = 390, Height = 844 },
+            ViewportSize = new ViewportSize
+            {
+                Width = CuratedLayoutPages.PhoneWidth,
+                Height = CuratedLayoutPages.PhoneHeight,
+            },
         });
         var page = await context.NewPageAsync();
 
@@ -205,9 +247,7 @@ public class SmokeTests : E2EPageTest
 
         await Expect(page.GetByText("Latest news")).ToBeVisibleAsync();
 
-        var noHorizontalOverflow = await page.EvaluateAsync<bool>(
-            "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1");
-        Assert.That(noHorizontalOverflow, Is.True, "Homepage should not require horizontal scrolling on a phone viewport.");
+        await PageShapeAssertions.AssertNoHorizontalOverflowAsync(page, "/");
     }
 
     [Test]
@@ -216,7 +256,11 @@ public class SmokeTests : E2EPageTest
         await using var context = await Browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = BaseUrl,
-            ViewportSize = new ViewportSize { Width = 390, Height = 844 },
+            ViewportSize = new ViewportSize
+            {
+                Width = CuratedLayoutPages.PhoneWidth,
+                Height = CuratedLayoutPages.PhoneHeight,
+            },
         });
         var page = await context.NewPageAsync();
 

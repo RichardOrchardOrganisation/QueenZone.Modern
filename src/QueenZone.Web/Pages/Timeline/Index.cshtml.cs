@@ -3,10 +3,12 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Timeline;
 
-public sealed class IndexModel(IQueenHistoryRepository historyRepository) : PageModel
+public sealed class IndexModel(PublicQueryCacheService publicQueryCache) : PageModel
 {
     public IReadOnlyList<TimelineDecadeGroup> Decades { get; private set; } = [];
-    public int TotalEventCount { get; private set; }
+    public IReadOnlyList<TimelineDecadeGroup> VisibleDecades { get; private set; } = [];
+    public string? SelectedDecade { get; private set; }
+    public int VisibleEventCount { get; private set; }
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; } =
     [
@@ -14,17 +16,15 @@ public sealed class IndexModel(IQueenHistoryRepository historyRepository) : Page
         new BreadcrumbItem("Timeline", "/timeline"),
     ];
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    public async Task OnGetAsync(string? decade, CancellationToken cancellationToken)
     {
-        var events = await historyRepository.GetAllPublishedAsync(cancellationToken);
+        var events = await publicQueryCache.GetAllPublishedHistoryEventsAsync(cancellationToken);
 
         var rows = events
             .OrderBy(e => e.EventDate)
             .ThenByDescending(e => e.Importance)
             .Select(e => new TimelineEventRow(e))
             .ToList();
-
-        TotalEventCount = rows.Count;
 
         Decades = rows
             .GroupBy(r => r.Decade)
@@ -35,8 +35,17 @@ public sealed class IndexModel(IQueenHistoryRepository historyRepository) : Page
                 g.ToList()))
             .ToList();
 
+        var currentDecade = (DateTime.UtcNow.Year / 10 * 10).ToString() + "s";
+        SelectedDecade = Decades.Any(group => group.Decade == decade) ? decade
+            : Decades.Any(group => group.Decade == currentDecade) ? currentDecade
+            : Decades.LastOrDefault()?.Decade;
+        VisibleDecades = Decades.Where(group => group.Decade == SelectedDecade).ToList();
+        VisibleEventCount = VisibleDecades.Sum(group => group.Events.Count);
+
         ViewData["Title"] = "Queen History Timeline · Queenzone";
-        ViewData["CanonicalPath"] = "/timeline";
+        ViewData["CanonicalPath"] = decade == SelectedDecade
+            ? $"/timeline?decade={SelectedDecade}"
+            : "/timeline";
         ViewData["Description"] = "Five decades of Queen history — concerts, releases, milestones and more, from the Queenzone archive.";
     }
 }

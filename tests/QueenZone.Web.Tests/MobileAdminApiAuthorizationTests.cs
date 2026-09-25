@@ -75,8 +75,10 @@ public sealed class MobileAdminApiAuthorizationTests : IClassFixture<QueenZoneWe
 
     private string IssueMemberToken(string email)
     {
+        var memberId = Guid.NewGuid();
+        MemberBearerAccounts.Ensure(factory.Services, memberId, email, "Fan");
         using var scope = factory.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
-        return issuer.IssueAccessToken(Guid.NewGuid(), email, "Fan");
+        return issuer.IssueAccessToken(memberId, email, "Fan");
     }
 }

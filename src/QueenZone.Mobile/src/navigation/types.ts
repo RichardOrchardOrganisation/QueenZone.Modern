@@ -11,7 +11,7 @@ export type SignInParams = {
 };
 
 export type CommonStackParamList = {
-  Search: undefined;
+  Search: { query?: string } | undefined;
 };
 
 export type StoryRouteParamList = {
@@ -64,6 +64,12 @@ export type ArchiveStackParamList = {
   FanPerformanceDownloads: undefined;
   FanPerformanceSubmit: undefined;
   Trivia: undefined;
+  QuizList: undefined;
+  QuizPlay: { id: string };
+  QuizLeaderboard: undefined;
+  /** `claim`: a guest run to add to the leaderboard once the player has signed in. */
+  QuizSprint: { claim?: string } | undefined;
+  QuizSprintLeaderboard: undefined;
   AboutArchive: undefined;
 } & CommonStackParamList &
   StoryRouteParamList;

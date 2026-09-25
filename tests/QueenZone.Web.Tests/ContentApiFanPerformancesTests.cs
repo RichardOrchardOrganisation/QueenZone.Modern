@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Storage;
@@ -40,6 +41,36 @@ public sealed class ContentApiFanPerformancesTests : IClassFixture<QueenZoneWebA
         Assert.Equal("/fan-performances", first.DetailPath);
         Assert.Equal("/api/v1/content/fan-performances/187/audio", first.AudioPath);
         Assert.DoesNotContain(payload.Items, item => item.AudioPath.Contains("songfiles", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task FanPerformances_list_reads_stored_duration_without_opening_blobs()
+    {
+        using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
+        {
+            services.RemoveAll<IBlobUploadService>();
+            services.AddSingleton<IBlobUploadService, ThrowOnReadBlobService>();
+        });
+        using var client = isolated.CreateAnonymousClient();
+
+        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/fan-performances");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ApiPagedResponse<FanPerformanceDto>>();
+        Assert.Equal(320, payload!.Items[0].DurationSeconds);
+    }
+
+    private sealed class ThrowOnReadBlobService : IBlobUploadService
+    {
+        public Task<BlobUploadResult> UploadAsync(Stream content, string originalFileName, string containerName,
+            BlobUploadContext? context = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAsync(string containerName, string blobName, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<BlobContent?> OpenReadAsync(string containerName, string blobName, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("List must not open audio blobs.");
     }
 
     [Fact]
@@ -221,9 +252,11 @@ public sealed class ContentApiFanPerformancesTests : IClassFixture<QueenZoneWebA
 
     private HttpClient CreateBearerClient()
     {
+        var memberId = Guid.NewGuid();
+        MemberBearerAccounts.Ensure(factory.Services, memberId, $"{memberId:N}@example.test", "Fan Stage Member");
         using var scope = factory.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
-        var token = issuer.IssueAccessToken(Guid.NewGuid(), "fanstage@example.com", "Fan Stage Member");
+        var token = issuer.IssueAccessToken(memberId, "fanstage@example.com", "Fan Stage Member");
         var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;

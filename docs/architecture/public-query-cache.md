@@ -59,7 +59,7 @@ Keys live in `PublicQueryCacheKeys`. Invalidation APIs live on `PublicQueryCache
 | Biography chapters | `public-query:biography:chapters` | 30m | `InvalidateBiographyCache` | `Remove` fixed key | Admin biography create / edit (`Admin/Biography/*`) | TTL |
 | Discography albums | `public-query:discography:albums` | 30m | `InvalidateDiscographyCache` | `Remove` fixed key | None today (no album write path); TTL-only until a sync/admin writer exists | TTL |
 
-Related **output-cache** tags (anonymous HTML / sitemaps) are separate from this query cache. Editorial writes that change public HTML should also `EvictByTagAsync` for `PublicOutputCachePolicies.PublicHtmlTag` / `PublicSitemapTag` as already done from admin news, photo, and sitemap invalidation paths. See `PublicOutputCachePolicies` and issue [#321](https://github.com/richardorchard/QueenZone.Modern/issues/321).
+Related **output-cache** tags (anonymous HTML / sitemaps) are separate from this query cache. Editorial writes that change public HTML should also `EvictByTagAsync` for `PublicOutputCachePolicies.PublicHtmlTag` / `PublicSitemapTag` as already done from admin news, photo, and sitemap invalidation paths. See `PublicOutputCachePolicies` and issue [#321](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/321).
 
 ### Contributor rules
 
@@ -67,7 +67,7 @@ Related **output-cache** tags (anonymous HTML / sitemaps) are separate from this
 2. **New cached queries need a matrix row.** When adding a `GetOrCreateAsync` entry, add a key helper on `PublicQueryCacheKeys`, document the row above, and wire invalidation (or explicitly document TTL-only with rationale, as for discography albums).
 3. **Prefer version bumps for open-ended key families.** News latest-count / archive-page / filter variants, article latest/archive pages, and photo category pages use version segments so callers can add new count/page shapes without updating every `Remove` call site.
 4. **Single-instance assumption.** Invalidation only affects the current process. Do not design multi-instance consistency on this cache until [`hosting-scale-and-cache.md`](hosting-scale-and-cache.md) allows scale-out and a shared cache product.
-5. **Stampede behaviour.** Cold-cache concurrent loads share a process-wide per-key `SemaphoreSlim` gate inside `PublicQueryCacheService` (static `LoadGates`), so scoped service instances still coalesce factory calls. Fixed under [#392](https://github.com/richardorchard/QueenZone.Modern/issues/392); covered by multi-instance stampede tests in `PublicQueryCacheServiceTests`.
+5. **Stampede behaviour.** Cold-cache concurrent loads share a process-wide per-key `SemaphoreSlim` gate inside `PublicQueryCacheService` (static `LoadGates`), so scoped service instances still coalesce factory calls. Fixed under [#392](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/392); covered by multi-instance stampede tests in `PublicQueryCacheServiceTests`.
 
 ### How to verify the matrix against code
 

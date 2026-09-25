@@ -1,6 +1,6 @@
 # GitHub Environments
 
-Issue: [#1377](https://github.com/richardorchard/QueenZone.Modern/issues/1377) (Bob Architecture lock, Option B).
+Issue: [#1377](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1377) (Bob Architecture lock, Option B).
 
 This is the durable map of GitHub Environments used by QueenZone Actions. Environments live only in GitHub Settings today; workflows reference them by exact name. Create and protect an environment **before** merging a workflow that first references it — GitHub auto-creates an unprotected environment on first use.
 
@@ -44,7 +44,8 @@ These jobs touch only the SQL Express mirror, or use no environment secrets/vars
 | --- | --- | --- |
 | `ci.yml` | `ef-migrations` | Hard-coded mirror connection string + `Assert-SqlExpressMirrorConnection.ps1`. No Bitwarden, no Azure SQL. |
 | `nightly-legacy-checks.yml` | `legacy-read-probes` | Mirror over LAN. Bitwarden is used only for `QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD` via **repository-level** token/mapping. |
-| `nightly-legacy-checks.yml` | `legacy-write-probes` | `localhost\SQLEXPRESS` Integrated Security. No environment secrets. |
+| `nightly-legacy-checks.yml` | `apply-ef-migrations-mirror` | After Sync, before write probes (#1722). `localhost\SQLEXPRESS` Integrated Security + `Assert-SqlExpressMirrorConnection.ps1`. No environment secrets. |
+| `nightly-legacy-checks.yml` | `legacy-write-probes` | `localhost\SQLEXPRESS` Integrated Security. No environment secrets. Waits on `apply-ef-migrations-mirror`. |
 | `nightly-legacy-checks.yml` | `ui-e2e-realdata` | Windows: Integrated Security. macOS: repository-level Bitwarden probe password. |
 | `nightly-legacy-checks.yml` | `residue-check` | Local mirror only. |
 | `test-migrations-against-mirror.yml` | `test-migrations` | Local mirror Integrated Security. |
@@ -59,9 +60,9 @@ GitHub Environments are **not** managed in `infra/` today (`github_repository_en
 
 ## Legacy environment retirement
 
-Issue [#1394](https://github.com/richardorchard/QueenZone.Modern/issues/1394). #1377 remapped workflows; Gilfoyle deleted the leftover Settings names. This repo slice records that — it does not gate Settings delete.
+Issue [#1394](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1394). #1377 remapped workflows; Gilfoyle deleted the leftover Settings names. This repo slice records that — it does not gate Settings delete.
 
-`gh api repos/richardorchard/QueenZone.Modern/environments` on 2026-09-07: **`dev` and `deploy` are absent**. Live names: `dev-data-refresh`, `dev-deploy`, `dev-migrate`, `opentofu-apply`, `opentofu-plan`, `prod-data-read`, `prod-deploy`, `prod-google-play`, `prod-release`.
+`gh api repos/RichardOrchardOrganisation/QueenZone.Modern/environments` on 2026-09-07: **`dev` and `deploy` are absent**. Live names: `dev-data-refresh`, `dev-deploy`, `dev-migrate`, `opentofu-apply`, `opentofu-plan`, `prod-data-read`, `prod-deploy`, `prod-google-play`, `prod-release`.
 
 1. Done. Exact workflow search on `main` is clean: no `environment: dev`, `environment: deploy`, `name: dev`, or `name: deploy` under `.github/workflows/` (kept `dev-migrate` / `dev-deploy` / `dev-data-refresh` and `deploy-dev.yml`).
 2. Done. Tag `v2026.09.07.1` succeeded using `prod-release` + `prod-deploy`.

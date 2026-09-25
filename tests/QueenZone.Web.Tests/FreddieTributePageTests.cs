@@ -8,16 +8,13 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class FreddieTributePageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class FreddieTributePageTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public FreddieTributePageTests(WebApplicationFactory<Program> factory)
+    public FreddieTributePageTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-        });
+        this.factory = factory;
     }
 
     [Fact]
@@ -86,5 +83,26 @@ public sealed class FreddieTributePageTests : IClassFixture<WebApplicationFactor
         Assert.Contains("Freddie Mercury Tribute", body);
         Assert.DoesNotContain("Selected Freddie Mercury photographs", body);
         Assert.DoesNotContain("https://cdn.queenzone.org/freddie-mercury/", body);
+    }
+
+    [Fact]
+    public async Task FreddieTributePage_WithoutTributes_RendersEmptyState()
+    {
+        await using var customFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<SharedFreddieTributeStore>();
+                services.RemoveAll<IFreddieTributeRepository>();
+                services.AddSingleton(_ => new SharedFreddieTributeStore([]));
+                services.AddSingleton<IFreddieTributeRepository, InMemoryFreddieTributeRepository>();
+            });
+        });
+        var client = customFactory.CreateClient();
+
+        var body = await client.GetStringAsync("/freddie-mercury-tribute");
+
+        Assert.Contains("No Freddie Mercury tributes are available yet.", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Featured tribute", body, StringComparison.Ordinal);
     }
 }

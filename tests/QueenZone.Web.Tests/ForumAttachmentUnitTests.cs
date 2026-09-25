@@ -12,7 +12,8 @@ public sealed class ForumAttachmentUnitTests
     public async Task ServeLegacyAsync_ReturnsNotFound_WhenMissing()
     {
         var repo = new InMemoryForumAttachmentRepository();
-        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(999, repo, CancellationToken.None);
+        var blob = new MemoryBlobUploadService();
+        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(999, repo, blob, CancellationToken.None);
         Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>(result);
     }
 
@@ -21,20 +22,104 @@ public sealed class ForumAttachmentUnitTests
     {
         var repo = new InMemoryForumAttachmentRepository();
         repo.SeedLegacy(new LegacyForumAttachmentLookup(1, "../secret.jpg", 10));
+        repo.SeedLegacy(new LegacyForumAttachmentLookup(2, "folder/secret.jpg", 10));
+        repo.SeedLegacy(new LegacyForumAttachmentLookup(3, @"folder\secret.jpg", 10));
 
-        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(1, repo, CancellationToken.None);
-        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>(result);
+        var blob = new MemoryBlobUploadService();
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>(
+            await ForumAttachmentEndpoints.ServeLegacyAsync(1, repo, blob, CancellationToken.None));
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>(
+            await ForumAttachmentEndpoints.ServeLegacyAsync(2, repo, blob, CancellationToken.None));
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>(
+            await ForumAttachmentEndpoints.ServeLegacyAsync(3, repo, blob, CancellationToken.None));
     }
 
     [Fact]
-    public async Task ServeLegacyAsync_Redirects_WhenPresent()
+    public async Task ServeLegacyAsync_ReturnsNotFound_WhenBlobMissing()
     {
         var repo = new InMemoryForumAttachmentRepository();
         repo.SeedLegacy(new LegacyForumAttachmentLookup(42, "scan.jpg", 100));
 
-        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(42, repo, CancellationToken.None);
-        var redirect = Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.RedirectHttpResult>(result);
-        Assert.Equal("https://cdn2.queenzone.org/attachments/scan.jpg", redirect.Url);
+        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(
+            42,
+            repo,
+            new MemoryBlobUploadService(),
+            CancellationToken.None);
+
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>(result);
+    }
+
+    [Fact]
+    public async Task ServeLegacyAsync_ReturnsNotFound_WhenBlobServiceThrowsNotSupported()
+    {
+        var repo = new InMemoryForumAttachmentRepository();
+        repo.SeedLegacy(new LegacyForumAttachmentLookup(42, "scan.jpg", 100));
+
+        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(
+            42,
+            repo,
+            new ThrowingBlobUploadService(),
+            CancellationToken.None);
+
+        Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.NotFound>(result);
+    }
+
+    [Fact]
+    public async Task ServeLegacyAsync_StreamsAttachment_WhenPresent()
+    {
+        var repo = new InMemoryForumAttachmentRepository();
+        repo.SeedLegacy(new LegacyForumAttachmentLookup(42, "scan.jpg", 100));
+        var blob = new MemoryBlobUploadService();
+        await blob.UploadAsync(
+            new MemoryStream(Encoding.UTF8.GetBytes("jpeg-bytes")),
+            "scan.jpg",
+            ForumAttachmentPaths.LegacyContainerName,
+            new BlobUploadContext { PreferredBlobName = "scan.jpg" });
+
+        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(
+            42,
+            repo,
+            blob,
+            CancellationToken.None);
+
+        var file = Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.FileStreamHttpResult>(result);
+        Assert.Equal("scan.jpg", file.FileDownloadName);
+        Assert.Equal("image/jpeg", file.ContentType);
+        Assert.False(file.EnableRangeProcessing);
+    }
+
+    [Fact]
+    public async Task ServeLegacyAsync_UsesExtensionContentType_WhenBlobTypeBlank()
+    {
+        var repo = new InMemoryForumAttachmentRepository();
+        repo.SeedLegacy(new LegacyForumAttachmentLookup(42, "notes.pdf", 100));
+
+        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(
+            42,
+            repo,
+            new FixedContentBlobUploadService("notes.pdf", "   ", Encoding.UTF8.GetBytes("%PDF")),
+            CancellationToken.None);
+
+        var file = Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.FileStreamHttpResult>(result);
+        Assert.Equal("notes.pdf", file.FileDownloadName);
+        Assert.Equal("application/pdf", file.ContentType);
+    }
+
+    [Fact]
+    public async Task ServeLegacyAsync_ForcesDownloadName_WhenBlobTypeIsHtml()
+    {
+        var repo = new InMemoryForumAttachmentRepository();
+        repo.SeedLegacy(new LegacyForumAttachmentLookup(42, "page.html", 100));
+
+        var result = await ForumAttachmentEndpoints.ServeLegacyAsync(
+            42,
+            repo,
+            new FixedContentBlobUploadService("page.html", "text/html", Encoding.UTF8.GetBytes("<p>hi</p>")),
+            CancellationToken.None);
+
+        var file = Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.FileStreamHttpResult>(result);
+        Assert.Equal("page.html", file.FileDownloadName);
+        Assert.Equal("text/html", file.ContentType);
     }
 
     [Fact]
@@ -312,6 +397,41 @@ public sealed class ForumAttachmentUnitTests
             Headers = new HeaderDictionary(),
             ContentType = contentType,
         };
+    }
+
+    private sealed class FixedContentBlobUploadService(string blobName, string contentType, byte[] bytes) : IBlobUploadService
+    {
+        public Task<BlobUploadResult> UploadAsync(
+            Stream content,
+            string originalFileName,
+            string containerName,
+            BlobUploadContext? context = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("read only");
+
+        public Task DeleteAsync(
+            string containerName,
+            string blobNameToDelete,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<BlobContent?> OpenReadAsync(
+            string containerName,
+            string blobNameToRead,
+            CancellationToken cancellationToken = default)
+        {
+            if (!string.Equals(containerName, ForumAttachmentPaths.LegacyContainerName, StringComparison.Ordinal)
+                || !string.Equals(blobNameToRead, blobName, StringComparison.Ordinal))
+            {
+                return Task.FromResult<BlobContent?>(null);
+            }
+
+            return Task.FromResult<BlobContent?>(new BlobContent
+            {
+                Stream = new MemoryStream(bytes),
+                ContentType = contentType,
+            });
+        }
     }
 
     private sealed class ThrowingBlobUploadService : IBlobUploadService

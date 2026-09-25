@@ -1,12 +1,12 @@
 # CodeQL
 
-Issue: [#1418](https://github.com/richardorchard/QueenZone.Modern/issues/1418) (Bob Architecture lock, Option A).
+Issue: [#1418](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1418) (Bob Architecture lock, Option A).
 
 QueenZone uses GitHub **default setup** for CodeQL (`dynamic/github-code-scanning/codeql`). There is no advanced `codeql.yml` workflow in this repo. C#, JavaScript/TypeScript, Python, and Actions stay on the default scan.
 
 ## Why `java-kotlin` is skipped
 
-Run [1353](https://github.com/richardorchard/QueenZone.Modern/actions/runs/34187320605) on `main` at `d7b0d879` failed only `Analyze (java-kotlin)` after the Expo wallpaper module landed (#1410). The other four languages passed. This was not a security finding.
+Run [1353](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/34187320605) on `main` at `d7b0d879` failed only `Analyze (java-kotlin)` after the Expo wallpaper module landed (#1410). The other four languages passed. This was not a security finding.
 
 The only first-party Java/Kotlin in the tree is `src/QueenZone.Mobile/modules/queenzone-wallpaper/android/.../QueenZoneWallpaperModule.kt`. That module's `build.gradle` applies `com.android.library` without a plugin version (Expo pattern — the version comes from the generated app root). Default setup uses `build-mode: none` for Java. It still finds Gradle under `src/QueenZone.Mobile/modules/queenzone-wallpaper/android`, cannot resolve the project, extracts no Java/Kotlin, and fails with `no-source-code-seen-during-build`.
 

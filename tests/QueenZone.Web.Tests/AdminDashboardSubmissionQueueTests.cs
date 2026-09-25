@@ -14,14 +14,14 @@ namespace QueenZone.Web.Tests;
 /// <summary>
 /// Tests for the submission queue tiles on the admin dashboard (issue #291).
 /// </summary>
-public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminDashboardSubmissionQueueTests(WebApplicationFactory<Program> factory)
+    public AdminDashboardSubmissionQueueTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     // ── In-memory repo: photos ──────────────────────────────────────────────
@@ -270,11 +270,29 @@ public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplic
         Assert.Contains("Photos", body);
         Assert.Contains("News suggestions", body);
         Assert.Contains("Articles", body);
+        Assert.Contains("Trivia suggestions", body);
+        Assert.Contains("Quiz question suggestions", body);
         Assert.Contains("/admin/photo-submissions", body);
         Assert.Contains("/admin/news-suggestions", body);
         Assert.Contains("/admin/articles", body);
+        Assert.Contains("/admin/trivia-submissions", body);
+        Assert.Contains("/admin/quiz-question-submissions", body);
         Assert.Contains("Fan performances", body);
         Assert.Contains("/admin/fan-performance-submissions", body);
+        Assert.Equal(
+            [
+                "Help requests",
+                "Reported messages",
+                "Reported forum posts",
+                "Fan performance reports",
+                "Photos",
+                "News suggestions",
+                "Articles",
+                "Trivia suggestions",
+                "Quiz question suggestions",
+                "Fan performances",
+            ],
+            ExtractQueueTileLabels(body));
         Assert.DoesNotContain("stale", body, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -320,6 +338,12 @@ public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplic
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private static IReadOnlyList<string> ExtractQueueTileLabels(string html) =>
+        System.Text.RegularExpressions.Regex
+            .Matches(html, """class="admin-dashboard__queue-tile-label">([^<]+)</span>""")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
 
     private static MemberAccount SampleMember() =>
         new()

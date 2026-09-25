@@ -104,6 +104,45 @@ public static class ContentApiMapper
             poll.ViewerHasVoted,
             poll.SelectedOptionId);
 
+    public static QuizListItemDto ToQuizListItemDto(QuizListItem quiz) =>
+        new(quiz.Id, quiz.Title, quiz.Description, quiz.QuestionCount);
+
+    public static QuizDetailDto ToQuizDetailDto(QuizPlayView quiz) =>
+        new(
+            quiz.Id,
+            quiz.Title,
+            quiz.Description,
+            quiz.Questions
+                .Select(question => new QuizQuestionDto(
+                    question.Id,
+                    question.Text,
+                    question.Points,
+                    question.Options
+                        .Select(option => new QuizOptionDto(option.Id, option.Text))
+                        .ToList()))
+                .ToList());
+
+    public static QuizResultDto ToQuizResultDto(QuizSubmissionResult result) =>
+        new(
+            result.QuizId,
+            result.QuizTitle,
+            result.Score,
+            result.MaxScore,
+            result.CorrectCount,
+            result.QuestionCount,
+            result.Recorded,
+            result.Answers
+                .Select(answer => new QuizAnswerResultDto(
+                    answer.QuestionId,
+                    answer.QuestionText,
+                    answer.SelectedOptionId,
+                    answer.SelectedOptionText,
+                    answer.CorrectOptionId,
+                    answer.CorrectOptionText,
+                    answer.IsCorrect,
+                    answer.PointsAwarded))
+                .ToList());
+
     public static TimelineEventDto ToTimelineEvent(QueenHistoryEvent historyEvent) =>
         new(
             historyEvent.Id,
@@ -157,7 +196,7 @@ public static class ContentApiMapper
             chapter.Id,
             chapter.Title,
             BiographyContent.GetListSummary(chapter),
-            chapter.Body,
+            BiographyContent.FormatBody(chapter.Body),
             chapter.DisplaySequence,
             BiographyRoutes.GetChapterDetailPath(chapter),
             ToBiographyChapterNavDto(navigation.Previous),
@@ -185,14 +224,19 @@ public static class ContentApiMapper
             album.Name,
             album.ReleaseYear,
             album.ArtistName,
-            album.GeneralNotes,
+            album.GeneralNotes is null ? null : NewsArticleContent.FormatBody(album.GeneralNotes),
             album.CoverUrl,
             DiscographyRoutes.GetAlbumPath(album.AlbumId, album.Slug),
             ToAlbumSongs(album.Songs));
 
     private static IReadOnlyList<AlbumSongDto> ToAlbumSongs(IEnumerable<AlbumSong> songs) =>
         songs
-            .Select(song => new AlbumSongDto(song.SongId, song.Title, song.IsSingle, song.Lyrics, song.Notes))
+            .Select(song => new AlbumSongDto(
+                song.SongId,
+                song.Title,
+                song.IsSingle,
+                song.Lyrics is null ? null : LyricsFormatter.Format(song.Lyrics),
+                song.Notes))
             .ToList();
 
     public static FreddieTributeDto ToFreddieTributeDto(FreddieTribute tribute) =>
@@ -292,14 +336,12 @@ public static class ContentApiMapper
             performance.ContributorDisplayName);
 
     public static IReadOnlyList<FanPerformanceDto> ToFanPerformanceDtos(
-        IReadOnlyList<FanPerformance> items,
-        IReadOnlyList<int?> durations)
+        IReadOnlyList<FanPerformance> items)
     {
         var mapped = new FanPerformanceDto[items.Count];
         for (var i = 0; i < items.Count; i++)
         {
-            var duration = i < durations.Count ? durations[i] : items[i].DurationSeconds;
-            mapped[i] = ToFanPerformanceDto(items[i], duration);
+            mapped[i] = ToFanPerformanceDto(items[i], items[i].DurationSeconds);
         }
 
         return mapped;

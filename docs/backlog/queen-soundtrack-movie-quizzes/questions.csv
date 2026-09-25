@@ -1,0 +1,401 @@
+QuizTitle,QuizDescription,QuestionText,Category,Difficulty,Points,OptionText,IsCorrect
+Flash Gordon: The Movie,"Fifty questions about the 1980 film Flash Gordon, including its story, characters, production, and Queen soundtrack.",Who plays Flash Gordon in the 1980 film?,Cast,easy,1,Sam J. Jones,true
+Flash Gordon: The Movie,,Who plays Flash Gordon in the 1980 film?,,,,Timothy Dalton,false
+Flash Gordon: The Movie,,Who plays Flash Gordon in the 1980 film?,,,,Brian Blessed,false
+Flash Gordon: The Movie,,Who plays Flash Gordon in the 1980 film?,,,,Richard O'Brien,false
+Flash Gordon: The Movie,,Who plays Dale Arden?,Cast,easy,1,Ornella Muti,false
+Flash Gordon: The Movie,,Who plays Dale Arden?,,,,Melody Anderson,true
+Flash Gordon: The Movie,,Who plays Dale Arden?,,,,Mariangela Melato,false
+Flash Gordon: The Movie,,Who plays Dale Arden?,,,,Suzanne Danielle,false
+Flash Gordon: The Movie,,Who portrays Ming the Merciless?,Cast,easy,1,Topol,false
+Flash Gordon: The Movie,,Who portrays Ming the Merciless?,,,,Peter Wyngarde,false
+Flash Gordon: The Movie,,Who portrays Ming the Merciless?,,,,Max von Sydow,true
+Flash Gordon: The Movie,,Who portrays Ming the Merciless?,,,,Timothy Dalton,false
+Flash Gordon: The Movie,,Who plays Dr. Hans Zarkov?,Cast,easy,1,Brian Blessed,false
+Flash Gordon: The Movie,,Who plays Dr. Hans Zarkov?,,,,Sam J. Jones,false
+Flash Gordon: The Movie,,Who plays Dr. Hans Zarkov?,,,,Philip Stone,false
+Flash Gordon: The Movie,,Who plays Dr. Hans Zarkov?,,,,Topol,true
+Flash Gordon: The Movie,,Who plays Prince Barin?,Cast,easy,1,Timothy Dalton,true
+Flash Gordon: The Movie,,Who plays Prince Barin?,,,,Richard O'Brien,false
+Flash Gordon: The Movie,,Who plays Prince Barin?,,,,Peter Wyngarde,false
+Flash Gordon: The Movie,,Who plays Prince Barin?,,,,John Hallam,false
+Flash Gordon: The Movie,,Who plays Prince Vultan?,Cast,easy,1,Max von Sydow,false
+Flash Gordon: The Movie,,Who plays Prince Vultan?,,,,Brian Blessed,true
+Flash Gordon: The Movie,,Who plays Prince Vultan?,,,,Topol,false
+Flash Gordon: The Movie,,Who plays Prince Vultan?,,,,Sam J. Jones,false
+Flash Gordon: The Movie,,Who plays the masked Klytus?,Cast,easy,1,Timothy Dalton,false
+Flash Gordon: The Movie,,Who plays the masked Klytus?,,,,Philip Stone,false
+Flash Gordon: The Movie,,Who plays the masked Klytus?,,,,Peter Wyngarde,true
+Flash Gordon: The Movie,,Who plays the masked Klytus?,,,,Richard O'Brien,false
+Flash Gordon: The Movie,,Who plays Princess Aura?,Cast,easy,1,Melody Anderson,false
+Flash Gordon: The Movie,,Who plays Princess Aura?,,,,Mariangela Melato,false
+Flash Gordon: The Movie,,Who plays Princess Aura?,,,,Adrienne Kronenberg,false
+Flash Gordon: The Movie,,Who plays Princess Aura?,,,,Ornella Muti,true
+Flash Gordon: The Movie,,"To which planet do Flash, Dale, and Zarkov travel?",Story,easy,1,Mongo,true
+Flash Gordon: The Movie,,"To which planet do Flash, Dale, and Zarkov travel?",,,,Krypton,false
+Flash Gordon: The Movie,,"To which planet do Flash, Dale, and Zarkov travel?",,,,Arrakis,false
+Flash Gordon: The Movie,,"To which planet do Flash, Dale, and Zarkov travel?",,,,Vulcan,false
+Flash Gordon: The Movie,,What is Flash Gordon's profession on Earth?,Characters,easy,1,Airline pilot,false
+Flash Gordon: The Movie,,What is Flash Gordon's profession on Earth?,,,,New York Jets quarterback,true
+Flash Gordon: The Movie,,What is Flash Gordon's profession on Earth?,,,,Travel agent,false
+Flash Gordon: The Movie,,What is Flash Gordon's profession on Earth?,,,,Rocket scientist,false
+Flash Gordon: The Movie,,Which band composed and performed the film's rock soundtrack?,Queen music,easy,1,The Who,false
+Flash Gordon: The Movie,,Which band composed and performed the film's rock soundtrack?,,,,Genesis,false
+Flash Gordon: The Movie,,Which band composed and performed the film's rock soundtrack?,,,,Queen,true
+Flash Gordon: The Movie,,Which band composed and performed the film's rock soundtrack?,,,,Electric Light Orchestra,false
+Flash Gordon: The Movie,,Who directed Flash Gordon?,Crew,easy,1,Dino De Laurentiis,false
+Flash Gordon: The Movie,,Who directed Flash Gordon?,,,,Lorenzo Semple Jr.,false
+Flash Gordon: The Movie,,Who directed Flash Gordon?,,,,Gilbert Taylor,false
+Flash Gordon: The Movie,,Who directed Flash Gordon?,,,,Mike Hodges,true
+Flash Gordon: The Movie,,In which year was the film released?,Film facts,easy,1,1980,true
+Flash Gordon: The Movie,,In which year was the film released?,,,,1977,false
+Flash Gordon: The Movie,,In which year was the film released?,,,,1983,false
+Flash Gordon: The Movie,,In which year was the film released?,,,,1986,false
+Flash Gordon: The Movie,,What US rating did the film receive?,Film facts,easy,1,G,false
+Flash Gordon: The Movie,,What US rating did the film receive?,,,,PG,true
+Flash Gordon: The Movie,,What US rating did the film receive?,,,,PG-13,false
+Flash Gordon: The Movie,,What US rating did the film receive?,,,,R,false
+Flash Gordon: The Movie,,Who created the comic-strip character on which the film is based?,Origins,easy,1,Stan Lee,false
+Flash Gordon: The Movie,,Who created the comic-strip character on which the film is based?,,,,Will Eisner,false
+Flash Gordon: The Movie,,Who created the comic-strip character on which the film is based?,,,,Alex Raymond,true
+Flash Gordon: The Movie,,Who created the comic-strip character on which the film is based?,,,,Jack Kirby,false
+Flash Gordon: The Movie,,Which ruler is threatening Earth?,Story,easy,1,Prince Barin,false
+Flash Gordon: The Movie,,Which ruler is threatening Earth?,,,,Prince Vultan,false
+Flash Gordon: The Movie,,Which ruler is threatening Earth?,,,,General Kala,false
+Flash Gordon: The Movie,,Which ruler is threatening Earth?,,,,Ming the Merciless,true
+Flash Gordon: The Movie,,Who owns the rocket that carries the heroes away from Earth?,Story,easy,1,Dr. Hans Zarkov,true
+Flash Gordon: The Movie,,Who owns the rocket that carries the heroes away from Earth?,,,,Flash Gordon,false
+Flash Gordon: The Movie,,Who owns the rocket that carries the heroes away from Earth?,,,,Dale Arden,false
+Flash Gordon: The Movie,,Who owns the rocket that carries the heroes away from Earth?,,,,Prince Barin,false
+Flash Gordon: The Movie,,What is Dale Arden's occupation in the film?,Characters,medium,2,Television reporter,false
+Flash Gordon: The Movie,,What is Dale Arden's occupation in the film?,,,,Travel agent,true
+Flash Gordon: The Movie,,What is Dale Arden's occupation in the film?,,,,Astronomer,false
+Flash Gordon: The Movie,,What is Dale Arden's occupation in the film?,,,,Airline pilot,false
+Flash Gordon: The Movie,,What cosmic danger is threatening Earth near the start of the film?,Story,medium,2,The Sun is rapidly cooling,false
+Flash Gordon: The Movie,,What cosmic danger is threatening Earth near the start of the film?,,,,Mars is colliding with Earth,false
+Flash Gordon: The Movie,,What cosmic danger is threatening Earth near the start of the film?,,,,The Moon is being pulled out of orbit,true
+Flash Gordon: The Movie,,What cosmic danger is threatening Earth near the start of the film?,,,,A black hole has appeared,false
+Flash Gordon: The Movie,,What does Ming intend to make Dale?,Story,medium,2,Governor of Arboria,false
+Flash Gordon: The Movie,,What does Ming intend to make Dale?,,,,Leader of the Hawkmen,false
+Flash Gordon: The Movie,,What does Ming intend to make Dale?,,,,His chief scientist,false
+Flash Gordon: The Movie,,What does Ming intend to make Dale?,,,,His bride,true
+Flash Gordon: The Movie,,Who secretly arranges for Flash to survive his execution?,Story,medium,2,Princess Aura,true
+Flash Gordon: The Movie,,Who secretly arranges for Flash to survive his execution?,,,,Dale Arden,false
+Flash Gordon: The Movie,,Who secretly arranges for Flash to survive his execution?,,,,General Kala,false
+Flash Gordon: The Movie,,Who secretly arranges for Flash to survive his execution?,,,,Prince Vultan,false
+Flash Gordon: The Movie,,Which kingdom is ruled by Prince Barin?,Locations,medium,2,Sky City,false
+Flash Gordon: The Movie,,Which kingdom is ruled by Prince Barin?,,,,Arboria,true
+Flash Gordon: The Movie,,Which kingdom is ruled by Prince Barin?,,,,Mingo City,false
+Flash Gordon: The Movie,,Which kingdom is ruled by Prince Barin?,,,,Frigia,false
+Flash Gordon: The Movie,,Which people inhabit Sky City?,Characters,medium,2,The Tree Men,false
+Flash Gordon: The Movie,,Which people inhabit Sky City?,,,,Ming's secret police,false
+Flash Gordon: The Movie,,Which people inhabit Sky City?,,,,The Hawkmen,true
+Flash Gordon: The Movie,,Which people inhabit Sky City?,,,,The Azurians,false
+Flash Gordon: The Movie,,What dangerous ritual does Barin force Flash to attempt in Arboria?,Story,medium,2,Crossing a bridge of fire,false
+Flash Gordon: The Movie,,What dangerous ritual does Barin force Flash to attempt in Arboria?,,,,Fighting blindfolded above a volcano,false
+Flash Gordon: The Movie,,What dangerous ritual does Barin force Flash to attempt in Arboria?,,,,Drinking from a poisoned chalice,false
+Flash Gordon: The Movie,,What dangerous ritual does Barin force Flash to attempt in Arboria?,,,,Reaching into a stump containing a deadly creature,true
+Flash Gordon: The Movie,,Which war rocket do Flash and the Hawkmen seize?,Story,medium,2,Ajax,true
+Flash Gordon: The Movie,,Which war rocket do Flash and the Hawkmen seize?,,,,Apollo,false
+Flash Gordon: The Movie,,Which war rocket do Flash and the Hawkmen seize?,,,,Atlas,false
+Flash Gordon: The Movie,,Which war rocket do Flash and the Hawkmen seize?,,,,Argo,false
+Flash Gordon: The Movie,,How does Flash fatally strike Ming?,Story,medium,2,He pushes him from Sky City,false
+Flash Gordon: The Movie,,How does Flash fatally strike Ming?,,,,He impales him with the nose of Ajax,true
+Flash Gordon: The Movie,,How does Flash fatally strike Ming?,,,,He uses Barin's sword,false
+Flash Gordon: The Movie,,How does Flash fatally strike Ming?,,,,He traps him in the brain-drain machine,false
+Flash Gordon: The Movie,,Which Earth sport does Flash imitate during the palace fight?,Story,medium,2,Baseball,false
+Flash Gordon: The Movie,,Which Earth sport does Flash imitate during the palace fight?,,,,Ice hockey,false
+Flash Gordon: The Movie,,Which Earth sport does Flash imitate during the palace fight?,,,,American football,true
+Flash Gordon: The Movie,,Which Earth sport does Flash imitate during the palace fight?,,,,Basketball,false
+Flash Gordon: The Movie,,What machine is used in an attempt to recondition Zarkov?,Story,medium,2,A time portal,false
+Flash Gordon: The Movie,,What machine is used in an attempt to recondition Zarkov?,,,,A cloning chamber,false
+Flash Gordon: The Movie,,What machine is used in an attempt to recondition Zarkov?,,,,A cryogenic pod,false
+Flash Gordon: The Movie,,What machine is used in an attempt to recondition Zarkov?,,,,A brain-drain machine,true
+Flash Gordon: The Movie,,Who commands the Hawkmen?,Characters,medium,2,Prince Vultan,true
+Flash Gordon: The Movie,,Who commands the Hawkmen?,,,,Prince Barin,false
+Flash Gordon: The Movie,,Who commands the Hawkmen?,,,,Klytus,false
+Flash Gordon: The Movie,,Who commands the Hawkmen?,,,,General Kala,false
+Flash Gordon: The Movie,,Who rules Arboria?,Characters,medium,2,Prince Vultan,false
+Flash Gordon: The Movie,,Who rules Arboria?,,,,Prince Barin,true
+Flash Gordon: The Movie,,Who rules Arboria?,,,,Ming,false
+Flash Gordon: The Movie,,Who rules Arboria?,,,,Dr. Zarkov,false
+Flash Gordon: The Movie,,Which famous exclamation is delivered by Prince Vultan?,Dialogue,medium,2,There can be only one!,false
+Flash Gordon: The Movie,,Which famous exclamation is delivered by Prince Vultan?,,,,May the Force be with you!,false
+Flash Gordon: The Movie,,Which famous exclamation is delivered by Prince Vultan?,,,,Gordon's alive!,true
+Flash Gordon: The Movie,,Which famous exclamation is delivered by Prince Vultan?,,,,Kneel before Zod!,false
+Flash Gordon: The Movie,,Who wrote Queen's 'Flash's Theme'?,Queen music,medium,2,Freddie Mercury,false
+Flash Gordon: The Movie,,Who wrote Queen's 'Flash's Theme'?,,,,Roger Taylor,false
+Flash Gordon: The Movie,,Who wrote Queen's 'Flash's Theme'?,,,,John Deacon,false
+Flash Gordon: The Movie,,Who wrote Queen's 'Flash's Theme'?,,,,Brian May,true
+Flash Gordon: The Movie,,Which Queen song plays over the film's closing credits?,Queen music,medium,2,The Hero,true
+Flash Gordon: The Movie,,Which Queen song plays over the film's closing credits?,,,,Flash's Theme,false
+Flash Gordon: The Movie,,Which Queen song plays over the film's closing credits?,,,,The Wedding March,false
+Flash Gordon: The Movie,,Which Queen song plays over the film's closing credits?,,,,Football Fight,false
+Flash Gordon: The Movie,,Who becomes the new ruler of Mongo after Ming's apparent defeat?,Story,medium,2,Prince Vultan,false
+Flash Gordon: The Movie,,Who becomes the new ruler of Mongo after Ming's apparent defeat?,,,,Prince Barin,true
+Flash Gordon: The Movie,,Who becomes the new ruler of Mongo after Ming's apparent defeat?,,,,Dr. Zarkov,false
+Flash Gordon: The Movie,,Who becomes the new ruler of Mongo after Ming's apparent defeat?,,,,Flash Gordon,false
+Flash Gordon: The Movie,,Who plays General Kala?,Cast,hard,3,Ornella Muti,false
+Flash Gordon: The Movie,,Who plays General Kala?,,,,Melody Anderson,false
+Flash Gordon: The Movie,,Who plays General Kala?,,,,Mariangela Melato,true
+Flash Gordon: The Movie,,Who plays General Kala?,,,,Suzanne Danielle,false
+Flash Gordon: The Movie,,"Who plays Fico, one of Prince Barin's followers?",Cast,hard,3,John Hallam,false
+Flash Gordon: The Movie,,"Who plays Fico, one of Prince Barin's followers?",,,,Philip Stone,false
+Flash Gordon: The Movie,,"Who plays Fico, one of Prince Barin's followers?",,,,William Hootkins,false
+Flash Gordon: The Movie,,"Who plays Fico, one of Prince Barin's followers?",,,,Richard O'Brien,true
+Flash Gordon: The Movie,,"Who plays Zogi, the high priest?",Cast,hard,3,Philip Stone,true
+Flash Gordon: The Movie,,"Who plays Zogi, the high priest?",,,,Peter Wyngarde,false
+Flash Gordon: The Movie,,"Who plays Zogi, the high priest?",,,,Richard O'Brien,false
+Flash Gordon: The Movie,,"Who plays Zogi, the high priest?",,,,John Osborne,false
+Flash Gordon: The Movie,,Who wrote the film's credited screenplay?,Crew,hard,3,Michael Allin,false
+Flash Gordon: The Movie,,Who wrote the film's credited screenplay?,,,,Lorenzo Semple Jr.,true
+Flash Gordon: The Movie,,Who wrote the film's credited screenplay?,,,,Alex Raymond,false
+Flash Gordon: The Movie,,Who wrote the film's credited screenplay?,,,,Mike Hodges,false
+Flash Gordon: The Movie,,Who produced the film?,Crew,hard,3,Mike Hodges,false
+Flash Gordon: The Movie,,Who produced the film?,,,,Bernard Williams,false
+Flash Gordon: The Movie,,Who produced the film?,,,,Dino De Laurentiis,true
+Flash Gordon: The Movie,,Who produced the film?,,,,Howard Blake,false
+Flash Gordon: The Movie,,Who was the film's director of photography?,Crew,hard,3,Malcolm Cooke,false
+Flash Gordon: The Movie,,Who was the film's director of photography?,,,,Danilo Donati,false
+Flash Gordon: The Movie,,Who was the film's director of photography?,,,,Howard Blake,false
+Flash Gordon: The Movie,,Who was the film's director of photography?,,,,Gilbert Taylor,true
+Flash Gordon: The Movie,,Who edited the film?,Crew,hard,3,Malcolm Cooke,true
+Flash Gordon: The Movie,,Who edited the film?,,,,Gilbert Taylor,false
+Flash Gordon: The Movie,,Who edited the film?,,,,Lorenzo Semple Jr.,false
+Flash Gordon: The Movie,,Who edited the film?,,,,Danilo Donati,false
+Flash Gordon: The Movie,,Who designed both the film's production and costumes?,Crew,hard,3,Gilbert Taylor,false
+Flash Gordon: The Movie,,Who designed both the film's production and costumes?,,,,Danilo Donati,true
+Flash Gordon: The Movie,,Who designed both the film's production and costumes?,,,,Howard Blake,false
+Flash Gordon: The Movie,,Who designed both the film's production and costumes?,,,,John Graysmark,false
+Flash Gordon: The Movie,,What running time does the AFI Catalog list?,Film facts,hard,3,96 minutes,false
+Flash Gordon: The Movie,,What running time does the AFI Catalog list?,,,,124 minutes,false
+Flash Gordon: The Movie,,What running time does the AFI Catalog list?,,,,111 minutes,true
+Flash Gordon: The Movie,,What running time does the AFI Catalog list?,,,,140 minutes,false
+Flash Gordon: The Movie,,On what date did the film open in Los Angeles and New York?,Release,hard,3,8 December 1980,false
+Flash Gordon: The Movie,,On what date did the film open in Los Angeles and New York?,,,,11 December 1980,false
+Flash Gordon: The Movie,,On what date did the film open in Los Angeles and New York?,,,,27 January 1981,false
+Flash Gordon: The Movie,,On what date did the film open in Los Angeles and New York?,,,,5 December 1980,true
+Flash Gordon: The Movie,,Which company distributed the film in the United States?,Production,hard,3,Universal Pictures,true
+Flash Gordon: The Movie,,Which company distributed the film in the United States?,,,,Paramount Pictures,false
+Flash Gordon: The Movie,,Which company distributed the film in the United States?,,,,United Artists,false
+Flash Gordon: The Movie,,Which company distributed the film in the United States?,,,,Columbia Pictures,false
+Flash Gordon: The Movie,,When did principal photography begin in England?,Production,hard,3,5 December 1980,false
+Flash Gordon: The Movie,,When did principal photography begin in England?,,,,6 August 1979,true
+Flash Gordon: The Movie,,When did principal photography begin in England?,,,,1 January 1978,false
+Flash Gordon: The Movie,,When did principal photography begin in England?,,,,12 March 1981,false
+Flash Gordon: The Movie,,How many tracks comprised Queen's finished soundtrack album?,Queen music,hard,3,12,false
+Flash Gordon: The Movie,,How many tracks comprised Queen's finished soundtrack album?,,,,9,false
+Flash Gordon: The Movie,,How many tracks comprised Queen's finished soundtrack album?,,,,18,true
+Flash Gordon: The Movie,,How many tracks comprised Queen's finished soundtrack album?,,,,24,false
+Flash Gordon: The Movie,,Who supplied the additional orchestral arrangements?,Queen music,hard,3,Michael Kamen,false
+Flash Gordon: The Movie,,Who supplied the additional orchestral arrangements?,,,,John Williams,false
+Flash Gordon: The Movie,,Who supplied the additional orchestral arrangements?,,,,Vangelis,false
+Flash Gordon: The Movie,,Who supplied the additional orchestral arrangements?,,,,Howard Blake,true
+Flash Gordon: The Movie,,At which studio was the soundtrack recorded?,Queen music,hard,3,Anvil Studios,true
+Flash Gordon: The Movie,,At which studio was the soundtrack recorded?,,,,Abbey Road Studios,false
+Flash Gordon: The Movie,,At which studio was the soundtrack recorded?,,,,Rockfield Studios,false
+Flash Gordon: The Movie,,At which studio was the soundtrack recorded?,,,,Mountain Studios,false
+Flash Gordon: The Movie,,On what date was Queen's Flash Gordon album released in the UK?,Queen music,hard,3,5 December 1980,false
+Flash Gordon: The Movie,,On what date was Queen's Flash Gordon album released in the UK?,,,,8 December 1980,true
+Flash Gordon: The Movie,,On what date was Queen's Flash Gordon album released in the UK?,,,,27 January 1981,false
+Flash Gordon: The Movie,,On what date was Queen's Flash Gordon album released in the UK?,,,,11 December 1980,false
+Highlander: The Movie,"Fifty questions about the 1986 film Highlander, including its immortals, cast, production, and Queen music.",Who plays Connor MacLeod?,Cast,easy,1,Christopher Lambert,true
+Highlander: The Movie,,Who plays Connor MacLeod?,,,,Sean Connery,false
+Highlander: The Movie,,Who plays Connor MacLeod?,,,,Clancy Brown,false
+Highlander: The Movie,,Who plays Connor MacLeod?,,,,Hugh Quarshie,false
+Highlander: The Movie,,Who plays Juan Sánchez-Villalobos Ramírez?,Cast,easy,1,Christopher Lambert,false
+Highlander: The Movie,,Who plays Juan Sánchez-Villalobos Ramírez?,,,,Sean Connery,true
+Highlander: The Movie,,Who plays Juan Sánchez-Villalobos Ramírez?,,,,Clancy Brown,false
+Highlander: The Movie,,Who plays Juan Sánchez-Villalobos Ramírez?,,,,Jon Polito,false
+Highlander: The Movie,,Who plays the Kurgan?,Cast,easy,1,Sean Connery,false
+Highlander: The Movie,,Who plays the Kurgan?,,,,Alan North,false
+Highlander: The Movie,,Who plays the Kurgan?,,,,Clancy Brown,true
+Highlander: The Movie,,Who plays the Kurgan?,,,,Peter Diamond,false
+Highlander: The Movie,,Who plays Brenda Wyatt?,Cast,easy,1,Beatie Edney,false
+Highlander: The Movie,,Who plays Brenda Wyatt?,,,,Sheila Gish,false
+Highlander: The Movie,,Who plays Brenda Wyatt?,,,,Celia Imrie,false
+Highlander: The Movie,,Who plays Brenda Wyatt?,,,,Roxanne Hart,true
+Highlander: The Movie,,"Who plays Connor's wife, Heather?",Cast,easy,1,Beatie Edney,true
+Highlander: The Movie,,"Who plays Connor's wife, Heather?",,,,Roxanne Hart,false
+Highlander: The Movie,,"Who plays Connor's wife, Heather?",,,,Sheila Gish,false
+Highlander: The Movie,,"Who plays Connor's wife, Heather?",,,,Celia Imrie,false
+Highlander: The Movie,,Who directed Highlander?,Crew,easy,1,Gregory Widen,false
+Highlander: The Movie,,Who directed Highlander?,,,,Russell Mulcahy,true
+Highlander: The Movie,,Who directed Highlander?,,,,Peter S. Davis,false
+Highlander: The Movie,,Who directed Highlander?,,,,Michael Kamen,false
+Highlander: The Movie,,In which year was Highlander released?,Film facts,easy,1,1984,false
+Highlander: The Movie,,In which year was Highlander released?,,,,1988,false
+Highlander: The Movie,,In which year was Highlander released?,,,,1986,true
+Highlander: The Movie,,In which year was Highlander released?,,,,1991,false
+Highlander: The Movie,,In which modern city does most of the film take place?,Locations,easy,1,London,false
+Highlander: The Movie,,In which modern city does most of the film take place?,,,,Paris,false
+Highlander: The Movie,,In which modern city does most of the film take place?,,,,Madrid,false
+Highlander: The Movie,,In which modern city does most of the film take place?,,,,New York City,true
+Highlander: The Movie,,From which part of Scotland does Connor MacLeod come?,Locations,easy,1,The Scottish Highlands,true
+Highlander: The Movie,,From which part of Scotland does Connor MacLeod come?,,,,The Orkney Islands,false
+Highlander: The Movie,,From which part of Scotland does Connor MacLeod come?,,,,The Borders,false
+Highlander: The Movie,,From which part of Scotland does Connor MacLeod come?,,,,The Hebrides,false
+Highlander: The Movie,,In what year is Connor first killed in battle?,Story,easy,1,1066,false
+Highlander: The Movie,,In what year is Connor first killed in battle?,,,,1536,true
+Highlander: The Movie,,In what year is Connor first killed in battle?,,,,1746,false
+Highlander: The Movie,,In what year is Connor first killed in battle?,,,,1815,false
+Highlander: The Movie,,How can an immortal be permanently killed?,Rules,easy,1,By drowning,false
+Highlander: The Movie,,How can an immortal be permanently killed?,,,,By fire,false
+Highlander: The Movie,,How can an immortal be permanently killed?,,,,By decapitation,true
+Highlander: The Movie,,How can an immortal be permanently killed?,,,,By a silver bullet,false
+Highlander: The Movie,,Which phrase describes the immortals' ultimate rule?,Dialogue,easy,1,May the best man win,false
+Highlander: The Movie,,Which phrase describes the immortals' ultimate rule?,,,,Live and let live,false
+Highlander: The Movie,,Which phrase describes the immortals' ultimate rule?,,,,No one lives forever,false
+Highlander: The Movie,,Which phrase describes the immortals' ultimate rule?,,,,There can be only one,true
+Highlander: The Movie,,What is the final convergence of the remaining immortals called?,Rules,easy,1,The Gathering,true
+Highlander: The Movie,,What is the final convergence of the remaining immortals called?,,,,The Reckoning,false
+Highlander: The Movie,,What is the final convergence of the remaining immortals called?,,,,The Convergence,false
+Highlander: The Movie,,What is the final convergence of the remaining immortals called?,,,,The Ascension,false
+Highlander: The Movie,,What do the immortals call the reward awaiting the last survivor?,Rules,easy,1,The Crown,false
+Highlander: The Movie,,What do the immortals call the reward awaiting the last survivor?,,,,The Prize,true
+Highlander: The Movie,,What do the immortals call the reward awaiting the last survivor?,,,,The Gift,false
+Highlander: The Movie,,What do the immortals call the reward awaiting the last survivor?,,,,The Legacy,false
+Highlander: The Movie,,Which band supplied the film's songs?,Queen music,easy,1,U2,false
+Highlander: The Movie,,Which band supplied the film's songs?,,,,Duran Duran,false
+Highlander: The Movie,,Which band supplied the film's songs?,,,,Queen,true
+Highlander: The Movie,,Which band supplied the film's songs?,,,,Simple Minds,false
+Highlander: The Movie,,Which Queen song accompanies the opening credits?,Queen music,easy,1,A Kind of Magic,false
+Highlander: The Movie,,Which Queen song accompanies the opening credits?,,,,Who Wants to Live Forever,false
+Highlander: The Movie,,Which Queen song accompanies the opening credits?,,,,One Year of Love,false
+Highlander: The Movie,,Which Queen song accompanies the opening credits?,,,,Princes of the Universe,true
+Highlander: The Movie,,What kind of beings are Connor and the Kurgan?,Story,easy,1,Immortals,true
+Highlander: The Movie,,What kind of beings are Connor and the Kurgan?,,,,Vampires,false
+Highlander: The Movie,,What kind of beings are Connor and the Kurgan?,,,,Aliens,false
+Highlander: The Movie,,What kind of beings are Connor and the Kurgan?,,,,Sorcerers,false
+Highlander: The Movie,,Which modern alias does Connor use in New York?,Characters,medium,2,Frank Moran,false
+Highlander: The Movie,,Which modern alias does Connor use in New York?,,,,Russell Edwin Nash,true
+Highlander: The Movie,,Which modern alias does Connor use in New York?,,,,Walter Bedsoe,false
+Highlander: The Movie,,Which modern alias does Connor use in New York?,,,,Aman Fasil,false
+Highlander: The Movie,,What business does Connor operate in New York?,Characters,medium,2,A fencing school,false
+Highlander: The Movie,,What business does Connor operate in New York?,,,,A nightclub,false
+Highlander: The Movie,,What business does Connor operate in New York?,,,,An antique shop,true
+Highlander: The Movie,,What business does Connor operate in New York?,,,,A private investigation agency,false
+Highlander: The Movie,,What is Brenda Wyatt's professional specialty?,Characters,medium,2,Ancient languages,false
+Highlander: The Movie,,What is Brenda Wyatt's professional specialty?,,,,Criminal psychology,false
+Highlander: The Movie,,What is Brenda Wyatt's professional specialty?,,,,Emergency medicine,false
+Highlander: The Movie,,What is Brenda Wyatt's professional specialty?,,,,Forensic metallurgy,true
+Highlander: The Movie,,Which immortal does Connor fight in the opening parking-garage sequence?,Characters,medium,2,Aman Fasil,true
+Highlander: The Movie,,Which immortal does Connor fight in the opening parking-garage sequence?,,,,Sunda Kastagir,false
+Highlander: The Movie,,Which immortal does Connor fight in the opening parking-garage sequence?,,,,The Kurgan,false
+Highlander: The Movie,,Which immortal does Connor fight in the opening parking-garage sequence?,,,,Ramírez,false
+Highlander: The Movie,,Beneath which venue does Connor's first modern duel occur?,Locations,medium,2,Yankee Stadium,false
+Highlander: The Movie,,Beneath which venue does Connor's first modern duel occur?,,,,Madison Square Garden,true
+Highlander: The Movie,,Beneath which venue does Connor's first modern duel occur?,,,,Carnegie Hall,false
+Highlander: The Movie,,Beneath which venue does Connor's first modern duel occur?,,,,Grand Central Terminal,false
+Highlander: The Movie,,What type of sword does Ramírez give Connor?,Props,medium,2,A claymore,false
+Highlander: The Movie,,What type of sword does Ramírez give Connor?,,,,A rapier,false
+Highlander: The Movie,,What type of sword does Ramírez give Connor?,,,,A katana,true
+Highlander: The Movie,,What type of sword does Ramírez give Connor?,,,,A sabre,false
+Highlander: The Movie,,What is Ramírez's first name?,Characters,medium,2,Diego,false
+Highlander: The Movie,,What is Ramírez's first name?,,,,Alejandro,false
+Highlander: The Movie,,What is Ramírez's first name?,,,,Miguel,false
+Highlander: The Movie,,What is Ramírez's first name?,,,,Juan,true
+Highlander: The Movie,,What ultimately causes Heather's death?,Story,medium,2,Old age,true
+Highlander: The Movie,,What ultimately causes Heather's death?,,,,The Kurgan,false
+Highlander: The Movie,,What ultimately causes Heather's death?,,,,An accident,false
+Highlander: The Movie,,What ultimately causes Heather's death?,,,,Illness during childbirth,false
+Highlander: The Movie,,Why is Connor banished from his clan?,Story,medium,2,He refuses to fight the Kurgan,false
+Highlander: The Movie,,Why is Connor banished from his clan?,,,,They believe his resurrection is witchcraft,true
+Highlander: The Movie,,Why is Connor banished from his clan?,,,,He steals the clan sword,false
+Highlander: The Movie,,Why is Connor banished from his clan?,,,,He marries an outsider,false
+Highlander: The Movie,,Who kills Ramírez?,Story,medium,2,Connor MacLeod,false
+Highlander: The Movie,,Who kills Ramírez?,,,,Aman Fasil,false
+Highlander: The Movie,,Who kills Ramírez?,,,,The Kurgan,true
+Highlander: The Movie,,Who kills Ramírez?,,,,Sunda Kastagir,false
+Highlander: The Movie,,Whom does the Kurgan kidnap before the final confrontation?,Story,medium,2,Rachel Ellenstein,false
+Highlander: The Movie,,Whom does the Kurgan kidnap before the final confrontation?,,,,Heather MacLeod,false
+Highlander: The Movie,,Whom does the Kurgan kidnap before the final confrontation?,,,,Kate MacLeod,false
+Highlander: The Movie,,Whom does the Kurgan kidnap before the final confrontation?,,,,Brenda Wyatt,true
+Highlander: The Movie,,Which fellow immortal is an old friend of Connor in modern New York?,Characters,medium,2,Sunda Kastagir,true
+Highlander: The Movie,,Which fellow immortal is an old friend of Connor in modern New York?,,,,Aman Fasil,false
+Highlander: The Movie,,Which fellow immortal is an old friend of Connor in modern New York?,,,,Kirk Matunas,false
+Highlander: The Movie,,Which fellow immortal is an old friend of Connor in modern New York?,,,,Walter Bedsoe,false
+Highlander: The Movie,,Who is Rachel Ellenstein to Connor in the modern era?,Relationships,medium,2,His biological sister,false
+Highlander: The Movie,,Who is Rachel Ellenstein to Connor in the modern era?,,,,His adopted daughter and assistant,true
+Highlander: The Movie,,Who is Rachel Ellenstein to Connor in the modern era?,,,,His lawyer,false
+Highlander: The Movie,,Who is Rachel Ellenstein to Connor in the modern era?,,,,His fencing teacher,false
+Highlander: The Movie,,During which war does Connor first meet the young Rachel?,Story,medium,2,World War I,false
+Highlander: The Movie,,During which war does Connor first meet the young Rachel?,,,,The American Civil War,false
+Highlander: The Movie,,During which war does Connor first meet the young Rachel?,,,,World War II,true
+Highlander: The Movie,,During which war does Connor first meet the young Rachel?,,,,The Crimean War,false
+Highlander: The Movie,,At which kind of place are immortals forbidden to fight?,Rules,medium,2,A battlefield,false
+Highlander: The Movie,,At which kind of place are immortals forbidden to fight?,,,,A private home,false
+Highlander: The Movie,,At which kind of place are immortals forbidden to fight?,,,,A cemetery,false
+Highlander: The Movie,,At which kind of place are immortals forbidden to fight?,,,,Holy ground,true
+Highlander: The Movie,,Which Queen song underscores Connor's life with Heather and her ageing?,Queen music,medium,2,Who Wants to Live Forever,true
+Highlander: The Movie,,Which Queen song underscores Connor's life with Heather and her ageing?,,,,One Year of Love,false
+Highlander: The Movie,,Which Queen song underscores Connor's life with Heather and her ageing?,,,,A Kind of Magic,false
+Highlander: The Movie,,Which Queen song underscores Connor's life with Heather and her ageing?,,,,Don't Lose Your Head,false
+Highlander: The Movie,,Which Queen album grew from the band's work on Highlander?,Queen music,medium,2,The Works,false
+Highlander: The Movie,,Which Queen album grew from the band's work on Highlander?,,,,A Kind of Magic,true
+Highlander: The Movie,,Which Queen album grew from the band's work on Highlander?,,,,The Miracle,false
+Highlander: The Movie,,Which Queen album grew from the band's work on Highlander?,,,,Hot Space,false
+Highlander: The Movie,,Who plays Lieutenant Frank Moran?,Cast,hard,3,Jon Polito,false
+Highlander: The Movie,,Who plays Lieutenant Frank Moran?,,,,Hugh Quarshie,false
+Highlander: The Movie,,Who plays Lieutenant Frank Moran?,,,,Alan North,true
+Highlander: The Movie,,Who plays Lieutenant Frank Moran?,,,,Christopher Malcolm,false
+Highlander: The Movie,,Who plays Detective Walter Bedsoe?,Cast,hard,3,Alan North,false
+Highlander: The Movie,,Who plays Detective Walter Bedsoe?,,,,Peter Diamond,false
+Highlander: The Movie,,Who plays Detective Walter Bedsoe?,,,,James Cosmo,false
+Highlander: The Movie,,Who plays Detective Walter Bedsoe?,,,,Jon Polito,true
+Highlander: The Movie,,Who plays Rachel Ellenstein?,Cast,hard,3,Sheila Gish,true
+Highlander: The Movie,,Who plays Rachel Ellenstein?,,,,Beatie Edney,false
+Highlander: The Movie,,Who plays Rachel Ellenstein?,,,,Roxanne Hart,false
+Highlander: The Movie,,Who plays Rachel Ellenstein?,,,,Celia Imrie,false
+Highlander: The Movie,,Who plays Sunda Kastagir?,Cast,hard,3,Peter Diamond,false
+Highlander: The Movie,,Who plays Sunda Kastagir?,,,,Hugh Quarshie,true
+Highlander: The Movie,,Who plays Sunda Kastagir?,,,,Christopher Malcolm,false
+Highlander: The Movie,,Who plays Sunda Kastagir?,,,,Billy Hartman,false
+Highlander: The Movie,,Who plays Aman Fasil?,Cast,hard,3,Hugh Quarshie,false
+Highlander: The Movie,,Who plays Aman Fasil?,,,,Jon Polito,false
+Highlander: The Movie,,Who plays Aman Fasil?,,,,Peter Diamond,true
+Highlander: The Movie,,Who plays Aman Fasil?,,,,Alan North,false
+Highlander: The Movie,,Who originated the film's story and co-wrote the screenplay?,Crew,hard,3,Peter Bellwood,false
+Highlander: The Movie,,Who originated the film's story and co-wrote the screenplay?,,,,Larry Ferguson,false
+Highlander: The Movie,,Who originated the film's story and co-wrote the screenplay?,,,,Russell Mulcahy,false
+Highlander: The Movie,,Who originated the film's story and co-wrote the screenplay?,,,,Gregory Widen,true
+Highlander: The Movie,,Which two writers revised Gregory Widen's screenplay?,Crew,hard,3,Peter Bellwood and Larry Ferguson,true
+Highlander: The Movie,,Which two writers revised Gregory Widen's screenplay?,,,,Peter S. Davis and William N. Panzer,false
+Highlander: The Movie,,Which two writers revised Gregory Widen's screenplay?,,,,Gerry Fisher and Peter Honess,false
+Highlander: The Movie,,Which two writers revised Gregory Widen's screenplay?,,,,Michael Kamen and Derek Power,false
+Highlander: The Movie,,Who produced Highlander?,Crew,hard,3,Gregory Widen and Russell Mulcahy,false
+Highlander: The Movie,,Who produced Highlander?,,,,Peter S. Davis and William N. Panzer,true
+Highlander: The Movie,,Who produced Highlander?,,,,Gerry Fisher and Peter Honess,false
+Highlander: The Movie,,Who produced Highlander?,,,,Michael Kamen and Derek Power,false
+Highlander: The Movie,,Who was the film's director of photography?,Crew,hard,3,Peter Honess,false
+Highlander: The Movie,,Who was the film's director of photography?,,,,Allan Cameron,false
+Highlander: The Movie,,Who was the film's director of photography?,,,,Gerry Fisher,true
+Highlander: The Movie,,Who was the film's director of photography?,,,,Michael Kamen,false
+Highlander: The Movie,,Who edited the film?,Crew,hard,3,Gerry Fisher,false
+Highlander: The Movie,,Who edited the film?,,,,Allan Cameron,false
+Highlander: The Movie,,Who edited the film?,,,,Gregory Widen,false
+Highlander: The Movie,,Who edited the film?,,,,Peter Honess,true
+Highlander: The Movie,,Who was the film's production designer?,Crew,hard,3,Allan Cameron,true
+Highlander: The Movie,,Who was the film's production designer?,,,,Peter Honess,false
+Highlander: The Movie,,Who was the film's production designer?,,,,Gerry Fisher,false
+Highlander: The Movie,,Who was the film's production designer?,,,,Jim Acheson,false
+Highlander: The Movie,,Who composed and conducted the film's orchestral score?,Music,hard,3,Howard Blake,false
+Highlander: The Movie,,Who composed and conducted the film's orchestral score?,,,,Michael Kamen,true
+Highlander: The Movie,,Who composed and conducted the film's orchestral score?,,,,John Williams,false
+Highlander: The Movie,,Who composed and conducted the film's orchestral score?,,,,James Horner,false
+Highlander: The Movie,,Which orchestra performed Michael Kamen's score?,Music,hard,3,The London Symphony Orchestra,false
+Highlander: The Movie,,Which orchestra performed Michael Kamen's score?,,,,The Royal Philharmonic Orchestra,false
+Highlander: The Movie,,Which orchestra performed Michael Kamen's score?,,,,The National Philharmonic Orchestra,true
+Highlander: The Movie,,Which orchestra performed Michael Kamen's score?,,,,The Scottish Chamber Orchestra,false
+Highlander: The Movie,,Which Brian May song serves as the film's love theme?,Queen music,hard,3,Gimme the Prize,false
+Highlander: The Movie,,Which Brian May song serves as the film's love theme?,,,,Princes of the Universe,false
+Highlander: The Movie,,Which Brian May song serves as the film's love theme?,,,,One Year of Love,false
+Highlander: The Movie,,Which Brian May song serves as the film's love theme?,,,,Who Wants to Live Forever,true
+Highlander: The Movie,,What US rating does the AFI Catalog list for Highlander?,Film facts,hard,3,R,true
+Highlander: The Movie,,What US rating does the AFI Catalog list for Highlander?,,,,PG,false
+Highlander: The Movie,,What US rating does the AFI Catalog list for Highlander?,,,,PG-13,false
+Highlander: The Movie,,What US rating does the AFI Catalog list for Highlander?,,,,G,false
+Highlander: The Movie,,What running time does the AFI Catalog list?,Film facts,hard,3,96 minutes,false
+Highlander: The Movie,,What running time does the AFI Catalog list?,,,,110 minutes,true
+Highlander: The Movie,,What running time does the AFI Catalog list?,,,,124 minutes,false
+Highlander: The Movie,,What running time does the AFI Catalog list?,,,,142 minutes,false

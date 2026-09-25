@@ -149,6 +149,22 @@ public sealed class ApiV1RoutesTests : IClassFixture<QueenZoneWebApplicationFact
         Assert.True(paths.TryGetProperty("/api/v1/me/notification-preferences", out _));
         Assert.True(paths.GetProperty("/api/v1/me/notification-preferences").TryGetProperty("get", out _));
         Assert.True(paths.GetProperty("/api/v1/me/notification-preferences").TryGetProperty("patch", out _));
+        Assert.True(paths.GetProperty("/api/v1/contact")
+            .GetProperty("post")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
+        Assert.True(paths.GetProperty("/api/v1/me")
+            .GetProperty("patch")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
+        Assert.True(paths.GetProperty("/api/v1/forum/topics/{id}/watch")
+            .GetProperty("post")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
+        Assert.False(paths.GetProperty("/api/v1/forum/topics/{id}/watch")
+            .GetProperty("get")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
         Assert.True(paths.TryGetProperty("/api/v1/admin/", out _) || paths.TryGetProperty("/api/v1/admin", out _));
         Assert.False(paths.TryGetProperty("/health", out _));
         Assert.False(paths.TryGetProperty("/api/uploads/editor-image", out _));

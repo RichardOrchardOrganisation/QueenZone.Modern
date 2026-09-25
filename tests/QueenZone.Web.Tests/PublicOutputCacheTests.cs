@@ -27,13 +27,13 @@ namespace QueenZone.Web.Tests;
 /// </item>
 /// </list>
 /// </summary>
-public sealed class PublicOutputCacheTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PublicOutputCacheTests(WebApplicationFactory<Program> factory)
+    public PublicOutputCacheTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
@@ -99,6 +99,31 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebApplicationFactory
     }
 
     [Fact]
+    public async Task Production_tracking_query_reuses_the_canonical_public_html_cache_entry()
+    {
+        var repository = new CountingArticlesRepository();
+        var productionFactory = CreateProductionFactory(services =>
+        {
+            services.AddSingleton<IArticlesRepository>(repository);
+        });
+        var client = productionFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+
+        using var firstResponse = await client.GetAsync("/articles");
+        var callsAfterFirst = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
+        using var trackedResponse = await client.GetAsync("/articles?utm_source=newsletter&utm_campaign=launch");
+        var callsAfterTracked = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, trackedResponse.StatusCode);
+        Assert.True(callsAfterFirst > 0);
+        Assert.Equal(callsAfterFirst, callsAfterTracked);
+    }
+
+    [Fact]
     public async Task Production_excluded_admin_path_is_not_output_cached()
     {
         // Policy unit tests already cover authenticated bypass; this integration case proves an
@@ -126,6 +151,7 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebApplicationFactory
     [InlineData("GET", "/account/member-probe", false)]
     [InlineData("GET", "/health", false)]
     [InlineData("GET", "/trivia", false)]
+    [InlineData("GET", "/search", false)]
     public void PublicReadOnlyPolicyIncludesOnlyAnonymousPublicGetAndHeadRoutes(
         string method,
         string path,

@@ -203,6 +203,7 @@ function ConversationThread({ navigation, route }: Props) {
         style={[styles.flex, { backgroundColor: c.surfaceThread }]}
         data={threadItems}
         keyExtractor={threadKeyExtractor}
+        alwaysBounceVertical
         refreshControl={
           <ThemedRefreshControl refreshing={refreshing} onRefresh={conversation.refresh} />
         }

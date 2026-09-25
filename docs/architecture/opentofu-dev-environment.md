@@ -26,10 +26,10 @@ the dev root's separate state and explicit names determine the actual target.
 
 ## Provisioning evidence: 2026-09-04
 
-[PR #1300](https://github.com/richardorchard/QueenZone.Modern/pull/1300) merged
+[PR #1300](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1300) merged
 with required checks passing. After the maintainer approved the names and scoped
 CI access, an operator applied the one-resource dev group bootstrap. The
-[dev-only workflow](https://github.com/richardorchard/QueenZone.Modern/actions/runs/33847788695)
+[dev-only workflow](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/33847788695)
 then planned four creates, applied that exact reviewed artifact through the
 existing approval gate, and passed its HTTPS smoke check.
 

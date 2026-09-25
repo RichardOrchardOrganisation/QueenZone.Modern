@@ -32,4 +32,6 @@ public interface IAdminFanPerformanceRepository
         string editorEmail,
         bool? expectedIsVisible = null,
         CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(int id, string editorEmail, CancellationToken cancellationToken = default);
 }

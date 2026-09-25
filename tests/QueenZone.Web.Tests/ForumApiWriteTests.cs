@@ -276,7 +276,7 @@ public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFa
     }
 
     [Fact]
-    public async Task Reply_returns_forbidden_when_member_is_suspended()
+    public async Task Reply_returns_unauthorized_when_member_is_suspended()
     {
         var memberId = Guid.NewGuid();
         await SeedMemberAsync(memberId, "Suspended Fan", isSuspended: true);
@@ -286,11 +286,8 @@ public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFa
             $"{ForumApiEndpoints.RootPath}/topics/1002/posts",
             new { body = "Suspended members cannot post." });
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(
-            ForumPostWriteService.SuspendedMessage,
-            problem.GetProperty("detail").GetString());
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -509,6 +506,7 @@ public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFa
         Guid memberId,
         string displayName = "Forum Fan")
     {
+        MemberBearerAccounts.Ensure(source.Services, memberId, $"{memberId:N}@example.test", displayName);
         using var scope = source.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
         var token = issuer.IssueAccessToken(memberId, $"{memberId:N}@example.test", displayName);

@@ -68,7 +68,7 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         pageSize = Math.Clamp(pageSize, 1, 100);
         var skip = (page - 1) * pageSize;
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var rows = await dbContext.FanPerformanceSubmissions
                 .AsNoTracking()
@@ -121,7 +121,7 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             .AsNoTracking()
             .Where(log => log.FanPerformanceSubmissionId == id);
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var sqliteRows = await query
                 .Select(log => new FanPerformanceSubmissionAuditEntry(
@@ -166,7 +166,7 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         var totalCount = await query.CountAsync(cancellationToken);
         var skip = (page - 1) * pageSize;
 
-        if (IsSqliteDatabase())
+        if (dbContext.Database.IsSqliteProvider())
         {
             var sqliteRows = await query
                 .Select(row => new
@@ -373,7 +373,7 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         DateTimeOffset utcNow,
         int staleAfterDays = FanPerformanceDashboardCounts.DefaultStaleAfterDays,
         CancellationToken cancellationToken = default) =>
-        IsSqliteDatabase()
+        dbContext.Database.IsSqliteProvider()
             ? GetDashboardCountsInMemoryAsync(utcNow, staleAfterDays, cancellationToken)
             : GetDashboardCountsViaSqlAggregateAsync(utcNow, staleAfterDays, cancellationToken);
 
@@ -381,9 +381,15 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         DateTimeOffset monthStart,
         int maxCount,
         CancellationToken cancellationToken = default) =>
-        IsSqliteDatabase()
-            ? GetTopContributorsInMemoryAsync(monthStart, maxCount, cancellationToken)
-            : GetTopContributorsViaSqlAggregateAsync(monthStart, maxCount, cancellationToken);
+        dbContext.FanPerformanceSubmissions
+            .AsNoTracking()
+            .Select(row => new SubmissionContributorRow
+            {
+                MemberId = row.SubmitterMemberId,
+                DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
+                SubmittedAt = row.SubmittedAt,
+            })
+            .ToTopContributorsAsync(monthStart, maxCount, aggregateInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
 
     public async Task<IReadOnlyList<FanPerformanceSubmission>> GetEligibleForPendingBlobPurgeAsync(
         DateTimeOffset cutoffUtc,
@@ -589,66 +595,6 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             counts.StalePendingCount,
             FanPerformanceDashboardCountCalculator.ToOldestOpenAgeDays(utcNow, counts.OldestOpenSubmittedAt));
     }
-
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsInMemoryAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken cancellationToken)
-    {
-        var rows = await dbContext.FanPerformanceSubmissions
-            .AsNoTracking()
-            .Select(row => new
-            {
-                row.SubmitterMemberId,
-                DisplayName = row.Submitter != null ? row.Submitter.DisplayName : string.Empty,
-                row.SubmittedAt,
-            })
-            .ToListAsync(cancellationToken);
-
-        return rows
-            .Where(row => row.SubmittedAt >= monthStart)
-            .GroupBy(row => row.SubmitterMemberId)
-            .Select(group => new SubmissionContributor(
-                group.Key,
-                group.FirstOrDefault(row => !string.IsNullOrWhiteSpace(row.DisplayName))?.DisplayName ?? "Unknown member",
-                group.Count()))
-            .OrderByDescending(contributor => contributor.Count)
-            .Take(maxCount)
-            .ToList();
-    }
-
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsViaSqlAggregateAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken cancellationToken)
-    {
-        var aggregated = await dbContext.FanPerformanceSubmissions
-            .AsNoTracking()
-            .Where(row => row.SubmittedAt >= monthStart)
-            .GroupBy(row => row.SubmitterMemberId)
-            .Select(group => new
-            {
-                SubmitterMemberId = group.Key,
-                DisplayName = group.Max(row => row.Submitter != null ? row.Submitter.DisplayName : null),
-                Count = group.Count(),
-            })
-            .OrderByDescending(row => row.Count)
-            .Take(maxCount)
-            .ToListAsync(cancellationToken);
-
-        return aggregated
-            .Select(row => new SubmissionContributor(
-                row.SubmitterMemberId,
-                string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
-                row.Count))
-            .ToList();
-    }
-
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
 
     private static FanPerformanceSubmission Map(FanPerformanceSubmissionEntity entity) =>
         new(

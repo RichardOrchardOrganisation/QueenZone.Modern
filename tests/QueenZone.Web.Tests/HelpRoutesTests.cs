@@ -10,23 +10,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class HelpRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HelpRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public HelpRoutesTests(WebApplicationFactory<Program> factory)
+    public HelpRoutesTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]
@@ -193,6 +183,44 @@ public sealed class HelpRoutesTests : IClassFixture<WebApplicationFactory<Progra
         Assert.Equal(account!.Id, item.MemberId);
         Assert.Equal("Help Member", item.Name);
         Assert.Equal("help-member@example.com", item.Email);
+    }
+
+    [Fact]
+    public async Task Post_SignedInMember_Receives429AfterMemberCap()
+    {
+        using var limited = QueenZoneWebApplicationFactory.WithServices(services =>
+        {
+            services.PostConfigure<HelpRequestOptions>(options =>
+            {
+                options.MaxPerMemberPerMinute = 1;
+                options.MaxAnonymousPerIpPerHour = 10;
+            });
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
+                    MemberAuthenticationSchemes.ExternalCookie, _ => { });
+        });
+        using var client = limited.CreateAnonymousClient(allowAutoRedirect: false);
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.ProviderHeader, "Google");
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.SubjectHeader, $"help-limit-{Guid.NewGuid():N}");
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.EmailHeader, $"help-limit-{Guid.NewGuid():N}@example.com");
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.NameHeader, "Help Limit Member");
+        using var callback = await client.GetAsync("/account/external-login-callback");
+        Assert.True(callback.StatusCode is HttpStatusCode.OK or HttpStatusCode.Redirect);
+
+        var page = await client.GetStringAsync("/contact");
+        var fields = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractField(page, "__RequestVerificationToken"),
+            ["FormStamp"] = ExtractField(page, "FormStamp"),
+            ["Topic"] = HelpRequestTopic.Account,
+            ["Subject"] = "Signed-in contact request",
+            ["Message"] = "I need some help from the site administrator please.",
+        };
+        using var first = await client.PostAsync("/contact", new FormUrlEncodedContent(fields));
+        using var second = await client.PostAsync("/contact", new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
     }
 
     private static Dictionary<string, string> ValidGuestFields(string formHtml, string subject = "Cannot open a forum topic") =>

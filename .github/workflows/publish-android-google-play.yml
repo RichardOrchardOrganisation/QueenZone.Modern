@@ -4,10 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       publish_to_play:
-        description: Upload the bundle to the Google Play internal track
+        description: Upload the bundle to the selected Google Play testing track
         required: true
         type: boolean
         default: true
+      testing_track:
+        description: Google Play testing destination
+        required: true
+        type: choice
+        options:
+          - internal
+          - closed
+        default: internal
       app_environment:
         description: API environment to embed in the Google Play build
         required: true
@@ -276,12 +284,12 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      - name: Upload to Google Play internal testing
+      - name: Upload to Google Play ${{ inputs.testing_track }} testing
         if: inputs.publish_to_play
         uses: r0adkll/upload-google-play@v1.1.3
         with:
           serviceAccountJsonPlainText: ${{ steps.bitwarden-secrets.outputs.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: org.queenzone.mobile
           releaseFiles: src/QueenZone.Mobile/android/app/build/outputs/bundle/release/app-release.aab
-          track: internal
+          track: ${{ inputs.testing_track == 'closed' && 'alpha' || 'internal' }}
           status: completed

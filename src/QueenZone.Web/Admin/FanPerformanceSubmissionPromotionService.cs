@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using QueenZone.Data;
 using QueenZone.Storage;
@@ -137,24 +135,15 @@ public sealed class FanPerformanceSubmissionPromotionService(
         string? reviewNotes,
         CancellationToken cancellationToken)
     {
-        if (serviceProvider.GetService<QueenZoneDbContext>() is not { } dbContext)
-        {
-            return await PromoteCoreAsync(submission, publishedName, editorEmail, reviewNotes, cancellationToken);
-        }
-
-        var strategy = dbContext.Database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
-        {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            var stageId = await PromoteCoreAsync(
+        return await QueenZoneDbTransactions.ExecuteAsync(
+            serviceProvider,
+            ct => PromoteCoreAsync(
                 submission,
                 publishedName,
                 editorEmail,
                 reviewNotes,
-                cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return stageId;
-        });
+                ct),
+            cancellationToken);
     }
 
     private async Task<int> PromoteCoreAsync(
@@ -172,7 +161,8 @@ public sealed class FanPerformanceSubmissionPromotionService(
                 publishedName,
                 submission.FileSizeBytes,
                 DateTime.UtcNow,
-                IsVisible: true),
+                IsVisible: true,
+                DurationSeconds: submission.DurationSeconds),
             editorEmail,
             cancellationToken);
 

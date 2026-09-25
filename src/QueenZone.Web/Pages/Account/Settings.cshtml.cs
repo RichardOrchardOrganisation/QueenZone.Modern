@@ -97,7 +97,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -135,7 +135,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     public async Task<IActionResult> OnPostUpdateMessagePrivacyAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -174,7 +174,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     public async Task<IActionResult> OnPostUpdateSocialLinksAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -217,7 +217,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     public async Task<IActionResult> OnPostClaimLegacyAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -265,7 +265,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     public async Task<IActionResult> OnPostUnlinkLegacyAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -292,7 +292,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     public async Task<IActionResult> OnPostUploadAvatarAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -332,7 +332,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     public async Task<IActionResult> OnPostRemoveAvatarAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -421,26 +421,13 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
 
     private async Task<Data.Entities.MemberAccount?> LoadCurrentAccountAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return null;
         }
 
         return await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        // Authenticate the member cookie explicitly — ambient User may be the admin scheme.
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
     }
 
     private async Task ReissueMemberCookieAsync(Data.Entities.MemberAccount account)
@@ -450,6 +437,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
             new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()),
             new Claim(ClaimTypes.Email, account.Email),
             new Claim(ClaimTypes.Name, account.DisplayName),
+            MemberSessionGate.CreateIssuedAtClaim(DateTimeOffset.UtcNow),
         };
         var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie);
         await HttpContext.SignInAsync(MemberAuthenticationSchemes.MembersCookie, new ClaimsPrincipal(identity));

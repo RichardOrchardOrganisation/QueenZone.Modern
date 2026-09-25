@@ -53,9 +53,10 @@ export type MemberProfile = {
 
 export type DeletionRequested = {
   requested: boolean;
-  scheduledDeletionAt: string;
+  scheduledDeletionAt: string | null;
   title: string;
   message: string;
+  statusReceipt: string | null;
 };
 
 export const fallbackProfileLimits: MemberProfileLimits = {
@@ -164,18 +165,23 @@ export function parseDeletionRequested(payload: unknown): DeletionRequested {
   }
 
   const raw = payload as Record<string, unknown>;
-  if (raw.requested !== true || typeof raw.scheduledDeletionAt !== 'string') {
+  if (raw.requested !== true || (raw.scheduledDeletionAt !== null && typeof raw.scheduledDeletionAt !== 'string')) {
     throw new Error('Deletion was not confirmed.');
   }
 
   return {
     requested: true,
     scheduledDeletionAt: raw.scheduledDeletionAt,
-    title: typeof raw.title === 'string' ? raw.title : 'Account deletion scheduled',
+    statusReceipt: typeof raw.statusReceipt === 'string' ? raw.statusReceipt : null,
+    title: typeof raw.title === 'string'
+      ? raw.title
+      : raw.scheduledDeletionAt === null ? 'Account deletion requested' : 'Account deletion scheduled',
     message:
       typeof raw.message === 'string'
         ? raw.message
-        : 'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.',
+        : raw.scheduledDeletionAt === null
+          ? 'Your account has been disabled and your personal data is being removed.'
+          : 'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.',
   };
 }
 

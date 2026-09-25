@@ -78,6 +78,21 @@ describe('SearchScreen', () => {
     await waitFor(() => expect(fetchSearch).not.toHaveBeenCalled());
   });
 
+  it('commits the native field on submit so search starts without waiting for debounce', async () => {
+    fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
+    renderSearch();
+    fireEvent(screen.getByLabelText('Search the archive'), 'submitEditing', {
+      nativeEvent: { text: '  modernisation  ' },
+    });
+    await waitFor(() =>
+      expect(fetchSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'modernisation', type: null, page: 1, pageSize: 20 }),
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId('search-results')).toBeOnTheScreen());
+    expect(screen.getByTestId('search-result-news-1003')).toBeOnTheScreen();
+  });
+
   it('loads live results and opens a news story by numeric id', async () => {
     const pending = deferred<ReturnType<typeof pagedResponse<SearchResult>>>();
     fetchSearch.mockReturnValueOnce(pending.promise);
@@ -249,6 +264,15 @@ describe('SearchRouteScreen', () => {
     (useNavigation as jest.Mock).mockReturnValue({
       getParent: () => ({ navigate: mockTabNavigate }),
     });
+  });
+
+  it('runs a Siri-provided search term without requiring keyboard input', async () => {
+    fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
+    renderWithProviders(
+      <SearchRouteScreen route={{ key: 'siri-search', name: 'Search', params: { query: 'Queen II' } }} />,
+      { navigation: false },
+    );
+    await waitFor(() => expect(fetchSearch).toHaveBeenCalledWith(expect.objectContaining({ q: 'Queen II' })));
   });
 
   it('navigates news hits through the tab parent', async () => {

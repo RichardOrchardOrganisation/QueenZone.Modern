@@ -14,12 +14,19 @@ import {
   fetchNewsPage,
   fetchOnThisDay,
   fetchTimelineEventById,
+  fetchTimelineAnchor,
   fetchPhotoCategories,
   fetchPhotoCategory,
   fetchPhotoCategoryItems,
   fetchPhotoDetail,
   fetchHomePoll,
   fetchQuoteById,
+  startQuizSprint,
+  checkQuizSprintAnswer,
+  finishQuizSprint,
+  fetchQuizSprintDaily,
+  fetchQuizSprintLeaderboard,
+  claimQuizSprintRun,
   fetchRandomQuote,
   fetchRandomTrivia,
   voteHomePoll,
@@ -152,6 +159,13 @@ describe('fetchTimelinePage and fetchOnThisDay', () => {
 });
 
 describe('fetchTimelineEventById', () => {
+  it('requests the focus page in one call', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ page: 7, pageSize: 100, totalCount: 700, totalPages: 7, items: [] }));
+    const page = await fetchTimelineAnchor(9999);
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/timeline/anchor/9999?pageSize=100');
+    expect(page.page).toBe(7);
+  });
+
   it('requests a published event by id, including deep off-page ids', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
@@ -297,6 +311,67 @@ describe('voteHomePoll', () => {
     expect(init.method).toBe('POST');
     expect(init.body).toBe(JSON.stringify({ optionId: 'opt-1' }));
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer member-token');
+  });
+});
+
+describe('Quiz Sprint api', () => {
+  it('starts a round with a POST to the sprint start path', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ticket: 't', serverNowUnixMilliseconds: 1, expiresAtUnixMilliseconds: 2, durationSeconds: 60, questions: [] }),
+    );
+    const round = await startQuizSprint();
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/quizzes/sprint/start');
+    expect((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).method).toBe('POST');
+    expect(round.ticket).toBe('t');
+  });
+
+  it('checks one answer against the ticket', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ isCorrect: true, correctOptionId: 'o1' }));
+    await checkQuizSprintAnswer('t', 'q1', 'o1');
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/quizzes/sprint/answer');
+    const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect(init.body).toBe(JSON.stringify({ ticket: 't', questionId: 'q1', optionId: 'o1' }));
+  });
+
+  it('finishes with the ticket and answers, sending Bearer only when signed in', async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ attempted: 1, correct: 1, points: 1, bestStreak: 1, recorded: true, rank: 1, answers: [] }),
+    );
+    await finishQuizSprint('t', [{ questionId: 'q1', selectedOptionId: 'o1' }], 'member-token');
+    let init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/quizzes/sprint/finish');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer member-token');
+    expect(init.body).toBe(JSON.stringify({ ticket: 't', answers: [{ questionId: 'q1', selectedOptionId: 'o1' }] }));
+
+    await finishQuizSprint('t', []);
+    init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it('reads the leaderboard for a scope', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ scope: 'all', top: [], viewer: null, players: 3 }));
+    const board = await fetchQuizSprintLeaderboard('all', undefined, 'member-token');
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/quizzes/sprint/leaderboard?scope=all');
+    expect(board.players).toBe(3);
+    const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer member-token');
+  });
+
+  it('claims a guest run with the token and Bearer', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'claimed', points: 5, rank: 2 }));
+    const claimed = await claimQuizSprintRun('claim-token', 'member-token');
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/quizzes/sprint/claim');
+    const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+    expect(init.body).toBe(JSON.stringify({ claimToken: 'claim-token' }));
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer member-token');
+    expect(claimed.status).toBe('claimed');
+  });
+
+  it('reads the daily board', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ top: [], viewer: null, playersToday: 0 }));
+    const board = await fetchQuizSprintDaily();
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/quizzes/sprint/daily');
+    expect(board.playersToday).toBe(0);
   });
 });
 

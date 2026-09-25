@@ -8,28 +8,44 @@ public sealed class HelpRequestRateLimiter(
     TimeProvider timeProvider,
     IOptions<HelpRequestOptions> options)
 {
-    public bool IsAllowed(string? clientIp)
+    private readonly Lock gate = new();
+
+    public bool IsAllowed(Guid? memberId, string? clientIp)
     {
         if (string.IsNullOrWhiteSpace(clientIp))
         {
             return false;
         }
 
-        var limit = Math.Max(1, options.Value.MaxAnonymousPerIpPerHour);
         var now = timeProvider.GetUtcNow();
-        var key = $"help-request-ip:{clientIp.Trim()}:{now.ToUnixTimeSeconds() / 3600}";
-        var count = cache.GetOrCreate(key, entry =>
-        {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
-            return 0;
-        });
+        var ipLimit = Math.Max(1, options.Value.MaxAnonymousPerIpPerHour);
+        var ipKey = $"help-request-ip:{clientIp.Trim()}:{now.ToUnixTimeSeconds() / 3600}";
+        var memberKey = memberId is Guid id
+            ? $"help-request-member:{id:N}:{now.ToUnixTimeSeconds() / 60}"
+            : null;
+        var memberLimit = Math.Max(1, options.Value.MaxPerMemberPerMinute);
 
-        if (count >= limit)
+        lock (gate)
         {
-            return false;
+            var ipCount = cache.Get<int>(ipKey);
+            if (ipCount >= ipLimit)
+            {
+                return false;
+            }
+
+            var memberCount = memberKey is null ? 0 : cache.Get<int>(memberKey);
+            if (memberKey is not null && memberCount >= memberLimit)
+            {
+                return false;
+            }
+
+            cache.Set(ipKey, ipCount + 1, TimeSpan.FromHours(1));
+            if (memberKey is not null)
+            {
+                cache.Set(memberKey, memberCount + 1, TimeSpan.FromMinutes(1));
+            }
+
+            return true;
         }
-
-        cache.Set(key, count + 1, TimeSpan.FromHours(1));
-        return true;
     }
 }

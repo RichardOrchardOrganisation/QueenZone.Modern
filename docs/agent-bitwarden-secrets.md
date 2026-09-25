@@ -207,11 +207,16 @@ project, key name, and intended expiry first.
 
 ### Load legacy SQL connection for tools (never print the value)
 
+The Windows NewsAgent and maintenance scheduling scripts load `ConnectionStrings__QueenZoneLegacyCanadaEast`
+automatically on every run. `scripts/Run-MaintenanceJobs.ps1` also loads
+`ConnectionStrings__BlobStorageCanadaEast`. Use that same secret for tools targeting production;
+`ConnectionStrings__QueenZoneLegacy` still contains the retired Australia East target.
+
 ```powershell
 $env:BWS_ACCESS_TOKEN = [Environment]::GetEnvironmentVariable("BWS_ACCESS_TOKEN", "User")
 $secrets = bws secret list "1c16fd2d-4bfb-4eb7-8357-b49400233490" --output json | ConvertFrom-Json
-$cs = $secrets | Where-Object { $_.key -eq "ConnectionStrings__QueenZoneLegacy" } | Select-Object -First 1
-if (-not $cs) { throw "ConnectionStrings__QueenZoneLegacy not found in Bitwarden project" }
+$cs = $secrets | Where-Object { $_.key -eq "ConnectionStrings__QueenZoneLegacyCanadaEast" } | Select-Object -First 1
+if (-not $cs) { throw "ConnectionStrings__QueenZoneLegacyCanadaEast not found in Bitwarden project" }
 $env:ConnectionStrings__QueenZoneLegacy = $cs.value
 "loaded ConnectionStrings__QueenZoneLegacy len=$($cs.value.Length)"
 # example: photo original-dimension inventory (issue #435)
@@ -220,7 +225,7 @@ $env:ConnectionStrings__QueenZoneLegacy = $cs.value
 
 Related keys that may exist in the same project (names only): `ConnectionStrings__QueenZoneLegacyLive`, `ConnectionStrings__QueenZoneLegacyLocal`, `ConnectionStrings__BlobStorage`, `AzureAd__ClientSecret`, `OPENROUTER_API_KEY`, `QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD`, `QUEENZONE_SQL_EXPRESS_PROBE_USERNAME`, etc.
 
-`QUEENZONE_SQL_EXPRESS_PROBE_USERNAME` / `QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD` are the paired SQL-login credentials (`queenzone_probe`) for connecting to the SQL Express mirror from a non-domain-joined host (e.g. the Mac runner reaching `glory11` over LAN, where Windows Integrated Security isn't usable) — see [issue #540](https://github.com/richardorchard/QueenZone.Modern/issues/540). The username secret was added 2026-08-05 after the password-only secret left the username undocumented anywhere; confirmed working from the Mac: `sqlcmd -S glory11 -U queenzone_probe -C -Q "SELECT 1"`.
+`QUEENZONE_SQL_EXPRESS_PROBE_USERNAME` / `QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD` are the paired SQL-login credentials (`queenzone_probe`) for connecting to the SQL Express mirror from a non-domain-joined host (e.g. the Mac runner reaching `glory11` over LAN, where Windows Integrated Security isn't usable) — see [issue #540](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/540). The username secret was added 2026-08-05 after the password-only secret left the username undocumented anywhere; confirmed working from the Mac: `sqlcmd -S glory11 -U queenzone_probe -C -Q "SELECT 1"`.
 
 ### macOS SQL client tooling (sqlcmd)
 

@@ -66,6 +66,8 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IForumAttachmentRepository, EfForumAttachmentRepository>();
         services.AddScoped<IForumPollRepository, EfForumPollRepository>();
         services.AddScoped<IHomePollRepository, EfHomePollRepository>();
+        services.AddScoped<IQuizRepository, EfQuizRepository>();
+        services.AddScoped<IQuizQuestionSubmissionRepository, EfQuizQuestionSubmissionRepository>();
         services.AddScoped<INewsDiscoveryRepository, EfNewsDiscoveryRepository>();
         services.AddScoped<INewsAgentGuidanceRepository, EfNewsAgentGuidanceRepository>();
         services.AddScoped<INewsAgentRunLeaseService, EfNewsAgentRunLeaseService>();
@@ -81,6 +83,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<INewsSuggestionRepository, EfNewsSuggestionRepository>();
         services.AddScoped<IHelpRequestRepository, EfHelpRequestRepository>();
         services.AddScoped<IPrivateMessageRepository, EfPrivateMessageRepository>();
+        services.AddScoped<IPrivateMessageModerationRepository, EfPrivateMessageModerationRepository>();
         services.AddScoped<IForumPostReportRepository, EfForumPostReportRepository>();
         services.AddScoped<IMemberFollowRepository, EfMemberFollowRepository>();
         services.AddScoped<IMemberPublicActivityRepository, EfMemberPublicActivityRepository>();
@@ -139,6 +142,16 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddSingleton(homePollStore);
         services.AddSingleton<IHomePollRepository>(sp =>
             new InMemoryHomePollRepository(homePollStore, sp.GetService<TimeProvider>()));
+        var quizStore = new SharedQuizStore();
+        services.AddSingleton(quizStore);
+        services.AddSingleton<IQuizRepository>(sp =>
+            new InMemoryQuizRepository(quizStore, sp.GetService<TimeProvider>()));
+        services.AddSingleton<IQuizQuestionSubmissionRepository>(sp =>
+        {
+            var members = sp.GetRequiredService<IMemberAccountRepository>();
+            return new InMemoryQuizQuestionSubmissionRepository(id =>
+                members.FindByIdAsync(id).GetAwaiter().GetResult());
+        });
         services.AddSingleton<IForumRepository>(_ => new InMemoryForumRepository(
             SampleForumData.CreateSeedCategories(),
             SampleForumData.CreateSeedStats(),
@@ -200,12 +213,16 @@ public static class QueenZoneDataServiceCollectionExtensions
                 members.FindByIdAsync(id).GetAwaiter().GetResult());
         });
         services.AddSingleton<IHelpRequestRepository, InMemoryHelpRequestRepository>();
-        services.AddSingleton<IPrivateMessageRepository>(sp =>
+        services.AddSingleton<InMemoryPrivateMessageRepository>(sp =>
         {
             var members = sp.GetRequiredService<IMemberAccountRepository>();
             return new InMemoryPrivateMessageRepository(id =>
                 members.FindByIdAsync(id).GetAwaiter().GetResult());
         });
+        services.AddSingleton<IPrivateMessageRepository>(sp =>
+            sp.GetRequiredService<InMemoryPrivateMessageRepository>());
+        services.AddSingleton<IPrivateMessageModerationRepository>(sp =>
+            sp.GetRequiredService<InMemoryPrivateMessageRepository>());
         services.AddSingleton<IForumPostReportRepository>(sp =>
         {
             var members = sp.GetRequiredService<IMemberAccountRepository>();

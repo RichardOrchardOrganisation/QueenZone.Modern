@@ -77,6 +77,12 @@ are measured without running tests twice. High/critical advisories fail closed u
 is in [`npm-advisory-allowlist.json`](./npm-advisory-allowlist.json); see
 [`npm-advisory-allowlist.md`](./npm-advisory-allowlist.md). Never run
 `npm audit fix --force`.
+
+The React Native Directory check stays enabled, with one narrow exception in
+`package.json`: `queenzone-wallpaper` is a private in-repo Expo module and
+therefore has no public Directory metadata. `RichHtmlBody` renders through
+`@native-html/render`, the actively maintained successor to
+`react-native-render-html` (issue #1682), so no exception is needed for it.
 `npm test` discovers every `src/**/*.test.ts` and `src/**/*.test.tsx` file:
 Node's test runner executes pure `*.test.ts` files, and Jest + `jest-expo` +
 React Native Testing Library execute component/hook `*.test.tsx` files. Do
@@ -308,6 +314,36 @@ Fan performances list from `/api/v1/content/fan-performances`; streaming uses
 list screen walk that same paged GET (`pageSize` 100) for the full catalog, then
 pass the ordered or once-shuffled queue to `FanPerformancePlayer.play` — not the
 `FlatList` pages already on screen.
+
+### Siri and Spotlight (iOS)
+
+Four read-only App Shortcuts are compiled into the main iOS target by
+`plugins/withIosAppIntents.cjs` and `plugins/ios/QueenZoneAppIntents.swift`:
+“What happened today in QueenZone?”, “Show latest news in QueenZone”,
+“Tell me a Queen fact from QueenZone”, and “Search QueenZone” (then provide a search term).
+The first reads the public on-this-day API and opens its timeline event; News
+opens the News tab; trivia speaks one published random fact and, on iOS 18+,
+asks whether to open Trivia; search opens the existing in-app search with the
+spoken term. Empty, offline, and server-error responses never invent content.
+No member-authenticated API or write action is exposed.
+
+The source-controlled config plugin is the SDK 57 integration path: Expo's
+`expo-app-intents` package is documented for SDK 58, so this app does not
+depend on it or edit generated `ios/` files. The shortcut code runs in the
+main app target; no new extension or provisioning profile is needed for this
+implementation. It reuses the existing `queenzone` URL scheme. On iOS 18.4+,
+the app indexes a bounded first page of public albums and timeline events in
+an on-device Spotlight index, refreshed on launch and cached locally for
+offline entity resolution. Spotlight items open the corresponding Album or
+Timeline screen. The index contains no member content. Earlier supported iOS
+versions get the four shortcuts without this Spotlight entity catalog.
+
+Verify with `expo prebuild --platform ios --clean`, the mobile preflight and
+coverage gate, an unsigned iOS build, then a physical iPhone running the
+signed app. Check each phrase from Siri and Shortcuts, cold/warm navigation,
+an offline fact request, locked-device behavior, and Spotlight album/event
+results on iOS 18.4+. Simulator or Swift typechecking alone does not prove
+Siri recognition or spoken responses.
 
 ### Offline fan-performance downloads
 
@@ -723,16 +759,18 @@ replace the API key if its private key is ever exposed. Signing material must
 never be copied into the repository, workflow artifacts, logs, or issue/PR
 text.
 
-## Install the latest Google Play internal-test build
+## Install the latest Google Play test build
 
-Google Play's equivalent of TestFlight is the **internal testing track**. Run
+Google Play's equivalents of TestFlight are the **internal** and **closed
+testing** tracks. Run
 **Publish Android to Google Play** from the repository's **Actions** tab and
-select `main`. Leave **API environment** set to `production` for normal Play
-candidates; choose `staging` only for a deliberate `https://dev.queenzone.org`
-test build. The workflow runs mobile preflight, builds a signed Android App
-Bundle (`.aab`), verifies its packaged environment and API origin, retains it
-as a seven-day artifact, and uploads it to the `internal` track for opted-in
-testers.
+select `main`. Choose `internal` for the Internal testing track or `closed` for
+the Closed testing track. Leave **API environment** set to `production` for
+normal Play candidates; choose `staging` only for a deliberate
+`https://dev.queenzone.org` test build. The workflow runs mobile preflight,
+builds a signed Android App Bundle (`.aab`), verifies its packaged environment
+and API origin, retains it as a seven-day artifact, and uploads it to the
+selected track for opted-in testers.
 
 The one-time Play Console setup for `org.queenzone.mobile` is:
 
@@ -749,10 +787,14 @@ The one-time Play Console setup for `org.queenzone.mobile` is:
 
 Google Play requires the first bundle for a new app to be uploaded in Play
 Console before API publishing works. For that bootstrap only, run the workflow
-with **Upload the bundle to the Google Play internal track** cleared, download
+with **Upload the bundle to the selected Google Play testing track** cleared,
+download
 its `.aab` artifact, and upload it under **Internal testing → Create new
 release**. After that first release establishes the package and upload key, keep
-the option selected for normal automated internal releases.
+the option selected for normal automated testing releases. The closed track is
+already configured in Play Console as Google's `alpha` track, so selecting
+`closed` in the workflow publishes directly to Closed testing without reusing
+the console's release form.
 
 The workflow reuses the stable Android test key as the Play **upload key**.
 Google Play holds the separate app-signing key and signs the APKs delivered to

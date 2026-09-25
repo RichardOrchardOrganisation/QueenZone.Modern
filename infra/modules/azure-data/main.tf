@@ -83,8 +83,11 @@ resource "azurerm_mssql_server" "created" {
   administrator_login_password_wo         = var.sql_server_administrator_password_wo
   administrator_login_password_wo_version = var.sql_server_administrator_password_wo_version
   minimum_tls_version                     = "1.2"
-  public_network_access_enabled           = true
-  outbound_network_restriction_enabled    = false
+  # Public access stays until migration runners and the operator workstation
+  # have their own path. App Service reachability is the explicit firewall
+  # rules below, not the 0.0.0.0-0.0.0.0 Azure-services rule.
+  public_network_access_enabled        = true
+  outbound_network_restriction_enabled = false
 
   azuread_administrator {
     login_username              = "richard@thinkingwebsites.com.au"
@@ -98,10 +101,16 @@ resource "azurerm_mssql_server" "created" {
 
     # Operator identity rotation remains outside this stack, matching the
     # imported production server's existing ownership boundary.
+    # azuread_authentication_only stays false. This ignore_changes block
+    # would drop an Entra-only flip, and the app connection string is still
+    # SQL authentication. Switch only after that connection string uses Entra.
     ignore_changes = [azuread_administrator]
   }
 }
 
+# Count going to zero would be a destroy, and prevent_destroy rejects that
+# plan. destroy = false forgets the state address instead, so the live Azure
+# rule stays until an operator deletes it after a replacement path is applied.
 resource "azurerm_mssql_firewall_rule" "azure_services" {
   count = var.create_azure_services_firewall_rule ? 1 : 0
 
@@ -109,6 +118,20 @@ resource "azurerm_mssql_firewall_rule" "azure_services" {
   server_id        = local.sql_server_id
   start_ip_address = "0.0.0.0"
   end_ip_address   = "0.0.0.0"
+
+  lifecycle {
+    prevent_destroy = true
+    destroy         = false
+  }
+}
+
+resource "azurerm_mssql_firewall_rule" "explicit" {
+  for_each = var.sql_firewall_rules
+
+  name             = each.key
+  server_id        = local.sql_server_id
+  start_ip_address = each.value.start_ip_address
+  end_ip_address   = each.value.end_ip_address
 
   lifecycle {
     prevent_destroy = true
@@ -147,13 +170,22 @@ resource "azurerm_mssql_database" "production" {
   }
 }
 
+check "sql_auditing_has_workspace" {
+  assert {
+    condition     = !var.sql_extended_auditing_enabled || var.log_analytics_workspace_id != null
+    error_message = "sql_extended_auditing_enabled requires log_analytics_workspace_id."
+  }
+}
+
 resource "azurerm_mssql_server_extended_auditing_policy" "production" {
   count = var.create_server_extended_auditing_policy ? 1 : 0
 
   server_id              = local.sql_server_id
-  enabled                = false
-  log_monitoring_enabled = false
-  retention_in_days      = 0
+  enabled                = var.sql_extended_auditing_enabled
+  log_monitoring_enabled = var.sql_extended_auditing_enabled
+  # retention_in_days is storage-account retention. Rows go to Log Analytics,
+  # and the workspace retention period applies instead.
+  retention_in_days = 0
 
   lifecycle {
     prevent_destroy = true
@@ -164,9 +196,43 @@ resource "azurerm_mssql_database_extended_auditing_policy" "production" {
   count = var.manage_sql_database ? 1 : 0
 
   database_id            = azurerm_mssql_database.production[0].id
-  enabled                = false
-  log_monitoring_enabled = false
+  enabled                = var.sql_extended_auditing_enabled
+  log_monitoring_enabled = var.sql_extended_auditing_enabled
   retention_in_days      = 0
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Server audit events are read from master. Database events are read from
+# the user database. Both use the same workspace.
+resource "azurerm_monitor_diagnostic_setting" "sql_server_audit" {
+  count = var.create_server_extended_auditing_policy && var.sql_extended_auditing_enabled ? 1 : 0
+
+  name                       = "sql-security-audit"
+  target_resource_id         = "${local.sql_server_id}/databases/master"
+  log_analytics_workspace_id = var.log_analytics_workspace_id
+
+  enabled_log {
+    category = "SQLSecurityAuditEvents"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "sql_database_audit" {
+  count = var.manage_sql_database && var.sql_extended_auditing_enabled ? 1 : 0
+
+  name                       = "sql-security-audit"
+  target_resource_id         = azurerm_mssql_database.production[0].id
+  log_analytics_workspace_id = var.log_analytics_workspace_id
+
+  enabled_log {
+    category = "SQLSecurityAuditEvents"
+  }
 
   lifecycle {
     prevent_destroy = true
