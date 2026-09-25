@@ -13,7 +13,7 @@ export function toPlainText(value: string | null | undefined): string {
   let previous: string;
   do {
     previous = text;
-    text = text.replace(/<[^>]*>/g, '');
+    text = stripHtmlTags(text);
   } while (text !== previous);
   text = text.replace(/[<>]/g, '');
 
@@ -27,6 +27,25 @@ export function toPlainText(value: string | null | undefined): string {
     .replace(/&amp;/gi, '&')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/** Linear scan equivalent of `/<[^>]*>/g` — first `>` after each `<` closes the tag. */
+function stripHtmlTags(value: string): string {
+  let result = '';
+  let index = 0;
+  while (index < value.length) {
+    const open = value.indexOf('<', index);
+    if (open === -1) {
+      return result + value.slice(index);
+    }
+    result += value.slice(index, open);
+    const close = value.indexOf('>', open + 1);
+    if (close === -1) {
+      return result + value.slice(open);
+    }
+    index = close + 1;
+  }
+  return result;
 }
 
 export function formatPublishedDate(iso: string): string {

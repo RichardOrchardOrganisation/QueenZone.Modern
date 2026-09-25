@@ -1,5 +1,7 @@
 /** Member `/api/v1/me/submissions/*` contract (issue #745). Matches website `/account/my-submissions`. */
 
+import { trimTrailingChar } from '../text/trimRuns.ts';
+
 
 export const submissionKinds = ['photos', 'news', 'articles', 'fan-performances'] as const;
 
@@ -73,7 +75,7 @@ export function submissionsApiUrl(
   page = 1,
   pageSize = 20,
 ): string {
-  const origin = apiBaseUrl.replace(/\/+$/, '');
+  const origin = trimTrailingChar(apiBaseUrl, '/');
   return `${origin}/api/v1/me/submissions/${kind}?page=${page}&pageSize=${pageSize}`;
 }
 
@@ -95,7 +97,7 @@ export function resolveMediaUrl(apiBaseUrl: string, path: string | null): string
     return path;
   }
 
-  const origin = apiBaseUrl.replace(/\/+$/, '');
+  const origin = trimTrailingChar(apiBaseUrl, '/');
   return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
 }
 

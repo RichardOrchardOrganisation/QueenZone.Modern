@@ -26,6 +26,34 @@ describe('buildAuthorizeUrl', () => {
     assert.equal(mobileClientId, 'queenzone-mobile');
     assert.equal(mobileRedirectUri, 'queenzone://auth/callback');
   });
+
+  it('strips trailing slashes on the API origin without stacking path separators', () => {
+    const url = buildAuthorizeUrl({
+      apiBaseUrl: 'https://www.queenzone.org///',
+      provider: 'Google',
+      state: 'abc',
+      codeChallenge: 'challenge-value',
+    });
+    assert.match(url, /^https:\/\/www\.queenzone\.org\/api\/v1\/auth\/authorize\?/);
+    assert.equal(buildAuthorizeUrl({
+      apiBaseUrl: '',
+      provider: 'Google',
+      state: 'abc',
+      codeChallenge: 'c',
+    }).startsWith('/api/v1/auth/authorize?'), true);
+  });
+
+  it('finishes quickly when the origin is a long slash run', () => {
+    const started = performance.now();
+    const url = buildAuthorizeUrl({
+      apiBaseUrl: `https://www.queenzone.org${'/'.repeat(40_000)}`,
+      provider: 'Google',
+      state: 'abc',
+      codeChallenge: 'c',
+    });
+    assert.match(url, /^https:\/\/www\.queenzone\.org\/api\/v1\/auth\/authorize\?/);
+    assert.ok(performance.now() - started < 100);
+  });
 });
 
 describe('parseAuthCallback', () => {

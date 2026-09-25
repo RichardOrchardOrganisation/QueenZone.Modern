@@ -1,3 +1,4 @@
+import { trimChar } from '../text/trimRuns.ts';
 import type { WidgetFace } from './widgetCopy';
 
 /** Opened by a quote face that has no usable id. */
@@ -12,11 +13,11 @@ export const widgetTriviaDeepLinkUrl = 'queenzone://trivia';
 const widgetHomeHosts = new Set(['home', 'timeline']);
 
 function widgetHost(parsed: URL): string {
-  return parsed.hostname || parsed.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+  return parsed.hostname || trimChar(parsed.pathname, '/');
 }
 
 function widgetPathSegment(parsed: URL): string {
-  return parsed.pathname.replace(/^\/+/, '').replace(/\/+$/, '').split('/')[0] ?? '';
+  return trimChar(parsed.pathname, '/').split('/')[0] ?? '';
 }
 
 export function widgetQuoteDeepLinkUrl(id: number): string {
