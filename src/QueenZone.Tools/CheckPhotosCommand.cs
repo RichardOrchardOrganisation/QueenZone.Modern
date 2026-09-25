@@ -75,33 +75,12 @@ internal static class CheckPhotosCommand
         CheckPhotosOptions options,
         IPhotoRepository repository)
     {
-        var categories = await repository.GetCategoriesAsync(options.CancellationToken);
-
-        if (options.CategoryId is int categoryId)
-        {
-            categories = categories.Where(category => category.CatId == categoryId).ToList();
-        }
-        else if (!string.IsNullOrWhiteSpace(options.CategorySlug))
-        {
-            categories = categories
-                .Where(category => string.Equals(category.Slug, options.CategorySlug, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
-        var photos = new List<PhotoItem>();
-        foreach (var category in categories)
-        {
-            var items = await repository.GetCategoryAllAsync(category.CatId, options.CancellationToken);
-            photos.AddRange(items);
-            if (options.Limit is int limit && photos.Count >= limit)
-            {
-                return photos.Take(limit).ToList();
-            }
-        }
-
-        return options.Limit is int cappedLimit
-            ? photos.Take(cappedLimit).ToList()
-            : photos;
+        return await PhotoCategoryScan.LoadPhotosAsync(
+            repository,
+            options.CategoryId,
+            options.CategorySlug,
+            options.Limit,
+            options.CancellationToken);
     }
 
     private static IPhotoBlobChecker CreateChecker(CheckPhotosOptions options) =>
@@ -251,32 +230,30 @@ internal static class CheckPhotosCommand
     private static string EscapeCsv(string value) =>
         $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 
-    private static void WriteUsage(string errorMessage)
-    {
-        Console.Error.WriteLine(errorMessage);
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- check-photos [options]");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Options:");
-        Console.Error.WriteLine("  --connection-string <value>   Legacy SQL connection string");
-        Console.Error.WriteLine("  --settings-file <path>        appsettings.Local.json path (default: src/QueenZone.Web/appsettings.Local.json)");
-        Console.Error.WriteLine("  --category-id <id>            Limit to one legacy category id");
-        Console.Error.WriteLine("  --category-slug <slug>        Limit to one category slug");
-        Console.Error.WriteLine("  --limit <count>               Stop after this many photos");
-        Console.Error.WriteLine("  --concurrency <count>         Parallel checks (default: 8)");
-        Console.Error.WriteLine("  --method http|blob            Check via HTTPS HEAD to blob endpoint or Azure Blob SDK (default: http)");
-        Console.Error.WriteLine("  --blob-endpoint <url>         Azure blob endpoint for checks (default: https://queenzoneprod.blob.core.windows.net)");
-        Console.Error.WriteLine("  --storage-connection-string <value>  Azure Storage connection string for blob SDK checks");
-        Console.Error.WriteLine("  --timeout <seconds>           HTTP timeout for http checks (default: 30)");
-        Console.Error.WriteLine("  --output <path>               Write one-row-per-photo CSV report");
-        Console.Error.WriteLine("  --hide-ids-output <path>      Write pic_id list for photos missing the main image");
-        Console.Error.WriteLine("  --dry-run                     List matching photos without checking storage");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Defaults from src/QueenZone.Web/appsettings.Local.json when present:");
-        Console.Error.WriteLine("  ConnectionStrings:QueenZoneLegacyLive");
-        Console.Error.WriteLine("  ConnectionStrings:BlobStorage");
-    }
+    private static void WriteUsage(string errorMessage) =>
+        ToolArgs.WriteUsage(
+            errorMessage,
+            "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- check-photos [options]",
+            "",
+            "Options:",
+            "  --connection-string <value>   Legacy SQL connection string",
+            "  --settings-file <path>        appsettings.Local.json path (default: src/QueenZone.Web/appsettings.Local.json)",
+            "  --category-id <id>            Limit to one legacy category id",
+            "  --category-slug <slug>        Limit to one category slug",
+            "  --limit <count>               Stop after this many photos",
+            "  --concurrency <count>         Parallel checks (default: 8)",
+            "  --method http|blob            Check via HTTPS HEAD to blob endpoint or Azure Blob SDK (default: http)",
+            "  --blob-endpoint <url>         Azure blob endpoint for checks (default: https://queenzoneprod.blob.core.windows.net)",
+            "  --storage-connection-string <value>  Azure Storage connection string for blob SDK checks",
+            "  --timeout <seconds>           HTTP timeout for http checks (default: 30)",
+            "  --output <path>               Write one-row-per-photo CSV report",
+            "  --hide-ids-output <path>      Write pic_id list for photos missing the main image",
+            "  --dry-run                     List matching photos without checking storage",
+            "",
+            "Defaults from src/QueenZone.Web/appsettings.Local.json when present:",
+            "  ConnectionStrings:QueenZoneLegacyLive",
+            "  ConnectionStrings:BlobStorage");
 }
 
 internal enum PhotoCheckMethod
@@ -380,44 +357,44 @@ internal sealed class CheckPhotosOptions
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--category-id", out var categoryIdValue))
+            if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var parsedCategoryId, out var parsedCategoryIdError))
             {
-                if (!int.TryParse(categoryIdValue, out var parsedCategoryId))
+                if (parsedCategoryIdError is not null)
                 {
-                    return Invalid("--category-id must be an integer.");
+                    return Invalid(parsedCategoryIdError);
                 }
 
                 categoryId = parsedCategoryId;
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--limit", out var limitValue))
+            if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var parsedLimit, out var parsedLimitError))
             {
-                if (!int.TryParse(limitValue, out var parsedLimit) || parsedLimit < 1)
+                if (parsedLimitError is not null)
                 {
-                    return Invalid("--limit must be a positive integer.");
+                    return Invalid(parsedLimitError);
                 }
 
                 limit = parsedLimit;
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--concurrency", out var concurrencyValue))
+            if (ToolArgs.TryReadInt(args, ref index, "--concurrency", 1, out var parsedConcurrency, out var parsedConcurrencyError))
             {
-                if (!int.TryParse(concurrencyValue, out var parsedConcurrency) || parsedConcurrency < 1)
+                if (parsedConcurrencyError is not null)
                 {
-                    return Invalid("--concurrency must be a positive integer.");
+                    return Invalid(parsedConcurrencyError);
                 }
 
                 concurrency = parsedConcurrency;
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--timeout", out var timeoutValue))
+            if (ToolArgs.TryReadInt(args, ref index, "--timeout", 1, out var parsedTimeout, out var parsedTimeoutError))
             {
-                if (!int.TryParse(timeoutValue, out var parsedTimeout) || parsedTimeout < 1)
+                if (parsedTimeoutError is not null)
                 {
-                    return Invalid("--timeout must be a positive integer.");
+                    return Invalid(parsedTimeoutError);
                 }
 
                 httpTimeout = parsedTimeout;

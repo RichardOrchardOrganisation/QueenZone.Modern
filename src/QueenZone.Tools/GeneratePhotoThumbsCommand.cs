@@ -130,24 +130,22 @@ internal static class GeneratePhotoThumbsCommand
         return rows;
     }
 
-    private static void WriteUsage(string errorMessage)
-    {
-        Console.Error.WriteLine(errorMessage);
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- generate-photo-thumbs [options]");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Options:");
-        Console.Error.WriteLine("  --pic-ids <id,id,...>         PIC_FILES_T ids to process");
-        Console.Error.WriteLine("  --pic-ids-file <path>         File with one pic id per line");
-        Console.Error.WriteLine("  --connection-string <value>   Legacy SQL connection string");
-        Console.Error.WriteLine("  --storage-connection-string <value>  Azure Storage connection string");
-        Console.Error.WriteLine("  --settings-file <path>        appsettings.Local.json path");
-        Console.Error.WriteLine("  --thumb-size <px>             Square thumb size (default: 400)");
-        Console.Error.WriteLine("  --dry-run                     Plan uploads/updates without writing");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Writes {stem}_t.webp into the same gallery container and updates Thumb_URL / t_width / t_height.");
-    }
+    private static void WriteUsage(string errorMessage) =>
+        ToolArgs.WriteUsage(
+            errorMessage,
+            "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- generate-photo-thumbs [options]",
+            "",
+            "Options:",
+            "  --pic-ids <id,id,...>         PIC_FILES_T ids to process",
+            "  --pic-ids-file <path>         File with one pic id per line",
+            "  --connection-string <value>   Legacy SQL connection string",
+            "  --storage-connection-string <value>  Azure Storage connection string",
+            "  --settings-file <path>        appsettings.Local.json path",
+            "  --thumb-size <px>             Square thumb size (default: 400)",
+            "  --dry-run                     Plan uploads/updates without writing",
+            "",
+            "Writes {stem}_t.webp into the same gallery container and updates Thumb_URL / t_width / t_height.");
 }
 
 internal interface IGalleryThumbGenerator
@@ -288,11 +286,11 @@ internal sealed class GeneratePhotoThumbsOptions
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--thumb-size", out var thumbSizeValue))
+            if (ToolArgs.TryReadInt(args, ref index, "--thumb-size", 1, out var parsedThumbSize, out var parsedThumbSizeError))
             {
-                if (!int.TryParse(thumbSizeValue, out var parsedThumbSize) || parsedThumbSize < 1)
+                if (parsedThumbSizeError is not null)
                 {
-                    return Invalid("--thumb-size must be a positive integer.");
+                    return Invalid(parsedThumbSizeError);
                 }
 
                 thumbSize = parsedThumbSize;

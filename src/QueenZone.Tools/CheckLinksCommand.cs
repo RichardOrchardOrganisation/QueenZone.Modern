@@ -152,22 +152,20 @@ internal static class CheckLinksCommand
         }
     }
 
-    private static void WriteUsage(string errorMessage)
-    {
-        Console.Error.WriteLine(errorMessage);
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- check-links [options]");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Options:");
-        Console.Error.WriteLine("  --connection-string <connection-string>  SQL Server connection string. Defaults to ConnectionStrings__QueenZoneLegacy.");
-        Console.Error.WriteLine("  --settings-file <path>                  Optional appsettings.Local.json to read ConnectionStrings:QueenZoneLegacyLive.");
-        Console.Error.WriteLine("  --concurrency <number>                  Concurrent HTTP checks. Default: 8.");
-        Console.Error.WriteLine("  --confirm-after <number>                Consecutive hard failures before hiding. Default: 2.");
-        Console.Error.WriteLine("  --timeout-seconds <number>              Per-request timeout. Default: 10.");
-        Console.Error.WriteLine("  --limit <number>                        Check only the first N links.");
-        Console.Error.WriteLine("  --dry-run                               Parse and count links without HTTP requests or writes.");
-    }
+    private static void WriteUsage(string errorMessage) =>
+        ToolArgs.WriteUsage(
+            errorMessage,
+            "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- check-links [options]",
+            "",
+            "Options:",
+            "  --connection-string <connection-string>  SQL Server connection string. Defaults to ConnectionStrings__QueenZoneLegacy.",
+            "  --settings-file <path>                  Optional appsettings.Local.json to read ConnectionStrings:QueenZoneLegacyLive.",
+            "  --concurrency <number>                  Concurrent HTTP checks. Default: 8.",
+            "  --confirm-after <number>                Consecutive hard failures before hiding. Default: 2.",
+            "  --timeout-seconds <number>              Per-request timeout. Default: 10.",
+            "  --limit <number>                        Check only the first N links.",
+            "  --dry-run                               Parse and count links without HTTP requests or writes.");
 }
 
 internal sealed record QueenLinkCheckRunResult(
@@ -200,57 +198,58 @@ internal sealed class HttpQueenLinkChecker(TimeSpan timeout) : IQueenLinkChecker
             return new QueenLinkHttpCheckResult(null, false, true, null, "invalid-url");
         }
 
+        var (headStatus, headFailure) = await ProbeAsync(HttpMethod.Head, uri, cancellationToken);
+        if (headFailure is not null)
+        {
+            return headFailure;
+        }
+
+        if (IsExistingPageStatus(headStatus))
+        {
+            return new QueenLinkHttpCheckResult(uri.AbsoluteUri, true, false, headStatus, null);
+        }
+
+        if (headStatus is not ((int)System.Net.HttpStatusCode.MethodNotAllowed
+            or (int)System.Net.HttpStatusCode.NotImplemented))
+        {
+            return new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, IsHardFailureStatus(headStatus), headStatus, null);
+        }
+
+        var (getStatus, getFailure) = await ProbeAsync(HttpMethod.Get, uri, cancellationToken);
+        if (getFailure is not null)
+        {
+            return getFailure;
+        }
+
+        return new QueenLinkHttpCheckResult(
+            uri.AbsoluteUri,
+            IsExistingPageStatus(getStatus),
+            IsHardFailureStatus(getStatus),
+            getStatus,
+            null);
+    }
+
+    private async Task<(int Status, QueenLinkHttpCheckResult? Failure)> ProbeAsync(
+        HttpMethod method,
+        Uri uri,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            using var head = new HttpRequestMessage(HttpMethod.Head, uri);
-            using var headResponse = await httpClient.SendAsync(
-                head,
+            using var request = new HttpRequestMessage(method, uri);
+            using var response = await httpClient.SendAsync(
+                request,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
-
-            var headStatus = (int)headResponse.StatusCode;
-            if (IsExistingPageStatus(headStatus))
-            {
-                return new QueenLinkHttpCheckResult(uri.AbsoluteUri, true, false, headStatus, null);
-            }
-
-            if (headResponse.StatusCode is not (System.Net.HttpStatusCode.MethodNotAllowed
-                or System.Net.HttpStatusCode.NotImplemented))
-            {
-                return new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, IsHardFailureStatus(headStatus), headStatus, null);
-            }
+            return ((int)response.StatusCode, null);
         }
         catch (HttpRequestException ex)
         {
-            return new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, true, null, ex.HttpRequestError.ToString());
+            return (0, new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, true, null, ex.HttpRequestError.ToString()));
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, false, null, "timeout");
-        }
-
-        try
-        {
-            using var get = new HttpRequestMessage(HttpMethod.Get, uri);
-            using var getResponse = await httpClient.SendAsync(
-                get,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            var getStatus = (int)getResponse.StatusCode;
-            return new QueenLinkHttpCheckResult(
-                uri.AbsoluteUri,
-                IsExistingPageStatus(getStatus),
-                IsHardFailureStatus(getStatus),
-                getStatus,
-                null);
-        }
-        catch (HttpRequestException ex)
-        {
-            return new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, true, null, ex.HttpRequestError.ToString());
-        }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, false, null, "timeout");
+            return (0, new QueenLinkHttpCheckResult(uri.AbsoluteUri, false, false, null, "timeout"));
         }
     }
 
