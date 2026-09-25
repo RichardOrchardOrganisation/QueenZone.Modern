@@ -61,12 +61,20 @@ and marks the real test layouts as tests:
 - `src/QueenZone.Mobile/src/test/**` and `jest.setup.ts` — fixtures and harness
 - `src/QueenZone.Mobile/**/__tests__/**` — standard Jest tree if one appears
 
+Automatic Analysis defaults `sonar.sources` to `.`. The same test globs
+are therefore also listed on `sonar.exclusions`, so they leave the
+source set before `sonar.tests` / `sonar.test.inclusions` claim them.
+A path in both sets fails the first full `main` scan with "File can't
+be indexed twice". Product files under `src/QueenZone.Mobile/` stay in
+sources; only the test globs above are tests.
+
 The project's Analysis Scope settings in the Sonar UI are empty. Do not
 set the same exclusions or test paths there. This file is the single
 source of truth.
 
-Do not exclude `scripts/`, `.github/`, `infra/`, or tests just to lower
-counts. `SonarQube.Analysis.xml` and scanner CLI args apply only to a CI
+Do not exclude `scripts/`, `.github/`, or `infra/` just to lower counts,
+and do not drop tests from analysis entirely — they stay in the test
+set. `SonarQube.Analysis.xml` and scanner CLI args apply only to a CI
 scan.
 
 ### 3. Triage policy
