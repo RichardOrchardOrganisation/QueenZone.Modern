@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-Epic [#719](https://github.com/richardorchard/QueenZone.Modern/issues/719) adds a React Native mobile app. The site is Razor Pages with cookie auth; mobile auth (#720, #721) already landed under `/api/v1/auth`. Later epics will add news, forum, messages, and gallery JSON.
+Epic [#719](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/719) adds a React Native mobile app. The site is Razor Pages with cookie auth; mobile auth (#720, #721) already landed under `/api/v1/auth`. Later epics will add news, forum, messages, and gallery JSON.
 
 Without one request/response/error/pagination convention, those endpoints would drift. Unversioned routes in `src/QueenZone.Web/Endpoints/` (RSS, uploads, streaming) must stay unchanged.
 

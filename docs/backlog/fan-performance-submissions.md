@@ -2,7 +2,7 @@
 
 Planning scope for letting members submit their own Queen covers to the Fan Performances archive, plus an admin queue to preview, approve, and publish them.
 
-Tracked as [#1290](https://github.com/richardorchard/QueenZone.Modern/issues/1290) (epic) with children [#1291](https://github.com/richardorchard/QueenZone.Modern/issues/1291)–[#1296](https://github.com/richardorchard/QueenZone.Modern/issues/1296). Detailed acceptance criteria live in those issues; this document is the narrative and the open questions.
+Tracked as [#1290](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1290) (epic) with children [#1291](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1291)–[#1296](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1296). Detailed acceptance criteria live in those issues; this document is the narrative and the open questions.
 
 ## Where this starts from
 
@@ -23,7 +23,7 @@ Ordering is dependency order, not priority. Epic 1 is a prerequisite for everyth
 
 ---
 
-## Epic 1 — Modern write path for fan performances ([#1291](https://github.com/richardorchard/QueenZone.Modern/issues/1291))
+## Epic 1 — Modern write path for fan performances ([#1291](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1291))
 
 Today's repository is read-only over a legacy table. Nothing else here can land until published rows can be written and read consistently. Per [ADR 0006](../decisions/0006-hybrid-ef-core-admin-writes.md), admin writes go through EF Core; public reads may keep projecting from legacy shapes.
 
@@ -34,7 +34,7 @@ Today's repository is read-only over a legacy table. Nothing else here can land 
 - As a backend maintainer, I want a published performance to be enqueued for search reindex as `SiteSearchContentType.FanPerformance`, so it is findable the same way legacy rows are.
 - As an admin, I want to unpublish (hide) a previously published performance without deleting the blob, so a rights complaint can be actioned in seconds and reversed if it was wrong.
 
-## Epic 2 — Audio upload foundation ([#1292](https://github.com/richardorchard/QueenZone.Modern/issues/1292))
+## Epic 2 — Audio upload foundation ([#1292](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1292))
 
 - As a backend maintainer, I want a dedicated UGC container for pending audio (e.g. `ugc-fan-performances`) registered in `BlobUploadContainers`, kept separate from the published `songfiles` container, so unreviewed audio can never be reached by the public read path.
 - As a backend maintainer, I want a container policy in `BlobUploadOptions` with an audio-appropriate size limit and an explicit allow-list (`audio/mpeg`, `audio/mp3`, `audio/flac`, `audio/x-flac`, and a decision on `audio/mp4`/m4a), so uploads are validated by declared type *and* sniffed content, not by extension.
@@ -43,7 +43,7 @@ Today's repository is read-only over a legacy table. Nothing else here can land 
 - As a backend maintainer, I want fan-performance uploads to consume the existing per-member daily quota via `MemberUploadQuotaService`, counting bytes as well as uploads, so audio can't be used to bypass the limits every other UGC path respects.
 - As a maintainer, I want track duration derived once at submission time (reusing or extending `FanPerformanceDurationResolver`) and stored, so neither the review queue nor the public list has to probe the blob to show a duration.
 
-## Epic 3 — Member submission flow ([#1293](https://github.com/richardorchard/QueenZone.Modern/issues/1293))
+## Epic 3 — Member submission flow ([#1293](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1293))
 
 - As a signed-in member, I want a "Submit a performance" form at `/submit/fan-performance`, matching the structure of `Pages/Submit/Photo`, so submitting feels like every other contribution on the site.
 - As a submitting member, I want to provide title, the Queen song being covered, who performed it, and a description, so my entry carries the same metadata published rows have (`FanPerformance.Title`, `PerformedBy`, `Description`).
@@ -55,7 +55,7 @@ Today's repository is read-only over a legacy table. Nothing else here can land 
 - As a submitting member, I want to withdraw a submission that hasn't yet been published, so I can pull a recording I'm no longer happy with.
 - As a security reviewer, I want the submission endpoint rate-limited and anti-forgery protected in line with the other `Pages/Submit/` forms, so the new write path isn't the weak one.
 
-## Epic 4 — Admin review, preview, and publish ([#1294](https://github.com/richardorchard/QueenZone.Modern/issues/1294))
+## Epic 4 — Admin review, preview, and publish ([#1294](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1294))
 
 - As an admin, I want a `/admin/fan-performance-submissions` queue listing pending items with submitter, title, song, duration, and file size, following the `Pages/Admin/PhotoSubmissions/Index` shape, so review is one familiar screen.
 - As an admin, I want a detail page per submission showing all submitted metadata, the member's rights declaration, and the submission's audit history.
@@ -69,13 +69,13 @@ Today's repository is read-only over a legacy table. Nothing else here can land 
 - As an admin, I want pending fan-performance counts included in the admin dashboard rollup via `SubmissionTypeCounts` / `AdminDashboardService`, so a growing queue is visible without visiting the page.
 - As an admin, I want rejected or withdrawn submissions' audio purged on a defined schedule, so we aren't storing recordings we've declined indefinitely.
 
-## Epic 5 — Notifications and member feedback ([#1295](https://github.com/richardorchard/QueenZone.Modern/issues/1295))
+## Epic 5 — Notifications and member feedback ([#1295](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1295))
 
 - As a submitting member, I want to be notified when my submission is approved and published, with a link to the live page, so I can share it.
 - As a submitting member, I want to be notified when it is rejected or needs more information, including the reviewer's reason.
 - As an admin, I want a notification (or dashboard signal) when the queue has been waiting longer than a set period, so submissions don't quietly rot.
 
-## Epic 6 — Public surface and mobile parity ([#1296](https://github.com/richardorchard/QueenZone.Modern/issues/1296))
+## Epic 6 — Public surface and mobile parity ([#1296](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1296))
 
 - As a listener, I want a published fan performance to show who submitted it, so contributors get credit.
 - As a listener, I want a way to report a performance that infringes rights or is otherwise inappropriate, routing to the admin queue, so takedown doesn't depend on someone emailing the site owner.

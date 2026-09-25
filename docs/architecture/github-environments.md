@@ -1,6 +1,6 @@
 # GitHub Environments
 
-Issue: [#1377](https://github.com/richardorchard/QueenZone.Modern/issues/1377) (Bob Architecture lock, Option B).
+Issue: [#1377](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1377) (Bob Architecture lock, Option B).
 
 This is the durable map of GitHub Environments used by QueenZone Actions. Environments live only in GitHub Settings today; workflows reference them by exact name. Create and protect an environment **before** merging a workflow that first references it — GitHub auto-creates an unprotected environment on first use.
 
@@ -60,9 +60,9 @@ GitHub Environments are **not** managed in `infra/` today (`github_repository_en
 
 ## Legacy environment retirement
 
-Issue [#1394](https://github.com/richardorchard/QueenZone.Modern/issues/1394). #1377 remapped workflows; Gilfoyle deleted the leftover Settings names. This repo slice records that — it does not gate Settings delete.
+Issue [#1394](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1394). #1377 remapped workflows; Gilfoyle deleted the leftover Settings names. This repo slice records that — it does not gate Settings delete.
 
-`gh api repos/richardorchard/QueenZone.Modern/environments` on 2026-09-07: **`dev` and `deploy` are absent**. Live names: `dev-data-refresh`, `dev-deploy`, `dev-migrate`, `opentofu-apply`, `opentofu-plan`, `prod-data-read`, `prod-deploy`, `prod-google-play`, `prod-release`.
+`gh api repos/RichardOrchardOrganisation/QueenZone.Modern/environments` on 2026-09-07: **`dev` and `deploy` are absent**. Live names: `dev-data-refresh`, `dev-deploy`, `dev-migrate`, `opentofu-apply`, `opentofu-plan`, `prod-data-read`, `prod-deploy`, `prod-google-play`, `prod-release`.
 
 1. Done. Exact workflow search on `main` is clean: no `environment: dev`, `environment: deploy`, `name: dev`, or `name: deploy` under `.github/workflows/` (kept `dev-migrate` / `dev-deploy` / `dev-data-refresh` and `deploy-dev.yml`).
 2. Done. Tag `v2026.09.07.1` succeeded using `prod-release` + `prod-deploy`.

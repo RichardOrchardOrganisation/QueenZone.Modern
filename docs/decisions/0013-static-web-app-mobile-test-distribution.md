@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded — 2026-09-04 by [#1267](https://github.com/richardorchard/QueenZone.Modern/issues/1267).
+Superseded — 2026-09-04 by [#1267](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1267).
 
 The unused Static Web App and its APK-distribution workflow were decommissioned.
 `dev.queenzone.org` is reassigned to the dev web environment.

@@ -13,7 +13,7 @@ Accepted and implemented.
 
 ## Context
 
-Issue [#473](https://github.com/richardorchard/QueenZone.Modern/issues/473) asks for a documented retention, deletion, and audit policy for private messaging, with the acceptance criterion that "permanent deletion behavior is documented before implementation."
+Issue [#473](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/473) asks for a documented retention, deletion, and audit policy for private messaging, with the acceptance criterion that "permanent deletion behavior is documented before implementation."
 
 Part of #473 is already settled and shipped:
 

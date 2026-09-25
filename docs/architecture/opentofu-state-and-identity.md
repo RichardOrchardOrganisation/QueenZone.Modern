@@ -1,6 +1,6 @@
 # OpenTofu remote state and workload identities
 
-Issue: [#616](https://github.com/richardorchard/QueenZone.Modern/issues/616), step 2 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615).
+Issue: [#616](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/616), step 2 of epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615).
 
 **Bootstrapped and locally verified:** 2026-08-13. **First real production plan/apply:** 2026-09-03 — see [`opentofu-ci-and-runbooks.md`](opentofu-ci-and-runbooks.md#what-actually-happened-on-the-first-real-apply). Production is now under full OpenTofu management (76 resources imported across Azure and Cloudflare, zero deletes).
 

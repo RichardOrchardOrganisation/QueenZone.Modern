@@ -252,7 +252,7 @@ This is a second, separate layer from the End-To-End Tests above, sharing the sa
 
 This is a separate `DeployedAuth` Playwright category, not a PR gate or production test. The target guard accepts only the exact dev HTTPS origin. The fixture records no Playwright trace or screenshot because those could contain the password form.
 
-The workflow skips scheduled runs with a summary while `DevSnapshot__Ready` is false; a manual run fails early in that state. Repository variable `BITWARDEN_DEV_AUTH_E2E_SECRETS` maps only the existing `DEV_SNAPSHOT_MEMBER_PASSWORD` Bitwarden secret. A planned Google OAuth job ([#1614](https://github.com/richardorchard/QueenZone.Modern/issues/1614)) will use a separate repository variable `BITWARDEN_DEV_AUTH_GOOGLE_E2E_SECRETS` (see [`docs/bitwarden-secrets.md`](../bitwarden-secrets.md)); values are not live until a dedicated 2FA-off Google account exists.
+The workflow skips scheduled runs with a summary while `DevSnapshot__Ready` is false; a manual run fails early in that state. Repository variable `BITWARDEN_DEV_AUTH_E2E_SECRETS` maps only the existing `DEV_SNAPSHOT_MEMBER_PASSWORD` Bitwarden secret. A planned Google OAuth job ([#1614](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1614)) will use a separate repository variable `BITWARDEN_DEV_AUTH_GOOGLE_E2E_SECRETS` (see [`docs/bitwarden-secrets.md`](../bitwarden-secrets.md)); values are not live until a dedicated 2FA-off Google account exists.
 
 `LiveSiteContentApiTests` is an HTTP (not Playwright page) shape sweep of the public mobile JSON API: discovery document, OpenAPI, `/api/v1/content/*` list envelopes, one detail per resource using an id from that list (never hardcoded), and Problem Details 404 for an unknown `/api/v1` path. It does not call `/api/v1/auth` or `/api/v1/admin`. The same fixture also runs in the nightly RealData suite against the SQL Express mirror. In-memory contract tests stay in `QueenZone.Web.Tests` (`ApiV1RoutesTests`, `ContentApi*Tests`). Post-deploy smoke (`scripts/Smoke-LiveSite.ps1` / `scripts/Invoke-PostDeploySmoke.sh`) hits `GET /api/v1` and one content list as a cheap deploy canary.
 
@@ -332,15 +332,31 @@ queue SHA has its own concurrency group so a later candidate cannot cancel a
 required check already running. Artifact cleanup only deletes artifacts from
 its own run. Dev and production deploy workflows have no `merge_group` trigger.
 
-At the #1734 preparation audit, the live `main` rule had strict status checks and
-required the following GitHub Actions checks (source App ID `15368`): `build`,
+The organization-owned, exact `main` branch protection rule requires a pull
+request and merge queue, with strict up-to-date branches disabled because the
+queue tests each candidate on the latest base. The queue uses squash, build
+concurrency 1, a maximum of one PR per merge, a 120-minute required-check
+timeout, and the all-green strategy to limit self-hosted runner contention and
+dev deployments. Its minimum merge count is 1, with no additional wait.
+The rule retains admin enforcement, forbids force pushes and deletions, and
+requires the following GitHub Actions checks (source App ID `15368`): `build`,
 `test (0)`, `test (1)`, `sql-server-tests`, `coverage`, `smoke-test`,
 `e2e-test`, `Verify formatting`, `Small test projects (Tools/Storage/NewsAgent)`,
 `Mobile typecheck and unit tests`, `Mobile Android build`, and `Mobile iOS build`.
 The workflow also runs `test (2)` through `test (5)` and conditionally runs
 `ef-migrations`, `Mobile API consumer contracts`, and `Design token sync check`;
-those names were not in the live required list. Re-read the rule at cutover,
-because it can change after this audit.
+those names are not in the required list. Re-read the live rule when changing
+CI because check names or sources can change.
+
+Use `gh pr merge --auto --squash` while PR checks are pending, or
+`gh pr merge --squash` after they pass. GitHub then places the PR in the queue
+and checks the temporary merge-group SHA. The PR page's **Remove from queue**
+control withdraws a queued PR. Changing its head branch also removes it and
+restarts checks. A failed, timed-out, or conflicting merge group leaves the PR
+unmerged and records the reason in its timeline; inspect the run, fix the
+cause, and enqueue it again. Avoid queue jumping because it rebuilds later
+candidates. A merge-group event never deploys; the merged `main` push starts
+the normal dev deploy once. Production remains tag/manual only.
 
 If a queued PR waits for a check, inspect the merge-group run and its `changes`
 output, then compare the exact required check name and GitHub App source in the
@@ -363,7 +379,7 @@ required check to get a candidate through.
 
 The `build` job uploads `src/**/bin/Release`, `tests/**/bin/Release`, and `src/QueenZone.Web/obj/Release`. Keep PDBs — Coverlet maps executed lines from them, so a `--no-build` shard without symbols collapses global coverage. Keep `*.xml` — NewsAgent tests copy fixture XML into the output directory and `--no-build` shards read those files from disk. Shards must keep the QueenZone.Web `obj` tree — ASP.NET Core’s `WebApplicationFactory` resolves compressed static web assets under `src/QueenZone.Web/obj/.../compressed/`. Uploading only `bin` causes `DirectoryNotFoundException` in Development-environment host tests (for example `StaticAssetCacheHeadersTests`). Other project `obj` trees are not required for `--no-build` shard runs.
 
-**Do not** split CI as “all unit tests in job A / all WAF integration tests in job B”. That was measured in [#442](https://github.com/richardorchard/QueenZone.Modern/issues/442) and **regressed** wall-clock: isolating every `WebApplicationFactory` host onto one runner increases contention, and that job became slower than the old single-suite run. Mixed shards are required.
+**Do not** split CI as “all unit tests in job A / all WAF integration tests in job B”. That was measured in [#442](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/442) and **regressed** wall-clock: isolating every `WebApplicationFactory` host onto one runner increases contention, and that job became slower than the old single-suite run. Mixed shards are required.
 
 **Local development:** keep using `dotnet test QueenZone.sln` (full suite, no filter). Sharding is a CI wall-clock optimization, not a new project layout. To inspect or time shards locally:
 
@@ -380,7 +396,7 @@ powershell -File ./scripts/Invoke-WebTestsShard.ps1 -SmallProjectsOnly -NoBuild 
 
 When adding Web.Tests classes: no shard manifest to update — discovery is automatic. Prefer `QueenZoneWebApplicationFactory` for HTTP tests; keep true unit tests free of `WebApplicationFactory` so they stay cheap filler in every shard. Do not call `factory.WithWebHostBuilder(...)` in a test class constructor: xUnit constructs the class once per test, so that boots a new host for every test (60 classes did this and were about half of all Web.Tests time). Take a class fixture instead — `QueenZoneWebApplicationFactory`, or one of the variants in `EnvironmentWebApplicationFactories.cs` (Production, Development, preview public base URL, external cookie), or a new subclass overriding `ConfigureTestServices`. Keep per-test `WithWebHostBuilder` for tests that genuinely need a one-off host.
 
-If CI wall-clock grows again, prefer (in order): thin theory-heavy smoke HTTP tests; raise `ShardCount` / matrix size with the same mixed algorithm; paid larger runners. Avoid unit-vs-WAF project splits and raising xUnit `maxParallelThreads` (more threads worsened contention in #442). Smaller parked ideas (format `--include`, EF migrations bundle, extra shards today) live in [#657](https://github.com/richardorchard/QueenZone.Modern/issues/657).
+If CI wall-clock grows again, prefer (in order): thin theory-heavy smoke HTTP tests; raise `ShardCount` / matrix size with the same mixed algorithm; paid larger runners. Avoid unit-vs-WAF project splits and raising xUnit `maxParallelThreads` (more threads worsened contention in #442). Smaller parked ideas (format `--include`, EF migrations bundle, extra shards today) live in [#657](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/657).
 
 ### Coverage gates (enforced on pull requests and merge groups)
 
