@@ -266,25 +266,25 @@ public sealed class QuizSprintService(
     {
         var board = await quizRepository.GetSprintBoardAsync(scope, viewerMemberId, top, cancellationToken);
 
-        async Task<SprintBoardRow> ToRowAsync(QuizSprintLeaderboardEntry entry)
+        var names = await QuizLeaderboardNameReader.LoadAsync(
+            memberAccountRepository,
+            board.Top.Select(entry => entry.MemberAccountId),
+            board.Viewer?.MemberAccountId,
+            cancellationToken);
+
+        SprintBoardRow ToRow(QuizSprintLeaderboardEntry entry)
         {
-            var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
             return new SprintBoardRow(
                 entry.Rank,
-                account?.DisplayName ?? "Member",
+                QuizLeaderboardNameReader.DisplayName(names, entry.MemberAccountId),
                 entry.Score,
                 entry.BestStreak,
                 entry.MemberAccountId == viewerMemberId,
                 entry.Runs);
         }
 
-        var rows = new List<SprintBoardRow>(board.Top.Count);
-        foreach (var entry in board.Top)
-        {
-            rows.Add(await ToRowAsync(entry));
-        }
-
-        var viewer = board.Viewer is null ? null : await ToRowAsync(board.Viewer);
+        var rows = board.Top.Select(ToRow).ToList();
+        var viewer = board.Viewer is null ? null : ToRow(board.Viewer);
         return new SprintBoard(rows, viewer, board.Players, scope);
     }
 

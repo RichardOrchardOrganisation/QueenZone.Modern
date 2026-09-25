@@ -31,6 +31,20 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
         }
     }
 
+    public Task<IReadOnlyDictionary<Guid, string>> ListDisplayNamesAsync(
+        IReadOnlyCollection<Guid> memberIds,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = memberIds.ToHashSet();
+        lock (gate)
+        {
+            IReadOnlyDictionary<Guid, string> names = accounts
+                .Where(account => ids.Contains(account.Id))
+                .ToDictionary(account => account.Id, account => account.DisplayName);
+            return Task.FromResult(names);
+        }
+    }
+
     public Task<IReadOnlySet<Guid>> ListActiveMemberIdsAsync(
         IReadOnlyCollection<Guid> memberIds,
         CancellationToken cancellationToken = default)
