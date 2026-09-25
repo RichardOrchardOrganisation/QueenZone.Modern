@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
 
@@ -5,6 +6,36 @@ namespace QueenZone.Data;
 
 public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContext) : ITriviaFactSubmissionRepository
 {
+    private static readonly NewestFirstOrder<TriviaFactSubmissionEntity> NewestFirst =
+        new(row => row.SubmittedAt, row => row.Id);
+
+    private static readonly Expression<Func<TriviaFactSubmissionEntity, TriviaFactSubmissionListItem>> ListItemProjection =
+        row => new TriviaFactSubmissionListItem(
+            row.Id,
+            row.Text,
+            row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
+            row.SubmittedAt,
+            row.Category,
+            row.Status);
+
+    private static readonly Expression<Func<TriviaFactSubmissionEntity, TriviaFactSubmission>> SubmissionProjection =
+        row => new TriviaFactSubmission(
+            row.Id,
+            row.SubmitterMemberId,
+            row.Text,
+            row.Category,
+            row.Difficulty,
+            row.SourceNote,
+            row.Status,
+            row.SubmittedAt,
+            row.ReviewedAt,
+            row.ReviewerEmail,
+            row.ReviewNotes,
+            row.RejectionReason,
+            row.PromotedTriviaId,
+            row.Submitter != null ? row.Submitter.DisplayName : null,
+            row.Submitter != null ? row.Submitter.Email : null);
+
     public async Task<TriviaFactSubmission> CreateAsync(
         NewTriviaFactSubmission submission,
         CancellationToken cancellationToken = default)
@@ -44,42 +75,9 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-        var skip = (page - 1) * pageSize;
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var rows = await dbContext.TriviaFactSubmissions
-                .AsNoTracking()
-                .Where(row => row.Status == TriviaFactSubmissionStatus.Pending)
-                .Select(row => new
-                {
-                    row.Id,
-                    row.Text,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : string.Empty,
-                    row.SubmittedAt,
-                    row.Category,
-                    row.Status,
-                })
-                .ToListAsync(cancellationToken);
-
-            return rows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new TriviaFactSubmissionListItem(
-                    row.Id,
-                    row.Text,
-                    string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
-                    row.SubmittedAt,
-                    row.Category,
-                    row.Status))
-                .ToList();
-        }
-
-        return await PendingQueueQuery(skip, pageSize).ToListAsync(cancellationToken);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return await PendingQueue().ToNewestFirstPageAsync(
+            NewestFirst, ListItemProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<TriviaFactSubmission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -92,72 +90,15 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<SubmissionListPage<TriviaFactSubmission>> GetBySubmitterAsync(
+    public Task<SubmissionListPage<TriviaFactSubmission>> GetBySubmitterAsync(
         Guid submitterMemberId,
         int page = 1,
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var query = dbContext.TriviaFactSubmissions
-            .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId);
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var skip = (page - 1) * pageSize;
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var sqliteRows = await query
-                .Select(row => new
-                {
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Text,
-                    row.Category,
-                    row.Difficulty,
-                    row.SourceNote,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.RejectionReason,
-                    row.PromotedTriviaId,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
-                    Email = row.Submitter != null ? row.Submitter.Email : null,
-                })
-                .ToListAsync(cancellationToken);
-
-            var sqliteItems = sqliteRows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new TriviaFactSubmission(
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Text,
-                    row.Category,
-                    row.Difficulty,
-                    row.SourceNote,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.RejectionReason,
-                    row.PromotedTriviaId,
-                    row.DisplayName,
-                    row.Email))
-                .ToList();
-            return new SubmissionListPage<TriviaFactSubmission>(sqliteItems, totalCount);
-        }
-
-        var items = await MemberQueueQuery(submitterMemberId, skip, pageSize).ToListAsync(cancellationToken);
-        return new SubmissionListPage<TriviaFactSubmission>(items, totalCount);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return SubmittedBy(submitterMemberId).ToNewestFirstListPageAsync(
+            NewestFirst, SubmissionProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<TriviaFactSubmission?> ApproveAsync(
@@ -277,45 +218,20 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
     }
 
     internal IQueryable<TriviaFactSubmissionListItem> PendingQueueQuery(int skip, int take) =>
+        PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);
+
+    private IQueryable<TriviaFactSubmissionEntity> PendingQueue() =>
         dbContext.TriviaFactSubmissions
             .AsNoTracking()
-            .Where(row => row.Status == TriviaFactSubmissionStatus.Pending)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new TriviaFactSubmissionListItem(
-                row.Id,
-                row.Text,
-                row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
-                row.SubmittedAt,
-                row.Category,
-                row.Status));
+            .Where(row => row.Status == TriviaFactSubmissionStatus.Pending);
 
     internal IQueryable<TriviaFactSubmission> MemberQueueQuery(Guid submitterMemberId, int skip, int take) =>
+        SubmittedBy(submitterMemberId).NewestFirstPage(NewestFirst, SubmissionProjection, skip, take);
+
+    private IQueryable<TriviaFactSubmissionEntity> SubmittedBy(Guid submitterMemberId) =>
         dbContext.TriviaFactSubmissions
             .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new TriviaFactSubmission(
-                row.Id,
-                row.SubmitterMemberId,
-                row.Text,
-                row.Category,
-                row.Difficulty,
-                row.SourceNote,
-                row.Status,
-                row.SubmittedAt,
-                row.ReviewedAt,
-                row.ReviewerEmail,
-                row.ReviewNotes,
-                row.RejectionReason,
-                row.PromotedTriviaId,
-                row.Submitter != null ? row.Submitter.DisplayName : null,
-                row.Submitter != null ? row.Submitter.Email : null));
+            .Where(row => row.SubmitterMemberId == submitterMemberId);
 
     private static TriviaFactSubmission Map(TriviaFactSubmissionEntity entity) =>
         new(

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
 
@@ -5,6 +6,48 @@ namespace QueenZone.Data;
 
 public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : IPhotoSubmissionRepository
 {
+    private static readonly NewestFirstOrder<PhotoSubmissionEntity> NewestFirst =
+        new(row => row.SubmittedAt, row => row.Id);
+
+    private static readonly Expression<Func<PhotoSubmissionEntity, PhotoSubmissionListItem>> ListItemProjection =
+        row => new PhotoSubmissionListItem(
+            row.Id,
+            row.Title,
+            row.SubmitterMemberId,
+            row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
+            row.SubmittedAt,
+            row.SuggestedCategory,
+            row.Status,
+            row.ThumbnailBlobPath);
+
+    private static readonly Expression<Func<PhotoSubmissionEntity, PhotoSubmission>> SubmissionProjection =
+        row => new PhotoSubmission(
+            row.Id,
+            row.SubmitterMemberId,
+            row.Title,
+            row.Description,
+            row.SuggestedCategory,
+            row.ApprovedCategory,
+            row.ApproximateYear,
+            row.ApproximateDate,
+            row.BlobPath,
+            row.WebOptimizedBlobPath,
+            row.ThumbnailBlobPath,
+            row.OriginalFileName,
+            row.FileSizeBytes,
+            row.MimeType,
+            row.ImageWidthPx,
+            row.ImageHeightPx,
+            row.Status,
+            row.SubmittedAt,
+            row.ReviewedAt,
+            row.ReviewerEmail,
+            row.ReviewNotes,
+            row.RejectionReason,
+            row.PromotedPicId,
+            row.Submitter != null ? row.Submitter.DisplayName : null,
+            row.Submitter != null ? row.Submitter.Email : null);
+
     public async Task<PhotoSubmission> CreateAsync(
         NewPhotoSubmission submission,
         CancellationToken cancellationToken = default)
@@ -53,49 +96,9 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-        var skip = (page - 1) * pageSize;
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var rows = await dbContext.PhotoSubmissions
-                .AsNoTracking()
-                .Where(row =>
-                    row.Status == PhotoSubmissionStatus.Pending
-                    || row.Status == PhotoSubmissionStatus.UnderReview
-                    || row.Status == PhotoSubmissionStatus.NeedsInfo)
-                .Select(row => new
-                {
-                    row.Id,
-                    row.Title,
-                    row.SubmitterMemberId,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : string.Empty,
-                    row.SubmittedAt,
-                    row.SuggestedCategory,
-                    row.Status,
-                    row.ThumbnailBlobPath,
-                })
-                .ToListAsync(cancellationToken);
-
-            return rows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new PhotoSubmissionListItem(
-                    row.Id,
-                    row.Title,
-                    row.SubmitterMemberId,
-                    string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
-                    row.SubmittedAt,
-                    row.SuggestedCategory,
-                    row.Status,
-                    row.ThumbnailBlobPath))
-                .ToList();
-        }
-
-        return await PendingQueueQuery(skip, pageSize).ToListAsync(cancellationToken);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return await PendingQueue().ToNewestFirstPageAsync(
+            NewestFirst, ListItemProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<PhotoSubmission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -108,92 +111,15 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<SubmissionListPage<PhotoSubmission>> GetBySubmitterAsync(
+    public Task<SubmissionListPage<PhotoSubmission>> GetBySubmitterAsync(
         Guid submitterMemberId,
         int page = 1,
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var query = dbContext.PhotoSubmissions
-            .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId);
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var skip = (page - 1) * pageSize;
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var sqliteRows = await query
-                .Select(row => new
-                {
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Title,
-                    row.Description,
-                    row.SuggestedCategory,
-                    row.ApprovedCategory,
-                    row.ApproximateYear,
-                    row.ApproximateDate,
-                    row.BlobPath,
-                    row.WebOptimizedBlobPath,
-                    row.ThumbnailBlobPath,
-                    row.OriginalFileName,
-                    row.FileSizeBytes,
-                    row.MimeType,
-                    row.ImageWidthPx,
-                    row.ImageHeightPx,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.RejectionReason,
-                    row.PromotedPicId,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
-                    Email = row.Submitter != null ? row.Submitter.Email : null,
-                })
-                .ToListAsync(cancellationToken);
-
-            var sqliteItems = sqliteRows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new PhotoSubmission(
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Title,
-                    row.Description,
-                    row.SuggestedCategory,
-                    row.ApprovedCategory,
-                    row.ApproximateYear,
-                    row.ApproximateDate,
-                    row.BlobPath,
-                    row.WebOptimizedBlobPath,
-                    row.ThumbnailBlobPath,
-                    row.OriginalFileName,
-                    row.FileSizeBytes,
-                    row.MimeType,
-                    row.ImageWidthPx,
-                    row.ImageHeightPx,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.RejectionReason,
-                    row.PromotedPicId,
-                    row.DisplayName,
-                    row.Email))
-                .ToList();
-            return new SubmissionListPage<PhotoSubmission>(sqliteItems, totalCount);
-        }
-
-        var items = await MemberQueueQuery(submitterMemberId, skip, pageSize).ToListAsync(cancellationToken);
-        return new SubmissionListPage<PhotoSubmission>(items, totalCount);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return SubmittedBy(submitterMemberId).ToNewestFirstListPageAsync(
+            NewestFirst, SubmissionProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<PhotoSubmission?> UpdateStatusAsync(
@@ -356,60 +282,23 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
     }
 
     internal IQueryable<PhotoSubmissionListItem> PendingQueueQuery(int skip, int take) =>
+        PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);
+
+    private IQueryable<PhotoSubmissionEntity> PendingQueue() =>
         dbContext.PhotoSubmissions
             .AsNoTracking()
             .Where(row =>
                 row.Status == PhotoSubmissionStatus.Pending
                 || row.Status == PhotoSubmissionStatus.UnderReview
-                || row.Status == PhotoSubmissionStatus.NeedsInfo)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new PhotoSubmissionListItem(
-                row.Id,
-                row.Title,
-                row.SubmitterMemberId,
-                row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
-                row.SubmittedAt,
-                row.SuggestedCategory,
-                row.Status,
-                row.ThumbnailBlobPath));
+                || row.Status == PhotoSubmissionStatus.NeedsInfo);
 
     internal IQueryable<PhotoSubmission> MemberQueueQuery(Guid submitterMemberId, int skip, int take) =>
+        SubmittedBy(submitterMemberId).NewestFirstPage(NewestFirst, SubmissionProjection, skip, take);
+
+    private IQueryable<PhotoSubmissionEntity> SubmittedBy(Guid submitterMemberId) =>
         dbContext.PhotoSubmissions
             .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new PhotoSubmission(
-                row.Id,
-                row.SubmitterMemberId,
-                row.Title,
-                row.Description,
-                row.SuggestedCategory,
-                row.ApprovedCategory,
-                row.ApproximateYear,
-                row.ApproximateDate,
-                row.BlobPath,
-                row.WebOptimizedBlobPath,
-                row.ThumbnailBlobPath,
-                row.OriginalFileName,
-                row.FileSizeBytes,
-                row.MimeType,
-                row.ImageWidthPx,
-                row.ImageHeightPx,
-                row.Status,
-                row.SubmittedAt,
-                row.ReviewedAt,
-                row.ReviewerEmail,
-                row.ReviewNotes,
-                row.RejectionReason,
-                row.PromotedPicId,
-                row.Submitter != null ? row.Submitter.DisplayName : null,
-                row.Submitter != null ? row.Submitter.Email : null));
+            .Where(row => row.SubmitterMemberId == submitterMemberId);
 
     private static PhotoSubmission Map(PhotoSubmissionEntity entity) =>
         new(

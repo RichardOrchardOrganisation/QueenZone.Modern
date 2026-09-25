@@ -6,6 +6,9 @@ namespace QueenZone.Data;
 public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbContext)
     : IQuizQuestionSubmissionRepository
 {
+    private static readonly NewestFirstOrder<QuizQuestionSubmissionEntity> NewestFirst =
+        new(row => row.SubmittedAt, row => row.Id);
+
     public async Task<QuizQuestionSubmission> CreateAsync(
         NewQuizQuestionSubmission submission,
         CancellationToken cancellationToken = default)
@@ -63,56 +66,22 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-        var skip = (page - 1) * pageSize;
-
-        // SQLite cannot order by DateTimeOffset server-side (see IsSqliteDatabase); materialize
-        // then sort/page client-side. Row counts here are small enough (admin queue) for this
-        // to be safe on SQL Server too, but keep the server-side path there for scale.
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var rows = await dbContext.QuizQuestionSubmissions
-                .AsNoTracking()
-                .Where(row => row.Status == QuizQuestionSubmissionStatus.Pending)
-                .Select(row => new
-                {
-                    row.Id,
-                    row.QuestionText,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
-                    row.SubmittedAt,
-                    row.Status,
-                })
-                .ToListAsync(cancellationToken);
-
-            return rows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new QuizQuestionSubmissionListItem(
-                    row.Id,
-                    row.QuestionText,
-                    string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
-                    row.SubmittedAt,
-                    row.Status))
-                .ToList();
-        }
-
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
         return await dbContext.QuizQuestionSubmissions
             .AsNoTracking()
             .Where(row => row.Status == QuizQuestionSubmissionStatus.Pending)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(pageSize)
-            .Select(row => new QuizQuestionSubmissionListItem(
-                row.Id,
-                row.QuestionText,
-                row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
-                row.SubmittedAt,
-                row.Status))
-            .ToListAsync(cancellationToken);
+            .ToNewestFirstPageAsync(
+                NewestFirst,
+                row => new QuizQuestionSubmissionListItem(
+                    row.Id,
+                    row.QuestionText,
+                    row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
+                    row.SubmittedAt,
+                    row.Status),
+                skip,
+                take,
+                pageInSql: !dbContext.Database.IsSqliteProvider(),
+                cancellationToken);
     }
 
     public async Task<IReadOnlyList<QuizQuestionSubmissionListItem>> GetApprovedAndAvailableAsync(
@@ -175,40 +144,18 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-        var skip = (page - 1) * pageSize;
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         var query = dbContext.QuizQuestionSubmissions
             .AsNoTracking()
             .Where(row => row.SubmitterMemberId == submitterMemberId);
 
         var totalCount = await query.CountAsync(cancellationToken);
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var all = await query
-                .Include(row => row.Submitter)
-                .Include(row => row.Options)
-                .ToListAsync(cancellationToken);
-            var sqliteItems = all
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(Map)
-                .ToList();
-            return new SubmissionListPage<QuizQuestionSubmission>(sqliteItems, totalCount);
-        }
-
         var entities = await query
             .Include(row => row.Submitter)
             .Include(row => row.Options)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ToNewestFirstEntityPageAsync(
+                NewestFirst, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
 
         return new SubmissionListPage<QuizQuestionSubmission>(entities.Select(Map).ToList(), totalCount);
     }

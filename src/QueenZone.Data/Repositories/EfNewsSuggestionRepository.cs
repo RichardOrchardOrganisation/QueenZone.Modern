@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
@@ -6,6 +7,36 @@ namespace QueenZone.Data;
 
 public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : INewsSuggestionRepository
 {
+    private static readonly NewestFirstOrder<NewsSuggestionEntity> NewestFirst =
+        new(row => row.SubmittedAt, row => row.Id);
+
+    private static readonly Expression<Func<NewsSuggestionEntity, NewsSuggestionListItem>> ListItemProjection =
+        row => new NewsSuggestionListItem(
+            row.Id,
+            row.Url,
+            row.Title,
+            row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
+            row.SubmittedAt,
+            row.Status);
+
+    private static readonly Expression<Func<NewsSuggestionEntity, NewsSuggestion>> SubmissionProjection =
+        row => new NewsSuggestion(
+            row.Id,
+            row.SubmitterMemberId,
+            row.Url,
+            row.UrlHash,
+            row.Title,
+            row.Notes,
+            row.Status,
+            row.SubmittedAt,
+            row.ReviewedAt,
+            row.ReviewerEmail,
+            row.ReviewNotes,
+            row.PromotedNewsId,
+            row.DuplicateCandidateId,
+            row.Submitter != null ? row.Submitter.DisplayName : null,
+            row.Submitter != null ? row.Submitter.Email : null);
+
     public async Task<NewsSuggestion> CreateAsync(
         NewsSuggestion suggestion,
         CancellationToken cancellationToken = default)
@@ -42,46 +73,9 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        // SQLite EF provider cannot translate DateTimeOffset ORDER BY or navigation joins
-        // inside paginated queries; fall back to materialise-then-page in C# for tests.
-        // On SQL Server the full query runs in a single round-trip.
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var allRows = await dbContext.NewsSuggestions
-                .AsNoTracking()
-                .Where(row =>
-                    row.Status == NewsSuggestionStatus.Pending
-                    || row.Status == NewsSuggestionStatus.UnderReview)
-                .Select(row => new
-                {
-                    row.Id,
-                    row.Url,
-                    row.Title,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : string.Empty,
-                    row.SubmittedAt,
-                    row.Status,
-                })
-                .ToListAsync(cancellationToken);
-
-            return allRows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(row => new NewsSuggestionListItem(
-                    row.Id,
-                    row.Url,
-                    row.Title,
-                    string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
-                    row.SubmittedAt,
-                    row.Status))
-                .ToList();
-        }
-
-        return await PendingQueueQuery((page - 1) * pageSize, pageSize).ToListAsync(cancellationToken);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return await PendingQueue().ToNewestFirstPageAsync(
+            NewestFirst, ListItemProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<NewsSuggestion?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -118,72 +112,15 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
         return ResolveUnambiguousAttributions(rows);
     }
 
-    public async Task<SubmissionListPage<NewsSuggestion>> GetBySubmitterAsync(
+    public Task<SubmissionListPage<NewsSuggestion>> GetBySubmitterAsync(
         Guid submitterMemberId,
         int page = 1,
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var query = dbContext.NewsSuggestions
-            .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId);
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var skip = (page - 1) * pageSize;
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var sqliteRows = await query
-                .Select(row => new
-                {
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Url,
-                    row.UrlHash,
-                    row.Title,
-                    row.Notes,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.PromotedNewsId,
-                    row.DuplicateCandidateId,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
-                    Email = row.Submitter != null ? row.Submitter.Email : null,
-                })
-                .ToListAsync(cancellationToken);
-
-            var sqliteItems = sqliteRows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new NewsSuggestion(
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Url,
-                    row.UrlHash,
-                    row.Title,
-                    row.Notes,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.PromotedNewsId,
-                    row.DuplicateCandidateId,
-                    row.DisplayName,
-                    row.Email))
-                .ToList();
-            return new SubmissionListPage<NewsSuggestion>(sqliteItems, totalCount);
-        }
-
-        var items = await MemberQueueQuery(submitterMemberId, skip, pageSize).ToListAsync(cancellationToken);
-        return new SubmissionListPage<NewsSuggestion>(items, totalCount);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return SubmittedBy(submitterMemberId).ToNewestFirstListPageAsync(
+            NewestFirst, SubmissionProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<NewsSuggestion?> UpdateStatusAsync(
@@ -348,47 +285,22 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
     }
 
     internal IQueryable<NewsSuggestionListItem> PendingQueueQuery(int skip, int take) =>
+        PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);
+
+    private IQueryable<NewsSuggestionEntity> PendingQueue() =>
         dbContext.NewsSuggestions
             .AsNoTracking()
             .Where(row =>
                 row.Status == NewsSuggestionStatus.Pending
-                || row.Status == NewsSuggestionStatus.UnderReview)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new NewsSuggestionListItem(
-                row.Id,
-                row.Url,
-                row.Title,
-                row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
-                row.SubmittedAt,
-                row.Status));
+                || row.Status == NewsSuggestionStatus.UnderReview);
 
     internal IQueryable<NewsSuggestion> MemberQueueQuery(Guid submitterMemberId, int skip, int take) =>
+        SubmittedBy(submitterMemberId).NewestFirstPage(NewestFirst, SubmissionProjection, skip, take);
+
+    private IQueryable<NewsSuggestionEntity> SubmittedBy(Guid submitterMemberId) =>
         dbContext.NewsSuggestions
             .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new NewsSuggestion(
-                row.Id,
-                row.SubmitterMemberId,
-                row.Url,
-                row.UrlHash,
-                row.Title,
-                row.Notes,
-                row.Status,
-                row.SubmittedAt,
-                row.ReviewedAt,
-                row.ReviewerEmail,
-                row.ReviewNotes,
-                row.PromotedNewsId,
-                row.DuplicateCandidateId,
-                row.Submitter != null ? row.Submitter.DisplayName : null,
-                row.Submitter != null ? row.Submitter.Email : null));
+            .Where(row => row.SubmitterMemberId == submitterMemberId);
 
     private static NewsSuggestion Map(NewsSuggestionEntity entity) =>
         new(
