@@ -271,21 +271,8 @@ internal sealed class GeneratePhotoThumbsOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringValue))
+            if (ToolArgs.TryReadCommonOption(args, ref index, ref connectionString, ref storageConnectionString, ref settingsFile))
             {
-                connectionString = connectionStringValue;
-                continue;
-            }
-
-            if (ToolArgs.TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringValue))
-            {
-                storageConnectionString = storageConnectionStringValue;
-                continue;
-            }
-
-            if (ToolArgs.TryReadValue(args, ref index, "--settings-file", out var settingsFileValue))
-            {
-                settingsFile = settingsFileValue;
                 continue;
             }
 

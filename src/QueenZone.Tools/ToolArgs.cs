@@ -19,4 +19,33 @@ internal static class ToolArgs
         value = args[++index];
         return true;
     }
+
+    /// <summary>Reads the `--connection-string`, `--storage-connection-string` and `--settings-file` options shared by Tools commands.</summary>
+    public static bool TryReadCommonOption(
+        string[] args,
+        ref int index,
+        ref string? connectionString,
+        ref string? storageConnectionString,
+        ref string? settingsFile)
+    {
+        if (TryReadValue(args, ref index, "--connection-string", out var connectionStringValue))
+        {
+            connectionString = connectionStringValue;
+            return true;
+        }
+
+        if (TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringValue))
+        {
+            storageConnectionString = storageConnectionStringValue;
+            return true;
+        }
+
+        if (TryReadValue(args, ref index, "--settings-file", out var settingsFileValue))
+        {
+            settingsFile = settingsFileValue;
+            return true;
+        }
+
+        return false;
+    }
 }
