@@ -48,6 +48,9 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             row.Submitter != null ? row.Submitter.DisplayName : null,
             row.Submitter != null ? row.Submitter.Email : null);
 
+    // Map(entity) and the SQL projection must stay identical; compiling the projection keeps one copy.
+    private static readonly Func<FanPerformanceSubmissionEntity, FanPerformanceSubmission> MapEntity = SubmissionProjection.Compile();
+
     public async Task<FanPerformanceSubmission> CreateAsync(
         NewFanPerformanceSubmission submission,
         CancellationToken cancellationToken = default)
@@ -56,14 +59,12 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
 
         var entity = new FanPerformanceSubmissionEntity
         {
-            Id = submission.Id is { } preferredId && preferredId != Guid.Empty
-                ? preferredId
-                : Guid.NewGuid(),
+            Id = SubmissionInput.IdOrNew(submission.Id),
             SubmitterMemberId = submission.SubmitterMemberId,
             Title = submission.Title.Trim(),
             CoveredSong = submission.CoveredSong.Trim(),
             PerformedBy = submission.PerformedBy.Trim(),
-            Description = NormalizeOptional(submission.Description, 2000),
+            Description = SubmissionInput.NormalizeOptional(submission.Description, 2000),
             BlobPath = submission.BlobPath.Trim(),
             OriginalFileName = submission.OriginalFileName.Trim(),
             FileSizeBytes = submission.FileSizeBytes,
@@ -181,13 +182,13 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         }
 
         var next = FanPerformanceSubmissionStatus.Normalize(status);
-        var normalizedRejection = NormalizeOptional(rejectionReason, 500);
+        var normalizedRejection = SubmissionInput.NormalizeOptional(rejectionReason, 500);
         if (next == FanPerformanceSubmissionStatus.Rejected && normalizedRejection is null)
         {
             throw new InvalidOperationException("A rejection reason is required.");
         }
 
-        if (next == FanPerformanceSubmissionStatus.NeedsInfo && NormalizeOptional(reviewNotes, 500) is null)
+        if (next == FanPerformanceSubmissionStatus.NeedsInfo && SubmissionInput.NormalizeOptional(reviewNotes, 500) is null)
         {
             throw new InvalidOperationException("Review notes are required when requesting more information.");
         }
@@ -196,12 +197,12 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         entity.ReviewedAt = DateTimeOffset.UtcNow;
         if (!string.IsNullOrWhiteSpace(actorEmail))
         {
-            entity.ReviewerEmail = NormalizeOptional(actorEmail, 256);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(actorEmail, 256);
         }
 
         if (reviewNotes is not null)
         {
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
         }
 
         if (next == FanPerformanceSubmissionStatus.Rejected)
@@ -246,7 +247,7 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         {
             FanPerformanceSubmissionId = entity.Id,
             Action = "Edited",
-            ActorEmail = NormalizeOptional(editorEmail, 256) ?? string.Empty,
+            ActorEmail = SubmissionInput.NormalizeOptional(editorEmail, 256) ?? string.Empty,
             OccurredAt = DateTimeOffset.UtcNow,
             Details = "Updated title, performer, or description before publish.",
         });
@@ -280,8 +281,8 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         entity.Status = FanPerformanceSubmissionStatus.Approved;
         entity.PromotedStageId = promotedStageId;
         entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
         dbContext.FanPerformanceSubmissionAuditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
         {
@@ -487,30 +488,7 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             FanPerformanceDashboardCountCalculator.ToOldestOpenAgeDays(utcNow, counts.OldestOpenSubmittedAt));
     }
 
-    private static FanPerformanceSubmission Map(FanPerformanceSubmissionEntity entity) =>
-        new(
-            entity.Id,
-            entity.SubmitterMemberId,
-            entity.Title,
-            entity.CoveredSong,
-            entity.PerformedBy,
-            entity.Description,
-            entity.BlobPath,
-            entity.OriginalFileName,
-            entity.FileSizeBytes,
-            entity.MimeType,
-            entity.DurationSeconds,
-            entity.Status,
-            entity.SubmittedAt,
-            entity.ReviewedAt,
-            entity.ReviewerEmail,
-            entity.ReviewNotes,
-            entity.RejectionReason,
-            entity.RightsDeclaredAt,
-            entity.RightsDeclarationVersion,
-            entity.PromotedStageId,
-            entity.Submitter?.DisplayName,
-            entity.Submitter?.Email);
+    private static FanPerformanceSubmission Map(FanPerformanceSubmissionEntity entity) => MapEntity(entity);
 
     private static string? BuildAuditDetails(string status, FanPerformanceSubmissionEntity entity) =>
         status switch
@@ -525,15 +503,4 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
                 "Member withdrew the submission.",
             _ => entity.ReviewNotes,
         };
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
 }

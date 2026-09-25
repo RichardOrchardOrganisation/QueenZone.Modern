@@ -32,7 +32,7 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
             Id = submissionId,
             SubmitterMemberId = submission.SubmitterMemberId,
             QuestionText = submission.QuestionText.Trim(),
-            SourceNote = NormalizeOptional(submission.SourceNote, QuizQuestionSubmissionValidation.MaxSourceNoteLength),
+            SourceNote = SubmissionInput.NormalizeOptional(submission.SourceNote, QuizQuestionSubmissionValidation.MaxSourceNoteLength),
             Status = QuizQuestionSubmissionStatus.Pending,
             SubmittedAt = now,
             Options = options
@@ -220,8 +220,8 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         entity.Status = QuizQuestionSubmissionStatus.Approved;
         var now = DateTimeOffset.UtcNow;
         entity.ReviewedAt = now;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
         dbContext.QuizQuestionSubmissionAuditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
         {
@@ -258,14 +258,14 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
             throw new InvalidOperationException(error);
         }
 
-        var normalizedReason = NormalizeOptional(rejectionReason, 500)
+        var normalizedReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
             ?? throw new InvalidOperationException("A rejection reason is required.");
         entity.Status = QuizQuestionSubmissionStatus.Rejected;
         entity.RejectionReason = normalizedReason;
         var now = DateTimeOffset.UtcNow;
         entity.ReviewedAt = now;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
         dbContext.QuizQuestionSubmissionAuditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
         {
@@ -306,7 +306,7 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         {
             QuizQuestionSubmissionId = entity.Id,
             Action = "AddedToQuiz",
-            ActorEmail = NormalizeOptional(actorEmail, 256) ?? string.Empty,
+            ActorEmail = SubmissionInput.NormalizeOptional(actorEmail, 256) ?? string.Empty,
             OccurredAt = now,
             Details = $"Added to quiz {quizId} via the builder.",
         });
@@ -329,17 +329,6 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
                 IsStillPending = row.Status == QuizQuestionSubmissionStatus.Pending,
             })
             .ToDashboardCountsAsync(utcNow, aggregateInSql: false, cancellationToken);
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
 
     private static QuizQuestionSubmission Map(QuizQuestionSubmissionEntity entity) =>
         new(

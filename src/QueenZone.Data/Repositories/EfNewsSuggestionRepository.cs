@@ -37,6 +37,9 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
             row.Submitter != null ? row.Submitter.DisplayName : null,
             row.Submitter != null ? row.Submitter.Email : null);
 
+    // Map(entity) and the SQL projection must stay identical; compiling the projection keeps one copy.
+    private static readonly Func<NewsSuggestionEntity, NewsSuggestion> MapEntity = SubmissionProjection.Compile();
+
     public async Task<NewsSuggestion> CreateAsync(
         NewsSuggestion suggestion,
         CancellationToken cancellationToken = default)
@@ -45,12 +48,12 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
 
         var entity = new NewsSuggestionEntity
         {
-            Id = suggestion.Id == Guid.Empty ? Guid.NewGuid() : suggestion.Id,
+            Id = SubmissionInput.IdOrNew(suggestion.Id),
             SubmitterMemberId = suggestion.SubmitterMemberId,
             Url = suggestion.Url.Trim(),
             UrlHash = suggestion.UrlHash,
-            Title = NormalizeOptional(suggestion.Title, 300),
-            Notes = NormalizeOptional(suggestion.Notes, 1000),
+            Title = SubmissionInput.NormalizeOptional(suggestion.Title, 300),
+            Notes = SubmissionInput.NormalizeOptional(suggestion.Notes, 1000),
             Status = NewsSuggestionStatus.Pending,
             SubmittedAt = suggestion.SubmittedAt == default ? DateTimeOffset.UtcNow : suggestion.SubmittedAt,
         };
@@ -139,8 +142,8 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
 
         entity.Status = NewsSuggestionStatus.Normalize(status);
         entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(notes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 500);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -188,8 +191,8 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
         entity.Status = NewsSuggestionStatus.Promoted;
         entity.PromotedNewsId = promotedNewsId;
         entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -212,8 +215,8 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
         entity.Status = NewsSuggestionStatus.Duplicate;
         entity.DuplicateCandidateId = duplicateCandidateId;
         entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -273,17 +276,6 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
         return sawSqlUnique && sawIndexName;
     }
 
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
     internal IQueryable<NewsSuggestionListItem> PendingQueueQuery(int skip, int take) =>
         PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);
 
@@ -302,23 +294,7 @@ public sealed class EfNewsSuggestionRepository(QueenZoneDbContext dbContext) : I
             .AsNoTracking()
             .Where(row => row.SubmitterMemberId == submitterMemberId);
 
-    private static NewsSuggestion Map(NewsSuggestionEntity entity) =>
-        new(
-            entity.Id,
-            entity.SubmitterMemberId,
-            entity.Url,
-            entity.UrlHash,
-            entity.Title,
-            entity.Notes,
-            entity.Status,
-            entity.SubmittedAt,
-            entity.ReviewedAt,
-            entity.ReviewerEmail,
-            entity.ReviewNotes,
-            entity.PromotedNewsId,
-            entity.DuplicateCandidateId,
-            entity.Submitter?.DisplayName,
-            entity.Submitter?.Email);
+    private static NewsSuggestion Map(NewsSuggestionEntity entity) => MapEntity(entity);
 
     internal static IReadOnlyList<NewsSubmissionAttribution> ResolveUnambiguousAttributions(
         IEnumerable<NewsSubmissionAttribution> rows) =>
