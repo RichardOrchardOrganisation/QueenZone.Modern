@@ -366,7 +366,7 @@ describe('device-smoke harness (#1281)', () => {
   it('retries only an iOS driver failure that happened before a flow began', () => {
     const script = readRepo('run-mobile-device-smoke.sh', scriptsDir);
     assert.match(script, /iOS driver not ready in time/);
-    assert.match(script, /\[ ! -s "\$results_dir\/junit\.xml" \]/);
+    assert.match(script, /\[\[ ! -s "\$results_dir\/junit\.xml" \]\]/);
     assert.match(script, /simctl shutdown/);
     assert.match(script, /simctl bootstatus/);
     assert.match(script, /debug-driver-startup-first/);
