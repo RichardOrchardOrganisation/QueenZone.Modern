@@ -41,91 +41,45 @@ public static class PhotoSubmissionImageProcessor
         string originalFileName,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
-
-        await using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, cancellationToken);
-        if (buffer.Length <= 0)
-        {
-            throw new InvalidOperationException("A photo file is required.");
-        }
-
-        if (buffer.Length > MaxUploadBytes)
-        {
-            throw new InvalidOperationException(
-                $"Photo must be {MaxUploadBytes / (1024 * 1024)} MB or smaller.");
-        }
-
-        buffer.Position = 0;
-        var headerLength = (int)Math.Min(64, buffer.Length);
-        var header = new byte[headerLength];
-        var read = await buffer.ReadAsync(header.AsMemory(0, headerLength), cancellationToken);
-        buffer.Position = 0;
-
-        var sniffed = BlobContentSniffer.TryDetectContentType(header.AsSpan(0, read));
-        if (sniffed is null || !AllowedContentTypes.Contains(sniffed))
-        {
-            throw new InvalidOperationException("Photo must be a JPEG, PNG, WebP, or TIFF image.");
-        }
-
-        var extension = Path.GetExtension(originalFileName);
-        if (!string.IsNullOrWhiteSpace(extension))
-        {
-            var fromExt = BlobContentSniffer.GuessContentTypeFromExtension(extension);
-            if (fromExt is not null
-                && !fromExt.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        return await ImageUploadPipeline.ProcessAsync(
+            source,
+            originalFileName,
+            MaxUploadBytes,
+            new ImageUploadPipeline.Policy(
+                AllowedContentTypes.Contains,
+                RequireAllowedExtension: false,
+                "A photo file is required.",
+                $"Photo must be {MaxUploadBytes / (1024 * 1024)} MB or smaller.",
+                "Photo must be a JPEG, PNG, WebP, or TIFF image.",
+                "Photo image could not be read."),
+            async (image, buffer, contentType, token) =>
             {
-                throw new InvalidOperationException("File extension does not match the image content.");
-            }
+                var width = image.Width;
+                var height = image.Height;
 
-            if (fromExt is not null
-                && !string.Equals(fromExt, sniffed, StringComparison.OrdinalIgnoreCase)
-                && !(IsJpegFamily(fromExt) && IsJpegFamily(sniffed)))
-            {
-                throw new InvalidOperationException("File extension does not match the image content.");
-            }
-        }
+                var web = await PhotoWebpDerivatives.CreateMaxSideAsync(
+                    image,
+                    WebMaxLongestSide,
+                    cancellationToken: token);
+                var thumb = await PhotoWebpDerivatives.CreateSquareThumbnailAsync(
+                    image,
+                    ThumbSizePixels,
+                    cancellationToken: token);
 
-        try
-        {
-            using var image = await Image.LoadAsync(buffer, cancellationToken);
-            var width = image.Width;
-            var height = image.Height;
+                var original = new MemoryStream();
+                buffer.Position = 0;
+                await buffer.CopyToAsync(original, token);
+                original.Position = 0;
 
-            var web = await PhotoWebpDerivatives.CreateMaxSideAsync(
-                image,
-                WebMaxLongestSide,
-                cancellationToken: cancellationToken);
-            var thumb = await PhotoWebpDerivatives.CreateSquareThumbnailAsync(
-                image,
-                ThumbSizePixels,
-                cancellationToken: cancellationToken);
-
-            var original = new MemoryStream();
-            buffer.Position = 0;
-            await buffer.CopyToAsync(original, cancellationToken);
-            original.Position = 0;
-
-            return new ProcessedPhotoSubmission(
-                original,
-                web.Stream,
-                thumb.Stream,
-                sniffed,
-                width,
-                height,
-                original.Length);
-        }
-        catch (UnknownImageFormatException)
-        {
-            throw new InvalidOperationException("Photo must be a JPEG, PNG, WebP, or TIFF image.");
-        }
-        catch (InvalidImageContentException)
-        {
-            throw new InvalidOperationException("Photo image could not be read.");
-        }
+                return new ProcessedPhotoSubmission(
+                    original,
+                    web.Stream,
+                    thumb.Stream,
+                    contentType,
+                    width,
+                    height,
+                    original.Length);
+            },
+            cancellationToken);
     }
-
-    private static bool IsJpegFamily(string contentType) =>
-        string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(contentType, "image/jpg", StringComparison.OrdinalIgnoreCase);
 }
