@@ -53,7 +53,7 @@ jobs:
       migrations: ${{ steps.check.outputs.migrations }}
       mobile: ${{ steps.check.outputs.mobile }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Self-test change classifier
@@ -110,7 +110,7 @@ jobs:
       expect_build_version: ${{ steps.stamp.outputs.expect_build_version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -189,10 +189,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
           cache: true
@@ -207,7 +207,7 @@ jobs:
 
       - name: Fetch Bitwarden deploy secrets
         id: bitwarden-secrets
-        uses: bitwarden/sm-action@v3.0.1
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
         with:
           access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
           secrets: ${{ vars.BITWARDEN_APP_SERVICE_DEPLOY_SECRETS }}
@@ -275,13 +275,13 @@ jobs:
     steps:
       - name: Fetch Bitwarden runtime secrets
         id: bitwarden-secrets
-        uses: bitwarden/sm-action@v3.0.1
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
         with:
           access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
           secrets: ${{ vars.BITWARDEN_APP_SERVICE_DEPLOY_SECRETS }}
 
       - name: Azure login (OIDC)
-        uses: azure/login@v3
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.ARM_CLIENT_ID }}
           tenant-id: ${{ vars.ARM_TENANT_ID }}
@@ -443,12 +443,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Reuse-first: exact binary ci.yml built and tested on the PR.
       - name: Download publish artifact from CI run
         if: needs.resolve-ci-run.outputs.found == 'true'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: web-publish-${{ needs.resolve-ci-run.outputs.run_id }}
           run-id: ${{ needs.resolve-ci-run.outputs.run_id }}
@@ -459,7 +459,7 @@ jobs:
       # checked-out SHA and stamp that SHA — do not walk back to an older tip.
       - name: Setup .NET
         if: needs.resolve-ci-run.outputs.found != 'true'
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
           cache: true
@@ -481,13 +481,13 @@ jobs:
 
       - name: Fetch Bitwarden deploy secrets
         id: bitwarden-secrets
-        uses: bitwarden/sm-action@v3.0.1
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
         with:
           access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
           secrets: ${{ vars.BITWARDEN_APP_SERVICE_DEPLOY_SECRETS }}
 
       - name: Deploy
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@02a81bead70021f5284939794bcec79c271ab383 # v3.0.8
         with:
           app-name: queenzone-prod
           publish-profile: ${{ steps.bitwarden-secrets.outputs.AZURE_WEBAPP_PUBLISH_PROFILE_CANADA_EAST }}
@@ -528,7 +528,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Smoke the public custom domain (Site:PublicBaseUrl), not only the App Service hostname.
       # /health alone is liveness only — content pages can still 500 during recycle/warmup.
