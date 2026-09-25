@@ -11,28 +11,30 @@ public static class ContentPhotoApiEndpoints
 {
     internal static void MapContentPhotoApiEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/photos/categories", GetPhotoCategoriesAsync)
-            .WithName("GetContentPhotoCategories")
-            .WithSummary("Paged list of public photo gallery categories.")
-            .Produces<ApiPagedResponse<PhotoCategoryListItemDto>>();
+        group.MapPagedList<PhotoCategoryListItemDto>(
+            "/photos/categories",
+            GetPhotoCategoriesAsync,
+            "GetContentPhotoCategories",
+            "Paged list of public photo gallery categories.");
 
-        group.MapGet("/photos/categories/{slug}", GetPhotoCategoryAsync)
-            .WithName("GetContentPhotoCategory")
-            .WithSummary("A single public photo gallery category.")
-            .Produces<PhotoCategoryListItemDto>()
+        group.MapDetail<PhotoCategoryListItemDto>(
+            "/photos/categories/{slug}",
+            GetPhotoCategoryAsync,
+            "GetContentPhotoCategory",
+            "A single public photo gallery category.");
+
+        group.MapPagedList<PhotoListItemDto>(
+            "/photos/categories/{slug}/items",
+            GetPhotoCategoryItemsAsync,
+            "GetContentPhotoCategoryItems",
+            "Paged photos in a gallery. pageSize defaults and clamps to 24, matching /photography/{slug}.")
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapGet("/photos/categories/{slug}/items", GetPhotoCategoryItemsAsync)
-            .WithName("GetContentPhotoCategoryItems")
-            .WithSummary("Paged photos in a gallery. pageSize defaults and clamps to 24, matching /photography/{slug}.")
-            .Produces<ApiPagedResponse<PhotoListItemDto>>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
-
-        group.MapGet("/photos/categories/{slug}/items/{picId:int}", GetPhotoDetailAsync)
-            .WithName("GetContentPhotoDetail")
-            .WithSummary("A single public photo, with prev/next neighbors matching the website lightbox.")
-            .Produces<PhotoDetailDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<PhotoDetailDto>(
+            "/photos/categories/{slug}/items/{picId:int}",
+            GetPhotoDetailAsync,
+            "GetContentPhotoDetail",
+            "A single public photo, with prev/next neighbors matching the website lightbox.");
     }
 
     internal static async Task<IResult> GetPhotoCategoriesAsync(
@@ -41,21 +43,12 @@ public static class ContentPhotoApiEndpoints
         int? pageSize,
         CancellationToken cancellationToken)
     {
-        var request = ApiPagination.Normalize(page, pageSize);
         var categories = await publicQueryCache.GetPhotoCategoriesAsync(cancellationToken);
-
-        var pageItems = categories
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .ToList();
-
-        var response = ApiPagedResponse<PhotoCategoryListItemDto>.Create(
-            ContentApiMapper.ToPhotoCategoryListItems(pageItems),
-            request.Page,
-            request.PageSize,
-            categories.Count);
-
-        return Results.Ok(response);
+        return ApiV1EndpointHelpers.OkPagedSlice(
+            categories,
+            page,
+            pageSize,
+            ContentApiMapper.ToPhotoCategoryListItems);
     }
 
     internal static async Task<IResult> GetPhotoCategoryAsync(
@@ -99,13 +92,11 @@ public static class ContentPhotoApiEndpoints
             filter,
             cancellationToken);
 
-        var response = ApiPagedResponse<PhotoListItemDto>.Create(
+        return ApiV1EndpointHelpers.OkPaged(
             ContentApiMapper.ToPhotoListItems(result.Items, filter),
             request.Page,
             request.PageSize,
             result.TotalCount);
-
-        return Results.Ok(response);
     }
 
     internal static async Task<IResult> GetPhotoDetailAsync(
@@ -142,14 +133,8 @@ public static class ContentPhotoApiEndpoints
     }
 
     private static IResult PhotoCategoryNotFound(string slug) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Not Found",
-            detail: $"No public photo category with slug '{slug}'.");
+        ApiV1EndpointHelpers.NotFound($"No public photo category with slug '{slug}'.");
 
     private static IResult PhotoNotFound(string slug, int picId) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Not Found",
-            detail: $"No public photo '{picId}' in category '{slug}'.");
+        ApiV1EndpointHelpers.NotFound($"No public photo '{picId}' in category '{slug}'.");
 }

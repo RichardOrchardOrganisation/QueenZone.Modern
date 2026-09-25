@@ -15,9 +15,7 @@ public static class DevicesApiEndpoints
 
     public static void MapDevicesApiEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/notifications")
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Notifications")
+        var group = app.MapApiV1Group("/api/v1/notifications", "Notifications")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
             .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();

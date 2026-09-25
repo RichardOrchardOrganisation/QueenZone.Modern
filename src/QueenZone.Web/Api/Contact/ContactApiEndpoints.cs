@@ -14,9 +14,7 @@ public static class ContactApiEndpoints
 
     public static void MapContactApiEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1")
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Contact")
+        var group = app.MapApiV1Group("/api/v1", "Contact")
             .DisableAntiforgery();
 
         group.MapGet("/contact", GetFormAsync)

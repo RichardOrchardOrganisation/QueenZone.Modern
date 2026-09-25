@@ -11,22 +11,24 @@ public static class ContentTimelineApiEndpoints
 {
     internal static void MapContentTimelineApiEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/timeline", GetTimelineEventsAsync)
-            .WithName("GetContentTimelineEvents")
-            .WithSummary("Paged list of published history timeline events, in date order.")
-            .Produces<ApiPagedResponse<TimelineEventDto>>();
+        group.MapPagedList<TimelineEventDto>(
+            "/timeline",
+            GetTimelineEventsAsync,
+            "GetContentTimelineEvents",
+            "Paged list of published history timeline events, in date order.");
 
-        group.MapGet("/timeline/anchor/{id:int}", GetTimelineAnchorAsync)
-            .WithName("GetContentTimelineAnchor")
-            .WithSummary("The cached timeline page containing a published event, for direct links.")
-            .Produces<ApiPagedResponse<TimelineEventDto>>()
+        group.MapPagedList<TimelineEventDto>(
+            "/timeline/anchor/{id:int}",
+            GetTimelineAnchorAsync,
+            "GetContentTimelineAnchor",
+            "The cached timeline page containing a published event, for direct links.")
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        group.MapGet("/timeline/{id:int}", GetTimelineEventDetailAsync)
-            .WithName("GetContentTimelineEventDetail")
-            .WithSummary("A single published history timeline event by id. Unpublished or missing events return 404.")
-            .Produces<TimelineEventDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<TimelineEventDto>(
+            "/timeline/{id:int}",
+            GetTimelineEventDetailAsync,
+            "GetContentTimelineEventDetail",
+            "A single published history timeline event by id. Unpublished or missing events return 404.");
 
         group.MapGet("/on-this-day", GetOnThisDayAsync)
             .WithName("GetContentOnThisDay")
@@ -40,21 +42,12 @@ public static class ContentTimelineApiEndpoints
         int? pageSize,
         CancellationToken cancellationToken)
     {
-        var request = ApiPagination.Normalize(page, pageSize);
         var events = await GetOrderedTimelineAsync(publicQueryCache, cancellationToken);
-
-        var pageItems = events
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .ToList();
-
-        var response = ApiPagedResponse<TimelineEventDto>.Create(
-            ContentApiMapper.ToTimelineEvents(pageItems),
-            request.Page,
-            request.PageSize,
-            events.Count);
-
-        return Results.Ok(response);
+        return ApiV1EndpointHelpers.OkPagedSlice(
+            events,
+            page,
+            pageSize,
+            ContentApiMapper.ToTimelineEvents);
     }
 
     internal static async Task<IResult> GetTimelineAnchorAsync(
@@ -68,16 +61,13 @@ public static class ContentTimelineApiEndpoints
         var index = events.FindIndex(item => item.Id == id);
         if (index < 0)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No published timeline event with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No published timeline event with id '{id}'.");
         }
 
         var page = index / request.PageSize + 1;
         var items = events.Skip((page - 1) * request.PageSize).Take(request.PageSize).ToList();
-        return Results.Ok(ApiPagedResponse<TimelineEventDto>.Create(
-            ContentApiMapper.ToTimelineEvents(items), page, request.PageSize, events.Count));
+        return ApiV1EndpointHelpers.OkPaged(
+            ContentApiMapper.ToTimelineEvents(items), page, request.PageSize, events.Count);
     }
 
     private static async Task<List<QueenHistoryEvent>> GetOrderedTimelineAsync(
@@ -98,10 +88,7 @@ public static class ContentTimelineApiEndpoints
             .FirstOrDefault(item => item.Id == id);
         if (historyEvent is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No published timeline event with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No published timeline event with id '{id}'.");
         }
 
         return Results.Ok(ContentApiMapper.ToTimelineEvent(historyEvent));

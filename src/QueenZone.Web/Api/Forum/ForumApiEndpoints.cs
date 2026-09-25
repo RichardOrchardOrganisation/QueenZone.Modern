@@ -24,29 +24,26 @@ public static class ForumApiEndpoints
 
     public static void MapForumApiEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup(RootPath)
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Forum")
+        var group = app.MapApiV1Group(RootPath, "Forum")
             .DisableAntiforgery();
 
-        var memberGroup = app.MapGroup("/api/v1/me/forum")
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Forum moderation")
+        var memberGroup = app.MapApiV1Group("/api/v1/me/forum", "Forum moderation")
             .DisableAntiforgery()
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy);
 
         memberGroup.MapForumModerationApiEndpoints();
 
-        group.MapGet("/categories", GetCategoriesAsync)
-            .WithName("GetForumCategories")
-            .WithSummary("Paged list of public forum boards, in website sort order.")
-            .Produces<ApiPagedResponse<ForumCategoryListItemDto>>();
+        group.MapPagedList<ForumCategoryListItemDto>(
+            "/categories",
+            GetCategoriesAsync,
+            "GetForumCategories",
+            "Paged list of public forum boards, in website sort order.");
 
-        group.MapGet("/categories/{id:int}", GetCategoryAsync)
-            .WithName("GetForumCategory")
-            .WithSummary("A single public forum board.")
-            .Produces<ForumCategoryListItemDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<ForumCategoryListItemDto>(
+            "/categories/{id:int}",
+            GetCategoryAsync,
+            "GetForumCategory",
+            "A single public forum board.");
 
         group.MapGet("/stats", GetStatsAsync)
             .WithName("GetForumStats")
@@ -131,21 +128,12 @@ public static class ForumApiEndpoints
         int? pageSize,
         CancellationToken cancellationToken)
     {
-        var request = ApiPagination.Normalize(page, pageSize);
         var categories = await forumRepository.GetCategoriesAsync(cancellationToken);
-
-        var pageItems = categories
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .ToList();
-
-        var response = ApiPagedResponse<ForumCategoryListItemDto>.Create(
-            ForumApiMapper.ToCategoryListItems(pageItems),
-            request.Page,
-            request.PageSize,
-            categories.Count);
-
-        return Results.Ok(response);
+        return ApiV1EndpointHelpers.OkPagedSlice(
+            categories,
+            page,
+            pageSize,
+            ForumApiMapper.ToCategoryListItems);
     }
 
     internal static async Task<IResult> GetStatsAsync(
@@ -176,10 +164,7 @@ public static class ForumApiEndpoints
         var category = await forumRepository.GetCategoryByIdAsync(id, cancellationToken);
         if (category is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No public forum board with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No public forum board with id '{id}'.");
         }
 
         return Results.Ok(ForumApiMapper.ToCategoryListItem(category));
@@ -195,10 +180,7 @@ public static class ForumApiEndpoints
         var category = await forumRepository.GetCategoryByIdAsync(id, cancellationToken);
         if (category is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No public forum board with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No public forum board with id '{id}'.");
         }
 
         var request = ApiPagination.Normalize(page, pageSize);
@@ -208,13 +190,11 @@ public static class ForumApiEndpoints
             request.PageSize,
             cancellationToken);
 
-        var response = ApiPagedResponse<ForumTopicListItemDto>.Create(
+        return ApiV1EndpointHelpers.OkPaged(
             ForumApiMapper.ToTopicListItems(topicsPage.Topics),
             request.Page,
             request.PageSize,
             topicsPage.TotalCount);
-
-        return Results.Ok(response);
     }
 
     internal static async Task<IResult> GetTopicAsync(
