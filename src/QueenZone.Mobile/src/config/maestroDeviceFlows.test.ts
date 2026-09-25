@@ -322,7 +322,8 @@ describe('device-smoke harness (#1281)', () => {
     assert.match(runner, /Another Android emulator is active/);
     assert.match(runner, /-gpu host/);
     assert.match(runner, /MAESTRO_TARGET_DEVICE="\$serial"/);
-    assert.match(runner, /--suite smoke/);
+    assert.match(runner, /DEVICE_SUITE:-smoke/);
+    assert.match(runner, /--suite "\$suite"/);
     assert.doesNotMatch(runner, /ANDROID_RELEASE_/);
     assert.doesNotMatch(runner, /ANDROID_SMOKE_AVD:-QueenZone_CI_API_36/);
     assert.doesNotMatch(runner, /ANDROID_SMOKE_EMULATOR_PORT:-5556/);

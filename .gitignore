@@ -61,3 +61,6 @@ crash.log
 crash.*.log
 
 .worktrees/
+
+# Agent verification proof (#1799). Capture-proof writes here; do not commit.
+artifacts/proof/

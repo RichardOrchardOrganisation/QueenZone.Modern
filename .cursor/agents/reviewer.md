@@ -15,6 +15,7 @@ When invoked:
 2. Inspect the actual diff against `origin/main` (or the merge-base in the prompt) and the named files. Do not review sibling issues.
 3. Do **not** re-run the full test suite. The verifier already did. Re-run a single command only if you must confirm a suspected bug and the prompt names that command.
 4. Look for correctness bugs, `AGENTS.md` violations, secrets, missing tests the coverage gate will fail on, and scope creep.
+5. On a UI PR (mobile screens/navigation/UI, mapped mobile sources, or web Pages/Views/wwwroot): a missing `## Verification` section, failed proof, or `NOT RUN` without a named remaining check is **Request changes**.
 
 Verdict (pick one):
 

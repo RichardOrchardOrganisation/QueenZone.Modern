@@ -1,0 +1,548 @@
+{
+  "area": "archive",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [
+        "search",
+        "site search"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Search.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/SmokeTests.cs"
+      ],
+      "selectors": [
+        "#qz-search"
+      ],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/search.md",
+      "id": "web.archive.search",
+      "name": "Search the archive",
+      "page": "Pages/Search.cshtml",
+      "url": "/search",
+      "entry": "Header search, or open /search"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Articles/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.articles",
+      "name": "Articles",
+      "page": "Pages/Articles/Index.cshtml",
+      "url": "/articles",
+      "entry": "Open /articles"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Articles/Page.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.articlesPage",
+      "name": "Articles page",
+      "page": "Pages/Articles/Page.cshtml",
+      "url": "/articles/page/{pageNumber}",
+      "entry": "Articles → next page"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Articles/Detail.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.articleDetail",
+      "name": "Archive article",
+      "page": "Pages/Articles/Detail.cshtml",
+      "url": "/articles/{id}/{slug}",
+      "entry": "Articles → editorial article"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Articles/CommunityDetail.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.communityArticle",
+      "name": "Community article",
+      "page": "Pages/Articles/CommunityDetail.cshtml",
+      "url": "/articles/{slug}",
+      "entry": "Articles → community article slug"
+    },
+    {
+      "aliases": [
+        "live aid sample article"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Article.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.articleSample",
+      "name": "Sample article holding page",
+      "page": "Pages/Article.cshtml",
+      "url": "/article",
+      "entry": "Open /article"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Biography/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.biography",
+      "name": "Biography",
+      "page": "Pages/Biography/Index.cshtml",
+      "url": "/biography",
+      "entry": "Open /biography"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Biography/Detail.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.biographyDetail",
+      "name": "Biography chapter",
+      "page": "Pages/Biography/Detail.cshtml",
+      "url": "/biography/{id}/{slug}",
+      "entry": "Biography → chapter"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Discography/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.discography",
+      "name": "Discography",
+      "page": "Pages/Discography/Index.cshtml",
+      "url": "/discography",
+      "entry": "Open /discography"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Discography/Album.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.album",
+      "name": "Album",
+      "page": "Pages/Discography/Album.cshtml",
+      "url": "/discography/albums/{id}/{slug}",
+      "entry": "Discography → album"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Discography/RareDiscography.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.rareDiscography",
+      "name": "Rare discography",
+      "page": "Pages/Discography/RareDiscography.cshtml",
+      "url": "/discography/rare-discography",
+      "entry": "Discography → rare discography"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Timeline/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [
+        "#qz-htl-filterbar"
+      ],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.timeline",
+      "name": "Timeline",
+      "page": "Pages/Timeline/Index.cshtml",
+      "url": "/timeline",
+      "entry": "Open /timeline"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/FreddieTribute/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.freddieTribute",
+      "name": "Freddie Tribute",
+      "page": "Pages/FreddieTribute/Index.cshtml",
+      "url": "/freddie-mercury-tribute",
+      "entry": "Open /freddie-mercury-tribute"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/FreddieTribute/Page.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.freddieTributePage",
+      "name": "Freddie Tribute page",
+      "page": "Pages/FreddieTribute/Page.cshtml",
+      "url": "/freddie-mercury-tribute/page/{pageNumber}",
+      "entry": "Freddie Tribute → next page"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Trivia/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.trivia",
+      "name": "Trivia",
+      "page": "Pages/Trivia/Index.cshtml",
+      "url": "/trivia",
+      "entry": "Open /trivia"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Quizzes/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.quizzes",
+      "name": "Quizzes",
+      "page": "Pages/Quizzes/Index.cshtml",
+      "url": "/quizzes",
+      "entry": "Open /quizzes"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Quizzes/Play.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.quizPlay",
+      "name": "Quiz play",
+      "page": "Pages/Quizzes/Play.cshtml",
+      "url": "/quizzes/{id}",
+      "entry": "Quizzes → play"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Quizzes/Leaderboard.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.quizLeaderboard",
+      "name": "Quiz leaderboard",
+      "page": "Pages/Quizzes/Leaderboard.cshtml",
+      "url": "/quizzes/leaderboard",
+      "entry": "Quizzes → leaderboard"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Quizzes/Sprint.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.quizSprint",
+      "name": "Quiz Sprint",
+      "page": "Pages/Quizzes/Sprint.cshtml",
+      "url": "/quizzes/sprint",
+      "entry": "Open /quizzes/sprint"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/FanPerformances/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.fanPerformances",
+      "name": "Fan performances",
+      "page": "Pages/FanPerformances/Index.cshtml",
+      "url": "/fan-performances",
+      "entry": "Open /fan-performances"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/FanPerformances/Page.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.fanPerformancesPage",
+      "name": "Fan performances page",
+      "page": "Pages/FanPerformances/Page.cshtml",
+      "url": "/fan-performances/page/{pageNumber}",
+      "entry": "Fan performances → next page"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/FanPerformances/Report.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.fanPerformanceReport",
+      "name": "Report a fan performance",
+      "page": "Pages/FanPerformances/Report.cshtml",
+      "url": "/fan-performances/{id}/report",
+      "entry": "Fan performances → report"
+    },
+    {
+      "aliases": [
+        "activity feed"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Following.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.following",
+      "name": "Following feed",
+      "page": "Pages/Following.cshtml",
+      "url": "/following",
+      "entry": "Open /following while signed in"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/Article.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CommunitySubmissionWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitArticle",
+      "name": "Submit an article",
+      "page": "Pages/Submit/Article.cshtml",
+      "url": "/submit/article/{id?}",
+      "entry": "Open /submit/article"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/ArticleConfirmation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitArticleConfirmation",
+      "name": "Article submission confirmation",
+      "page": "Pages/Submit/ArticleConfirmation.cshtml",
+      "url": "/submit/article/confirmation/{id}",
+      "entry": "Submit article → confirmation"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/Trivia.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitTrivia",
+      "name": "Submit trivia",
+      "page": "Pages/Submit/Trivia.cshtml",
+      "url": "/submit/trivia",
+      "entry": "Open /submit/trivia"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/TriviaConfirmation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitTriviaConfirmation",
+      "name": "Trivia submission confirmation",
+      "page": "Pages/Submit/TriviaConfirmation.cshtml",
+      "url": "/submit/trivia/confirmation/{id}",
+      "entry": "Submit trivia → confirmation"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/QuizQuestion.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitQuiz",
+      "name": "Submit a quiz question",
+      "page": "Pages/Submit/QuizQuestion.cshtml",
+      "url": "/submit/quiz-question",
+      "entry": "Open /submit/quiz-question"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/QuizQuestionConfirmation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitQuizConfirmation",
+      "name": "Quiz question confirmation",
+      "page": "Pages/Submit/QuizQuestionConfirmation.cshtml",
+      "url": "/submit/quiz-question/confirmation/{id}",
+      "entry": "Submit quiz question → confirmation"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/FanPerformance.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitFanPerformance",
+      "name": "Submit a fan performance",
+      "page": "Pages/Submit/FanPerformance.cshtml",
+      "url": "/submit/fan-performance",
+      "entry": "Open /submit/fan-performance"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/FanPerformanceConfirmation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.archive.submitFanPerformanceConfirmation",
+      "name": "Fan performance confirmation",
+      "page": "Pages/Submit/FanPerformanceConfirmation.cshtml",
+      "url": "/submit/fan-performance/confirmation/{id}",
+      "entry": "Submit fan performance → confirmation"
+    }
+  ]
+}

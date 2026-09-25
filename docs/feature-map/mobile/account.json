@@ -1,0 +1,172 @@
+{
+  "area": "account",
+  "surface": "mobile",
+  "entries": [
+    {
+      "aliases": [
+        "profile",
+        "signed out profile",
+        "account"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/ProfileScreen.tsx"
+      ],
+      "testIds": [
+        "profileSignedOut",
+        "profileSignedIn",
+        "profileDisplayName",
+        "profileBack"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/08-profile-signed-out.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.account.profile",
+      "name": "Profile",
+      "screen": "HomeStack/Profile",
+      "entry": "Home masthead identity → Profile",
+      "drive": {
+        "profile": "src/QueenZone.Mobile/maestro/flows/08-profile-signed-out.yaml"
+      }
+    },
+    {
+      "aliases": [
+        "theme",
+        "dark mode"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/AppearanceScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.account.appearance",
+      "name": "Appearance",
+      "screen": "HomeStack/Appearance",
+      "entry": "Profile → Appearance"
+    },
+    {
+      "aliases": [
+        "notification settings"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/SettingsScreen.tsx"
+      ],
+      "testIds": [
+        "settingsNotifyForumReply",
+        "settingsNotifyPrivateMessage",
+        "settingsNotifyNews"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.account.settings",
+      "name": "Settings",
+      "screen": "HomeStack/Settings",
+      "entry": "Profile → Settings"
+    },
+    {
+      "aliases": [
+        "telemetry",
+        "analytics settings"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/AnalyticsSettingsScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.account.analytics",
+      "name": "Analytics preferences",
+      "screen": "HomeStack/AnalyticsSettings",
+      "entry": "Profile → Settings → Analytics preferences"
+    },
+    {
+      "aliases": [
+        "contact queen zone"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/ContactScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.account.contact",
+      "name": "Contact",
+      "screen": "HomeStack/Contact",
+      "entry": "Profile → Contact"
+    },
+    {
+      "aliases": [
+        "close account"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/DeleteAccountScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.account.delete",
+      "name": "Delete account",
+      "screen": "HomeStack/DeleteAccount",
+      "entry": "Profile → Delete account"
+    },
+    {
+      "aliases": [
+        "saved items",
+        "bookmarks"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/SavedListScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.account.saved",
+      "name": "Library",
+      "screen": "HomeStack/SavedList",
+      "entry": "Profile → Library"
+    },
+    {
+      "aliases": [
+        "submission status"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/MySubmissionsScreen.tsx"
+      ],
+      "testIds": [
+        "mySubmissionsScreen",
+        "profileMySubmissions"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.account.submissions",
+      "name": "My submissions",
+      "screen": "HomeStack/MySubmissions",
+      "entry": "Profile → My submissions"
+    }
+  ]
+}

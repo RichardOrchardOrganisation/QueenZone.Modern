@@ -29,7 +29,7 @@
     "coverage": "npm run test:coverage && npm run coverage:gate",
     "test:api-contracts": "node scripts/run-api-contracts.mjs",
     "doctor": "expo-doctor",
-    "preflight": "npm run typecheck && npm run lint && npm test && npm run doctor",
+    "preflight": "node ../../scripts/check-feature-map.mjs && npm run typecheck && npm run lint && npm test && npm run doctor",
     "audit:gate": "node scripts/check-npm-advisories.mjs"
   },
   "dependencies": {

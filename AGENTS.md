@@ -23,6 +23,7 @@ This repository is the modern QueenZone rebuild. The project is archive-first: i
 - `docs/sql/data-api-builder-mcp.md` explains the local SQL MCP setup for read-only legacy database investigation.
 - `docs/agent-bitwarden-secrets.md` is the multi-machine Bitwarden Secrets Manager (`bws`) setup for local agents (Windows vs macOS).
 - `.cursor/agents/` and `.cursor/skills/orchestrate-epic/` are the **Cursor-only** issue-queue overlay (planner / implementer / verifier / reviewer). Pin `/orchestrate-epic` as a Custom Mode in Cursor. Grok and other non-Cursor agents do not use that loop — they stay a single agent in the current chat (see [Grok and other non-Cursor agents](#grok-and-other-non-cursor-agents)). The portable protocol is the **issue-queue** Cursor plugin (`~/.cursor/plugins/local/issue-queue`, skill `/orchestrate-issues`). This repo keeps copies so a clone works without the plugin.
+- `docs/feature-map/` is the maintained mobile + web feature map (entry points, sources, test IDs, Maestro flows, E2E specs). Both verify skills read it. `node scripts/check-feature-map.mjs` (also `npm run preflight` in `src/QueenZone.Mobile`) fails CI when a screen or public/member page is unmapped.
 
 Keep durable workflow guidance in this file and keep user-facing setup guidance in `README.md`.
 
@@ -91,6 +92,7 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 - Tests run.
 - Whether real legacy database checks were run.
 - Any skipped checks or known follow-up work.
+- A `## Verification` section when the PR changes mobile screens/navigation/UI or web Pages/Views/wwwroot: feature-map ids, the `capture-proof` command, platform, result, and proof links (or `Not verified:` naming the remaining check). Cloud agents cannot run the Android emulator; write `NOT RUN` and dispatch `mobile-device-smoke.yml` with `suite: proof`. Opt out only with the `no-ui-verification` label plus `Verification-skip-reason:`. Expo web is not mobile proof.
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 

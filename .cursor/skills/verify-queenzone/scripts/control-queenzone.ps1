@@ -11,10 +11,12 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet("launch", "doctor", "url", "cleanup")]
+    [ValidateSet("launch", "doctor", "url", "cleanup", "capture-proof")]
     [string] $Command,
 
-    [int] $Port = 5199
+    [int] $Port = 5199,
+
+    [string] $Feature
 )
 
 Set-StrictMode -Version Latest
@@ -37,6 +39,8 @@ for ($i = 0; $i -lt 6; $i++) {
 if (-not $RepoRoot) {
     throw "Could not find QueenZone.sln above $SkillRoot."
 }
+
+. (Join-Path $RepoRoot "scripts/FeatureMap.ps1")
 
 $RunDir = Join-Path $SkillRoot ".run"
 $StatePath = Join-Path $RunDir "state.json"
@@ -248,6 +252,72 @@ switch ($Command) {
             })
 
         Write-Output "Launched $baseUrl (pid $($proc.Id))"
+        return
+    }
+
+    "capture-proof" {
+        if ([string]::IsNullOrWhiteSpace($Feature)) {
+            throw "capture-proof requires -Feature <map-id> (for example web.home.index)."
+        }
+        $entries = Get-QueenZoneFeatureMap -RepoRoot $RepoRoot
+        $mapped = Resolve-QueenZoneFeature -Entries $entries -IdOrAlias $Feature
+        if (-not $mapped) {
+            throw "Unknown feature '$Feature'."
+        }
+        $proofDir = Get-QueenZoneProofDir -RepoRoot $RepoRoot -FeatureId $mapped.id -Platform "web"
+        $sha = Get-QueenZoneHeadSha -RepoRoot $RepoRoot
+        $specs = @($mapped.specs | ForEach-Object { [string] $_ } | Where-Object { $_ })
+        $playwright = @(
+            (Join-Path $RepoRoot "tests/QueenZone.Web.E2E/bin/Release/net10.0/playwright.ps1"),
+            (Join-Path $RepoRoot "tests/QueenZone.Web.E2E/bin/Debug/net10.0/playwright.ps1")
+        ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+        $state = Read-State
+        if (-not $state) {
+            $detail = "NOT RUN: Testing host is not running, needs control-queenzone.ps1 launch then capture-proof -Feature $($mapped.id)"
+            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform "web" -Flows $specs -Result "NOT RUN" -Detail $detail
+            Write-Output $detail
+            exit 1
+        }
+        if (-not $playwright) {
+            $detail = "NOT RUN: E2E playwright.ps1 is not built, needs dotnet build tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj then playwright.ps1 install chromium"
+            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform "web" -Flows $specs -Result "NOT RUN" -Detail $detail
+            Write-Output $detail
+            exit 1
+        }
+
+        Invoke-Health -BaseUrl $state.url
+        $urlPath = [string] $mapped.url
+        foreach ($pair in @(
+                @{ From = "{slug}"; To = "brian-may" },
+                @{ From = "{picId}"; To = "101" },
+                @{ From = "{id}"; To = "1003" },
+                @{ From = "{pageNumber}"; To = "1" },
+                @{ From = "{topicId}"; To = "1002" },
+                @{ From = "{statusCode?}"; To = "404" },
+                @{ From = "{*path}"; To = "index" }
+            )) {
+            $urlPath = $urlPath.Replace($pair.From, $pair.To)
+        }
+        $urlPath = [regex]::Replace($urlPath, "\{[^}]+\}", "1")
+        $target = "$($state.url)$urlPath"
+        $png = Join-Path $proofDir "screenshot.png"
+        & $playwright screenshot --full-page $target $png
+        $shotCode = $LASTEXITCODE
+        $specResult = "skipped"
+        if ($specs.Count -gt 0 -and $shotCode -eq 0) {
+            $filter = ($specs | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_) }) -join "|"
+            & dotnet test (Join-Path $RepoRoot "tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj") --filter "FullyQualifiedName~$($filter.Split('|')[0])" --configuration Release
+            $specResult = if ($LASTEXITCODE -eq 0) { "PASS" } else { "FAIL" }
+        }
+        $result = if ($shotCode -eq 0 -and $specResult -ne "FAIL") { "PASS" } else { "FAIL" }
+        $detail = "Screenshot of $target exited $shotCode. Spec $specResult."
+        Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform "web" -Flows $specs -Result $result -Detail $detail
+        Write-Output "$result : $detail"
+        Write-Output "Proof: $proofDir"
+        if ($result -ne "PASS") {
+            exit 1
+        }
         return
     }
 }

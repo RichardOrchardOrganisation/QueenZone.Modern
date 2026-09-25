@@ -1,0 +1,97 @@
+{
+  "area": "messages",
+  "surface": "mobile",
+  "entries": [
+    {
+      "aliases": [
+        "inbox",
+        "private messages"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/messages/InboxScreen.tsx"
+      ],
+      "testIds": [
+        "inboxScreen",
+        "inboxCompose",
+        "inboxArchived",
+        "homeMessages"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.messages.inbox",
+      "name": "Messages inbox",
+      "screen": "HomeStack/Inbox",
+      "entry": "Home messages icon, or Profile → Messages"
+    },
+    {
+      "aliases": [
+        "message archive"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/messages/ArchivedScreen.tsx"
+      ],
+      "testIds": [
+        "archivedScreen"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.messages.archived",
+      "name": "Archived messages",
+      "screen": "HomeStack/Archived",
+      "entry": "Inbox → Archived messages"
+    },
+    {
+      "aliases": [
+        "dm thread",
+        "private conversation"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/messages/ConversationScreen.tsx"
+      ],
+      "testIds": [
+        "conversationScreen",
+        "conversationReply",
+        "conversationArchive"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/13-messages-lifecycle.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.messages.conversation",
+      "name": "Conversation",
+      "screen": "HomeStack/Conversation",
+      "entry": "Inbox → conversation"
+    },
+    {
+      "aliases": [
+        "compose dm"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/messages/ComposeMessageScreen.tsx"
+      ],
+      "testIds": [
+        "composeMessageRecipient",
+        "composeMessageBody",
+        "composeMessageSubmit"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.messages.compose",
+      "name": "New message",
+      "screen": "HomeStack/ComposeMessage",
+      "entry": "Inbox → New message"
+    }
+  ]
+}
