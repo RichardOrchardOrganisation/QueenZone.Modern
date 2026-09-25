@@ -40,6 +40,9 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
             a.Author != null ? a.Author.DisplayName : null,
             a.Author != null ? a.Author.Email : null);
 
+    // Map(entity) and the SQL projection must stay identical; compiling the projection keeps one copy.
+    private static readonly Func<ArticleSubmissionEntity, ArticleSubmission> MapEntity = SubmissionProjection.Compile();
+
     public async Task<ArticleSubmission> UpsertDraftAsync(ArticleSubmissionDraft draft, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
@@ -60,10 +63,10 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
 
             entity.Title = Normalize(draft.Title, 300);
             entity.Slug = GenerateSlug(draft.Title);
-            entity.Excerpt = NormalizeOptional(draft.Excerpt, 500);
+            entity.Excerpt = SubmissionInput.NormalizeOptional(draft.Excerpt, 500);
             entity.Body = draft.Body ?? string.Empty;
-            entity.CoverImageBlobPath = NormalizeOptional(draft.CoverImageBlobPath, 512);
-            entity.Tags = NormalizeOptional(draft.Tags, 500);
+            entity.CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512);
+            entity.Tags = SubmissionInput.NormalizeOptional(draft.Tags, 500);
             entity.WordCount = EstimateWordCount(entity.Body);
         }
         else
@@ -74,10 +77,10 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 AuthorMemberId = draft.AuthorMemberId,
                 Title = Normalize(draft.Title, 300),
                 Slug = GenerateSlug(draft.Title),
-                Excerpt = NormalizeOptional(draft.Excerpt, 500),
+                Excerpt = SubmissionInput.NormalizeOptional(draft.Excerpt, 500),
                 Body = draft.Body ?? string.Empty,
-                CoverImageBlobPath = NormalizeOptional(draft.CoverImageBlobPath, 512),
-                Tags = NormalizeOptional(draft.Tags, 500),
+                CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512),
+                Tags = SubmissionInput.NormalizeOptional(draft.Tags, 500),
                 WordCount = EstimateWordCount(draft.Body),
                 Status = ArticleSubmissionStatus.Draft,
             };
@@ -169,12 +172,12 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         }
 
         entity.Status = status;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(notes, 1000);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 1000);
 
         if (!string.IsNullOrWhiteSpace(rejectionReason))
         {
-            entity.RejectionReason = NormalizeOptional(rejectionReason, 1000);
+            entity.RejectionReason = SubmissionInput.NormalizeOptional(rejectionReason, 1000);
         }
 
         if (!string.IsNullOrWhiteSpace(slug))
@@ -184,12 +187,12 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
 
         if (excerpt is not null)
         {
-            entity.Excerpt = NormalizeOptional(excerpt, 500);
+            entity.Excerpt = SubmissionInput.NormalizeOptional(excerpt, 500);
         }
 
         if (tags is not null)
         {
-            entity.Tags = NormalizeOptional(tags, 500);
+            entity.Tags = SubmissionInput.NormalizeOptional(tags, 500);
         }
 
         if (status == ArticleSubmissionStatus.Published)
@@ -311,17 +314,6 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
     internal IQueryable<ArticleSubmissionListItem> PendingQueueQuery(int skip, int take) =>
         PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);
 
@@ -341,22 +333,5 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
             .AsNoTracking()
             .Where(a => a.AuthorMemberId == memberId);
 
-    private static ArticleSubmission Map(ArticleSubmissionEntity entity) =>
-        new(
-            entity.Id,
-            entity.AuthorMemberId,
-            entity.Title,
-            entity.Slug,
-            entity.Excerpt,
-            entity.Body,
-            entity.CoverImageBlobPath,
-            entity.Tags,
-            entity.Status,
-            entity.SubmittedAt,
-            entity.PublishedAt,
-            entity.ReviewerEmail,
-            entity.ReviewNotes,
-            entity.RejectionReason,
-            entity.Author?.DisplayName,
-            entity.Author?.Email);
+    private static ArticleSubmission Map(ArticleSubmissionEntity entity) => MapEntity(entity);
 }
