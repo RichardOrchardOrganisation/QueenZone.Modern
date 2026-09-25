@@ -84,7 +84,10 @@ function Get-ChangedLines {
         }
     }
 
-    git rev-parse --verify --quiet $resolvedBaseRef *> $null
+    # CI passes the PR event's base SHA. rev-parse --verify accepts any
+    # well-formed 40-hex SHA without looking it up, so peel to a commit to
+    # prove the object is actually present in the checkout.
+    git rev-parse --verify --quiet "$resolvedBaseRef^{commit}" *> $null
     if ($LASTEXITCODE -ne 0) {
         if ($RequireBaseRef) { throw "Base ref '$BaseRef' is not available locally." }
         Write-Host "Base ref '$BaseRef' is not available locally; skipping changed-line coverage gate."
@@ -227,6 +230,74 @@ function New-SampleCoberturaXml {
 "@
 }
 
+# Pull-request CI passes the event's raw base SHA rather than origin/main, so
+# prove a bare SHA resolves, diffs, and still fails closed when it is missing
+# or not an ancestor of HEAD.
+function Invoke-BaseShaSelfTest {
+    param(
+        [string]$TempRoot,
+        [string]$Pwsh
+    )
+
+    $repoRoot = Join-Path $TempRoot "base-sha-repo"
+    $reportsDir = Join-Path $TempRoot "base-sha-reports"
+    New-Item -ItemType Directory -Path $repoRoot, $reportsDir | Out-Null
+
+    Push-Location $repoRoot
+    try {
+        $gitIdentity = @("-c", "user.name=Coverage Gate Self-Test", "-c", "user.email=self-test@example.invalid", "-c", "commit.gpgsign=false")
+        git init --quiet --initial-branch=main 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Self-test failed: git init failed." }
+
+        $sampleDir = Join-Path $repoRoot "src/QueenZone.Web"
+        New-Item -ItemType Directory -Path $sampleDir | Out-Null
+        $samplePath = Join-Path $sampleDir "CoverageGateSample.cs"
+        $baseLines = 1..9 | ForEach-Object { "// line $_" }
+        [System.IO.File]::WriteAllLines($samplePath, [string[]]$baseLines)
+        git add -A 2>&1 | Out-Null
+        git @gitIdentity commit --quiet -m "base" 2>&1 | Out-Null
+        $baseSha = (git rev-parse HEAD).Trim()
+
+        git switch --quiet -c side 2>&1 | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $repoRoot "side.txt"), "side")
+        git add -A 2>&1 | Out-Null
+        git @gitIdentity commit --quiet -m "side" 2>&1 | Out-Null
+        $sideSha = (git rev-parse HEAD).Trim()
+        git switch --quiet main 2>&1 | Out-Null
+
+        [System.IO.File]::WriteAllLines($samplePath, [string[]]($baseLines + @("int a = 1;", "int b = 2;")))
+        git add -A 2>&1 | Out-Null
+        git @gitIdentity commit --quiet -m "head" 2>&1 | Out-Null
+
+        $reportDir = Join-Path $reportsDir (New-Guid).ToString("D")
+        New-Item -ItemType Directory -Path $reportDir | Out-Null
+        [System.IO.File]::WriteAllText(
+            (Join-Path $reportDir "coverage.cobertura.xml"),
+            (New-SampleCoberturaXml -SourceRoot $repoRoot),
+            [System.Text.UTF8Encoding]::new($false))
+
+        $shaOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $reportsDir -GlobalLineThreshold 0 -ChangedLineThreshold 70 -BaseRef $baseSha -RequireBaseRef 2>&1
+        $shaText = @($shaOutput) -join [Environment]::NewLine
+        if ($LASTEXITCODE -ne 0 -or $shaText -notmatch 'Changed-line coverage: 100% \(2/2\)') {
+            throw "Self-test failed: a raw ancestor base SHA should drive the changed-line gate. Output:`n$shaText"
+        }
+
+        $sideOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $reportsDir -GlobalLineThreshold 0 -ChangedLineThreshold 0 -BaseRef $sideSha -RequireBaseRef 2>&1
+        if ($LASTEXITCODE -eq 0 -or (@($sideOutput) -join [Environment]::NewLine) -notmatch 'is not an ancestor of') {
+            throw "Self-test failed: a required base SHA that is not an ancestor of HEAD must fail closed."
+        }
+
+        $missingSha = "0123456789abcdef0123456789abcdef01234567"
+        $missingOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $reportsDir -GlobalLineThreshold 0 -ChangedLineThreshold 0 -BaseRef $missingSha -RequireBaseRef 2>&1
+        if ($LASTEXITCODE -eq 0 -or (@($missingOutput) -join [Environment]::NewLine) -notmatch 'is not available locally') {
+            throw "Self-test failed: a required base SHA missing from the checkout must fail closed."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 function Invoke-CoverageGateSelfTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("qz-coverage-gate-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
@@ -312,6 +383,8 @@ function Invoke-CoverageGateSelfTest {
         if ($emptyText -notmatch 'No valid Cobertura coverage reports') {
             throw "Self-test failed: empty reports dir produced unexpected error. Output:`n$emptyText"
         }
+
+        Invoke-BaseShaSelfTest -TempRoot $tempRoot -Pwsh $pwsh.Source
 
         Write-Host "Test-CoverageGate.ps1 self-test passed."
     }
