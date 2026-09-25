@@ -415,6 +415,8 @@ jobs:
         working-directory: .
         env:
           PROVE_FAILURE: ${{ github.event.inputs.prove_failure }}
+          SUITE: ${{ github.event.inputs.suite }}
+          FEATURE: ${{ github.event.inputs.feature }}
         run: |
           PROVE=""
           if [ "$PROVE_FAILURE" = "true" ]; then
@@ -424,8 +426,6 @@ jobs:
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
           APP=$(ls -d src/QueenZone.Mobile/ios/build/Build/Products/Release-iphonesimulator/*.app | head -n 1)
-          SUITE="${{ github.event.inputs.suite }}"
-          FEATURE="${{ github.event.inputs.feature }}"
           EXTRA=""
           if [ "$SUITE" = "proof" ]; then
             EXTRA="--suite proof --feature $FEATURE"
@@ -558,6 +558,9 @@ jobs:
 
       - name: Prepare Android journeys harness
         working-directory: .
+        env:
+          SUITE: ${{ github.event.inputs.suite }}
+          FEATURE: ${{ github.event.inputs.feature }}
         run: |
           mkdir -p src/QueenZone.Mobile/maestro-results
           {
@@ -565,8 +568,8 @@ jobs:
             echo "job=mobile-android-journeys"
             echo "prepared_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > src/QueenZone.Mobile/maestro-results/harness.log
-          if [ "${{ github.event.inputs.suite }}" = "proof" ]; then
-            echo "DEVICE_SUITE_ARGS=--suite proof --feature ${{ github.event.inputs.feature }}" >> "$GITHUB_ENV"
+          if [ "$SUITE" = "proof" ]; then
+            echo "DEVICE_SUITE_ARGS=--suite proof --feature $FEATURE" >> "$GITHUB_ENV"
           else
             echo "DEVICE_SUITE_ARGS=--suite journeys" >> "$GITHUB_ENV"
           fi
