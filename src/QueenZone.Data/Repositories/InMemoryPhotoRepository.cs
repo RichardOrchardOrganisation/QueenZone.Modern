@@ -63,12 +63,13 @@ public sealed class InMemoryPhotoRepository(SharedPhotoStore store) : IPhotoRepo
         CancellationToken cancellationToken = default)
     {
         var requested = filter ?? PhotoListFilter.None;
-        var all = store.GetVisiblePhotosByCategory(catId).Select(ToPhotoItem).ToList();
+        var raw = store.GetVisiblePhotosByCategory(catId);
+        var all = raw.Select(ToPhotoItem).ToList();
         var items = requested.IsActive ? all.Where(requested.Matches).ToList() : all;
         var index = items.FindIndex(item => item.PicId == picId);
         if (index >= 0)
         {
-            return Task.FromResult<PhotoDetailNavigation?>(ToNavigation(items, index, matchedRequestedFilter: true));
+            return Task.FromResult<PhotoDetailNavigation?>(ToNavigation(items, raw, index, matchedRequestedFilter: true));
         }
 
         if (!requested.IsActive)
@@ -82,7 +83,7 @@ public sealed class InMemoryPhotoRepository(SharedPhotoStore store) : IPhotoRepo
             return Task.FromResult<PhotoDetailNavigation?>(null);
         }
 
-        return Task.FromResult<PhotoDetailNavigation?>(ToNavigation(all, fallback, matchedRequestedFilter: false));
+        return Task.FromResult<PhotoDetailNavigation?>(ToNavigation(all, raw, fallback, matchedRequestedFilter: false));
     }
 
     public Task<IReadOnlyList<PhotoItem>> GetCategoryAllAsync(int catId, CancellationToken cancellationToken = default)
@@ -158,15 +159,35 @@ public sealed class InMemoryPhotoRepository(SharedPhotoStore store) : IPhotoRepo
 
     private static PhotoDetailNavigation ToNavigation(
         IReadOnlyList<PhotoItem> items,
+        IReadOnlyList<AdminPhotoItem> raw,
         int index,
-        bool matchedRequestedFilter) =>
-        new(
+        bool matchedRequestedFilter)
+    {
+        var previousId = index > 0 ? items[index - 1].PicId : (int?)null;
+        var nextId = index < items.Count - 1 ? items[index + 1].PicId : (int?)null;
+        return new(
             items[index],
             index,
             items.Count,
-            index > 0 ? items[index - 1].PicId : null,
-            index < items.Count - 1 ? items[index + 1].PicId : null,
-            matchedRequestedFilter);
+            previousId,
+            nextId,
+            matchedRequestedFilter,
+            NeighborMedia(raw, previousId),
+            NeighborMedia(raw, nextId));
+    }
+
+    private static PhotoNeighborMedia? NeighborMedia(IReadOnlyList<AdminPhotoItem> raw, int? picId)
+    {
+        if (picId is not int id)
+        {
+            return null;
+        }
+
+        var item = raw.FirstOrDefault(photo => photo.PicId == id);
+        return item is null
+            ? null
+            : new PhotoNeighborMedia(item.LegacyUrl, item.PictureWidth, item.PictureHeight);
+    }
 
     public Task<IReadOnlyList<PhotoSitemapCategory>> GetPublishedSitemapCategoriesAsync(
         CancellationToken cancellationToken = default)
