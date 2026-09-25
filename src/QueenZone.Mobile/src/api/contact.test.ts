@@ -5,8 +5,8 @@ import {
   contactApiUrl,
   parseContactForm,
   parseContactSubmitResult,
-  readProblemDetail,
 } from './contact.ts';
+import { readProblemDetail } from './problemDetail.ts';
 
 describe('contactApiUrl', () => {
   it('joins the versioned contact path onto the API origin', () => {

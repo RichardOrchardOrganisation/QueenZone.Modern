@@ -6,10 +6,10 @@ import {
   parseFanPerformanceSubmissions,
   parseNewsSuggestions,
   parsePhotoSubmissions,
-  readProblemDetail,
   resolveMediaUrl,
   submissionsApiUrl,
 } from './submissions.ts';
+import { readProblemDetail } from './problemDetail.ts';
 
 describe('submissionsApiUrl', () => {
   it('joins the versioned member submissions path onto the API origin', () => {

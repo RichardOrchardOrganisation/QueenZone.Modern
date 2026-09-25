@@ -1,5 +1,6 @@
 /** Public `/api/v1/contact` contract (issue #755). Matches website `/contact`. */
 
+
 export const contactApiPath = '/contact';
 
 export type ContactTopic = {
@@ -80,24 +81,6 @@ export function buildContactSubmitBody(input: {
   }
 
   return body;
-}
-
-export function readProblemDetail(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== 'object') {
-    return fallback;
-  }
-
-  const detail = (payload as { detail?: unknown }).detail;
-  if (typeof detail === 'string' && detail.trim().length > 0) {
-    return detail.trim();
-  }
-
-  const title = (payload as { title?: unknown }).title;
-  if (typeof title === 'string' && title.trim().length > 0) {
-    return title.trim();
-  }
-
-  return fallback;
 }
 
 export function parseContactForm(payload: unknown): ContactForm {
