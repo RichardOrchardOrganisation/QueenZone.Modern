@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
 
@@ -6,6 +7,47 @@ namespace QueenZone.Data;
 public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbContext)
     : IFanPerformanceSubmissionRepository
 {
+    private static readonly NewestFirstOrder<FanPerformanceSubmissionEntity> NewestFirst =
+        new(row => row.SubmittedAt, row => row.Id);
+
+    private static readonly Expression<Func<FanPerformanceSubmissionEntity, FanPerformanceSubmissionListItem>> ListItemProjection =
+        row => new FanPerformanceSubmissionListItem(
+            row.Id,
+            row.Title,
+            row.CoveredSong,
+            row.PerformedBy,
+            row.SubmitterMemberId,
+            row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
+            row.SubmittedAt,
+            row.DurationSeconds,
+            row.FileSizeBytes,
+            row.Status);
+
+    private static readonly Expression<Func<FanPerformanceSubmissionEntity, FanPerformanceSubmission>> SubmissionProjection =
+        row => new FanPerformanceSubmission(
+            row.Id,
+            row.SubmitterMemberId,
+            row.Title,
+            row.CoveredSong,
+            row.PerformedBy,
+            row.Description,
+            row.BlobPath,
+            row.OriginalFileName,
+            row.FileSizeBytes,
+            row.MimeType,
+            row.DurationSeconds,
+            row.Status,
+            row.SubmittedAt,
+            row.ReviewedAt,
+            row.ReviewerEmail,
+            row.ReviewNotes,
+            row.RejectionReason,
+            row.RightsDeclaredAt,
+            row.RightsDeclarationVersion,
+            row.PromotedStageId,
+            row.Submitter != null ? row.Submitter.DisplayName : null,
+            row.Submitter != null ? row.Submitter.Email : null);
+
     public async Task<FanPerformanceSubmission> CreateAsync(
         NewFanPerformanceSubmission submission,
         CancellationToken cancellationToken = default)
@@ -64,53 +106,9 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-        var skip = (page - 1) * pageSize;
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var rows = await dbContext.FanPerformanceSubmissions
-                .AsNoTracking()
-                .Where(row =>
-                    row.Status == FanPerformanceSubmissionStatus.Pending
-                    || row.Status == FanPerformanceSubmissionStatus.UnderReview
-                    || row.Status == FanPerformanceSubmissionStatus.NeedsInfo)
-                .Select(row => new
-                {
-                    row.Id,
-                    row.Title,
-                    row.CoveredSong,
-                    row.PerformedBy,
-                    row.SubmitterMemberId,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : string.Empty,
-                    row.SubmittedAt,
-                    row.DurationSeconds,
-                    row.FileSizeBytes,
-                    row.Status,
-                })
-                .ToListAsync(cancellationToken);
-
-            return rows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new FanPerformanceSubmissionListItem(
-                    row.Id,
-                    row.Title,
-                    row.CoveredSong,
-                    row.PerformedBy,
-                    row.SubmitterMemberId,
-                    string.IsNullOrWhiteSpace(row.DisplayName) ? "Unknown member" : row.DisplayName,
-                    row.SubmittedAt,
-                    row.DurationSeconds,
-                    row.FileSizeBytes,
-                    row.Status))
-                .ToList();
-        }
-
-        return await PendingQueueQuery(skip, pageSize).ToListAsync(cancellationToken);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return await PendingQueue().ToNewestFirstPageAsync(
+            NewestFirst, ListItemProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<IReadOnlyList<FanPerformanceSubmissionAuditEntry>> GetAuditLogsAsync(
@@ -150,86 +148,15 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<SubmissionListPage<FanPerformanceSubmission>> GetBySubmitterAsync(
+    public Task<SubmissionListPage<FanPerformanceSubmission>> GetBySubmitterAsync(
         Guid submitterMemberId,
         int page = 1,
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var query = dbContext.FanPerformanceSubmissions
-            .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId);
-
-        var totalCount = await query.CountAsync(cancellationToken);
-        var skip = (page - 1) * pageSize;
-
-        if (dbContext.Database.IsSqliteProvider())
-        {
-            var sqliteRows = await query
-                .Select(row => new
-                {
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Title,
-                    row.CoveredSong,
-                    row.PerformedBy,
-                    row.Description,
-                    row.BlobPath,
-                    row.OriginalFileName,
-                    row.FileSizeBytes,
-                    row.MimeType,
-                    row.DurationSeconds,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.RejectionReason,
-                    row.RightsDeclaredAt,
-                    row.RightsDeclarationVersion,
-                    row.PromotedStageId,
-                    DisplayName = row.Submitter != null ? row.Submitter.DisplayName : null,
-                    Email = row.Submitter != null ? row.Submitter.Email : null,
-                })
-                .ToListAsync(cancellationToken);
-
-            var sqliteItems = sqliteRows
-                .OrderByDescending(row => row.SubmittedAt)
-                .ThenBy(row => row.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(row => new FanPerformanceSubmission(
-                    row.Id,
-                    row.SubmitterMemberId,
-                    row.Title,
-                    row.CoveredSong,
-                    row.PerformedBy,
-                    row.Description,
-                    row.BlobPath,
-                    row.OriginalFileName,
-                    row.FileSizeBytes,
-                    row.MimeType,
-                    row.DurationSeconds,
-                    row.Status,
-                    row.SubmittedAt,
-                    row.ReviewedAt,
-                    row.ReviewerEmail,
-                    row.ReviewNotes,
-                    row.RejectionReason,
-                    row.RightsDeclaredAt,
-                    row.RightsDeclarationVersion,
-                    row.PromotedStageId,
-                    row.DisplayName,
-                    row.Email))
-                .ToList();
-            return new SubmissionListPage<FanPerformanceSubmission>(sqliteItems, totalCount);
-        }
-
-        var items = await MemberQueueQuery(submitterMemberId, skip, pageSize).ToListAsync(cancellationToken);
-        return new SubmissionListPage<FanPerformanceSubmission>(items, totalCount);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return SubmittedBy(submitterMemberId).ToNewestFirstListPageAsync(
+            NewestFirst, SubmissionProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
     }
 
     public async Task<FanPerformanceSubmission?> UpdateStatusAsync(
@@ -465,59 +392,23 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
     }
 
     internal IQueryable<FanPerformanceSubmissionListItem> PendingQueueQuery(int skip, int take) =>
+        PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);
+
+    private IQueryable<FanPerformanceSubmissionEntity> PendingQueue() =>
         dbContext.FanPerformanceSubmissions
             .AsNoTracking()
             .Where(row =>
                 row.Status == FanPerformanceSubmissionStatus.Pending
                 || row.Status == FanPerformanceSubmissionStatus.UnderReview
-                || row.Status == FanPerformanceSubmissionStatus.NeedsInfo)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new FanPerformanceSubmissionListItem(
-                row.Id,
-                row.Title,
-                row.CoveredSong,
-                row.PerformedBy,
-                row.SubmitterMemberId,
-                row.Submitter != null ? row.Submitter.DisplayName : "Unknown member",
-                row.SubmittedAt,
-                row.DurationSeconds,
-                row.FileSizeBytes,
-                row.Status));
+                || row.Status == FanPerformanceSubmissionStatus.NeedsInfo);
 
     internal IQueryable<FanPerformanceSubmission> MemberQueueQuery(Guid submitterMemberId, int skip, int take) =>
+        SubmittedBy(submitterMemberId).NewestFirstPage(NewestFirst, SubmissionProjection, skip, take);
+
+    private IQueryable<FanPerformanceSubmissionEntity> SubmittedBy(Guid submitterMemberId) =>
         dbContext.FanPerformanceSubmissions
             .AsNoTracking()
-            .Where(row => row.SubmitterMemberId == submitterMemberId)
-            .OrderByDescending(row => row.SubmittedAt)
-            .ThenBy(row => row.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(row => new FanPerformanceSubmission(
-                row.Id,
-                row.SubmitterMemberId,
-                row.Title,
-                row.CoveredSong,
-                row.PerformedBy,
-                row.Description,
-                row.BlobPath,
-                row.OriginalFileName,
-                row.FileSizeBytes,
-                row.MimeType,
-                row.DurationSeconds,
-                row.Status,
-                row.SubmittedAt,
-                row.ReviewedAt,
-                row.ReviewerEmail,
-                row.ReviewNotes,
-                row.RejectionReason,
-                row.RightsDeclaredAt,
-                row.RightsDeclarationVersion,
-                row.PromotedStageId,
-                row.Submitter != null ? row.Submitter.DisplayName : null,
-                row.Submitter != null ? row.Submitter.Email : null));
+            .Where(row => row.SubmitterMemberId == submitterMemberId);
 
     private async Task<FanPerformanceDashboardCounts> GetDashboardCountsInMemoryAsync(
         DateTimeOffset utcNow,
