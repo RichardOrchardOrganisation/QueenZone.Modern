@@ -1,5 +1,6 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { fetchJson, sendJson } from '../../api/client';
 import { ApiError } from '../../api/errors';
 import { memberProfilePayload } from '../../test/fixtures';
@@ -62,6 +63,29 @@ describe('DeleteAccountScreen', () => {
     );
     expect(sendJsonMock).not.toHaveBeenCalled();
     expect(mockSession.signOut).not.toHaveBeenCalled();
+  });
+
+  it('keeps the confirmation field visible when the keyboard opens', async () => {
+    const scrollToEnd = jest.spyOn(ScrollView.prototype, 'scrollToEnd').mockImplementation(() => {});
+    const addKeyboardListener = jest.spyOn(Keyboard, 'addListener');
+    renderDeleteAccount();
+    const confirmation = await screen.findByLabelText('Type DELETE to confirm');
+
+    expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe(
+      Platform.OS === 'ios' ? 'padding' : undefined,
+    );
+    fireEvent(confirmation, 'focus');
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
+
+    scrollToEnd.mockClear();
+    const keyboardShown = addKeyboardListener.mock.calls.find(([event]) => event === 'keyboardDidShow')?.[1];
+    keyboardShown?.({} as never);
+    expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
+
+    scrollToEnd.mockClear();
+    fireEvent(confirmation, 'blur');
+    keyboardShown?.({} as never);
+    expect(scrollToEnd).not.toHaveBeenCalled();
   });
 
   it('deletes the account and signs out', async () => {

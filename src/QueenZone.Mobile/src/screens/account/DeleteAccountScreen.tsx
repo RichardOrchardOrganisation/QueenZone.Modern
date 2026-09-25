@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ScrollView, Text, TextInput } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput } from 'react-native';
 import { fetchJson, sendJson } from '../../api/client';
 import { ApiError } from '../../api/errors';
 import { getAppConfig } from '../../config/appConfig';
@@ -115,6 +115,21 @@ function DeleteAccountForm({ onReceipt }: { onReceipt: (receipt: DeletionReceipt
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [requested, setRequested] = useState<{ title: string; message: string } | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const confirmationFocused = useRef(false);
+
+  const revealConfirmation = useCallback(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidShow', () => {
+      if (confirmationFocused.current) {
+        revealConfirmation();
+      }
+    });
+    return () => subscription.remove();
+  }, [revealConfirmation]);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -201,59 +216,74 @@ function DeleteAccountForm({ onReceipt }: { onReceipt: (receipt: DeletionReceipt
   }
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.surfacePage }}
-      contentContainerStyle={{ padding: space.xl, gap: space.md, paddingBottom: space.section }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {error ? (
-        <Text style={[type.body, { color: c.danger }]} accessibilityRole="alert">
-          {error}
-        </Text>
-      ) : null}
-      {profile?.scheduledDeletionAt ? (
-        <>
-          <Text style={[type.pageTitle, { color: c.textPrimary }]}>Deletion scheduled</Text>
-          <Text style={[type.body, { color: c.textSecondary }]}>
-            Your account is scheduled for permanent deletion. Your public identity is anonymised during the 30-day
-            cooling-off period. Sign-in remains available so you can cancel deletion below.
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: space.xl, gap: space.md, paddingBottom: space.section }}
+      >
+        {error ? (
+          <Text style={[type.body, { color: c.danger }]} accessibilityRole="alert">
+            {error}
           </Text>
-          <Button label="Cancel account deletion" loading={busy} onPress={() => void cancelDeletion()} />
-        </>
-      ) : (
-        <>
-          <Text style={[type.pageTitle, { color: c.textPrimary }]}>What happens</Text>
-          {(deletion?.whatHappens ?? []).map((item) => (
-            <Text key={item} style={[type.body, { color: c.textSecondary }]}>
-              • {item}
+        ) : null}
+        {profile?.scheduledDeletionAt ? (
+          <>
+            <Text style={[type.pageTitle, { color: c.textPrimary }]}>Deletion scheduled</Text>
+            <Text style={[type.body, { color: c.textSecondary }]}>
+              Your account is scheduled for permanent deletion. Your public identity is anonymised during the 30-day
+              cooling-off period. Sign-in remains available so you can cancel deletion below.
             </Text>
-          ))}
-          <Text style={[type.body, { color: c.textSecondary }]}>Deletion cannot be undone.</Text>
-          <Text style={[type.body, { color: c.textSecondary }]}>
-            If you use Sign in with Apple, you can also remove QueenZone under iPhone Settings → your name → Sign in with Apple.
-          </Text>
-          <Text style={[type.caption, { color: c.textMuted }]}>
-            {deletion?.confirmationHint ?? 'Type DELETE to delete the account.'}
-            {profile?.email ? ` Account: ${profile.email}` : ''}
-          </Text>
-          <TextInput
-            value={confirmation}
-            onChangeText={setConfirmation}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            accessibilityLabel="Type DELETE to confirm"
-            style={{
-              minHeight: 48,
-              borderWidth: 1,
-              borderColor: c.border,
-              borderRadius: radius.xs,
-              paddingHorizontal: space.md,
-              color: c.textPrimary,
-              ...type.body,
-            }}
-          />
-          <Button label="Delete my account now" loading={busy} onPress={() => void requestDeletion()} />
-        </>
-      )}
-    </ScrollView>
+            <Button label="Cancel account deletion" loading={busy} onPress={() => void cancelDeletion()} />
+          </>
+        ) : (
+          <>
+            <Text style={[type.pageTitle, { color: c.textPrimary }]}>What happens</Text>
+            {(deletion?.whatHappens ?? []).map((item) => (
+              <Text key={item} style={[type.body, { color: c.textSecondary }]}>
+                • {item}
+              </Text>
+            ))}
+            <Text style={[type.body, { color: c.textSecondary }]}>Deletion cannot be undone.</Text>
+            <Text style={[type.body, { color: c.textSecondary }]}>
+              If you use Sign in with Apple, you can also remove QueenZone under iPhone Settings → your name → Sign in with Apple.
+            </Text>
+            <Text style={[type.caption, { color: c.textMuted }]}>
+              {deletion?.confirmationHint ?? 'Type DELETE to delete the account.'}
+              {profile?.email ? ` Account: ${profile.email}` : ''}
+            </Text>
+            <TextInput
+              value={confirmation}
+              onChangeText={setConfirmation}
+              onFocus={() => {
+                confirmationFocused.current = true;
+                revealConfirmation();
+              }}
+              onBlur={() => {
+                confirmationFocused.current = false;
+              }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              accessibilityLabel="Type DELETE to confirm"
+              style={{
+                minHeight: 48,
+                borderWidth: 1,
+                borderColor: c.border,
+                borderRadius: radius.xs,
+                paddingHorizontal: space.md,
+                color: c.textPrimary,
+                ...type.body,
+              }}
+            />
+            <Button label="Delete my account now" loading={busy} onPress={() => void requestDeletion()} />
+          </>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
