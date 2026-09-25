@@ -47,7 +47,7 @@ public sealed class MySubmissionsModel(
 
     public async Task<IActionResult> OnGetAsync(string? tab, int? page, CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -60,7 +60,7 @@ public sealed class MySubmissionsModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -84,7 +84,7 @@ public sealed class MySubmissionsModel(
         string? reply,
         CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -226,18 +226,6 @@ public sealed class MySubmissionsModel(
             TabPerformances => TabPerformances,
             _ => TabPhotos,
         };
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
-    }
 
     public sealed record NewsSuggestionRow(NewsSuggestion Suggestion, string? PublishedArticlePath);
 }

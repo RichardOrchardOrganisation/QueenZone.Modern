@@ -11,55 +11,20 @@ namespace QueenZone.Web;
 public sealed class AppleTokenRevocationHostedService(
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
-    ILogger<AppleTokenRevocationHostedService> logger) : BackgroundService
+    ILogger<AppleTokenRevocationHostedService> logger)
+    : PeriodicScopedHostedService(scopeFactory, timeProvider, logger, DefaultRunInterval)
 {
-    /// <summary>
-    /// Same rationale as <see cref="MemberAccountDeletionHostedService.DefaultStartupDelay"/>:
-    /// keep the first outbound call out of the container start probe window (#666).
-    /// </summary>
-    internal static readonly TimeSpan DefaultStartupDelay = TimeSpan.FromMinutes(5);
-
     /// <summary>Matches the worker's six-hourly account-deletion schedule.</summary>
     internal static readonly TimeSpan DefaultRunInterval = TimeSpan.FromHours(6);
 
-    internal TimeSpan StartupDelay { get; init; } = DefaultStartupDelay;
+    protected override string FailureMessage => "Sign in with Apple token revocation failed.";
 
-    internal TimeSpan RunInterval { get; init; } = DefaultRunInterval;
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task RunJobAsync(IServiceProvider scopedServices, CancellationToken cancellationToken)
     {
-        try
-        {
-            await Task.Delay(StartupDelay, timeProvider, stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            using (var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
-                "AppleTokenRevocation",
-                ActivityKind.Internal))
-            {
-                try
-                {
-                    await using var scope = scopeFactory.CreateAsyncScope();
-                    var tokens = scope.ServiceProvider.GetRequiredService<AppleAccountTokenService>();
-                    await tokens.RevokePendingAsync(stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Sign in with Apple token revocation failed.");
-                }
-            }
-
-            await Task.Delay(RunInterval, timeProvider, stoppingToken);
-        }
+        using var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
+            "AppleTokenRevocation",
+            ActivityKind.Internal);
+        var tokens = scopedServices.GetRequiredService<AppleAccountTokenService>();
+        await tokens.RevokePendingAsync(cancellationToken);
     }
 }

@@ -21,7 +21,7 @@ public sealed class ComposeModel(
 
     public async Task<IActionResult> OnGetAsync(Guid? to, string? q, CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge();
@@ -69,7 +69,7 @@ public sealed class ComposeModel(
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge();
@@ -135,18 +135,6 @@ public sealed class ComposeModel(
         }
 
         return RedirectToPage("./Conversation", new { conversationId = result.ConversationId });
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var directId = ForumMember.GetMemberId(User);
-        if (directId is not null)
-        {
-            return directId;
-        }
-
-        var memberAuth = await HttpContext.AuthenticateMemberAsync();
-        return memberAuth.Succeeded ? ForumMember.GetMemberId(memberAuth.Principal) : null;
     }
 
     public sealed class ComposeInput

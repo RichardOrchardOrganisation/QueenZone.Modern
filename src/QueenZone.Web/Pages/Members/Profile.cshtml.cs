@@ -52,7 +52,7 @@ public sealed class ProfileModel(
             return NotFound();
         }
 
-        CurrentMemberId = await GetCurrentMemberIdAsync();
+        CurrentMemberId = await HttpContext.GetSignedInMemberIdAsync();
         IsSignedIn = CurrentMemberId is not null;
         CanMessage = await privateMessageService.CanMessageAsync(
             CurrentMemberId,
@@ -100,7 +100,7 @@ public sealed class ProfileModel(
 
     public async Task<IActionResult> OnPostBlockAsync(Guid memberId, CancellationToken cancellationToken)
     {
-        var currentMemberId = await GetCurrentMemberIdAsync();
+        var currentMemberId = await HttpContext.GetSignedInMemberIdAsync();
         if (currentMemberId is null)
         {
             return Challenge();
@@ -127,7 +127,7 @@ public sealed class ProfileModel(
 
     public async Task<IActionResult> OnPostUnblockAsync(Guid memberId, CancellationToken cancellationToken)
     {
-        var currentMemberId = await GetCurrentMemberIdAsync();
+        var currentMemberId = await HttpContext.GetSignedInMemberIdAsync();
         if (currentMemberId is null)
         {
             return Challenge();
@@ -146,7 +146,7 @@ public sealed class ProfileModel(
 
     public async Task<IActionResult> OnPostFollowAsync(Guid memberId, CancellationToken cancellationToken)
     {
-        var currentMemberId = await GetCurrentMemberIdAsync();
+        var currentMemberId = await HttpContext.GetSignedInMemberIdAsync();
         if (currentMemberId is null)
         {
             return Challenge();
@@ -173,7 +173,7 @@ public sealed class ProfileModel(
 
     public async Task<IActionResult> OnPostUnfollowAsync(Guid memberId, CancellationToken cancellationToken)
     {
-        var currentMemberId = await GetCurrentMemberIdAsync();
+        var currentMemberId = await HttpContext.GetSignedInMemberIdAsync();
         if (currentMemberId is null)
         {
             return Challenge();
@@ -188,17 +188,5 @@ public sealed class ProfileModel(
         await memberFollowService.UnfollowAsync(currentMemberId.Value, memberId, cancellationToken);
         TempData[StatusMessageKey] = "You unfollowed this member.";
         return RedirectToPage(new { memberId });
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var directId = ForumMember.GetMemberId(User);
-        if (directId is not null)
-        {
-            return directId;
-        }
-
-        var memberAuth = await HttpContext.AuthenticateMemberAsync();
-        return memberAuth.Succeeded ? ForumMember.GetMemberId(memberAuth.Principal) : null;
     }
 }
