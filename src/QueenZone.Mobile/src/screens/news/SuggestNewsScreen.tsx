@@ -1,8 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, type ReactNode } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +17,7 @@ import { hostOf } from '../../share/news/parseShare';
 import { testIds } from '../../test/testIds';
 import { fonts, radius, space, type, useTheme } from '../../theme';
 import { Button } from '../../ui/Button';
+import { FormFieldLabel, FormScreenLayout } from '../../ui/FormScreenLayout';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'SuggestNews'>;
 
@@ -143,16 +142,7 @@ export function SuggestNewsScreen({ navigation }: Props) {
   const canSubmit = session.isSignedIn && !busy && draft.url.trim().length > 0;
 
   return (
-    <KeyboardAvoidingView
-      testID={testIds.suggestNewsScreen}
-      style={[styles.flex, { backgroundColor: c.surfacePage }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        style={styles.flex}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
-      >
+    <FormScreenLayout testID={testIds.suggestNewsScreen} backgroundColor={c.surfacePage} bottomInset={insets.bottom}>
         <Text style={[type.eyebrow, { color: c.accentPrimary }]}>News</Text>
         <Text style={[type.pageTitle, { color: c.textPrimary }]} maxFontSizeMultiplier={1.4} allowFontScaling>
           Suggest news
@@ -164,7 +154,7 @@ export function SuggestNewsScreen({ navigation }: Props) {
 
         <View style={styles.fields}>
           {host ? <Text style={[type.caption, { color: c.accentPrimary }]}>{host}</Text> : null}
-          <FieldLabel color={c.textMuted}>Story URL</FieldLabel>
+          <FormFieldLabel color={c.textMuted}>Story URL</FormFieldLabel>
           <TextInput
             testID={testIds.suggestNewsUrl}
             value={draft.url}
@@ -179,7 +169,7 @@ export function SuggestNewsScreen({ navigation }: Props) {
             style={[styles.input, { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard }]}
           />
 
-          <FieldLabel color={c.textMuted}>Headline (optional)</FieldLabel>
+          <FormFieldLabel color={c.textMuted}>Headline (optional)</FormFieldLabel>
           <TextInput
             testID={testIds.suggestNewsTitle}
             value={draft.title}
@@ -192,7 +182,7 @@ export function SuggestNewsScreen({ navigation }: Props) {
             style={[styles.input, { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard }]}
           />
 
-          <FieldLabel color={c.textMuted}>Notes (optional)</FieldLabel>
+          <FormFieldLabel color={c.textMuted}>Notes (optional)</FormFieldLabel>
           <TextInput
             testID={testIds.suggestNewsNotes}
             value={draft.notes}
@@ -275,8 +265,7 @@ export function SuggestNewsScreen({ navigation }: Props) {
             }}
           />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </FormScreenLayout>
   );
 }
 
@@ -300,10 +289,6 @@ function ScreenShell({
       {children}
     </ScrollView>
   );
-}
-
-function FieldLabel({ color, children }: { color: string; children: string }) {
-  return <Text style={[type.listTitle, { color }]}>{children}</Text>;
 }
 
 const styles = StyleSheet.create({

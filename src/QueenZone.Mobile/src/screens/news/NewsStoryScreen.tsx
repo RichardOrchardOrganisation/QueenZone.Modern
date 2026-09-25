@@ -10,7 +10,7 @@ import { leaveStoryScreen, nestedTabParams } from '../../navigation/nestedTab';
 import type { NewsStackParamList, RootTabParamList } from '../../navigation/types';
 import { formatPostTimestamp } from '../forum/forumThreadMeta';
 import { Button } from '../../ui/Button';
-import { RichHtmlBody } from '../../ui/RichHtmlBody';
+import { StoryContent } from '../../ui/StoryContent';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { testIds } from '../../test/testIds';
 import { radius, space, type, useTheme } from '../../theme';
@@ -72,25 +72,14 @@ export function NewsStoryScreen({ navigation, route }: Props) {
       style={[styles.scroll, { backgroundColor: c.surfacePage }]}
       contentContainerStyle={styles.content}
     >
-      <Text style={[type.eyebrow, { color: c.accentEditorial }]}>News</Text>
-      <Text
-        style={[type.articleTitle, { color: c.textPrimary, marginTop: space.sm }]}
-        allowFontScaling
-        maxFontSizeMultiplier={1.4}
-      >
-        {article.title}
-      </Text>
-      {published ? (
-        <Text style={[type.meta, { color: c.textMuted, marginTop: space.md }]}>{published}</Text>
-      ) : null}
-      {article.excerpt ? (
-        <Text style={[type.standfirst, { color: c.textSecondary, marginTop: space.lg }]}>
-          {article.excerpt}
-        </Text>
-      ) : null}
-      <View style={styles.body}>
-        <RichHtmlBody html={article.body} horizontalInset={26} />
-      </View>
+      <StoryContent
+        category="News"
+        accentColor={c.accentEditorial}
+        title={article.title}
+        published={published}
+        excerpt={article.excerpt}
+        body={article.body}
+      />
       {article.sourceUrl ? (
         <Pressable
           accessibilityRole="link"
@@ -185,9 +174,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 26,
     paddingTop: space.xl,
     paddingBottom: space.section,
-  },
-  body: {
-    marginTop: space.xl,
   },
   source: {
     marginTop: space.xxl,
