@@ -1,4 +1,4 @@
-import { Image, type ImageStyle } from 'expo-image';
+import { Image, type ImageProps, type ImageStyle } from 'expo-image';
 import type { StyleProp } from 'react-native';
 import { motion } from '../theme';
 
@@ -10,6 +10,9 @@ type Props = {
   contentFit?: 'cover' | 'contain';
   priority?: 'low' | 'normal' | 'high';
   accessibilityIgnoresInvertColors?: boolean;
+  onLoadStart?: ImageProps['onLoadStart'];
+  onLoad?: ImageProps['onLoad'];
+  onError?: ImageProps['onError'];
 };
 
 /**
@@ -25,6 +28,9 @@ export function ArchiveImage({
   contentFit = 'cover',
   priority = 'normal',
   accessibilityIgnoresInvertColors,
+  onLoadStart,
+  onLoad,
+  onError,
 }: Props) {
   const key = recyclingKey ?? (typeof source === 'number' ? String(source) : source.uri);
   return (
@@ -38,6 +44,9 @@ export function ArchiveImage({
       priority={priority}
       accessibilityLabel={label}
       accessibilityIgnoresInvertColors={accessibilityIgnoresInvertColors}
+      onLoadStart={onLoadStart}
+      onLoad={onLoad}
+      onError={onError}
     />
   );
 }

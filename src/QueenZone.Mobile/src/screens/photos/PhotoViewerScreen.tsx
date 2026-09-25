@@ -389,6 +389,7 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
             canSwipeNext={nextPicId != null}
             onGallerySwipe={handleGallerySwipe}
             onToggleChrome={toggleChrome}
+            pending={photo.picId !== picId}
           />
         ) : (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

@@ -28,7 +28,17 @@ import {
   photoZoomMinScale,
   photoZoomSpringConfig,
 } from './photoZoomMeta';
+import { testIds } from '../../test/testIds';
 import { ArchiveImage } from '../../ui/ArchiveImage';
+import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
+
+/** Delay before the spinner so a cached hit does not flicker (AC4). */
+export const photoImageLoadOverlayDelayMs = 150;
+
+export const photoImageLoadErrorMessage = 'This photograph could not be loaded.';
+
+type LoadStatus = 'loading' | 'loaded' | 'error';
+type LoadState = { uri: string; status: LoadStatus };
 
 type Props = {
   source: { uri: string };
@@ -42,6 +52,8 @@ type Props = {
   canSwipeNext: boolean;
   onGallerySwipe: (direction: PhotoSwipeDirection) => void;
   onToggleChrome: () => void;
+  /** True while the screen is still showing the previous picture's metadata. */
+  pending?: boolean;
 };
 
 export function ZoomableArchiveImage({
@@ -55,6 +67,7 @@ export function ZoomableArchiveImage({
   canSwipeNext,
   onGallerySwipe,
   onToggleChrome,
+  pending = false,
 }: Props) {
   const scale = useSharedValue(photoZoomMinScale);
   const savedScale = useSharedValue(photoZoomMinScale);
@@ -70,6 +83,11 @@ export function ZoomableArchiveImage({
   const imageWidthValue = useSharedValue(imageWidth);
   const imageHeightValue = useSharedValue(imageHeight);
   const [zoomed, setZoomed] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>({
+    uri: source.uri,
+    status: 'loading',
+  });
+  const [spinnerVisible, setSpinnerVisible] = useState(false);
 
   const canSwipePreviousRef = useRef(canSwipePrevious);
   const canSwipeNextRef = useRef(canSwipeNext);
@@ -130,6 +148,46 @@ export function ZoomableArchiveImage({
     },
     [containerHeight, containerWidth],
   );
+
+  const imageStatus: LoadStatus =
+    loadState.uri === source.uri ? loadState.status : 'loading';
+  const waiting = pending || imageStatus === 'loading';
+  const showError = !pending && imageStatus === 'error';
+
+  useEffect(() => {
+    if (!waiting) {
+      setSpinnerVisible(false);
+      return;
+    }
+
+    setSpinnerVisible(false);
+    const timer = setTimeout(() => {
+      setSpinnerVisible(true);
+    }, photoImageLoadOverlayDelayMs);
+    return () => clearTimeout(timer);
+  }, [source.uri, waiting]);
+
+  const currentUriRef = useRef(source.uri);
+  currentUriRef.current = source.uri;
+
+  const applyLoadStatus = useCallback((uri: string, status: LoadStatus) => {
+    if (uri !== currentUriRef.current) {
+      return;
+    }
+    setLoadState({ uri, status });
+  }, []);
+
+  const handleLoadStart = useCallback(() => {
+    applyLoadStatus(source.uri, 'loading');
+  }, [applyLoadStatus, source.uri]);
+
+  const handleLoad = useCallback(() => {
+    applyLoadStatus(source.uri, 'loaded');
+  }, [applyLoadStatus, source.uri]);
+
+  const handleError = useCallback(() => {
+    applyLoadStatus(source.uri, 'error');
+  }, [applyLoadStatus, source.uri]);
 
   const composedGesture = useMemo(() => {
     const resetZoomAnimated = (announce: boolean) => {
@@ -306,34 +364,61 @@ export function ZoomableArchiveImage({
     ],
   }));
 
+  const showOverlay = showError || (spinnerVisible && waiting);
+
   return (
-    <GestureDetector gesture={composedGesture}>
-      <View
-        style={styles.container}
-        collapsable={false}
-        onLayout={onLayout}
-        accessibilityHint="Pinch or double tap to zoom. Swipe left or right to change photograph."
-      >
-        <Animated.View style={[styles.imageWrap, animatedStyle]}>
-          <ArchiveImage
-            source={source}
-            label={label}
-            contentFit="contain"
-            recyclingKey={recyclingKey}
-            priority="high"
-            style={styles.image}
-          />
-        </Animated.View>
-      </View>
-    </GestureDetector>
+    <View style={styles.frame}>
+      <GestureDetector gesture={composedGesture}>
+        <View
+          style={styles.container}
+          collapsable={false}
+          onLayout={onLayout}
+          accessibilityHint="Pinch or double tap to zoom. Swipe left or right to change photograph."
+        >
+          <Animated.View style={[styles.imageWrap, animatedStyle]}>
+            <ArchiveImage
+              source={source}
+              label={label}
+              contentFit="contain"
+              recyclingKey={recyclingKey}
+              priority="high"
+              style={styles.image}
+              onLoadStart={handleLoadStart}
+              onLoad={handleLoad}
+              onError={handleError}
+            />
+          </Animated.View>
+        </View>
+      </GestureDetector>
+      {showOverlay ? (
+        <View
+          testID={testIds.photoViewerImageOverlay}
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, styles.overlay]}
+        >
+          {showError ? (
+            <ErrorBlock message={photoImageLoadErrorMessage} />
+          ) : (
+            <LoadingBlock label="Loading photograph…" />
+          )}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  frame: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     width: '100%',
     overflow: 'hidden',
+  },
+  overlay: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   imageWrap: {
     flex: 1,

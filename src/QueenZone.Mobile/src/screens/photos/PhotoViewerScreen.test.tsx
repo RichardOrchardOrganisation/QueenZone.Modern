@@ -8,6 +8,7 @@ import { deferred } from '../../test/fixtures';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
 import { testIds } from '../../test/testIds';
 import { PhotoViewerScreen, photoViewerStatusTiming } from './PhotoViewerScreen';
+import { photoImageLoadOverlayDelayMs } from './ZoomableArchiveImage';
 import { saveGalleryPhoto, saveGalleryPhotoCopy } from './saveGalleryPhoto';
 import { setAndroidGalleryWallpaper } from './setGalleryWallpaper';
 import { claimsWallpaperSet, wallpaperCopy } from './wallpaperMeta';
@@ -376,6 +377,58 @@ describe('PhotoViewerScreen', () => {
     expect(navigation.setParams).not.toHaveBeenCalled();
     pendingNext.resolve(photoDetail({ picId: 102, title: 'Wembley', index: 1 }));
     await waitFor(() => expect(screen.getByText('Wembley')).toBeOnTheScreen());
+  });
+
+  it('shows the load overlay while pending after a swipe', async () => {
+    const pendingNext = deferred<PhotoDetail>();
+    fetchPhoto.mockResolvedValueOnce(photoDetail()).mockReturnValueOnce(pendingNext.promise);
+    const navigation = fakeNavigation();
+    const view = renderWithProviders(
+      <PhotoViewerScreen
+        navigation={navigation as never}
+        route={
+          {
+            key: 'viewer',
+            name: 'PhotoViewer',
+            params: { slug: 'brian-may', picId: 101 },
+          } as never
+        }
+      />,
+      { navigation: false },
+    );
+    await waitFor(() => expect(screen.getByTestId(testIds.photoViewerScreen)).toBeOnTheScreen());
+    act(() => {
+      screen.getByLabelText('Live Aid').props.onLoad?.();
+    });
+    expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+
+    jest.useFakeTimers();
+    try {
+      view.rerender(
+        <PhotoViewerScreen
+          navigation={navigation as never}
+          route={
+            {
+              key: 'viewer',
+              name: 'PhotoViewer',
+              params: { slug: 'brian-may', picId: 102 },
+            } as never
+          }
+        />,
+      );
+      expect(screen.getByText('Live Aid')).toBeOnTheScreen();
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay)).toBeOnTheScreen();
+      expect(screen.getByLabelText('Loading photograph…')).toBeOnTheScreen();
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
+        'none',
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('saves the full imageUrl from the viewer chrome, not the thumbnail', async () => {

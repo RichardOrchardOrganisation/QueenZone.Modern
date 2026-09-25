@@ -2,8 +2,13 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import type { ComponentProps } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { renderWithProviders } from '../../test/render';
+import { testIds } from '../../test/testIds';
 import { photoSwipeTapSlopPx } from './photoGalleryMeta';
-import { ZoomableArchiveImage } from './ZoomableArchiveImage';
+import {
+  photoImageLoadErrorMessage,
+  photoImageLoadOverlayDelayMs,
+  ZoomableArchiveImage,
+} from './ZoomableArchiveImage';
 
 type RecordedGesture = {
   handlers: {
@@ -197,5 +202,133 @@ describe('ZoomableArchiveImage', () => {
     });
     galleryPanEnd(-80, 0);
     expect(onGallerySwipe).toHaveBeenCalledWith('next');
+  });
+
+  describe('image load overlay', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function fireImageLoad(label = 'Live Aid') {
+      act(() => {
+        screen.getByLabelText(label).props.onLoad?.();
+      });
+    }
+
+    function fireImageError(label = 'Live Aid') {
+      act(() => {
+        screen.getByLabelText(label).props.onError?.();
+      });
+    }
+
+    it('hides the overlay before 150ms and shows it after', () => {
+      jest.useFakeTimers();
+      renderZoom();
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs - 1);
+      });
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+      act(() => {
+        jest.advanceTimersByTime(1);
+      });
+      expect(screen.getByLabelText('Loading photograph…')).toBeOnTheScreen();
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
+        'none',
+      );
+    });
+
+    it('does not flicker when the image loads before the delay', () => {
+      jest.useFakeTimers();
+      renderZoom();
+      fireImageLoad();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+    });
+
+    it('hides the overlay when the image loads', () => {
+      jest.useFakeTimers();
+      renderZoom();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay)).toBeOnTheScreen();
+      fireImageLoad();
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+    });
+
+    it('shows error text and no retry when the image fails', () => {
+      jest.useFakeTimers();
+      renderZoom();
+      fireImageError();
+      expect(screen.getByText('Unable to load')).toBeOnTheScreen();
+      expect(screen.getByText(photoImageLoadErrorMessage)).toBeOnTheScreen();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+      expect(screen.queryByLabelText('Loading photograph…')).toBeNull();
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
+        'none',
+      );
+    });
+
+    it('ignores a stale onLoad after the source changes', () => {
+      jest.useFakeTimers();
+      const { rerender, onGallerySwipe } = renderZoom();
+      const staleOnLoad = screen.getByLabelText('Live Aid').props.onLoad as () => void;
+      rerender(
+        <ZoomableArchiveImage
+          source={{ uri: 'https://cdn.queenzone.org/brian-may/img-102.jpg' }}
+          label="Wembley"
+          recyclingKey="photo-full-102"
+          imageWidth={900}
+          imageHeight={1600}
+          resetKey={102}
+          canSwipePrevious
+          canSwipeNext
+          onGallerySwipe={onGallerySwipe}
+          onToggleChrome={jest.fn()}
+        />,
+      );
+      act(() => {
+        staleOnLoad();
+      });
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.getByLabelText('Wembley')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Loading photograph…')).toBeOnTheScreen();
+    });
+
+    it('fires swipe callbacks while the overlay is showing', () => {
+      jest.useFakeTimers();
+      const { onGallerySwipe } = renderZoom();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
+        'none',
+      );
+      galleryPanEnd(80, 0);
+      expect(onGallerySwipe).toHaveBeenCalledWith('previous');
+      galleryPanEnd(-80, 0);
+      expect(onGallerySwipe).toHaveBeenCalledWith('next');
+    });
+
+    it('keeps the recorded gesture config unchanged while the overlay is showing', () => {
+      jest.useFakeTimers();
+      renderZoom();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay)).toBeOnTheScreen();
+      const { pinch, tap, pan, zoomPan, singleTap } = recordedGestures();
+      expect(pinch.config.runOnJS).toBe(true);
+      expect(tap.config.runOnJS).toBe(true);
+      expect(pan.config.runOnJS).toBe(true);
+      expect(zoomPan.config.runOnJS).toBeUndefined();
+      expect(tap.config.maxDistance).toBe(photoSwipeTapSlopPx);
+      expect(singleTap.config.maxDistance).toBe(photoSwipeTapSlopPx);
+    });
   });
 });
