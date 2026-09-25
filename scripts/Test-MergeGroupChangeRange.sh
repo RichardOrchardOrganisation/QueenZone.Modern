@@ -38,7 +38,7 @@ git commit -qm base
 assert_flags() {
   local label=$1 expected=$2 actual
   actual=$(git diff --name-only main...HEAD | bash "$repo_root/scripts/classify-pipeline-changes.sh" 2>/dev/null)
-  if [ "$actual" != "$expected" ]; then
+  if [[ "$actual" != "$expected" ]]; then
     printf '%s: unexpected classification\nexpected:\n%s\nactual:\n%s\n' "$label" "$expected" "$actual" >&2
     exit 1
   fi
