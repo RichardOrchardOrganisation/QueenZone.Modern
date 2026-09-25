@@ -1,4 +1,4 @@
-import { trimTrailingChar, trimTrailingSet } from '../../text/trimRuns';
+import { trimTrailingChar, trimTrailingSet } from '../../text/trimRuns.ts';
 
 /** Native bits we are willing to look at. Files are a reject, not a field. */
 export type ShareRaw = {

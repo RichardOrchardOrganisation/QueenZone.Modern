@@ -1,6 +1,6 @@
 /** Member account contract for `/api/v1/me` (issues #752 / #753 / #754). */
 
-import { trimTrailingChar } from '../text/trimRuns';
+import { trimTrailingChar } from '../text/trimRuns.ts';
 
 export const meApiPath = '/me';
 

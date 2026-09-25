@@ -1,6 +1,6 @@
 /** Public `/api/v1/contact` contract (issue #755). Matches website `/contact`. */
 
-import { trimTrailingChar } from '../text/trimRuns';
+import { trimTrailingChar } from '../text/trimRuns.ts';
 
 
 export const contactApiPath = '/contact';

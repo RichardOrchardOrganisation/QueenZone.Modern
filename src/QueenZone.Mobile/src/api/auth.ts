@@ -1,6 +1,6 @@
 /** Mobile OAuth2 PKCE helpers. Native browser hop lives in `session/oauth.ts`. */
 
-import { trimTrailingChar } from '../text/trimRuns';
+import { trimTrailingChar } from '../text/trimRuns.ts';
 
 export const mobileClientId = 'queenzone-mobile';
 

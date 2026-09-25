@@ -14,7 +14,7 @@ import {
   type AuthTokens,
 } from '../api/auth';
 import { TokenEndpointError } from '../api/errors';
-import { toUrlSafeBase64 } from '../text/trimRuns';
+import { toUrlSafeBase64 } from '../text/trimRuns.ts';
 
 WebBrowser.maybeCompleteAuthSession();
 

@@ -1,4 +1,4 @@
-import { trimChar } from '../text/trimRuns';
+import { trimChar } from '../text/trimRuns.ts';
 import type { WidgetFace } from './widgetCopy';
 
 /** Opened by a quote face that has no usable id. */

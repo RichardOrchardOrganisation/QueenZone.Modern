@@ -1,5 +1,5 @@
 import type { SearchResult } from '../../api/types';
-import { trimTrailingChar } from '../../text/trimRuns';
+import { trimTrailingChar } from '../../text/trimRuns.ts';
 
 export function websiteUrl(apiBaseUrl: string, path: string): string | null {
   if (!path) {

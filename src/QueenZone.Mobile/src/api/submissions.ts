@@ -1,6 +1,6 @@
 /** Member `/api/v1/me/submissions/*` contract (issue #745). Matches website `/account/my-submissions`. */
 
-import { trimTrailingChar } from '../text/trimRuns';
+import { trimTrailingChar } from '../text/trimRuns.ts';
 
 
 export const submissionKinds = ['photos', 'news', 'articles', 'fan-performances'] as const;

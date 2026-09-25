@@ -1,3 +1,9 @@
+/**
+ * Linear scans that replace `/x+$/`-style regexes (Sonar typescript:S8786).
+ * Production imports use a `.ts` extension so Node's `--experimental-strip-types`
+ * test runner can resolve this module the same way colocated `*.test.ts` files do.
+ */
+
 /** Drop a run of `char` from the end. Linear, no `/x+$/` backtracking. */
 export function trimTrailingChar(value: string, char: string): string {
   const code = char.charCodeAt(0);
