@@ -156,6 +156,8 @@ jobs:
       # so default is off) (#1225).
       - name: Prepare Android smoke harness
         working-directory: .
+        env:
+          PROVE_FAILURE: ${{ github.event.inputs.prove_failure }}
         run: |
           mkdir -p src/QueenZone.Mobile/maestro-results
           {
@@ -163,7 +165,7 @@ jobs:
             echo "job=mobile-android-smoke"
             echo "prepared_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > src/QueenZone.Mobile/maestro-results/harness.log
-          if [ "${{ github.event.inputs.prove_failure }}" = "true" ]; then
+          if [ "$PROVE_FAILURE" = "true" ]; then
             echo "PROVE_FAILURE_ARGS=--prove-failure" >> "$GITHUB_ENV"
           else
             echo "PROVE_FAILURE_ARGS=" >> "$GITHUB_ENV"
@@ -390,9 +392,11 @@ jobs:
 
       - name: Run iOS device smoke
         working-directory: .
+        env:
+          PROVE_FAILURE: ${{ github.event.inputs.prove_failure }}
         run: |
           PROVE=""
-          if [ "${{ github.event.inputs.prove_failure }}" = "true" ]; then
+          if [ "$PROVE_FAILURE" = "true" ]; then
             PROVE="--prove-failure"
           fi
           unset ConnectionStrings__QueenZoneLegacy || true
@@ -859,13 +863,15 @@ jobs:
 
       - name: Run iOS device journeys
         working-directory: .
+        env:
+          SUITE_INPUT: ${{ github.event.inputs.suite }}
         run: |
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
           APP=$(ls -d src/QueenZone.Mobile/ios/build/Build/Products/Release-iphonesimulator/*.app | head -n 1)
           SUITE="journeys"
-          if [ "${{ github.event.inputs.suite }}" = "release" ]; then
+          if [ "$SUITE_INPUT" = "release" ]; then
             SUITE="release"
           fi
           ./scripts/run-mobile-device-smoke.sh \

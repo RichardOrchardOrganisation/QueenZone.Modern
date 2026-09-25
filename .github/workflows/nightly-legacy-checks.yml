@@ -349,7 +349,13 @@ jobs:
           ConnectionStrings__QueenZoneLegacy: "Server=localhost\\SQLEXPRESS;Database=queenzone_legacy_sync;Integrated Security=True;TrustServerCertificate=True"
           E2E_ADMIN_EMAIL: admin@test.local
           E2E_ARTIFACT_DIR: test-results/e2e
-        run: ./scripts/Run-E2E.ps1 -Mode RealData -CategoryFilter "${{ inputs.category_filter }}"
+          CATEGORY_FILTER: ${{ inputs.category_filter }}
+        run: |
+          if ($env:CATEGORY_FILTER -notmatch '^[A-Za-z0-9_.]*$') {
+            Write-Host "::error::category_filter must match ^[A-Za-z0-9_.]*$ (empty is allowed)."
+            exit 1
+          }
+          ./scripts/Run-E2E.ps1 -Mode RealData -CategoryFilter "$env:CATEGORY_FILTER"
 
       - name: Run real-data UI suite (macOS, mirror over LAN)
         if: matrix.os == 'macOS'
@@ -360,12 +366,17 @@ jobs:
           SQLEXPRESS_PROBE_PASSWORD: ${{ steps.bitwarden-secrets.outputs.QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD }}
           E2E_ADMIN_EMAIL: admin@test.local
           E2E_ARTIFACT_DIR: test-results/e2e
+          CATEGORY_FILTER: ${{ inputs.category_filter }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:SQLEXPRESS_PROBE_PASSWORD)) {
             Write-Error "QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD is not configured. Check the Bitwarden secret and BITWARDEN_APP_SERVICE_DEPLOY_SECRETS mapping (see prerequisites above)."
           }
+          if ($env:CATEGORY_FILTER -notmatch '^[A-Za-z0-9_.]*$') {
+            Write-Host "::error::category_filter must match ^[A-Za-z0-9_.]*$ (empty is allowed)."
+            exit 1
+          }
           $env:ConnectionStrings__QueenZoneLegacy = "Server=$env:SQLEXPRESS_LAN_ADDRESS;Database=queenzone_legacy_sync;User Id=queenzone_probe;Password=$env:SQLEXPRESS_PROBE_PASSWORD;TrustServerCertificate=True"
-          ./scripts/Run-E2E.ps1 -Mode RealData -CategoryFilter "${{ inputs.category_filter }}"
+          ./scripts/Run-E2E.ps1 -Mode RealData -CategoryFilter "$env:CATEGORY_FILTER"
 
       - name: Upload Playwright failure artifacts
         if: failure()
