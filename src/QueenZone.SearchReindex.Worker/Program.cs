@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using QueenZone.Data;
 using QueenZone.Search.Shared;
 
+// Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
+RegexDefaults.ApplyProcessDefault();
 var options = SearchReindexCommandOptions.Parse(args);
 if (options is null)
 {

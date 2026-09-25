@@ -62,7 +62,7 @@ public static class QuizSprintSeenQuestions
         {
             HttpOnly = true,
             SameSite = SameSiteMode.Lax,
-            Secure = httpContext.Request.IsHttps,
+            Secure = true,
             IsEssential = true,
             Expires = DateTimeOffset.UtcNow.AddDays(90),
         });
