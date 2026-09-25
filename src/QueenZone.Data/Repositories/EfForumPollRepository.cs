@@ -78,35 +78,16 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
         if (canVote)
         {
             // Vote form does not need per-option tallies — skip loading the full ballot set.
-            var options = poll.Options
-                .OrderBy(option => option.DisplayOrder)
-                .ThenBy(option => option.OptionText)
-                .Select(option => new ForumPollOptionResult(
-                    option.Id,
-                    option.OptionText,
-                    option.DisplayOrder,
-                    VoteCount: 0,
-                    Percentage: 0,
-                    SelectedByViewer: false))
-                .ToList();
-
-            return new ForumPollResults(
-                poll.Id,
-                poll.LegacyTopicId,
-                poll.Question,
-                poll.IsMultiChoice,
-                poll.MaxChoices,
-                poll.ClosesAt,
-                poll.ClosedAt,
-                poll.CreatedAt,
-                poll.CreatedByMemberId,
-                TotalVotes: 0,
+            return ToResults(
+                poll,
+                voteCount: _ => 0,
+                viewerSelected, // empty: canVote means the viewer has not voted
+                totalVotes: 0,
                 distinctVoters,
                 viewerHasVoted,
                 closed,
                 canVote,
-                canClose,
-                options);
+                canClose);
         }
 
         var optionCounts = await dbContext.ForumPollVotes
@@ -117,40 +98,16 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
             .ToDictionaryAsync(row => row.OptionId, row => row.Count, cancellationToken);
 
         var totalVotes = optionCounts.Values.Sum();
-        var resultOptions = poll.Options
-            .OrderBy(option => option.DisplayOrder)
-            .ThenBy(option => option.OptionText)
-            .Select(option =>
-            {
-                var count = optionCounts.GetValueOrDefault(option.Id);
-                var percentage = totalVotes == 0 ? 0d : Math.Round(100d * count / totalVotes, 1);
-                return new ForumPollOptionResult(
-                    option.Id,
-                    option.OptionText,
-                    option.DisplayOrder,
-                    count,
-                    percentage,
-                    viewerSelected.Contains(option.Id));
-            })
-            .ToList();
-
-        return new ForumPollResults(
-            poll.Id,
-            poll.LegacyTopicId,
-            poll.Question,
-            poll.IsMultiChoice,
-            poll.MaxChoices,
-            poll.ClosesAt,
-            poll.ClosedAt,
-            poll.CreatedAt,
-            poll.CreatedByMemberId,
+        return ToResults(
+            poll,
+            voteCount: optionId => optionCounts.GetValueOrDefault(optionId),
+            viewerSelected,
             totalVotes,
             distinctVoters,
             viewerHasVoted,
             closed,
             canVote,
-            canClose,
-            resultOptions);
+            canClose);
     }
 
     public async Task CastVoteAsync(
@@ -345,12 +302,35 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
         var canVote = viewerMemberId is not null && !viewerHasVoted && !closed;
         var canClose = CanViewerClose(closed, viewerMemberId, viewerIsAdmin, poll.CreatedByMemberId);
 
+        return ToResults(
+            poll,
+            voteCount: optionId => votes.Count(vote => vote.OptionId == optionId),
+            viewerSelected,
+            totalVotes,
+            distinctVoters,
+            viewerHasVoted,
+            closed,
+            canVote,
+            canClose);
+    }
+
+    private static ForumPollResults ToResults(
+        ForumPollEntity poll,
+        Func<Guid, int> voteCount,
+        IReadOnlySet<Guid> viewerSelected,
+        int totalVotes,
+        int distinctVoters,
+        bool viewerHasVoted,
+        bool closed,
+        bool canVote,
+        bool canClose)
+    {
         var options = poll.Options
             .OrderBy(option => option.DisplayOrder)
             .ThenBy(option => option.OptionText)
             .Select(option =>
             {
-                var count = votes.Count(vote => vote.OptionId == option.Id);
+                var count = voteCount(option.Id);
                 var percentage = totalVotes == 0 ? 0d : Math.Round(100d * count / totalVotes, 1);
                 return new ForumPollOptionResult(
                     option.Id,
