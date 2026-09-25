@@ -340,49 +340,49 @@ internal sealed class CheckPhotosOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (TryReadValue(args, ref index, "--connection-string", out var connectionStringValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringValue))
             {
                 connectionString = connectionStringValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringValue))
             {
                 storageConnectionString = storageConnectionStringValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--settings-file", out var settingsFileValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--settings-file", out var settingsFileValue))
             {
                 settingsFile = settingsFileValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--blob-endpoint", out var blobEndpointValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--blob-endpoint", out var blobEndpointValue))
             {
                 blobEndpoint = blobEndpointValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--category-slug", out var categorySlugValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--category-slug", out var categorySlugValue))
             {
                 categorySlug = categorySlugValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--output", out var outputPathValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--output", out var outputPathValue))
             {
                 outputPath = outputPathValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--hide-ids-output", out var hideIdsOutputPathValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--hide-ids-output", out var hideIdsOutputPathValue))
             {
                 hideIdsOutputPath = hideIdsOutputPathValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--method", out var methodValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--method", out var methodValue))
             {
                 if (!Enum.TryParse(methodValue, ignoreCase: true, out PhotoCheckMethod parsedMethod))
                 {
@@ -393,7 +393,7 @@ internal sealed class CheckPhotosOptions
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--category-id", out var categoryIdValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--category-id", out var categoryIdValue))
             {
                 if (!int.TryParse(categoryIdValue, out var parsedCategoryId))
                 {
@@ -404,7 +404,7 @@ internal sealed class CheckPhotosOptions
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--limit", out var limitValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--limit", out var limitValue))
             {
                 if (!int.TryParse(limitValue, out var parsedLimit) || parsedLimit < 1)
                 {
@@ -415,7 +415,7 @@ internal sealed class CheckPhotosOptions
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--concurrency", out var concurrencyValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--concurrency", out var concurrencyValue))
             {
                 if (!int.TryParse(concurrencyValue, out var parsedConcurrency) || parsedConcurrency < 1)
                 {
@@ -426,7 +426,7 @@ internal sealed class CheckPhotosOptions
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--timeout", out var timeoutValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--timeout", out var timeoutValue))
             {
                 if (!int.TryParse(timeoutValue, out var parsedTimeout) || parsedTimeout < 1)
                 {
@@ -478,23 +478,6 @@ internal sealed class CheckPhotosOptions
             DryRun = dryRun,
             IsValid = true,
         };
-    }
-
-    private static bool TryReadValue(string[] args, ref int index, string name, out string value)
-    {
-        value = string.Empty;
-        if (!string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (index + 1 >= args.Length)
-        {
-            return false;
-        }
-
-        value = args[++index];
-        return true;
     }
 
     private static CheckPhotosOptions Invalid(string message) =>

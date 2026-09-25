@@ -260,36 +260,8 @@ internal sealed class HttpQueenLinkChecker(TimeSpan timeout) : IQueenLinkChecker
         return ValueTask.CompletedTask;
     }
 
-    internal static bool TryNormalizeHttpUrl(string candidate, out Uri normalizedUri)
-    {
-        normalizedUri = null!;
-        var trimmed = candidate.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return false;
-        }
-
-        var hasSchemeSeparator = trimmed.Contains("://", StringComparison.Ordinal);
-        if (!hasSchemeSeparator && trimmed.Contains(':', StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (!hasSchemeSeparator)
-        {
-            trimmed = "https://" + trimmed;
-        }
-
-        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
-            || uri.Scheme is not ("http" or "https")
-            || string.IsNullOrWhiteSpace(uri.Host))
-        {
-            return false;
-        }
-
-        normalizedUri = uri;
-        return true;
-    }
+    internal static bool TryNormalizeHttpUrl(string candidate, out Uri normalizedUri) =>
+        QueenLink.TryNormalizeHttpUrl(candidate, out normalizedUri);
 
     private static bool IsExistingPageStatus(int statusCode) =>
         statusCode is >= 200 and < 400

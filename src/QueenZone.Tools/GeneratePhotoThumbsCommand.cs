@@ -271,37 +271,37 @@ internal sealed class GeneratePhotoThumbsOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (TryReadValue(args, ref index, "--connection-string", out var connectionStringValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringValue))
             {
                 connectionString = connectionStringValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringValue))
             {
                 storageConnectionString = storageConnectionStringValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--settings-file", out var settingsFileValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--settings-file", out var settingsFileValue))
             {
                 settingsFile = settingsFileValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--pic-ids", out var picIdsValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--pic-ids", out var picIdsValue))
             {
                 picIdsRaw = picIdsValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--pic-ids-file", out var picIdsFileValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--pic-ids-file", out var picIdsFileValue))
             {
                 picIdsFile = picIdsFileValue;
                 continue;
             }
 
-            if (TryReadValue(args, ref index, "--thumb-size", out var thumbSizeValue))
+            if (ToolArgs.TryReadValue(args, ref index, "--thumb-size", out var thumbSizeValue))
             {
                 if (!int.TryParse(thumbSizeValue, out var parsedThumbSize) || parsedThumbSize < 1)
                 {
@@ -390,23 +390,6 @@ internal sealed class GeneratePhotoThumbsOptions
             DryRun = dryRun,
             IsValid = true,
         };
-    }
-
-    private static bool TryReadValue(string[] args, ref int index, string name, out string value)
-    {
-        value = string.Empty;
-        if (!string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (index + 1 >= args.Length)
-        {
-            return false;
-        }
-
-        value = args[++index];
-        return true;
     }
 
     private static GeneratePhotoThumbsOptions Invalid(string message) =>
