@@ -347,7 +347,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         }
 
         // Strip HTML tags; collapse whitespace; count remaining chars.
-        var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ", System.Text.RegularExpressions.RegexOptions.None, RegexDefaults.MatchTimeout);
         var decoded = System.Net.WebUtility.HtmlDecode(stripped);
         var collapsed = string.Join(" ", decoded.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return collapsed.Length;
@@ -356,7 +356,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
     internal static int EstimateWordCount(string? body) =>
         string.IsNullOrWhiteSpace(body)
             ? 0
-            : System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", " ")
+            : System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", " ", System.Text.RegularExpressions.RegexOptions.None, RegexDefaults.MatchTimeout)
                 .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
     private static string GenerateSlug(string title)

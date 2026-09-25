@@ -18,7 +18,7 @@ public static class SearchDocumentText
             return string.Empty;
         }
 
-        var stripped = Regex.Replace(html, "<[^>]+>", " ");
+        var stripped = Regex.Replace(html, "<[^>]+>", " ", RegexOptions.None, RegexDefaults.MatchTimeout);
         var decoded = WebUtility.HtmlDecode(stripped);
         return string.Join(" ", decoded.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }

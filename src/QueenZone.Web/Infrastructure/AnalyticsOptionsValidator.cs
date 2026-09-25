@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using QueenZone.Data;
 
 namespace QueenZone.Web;
 
@@ -10,7 +11,8 @@ public sealed class AnalyticsOptionsValidator(IHostEnvironment environment) : IV
 
     private static readonly Regex MeasurementIdPattern = new(
         "^G-[A-Z0-9]{6,14}$",
-        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Compiled,
+        RegexDefaults.MatchTimeout);
 
     public ValidateOptionsResult Validate(string? name, AnalyticsOptions options)
     {
