@@ -1225,6 +1225,11 @@ public sealed class MemberAccountServiceTests
         public Task<MemberAccount?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             inner.FindByIdAsync(id, cancellationToken);
 
+        public Task<IReadOnlyDictionary<Guid, string>> ListDisplayNamesAsync(
+            IReadOnlyCollection<Guid> memberIds,
+            CancellationToken cancellationToken = default) =>
+            inner.ListDisplayNamesAsync(memberIds, cancellationToken);
+
         public Task<IReadOnlySet<Guid>> ListActiveMemberIdsAsync(
             IReadOnlyCollection<Guid> memberIds,
             CancellationToken cancellationToken = default) =>

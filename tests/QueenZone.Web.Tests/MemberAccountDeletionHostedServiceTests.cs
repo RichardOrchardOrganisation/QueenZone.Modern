@@ -163,6 +163,11 @@ public sealed class MemberAccountDeletionHostedServiceTests
         public Task<MemberAccount?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<IReadOnlyDictionary<Guid, string>> ListDisplayNamesAsync(
+            IReadOnlyCollection<Guid> memberIds,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<MemberAccount?> FindByExternalLoginAsync(
             string provider,
             string providerKey,

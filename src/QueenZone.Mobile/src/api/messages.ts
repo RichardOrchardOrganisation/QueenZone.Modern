@@ -4,6 +4,7 @@ import { fetchJsonWithOfflineCacheResult } from '../cache/fetchCached';
 import { conversationCacheKey, inboxCacheKey } from '../cache/keys';
 import { withOfflineCacheResult, type CachedResult } from '../cache/withOfflineCache';
 import { resolvePushMemberId } from '../notifications/pushMemberId';
+import { inboxPageSize } from '../screens/messages/inboxMeta';
 import { fetchJson, sendJson } from './client';
 import type { ApiPagedResponse } from './types';
 import type { PageQuery } from './content';
@@ -85,7 +86,7 @@ export type InboxReadQuery = PageQuery & {
   ttlMs?: number;
 };
 
-const cachedInboxPageSize = 50;
+const cachedInboxPageSize = inboxPageSize;
 
 function pageParams({ page, pageSize }: PageQuery) {
   return { page, pageSize };
