@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -173,7 +172,7 @@ public static class EditorImageUploadEndpoints
             return Results.Json(new { error = quotaError }, statusCode: StatusCodes.Status429TooManyRequests);
         }
 
-        var context = BuildUploadContext(httpContext.User);
+        var context = ImageUploadContextFactory.Create(httpContext.User);
         var contentTypeHeader = file.ContentType ?? string.Empty;
         var isImage = contentTypeHeader.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
             || LooksLikeImageFileName(file.FileName);
@@ -250,7 +249,7 @@ public static class EditorImageUploadEndpoints
                     processed.FullImage,
                     fullBlobName,
                     containerName,
-                    CloneContext(context, fullBlobName),
+                    ImageUploadContextFactory.WithPreferredBlobName(context, fullBlobName),
                     cancellationToken);
 
                 fullBlobName = fullResult.BlobName;
@@ -261,7 +260,7 @@ public static class EditorImageUploadEndpoints
                     processed.Thumbnail,
                     thumbBlobName,
                     containerName,
-                    CloneContext(context, thumbBlobName),
+                    ImageUploadContextFactory.WithPreferredBlobName(context, thumbBlobName),
                     cancellationToken);
 
                 var url = UgcProxyPaths.GetPath(fullResult.Container, fullBlobName);
@@ -335,7 +334,7 @@ public static class EditorImageUploadEndpoints
             buffer,
             file.FileName,
             containerName,
-            CloneContext(context, blobName),
+            ImageUploadContextFactory.WithPreferredBlobName(context, blobName),
             cancellationToken);
 
         var url = UgcProxyPaths.GetPath(result.Container, result.BlobName);
@@ -450,32 +449,4 @@ public static class EditorImageUploadEndpoints
         }
     }
 
-    private static BlobUploadContext BuildUploadContext(ClaimsPrincipal user)
-    {
-        var email = user.FindFirstValue(ClaimTypes.Email)
-            ?? user.FindFirstValue("preferred_username")
-            ?? user.Identity?.Name;
-
-        Guid? memberAccountId = null;
-        var memberIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (Guid.TryParse(memberIdValue, out var parsed) && parsed != Guid.Empty)
-        {
-            memberAccountId = parsed;
-        }
-
-        return new BlobUploadContext
-        {
-            ActorEmail = email,
-            MemberAccountId = memberAccountId,
-        };
-    }
-
-    private static BlobUploadContext CloneContext(BlobUploadContext source, string preferredBlobName) =>
-        new()
-        {
-            MemberAccountId = source.MemberAccountId,
-            MemberId = source.MemberId,
-            ActorEmail = source.ActorEmail,
-            PreferredBlobName = preferredBlobName,
-        };
 }

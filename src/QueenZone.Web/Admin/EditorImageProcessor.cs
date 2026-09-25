@@ -29,87 +29,42 @@ public static class EditorImageProcessor
         long maxBytes,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
         if (maxBytes <= 0)
         {
             maxBytes = EditorImageUploadEndpoints.MaxImageBytes;
         }
 
-        await using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, cancellationToken);
-        if (buffer.Length <= 0)
-        {
-            throw new InvalidOperationException("An image file is required.");
-        }
-
-        if (buffer.Length > maxBytes)
-        {
-            throw new InvalidOperationException(
-                $"Image must be {maxBytes} bytes or smaller.");
-        }
-
-        buffer.Position = 0;
-        var headerLength = (int)Math.Min(64, buffer.Length);
-        var header = new byte[headerLength];
-        var read = await buffer.ReadAsync(header.AsMemory(0, headerLength), cancellationToken);
-        buffer.Position = 0;
-
-        var sniffed = BlobContentSniffer.TryDetectContentType(header.AsSpan(0, read));
-        if (sniffed is null || !sniffed.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Only image uploads are allowed.");
-        }
-
-        var extension = Path.GetExtension(originalFileName);
-        if (!string.IsNullOrWhiteSpace(extension))
-        {
-            var fromExt = BlobContentSniffer.GuessContentTypeFromExtension(extension);
-            if (fromExt is not null
-                && !fromExt.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        return await ImageUploadPipeline.ProcessAsync(
+            source,
+            originalFileName,
+            maxBytes,
+            new ImageUploadPipeline.Policy(
+                contentType => contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase),
+                RequireAllowedExtension: false,
+                "An image file is required.",
+                $"Image must be {maxBytes} bytes or smaller.",
+                "Only image uploads are allowed.",
+                "Image could not be read."),
+            async (image, _, _, token) =>
             {
-                throw new InvalidOperationException("File extension does not match the image content.");
-            }
+                var full = await EncodeMaxSideAsync(image, UgcProxyPaths.FullMaxLongestSide, token);
+                var thumb = await EncodeMaxSideAsync(image, UgcProxyPaths.ThumbMaxLongestSide, token);
 
-            if (fromExt is not null
-                && !string.Equals(fromExt, sniffed, StringComparison.OrdinalIgnoreCase)
-                && !(IsJpegFamily(fromExt) && IsJpegFamily(sniffed)))
-            {
-                throw new InvalidOperationException("File extension does not match the image content.");
-            }
-        }
+                var baseName = Path.GetFileNameWithoutExtension(
+                    string.IsNullOrWhiteSpace(originalFileName) ? "paste" : originalFileName);
+                if (string.IsNullOrWhiteSpace(baseName))
+                {
+                    baseName = "paste";
+                }
 
-        try
-        {
-            using var image = await Image.LoadAsync(buffer, cancellationToken);
-            var full = await EncodeMaxSideAsync(image, UgcProxyPaths.FullMaxLongestSide, cancellationToken);
-            var thumb = await EncodeMaxSideAsync(image, UgcProxyPaths.ThumbMaxLongestSide, cancellationToken);
+                // Storage uses generated Guid names; these are only used when PreferredBlobName is not set.
+                var fullFileName = baseName + ".webp";
+                var thumbFileName = baseName + "-thumb.webp";
 
-            var baseName = Path.GetFileNameWithoutExtension(
-                string.IsNullOrWhiteSpace(originalFileName) ? "paste" : originalFileName);
-            if (string.IsNullOrWhiteSpace(baseName))
-            {
-                baseName = "paste";
-            }
-
-            // Storage uses generated Guid names; these are only used when PreferredBlobName is not set.
-            var fullFileName = baseName + ".webp";
-            var thumbFileName = baseName + "-thumb.webp";
-
-            return new ProcessedEditorImage(full, thumb, fullFileName, thumbFileName);
-        }
-        catch (UnknownImageFormatException)
-        {
-            throw new InvalidOperationException("Only image uploads are allowed.");
-        }
-        catch (InvalidImageContentException)
-        {
-            throw new InvalidOperationException("Image could not be read.");
-        }
+                return new ProcessedEditorImage(full, thumb, fullFileName, thumbFileName);
+            },
+            cancellationToken);
     }
-
-    private static bool IsJpegFamily(string contentType) =>
-        string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(contentType, "image/jpg", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<MemoryStream> EncodeMaxSideAsync(
         Image image,
