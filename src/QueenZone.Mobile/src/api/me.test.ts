@@ -134,6 +134,20 @@ describe('avatarUrl', () => {
       'http://localhost:5146/account/avatar/abc?v=1',
     );
     assert.equal(avatarUrl('http://localhost:5146', null), null);
+    assert.equal(avatarUrl('', '/account/avatar/abc'), '/account/avatar/abc');
+    assert.equal(
+      avatarUrl('http://localhost:5146///', 'account/avatar/abc'),
+      'http://localhost:5146/account/avatar/abc',
+    );
+  });
+
+  it('finishes quickly when the origin is a long slash run', () => {
+    const started = performance.now();
+    assert.equal(
+      avatarUrl(`http://localhost:5146${'/'.repeat(40_000)}`, '/account/avatar/abc'),
+      'http://localhost:5146/account/avatar/abc',
+    );
+    assert.ok(performance.now() - started < 100);
   });
 });
 

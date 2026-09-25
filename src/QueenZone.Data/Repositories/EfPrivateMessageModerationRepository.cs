@@ -71,7 +71,7 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (EfPrivateMessageRepository.IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
         {
             // Concurrent block insert — treat as already blocked.
             dbContext.ChangeTracker.Clear();
@@ -174,7 +174,7 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
             await dbContext.SaveChangesAsync(cancellationToken);
             return new PrivateMessageReportResult(true, entity.Id, null);
         }
-        catch (DbUpdateException ex) when (EfPrivateMessageRepository.IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
         {
             dbContext.ChangeTracker.Clear();
             var raced = await dbContext.PrivateMessageReports

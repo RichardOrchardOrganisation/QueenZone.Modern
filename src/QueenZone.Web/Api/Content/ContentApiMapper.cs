@@ -313,13 +313,22 @@ public static class ContentApiMapper
             PhotoRoutes.GetCategoryPath(category.Slug, filter),
             navigation.Index,
             navigation.Count,
-            ToPhotoNavDto(category.Slug, navigation.PreviousPicId, filter),
-            ToPhotoNavDto(category.Slug, navigation.NextPicId, filter));
+            ToPhotoNavDto(category.Slug, navigation.PreviousPicId, filter, navigation.PreviousMedia),
+            ToPhotoNavDto(category.Slug, navigation.NextPicId, filter, navigation.NextMedia));
     }
 
-    private static PhotoNavDto? ToPhotoNavDto(string slug, int? picId, PhotoListFilter? filter) =>
+    private static PhotoNavDto? ToPhotoNavDto(
+        string slug,
+        int? picId,
+        PhotoListFilter? filter,
+        PhotoNeighborMedia? media) =>
         picId is int id
-            ? new PhotoNavDto(id, PhotoRoutes.GetDetailPath(slug, id, filter))
+            ? new PhotoNavDto(
+                id,
+                PhotoRoutes.GetDetailPath(slug, id, filter),
+                string.IsNullOrWhiteSpace(media?.FilePath) ? null : PhotoImageUrl.Build(media.FilePath!),
+                media?.PictureWidth,
+                media?.PictureHeight)
             : null;
 
     public static FanPerformanceDto ToFanPerformanceDto(FanPerformance performance, int? durationSeconds) =>

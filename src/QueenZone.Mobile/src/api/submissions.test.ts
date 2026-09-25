@@ -6,10 +6,10 @@ import {
   parseFanPerformanceSubmissions,
   parseNewsSuggestions,
   parsePhotoSubmissions,
-  readProblemDetail,
   resolveMediaUrl,
   submissionsApiUrl,
 } from './submissions.ts';
+import { readProblemDetail } from './problemDetail.ts';
 
 describe('submissionsApiUrl', () => {
   it('joins the versioned member submissions path onto the API origin', () => {
@@ -21,6 +21,20 @@ describe('submissionsApiUrl', () => {
       submissionsApiUrl('http://localhost:5146/', 'news'),
       'http://localhost:5146/api/v1/me/submissions/news?page=1&pageSize=20',
     );
+    assert.equal(
+      submissionsApiUrl('http://localhost:5146///', 'photos'),
+      'http://localhost:5146/api/v1/me/submissions/photos?page=1&pageSize=20',
+    );
+    assert.equal(submissionsApiUrl('', 'photos'), '/api/v1/me/submissions/photos?page=1&pageSize=20');
+  });
+
+  it('finishes quickly when the origin is a long slash run', () => {
+    const started = performance.now();
+    assert.equal(
+      submissionsApiUrl(`http://localhost:5146${'/'.repeat(40_000)}`, 'news'),
+      'http://localhost:5146/api/v1/me/submissions/news?page=1&pageSize=20',
+    );
+    assert.ok(performance.now() - started < 100);
   });
 });
 
@@ -41,6 +55,28 @@ describe('resolveMediaUrl', () => {
       'http://localhost:5146/ugc/photos/members/a/thumb.webp',
     );
     assert.equal(resolveMediaUrl('http://localhost:5146', null), null);
+    assert.equal(resolveMediaUrl('http://localhost:5146', ''), null);
+    assert.equal(
+      resolveMediaUrl('http://localhost:5146///', 'ugc/photos/members/a/thumb.webp'),
+      'http://localhost:5146/ugc/photos/members/a/thumb.webp',
+    );
+    assert.equal(
+      resolveMediaUrl('http://localhost:5146/', 'https://cdn.queenzone.org/a.webp'),
+      'https://cdn.queenzone.org/a.webp',
+    );
+    assert.equal(
+      resolveMediaUrl('http://localhost:5146/', 'http://cdn.queenzone.org/a.webp'),
+      'http://cdn.queenzone.org/a.webp',
+    );
+  });
+
+  it('finishes quickly when joining a relative path onto a long slash origin', () => {
+    const started = performance.now();
+    assert.equal(
+      resolveMediaUrl(`http://localhost:5146${'/'.repeat(40_000)}`, '/ugc/a.webp'),
+      'http://localhost:5146/ugc/a.webp',
+    );
+    assert.ok(performance.now() - started < 100);
   });
 });
 

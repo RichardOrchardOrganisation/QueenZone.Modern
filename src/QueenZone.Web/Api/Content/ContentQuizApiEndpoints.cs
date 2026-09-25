@@ -167,10 +167,12 @@ public static class ContentQuizApiEndpoints
         var viewerId = await ContentApiEndpoints.TryGetViewerMemberIdAsync(httpContext);
 
         var result = await quizRepository.GetLeaderboardAsync(leaderboardScope, viewerId, top: 20, cancellationToken);
-        var top = await ToLeaderboardEntryDtosAsync(result.Top, memberAccountRepository, cancellationToken);
+        var names = await QuizLeaderboardNameReader.LoadAsync(memberAccountRepository,
+            result.Top.Select(entry => entry.MemberAccountId), result.Viewer?.MemberAccountId, cancellationToken);
+        var top = ToLeaderboardEntryDtos(result.Top, names);
         var viewer = result.Viewer is null
             ? null
-            : (await ToLeaderboardEntryDtosAsync([result.Viewer], memberAccountRepository, cancellationToken)).Single();
+            : ToLeaderboardEntryDtos([result.Viewer], names).Single();
 
         return Results.Ok(new QuizLeaderboardDto(top, viewer, result.TotalMembers));
     }
@@ -331,34 +333,27 @@ public static class ContentQuizApiEndpoints
         IMemberAccountRepository memberAccountRepository,
         CancellationToken cancellationToken)
     {
-        async Task<SprintLeaderboardEntryDto> ToDtoAsync(QuizSprintLeaderboardEntry entry)
+        var names = await QuizLeaderboardNameReader.LoadAsync(memberAccountRepository,
+            board.Top.Select(entry => entry.MemberAccountId), board.Viewer?.MemberAccountId, cancellationToken);
+
+        SprintLeaderboardEntryDto ToDto(QuizSprintLeaderboardEntry entry)
         {
-            var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
-            return new SprintLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.BestStreak, entry.Runs);
+            return new SprintLeaderboardEntryDto(entry.Rank,
+                QuizLeaderboardNameReader.DisplayName(names, entry.MemberAccountId),
+                entry.Score, entry.BestStreak, entry.Runs);
         }
 
-        var top = new List<SprintLeaderboardEntryDto>(board.Top.Count);
-        foreach (var entry in board.Top)
-        {
-            top.Add(await ToDtoAsync(entry));
-        }
-
-        var viewer = board.Viewer is null ? null : await ToDtoAsync(board.Viewer);
+        var top = board.Top.Select(ToDto).ToList();
+        var viewer = board.Viewer is null ? null : ToDto(board.Viewer);
         return (top, viewer);
     }
 
-    private static async Task<IReadOnlyList<QuizLeaderboardEntryDto>> ToLeaderboardEntryDtosAsync(
+    private static IReadOnlyList<QuizLeaderboardEntryDto> ToLeaderboardEntryDtos(
         IReadOnlyList<QuizLeaderboardEntry> entries,
-        IMemberAccountRepository memberAccountRepository,
-        CancellationToken cancellationToken)
+        IReadOnlyDictionary<Guid, string> names)
     {
-        var dtos = new List<QuizLeaderboardEntryDto>(entries.Count);
-        foreach (var entry in entries)
-        {
-            var account = await memberAccountRepository.FindByIdAsync(entry.MemberAccountId, cancellationToken);
-            dtos.Add(new QuizLeaderboardEntryDto(entry.Rank, account?.DisplayName ?? "Member", entry.Score, entry.AttemptCount));
-        }
-
-        return dtos;
+        return entries.Select(entry => new QuizLeaderboardEntryDto(entry.Rank,
+            QuizLeaderboardNameReader.DisplayName(names, entry.MemberAccountId),
+            entry.Score, entry.AttemptCount)).ToList();
     }
 }

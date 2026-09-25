@@ -211,7 +211,7 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
       await fetchForumTopicPosts(1002),
     );
     assert.ok(posts.items.length > 0, 'Contract GET /api/v1/forum/topics/1002/posts failed: expected field items to be non-empty');
-    assert.equal(posts.pageSize, 15);
+    assert.equal(posts.pageSize, 15, 'forum post default must match forumPostsPageSize');
     const withAttachment = posts.items.find((item) => item.attachments.length > 0);
     assert.ok(withAttachment, 'Contract GET /api/v1/forum/topics/1002/posts failed: expected an attachment');
     assert.match(withAttachment.attachments[0].url, /^\/forum\/attachment\//);
@@ -297,6 +297,7 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
       pagedSchema(inboxConversationSchema),
       await fetchInbox(token),
     );
+    assert.equal(seededInbox.pageSize, 50, 'inbox default must match inboxPageSize');
     assert.ok(
       seededInbox.items.length >= 1,
       'Contract GET /api/v1/me/messages failed: expected the seeded unread conversation before compose',
@@ -319,6 +320,7 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
       pagedSchema(inboxConversationSchema),
       await fetchInbox(token),
     );
+    assert.equal(inbox.pageSize, 50, 'inbox default must match inboxPageSize');
     assert.ok(inbox.items.length > 0, 'Contract GET /api/v1/me/messages failed: expected field items to be non-empty after compose');
 
     const opened = parseContract(

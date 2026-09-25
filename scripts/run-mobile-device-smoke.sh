@@ -51,7 +51,7 @@ usage() {
   sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
 }
 
-while [ "$#" -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --platform)
       platform="${2:-}"
@@ -113,22 +113,22 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ "$dump_android_host" != true ] && [ "$self_test_adb_timeout" != true ] && [ "$platform" != "android" ] && [ "$platform" != "ios" ]; then
+if [[ "$dump_android_host" != true ]] && [[ "$self_test_adb_timeout" != true ]] && [[ "$platform" != "android" ]] && [[ "$platform" != "ios" ]]; then
   echo "--platform android|ios is required." >&2
   exit 2
 fi
 
-if [ "$suite" != "smoke" ] && [ "$suite" != "journeys" ] && [ "$suite" != "release" ]; then
+if [[ "$suite" != "smoke" ]] && [[ "$suite" != "journeys" ]] && [[ "$suite" != "release" ]]; then
   echo "--suite smoke|journeys|release is required (default smoke)." >&2
   exit 2
 fi
 
-if [ "$prove_failure" = true ] && [ "$suite" != "smoke" ]; then
+if [[ "$prove_failure" = true ]] && [[ "$suite" != "smoke" ]]; then
   echo "--prove-failure is only valid with --suite smoke." >&2
   exit 2
 fi
 
-if [ "$platform" = "ios" ] && [ "$(uname -s)" != "Darwin" ]; then
+if [[ "$platform" = "ios" ]] && [[ "$(uname -s)" != "Darwin" ]]; then
   echo "iOS Simulator smoke requires macOS. Document CI-only verification on Linux agents." >&2
   exit 2
 fi
@@ -151,12 +151,12 @@ ANDROID_ADB_PROBE_TIMEOUT_SECONDS="${ANDROID_ADB_PROBE_TIMEOUT_SECONDS:-10}"
 run_with_timeout() {
   local seconds="$1"
   shift
-  if [ "$#" -eq 0 ]; then
+  if [[ "$#" -eq 0 ]]; then
     echo "run_with_timeout: missing command" >&2
     return 2
   fi
 
-  if [ "${ANDROID_ADB_TIMEOUT_IMPL:-}" != "bash" ]; then
+  if [[ "${ANDROID_ADB_TIMEOUT_IMPL:-}" != "bash" ]]; then
     if command -v timeout >/dev/null; then
       timeout -k 5 "$seconds" "$@"
       return $?
@@ -170,7 +170,7 @@ run_with_timeout() {
   "$@" &
   local pid=$!
   local elapsed=0
-  while [ "$elapsed" -lt "$seconds" ]; do
+  while [[ "$elapsed" -lt "$seconds" ]]; do
     if ! kill -0 "$pid" 2>/dev/null; then
       wait "$pid"
       return $?
@@ -182,13 +182,13 @@ run_with_timeout() {
 
   local child
   while IFS= read -r child; do
-    [ -n "$child" ] || continue
+    [[ -n "$child" ]] || continue
     kill -TERM "$child" 2>/dev/null || true
   done < <(pgrep -P "$pid" 2>/dev/null || true)
   kill -TERM "$pid" 2>/dev/null || true
   sleep 1
   while IFS= read -r child; do
-    [ -n "$child" ] || continue
+    [[ -n "$child" ]] || continue
     kill -KILL "$child" 2>/dev/null || true
   done < <(pgrep -P "$pid" 2>/dev/null || true)
   kill -KILL "$pid" 2>/dev/null || true
@@ -219,7 +219,7 @@ android_adb_state() {
   fi
   state="$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb get-state 2>/dev/null || true)"
   state="$(printf '%s' "$state" | tr -d '\r\n')"
-  if [ -n "$state" ]; then
+  if [[ -n "$state" ]]; then
     printf '%s\n' "$state"
   else
     echo missing
@@ -260,7 +260,7 @@ dump_android_host_diagnostics() {
     fi
     echo "=== AVD config.ini ==="
     for avd_dir in "$HOME"/.android/avd/*.avd; do
-      [ -d "$avd_dir" ] || continue
+      [[ -d "$avd_dir" ]] || continue
       echo "--- $avd_dir/config.ini ---"
       cat "$avd_dir/config.ini" 2>/dev/null || true
     done
@@ -268,7 +268,7 @@ dump_android_host_diagnostics() {
     ls -la "$HOME"/.android/avd/*.avd/*.lock 2>/dev/null || echo "no locks"
   } >> "$out" 2>&1 || true
   for avd_dir in "$HOME"/.android/avd/*.avd; do
-    [ -d "$avd_dir" ] || continue
+    [[ -d "$avd_dir" ]] || continue
     avd_name="$(basename "$avd_dir" .avd)"
     cp "$avd_dir/config.ini" "$results_dir/avd-${avd_name}-config.ini" 2>/dev/null || true
   done
@@ -277,7 +277,7 @@ dump_android_host_diagnostics() {
 copy_android_disk_logs() {
   local f
   for f in "$HOME"/.android/*.log "$HOME"/.android/avd/*/*.log; do
-    [ -f "$f" ] || continue
+    [[ -f "$f" ]] || continue
     cp "$f" "$results_dir/$(basename "$f")" 2>/dev/null || true
   done
 }
@@ -291,7 +291,7 @@ write_android_transport_marker() {
   if ps -eo args 2>/dev/null | grep -Eq '[q]emu-system|[e]mulator/emulator|[e]mulator64-'; then
     qemu_state="running"
   fi
-  if [ -f "$results_dir/logcat.txt" ]; then
+  if [[ -f "$results_dir/logcat.txt" ]]; then
     logcat_bytes="$(wc -c < "$results_dir/logcat.txt" | tr -d ' ')"
   fi
   {
@@ -315,11 +315,11 @@ run_adb_timeout_self_test() {
   set -e
   finish="$(date +%s)"
   elapsed=$((finish - start))
-  if [ "$status" -ne 124 ]; then
+  if [[ "$status" -ne 124 ]]; then
     echo "self-test: expected 124 from timed-out sleep, got $status" >&2
     exit 1
   fi
-  if [ "$elapsed" -ge 6 ]; then
+  if [[ "$elapsed" -ge 6 ]]; then
     echo "self-test: timeout wrapper took ${elapsed}s; expected fail-fast under 6s" >&2
     exit 1
   fi
@@ -328,7 +328,7 @@ run_adb_timeout_self_test() {
   run_with_timeout 5 true
   status=$?
   set -e
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     echo "self-test: expected 0 from true, got $status" >&2
     exit 1
   fi
@@ -340,11 +340,11 @@ run_adb_timeout_self_test() {
   set -e
   finish="$(date +%s)"
   elapsed=$((finish - start))
-  if [ "$status" -ne 124 ]; then
+  if [[ "$status" -ne 124 ]]; then
     echo "self-test: bash fallback expected 124, got $status" >&2
     exit 1
   fi
-  if [ "$elapsed" -ge 6 ]; then
+  if [[ "$elapsed" -ge 6 ]]; then
     echo "self-test: bash fallback took ${elapsed}s; expected fail-fast under 6s" >&2
     exit 1
   fi
@@ -352,7 +352,7 @@ run_adb_timeout_self_test() {
   tmpdir="$(mktemp -d)"
   cat > "$tmpdir/adb" <<'EOF'
 #!/usr/bin/env bash
-if [ "${1:-}" = "start-server" ]; then
+if [[ "${1:-}" = "start-server" ]]; then
   echo "* daemon not running; starting now at tcp:5037"
   sleep 120
   exit 0
@@ -368,18 +368,18 @@ EOF
   finish="$(date +%s)"
   elapsed=$((finish - start))
   rm -rf "$tmpdir"
-  if [ "$status" -eq 0 ]; then
+  if [[ "$status" -eq 0 ]]; then
     echo "self-test: hung adb start-server should fail recover" >&2
     exit 1
   fi
-  if [ "$elapsed" -ge 15 ]; then
+  if [[ "$elapsed" -ge 15 ]]; then
     echo "self-test: hung adb start-server recover took ${elapsed}s; expected fail-fast under 15s" >&2
     exit 1
   fi
 
   marker_dir="$(mktemp -d)"
   results_dir="$marker_dir" write_android_transport_marker "adb-recover-timeout"
-  if [ ! -f "$marker_dir/android-transport-death" ]; then
+  if [[ ! -f "$marker_dir/android-transport-death" ]]; then
     echo "self-test: android-transport-death marker was not written" >&2
     rm -rf "$marker_dir"
     exit 1
@@ -403,12 +403,12 @@ EOF
   echo "ADB timeout self-test passed."
 }
 
-if [ "$self_test_adb_timeout" = true ]; then
+if [[ "$self_test_adb_timeout" = true ]]; then
   run_adb_timeout_self_test
   exit 0
 fi
 
-if [ "$dump_android_host" = true ]; then
+if [[ "$dump_android_host" = true ]]; then
   dump_android_host_diagnostics "cli-dump-android-host"
   exit 0
 fi
@@ -425,12 +425,12 @@ export QUEENZONE_MOBILE_CONTRACT_FIXTURE="$fixture"
 host_pid=""
 
 stop_android_side_processes() {
-  if [ -n "${android_watchdog_pid}" ]; then
+  if [[ -n "${android_watchdog_pid}" ]]; then
     kill "$android_watchdog_pid" 2>/dev/null || true
     wait "$android_watchdog_pid" 2>/dev/null || true
     android_watchdog_pid=""
   fi
-  if [ -n "${android_logcat_pid}" ]; then
+  if [[ -n "${android_logcat_pid}" ]]; then
     kill "$android_logcat_pid" 2>/dev/null || true
     wait "$android_logcat_pid" 2>/dev/null || true
     android_logcat_pid=""
@@ -441,12 +441,12 @@ start_android_logcat() {
   if ! command -v adb >/dev/null; then
     return 0
   fi
-  if [ -n "${android_logcat_pid}" ]; then
+  if [[ -n "${android_logcat_pid}" ]]; then
     kill "$android_logcat_pid" 2>/dev/null || true
     wait "$android_logcat_pid" 2>/dev/null || true
     android_logcat_pid=""
   fi
-  if [ -s "$results_dir/logcat.txt" ]; then
+  if [[ -s "$results_dir/logcat.txt" ]]; then
     adb logcat -v threadtime >> "$results_dir/logcat.txt" 2>>"$results_dir/logcat.err" &
   else
     adb logcat -v threadtime > "$results_dir/logcat.txt" 2>"$results_dir/logcat.err" &
@@ -459,7 +459,7 @@ start_android_watchdog() {
   if ! command -v adb >/dev/null; then
     return 0
   fi
-  if [ -n "${android_watchdog_pid}" ]; then
+  if [[ -n "${android_watchdog_pid}" ]]; then
     kill "$android_watchdog_pid" 2>/dev/null || true
     wait "$android_watchdog_pid" 2>/dev/null || true
     android_watchdog_pid=""
@@ -467,7 +467,7 @@ start_android_watchdog() {
   (
     for _ in $(seq 1 3600); do
       sleep 2
-      if [ "$(android_adb_state)" != "device" ]; then
+      if [[ "$(android_adb_state)" != "device" ]]; then
         dump_android_host_diagnostics "watchdog-adb-lost"
         exit 0
       fi
@@ -480,20 +480,20 @@ start_android_watchdog() {
 collect_diagnostics() {
   local reason="${1:-unknown}"
   echo "collect_diagnostics reason=$reason" >> "$results_dir/harness.log"
-  if [ "$platform" = "android" ]; then
+  if [[ "$platform" = "android" ]]; then
     dump_android_host_diagnostics "collect-$reason"
     copy_android_disk_logs
     # Streaming logcat is started while the device is alive. A post-death
     # `adb logcat -d` overwrite would replace that file with empty output.
-    if [ ! -s "$results_dir/logcat.txt" ] && command -v adb >/dev/null; then
+    if [[ ! -s "$results_dir/logcat.txt" ]] && command -v adb >/dev/null; then
       run_with_timeout 30 adb logcat -d > "$results_dir/logcat.txt" 2>/dev/null || true
     fi
   fi
-  if [ "$platform" = "ios" ]; then
+  if [[ "$platform" = "ios" ]]; then
     xcrun simctl spawn booted log show --last 5m --style compact \
       > "$results_dir/simulator.log" 2>/dev/null || true
   fi
-  if [ -f "$host_log" ]; then
+  if [[ -f "$host_log" ]]; then
     cp "$host_log" "$results_dir/contract-host.log" 2>/dev/null || true
   fi
 }
@@ -501,10 +501,10 @@ collect_diagnostics() {
 cleanup() {
   local status=$?
   stop_android_side_processes
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     collect_diagnostics "exit-$status"
   fi
-  if [ -n "${host_pid}" ] && kill -0 "$host_pid" 2>/dev/null; then
+  if [[ -n "${host_pid}" ]] && kill -0 "$host_pid" 2>/dev/null; then
     kill "$host_pid" 2>/dev/null || true
     wait "$host_pid" 2>/dev/null || true
   fi
@@ -518,7 +518,7 @@ start_host() {
 
   rm -f "$fixture" "${fixture}.tmp"
 
-  if [ "$no_build_host" != true ]; then
+  if [[ "$no_build_host" != true ]]; then
     dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
   fi
 
@@ -532,7 +532,7 @@ start_host() {
   host_pid=$!
 
   for _ in $(seq 1 90); do
-    if [ -f "$fixture" ]; then
+    if [[ -f "$fixture" ]]; then
       break
     fi
     if ! kill -0 "$host_pid" 2>/dev/null; then
@@ -543,7 +543,7 @@ start_host() {
     sleep 1
   done
 
-  if [ ! -f "$fixture" ]; then
+  if [[ ! -f "$fixture" ]]; then
     echo "Timed out waiting for $fixture" >&2
     cat "$host_log" >&2 || true
     exit 1
@@ -559,7 +559,7 @@ start_host() {
 }
 
 export_smoke_auth_url() {
-  if [ ! -f "$fixture" ]; then
+  if [[ ! -f "$fixture" ]]; then
     echo "Contract fixture $fixture is missing; cannot build SMOKE_AUTH_URL." >&2
     exit 1
   fi
@@ -583,7 +583,7 @@ export_smoke_auth_url() {
 }
 
 export_journey_env() {
-  if [ ! -f "$fixture" ]; then
+  if [[ ! -f "$fixture" ]]; then
     echo "Contract fixture $fixture is missing; cannot export journey IDs." >&2
     exit 1
   fi
@@ -608,12 +608,12 @@ export_journey_env() {
 
 push_attach_fixture() {
   local src="$root/src/QueenZone.Mobile/maestro/fixtures/attach.txt"
-  if [ ! -f "$src" ]; then
+  if [[ ! -f "$src" ]]; then
     echo "Missing attach fixture at $src" >&2
     exit 1
   fi
 
-  if [ "$platform" = "android" ]; then
+  if [[ "$platform" = "android" ]]; then
     # The smoke-only Inject action writes the fixture into the app cache.
     # Android 16 denies Release apps access to shell-owned ADB-pushed files,
     # including files placed under their external app-specific directory.
@@ -623,7 +623,7 @@ push_attach_fixture() {
   else
     local data
     data="$(xcrun simctl get_app_container booted org.queenzone.mobile data)"
-    if [ -z "$data" ] || [ ! -d "$data" ]; then
+    if [[ -z "$data" ]] || [[ ! -d "$data" ]]; then
       echo "Could not resolve the iOS Simulator data container for org.queenzone.mobile." >&2
       exit 1
     fi
@@ -640,11 +640,11 @@ push_attach_fixture() {
 
 android_release_apk() {
   local dir="$root/src/QueenZone.Mobile/android/app/build/outputs/apk/release"
-  if [ -f "$dir/app-release.apk" ]; then
+  if [[ -f "$dir/app-release.apk" ]]; then
     printf '%s\n' "$dir/app-release.apk"
     return 0
   fi
-  if [ -f "$dir/app-release-unsigned.apk" ]; then
+  if [[ -f "$dir/app-release-unsigned.apk" ]]; then
     printf '%s\n' "$dir/app-release-unsigned.apk"
     return 0
   fi
@@ -653,13 +653,13 @@ android_release_apk() {
 
 ios_release_app() {
   local dir="$root/src/QueenZone.Mobile/ios/build/Build/Products/Release-iphonesimulator"
-  if [ -d "$dir/QueenZone.app" ]; then
+  if [[ -d "$dir/QueenZone.app" ]]; then
     printf '%s\n' "$dir/QueenZone.app"
     return 0
   fi
   local found
   found="$(ls -d "$dir"/*.app 2>/dev/null | head -n 1 || true)"
-  if [ -n "$found" ] && [ -d "$found" ]; then
+  if [[ -n "$found" ]] && [[ -d "$found" ]]; then
     printf '%s\n' "$found"
     return 0
   fi
@@ -711,7 +711,7 @@ build_ios() {
   app="$(ios_release_app || true)"
 }
 
-if [ "$skip_host" != true ]; then
+if [[ "$skip_host" != true ]]; then
   start_host
 else
   echo "Skipping host start; expecting an already-running Testing contract host."
@@ -722,27 +722,27 @@ else
 fi
 
 export_smoke_auth_url
-if [ "$suite" = "journeys" ]; then
+if [[ "$suite" = "journeys" ]]; then
   export_journey_env
 fi
 
-if [ "$skip_build" != true ]; then
-  if [ "$platform" = "android" ]; then
+if [[ "$skip_build" != true ]]; then
+  if [[ "$platform" = "android" ]]; then
     build_android
   else
     build_ios
   fi
 fi
 
-if [ "$platform" = "android" ] && [ -z "$apk" ]; then
+if [[ "$platform" = "android" ]] && [[ -z "$apk" ]]; then
   apk="$(android_release_apk || true)"
 fi
-if [ "$platform" = "ios" ] && [ -z "$app" ]; then
+if [[ "$platform" = "ios" ]] && [[ -z "$app" ]]; then
   app="$(ios_release_app || true)"
 fi
 
-if [ "$platform" = "android" ]; then
-  if [ -z "$apk" ] || [ ! -f "$apk" ]; then
+if [[ "$platform" = "android" ]]; then
+  if [[ -z "$apk" ]] || [[ ! -f "$apk" ]]; then
     echo "Android smoke APK not found at '${apk:-<empty>}'." >&2
     exit 1
   fi
@@ -755,18 +755,18 @@ if [ "$platform" = "android" ]; then
   adb install -r "$apk"
   start_android_logcat
   start_android_watchdog
-  if [ "$suite" = "journeys" ]; then
+  if [[ "$suite" = "journeys" ]]; then
     # Clear before push_attach_fixture. Clearing from launchApp afterwards
     # deletes the app-private attachment URI while leaving its UI metadata.
     adb shell pm clear org.queenzone.mobile >/dev/null
   fi
 else
-  if [ -z "$app" ] || [ ! -d "$app" ]; then
+  if [[ -z "$app" ]] || [[ ! -d "$app" ]]; then
     echo "iOS Simulator .app not found at '${app:-<empty>}'." >&2
     exit 1
   fi
   echo "Installing $app"
-  if [ "$suite" = "journeys" ]; then
+  if [[ "$suite" = "journeys" ]]; then
     # A Simulator install preserves an existing data container. Remove the
     # prior install so journeys start clean before their fixture is copied.
     xcrun simctl uninstall booted org.queenzone.mobile >/dev/null 2>&1 || true
@@ -774,14 +774,14 @@ else
   xcrun simctl install booted "$app"
 fi
 
-if [ "$suite" = "journeys" ]; then
+if [[ "$suite" = "journeys" ]]; then
   push_attach_fixture
 fi
 
 # Installer writes $HOME/.maestro/bin. GITHUB_PATH should expose it to later
 # steps; iOS smoke 33733955768 still failed with "Maestro is not on PATH"
 # after the install step. Always prepend before probing (#1281).
-if [ -d "${HOME}/.maestro/bin" ]; then
+if [[ -d "${HOME}/.maestro/bin" ]]; then
   PATH="${HOME}/.maestro/bin:${PATH}"
   export PATH
 fi
@@ -794,20 +794,20 @@ if ! command -v maestro >/dev/null; then
 fi
 
 flow="src/QueenZone.Mobile/maestro/smoke.yaml"
-if [ "$prove_failure" = true ]; then
+if [[ "$prove_failure" = true ]]; then
   flow="src/QueenZone.Mobile/maestro/prove-failure.yaml"
   echo "Running forced-assertion flow to prove failure artifacts."
-elif [ "$suite" = "journeys" ]; then
+elif [[ "$suite" = "journeys" ]]; then
   flow="src/QueenZone.Mobile/maestro/journeys.yaml"
   echo "Running on-demand Maestro journeys (#1071)."
-elif [ "$suite" = "release" ]; then
+elif [[ "$suite" = "release" ]]; then
   flow="src/QueenZone.Mobile/maestro/release.yaml"
   echo "Running the P0 Maestro release suite (#1411)."
 fi
 
 echo "Running Maestro ($flow). Selector and assertion failures are not retried."
 maestro_args=()
-if [ -n "${MAESTRO_TARGET_DEVICE:-}" ]; then
+if [[ -n "${MAESTRO_TARGET_DEVICE:-}" ]]; then
   maestro_args+=(--device "$MAESTRO_TARGET_DEVICE")
 fi
 maestro_args+=(
@@ -818,7 +818,7 @@ maestro_args+=(
   --flatten-debug-output
   -e "SMOKE_AUTH_URL=${SMOKE_AUTH_URL}"
 )
-if [ "$suite" = "journeys" ]; then
+if [[ "$suite" = "journeys" ]]; then
   maestro_args+=(
     -e "SMOKE_ATTACH_URL=${SMOKE_ATTACH_URL}"
     -e "ATTACH_TOPIC_ID=${ATTACH_TOPIC_ID}"
@@ -831,18 +831,18 @@ maestro_console_log="$results_dir/maestro-console.log"
 android_transport_re="DeviceServerDiedException|Device server died|device offline|DEADLINE_EXCEEDED|host:transport:|device 'emulator-[0-9]+' not found"
 
 android_emulator_gone() {
-  [ "$(android_adb_state)" != "device" ]
+  [[ "$(android_adb_state)" != "device" ]]
 }
 
 android_transport_died() {
   local dir="${1:-$results_dir}"
-  if [ -f "$dir/junit.xml" ] && grep -Eq "$android_transport_re" "$dir/junit.xml"; then
+  if [[ -f "$dir/junit.xml" ]] && grep -Eq "$android_transport_re" "$dir/junit.xml"; then
     return 0
   fi
-  if [ -f "$maestro_console_log" ] && grep -Eq "$android_transport_re" "$maestro_console_log"; then
+  if [[ -f "$maestro_console_log" ]] && grep -Eq "$android_transport_re" "$maestro_console_log"; then
     return 0
   fi
-  if [ -d "$dir/debug" ] && grep -ERq "$android_transport_re" "$dir/debug"; then
+  if [[ -d "$dir/debug" ]] && grep -ERq "$android_transport_re" "$dir/debug"; then
     return 0
   fi
   if command -v adb >/dev/null && android_emulator_gone; then
@@ -858,10 +858,10 @@ android_transport_died() {
 # selector miss.
 android_latest_attempt_transport_died() {
   local dir="${1:-$results_dir}"
-  if [ -f "$dir/junit.xml" ] && grep -Eq "$android_transport_re" "$dir/junit.xml"; then
+  if [[ -f "$dir/junit.xml" ]] && grep -Eq "$android_transport_re" "$dir/junit.xml"; then
     return 0
   fi
-  if [ -d "$dir/debug" ] && grep -ERq "$android_transport_re" "$dir/debug"; then
+  if [[ -d "$dir/debug" ]] && grep -ERq "$android_transport_re" "$dir/debug"; then
     return 0
   fi
   if command -v adb >/dev/null && android_emulator_gone; then
@@ -889,14 +889,14 @@ set -e
 # android-transport-death so CI can boot a fresh emulator and rerun the same
 # flows. A selector miss after a live in-process retry must not write that
 # marker. Selector and assertion failures stay single-attempt.
-if [ "$platform" = "android" ] \
-  && [ "$maestro_status" -ne 0 ] \
+if [[ "$platform" = "android" ]] \
+  && [[ "$maestro_status" -ne 0 ]] \
   && android_transport_died; then
   echo "Maestro lost the Android device transport; recovering ADB and retrying once."
-  if [ -d "$results_dir/debug" ]; then
+  if [[ -d "$results_dir/debug" ]]; then
     mv "$results_dir/debug" "$results_dir/debug-android-transport-first"
   fi
-  if [ -f "$results_dir/junit.xml" ]; then
+  if [[ -f "$results_dir/junit.xml" ]]; then
     mv "$results_dir/junit.xml" "$results_dir/junit-android-transport-first.xml"
   fi
   if ! android_recover_adb; then
@@ -905,21 +905,21 @@ if [ "$platform" = "android" ] \
   else
     android_ready=false
     for i in $(seq 1 45); do
-      if [ "$(android_adb_state)" = "device" ] \
-        && [ "$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+      if [[ "$(android_adb_state)" = "device" ]] \
+        && [[ "$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]]; then
         android_ready=true
         break
       fi
       # After ADB restarts, a still-running emulator may take a few seconds to
       # reappear. A vanished qemu process never will — stop waiting so CI can
       # boot a fresh emulator instead of burning 90s (#1432).
-      if [ "$i" -ge 5 ] && android_emulator_gone; then
+      if [[ "$i" -ge 5 ]] && android_emulator_gone; then
         echo "Android emulator is gone after the Maestro transport failure; a fresh-emulator job retry is required." >&2
         break
       fi
       sleep 2
     done
-    if [ "$android_ready" = true ]; then
+    if [[ "$android_ready" = true ]]; then
       start_android_logcat
       start_android_watchdog
       adb install -r "$apk"
@@ -927,7 +927,7 @@ if [ "$platform" = "android" ] \
       run_maestro_once
       maestro_status=$?
       set -e
-      if [ "$maestro_status" -eq 0 ]; then
+      if [[ "$maestro_status" -eq 0 ]]; then
         echo "android_failure_class=recovered_after_transport_death" >> "$results_dir/harness.log"
       elif android_latest_attempt_transport_died; then
         write_android_transport_marker "retry-still-transport-death"
@@ -948,16 +948,16 @@ fi
 # missing JUnit file proves no app flow began. Reboot the Simulator and retry
 # only that infrastructure startup; assertion and in-flow failures stay
 # single-attempt.
-if [ "$platform" = "ios" ] \
-  && [ "$maestro_status" -ne 0 ] \
-  && [ ! -s "$results_dir/junit.xml" ] \
+if [[ "$platform" = "ios" ]] \
+  && [[ "$maestro_status" -ne 0 ]] \
+  && [[ ! -s "$results_dir/junit.xml" ]] \
   && grep -q "iOS driver not ready in time" "$maestro_console_log"; then
   echo "Maestro iOS driver failed before any flow began; rebooting the Simulator and retrying driver startup once."
-  if [ -d "$results_dir/debug" ]; then
+  if [[ -d "$results_dir/debug" ]]; then
     mv "$results_dir/debug" "$results_dir/debug-driver-startup-first"
   fi
   retry_udid="${IOS_SIM_UDID:-$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -n 1)}"
-  if [ -n "$retry_udid" ]; then
+  if [[ -n "$retry_udid" ]]; then
     xcrun simctl shutdown "$retry_udid" || true
     xcrun simctl boot "$retry_udid"
     xcrun simctl bootstatus "$retry_udid" -b
@@ -968,11 +968,11 @@ if [ "$platform" = "ios" ] \
   set -e
 fi
 
-if [ "$maestro_status" -ne 0 ]; then
+if [[ "$maestro_status" -ne 0 ]]; then
   echo "Maestro failed with status $maestro_status" >&2
   android_failure_class="selector_miss"
-  if [ "$platform" = "android" ] \
-    && { [ -f "$results_dir/android-transport-death" ] || android_latest_attempt_transport_died; }; then
+  if [[ "$platform" = "android" ]] \
+    && { [[ -f "$results_dir/android-transport-death" ]] || android_latest_attempt_transport_died; }; then
     android_failure_class="transport_death"
     echo "Maestro failing cause: Android device transport death" >&2
     echo "A hierarchy timeout or dead emulator is not a selector miss." >&2
@@ -981,10 +981,10 @@ if [ "$maestro_status" -ne 0 ]; then
   fi
   echo "android_failure_class=$android_failure_class" >> "$results_dir/harness.log"
   junit_report="$results_dir/junit.xml"
-  if [ ! -f "$junit_report" ] && [ -f "$results_dir/junit-android-transport-first.xml" ]; then
+  if [[ ! -f "$junit_report" ]] && [[ -f "$results_dir/junit-android-transport-first.xml" ]]; then
     junit_report="$results_dir/junit-android-transport-first.xml"
   fi
-  if [ -f "$junit_report" ]; then
+  if [[ -f "$junit_report" ]]; then
     node -e '
       const fs = require("fs");
       const xml = fs.readFileSync(process.argv[1], "utf8");

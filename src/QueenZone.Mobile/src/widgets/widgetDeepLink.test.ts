@@ -63,6 +63,7 @@ describe('widgetDeepLink', () => {
     assert.equal(parseWidgetQuoteId('queenzone://quotes/abc'), null);
     assert.equal(parseWidgetQuoteId('queenzone://quotes/'), null);
     assert.equal(parseWidgetQuoteId('queenzone://quotes'), null);
+    assert.equal(parseWidgetQuoteId('queenzone://quotes/9///'), 9);
     assert.equal(parseWidgetQuoteId('queenzone://home'), null);
     assert.equal(parseWidgetQuoteId('queenzone://timeline/12'), null);
   });
@@ -76,6 +77,14 @@ describe('widgetDeepLink', () => {
     assert.equal(parseWidgetTimelineId('queenzone://timeline'), null);
     assert.equal(parseWidgetTimelineId('queenzone://home'), null);
     assert.equal(parseWidgetTimelineId('queenzone://quotes/9'), null);
+    assert.equal(parseWidgetTimelineId('queenzone://timeline/12///'), 12);
+  });
+
+  it('finishes quickly when the path is a long slash run', () => {
+    const started = performance.now();
+    assert.equal(isWidgetDeepLinkUrl(`queenzone://home${'/'.repeat(40_000)}`), true);
+    assert.equal(parseWidgetQuoteId(`queenzone://quotes/9${'/'.repeat(40_000)}`), 9);
+    assert.ok(performance.now() - started < 100);
   });
 
   it('navigates through the Tabs root into HomeTab/Home', () => {

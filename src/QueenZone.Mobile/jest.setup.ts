@@ -98,7 +98,9 @@ jest.mock('expo-notifications', () => ({
 jest.mock('expo-image', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- Jest CJS mock factory.
   const { View } = require('react-native');
-  return { Image: View };
+  const Image = View;
+  Image.prefetch = jest.fn(async () => {});
+  return { Image };
 });
 
 jest.mock('expo-media-library/legacy', () => ({

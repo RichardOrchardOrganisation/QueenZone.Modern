@@ -8,6 +8,11 @@ public interface IMemberAccountRepository
 
     Task<MemberAccount?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Display names for the requested member ids, loaded in one query.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> ListDisplayNamesAsync(
+        IReadOnlyCollection<Guid> memberIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// The subset of <paramref name="memberIds"/> that exist and have not requested deletion.
     /// Batch form of <see cref="FindByIdAsync"/> for callers filtering a list of member ids.

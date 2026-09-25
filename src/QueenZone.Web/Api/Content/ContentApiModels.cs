@@ -393,9 +393,15 @@ public sealed record PhotoDetailDto(
     PhotoNavDto? Next);
 
 /// <summary>
-/// Minimal reference to an adjacent photo for prev/next navigation.
+/// Adjacent photo for prev/next navigation. <c>ImageUrl</c> / dimensions are
+/// additive on v1 so the mobile viewer can prefetch without a second fetch.
 /// </summary>
-public sealed record PhotoNavDto(int PicId, string DetailPath);
+public sealed record PhotoNavDto(
+    int PicId,
+    string DetailPath,
+    string? ImageUrl = null,
+    int? PictureWidth = null,
+    int? PictureHeight = null);
 
 /// <summary>
 /// List and detail shape for <c>/api/v1/content/fan-performances</c>.

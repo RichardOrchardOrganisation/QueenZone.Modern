@@ -1,5 +1,7 @@
 /** Member account contract for `/api/v1/me` (issues #752 / #753 / #754). */
 
+import { trimTrailingChar } from '../text/trimRuns.ts';
+
 export const meApiPath = '/me';
 
 export type MessagePrivacy = 'members' | 'followed' | 'nobody';
@@ -78,7 +80,7 @@ export function avatarUrl(apiBaseUrl: string, avatarPath: string | null, cacheTo
     return null;
   }
 
-  const origin = apiBaseUrl.replace(/\/+$/, '');
+  const origin = trimTrailingChar(apiBaseUrl, '/');
   const path = avatarPath.startsWith('/') ? avatarPath : `/${avatarPath}`;
   const url = `${origin}${path}`;
   return cacheToken ? `${url}${path.includes('?') ? '&' : '?'}v=${encodeURIComponent(cacheToken)}` : url;

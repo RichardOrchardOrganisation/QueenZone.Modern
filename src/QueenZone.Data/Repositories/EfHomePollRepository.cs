@@ -279,25 +279,8 @@ public sealed class EfHomePollRepository(QueenZoneDbContext dbContext, TimeProvi
         };
     }
 
-    internal static bool IsUniqueConstraintViolation(DbUpdateException exception)
-    {
-        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
-        {
-            if (inner is SqlException sql && sql.Number is 2601 or 2627)
-            {
-                return true;
-            }
-
-            if (inner.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase)
-                || inner.Message.Contains("unique index", StringComparison.OrdinalIgnoreCase)
-                || inner.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    internal static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
+        exception.IsUniqueConstraintViolation();
 
     private async Task<HomePollResults> BuildResultsAsync(
         HomePollEntity poll,
