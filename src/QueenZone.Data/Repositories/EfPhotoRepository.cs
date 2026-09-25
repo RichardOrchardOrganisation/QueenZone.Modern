@@ -297,23 +297,12 @@ public sealed class EfPhotoRepository : IPhotoRepository
             DateTime: row.DATE_TIME);
 
     private static PhotoItem MapDetailItem(DetailNavigationRow row, int catId, string categoryName, string categorySlug) =>
-        new(
-            PicId: row.pic_id,
-            CatId: catId,
-            CategoryName: categoryName,
-            CategorySlug: categorySlug,
-            Title: row.NAME,
-            ImageUrl: PhotoImageUrl.Build(row.URL),
-            ThumbnailUrl: PhotoImageUrl.Build(row.THUMB_URL),
-            ThumbWidth: row.T_WIDTH,
-            ThumbHeight: row.T_HEIGHT,
-            PictureWidth: row.PIC_WIDTH,
-            PictureHeight: row.PIC_HEIGHT,
-            Year: row.DATE_TIME.Year,
-            DateTime: row.DATE_TIME,
-            SubmittedByDisplayName: string.IsNullOrWhiteSpace(row.submitted_by_display_name)
+        MapItem(row, catId, categoryName, categorySlug) with
+        {
+            SubmittedByDisplayName = string.IsNullOrWhiteSpace(row.submitted_by_display_name)
                 ? null
-                : row.submitted_by_display_name.Trim());
+                : row.submitted_by_display_name.Trim(),
+        };
 
     private interface IPhotoRow
     {

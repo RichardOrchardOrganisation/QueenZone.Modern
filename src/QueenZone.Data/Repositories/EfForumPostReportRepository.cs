@@ -87,7 +87,7 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (EfPrivateMessageRepository.IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
         {
             dbContext.Entry(entity).State = EntityState.Detached;
             existing = await dbContext.ForumPostReports
