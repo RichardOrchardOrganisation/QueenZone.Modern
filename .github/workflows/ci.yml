@@ -834,9 +834,15 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-CoverageGate.ps1 -SelfTest
 
+      # PR runs check out refs/pull/N/merge, which GitHub builds lazily against
+      # the base SHA in the event; origin/main may have moved since. Compare
+      # against that fixed SHA so a moving main cannot fail the ancestor check.
+      # Merge groups (and manual runs) still require origin/main as an ancestor.
       - name: Enforce coverage gate
         shell: pwsh
-        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef origin/main -RequireBaseRef
+        env:
+          COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef $env:COVERAGE_BASE_REF -RequireBaseRef
 
       - name: Build observed Web.Tests duration map
         shell: pwsh
