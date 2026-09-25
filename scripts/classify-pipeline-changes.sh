@@ -57,8 +57,8 @@ classify() {
   local saw_any=false
   local path
 
-  while IFS= read -r path || [ -n "${path}" ]; do
-    [ -z "${path}" ] && continue
+  while IFS= read -r path || [[ -n "${path}" ]]; do
+    [[ -z "${path}" ]] && continue
     saw_any=true
 
     if printf '%s\n' "${path}" | grep -qE "${mobile_re}|${mobile_coverage_re}"; then
@@ -73,7 +73,7 @@ classify() {
       mobile_native=true
     fi
 
-    if [ "${path}" = ".github/workflows/ci.yml" ]; then
+    if [[ "${path}" = ".github/workflows/ci.yml" ]]; then
       code=true
     elif printf '%s\n' "${path}" | grep -qE "${mobile_re}"; then
       :
@@ -90,37 +90,37 @@ classify() {
     fi
   done
 
-  if [ "${saw_any}" = false ]; then
+  if [[ "${saw_any}" = false ]]; then
     echo "No changed paths on stdin — failing closed as code=true and mobile_api_contracts=true." >&2
     code=true
     mobile_api_contracts=true
   fi
 
-  if [ "${code}" = true ]; then
+  if [[ "${code}" = true ]]; then
     echo "Web/app/test/CI paths changed — full .NET suite (and deploy, after merge)." >&2
-  elif [ "${mobile}" = true ]; then
+  elif [[ "${mobile}" = true ]]; then
     echo "Mobile-only change — skipping web build, tests, and deploy." >&2
   else
     echo "Docs/infra/design/workflow-only change — skipping build, tests, and deploy." >&2
   fi
 
-  if [ "${mobile}" = true ]; then
+  if [[ "${mobile}" = true ]]; then
     echo "Mobile client paths changed — will run mobile JS checks." >&2
   fi
 
-  if [ "${mobile_native}" = true ]; then
+  if [[ "${mobile_native}" = true ]]; then
     echo "Native mobile inputs changed — will compile Android and iOS." >&2
   fi
 
-  if [ "${mobile_api_contracts}" = true ]; then
+  if [[ "${mobile_api_contracts}" = true ]]; then
     echo "Mobile API contract paths changed — will run consumer-contract suite (not native compiles)." >&2
   fi
 
-  if [ "${migrations}" = true ]; then
+  if [[ "${migrations}" = true ]]; then
     echo "EF migration-related paths changed — will run Azure SQL migration gate." >&2
   fi
 
-  if [ "${design_tokens}" = true ]; then
+  if [[ "${design_tokens}" = true ]]; then
     echo "Design token copy changed — will run the design token sync check." >&2
   fi
 
@@ -138,7 +138,7 @@ assert_classify() {
   shift 2
   local got
   got=$(printf '%s\n' "$@" | classify | grep -E '^(code|migrations|mobile|mobile_native|mobile_api_contracts|design_tokens)=')
-  if [ "${got}" != "${expected}" ]; then
+  if [[ "${got}" != "${expected}" ]]; then
     echo "FAIL ${name}" >&2
     echo " expected:" >&2
     echo "${expected}" >&2
@@ -149,7 +149,7 @@ assert_classify() {
   echo "PASS ${name}" >&2
 }
 
-if [ "${1:-}" = "--self-test" ]; then
+if [[ "${1:-}" = "--self-test" ]]; then
   fail=0
   nl=$'\n'
 
@@ -285,7 +285,7 @@ if [ "${1:-}" = "--self-test" ]; then
     "design/styles.css" \
     || fail=1
 
-  if [ "${fail}" -ne 0 ]; then
+  if [[ "${fail}" -ne 0 ]]; then
     echo "classify-pipeline-changes self-test failed." >&2
     exit 1
   fi

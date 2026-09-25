@@ -8,7 +8,6 @@ import {
   parseFanPerformanceSubmissions,
   parseNewsSuggestions,
   parsePhotoSubmissions,
-  readProblemDetail,
   resolveMediaUrl,
   submissionsApiUrl,
   type ArticleSubmissionItem,
@@ -18,6 +17,7 @@ import {
   type SubmissionKind,
   type SubmissionStatusTone,
 } from '../../api/submissions';
+import { readProblemDetail } from '../../api/problemDetail';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { MemberGate } from '../../session/MemberGate';
 import { useSession } from '../../session/SessionContext';

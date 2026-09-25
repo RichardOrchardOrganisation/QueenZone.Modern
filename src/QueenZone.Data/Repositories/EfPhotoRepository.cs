@@ -123,7 +123,9 @@ public sealed class EfPhotoRepository : IPhotoRepository
             row.TotalCount,
             row.PreviousPicId,
             row.NextPicId,
-            matched);
+            matched,
+            NeighborMedia(row.PreviousPicId, row.PreviousUrl, row.PreviousWidth, row.PreviousHeight),
+            NeighborMedia(row.NextPicId, row.NextUrl, row.NextWidth, row.NextHeight));
     }
 
     public async Task<IReadOnlyList<PhotoItem>> GetCategoryAllAsync(
@@ -296,24 +298,22 @@ public sealed class EfPhotoRepository : IPhotoRepository
             Year: row.DATE_TIME.Year,
             DateTime: row.DATE_TIME);
 
+    private static PhotoNeighborMedia? NeighborMedia(
+        int? picId,
+        string? filePath,
+        int? width,
+        int? height) =>
+        picId is null
+            ? null
+            : new PhotoNeighborMedia(filePath, width ?? 0, height ?? 0);
+
     private static PhotoItem MapDetailItem(DetailNavigationRow row, int catId, string categoryName, string categorySlug) =>
-        new(
-            PicId: row.pic_id,
-            CatId: catId,
-            CategoryName: categoryName,
-            CategorySlug: categorySlug,
-            Title: row.NAME,
-            ImageUrl: PhotoImageUrl.Build(row.URL),
-            ThumbnailUrl: PhotoImageUrl.Build(row.THUMB_URL),
-            ThumbWidth: row.T_WIDTH,
-            ThumbHeight: row.T_HEIGHT,
-            PictureWidth: row.PIC_WIDTH,
-            PictureHeight: row.PIC_HEIGHT,
-            Year: row.DATE_TIME.Year,
-            DateTime: row.DATE_TIME,
-            SubmittedByDisplayName: string.IsNullOrWhiteSpace(row.submitted_by_display_name)
+        MapItem(row, catId, categoryName, categorySlug) with
+        {
+            SubmittedByDisplayName = string.IsNullOrWhiteSpace(row.submitted_by_display_name)
                 ? null
-                : row.submitted_by_display_name.Trim());
+                : row.submitted_by_display_name.Trim(),
+        };
 
     private interface IPhotoRow
     {
@@ -403,6 +403,18 @@ public sealed class EfPhotoRepository : IPhotoRepository
         public int? PreviousPicId { get; set; }
 
         public int? NextPicId { get; set; }
+
+        public string? PreviousUrl { get; set; }
+
+        public int? PreviousWidth { get; set; }
+
+        public int? PreviousHeight { get; set; }
+
+        public string? NextUrl { get; set; }
+
+        public int? NextWidth { get; set; }
+
+        public int? NextHeight { get; set; }
     }
 
     private sealed class NameRow

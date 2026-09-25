@@ -31,6 +31,21 @@ describe('toPlainText', () => {
     // Bare angle brackets are treated as markup and removed.
     assert.equal(toPlainText('A < B and C > D'), 'A  D');
   });
+
+  it('leaves unmatched angle brackets for the later strip, including empty and whitespace', () => {
+    assert.equal(toPlainText('   '), '');
+    assert.equal(toPlainText('plain text only'), 'plain text only');
+    assert.equal(toPlainText('Hello <em>there'), 'Hello there');
+    assert.equal(toPlainText('Hello <em>there</em>'), 'Hello there');
+    assert.equal(toPlainText('<>'), '');
+  });
+
+  it('finishes quickly on a long unmatched < run that used to backtrack', () => {
+    const started = performance.now();
+    assert.equal(toPlainText('<'.repeat(30_000)), '');
+    assert.equal(toPlainText(`<${'x'.repeat(30_000)}`), 'x'.repeat(30_000));
+    assert.ok(performance.now() - started < 100);
+  });
 });
 
 describe('formatPublishedDate', () => {

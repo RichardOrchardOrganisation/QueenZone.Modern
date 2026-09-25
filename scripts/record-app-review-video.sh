@@ -13,10 +13,10 @@ usage() {
   echo "walkthrough, then repeat the same screenplay while recording TestFlight." >&2
 }
 
-while [ "$#" -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --device)
-      if [ "$#" -lt 2 ]; then
+      if [[ "$#" -lt 2 ]]; then
         usage
         exit 2
       fi
@@ -35,7 +35,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ -z "$device" ]; then
+if [[ -z "$device" ]]; then
   usage
   exit 2
 fi
@@ -47,7 +47,7 @@ for command_name in bws jq maestro xcrun; do
   fi
 done
 
-if [ -z "${BWS_ACCESS_TOKEN:-}" ]; then
+if [[ -z "${BWS_ACCESS_TOKEN:-}" ]]; then
   echo "BWS_ACCESS_TOKEN is not available in this shell." >&2
   exit 1
 fi
@@ -68,7 +68,7 @@ mkdir -p "$results_dir"
 # logs. Scrub the password from every retained text artifact, including when a
 # flow fails, so a reusable QA run cannot leave reviewer credentials on disk.
 redact_reviewer_password() {
-  if [ -z "${reviewer_password:-}" ] || [ ! -d "$results_dir" ]; then
+  if [[ -z "${reviewer_password:-}" ]] || [[ ! -d "$results_dir" ]]; then
     return
   fi
 

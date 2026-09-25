@@ -1,4 +1,5 @@
 import type { SearchResult } from '../../api/types';
+import { trimTrailingChar } from '../../text/trimRuns.ts';
 
 export function websiteUrl(apiBaseUrl: string, path: string): string | null {
   if (!path) {
@@ -7,7 +8,7 @@ export function websiteUrl(apiBaseUrl: string, path: string): string | null {
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
-  const origin = apiBaseUrl.replace(/\/+$/, '');
+  const origin = trimTrailingChar(apiBaseUrl, '/');
   return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
 }
 

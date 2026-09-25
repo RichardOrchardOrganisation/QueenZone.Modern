@@ -60,18 +60,18 @@ run_has_web_publish() {
   found="$(gh_api "repos/${repo}/actions/runs/${run_id}/artifacts?per_page=100" \
     | jq --arg name "${expected}" \
       '[.artifacts[]? | select(.name == $name and (.expired | not))] | length')"
-  [ "${found:-0}" -gt 0 ]
+  [[ "${found:-0}" -gt 0 ]]
 }
 
 # Rank: success first, then any run that still might expose the artifact.
 rank_run() {
   local conclusion="$1"
   local status="$2"
-  if [ "${conclusion}" = "success" ]; then
+  if [[ "${conclusion}" = "success" ]]; then
     echo 0
-  elif [ "${status}" = "in_progress" ] || [ "${status}" = "queued" ] || [ "${status}" = "pending" ]; then
+  elif [[ "${status}" = "in_progress" ]] || [[ "${status}" = "queued" ]] || [[ "${status}" = "pending" ]]; then
     echo 1
-  elif [ "${conclusion}" = "failure" ] || [ "${conclusion}" = "cancelled" ] || [ "${conclusion}" = "timed_out" ]; then
+  elif [[ "${conclusion}" = "failure" ]] || [[ "${conclusion}" = "cancelled" ]] || [[ "${conclusion}" = "timed_out" ]]; then
     # Mobile native jobs can fail after web checks + merge; web-publish is still valid.
     echo 2
   else
@@ -92,17 +92,17 @@ pick_run_id_with_artifact() {
   local best_rank=99
   local id conclusion status rank
   while IFS=$'\t' read -r id conclusion status; do
-    [ -n "${id}" ] || continue
+    [[ -n "${id}" ]] || continue
     if ! run_has_web_publish "${repo}" "${id}"; then
       continue
     fi
     rank="$(rank_run "${conclusion}" "${status}")"
-    if [ "${rank}" -lt "${best_rank}" ]; then
+    if [[ "${rank}" -lt "${best_rank}" ]]; then
       best_rank="${rank}"
       best_id="${id}"
     fi
     # success is best possible; stop early
-    if [ "${best_rank}" -eq 0 ]; then
+    if [[ "${best_rank}" -eq 0 ]]; then
       break
     fi
   done <<<"${ranked}"
@@ -129,14 +129,14 @@ resolve() {
     echo "Attempt ${attempt}/${MAX_ATTEMPTS}: ${run_count} ci.yml pull_request run(s) for ${head_sha}." >&2
 
     run_id="$(pick_run_id_with_artifact "${repo}" "${runs_json}")"
-    if [ -n "${run_id}" ]; then
+    if [[ -n "${run_id}" ]]; then
       echo "Using ci.yml run ${run_id} (artifact web-publish-${run_id})." >&2
       echo "found=true"
       echo "run_id=${run_id}"
       return 0
     fi
 
-    if [ "${attempt}" -lt "${MAX_ATTEMPTS}" ] && has_active_run "${runs_json}"; then
+    if [[ "${attempt}" -lt "${MAX_ATTEMPTS}" ]] && has_active_run "${runs_json}"; then
       echo "No web-publish artifact yet; waiting ${SLEEP_SECONDS}s for an in-progress build to upload it." >&2
       sleep "${SLEEP_SECONDS}"
       continue
@@ -155,7 +155,7 @@ assert_eq() {
   local name="$1"
   local expected="$2"
   local got="$3"
-  if [ "${got}" != "${expected}" ]; then
+  if [[ "${got}" != "${expected}" ]]; then
     echo "FAIL ${name}" >&2
     echo " expected: ${expected}" >&2
     echo " got:      ${got}" >&2
@@ -164,7 +164,7 @@ assert_eq() {
   echo "PASS ${name}" >&2
 }
 
-if [ "${1:-}" = "--self-test" ]; then
+if [[ "${1:-}" = "--self-test" ]]; then
   fail=0
   tmp="$(mktemp -d)"
   trap 'rm -rf "${tmp}"' EXIT
@@ -176,7 +176,7 @@ if [ "${1:-}" = "--self-test" ]; then
     local key="${path%%\?*}"
     key="${key//\//_}"
     local fixture="${tmp}/fixtures/${key}.json"
-    if [ ! -f "${fixture}" ]; then
+    if [[ ! -f "${fixture}" ]]; then
       echo "missing fixture for API path: ${path} (key=${key})" >&2
       return 1
     fi
@@ -261,7 +261,7 @@ EOF
   assert_eq rank-in-progress 1 "$(rank_run "" in_progress)" || fail=1
   assert_eq rank-failure 2 "$(rank_run failure completed)" || fail=1
 
-  if [ "${fail}" -ne 0 ]; then
+  if [[ "${fail}" -ne 0 ]]; then
     echo "Resolve-CiPublishRun self-test failed." >&2
     exit 1
   fi

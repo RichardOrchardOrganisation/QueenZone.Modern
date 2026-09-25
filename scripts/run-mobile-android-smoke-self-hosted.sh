@@ -8,7 +8,7 @@
 set -euo pipefail
 
 apk="${1:-}"
-if [ -z "$apk" ] || [ ! -f "$apk" ]; then
+if [[ -z "$apk" ]] || [[ ! -f "$apk" ]]; then
   echo "Usage: $0 <release-apk> [--prove-failure]" >&2
   exit 2
 fi
@@ -25,10 +25,10 @@ mkdir -p "$results_dir"
 printf 'avd=%s\nserial=%s\n' "$avd_name" "$serial" > "$results_dir/harness.log"
 
 emulator_bin="$(command -v emulator || true)"
-if [ -z "$emulator_bin" ] && [ -n "${ANDROID_HOME:-}" ]; then
+if [[ -z "$emulator_bin" ]] && [[ -n "${ANDROID_HOME:-}" ]]; then
   emulator_bin="${ANDROID_HOME}/emulator/emulator"
 fi
-if [ -z "$emulator_bin" ] || [ ! -x "$emulator_bin" ]; then
+if [[ -z "$emulator_bin" ]] || [[ ! -x "$emulator_bin" ]]; then
   echo "Android emulator is not installed or is not on PATH." >&2
   exit 1
 fi
@@ -37,7 +37,7 @@ if ! command -v adb >/dev/null; then
   exit 1
 fi
 other_emulators="$(adb devices | awk -v target="$serial" '$1 ~ /^emulator-/ && $2 == "device" && $1 != target { print $1 }')"
-if [ -n "$other_emulators" ]; then
+if [[ -n "$other_emulators" ]]; then
   echo "Another Android emulator is active; close it before Android device smoke:" >&2
   printf '%s\n' "$other_emulators" >&2
   exit 1
@@ -46,10 +46,10 @@ fi
 create_avd() {
   local avdmanager_bin
   avdmanager_bin="$(command -v avdmanager || true)"
-  if [ -z "$avdmanager_bin" ] && [ -n "${ANDROID_HOME:-}" ]; then
+  if [[ -z "$avdmanager_bin" ]] && [[ -n "${ANDROID_HOME:-}" ]]; then
     avdmanager_bin="${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager"
   fi
-  if [ -z "$avdmanager_bin" ] || [ ! -x "$avdmanager_bin" ]; then
+  if [[ -z "$avdmanager_bin" ]] || [[ ! -x "$avdmanager_bin" ]]; then
     echo "AVD '$avd_name' is absent and avdmanager is not available to create it." >&2
     exit 1
   fi
@@ -61,14 +61,14 @@ create_avd() {
     --device pixel_8
 }
 
-if [ "$force_avd" = "1" ] || ! "$emulator_bin" -list-avds | grep -Fxq "$avd_name"; then
+if [[ "$force_avd" = "1" ]] || ! "$emulator_bin" -list-avds | grep -Fxq "$avd_name"; then
   create_avd
 fi
 
 emulator_pid=""
 cleanup() {
   local status=$?
-  if [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null; then
+  if [[ -n "$emulator_pid" ]] && kill -0 "$emulator_pid" 2>/dev/null; then
     ANDROID_SERIAL="$serial" adb emu kill >/dev/null 2>&1 || true
     kill "$emulator_pid" 2>/dev/null || true
     wait "$emulator_pid" 2>/dev/null || true
@@ -97,14 +97,14 @@ for _ in $(seq 1 120); do
     echo "Android emulator exited before boot completed." >&2
     break
   fi
-  if [ "$(ANDROID_SERIAL="$serial" adb get-state 2>/dev/null || true)" = "device" ] \
-    && [ "$(ANDROID_SERIAL="$serial" adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+  if [[ "$(ANDROID_SERIAL="$serial" adb get-state 2>/dev/null || true)" = "device" ]] \
+    && [[ "$(ANDROID_SERIAL="$serial" adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]]; then
     ready=true
     break
   fi
   sleep 2
 done
-if [ "$ready" != true ]; then
+if [[ "$ready" != true ]]; then
   tail -n 200 "$results_dir/emulator-self-hosted.log" >&2 || true
   exit 1
 fi

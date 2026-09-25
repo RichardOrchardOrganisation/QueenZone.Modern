@@ -57,6 +57,14 @@ function resetDownloads() {
   setDownloadProbeForTests(null);
 }
 
+describe('download file host URIs', () => {
+  it('joins completed and part names onto the memory root without stacking slashes', () => {
+    const host = createMemoryDownloadHost();
+    expect(host.completedUri('perf-1', 'mp3')).toBe('file:///documents/fan-performances/perf-1.mp3');
+    expect(host.partUri('perf-1')).toBe('file:///documents/fan-performances/perf-1.part');
+  });
+});
+
 describe('download manifest reconciliation', () => {
   beforeEach(resetDownloads);
   afterEach(() => {
