@@ -3,13 +3,20 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using QueenZone.Data;
+using QueenZone.Data.Entities;
 using QueenZone.Web.Search;
 
 namespace QueenZone.Web.Tests;
 
 public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
+    // Failure-only guard; nothing relies on it elapsing.
+    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
+
     private readonly WebApplicationFactory<Program> factory;
 
     public AdminSearchIndexTests(QueenZoneWebApplicationFactory factory)
@@ -52,7 +59,8 @@ public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicatio
             || body.Contains("A reindex is already in progress.", StringComparison.Ordinal),
             "Expected a reindex start, completion, or already-running message.");
 
-        var status = await WaitForReindexIdleAsync(client);
+        await host.Services.GetRequiredService<SearchReindexJobService>().WaitForCurrentRunAsync();
+        var status = await GetStatusAsync(client);
         Assert.False(status.GetProperty("isRunning").GetBoolean());
         Assert.Equal("Succeeded", status.GetProperty("phase").GetString());
         Assert.True(status.GetProperty("totalCount").GetInt32() > 0);
@@ -78,29 +86,39 @@ public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicatio
     [Fact]
     public async Task SearchReindexJobService_RejectsConcurrentStart()
     {
-        await using var host = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        var gate = new GatedSearchIndexService();
+        await using var host = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ISearchIndexService>();
+                services.AddSingleton<ISearchIndexService>(sp =>
+                {
+                    gate.Inner = new InMemorySearchIndexService(sp.GetRequiredService<SharedSearchIndexStore>());
+                    return gate;
+                });
+            });
+        });
         // Force host construction so the singleton job service is available.
         _ = AdminHttpTestHelpers.CreateClient(host, AdminHttpTestHelpers.AdminEmail);
         var jobService = host.Services.GetRequiredService<SearchReindexJobService>();
 
-        await WaitForJobIdleAsync(jobService);
+        gate.Arm();
+        Assert.True(jobService.TryStart());
 
-        var first = jobService.TryStart();
-        Assert.True(first);
+        // The first ReplaceContentTypeAsync is parked on the gate, so the job is provably still running.
+        await gate.FirstReplaceStarted.WaitAsync(HangGuard);
+        Assert.Equal(SearchReindexJobPhase.Running, jobService.GetSnapshot().Phase);
+        Assert.False(jobService.TryStart());
 
-        // In-memory reindex is fast; only assert rejection while the first job is still running.
-        var second = jobService.TryStart();
-        if (jobService.GetSnapshot().Phase == SearchReindexJobPhase.Running)
-        {
-            Assert.False(second);
-        }
-
-        await WaitForJobIdleAsync(jobService);
+        gate.Release();
+        await jobService.WaitForCurrentRunAsync();
         Assert.Equal(SearchReindexJobPhase.Succeeded, jobService.GetSnapshot().Phase);
 
-        // After completion a new run is allowed.
+        // After completion a new run is allowed (the gate stays open for later calls).
         Assert.True(jobService.TryStart());
-        await WaitForJobIdleAsync(jobService);
+        await jobService.WaitForCurrentRunAsync();
         Assert.Equal(SearchReindexJobPhase.Succeeded, jobService.GetSnapshot().Phase);
     }
 
@@ -124,36 +142,54 @@ public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicatio
         Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private static async Task<JsonElement> WaitForReindexIdleAsync(HttpClient client)
+    private static async Task<JsonElement> GetStatusAsync(HttpClient client)
     {
-        for (var attempt = 0; attempt < 50; attempt++)
-        {
-            var response = await client.GetAsync("/admin/search?handler=Status");
-            response.EnsureSuccessStatusCode();
-            var status = await response.Content.ReadFromJsonAsync<JsonElement>();
-            if (!status.GetProperty("isRunning").GetBoolean())
-            {
-                return status;
-            }
-
-            await Task.Delay(100);
-        }
-
-        throw new TimeoutException("Timed out waiting for search reindex job to finish.");
+        var response = await client.GetAsync("/admin/search?handler=Status");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    private static async Task WaitForJobIdleAsync(SearchReindexJobService jobService)
+    /// <summary>
+    /// Once armed, parks the first <see cref="ReplaceContentTypeAsync"/> call until <see cref="Release"/> so a
+    /// test can observe the job mid-run. Passes straight through before arming (the startup seed runs first)
+    /// and after the first parked call.
+    /// </summary>
+    private sealed class GatedSearchIndexService : ISearchIndexService
     {
-        for (var attempt = 0; attempt < 50; attempt++)
+        private readonly TaskCompletionSource firstReplaceStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource released = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private volatile bool armed;
+
+        public ISearchIndexService Inner { get; set; } = null!;
+
+        public void Arm() => armed = true;
+
+        public Task FirstReplaceStarted => firstReplaceStarted.Task;
+
+        public void Release() => released.TrySetResult();
+
+        public async Task ReplaceContentTypeAsync(
+            string contentType,
+            IReadOnlyList<SearchDocumentEntity> documents,
+            CancellationToken cancellationToken = default)
         {
-            if (jobService.GetSnapshot().Phase != SearchReindexJobPhase.Running)
+            if (armed)
             {
-                return;
+                firstReplaceStarted.TrySetResult();
+                await released.Task.WaitAsync(cancellationToken);
             }
 
-            await Task.Delay(100);
+            await Inner.ReplaceContentTypeAsync(contentType, documents, cancellationToken);
         }
 
-        throw new TimeoutException("Timed out waiting for SearchReindexJobService to become idle.");
+        public Task UpsertAsync(SearchDocumentEntity document, CancellationToken cancellationToken = default) =>
+            Inner.UpsertAsync(document, cancellationToken);
+
+        public Task RemoveAsync(string sourceKey, CancellationToken cancellationToken = default) =>
+            Inner.RemoveAsync(sourceKey, cancellationToken);
+
+        public Task<IReadOnlyDictionary<string, int>> GetContentTypeCountsAsync(CancellationToken cancellationToken = default) =>
+            Inner.GetContentTypeCountsAsync(cancellationToken);
     }
 }
