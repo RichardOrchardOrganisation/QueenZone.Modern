@@ -21,56 +21,61 @@ public sealed class GalleryOrphanSweepHostedServiceTests
     }
 
     [Fact]
-    public async Task Does_not_sweep_during_startup_delay()
+    public async Task Does_not_sweep_until_the_full_startup_delay_has_elapsed()
     {
-        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
+        var clock = new TimerAwareFakeTimeProvider();
         var recorder = new RecordingSweepGalleryPhotoBlobService();
-        using var hosted = CreateHostedService(store, recorder, startupDelay: TimeSpan.FromMinutes(5));
+        using var hosted = CreateHostedService(recorder, clock);
 
         await hosted.StartAsync(CancellationToken.None);
-        await Task.Delay(80);
-        await hosted.StopAsync(CancellationToken.None);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(GalleryOrphanSweepHostedService.DefaultStartupDelay - TimeSpan.FromTicks(1));
 
         Assert.Equal(0, recorder.ListCalls);
-    }
 
-    [Fact]
-    public async Task Sweeps_after_startup_delay()
-    {
-        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
-        var recorder = new RecordingSweepGalleryPhotoBlobService();
-        using var hosted = CreateHostedService(
-            store,
-            recorder,
-            startupDelay: TimeSpan.FromMilliseconds(20),
-            runInterval: Timeout.InfiniteTimeSpan);
-
-        await hosted.StartAsync(CancellationToken.None);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (recorder.ListCalls == 0 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(20);
-        }
-
+        clock.Advance(TimeSpan.FromTicks(1));
+        await clock.WaitForTimersCreatedAsync(2);
         await hosted.StopAsync(CancellationToken.None);
 
         Assert.True(recorder.ListCalls > 0);
     }
 
     [Fact]
-    public async Task Disabled_option_skips_sweep_without_stopping_the_loop()
+    public async Task Sweeps_after_startup_delay_and_again_after_each_run_interval()
     {
-        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
+        var clock = new TimerAwareFakeTimeProvider();
         var recorder = new RecordingSweepGalleryPhotoBlobService();
-        using var hosted = CreateHostedService(
-            store,
-            recorder,
-            startupDelay: TimeSpan.FromMilliseconds(20),
-            runInterval: TimeSpan.FromMilliseconds(20),
-            enabled: false);
+        using var hosted = CreateHostedService(recorder, clock);
 
         await hosted.StartAsync(CancellationToken.None);
-        await Task.Delay(150);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(GalleryOrphanSweepHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
+        var callsAfterFirstRun = recorder.ListCalls;
+
+        clock.Advance(GalleryOrphanSweepHostedService.DefaultRunInterval);
+        await clock.WaitForTimersCreatedAsync(3);
+        await hosted.StopAsync(CancellationToken.None);
+
+        Assert.True(callsAfterFirstRun > 0);
+        Assert.Equal(callsAfterFirstRun * 2, recorder.ListCalls);
+    }
+
+    [Fact]
+    public async Task Disabled_option_skips_sweep_without_stopping_the_loop()
+    {
+        var clock = new TimerAwareFakeTimeProvider();
+        var recorder = new RecordingSweepGalleryPhotoBlobService();
+        using var hosted = CreateHostedService(recorder, clock, enabled: false);
+
+        await hosted.StartAsync(CancellationToken.None);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(GalleryOrphanSweepHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
+        clock.Advance(GalleryOrphanSweepHostedService.DefaultRunInterval);
+
+        // A third wait means the loop kept its schedule through two skipped runs.
+        await clock.WaitForTimersCreatedAsync(3);
         await hosted.StopAsync(CancellationToken.None);
 
         Assert.Equal(0, recorder.ListCalls);
@@ -79,21 +84,16 @@ public sealed class GalleryOrphanSweepHostedServiceTests
     [Fact]
     public async Task Sweep_starts_GalleryOrphanSweep_activity_during_scoped_work()
     {
-        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
+        var clock = new TimerAwareFakeTimeProvider();
         var recorder = new RecordingSweepGalleryPhotoBlobService();
         using var listener = QueenZoneActivityTestListener.Listen();
-        using var hosted = CreateHostedService(
-            store,
-            recorder,
-            startupDelay: TimeSpan.FromMilliseconds(20),
-            runInterval: Timeout.InfiniteTimeSpan);
+        using var hosted = CreateHostedService(recorder, clock);
 
         await hosted.StartAsync(CancellationToken.None);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (recorder.ListCalls == 0 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(20);
-        }
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(GalleryOrphanSweepHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
+        await hosted.StopAsync(CancellationToken.None);
 
         Assert.True(recorder.ListCalls > 0);
         var activity = Assert.Single(listener.Started, item => item.OperationName == "GalleryOrphanSweep");
@@ -101,28 +101,22 @@ public sealed class GalleryOrphanSweepHostedServiceTests
         Assert.NotNull(recorder.ActivityDuringWork);
         Assert.Equal("GalleryOrphanSweep", recorder.ActivityDuringWork.OperationName);
         Assert.Equal(activity.Id, recorder.ActivityDuringWork.Id);
-        await listener.WaitUntilStoppedAsync(activity);
         Assert.True(activity.IsStopped);
         Assert.Contains(listener.Stopped, item => item.Id == activity.Id);
-
-        await hosted.StopAsync(CancellationToken.None);
     }
 
     [Fact]
     public async Task Disabled_option_does_not_start_an_activity()
     {
-        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
+        var clock = new TimerAwareFakeTimeProvider();
         var recorder = new RecordingSweepGalleryPhotoBlobService();
         using var listener = QueenZoneActivityTestListener.Listen();
-        using var hosted = CreateHostedService(
-            store,
-            recorder,
-            startupDelay: TimeSpan.FromMilliseconds(20),
-            runInterval: TimeSpan.FromMilliseconds(20),
-            enabled: false);
+        using var hosted = CreateHostedService(recorder, clock, enabled: false);
 
         await hosted.StartAsync(CancellationToken.None);
-        await Task.Delay(150);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(GalleryOrphanSweepHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
         await hosted.StopAsync(CancellationToken.None);
 
         Assert.Equal(0, recorder.ListCalls);
@@ -130,12 +124,11 @@ public sealed class GalleryOrphanSweepHostedServiceTests
     }
 
     private static GalleryOrphanSweepHostedService CreateHostedService(
-        SharedPhotoStore store,
         RecordingSweepGalleryPhotoBlobService galleryPhotoBlobService,
-        TimeSpan startupDelay,
-        TimeSpan? runInterval = null,
+        TimeProvider clock,
         bool enabled = true)
     {
+        var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
         var services = new ServiceCollection();
         services.AddSingleton<IAdminPhotoRepository>(new InMemoryAdminPhotoRepository(store));
         services.AddSingleton<IGalleryPhotoBlobService>(galleryPhotoBlobService);
@@ -148,12 +141,8 @@ public sealed class GalleryOrphanSweepHostedServiceTests
         return new GalleryOrphanSweepHostedService(
             provider.GetRequiredService<IServiceScopeFactory>(),
             provider.GetRequiredService<IOptions<GalleryOrphanSweepOptions>>(),
-            TimeProvider.System,
-            NullLogger<GalleryOrphanSweepHostedService>.Instance)
-        {
-            StartupDelay = startupDelay,
-            RunInterval = runInterval ?? GalleryOrphanSweepHostedService.DefaultRunInterval,
-        };
+            clock,
+            NullLogger<GalleryOrphanSweepHostedService>.Instance);
     }
 
     private sealed class RecordingSweepGalleryPhotoBlobService : IGalleryPhotoBlobService

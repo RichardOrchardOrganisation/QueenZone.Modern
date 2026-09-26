@@ -18,47 +18,57 @@ public sealed class PrivateMessageReportPurgeHostedServiceTests
     }
 
     [Fact]
-    public async Task Does_not_purge_during_startup_delay()
+    public async Task Does_not_purge_until_the_full_startup_delay_has_elapsed()
     {
+        var clock = new TimerAwareFakeTimeProvider();
         var repository = new RecordingPrivateMessageRepository();
-        using var hosted = CreateHostedService(repository, startupDelay: TimeSpan.FromMinutes(5));
+        using var hosted = CreateHostedService(repository, clock);
 
         await hosted.StartAsync(CancellationToken.None);
-        await Task.Delay(80);
-        await hosted.StopAsync(CancellationToken.None);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(PrivateMessageReportPurgeHostedService.DefaultStartupDelay - TimeSpan.FromTicks(1));
 
         Assert.Equal(0, repository.PurgeCalls);
-    }
 
-    [Fact]
-    public async Task Purges_after_startup_delay()
-    {
-        var repository = new RecordingPrivateMessageRepository();
-        using var hosted = CreateHostedService(
-            repository,
-            startupDelay: TimeSpan.FromMilliseconds(20),
-            runInterval: Timeout.InfiniteTimeSpan);
-
-        await hosted.StartAsync(CancellationToken.None);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (repository.PurgeCalls == 0 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(20);
-        }
-
+        clock.Advance(TimeSpan.FromTicks(1));
+        await clock.WaitForTimersCreatedAsync(2);
         await hosted.StopAsync(CancellationToken.None);
 
         Assert.Equal(1, repository.PurgeCalls);
     }
 
     [Fact]
-    public async Task Stop_during_startup_delay_does_not_purge()
+    public async Task Purges_after_startup_delay_and_again_after_each_run_interval()
     {
+        var clock = new TimerAwareFakeTimeProvider();
         var repository = new RecordingPrivateMessageRepository();
-        using var hosted = CreateHostedService(repository, startupDelay: TimeSpan.FromHours(1));
+        using var hosted = CreateHostedService(repository, clock);
 
         await hosted.StartAsync(CancellationToken.None);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(PrivateMessageReportPurgeHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
+
+        Assert.Equal(1, repository.PurgeCalls);
+
+        clock.Advance(PrivateMessageReportPurgeHostedService.DefaultRunInterval);
+        await clock.WaitForTimersCreatedAsync(3);
         await hosted.StopAsync(CancellationToken.None);
+
+        Assert.Equal(2, repository.PurgeCalls);
+    }
+
+    [Fact]
+    public async Task Stop_during_startup_delay_does_not_purge()
+    {
+        var clock = new TimerAwareFakeTimeProvider();
+        var repository = new RecordingPrivateMessageRepository();
+        using var hosted = CreateHostedService(repository, clock);
+
+        await hosted.StartAsync(CancellationToken.None);
+        await clock.WaitForTimersCreatedAsync(1);
+        await hosted.StopAsync(CancellationToken.None);
+        clock.Advance(PrivateMessageReportPurgeHostedService.DefaultStartupDelay);
 
         Assert.Equal(0, repository.PurgeCalls);
     }
@@ -66,19 +76,16 @@ public sealed class PrivateMessageReportPurgeHostedServiceTests
     [Fact]
     public async Task Purge_starts_PrivateMessageReportPurge_activity_during_scoped_work()
     {
+        var clock = new TimerAwareFakeTimeProvider();
         var repository = new RecordingPrivateMessageRepository();
         using var listener = QueenZoneActivityTestListener.Listen();
-        using var hosted = CreateHostedService(
-            repository,
-            startupDelay: TimeSpan.FromMilliseconds(20),
-            runInterval: Timeout.InfiniteTimeSpan);
+        using var hosted = CreateHostedService(repository, clock);
 
         await hosted.StartAsync(CancellationToken.None);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (repository.PurgeCalls == 0 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(20);
-        }
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(PrivateMessageReportPurgeHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
+        await hosted.StopAsync(CancellationToken.None);
 
         Assert.Equal(1, repository.PurgeCalls);
         var activity = Assert.Single(listener.Started, item => item.OperationName == "PrivateMessageReportPurge");
@@ -86,17 +93,13 @@ public sealed class PrivateMessageReportPurgeHostedServiceTests
         Assert.NotNull(repository.ActivityDuringWork);
         Assert.Equal("PrivateMessageReportPurge", repository.ActivityDuringWork.OperationName);
         Assert.Equal(activity.Id, repository.ActivityDuringWork.Id);
-        await listener.WaitUntilStoppedAsync(activity);
         Assert.True(activity.IsStopped);
         Assert.Contains(listener.Stopped, item => item.Id == activity.Id);
-
-        await hosted.StopAsync(CancellationToken.None);
     }
 
     private static PrivateMessageReportPurgeHostedService CreateHostedService(
         RecordingPrivateMessageRepository repository,
-        TimeSpan startupDelay,
-        TimeSpan? runInterval = null)
+        TimeProvider clock)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IPrivateMessageModerationRepository>(repository);
@@ -104,12 +107,8 @@ public sealed class PrivateMessageReportPurgeHostedServiceTests
 
         return new PrivateMessageReportPurgeHostedService(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System,
-            NullLogger<PrivateMessageReportPurgeHostedService>.Instance)
-        {
-            StartupDelay = startupDelay,
-            RunInterval = runInterval ?? PrivateMessageReportPurgeHostedService.DefaultRunInterval,
-        };
+            clock,
+            NullLogger<PrivateMessageReportPurgeHostedService>.Instance);
     }
 
     private sealed class RecordingPrivateMessageRepository
