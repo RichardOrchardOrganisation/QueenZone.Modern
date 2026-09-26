@@ -30,10 +30,12 @@ public sealed record SearchReindexJobSnapshot(
 public sealed class SearchReindexJobService(
     IServiceScopeFactory scopeFactory,
     IHostApplicationLifetime hostApplicationLifetime,
+    TimeProvider timeProvider,
     ILogger<SearchReindexJobService> logger)
 {
     private readonly object gate = new();
     private int isRunning;
+    private Task currentRun = Task.CompletedTask;
     private SearchReindexJobSnapshot snapshot = new(
         SearchReindexJobPhase.Idle,
         CurrentContentType: null,
@@ -50,6 +52,18 @@ public sealed class SearchReindexJobService(
     }
 
     /// <summary>
+    /// Completes when the most recently started job has finished (successfully or not).
+    /// Already completed when no job has run. Lets callers await the job instead of polling.
+    /// </summary>
+    public Task WaitForCurrentRunAsync()
+    {
+        lock (gate)
+        {
+            return currentRun;
+        }
+    }
+
+    /// <summary>
     /// Starts a full reindex if none is running. Returns <c>false</c> when a job is already active.
     /// </summary>
     public bool TryStart()
@@ -59,7 +73,7 @@ public sealed class SearchReindexJobService(
             return false;
         }
 
-        var startedAt = DateTimeOffset.UtcNow;
+        var startedAt = timeProvider.GetUtcNow();
         SetSnapshot(new SearchReindexJobSnapshot(
             SearchReindexJobPhase.Running,
             CurrentContentType: null,
@@ -68,7 +82,12 @@ public sealed class SearchReindexJobService(
             FinishedAt: null));
 
         // Do not pass HttpContext.RequestAborted — the browser/proxy disconnect must not cancel work.
-        _ = Task.Run(() => RunAsync(startedAt, hostApplicationLifetime.ApplicationStopping));
+        var run = Task.Run(() => RunAsync(startedAt, hostApplicationLifetime.ApplicationStopping));
+        lock (gate)
+        {
+            currentRun = run;
+        }
+
         return true;
     }
 
@@ -97,7 +116,7 @@ public sealed class SearchReindexJobService(
                 CurrentContentType: null,
                 Message: "Search index rebuilt.",
                 StartedAt: startedAt,
-                FinishedAt: DateTimeOffset.UtcNow));
+                FinishedAt: timeProvider.GetUtcNow()));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -106,7 +125,7 @@ public sealed class SearchReindexJobService(
                 CurrentContentType: null,
                 Message: "Reindex cancelled (application stopping).",
                 StartedAt: startedAt,
-                FinishedAt: DateTimeOffset.UtcNow));
+                FinishedAt: timeProvider.GetUtcNow()));
         }
         catch (Exception ex)
         {
@@ -116,7 +135,7 @@ public sealed class SearchReindexJobService(
                 CurrentContentType: null,
                 Message: "Reindex failed — see application logs for details.",
                 StartedAt: startedAt,
-                FinishedAt: DateTimeOffset.UtcNow));
+                FinishedAt: timeProvider.GetUtcNow()));
         }
         finally
         {
