@@ -6,6 +6,7 @@ import {
   buildIssue,
   buildLogComment,
   buildMarker,
+  escapeMarkdown,
   formatPlanSummary,
   labelsFor,
 } from './templates.mjs';
@@ -53,6 +54,33 @@ test('comments and log mention stay silent-friendly', () => {
   assert.match(log, /@richardorchard/);
   const silent = formatPlanSummary({ create: [], comment: [], reopen: [], skipped: [], expiredIgnores: [] });
   assert.match(silent, /Silent run/);
+});
+
+test('evidence markdown escapes mentions, closing keywords and link breakout', () => {
+  assert.match(escapeMarkdown('Fixes #99 and @octocat'), /ticket 99/);
+  assert.doesNotMatch(escapeMarkdown('Fixes #99 and @octocat'), /Fixes #99/);
+  assert.match(escapeMarkdown('Fixes #99 and @octocat'), /\\@octocat/);
+  assert.equal(escapeMarkdown('see [click](https://evil.example)'), 'see \\[click\\]\\(https://evil.example\\)');
+
+  const issue = buildIssue({
+    candidate: {
+      ...candidate,
+      source: 'sonar',
+      evidence: [
+        { url: 'https://example.test/sonar', text: 'Fixes #12 @admin [break](https://evil.example)' },
+        { url: 'javascript:alert(1)', text: 'CI step Compile' },
+        { text: 'NOSONAR + Skip = true' },
+      ],
+    },
+    config,
+    loop: 'gardener',
+  });
+  assert.doesNotMatch(issue.body, /Fixes #12/);
+  assert.match(issue.body, /ticket 12/);
+  assert.ok(issue.body.includes('\\@admin'));
+  assert.ok(issue.body.includes('\\[break\\]'));
+  assert.doesNotMatch(issue.body, /javascript:alert/);
+  assert.match(issue.body, /NOSONAR \+ Skip = true/);
 });
 
 test('storm issue lists the ranked signals', () => {

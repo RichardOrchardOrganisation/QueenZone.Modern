@@ -4,7 +4,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFilerFiles, repoRootFrom } from './config.mjs';
-import { main, parseArgs, runFiler } from './run.mjs';
+import { loadExisting, main, parseArgs, runFiler } from './run.mjs';
 
 const { config, ignore, findingRules } = loadFilerFiles(repoRootFrom());
 const now = new Date('2026-09-26T08:00:00Z');
@@ -159,6 +159,79 @@ test('live plan files, comments the log, and does not mention on empty writes', 
   const log = github.calls.find((call) => call[0] === 'comment' && call[1] === 7);
   assert.match(log[2], /@richardorchard/);
   assert.ok(!github.calls.some((call) => call[0] === 'comment' && call[1] === 1802));
+});
+
+test('loadExisting keeps a quiet open issue older than 90 days', async () => {
+  const calls = [];
+  const quietOpen = {
+    number: 12,
+    title: 'old gardener',
+    body: '<!-- qz-filer v=1 keys=review:csharp.regex-timeout source=review -->',
+    state: 'open',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-04-01T00:00:00Z',
+    user: 'github-actions[bot]',
+    labels: ['gardener'],
+  };
+  const staleClosed = {
+    number: 13,
+    title: 'ancient closed',
+    body: '<!-- qz-filer v=1 keys=review:other source=review -->',
+    state: 'closed',
+    closedAt: '2026-01-01T00:00:00Z',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-09-20T00:00:00Z',
+    user: 'github-actions[bot]',
+    labels: ['gardener'],
+  };
+  const github = {
+    async listIssuesByLabel(label, query = {}) {
+      calls.push({ label, query });
+      if (label !== 'gardener') {
+        return [];
+      }
+      if (query.state === 'open') {
+        return [quietOpen];
+      }
+      return [staleClosed];
+    },
+    async listIssueComments() {
+      return [];
+    },
+  };
+  const existing = await loadExisting(github, config, now);
+  const openQueries = calls.filter((item) => item.query.state === 'open');
+  const closedQueries = calls.filter((item) => item.query.state === 'closed');
+  assert.ok(openQueries.length > 0);
+  assert.ok(openQueries.every((item) => item.query.since == null));
+  assert.ok(closedQueries.every((item) => item.query.since));
+  assert.ok(existing.some((issue) => issue.number === 12));
+  assert.ok(!existing.some((issue) => issue.number === 13));
+
+  const result = await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    github,
+    config,
+    ignore,
+    findingRules,
+    collectors: [
+      async () => [{
+        source: 'review',
+        keys: ['review:csharp.regex-timeout'],
+        title: '[review] csharp.regex-timeout (2 PRs)',
+        area: 'web',
+        evidence: [],
+        count: 2,
+        level: 'L2',
+      }],
+    ],
+    existing,
+    stdout: () => {},
+  });
+  assert.equal(result.plan.create.length, 0);
+  assert.equal(result.plan.comment[0].issueNumber, 12);
 });
 
 test('60-day lookback can read a backfill file without classifying comments', async () => {

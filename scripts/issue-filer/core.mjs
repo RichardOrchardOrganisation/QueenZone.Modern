@@ -93,7 +93,11 @@ function capSpec(config, loop) {
 }
 
 function loopLabel(config, loop) {
-  return loop === 'telemetry' ? config.labels.telemetry?.[0] || 'from-telemetry' : config.labels.gardener;
+  if (loop !== 'telemetry') {
+    return config.labels.gardener;
+  }
+  const labels = config.labels.telemetry || [];
+  return labels.find((name) => name === 'from-telemetry') || 'from-telemetry';
 }
 
 export function countRecentFilings(existing, { config, loop, now }) {
@@ -219,12 +223,20 @@ export function planFilings({
     }
   }
 
-  const createQueue =
-    unmatched.length > stormThreshold ? [stormCandidate(unmatched, loop, clock)] : unmatched;
+  const createQueue = [];
   if (unmatched.length > stormThreshold) {
     for (const candidate of unmatched) {
       skipped.push({ candidate, reason: 'storm' });
     }
+    const storm = stormCandidate(unmatched, loop, clock);
+    const stormMatch = findMatch(storm, existing);
+    if (stormMatch) {
+      matched.push({ candidate: storm, match: stormMatch });
+    } else {
+      createQueue.push(storm);
+    }
+  } else {
+    createQueue.push(...unmatched);
   }
 
   for (const { candidate, match } of matched) {

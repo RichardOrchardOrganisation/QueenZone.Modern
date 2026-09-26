@@ -36,6 +36,7 @@ test('review source groups tags by rule and reports malformed tags', async () =>
   assert.equal(timeout.source, 'review');
   assert.equal(timeout.level, 'L2');
   assert.ok(timeout.keys.includes('review:csharp.regex-timeout'));
+  assert.ok(timeout.evidence.some((item) => String(item.text).includes('NewsSlugService.cs:42')));
   assert.ok(malformed.some((item) => item.fields.rule === 'not-a-rule'));
   const docs = candidates.find((item) => item.rule === 'docs.agents-md-drift');
   assert.equal(docs.count, 1);

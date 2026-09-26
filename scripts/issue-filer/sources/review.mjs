@@ -103,8 +103,12 @@ export async function collect(ctx) {
         pr: pull.number,
         url: evidenceUrl(comment) || extra.url,
         at: comment.created_at || comment.createdAt || extra.at,
-        file: comment.path || undefined,
       });
+      for (const finding of parsed.findings) {
+        if (!finding.file && comment.path) {
+          finding.file = comment.path;
+        }
+      }
       findings.push(...parsed.findings);
       malformed.push(...parsed.malformed);
     }

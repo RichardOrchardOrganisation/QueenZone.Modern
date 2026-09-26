@@ -206,7 +206,7 @@ test('telemetry caps at 3 per day and storms above 5 candidates', () => {
     body: `<!-- qz-filer v=1 keys=sentry:${number} source=sentry -->`,
     user: 'github-actions[bot]',
     createdAt: '2026-09-26T01:00:00Z',
-    labels: ['bug'],
+    labels: ['from-telemetry'],
   }));
   const capped = planFilings({
     candidates: three,
@@ -244,6 +244,44 @@ test('rule with an existing check is a check-gap, not a new filing', () => {
 test('findMatch uses any overlapping key', () => {
   const issue = existing({ body: '<!-- qz-filer v=1 keys=review:other,review:csharp.regex-timeout source=review -->' });
   assert.equal(findMatch(candidate(), [issue]).number, 50);
+});
+
+test('same-day storm rerun comments on the existing storm issue', () => {
+  const many = Array.from({ length: 6 }, (_, index) => candidate({
+    keys: [`sentry:${index}`],
+    title: `sentry ${index}`,
+    source: 'sentry',
+    count: 2,
+  }));
+  const first = planFilings({
+    candidates: many,
+    existing: [],
+    ignore: { entries: [] },
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(first.create.length, 1);
+  const stormKey = first.create[0].candidate.keys[0];
+  assert.equal(stormKey, 'storm:telemetry:2026-09-26');
+
+  const rerun = planFilings({
+    candidates: many,
+    existing: [existing({
+      number: 80,
+      body: `<!-- qz-filer v=1 keys=${stormKey} source=telemetry -->`,
+      state: 'open',
+      labels: ['from-telemetry'],
+    })],
+    ignore: { entries: [] },
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(rerun.create.length, 0);
+  assert.equal(rerun.comment.length, 1);
+  assert.equal(rerun.comment[0].issueNumber, 80);
+  assert.equal(rerun.comment[0].candidate.storm, true);
 });
 
 test('comment cap is 10 per run', () => {

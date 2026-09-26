@@ -21,6 +21,31 @@ export function labelsFor(candidate, config, loop = 'gardener') {
   return [...new Set(labels.filter(Boolean))];
 }
 
+export function escapeMarkdown(text) {
+  return String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/@/g, '\\@')
+    .replace(/\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi, (_, verb, number) => `${verb} ticket ${number}`)
+    .replace(/#(\d+)/g, '#\u200b$1');
+}
+
+function safeUrl(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      return parsed.href;
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
 function evidenceLines(evidence = []) {
   if (evidence.length === 0) {
     return '- No linked evidence was supplied.';
@@ -28,8 +53,9 @@ function evidenceLines(evidence = []) {
   return evidence
     .slice(0, 20)
     .map((item) => {
-      const label = item.text || item.url || 'evidence';
-      return item.url ? `- [${label}](${item.url})` : `- ${label}`;
+      const label = escapeMarkdown(item.text || item.url || 'evidence');
+      const url = safeUrl(item.url);
+      return url ? `- [${label}](${url})` : `- ${label}`;
     })
     .join('\n');
 }

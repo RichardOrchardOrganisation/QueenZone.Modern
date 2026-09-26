@@ -49,7 +49,11 @@ export function parseFindings(text, extra = {}) {
       malformed.push({ raw: match[0], fields, ...extra });
       continue;
     }
-    findings.push({ ...fields, ...extra });
+    findings.push({
+      ...extra,
+      ...fields,
+      file: fields.file || extra.file,
+    });
   }
   return { findings, malformed };
 }

@@ -83,8 +83,9 @@ function uniqueIssues(lists) {
   return [...byNumber.values()];
 }
 
-async function loadExisting(github, config, now) {
-  const since = new Date(now.getTime() - (config.match?.closedLookbackDays ?? 90) * 24 * 60 * 60 * 1000);
+export async function loadExisting(github, config, now) {
+  const lookbackDays = config.match?.closedLookbackDays ?? 90;
+  const since = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
   const labels = [
     config.labels.gardener,
     config.labels.guardrail,
@@ -93,9 +94,15 @@ async function loadExisting(github, config, now) {
   ].filter(Boolean);
   const lists = [];
   for (const label of [...new Set(labels)]) {
-    lists.push(await github.listIssuesByLabel(label, { state: 'all', since: since.toISOString() }));
+    lists.push(await github.listIssuesByLabel(label, { state: 'open' }));
+    lists.push(await github.listIssuesByLabel(label, { state: 'closed', since: since.toISOString() }));
   }
-  const existing = uniqueIssues(lists);
+  const existing = uniqueIssues(lists).filter((issue) => {
+    if (issue.state === 'open') {
+      return true;
+    }
+    return issue.closedAt && new Date(issue.closedAt) >= since;
+  });
   for (const issue of existing) {
     const comments = await github.listIssueComments(issue.number);
     const filerComments = comments.filter((comment) => isFilerComment(comment.body));
