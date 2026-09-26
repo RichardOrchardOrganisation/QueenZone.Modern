@@ -71,7 +71,7 @@ internal static class GeneratePhotoThumbsCommand
             catch (Exception ex)
             {
                 failed++;
-                Console.Error.WriteLine($"  FAIL pic_id={photo.PicId}: {ex.Message}");
+                await Console.Error.WriteLineAsync($"  FAIL pic_id={photo.PicId}: {ex.Message}");
             }
         }
 

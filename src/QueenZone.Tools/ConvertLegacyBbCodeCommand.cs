@@ -66,7 +66,7 @@ internal static class ConvertLegacyBbCodeCommand
                 if (converted.Length > BodyHtmlMaxLength)
                 {
                     failed++;
-                    Console.Error.WriteLine(
+                    await Console.Error.WriteLineAsync(
                         $"  FAIL id={row.Id}: converted HTML is {converted.Length} chars, "
                         + $"exceeds the {BodyHtmlMaxLength}-char BodyHtml column limit; needs manual review");
                     continue;
@@ -85,7 +85,7 @@ internal static class ConvertLegacyBbCodeCommand
             catch (Exception ex)
             {
                 failed++;
-                Console.Error.WriteLine($"  FAIL id={row.Id}: {ex.Message}");
+                await Console.Error.WriteLineAsync($"  FAIL id={row.Id}: {ex.Message}");
             }
 
             if (options.DelayMs > 0)

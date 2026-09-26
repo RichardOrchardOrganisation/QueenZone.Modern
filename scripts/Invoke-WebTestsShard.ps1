@@ -88,18 +88,18 @@ function Invoke-DotNetTest {
         [string] $Filter = ""
     )
 
-    $args = @(
+    $dotnetArgs = @(
         "test", $Project,
         "--configuration", $Configuration
     )
-    if ($NoBuild) { $args += "--no-build" }
-    if ($NoRestore) { $args += "--no-restore" }
+    if ($NoBuild) { $dotnetArgs += "--no-build" }
+    if ($NoRestore) { $dotnetArgs += "--no-restore" }
     if (-not [string]::IsNullOrWhiteSpace($Filter)) {
-        $args += @("--filter", $Filter)
+        $dotnetArgs += @("--filter", $Filter)
     }
     if ($CollectCoverage) {
         $projectName = [System.IO.Path]::GetFileNameWithoutExtension($Project)
-        $args += @(
+        $dotnetArgs += @(
             "--collect:XPlat Code Coverage",
             "--settings", "coverlet.runsettings",
             "--results-directory", $ResultsDirectory,
@@ -107,8 +107,8 @@ function Invoke-DotNetTest {
         )
     }
 
-    Write-Host ">> dotnet $($args -join ' ')"
-    & dotnet @args
+    Write-Host ">> dotnet $($dotnetArgs -join ' ')"
+    & dotnet @dotnetArgs
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet test failed for $Project (exit $LASTEXITCODE)."
     }

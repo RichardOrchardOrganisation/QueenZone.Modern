@@ -85,12 +85,12 @@ internal static class DevSnapshotCommand
         }
         catch (SnapshotSizeException exception)
         {
-            Console.Error.WriteLine($"Dev snapshot size guard failed: {exception.Message}");
+            await Console.Error.WriteLineAsync($"Dev snapshot size guard failed: {exception.Message}");
             return 3;
         }
         catch (Exception exception)
         {
-            Console.Error.WriteLine($"Dev snapshot failed: {exception.Message}");
+            await Console.Error.WriteLineAsync($"Dev snapshot failed: {exception.Message}");
             return 1;
         }
     }

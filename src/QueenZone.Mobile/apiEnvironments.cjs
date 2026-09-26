@@ -40,7 +40,10 @@ function resolveAppEnvironment(raw) {
  * @returns {string}
  */
 function normalizeApiBaseUrl(raw) {
-  const trimmed = raw.trim().replace(/\/+$/, '');
+  let trimmed = raw.trim();
+  while (trimmed.endsWith('/')) {
+    trimmed = trimmed.slice(0, -1);
+  }
   if (!trimmed) {
     throw new Error('API base URL must not be empty.');
   }
