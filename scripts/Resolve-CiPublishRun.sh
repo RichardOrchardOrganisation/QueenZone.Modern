@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
-# Finds the ci.yml pull_request run for a PR head SHA that uploaded a
-# web-publish artifact, and prints `found=true|false` plus `run_id=<id>`
-# for GitHub Actions. Missing artifact is a soft miss (found=false) so
-# Deploy can publish from the checked-out main/tag SHA instead of failing.
+# Finds a ci.yml run whose head_sha exactly equals the release SHA and
+# that uploaded a web-publish artifact. Prints `found=true|false`,
+# `run_id=<id>`, and `run_head_sha=<sha>` for GitHub Actions. Missing
+# artifact or SHA mismatch is a soft miss (found=false) so Deploy can
+# publish from the checked-out main/tag SHA instead of failing.
+#
+# Exact-match guard: never reuse a run built from a different commit.
+# Remapping to an associated PR head shipped #1826's stale PR-head zip
+# (10 commits behind main) for the production release of a later main
+# SHA and dropped already-merged work. HEAD_SHA must be github.sha /
+# the tagged or dispatched release commit — not a PR-head rewrite.
 #
 # Why not `conclusion == success` alone?
 # Mixed web + mobile PRs keep `ci.yml` in_progress for ~10+ minutes after
@@ -14,11 +21,14 @@
 # deploy fail on #860 / #866 even though the zip existed.
 #
 # Selection rules (first match wins):
-#   1. Newest run for head_sha + event=pull_request with a non-expired
-#      web-publish-* artifact, preferring conclusion=success, then
-#      status in_progress/queued/completed (artifact present).
-#   2. Brief poll when a matching run exists but the artifact has not
-#      appeared yet (build still uploading).
+#   1. Newest ci.yml run whose head_sha exactly equals the release SHA
+#      with a non-expired web-publish-* artifact, preferring
+#      conclusion=success, then status in_progress/queued/completed
+#      (artifact present). Event is not filtered: a pull_request,
+#      merge_group, or workflow_dispatch run is eligible only when its
+#      head_sha matches.
+#   2. Brief poll when a matching-SHA run exists but the artifact has
+#      not appeared yet (build still uploading).
 #
 # Usage:
 #   REPO=owner/name HEAD_SHA=abc123 bash ./scripts/Resolve-CiPublishRun.sh
@@ -26,7 +36,8 @@
 #
 # Prints:
 #   found=true|false
-#   run_id=<id>   (empty when found=false)
+#   run_id=<id>          (empty when found=false)
+#   run_head_sha=<sha>   (empty when found=false)
 set -euo pipefail
 
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-6}"
@@ -41,8 +52,11 @@ list_runs_for_sha() {
   local repo="$1"
   local head_sha="$2"
   # Server-side head_sha filter — do not rely on gh run list's recent-only page.
+  # Do not also filter event=pull_request: a matching merge_group or
+  # workflow_dispatch run for this exact SHA is reusable; a PR-head run
+  # whose SHA differs is not.
   # Pipe through jq: `gh api --jq` does not forward jq --arg flags.
-  gh_api "repos/${repo}/actions/workflows/ci.yml/runs?head_sha=${head_sha}&event=pull_request&per_page=30" \
+  gh_api "repos/${repo}/actions/workflows/ci.yml/runs?head_sha=${head_sha}&per_page=30" \
     | jq '.workflow_runs // [] | map({id, status, conclusion, head_sha})'
 }
 
@@ -82,8 +96,13 @@ rank_run() {
 pick_run_id_with_artifact() {
   local repo="$1"
   local runs_json="$2"
+  local expected_sha="$3"
+  # Defense in depth: even if the list API is called without head_sha or
+  # returns a stale associated-PR run, never pick a different commit.
   local ranked
-  ranked="$(printf '%s\n' "${runs_json}" | jq -r '
+  ranked="$(printf '%s\n' "${runs_json}" | jq -r \
+    --arg expected "${expected_sha}" '
+    map(select((.head_sha // "") == $expected)) |
     sort_by(.id) | reverse | .[] |
     [.id, (.conclusion // ""), (.status // "")] | @tsv
   ')"
@@ -126,13 +145,14 @@ resolve() {
   for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
     runs_json="$(list_runs_for_sha "${repo}" "${head_sha}")"
     run_count="$(printf '%s\n' "${runs_json}" | jq 'length')"
-    echo "Attempt ${attempt}/${MAX_ATTEMPTS}: ${run_count} ci.yml pull_request run(s) for ${head_sha}." >&2
+    echo "Attempt ${attempt}/${MAX_ATTEMPTS}: ${run_count} ci.yml run(s) listed for exact SHA ${head_sha}." >&2
 
-    run_id="$(pick_run_id_with_artifact "${repo}" "${runs_json}")"
+    run_id="$(pick_run_id_with_artifact "${repo}" "${runs_json}" "${head_sha}")"
     if [[ -n "${run_id}" ]]; then
-      echo "Using ci.yml run ${run_id} (artifact web-publish-${run_id})." >&2
+      echo "Using ci.yml run ${run_id} (head_sha=${head_sha}, artifact web-publish-${run_id})." >&2
       echo "found=true"
       echo "run_id=${run_id}"
+      echo "run_head_sha=${head_sha}"
       return 0
     fi
 
@@ -145,9 +165,10 @@ resolve() {
     break
   done
 
-  echo "No ci.yml pull_request run with a web-publish artifact for PR head SHA ${head_sha}. Deploy will publish from the checked-out SHA." >&2
+  echo "No ci.yml run with a web-publish artifact whose head_sha exactly equals ${head_sha}. Deploy will publish from the checked-out SHA." >&2
   echo "found=false"
   echo "run_id="
+  echo "run_head_sha="
   return 0
 }
 
@@ -255,6 +276,36 @@ EOF
 EOF
   got="$(REPO=owner/name HEAD_SHA=eee MAX_ATTEMPTS=1 SLEEP_SECONDS=0 resolve owner/name eee | grep -E '^(found|run_id)=')"
   assert_eq empty-runs-soft-miss $'found=false\nrun_id=' "${got}" || fail=1
+
+  # --- different head_sha must never be reused (stale PR-head zip) ---
+  # Simulates the API returning a run for an associated PR head that is
+  # not the release SHA. Exact-match guard must soft-miss and fall back.
+  cat >"${tmp}/fixtures/repos_owner_name_actions_workflows_ci.yml_runs.json" <<'EOF'
+{
+  "workflow_runs": [
+    {"id": 555, "status": "completed", "conclusion": "success", "head_sha": "537abc8staleprhead"}
+  ]
+}
+EOF
+  cat >"${tmp}/fixtures/repos_owner_name_actions_runs_555_artifacts.json" <<'EOF'
+{"artifacts":[{"name":"web-publish-555","expired":false}]}
+EOF
+  got="$(REPO=owner/name HEAD_SHA=c378628releasetip MAX_ATTEMPTS=1 SLEEP_SECONDS=0 resolve owner/name c378628releasetip | grep -E '^(found|run_id|run_head_sha)=')"
+  assert_eq mismatched-sha-rejected $'found=false\nrun_id=\nrun_head_sha=' "${got}" || fail=1
+
+  # --- exact SHA match still logs the chosen run id and SHA ---
+  cat >"${tmp}/fixtures/repos_owner_name_actions_workflows_ci.yml_runs.json" <<'EOF'
+{
+  "workflow_runs": [
+    {"id": 666, "status": "completed", "conclusion": "success", "head_sha": "c378628releasetip"}
+  ]
+}
+EOF
+  cat >"${tmp}/fixtures/repos_owner_name_actions_runs_666_artifacts.json" <<'EOF'
+{"artifacts":[{"name":"web-publish-666","expired":false}]}
+EOF
+  got="$(REPO=owner/name HEAD_SHA=c378628releasetip MAX_ATTEMPTS=1 SLEEP_SECONDS=0 resolve owner/name c378628releasetip | grep -E '^(found|run_id|run_head_sha)=')"
+  assert_eq exact-sha-logs-run $'found=true\nrun_id=666\nrun_head_sha=c378628releasetip' "${got}" || fail=1
 
   # --- rank helper ---
   assert_eq rank-success 0 "$(rank_run success completed)" || fail=1
