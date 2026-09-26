@@ -72,6 +72,10 @@ The project's Analysis Scope settings in the Sonar UI are empty. Do not
 set the same exclusions or test paths there. This file is the single
 source of truth.
 
+Keep executable SQL under `docs/sql/` in scope. Its path is documentation-oriented,
+but the files are run during migration and import work. Plain Markdown has no
+reliability rules to fix.
+
 Do not exclude `scripts/`, `.github/`, or `infra/` just to lower counts,
 and do not drop tests from analysis entirely — they stay in the test
 set. `SonarQube.Analysis.xml` and scanner CLI args apply only to a CI

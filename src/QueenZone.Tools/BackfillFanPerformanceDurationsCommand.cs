@@ -91,7 +91,7 @@ internal static class BackfillFanPerformanceDurationsCommand
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failed++;
-                Console.Error.WriteLine($"{row.Id}: {ex.GetType().Name}: {ex.Message}");
+                await Console.Error.WriteLineAsync($"{row.Id}: {ex.GetType().Name}: {ex.Message}");
             }
         }
 

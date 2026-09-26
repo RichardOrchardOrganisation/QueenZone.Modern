@@ -124,6 +124,22 @@ In that Custom Mode, use `/orchestrate-epic` for **one issue** (`work on #757`),
 
 Grok 4.6 effort when that Cursor mode is pinned: parent high (xhigh only if the split is messy), planner high, implementer medium, verifier high, reviewer high.
 
+## Correction hierarchy
+
+When correcting an agent, fix the mistake at the lowest-numbered level that is practical:
+
+- `L1` code: make the mistake impossible.
+- `L2` static: analyzer, lint, CI script or Sonar rule.
+- `L3` rule: `AGENTS.md`, `.cursor/rules` or Bugbot.
+- `L4` skill.
+- `L5` review: style guide or human review.
+
+#1789 is the worked example: the coverage-gate base-ref problem was fixed in the check itself (`L2`), not by telling agents to remember a different `git` ref.
+
+The second time a rule id is seen, it becomes an `L1`/`L2` check, tracked with the `guardrail` label.
+
+This section is the single source for the hierarchy. Other docs should link here rather than copy it. The `qz-finding` tag format (one hidden HTML comment per finding) is defined in [`.cursor/agents/reviewer.md`](.cursor/agents/reviewer.md). Known rule ids live in [`.github/issue-filer/finding-rules.json`](.github/issue-filer/finding-rules.json).
+
 ## Testing Expectations
 
 Follow `docs/architecture/testing-policy.md`.

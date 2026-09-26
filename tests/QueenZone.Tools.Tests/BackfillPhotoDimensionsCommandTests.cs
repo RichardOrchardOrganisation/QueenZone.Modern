@@ -2,6 +2,7 @@ using QueenZone.Tools;
 
 namespace QueenZone.Tools.Tests;
 
+[Collection(EnvironmentVariableCollection.Name)]
 public sealed class BackfillPhotoDimensionsCommandTests
 {
     [Fact]
@@ -27,12 +28,60 @@ public sealed class BackfillPhotoDimensionsCommandTests
             "--force",
             "--limit", "5",
             "--include-hidden",
+            "--category-id", "12",
+            "--pic-ids", "1,2",
+            "--delay-ms", "0",
         ]);
         Assert.True(options.IsValid);
         Assert.True(options.Apply);
         Assert.True(options.Force);
         Assert.Equal(5, options.Limit);
         Assert.False(options.PublicOnly);
+        Assert.Equal(12, options.CategoryId);
+        Assert.Equal([1, 2], options.PicIds);
+        Assert.Equal(0, options.DelayMs);
+    }
+
+    [Theory]
+    [InlineData("--category-id", "x", "--category-id must be an integer.")]
+    [InlineData("--limit", "0", "--limit must be a positive integer.")]
+    [InlineData("--delay-ms", "-1", "--delay-ms must be >= 0.")]
+    public void Parse_RejectsInvalidIntegers(string flag, string value, string expected)
+    {
+        var options = BackfillPhotoDimensionsOptions.Parse(
+        [
+            "--connection-string", "Server=.;Database=test;",
+            flag,
+            value,
+        ]);
+
+        Assert.False(options.IsValid);
+        Assert.Equal(expected, options.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task RunAsync_PrintsUsage_WhenOptionsAreInvalid()
+    {
+        using var error = new StringWriter();
+        var originalError = Console.Error;
+        Console.SetError(error);
+        var previous = Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
+        Environment.SetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy", null);
+        try
+        {
+            var exitCode = await BackfillPhotoDimensionsCommand.RunAsync([]);
+
+            Assert.Equal(2, exitCode);
+            var text = error.ToString();
+            Assert.Contains("backfill-photo-dimensions", text, StringComparison.Ordinal);
+            Assert.Contains("--apply", text, StringComparison.Ordinal);
+            Assert.Contains("photo-dim-inventory", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy", previous);
+            Console.SetError(originalError);
+        }
     }
 
     [Fact]

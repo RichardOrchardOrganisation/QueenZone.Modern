@@ -324,7 +324,7 @@ app.MapNotificationPreferencesApiEndpoints();
 app.MapRazorPages().CacheOutput(PublicOutputCachePolicies.PublicHtml);
 app.MapFallbackToPage("/NotFound");
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;
 

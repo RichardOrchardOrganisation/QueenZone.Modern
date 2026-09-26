@@ -28,6 +28,7 @@ The non-secret backend settings are committed at [`infra/backend/production.back
 | Authorised local operator | `Storage Blob Data Contributor` on `tfstate` only | Existing operator access; bootstrap adds none | N/A |
 | `QueenZone OpenTofu Plan` | `Storage Blob Data Contributor` on `tfstate` only | `Reader` on `Queenzone-RG`, plus the custom `QueenZone OpenTofu Plan - App Service Config Reader` role (`Microsoft.Web/sites/config/list/action` only) on `Queenzone-RG` | `opentofu-plan` environment |
 | `QueenZone OpenTofu Apply` | `Storage Blob Data Contributor` on `tfstate` only | `Contributor` on `Queenzone-RG` | approval-gated `opentofu-apply` environment |
+| `QueenZone Telemetry Read` | none | `Monitoring Reader` on `Queenzone-RG` and `Log Analytics Reader` on `queenzone-prod-law` | `telemetry-read` environment, created by `Bootstrap-TelemetryReadIdentity.ps1` (#1805). Richard runs that script; CI must not create the Entra app. |
 
 **Dev extension, 2026-09-04:** after explicit maintainer approval, the dev
 resource group was created through a one-resource OpenTofu plan in `dev.tfstate`.

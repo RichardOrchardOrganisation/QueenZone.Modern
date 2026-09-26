@@ -26,7 +26,9 @@ The QueenZone Deploy app also has old-owner credentials for `prod-release`, `pro
 
 ## Script and cutover contract
 
-`Bootstrap-DeployIdentity.ps1`, `Bootstrap-OpenTofuState.ps1`, and `Test-OpenTofuState.ps1` now default to the organization owner, immutable IDs, and staged credential names. For any new owner, supply **both** `-OidcOwnerId` and `-OidcRepositoryId`; the helper rejects a different owner without IDs rather than creating a name-only credential. To inspect an old-owner credential during rollback, explicitly pass the old repository, clear both ID parameters, and select its old credential name. The bootstrap scripts manage more than credentials (Azure roles, state resources and GitHub environments); do not use them solely for identity checks. Their `-WhatIf` mode prints the subject repository segment for a safe dry run.
+`Bootstrap-DeployIdentity.ps1`, `Bootstrap-OpenTofuState.ps1`, `Bootstrap-TelemetryReadIdentity.ps1`, and `Test-OpenTofuState.ps1` now default to the organization owner, immutable IDs, and staged credential names. For any new owner, supply **both** `-OidcOwnerId` and `-OidcRepositoryId`; the helper rejects a different owner without IDs rather than creating a name-only credential. To inspect an old-owner credential during rollback, explicitly pass the old repository, clear both ID parameters, and select its old credential name. The bootstrap scripts manage more than credentials (Azure roles, state resources and GitHub environments); do not use them solely for identity checks. Their `-WhatIf` mode prints the subject repository segment for a safe dry run.
+
+`telemetry-read` is a new post-transfer identity (#1805). Richard runs `./infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1` to create Entra application `QueenZone Telemetry Read` and federated credential `github-org-telemetry-read`. The subject is the immutable prefix above plus `:environment:telemetry-read`. The OpenTofu apply identity must not be given Entra application-registration rights so this can move into CI.
 
 The read-only OpenTofu state check passed after transfer with the new defaults:
 

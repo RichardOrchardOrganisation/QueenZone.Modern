@@ -116,15 +116,13 @@ internal static class BackfillPhotoDimensionsCommand
             }
         }
 
-        Console.WriteLine();
-        Console.WriteLine($"Would update / planned: {wouldUpdate}");
-        Console.WriteLine($"Updated: {updated}");
-        Console.WriteLine($"Skipped: {skipped}");
-        Console.WriteLine($"Failed: {failed}");
-        if (!options.Apply && wouldUpdate > 0)
-        {
-            Console.WriteLine("Dry-run only. Re-run with --apply to write PIC_WIDTH / PIC_HEIGHT.");
-        }
+        ToolArgs.WriteBackfillSummary(
+            wouldUpdate,
+            updated,
+            skipped,
+            failed,
+            options.Apply,
+            "Dry-run only. Re-run with --apply to write PIC_WIDTH / PIC_HEIGHT.");
 
         return failed == 0 ? 0 : 1;
     }
@@ -223,33 +221,27 @@ internal static class BackfillPhotoDimensionsCommand
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static void WriteUsage(string? errorMessage)
-    {
-        if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            Console.Error.WriteLine(errorMessage);
-            Console.Error.WriteLine();
-        }
-
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- backfill-photo-dimensions [options]");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Options:");
-        Console.Error.WriteLine("  --connection-string <cs>     SQL Server (or ConnectionStrings__QueenZoneLegacy)");
-        Console.Error.WriteLine("  --storage-connection-string  Optional Azure Blob connection (preferred for apply)");
-        Console.Error.WriteLine("  --blob-endpoint <url>        Blob/CDN base for URL rewrite (optional)");
-        Console.Error.WriteLine("  --category-id <id>           Limit to category");
-        Console.Error.WriteLine("  --pic-ids <id,id,...>        Limit to specific pic ids");
-        Console.Error.WriteLine("  --limit <n>                  Max rows to consider");
-        Console.Error.WriteLine("  --include-hidden             Include DISPLAY <> 1 rows");
-        Console.Error.WriteLine("  --force                      Overwrite non-zero dims (dangerous)");
-        Console.Error.WriteLine("  --delay-ms <n>               Pause between items (default 50)");
-        Console.Error.WriteLine("  --apply                      Write updates (default is dry-run)");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Default: dry-run, DISPLAY=1, only rows with width or height zero.");
-        Console.Error.WriteLine("Measures via ImageSharp decode of original image bytes. Never log secrets.");
-        Console.Error.WriteLine("After apply, re-run: photo-dim-inventory");
-    }
+    private static void WriteUsage(string? errorMessage) =>
+        ToolArgs.WriteUsage(
+            errorMessage,
+            "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- backfill-photo-dimensions [options]",
+            "",
+            "Options:",
+            "  --connection-string <cs>     SQL Server (or ConnectionStrings__QueenZoneLegacy)",
+            "  --storage-connection-string  Optional Azure Blob connection (preferred for apply)",
+            "  --blob-endpoint <url>        Blob/CDN base for URL rewrite (optional)",
+            "  --category-id <id>           Limit to category",
+            "  --pic-ids <id,id,...>        Limit to specific pic ids",
+            "  --limit <n>                  Max rows to consider",
+            "  --include-hidden             Include DISPLAY <> 1 rows",
+            "  --force                      Overwrite non-zero dims (dangerous)",
+            "  --delay-ms <n>               Pause between items (default 50)",
+            "  --apply                      Write updates (default is dry-run)",
+            "",
+            "Default: dry-run, DISPLAY=1, only rows with width or height zero.",
+            "Measures via ImageSharp decode of original image bytes. Never log secrets.",
+            "After apply, re-run: photo-dim-inventory");
 }
 
 internal sealed record BackfillPhotoRow(
@@ -393,11 +385,11 @@ internal sealed class BackfillPhotoDimensionsOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--category-id", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var id, out var idError))
             {
-                if (!int.TryParse(args[++index], out var id))
+                if (idError is not null)
                 {
-                    return Invalid("--category-id must be an integer.");
+                    return Invalid(idError);
                 }
 
                 categoryId = id;
@@ -413,11 +405,11 @@ internal sealed class BackfillPhotoDimensionsOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--limit", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var n, out var nError))
             {
-                if (!int.TryParse(args[++index], out var n) || n < 1)
+                if (nError is not null)
                 {
-                    return Invalid("--limit must be a positive integer.");
+                    return Invalid(nError);
                 }
 
                 limit = n;
@@ -442,11 +434,11 @@ internal sealed class BackfillPhotoDimensionsOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--delay-ms", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadInt(args, ref index, "--delay-ms", 0, out var delay, out var delayError))
             {
-                if (!int.TryParse(args[++index], out var delay) || delay < 0)
+                if (delayError is not null)
                 {
-                    return Invalid("--delay-ms must be >= 0.");
+                    return Invalid(delayError);
                 }
 
                 delayMs = delay;
