@@ -32,28 +32,8 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
 
         lock (sync)
         {
-            var submissionId = Guid.NewGuid();
             var now = DateTimeOffset.UtcNow;
-            var options = QuizQuestionSubmissionValidation.NormalizeOptions(submission.Options);
-            var entity = new QuizQuestionSubmissionEntity
-            {
-                Id = submissionId,
-                SubmitterMemberId = submission.SubmitterMemberId,
-                QuestionText = submission.QuestionText.Trim(),
-                SourceNote = SubmissionInput.NormalizeOptional(submission.SourceNote, QuizQuestionSubmissionValidation.MaxSourceNoteLength),
-                Status = QuizQuestionSubmissionStatus.Pending,
-                SubmittedAt = now,
-                Options = options
-                    .Select((option, index) => new QuizQuestionSubmissionOptionEntity
-                    {
-                        Id = Guid.NewGuid(),
-                        QuizQuestionSubmissionId = submissionId,
-                        OptionText = option.Text,
-                        DisplayOrder = index,
-                        IsCorrect = option.IsCorrect,
-                    })
-                    .ToList(),
-            };
+            var entity = QuizQuestionSubmissionRecords.NewEntity(submission, now);
 
             submissions.Add(entity);
             auditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
@@ -222,22 +202,7 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
                 return Task.FromResult<QuizQuestionSubmission?>(null);
             }
 
-            if (!QuizQuestionSubmissionWorkflow.TryValidateStatusChange(
-                    entity.Status,
-                    QuizQuestionSubmissionStatus.Rejected,
-                    out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
-
-            var normalizedReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
-                ?? throw new InvalidOperationException("A rejection reason is required.");
-            entity.Status = QuizQuestionSubmissionStatus.Rejected;
-            entity.RejectionReason = normalizedReason;
-            var now = DateTimeOffset.UtcNow;
-            entity.ReviewedAt = now;
-            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+            var now = QuizQuestionSubmissionRecords.ApplyRejection(entity, reviewerEmail, rejectionReason, reviewNotes);
 
             auditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
             {
@@ -246,7 +211,7 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
                 Action = QuizQuestionSubmissionStatus.Rejected,
                 ActorEmail = entity.ReviewerEmail ?? string.Empty,
                 OccurredAt = now,
-                Details = $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
+                Details = QuizQuestionSubmissionRecords.RejectionAuditDetails(entity),
             });
 
             return Task.FromResult<QuizQuestionSubmission?>(Map(entity));

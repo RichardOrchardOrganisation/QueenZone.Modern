@@ -57,26 +57,7 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
     {
         ArgumentNullException.ThrowIfNull(submission);
 
-        var entity = new PhotoSubmissionEntity
-        {
-            Id = SubmissionInput.IdOrNew(submission.Id),
-            SubmitterMemberId = submission.SubmitterMemberId,
-            Title = submission.Title.Trim(),
-            Description = SubmissionInput.NormalizeOptional(submission.Description, 1000),
-            SuggestedCategory = SubmissionInput.NormalizeOptional(submission.SuggestedCategory, 100),
-            ApproximateYear = submission.ApproximateYear,
-            ApproximateDate = submission.ApproximateDate,
-            BlobPath = submission.BlobPath.Trim(),
-            WebOptimizedBlobPath = submission.WebOptimizedBlobPath.Trim(),
-            ThumbnailBlobPath = submission.ThumbnailBlobPath.Trim(),
-            OriginalFileName = submission.OriginalFileName.Trim(),
-            FileSizeBytes = submission.FileSizeBytes,
-            MimeType = submission.MimeType.Trim(),
-            ImageWidthPx = submission.ImageWidthPx,
-            ImageHeightPx = submission.ImageHeightPx,
-            Status = PhotoSubmissionStatus.Pending,
-            SubmittedAt = DateTimeOffset.UtcNow,
-        };
+        var entity = PhotoSubmissionRecords.NewEntity(submission);
 
         entity.AuditLogs.Add(new PhotoSubmissionAuditLogEntity
         {
@@ -139,38 +120,8 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
             return null;
         }
 
-        if (!PhotoSubmissionWorkflow.TryValidateStatusChange(entity.Status, status, out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
-
-        var next = PhotoSubmissionStatus.Normalize(status);
-        entity.Status = next;
-        entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
-
-        if (next == PhotoSubmissionStatus.Rejected)
-        {
-            entity.RejectionReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
-                ?? throw new InvalidOperationException("A rejection reason is required.");
-        }
-        else if (!string.IsNullOrWhiteSpace(rejectionReason))
-        {
-            entity.RejectionReason = SubmissionInput.NormalizeOptional(rejectionReason, 500);
-        }
-
-        if (next == PhotoSubmissionStatus.Approved)
-        {
-            var category = SubmissionInput.NormalizeOptional(approvedCategory, 100)
-                ?? SubmissionInput.NormalizeOptional(entity.SuggestedCategory, 100);
-            entity.ApprovedCategory = category
-                ?? throw new InvalidOperationException("An approved gallery category is required.");
-        }
-        else if (!string.IsNullOrWhiteSpace(approvedCategory))
-        {
-            entity.ApprovedCategory = SubmissionInput.NormalizeOptional(approvedCategory, 100);
-        }
+        var next = PhotoSubmissionRecords.ApplyStatusChange(
+            entity, status, reviewerEmail, reviewNotes, rejectionReason, approvedCategory);
 
         dbContext.PhotoSubmissionAuditLogs.Add(new PhotoSubmissionAuditLogEntity
         {

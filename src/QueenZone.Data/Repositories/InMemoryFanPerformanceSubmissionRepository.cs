@@ -382,9 +382,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
     internal static FanPerformanceSubmissionEntity CreateEntity(NewFanPerformanceSubmission submission) =>
         new()
         {
-            Id = submission.Id is { } preferredId && preferredId != Guid.Empty
-                ? preferredId
-                : Guid.NewGuid(),
+            Id = SubmissionInput.IdOrNew(submission.Id),
             SubmitterMemberId = submission.SubmitterMemberId,
             Title = submission.Title.Trim(),
             CoveredSong = submission.CoveredSong.Trim(),

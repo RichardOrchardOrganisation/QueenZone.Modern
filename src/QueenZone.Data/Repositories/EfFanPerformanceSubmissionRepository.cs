@@ -57,24 +57,7 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
     {
         ArgumentNullException.ThrowIfNull(submission);
 
-        var entity = new FanPerformanceSubmissionEntity
-        {
-            Id = SubmissionInput.IdOrNew(submission.Id),
-            SubmitterMemberId = submission.SubmitterMemberId,
-            Title = submission.Title.Trim(),
-            CoveredSong = submission.CoveredSong.Trim(),
-            PerformedBy = submission.PerformedBy.Trim(),
-            Description = SubmissionInput.NormalizeOptional(submission.Description, 2000),
-            BlobPath = submission.BlobPath.Trim(),
-            OriginalFileName = submission.OriginalFileName.Trim(),
-            FileSizeBytes = submission.FileSizeBytes,
-            MimeType = submission.MimeType.Trim(),
-            DurationSeconds = submission.DurationSeconds,
-            Status = FanPerformanceSubmissionStatus.Pending,
-            SubmittedAt = DateTimeOffset.UtcNow,
-            RightsDeclaredAt = submission.RightsDeclaredAt,
-            RightsDeclarationVersion = submission.RightsDeclarationVersion.Trim(),
-        };
+        var entity = InMemoryFanPerformanceSubmissionRepository.CreateEntity(submission);
 
         entity.AuditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
         {
@@ -176,43 +159,14 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             return null;
         }
 
-        if (!FanPerformanceSubmissionWorkflow.TryValidateStatusChange(entity.Status, status, out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
-
-        var next = FanPerformanceSubmissionStatus.Normalize(status);
-        var normalizedRejection = SubmissionInput.NormalizeOptional(rejectionReason, 500);
-        if (next == FanPerformanceSubmissionStatus.Rejected && normalizedRejection is null)
-        {
-            throw new InvalidOperationException("A rejection reason is required.");
-        }
-
-        if (next == FanPerformanceSubmissionStatus.NeedsInfo && SubmissionInput.NormalizeOptional(reviewNotes, 500) is null)
-        {
-            throw new InvalidOperationException("Review notes are required when requesting more information.");
-        }
-
-        entity.Status = next;
-        entity.ReviewedAt = DateTimeOffset.UtcNow;
-        if (!string.IsNullOrWhiteSpace(actorEmail))
-        {
-            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(actorEmail, 256);
-        }
-
-        if (reviewNotes is not null)
-        {
-            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
-        }
-
-        if (next == FanPerformanceSubmissionStatus.Rejected)
-        {
-            entity.RejectionReason = normalizedRejection;
-        }
-        else if (normalizedRejection is not null)
-        {
-            entity.RejectionReason = normalizedRejection;
-        }
+        InMemoryFanPerformanceSubmissionRepository.ApplyStatusChange(
+            entity,
+            status,
+            actorEmail,
+            reviewNotes,
+            rejectionReason,
+            requireNeedsInfoNotes: true);
+        var next = entity.Status;
 
         dbContext.FanPerformanceSubmissionAuditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
         {
