@@ -1,0 +1,64 @@
+name: Gardener
+
+on:
+  schedule:
+    # Monday 00:00 UTC = 08:00 Perth.
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: Days of history to scan (weekly default 7; use 60 only for the later #1802 backfill)
+        type: string
+        default: "7"
+      max_issues:
+        description: Max new issues this run
+        type: string
+        default: "2"
+      dry_run:
+        description: Print the plan without writing issues
+        type: boolean
+        default: true
+
+concurrency:
+  group: issue-filer
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: read
+
+jobs:
+  gardener:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Run gardener
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          LOOKBACK_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_days || '7' }}
+          MAX_ISSUES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_issues || '2' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          extra=()
+          if [ "${DRY_RUN}" = "true" ]; then
+            extra+=(--dry-run)
+          fi
+          node scripts/issue-filer/run.mjs \
+            --loop gardener \
+            --lookback-days "${LOOKBACK_DAYS}" \
+            --max-issues "${MAX_ISSUES}" \
+            "${extra[@]}"
