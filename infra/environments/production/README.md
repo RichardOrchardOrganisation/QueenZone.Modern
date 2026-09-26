@@ -10,6 +10,10 @@ or deletion. Do not apply from a local operator session. The protected
 
 Use [`scripts/Test-OpenTofu.ps1`](../../../scripts/Test-OpenTofu.ps1) for local validation. See [`docs/architecture/opentofu-contributor-runbook.md`](../../../docs/architecture/opentofu-contributor-runbook.md) before planning, importing, moving state, or applying.
 
+## Production alerts (#1805)
+
+`module.azure_web_target` imports `queenzone-alerts` and creates the `qz-prod-*` scheduled-query rules, standard web test `qz-prod-health`, and the two-location availability metric alert. The first plan after this lands must show that import plus creates (and the optional Cloudflare `GET /health` skip). It must not destroy or replace the action group. Richard still has to run `infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1` for the `telemetry-read` OIDC identity; that is outside this apply.
+
 ## Phase 7 staged migration
 
 Issue #1272 moved production to `canadaeast`. After four days of verified

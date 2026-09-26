@@ -30,3 +30,23 @@ its reason. OpenTofu never manages `app_settings` or `connection_string` under
 [ADR 0008](../../../docs/decisions/0008-app-service-settings-ownership.md).
 The site therefore ignores `app_settings` and omits the unused
 `connection_string` collection.
+
+## Production alerts (#1805)
+
+When `environment_name` is `production`, this module also owns:
+
+- the imported action group `queenzone-alerts` (existing email receiver kept;
+  no webhook; receivers, location, and short name are ignored so import cannot
+  replace the live group);
+- six Log Analytics scheduled-query rules scoped to `queenzone-prod-law`
+  (`qz-prod-server-5xx`, `qz-prod-exception-new-problem`,
+  `qz-prod-exception-spike`, `qz-prod-dependency-failures`,
+  `qz-prod-ingestion-cap`, and disabled `qz-prod-request-p95`);
+- standard web test `qz-prod-health` against `https://www.queenzone.org/health`;
+- metric alert `qz-prod-availability` that fires when two of three locations fail.
+
+All rules auto-resolve. AzureRM 5.0.1 cannot combine auto-resolve with a
+60-minute mute, so log rules do not set `mute_actions_after_alert_duration`.
+The new-problem rule uses `query_time_range_override = P2D` with a one-hour
+window so the KQL can see the prior 47 hours. Dev and migration instantiations
+create none of these resources.
