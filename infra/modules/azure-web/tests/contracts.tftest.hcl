@@ -14,6 +14,21 @@ mock_provider "azurerm" {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.OperationalInsights/workspaces/test"
     }
   }
+  mock_resource "azurerm_application_insights" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Insights/components/test"
+    }
+  }
+  mock_resource "azurerm_monitor_action_group" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Insights/actionGroups/queenzone-alerts"
+    }
+  }
+  mock_resource "azurerm_application_insights_standard_web_test" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Insights/webTests/qz-prod-health"
+    }
+  }
   mock_resource "azurerm_service_plan" {
     defaults = {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Web/serverFarms/test"
