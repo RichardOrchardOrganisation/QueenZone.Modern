@@ -134,7 +134,7 @@ Treatments:
 | Storage RBAC assignments | scope storage account | data | Empty list at audit time (access via keys / portal roles at higher scope) |
 | Log Analytics `queenzone-dev-law` | `…/workspaces/queenzone-dev-law` | retired | Deleted on **2026-09-14** with the old web estate |
 | App Insights `queenzone-dev-ai` | `…/components/queenzone-dev-ai` | retired | Deleted on **2026-09-14** with the old web estate |
-| Action group `queenzone-alerts` | `…/actionGroups/queenzone-alerts` | import | Email receiver present (address not recorded here) |
+| Action group `queenzone-alerts` | `…/actionGroups/queenzone-alerts` | import | Email receiver present (address not recorded here). #1805 imports it in `azure-web` and adds `qz-prod-*` rules plus standard web test `qz-prod-health`. |
 | Legacy webtest `queenzone-dev-health` | `…/webtests/queenzone-dev-health` | retired | Deleted on **2026-09-14** because it targeted the retired app |
 | Legacy metric / query alerts | listed in import JSON | retired | Five rules scoped only to the old Application Insights or Log Analytics resources were deleted on **2026-09-14** |
 | Smart detector `Failure Anomalies - queenzone-dev-ai` | alertsmanagement | retired | Deleted with the old Application Insights component on **2026-09-14** |
@@ -174,6 +174,7 @@ Account id `f93121b2086286e79a7a9fdb8d03cb4c`. Zone id `079fc2f37095c82fb3a2b4da
 | Environment `prod-deploy` | outside | Custom policy: branch `main` + tags `v*`. Dedicated OIDC identity with **Website Contributor** on site `queenzone-prod` only. `deploy.yml` `configure-app-settings` and `app-service-setting-names-check.yml`. Not an OpenTofu principal — sibling bootstrap at `infra/bootstrap/Bootstrap-DeployIdentity.ps1`. |
 | Environment `prod-google-play` | outside | Custom policy: branch `main`. Play signing / store upload only (`publish-android-google-play.yml`). |
 | Environment `prod-data-read` | outside | Custom policy: branch `main`. Production read used only to refresh/resync the SQL Express mirror. |
+| Environment `telemetry-read` | outside | Protected branches. Monitoring Reader on `Queenzone-RG` plus Log Analytics Reader on `queenzone-prod-law`. Created by `infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1` (#1805), not OpenTofu. |
 | Environment `dev` (legacy) | outside | **Deleted in Settings** (2026-09-07, #1394). Retired from workflows in #1377. Do not recreate. |
 | Environment `deploy` (legacy) | outside | **Deleted in Settings** (2026-09-07, #1394). Entra FIC subject `environment:deploy` removed. Retired from workflows in #1377. ARM/OIDC now lives on `prod-deploy`. Do not recreate. |
 | Environment `opentofu-plan` | outside | Protected branches only. Reader on `Queenzone-RG` plus state-container data access. See [`opentofu-state-and-identity.md`](opentofu-state-and-identity.md). |
@@ -272,7 +273,7 @@ Documented for [#622](https://github.com/RichardOrchardOrganisation/QueenZone.Mo
 3. App Service plan → web app (no hostname swap).
 4. Certificates → hostname bindings.
 5. Access restriction rules (validate Cloudflare still serves `/health` after plan).
-6. Action group → alerts / webtest (fix webtest URL when importing).
+6. Action group → alerts / webtest (fix webtest URL when importing). #1805 imports `queenzone-alerts` and creates production `qz-prod-*` rules plus `qz-prod-health`.
 7. SQL server → firewall rules → database (import existing; never `create`).
 8. Storage account → blob service properties → containers → custom domain.
 9. Cloudflare zone/DNS → TLS → Worker/routes for **cdn2 only**.

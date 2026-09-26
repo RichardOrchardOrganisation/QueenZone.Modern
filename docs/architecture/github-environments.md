@@ -31,6 +31,7 @@ Production `dotnet ef database update` stays on `deploy.yml` `migrate` (tag `v*`
 | `prod-deploy` | ARM/OIDC App Service settings | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`, plus a narrow `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` mapping for `MOBILE_AUTH_SIGNING_KEY` only. No ARM vars on any other prod environment. | **Custom** branch `main` + tags `v*` | `deploy.yml` `configure-app-settings`; `app-service-setting-names-check.yml` |
 | `prod-google-play` | Play signing / store upload | `BITWARDEN_MOBILE_BUILD_SECRETS` plus Sentry vars (`SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`). Mapping yields Android keystore outputs, `SENTRY_AUTH_TOKEN`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. **No ARM.** | **Custom** branch `main` | `publish-android-google-play.yml` `publish-android` only |
 | `prod-data-read` | Read production to refresh/resync the SQL Express mirror | Narrow Bitwarden map: Canada East publish profile + migration connection string **only** (not the probe-password / mobile-auth entries). The generic output aliases are retained for these workflows. Repo-level Bitwarden token. | **Custom** branch `main` (scheduled runs use the default branch) | `nightly-legacy-checks.yml` `sync-legacy-db`; `test-migrations-against-mirror.yml` `resync-mirror` only |
+| `telemetry-read` | Read-only Azure Monitor / Log Analytics for App Insights triage (#1805) | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` after Richard runs `infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1`. No environment secrets. Sentry mapping for the triage workflow is a separate app-side Bitwarden variable. | **Protected branches** (bootstrap default; no required reviewer) | Future `telemetry-triage.yml` only. Do not create the Entra app from CI. |
 
 `SIXLABORS_LICENSE_KEY` and `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stay **repository** secrets. Do not add environment secrets to these four environments unless a later split requires it.
 
@@ -63,6 +64,8 @@ GitHub Environments are **not** managed in `infra/` today (`github_repository_en
 Issue [#1394](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1394). #1377 remapped workflows; Gilfoyle deleted the leftover Settings names. This repo slice records that — it does not gate Settings delete.
 
 `gh api repos/RichardOrchardOrganisation/QueenZone.Modern/environments` on 2026-09-07: **`dev` and `deploy` are absent**. Live names: `dev-data-refresh`, `dev-deploy`, `dev-migrate`, `opentofu-apply`, `opentofu-plan`, `prod-data-read`, `prod-deploy`, `prod-google-play`, `prod-release`.
+
+`telemetry-read` is created by `Bootstrap-TelemetryReadIdentity.ps1` (#1805) and is not present until Richard runs that script.
 
 1. Done. Exact workflow search on `main` is clean: no `environment: dev`, `environment: deploy`, `name: dev`, or `name: deploy` under `.github/workflows/` (kept `dev-migrate` / `dev-deploy` / `dev-data-refresh` and `deploy-dev.yml`).
 2. Done. Tag `v2026.09.07.1` succeeded using `prod-release` + `prod-deploy`.
