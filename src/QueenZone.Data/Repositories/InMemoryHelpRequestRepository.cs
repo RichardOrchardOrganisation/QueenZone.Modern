@@ -95,8 +95,8 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
 
             entity.Status = HelpRequestStatus.Normalize(status);
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(notes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 500);
 
             return Task.FromResult<HelpRequest?>(Map(entity));
         }
@@ -150,17 +150,6 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
 
     private static string RequireTrimmed(string value, int maxLength)
     {
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
         var trimmed = value.Trim();
         return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }

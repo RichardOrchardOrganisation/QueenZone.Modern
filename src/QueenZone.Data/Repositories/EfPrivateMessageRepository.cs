@@ -288,7 +288,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
                     cancellationToken);
                 return new PrivateMessageSendResult(true, conversationId, null);
             }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && attempt < MaxUniqueConflictRetries)
+            catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation() && attempt < MaxUniqueConflictRetries)
             {
                 dbContext.ChangeTracker.Clear();
             }
@@ -944,9 +944,6 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
             dbContext.Database.ProviderName,
             "Microsoft.EntityFrameworkCore.Sqlite",
             StringComparison.Ordinal);
-
-    internal static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
-        exception.IsUniqueConstraintViolation();
 
     private static (Guid Low, Guid High) OrderPair(Guid a, Guid b) =>
         a.CompareTo(b) < 0 ? (a, b) : (b, a);

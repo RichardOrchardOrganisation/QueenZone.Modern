@@ -125,8 +125,8 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
 
         entity.Status = HelpRequestStatus.Normalize(status);
         entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(notes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 500);
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -195,17 +195,6 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
 
     private static string RequireTrimmed(string value, int maxLength)
     {
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
         var trimmed = value.Trim();
         return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }

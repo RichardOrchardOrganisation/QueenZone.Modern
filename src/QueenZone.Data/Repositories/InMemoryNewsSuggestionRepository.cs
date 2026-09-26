@@ -27,8 +27,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
                 SubmitterMemberId = suggestion.SubmitterMemberId,
                 Url = suggestion.Url.Trim(),
                 UrlHash = suggestion.UrlHash,
-                Title = NormalizeOptional(suggestion.Title, 300),
-                Notes = NormalizeOptional(suggestion.Notes, 1000),
+                Title = SubmissionInput.NormalizeOptional(suggestion.Title, 300),
+                Notes = SubmissionInput.NormalizeOptional(suggestion.Notes, 1000),
                 Status = NewsSuggestionStatus.Pending,
                 SubmittedAt = suggestion.SubmittedAt == default ? DateTimeOffset.UtcNow : suggestion.SubmittedAt,
             };
@@ -154,8 +154,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
 
             entity.Status = NewsSuggestionStatus.Normalize(status);
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(notes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 500);
 
             return Task.FromResult<NewsSuggestion?>(Map(entity));
         }
@@ -204,8 +204,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
             entity.Status = NewsSuggestionStatus.Promoted;
             entity.PromotedNewsId = promotedNewsId;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             return Task.FromResult<NewsSuggestion?>(Map(entity));
         }
@@ -229,8 +229,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
             entity.Status = NewsSuggestionStatus.Duplicate;
             entity.DuplicateCandidateId = duplicateCandidateId;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             return Task.FromResult<NewsSuggestion?>(Map(entity));
         }
@@ -306,16 +306,5 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
             entity.DuplicateCandidateId,
             member?.DisplayName,
             member?.Email);
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 }

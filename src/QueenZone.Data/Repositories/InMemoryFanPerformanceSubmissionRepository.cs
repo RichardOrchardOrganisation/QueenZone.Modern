@@ -186,7 +186,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
                 Id = nextAuditId++,
                 FanPerformanceSubmissionId = entity.Id,
                 Action = "Edited",
-                ActorEmail = NormalizeOptional(editorEmail, 256) ?? string.Empty,
+                ActorEmail = SubmissionInput.NormalizeOptional(editorEmail, 256) ?? string.Empty,
                 OccurredAt = DateTimeOffset.UtcNow,
                 Details = "Updated title, performer, or description before publish.",
             });
@@ -221,8 +221,8 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
             entity.Status = FanPerformanceSubmissionStatus.Approved;
             entity.PromotedStageId = promotedStageId;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             auditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
             {
@@ -389,7 +389,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
             Title = submission.Title.Trim(),
             CoveredSong = submission.CoveredSong.Trim(),
             PerformedBy = submission.PerformedBy.Trim(),
-            Description = NormalizeOptional(submission.Description, 2000),
+            Description = SubmissionInput.NormalizeOptional(submission.Description, 2000),
             BlobPath = submission.BlobPath.Trim(),
             OriginalFileName = submission.OriginalFileName.Trim(),
             FileSizeBytes = submission.FileSizeBytes,
@@ -427,7 +427,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
 
         if (edits.Description is not null)
         {
-            entity.Description = NormalizeOptional(edits.Description, 2000);
+            entity.Description = SubmissionInput.NormalizeOptional(edits.Description, 2000);
         }
 
         if (edits.CoveredSong is not null)
@@ -454,7 +454,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
         }
 
         var next = FanPerformanceSubmissionStatus.Normalize(status);
-        var normalizedRejection = NormalizeOptional(rejectionReason, 500);
+        var normalizedRejection = SubmissionInput.NormalizeOptional(rejectionReason, 500);
         if (next == FanPerformanceSubmissionStatus.Rejected && normalizedRejection is null)
         {
             throw new InvalidOperationException("A rejection reason is required.");
@@ -462,7 +462,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
 
         if (requireNeedsInfoNotes
             && next == FanPerformanceSubmissionStatus.NeedsInfo
-            && NormalizeOptional(reviewNotes, 500) is null)
+            && SubmissionInput.NormalizeOptional(reviewNotes, 500) is null)
         {
             throw new InvalidOperationException("Review notes are required when requesting more information.");
         }
@@ -471,12 +471,12 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
         entity.ReviewedAt = DateTimeOffset.UtcNow;
         if (!string.IsNullOrWhiteSpace(actorEmail))
         {
-            entity.ReviewerEmail = NormalizeOptional(actorEmail, 256);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(actorEmail, 256);
         }
 
         if (reviewNotes is not null)
         {
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
         }
 
         if (next == FanPerformanceSubmissionStatus.Rejected)
@@ -530,15 +530,4 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
             entity.PromotedStageId,
             displayName,
             email);
-
-    internal static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
 }

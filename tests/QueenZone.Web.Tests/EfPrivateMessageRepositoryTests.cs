@@ -657,14 +657,6 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public void IsUniqueConstraintViolation_DetectsSqliteUniqueErrors()
-    {
-        var sqlite = new Exception("UNIQUE constraint failed: PrivateConversations.MemberLowId, PrivateConversations.MemberHighId");
-        var wrapped = new DbUpdateException("conflict", sqlite);
-        Assert.True(EfPrivateMessageRepository.IsUniqueConstraintViolation(wrapped));
-    }
-
-    [Fact]
     public async Task CreateConversation_SetsSenderLastReadSortKeyToFirstMessage()
     {
         var created = await repository.SendNewOrExistingAsync(
