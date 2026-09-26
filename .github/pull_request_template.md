@@ -44,6 +44,10 @@ or a mobile-device-smoke suite=proof run. If a device is missing, write NOT RUN 
 <!-- Opt out of the UI check with the `no-ui-verification` label AND a reason: -->
 <!-- Verification-skip-reason: -->
 
+## Review findings
+
+<!-- Orchestrator pastes the reviewer's visible line + qz-finding tag verbatim (see .cursor/agents/reviewer.md). The gardener parses the tags. Leave empty when there are no findings. Nits also stay in Follow-up. -->
+
 ## Issues
 
 <!-- If this PR fully resolves an issue, use a real closing keyword so GitHub auto-closes it on merge: "Closes #123" / "Fixes #123" / "Resolves #123". Use "Relates to #123" for issues this PR only touches. A prose mention elsewhere in this PR (e.g. "Implements #123") does NOT auto-close the issue and is checked by CI (pr-issue-link-check). -->
