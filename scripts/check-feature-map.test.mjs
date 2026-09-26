@@ -8,6 +8,8 @@ import {
   generateIndexMarkdown,
   loadFeatureMap,
   main,
+  listPageFiles,
+  listScreenFiles,
   parseScreenRegistrations,
   parseTestIdKeys,
   resolveFeature,
@@ -49,6 +51,32 @@ export function RootNavigator() {
 test('parseTestIdKeys reads object keys', () => {
   const keys = parseTestIdKeys(`export const testIds = {\n  photoViewerScreen: 'photo-viewer-screen',\n} as const;`);
   assert.ok(keys.has('photoViewerScreen'));
+});
+
+test('parseTestIdKeys ignores a long non-key line quickly', () => {
+  const noise = `export const testIds = {\n  photoViewerScreen: 'photo-viewer-screen',\n  ${' '.repeat(20000)}notAKey\n} as const;`;
+  const started = performance.now();
+  const keys = parseTestIdKeys(noise);
+  assert.ok(performance.now() - started < 100);
+  assert.deepEqual([...keys], ['photoViewerScreen']);
+});
+
+test('screen and page lists use an explicit text order', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'feature-map-sort-'));
+  write(root, 'screens/ZedScreen.tsx', '');
+  write(root, 'screens/AlphaScreen.tsx', '');
+  write(root, 'screens/AlphaScreen.test.tsx', '');
+  write(root, 'pages/Zed.cshtml', '');
+  write(root, 'pages/_Partial.cshtml', '');
+  write(root, 'pages/Alpha.cshtml', '');
+  assert.deepEqual(
+    listScreenFiles(path.join(root, 'screens')).map((file) => path.basename(file)),
+    ['AlphaScreen.tsx', 'ZedScreen.tsx'],
+  );
+  assert.deepEqual(
+    listPageFiles(path.join(root, 'pages')).map((file) => path.basename(file)),
+    ['Alpha.cshtml', 'Zed.cshtml'],
+  );
 });
 
 test('parseScreenRegistrations includes commonScreens', () => {

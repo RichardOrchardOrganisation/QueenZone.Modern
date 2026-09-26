@@ -26,6 +26,10 @@ test('Verification section requires an id and proof or Not verified', () => {
   const section = extractVerificationSection(`## Summary\n\nHi\n\n## Verification\n\n- Feature ids: mobile.photos.viewer\n- Not verified: no emulator\n\n## Issues\n\nCloses #1\n`);
   assert.match(section, /mobile\.photos\.viewer/);
   assert.deepEqual(findFeatureIds(section, ids), ['mobile.photos.viewer']);
+  assert.deepEqual(
+    findFeatureIds('web.home.index and mobile.photos.viewer', new Set(['web.home.index', 'mobile.photos.viewer'])),
+    ['mobile.photos.viewer', 'web.home.index'],
+  );
 });
 
 test('UI PR without Verification fails', () => {

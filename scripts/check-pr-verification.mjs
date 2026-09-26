@@ -8,7 +8,7 @@
  */
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { listUiSourcePaths, loadFeatureMap, repoRootFrom, toPosix } from './check-feature-map.mjs';
+import { compareText, listUiSourcePaths, loadFeatureMap, repoRootFrom, toPosix } from './check-feature-map.mjs';
 
 export const NEEDS_VERIFICATION = 'needs-verification';
 export const NO_UI_VERIFICATION = 'no-ui-verification';
@@ -61,7 +61,7 @@ export function extractVerificationSection(body) {
 
 export function findFeatureIds(text, ids) {
   const haystack = String(text || '');
-  return [...ids].filter((id) => haystack.includes(id)).sort();
+  return [...ids].filter((id) => haystack.includes(id)).sort(compareText);
 }
 
 export function hasProofLink(text) {

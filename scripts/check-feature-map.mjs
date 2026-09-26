@@ -35,8 +35,21 @@ export function toPosix(filePath) {
   return String(filePath || '').replaceAll('\\', '/');
 }
 
+/** Locale-independent order. Default `Array#sort` stringifies values and sorts those strings. */
+export function compareText(left, right) {
+  const a = String(left);
+  const b = String(right);
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+}
+
 export function normalizeNewlines(text) {
-  return String(text || '').replace(/\r\n/g, '\n');
+  return String(text || '').replaceAll('\r\n', '\n');
 }
 
 function walkFiles(dir, predicate, out = []) {
@@ -72,10 +85,41 @@ export function parseTestIdKeys(source) {
   if (!block) {
     return keys;
   }
-  for (const match of block[1].matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/gm)) {
-    keys.add(match[1]);
+  for (const rawLine of block[1].split('\n')) {
+    const name = identifierBeforeColon(rawLine);
+    if (name) {
+      keys.add(name);
+    }
   }
   return keys;
+}
+
+function identifierBeforeColon(line) {
+  let index = 0;
+  while (index < line.length && (line[index] === ' ' || line[index] === '\t' || line[index] === '\r')) {
+    index += 1;
+  }
+  const start = index;
+  if (index >= line.length || !isIdentifierStart(line[index])) {
+    return '';
+  }
+  index += 1;
+  while (index < line.length && isIdentifierPart(line[index])) {
+    index += 1;
+  }
+  const name = line.slice(start, index);
+  while (index < line.length && (line[index] === ' ' || line[index] === '\t')) {
+    index += 1;
+  }
+  return line[index] === ':' ? name : '';
+}
+
+function isIdentifierStart(char) {
+  return (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || char === '_';
+}
+
+function isIdentifierPart(char) {
+  return isIdentifierStart(char) || (char >= '0' && char <= '9');
 }
 
 export function parseScreenRegistrations(stacksSource, rootSource) {
@@ -156,7 +200,7 @@ export function parseScreenRegistrations(stacksSource, rootSource) {
 }
 
 export function listScreenFiles(screensDir) {
-  return walkFiles(screensDir, (full, name) => name.endsWith('Screen.tsx') && !name.endsWith('.test.tsx')).sort();
+  return walkFiles(screensDir, (full, name) => name.endsWith('Screen.tsx') && !name.endsWith('.test.tsx')).sort(compareText);
 }
 
 export function exportedNames(source) {
@@ -171,7 +215,7 @@ export function exportedNames(source) {
 }
 
 export function listPageFiles(pagesDir) {
-  return walkFiles(pagesDir, (full, name) => name.endsWith('.cshtml') && !name.startsWith('_')).sort();
+  return walkFiles(pagesDir, (full, name) => name.endsWith('.cshtml') && !name.startsWith('_')).sort(compareText);
 }
 
 export function pageDirective(source) {
