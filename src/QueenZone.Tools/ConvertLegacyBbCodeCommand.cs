@@ -94,15 +94,13 @@ internal static class ConvertLegacyBbCodeCommand
             }
         }
 
-        Console.WriteLine();
-        Console.WriteLine($"Would update / planned: {wouldUpdate}");
-        Console.WriteLine($"Updated: {updated}");
-        Console.WriteLine($"Skipped: {skipped}");
-        Console.WriteLine($"Failed: {failed}");
-        if (!options.Apply && wouldUpdate > 0)
-        {
-            Console.WriteLine("Dry-run only. Re-run with --apply to write BodyHtml.");
-        }
+        ToolArgs.WriteBackfillSummary(
+            wouldUpdate,
+            updated,
+            skipped,
+            failed,
+            options.Apply,
+            "Dry-run only. Re-run with --apply to write BodyHtml.");
 
         return failed == 0 ? 0 : 1;
     }
@@ -165,26 +163,20 @@ internal static class ConvertLegacyBbCodeCommand
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static void WriteUsage(string? errorMessage)
-    {
-        if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            Console.Error.WriteLine(errorMessage);
-            Console.Error.WriteLine();
-        }
-
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- convert-legacy-bbcode [options]");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Options:");
-        Console.Error.WriteLine("  --connection-string <cs>   SQL Server (or ConnectionStrings__QueenZoneLegacy)");
-        Console.Error.WriteLine("  --limit <n>                Max candidate rows to consider");
-        Console.Error.WriteLine("  --delay-ms <n>              Pause between items (default 50)");
-        Console.Error.WriteLine("  --apply                    Write updates (default is dry-run)");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Default: dry-run. Re-running is idempotent — converted rows no longer contain");
-        Console.Error.WriteLine("recognized BBCode markers, so they're skipped on subsequent runs automatically.");
-    }
+    private static void WriteUsage(string? errorMessage) =>
+        ToolArgs.WriteUsage(
+            errorMessage,
+            "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- convert-legacy-bbcode [options]",
+            "",
+            "Options:",
+            "  --connection-string <cs>   SQL Server (or ConnectionStrings__QueenZoneLegacy)",
+            "  --limit <n>                Max candidate rows to consider",
+            "  --delay-ms <n>              Pause between items (default 50)",
+            "  --apply                    Write updates (default is dry-run)",
+            "",
+            "Default: dry-run. Re-running is idempotent — converted rows no longer contain",
+            "recognized BBCode markers, so they're skipped on subsequent runs automatically.");
 }
 
 internal sealed record BbCodeCandidateRow(long Id, string BodyHtml);
@@ -225,11 +217,11 @@ internal sealed class ConvertLegacyBbCodeOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--limit", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var n, out var nError))
             {
-                if (!int.TryParse(args[++index], out var n) || n < 1)
+                if (nError is not null)
                 {
-                    return Invalid("--limit must be a positive integer.");
+                    return Invalid(nError);
                 }
 
                 limit = n;
@@ -242,11 +234,11 @@ internal sealed class ConvertLegacyBbCodeOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--delay-ms", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadInt(args, ref index, "--delay-ms", 0, out var delay, out var delayError))
             {
-                if (!int.TryParse(args[++index], out var delay) || delay < 0)
+                if (delayError is not null)
                 {
-                    return Invalid("--delay-ms must be >= 0.");
+                    return Invalid(delayError);
                 }
 
                 delayMs = delay;
