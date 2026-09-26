@@ -4,7 +4,7 @@
  *
  * Node 24, no npm dependencies. Counts lint, analyzer, and coverage
  * suppressions in tracked source files and fails when a file gains one that
- * does not link an issue on the same line (`#1234` or a GitHub issue URL).
+ * does not link an issue on the same line (`(#1234)` or a GitHub issue URL).
  * Linked suppressions are always allowed; unlinked ones must fit the
  * per-file counts in config/suppression-baseline.json.
  *
@@ -38,7 +38,7 @@ export const KINDS = {
   'hack-comment': /(?:\/\/|\/\*|#|<!--|@\*)\s*(?:HACK|FIXME)\b/,
 };
 
-const ISSUE_LINK = /(?:^|[^\w&])#\d{2,}\b|github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+/;
+const ISSUE_LINK = /\(#\d{2,}\)|github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+/;
 
 const SOURCE_EXTENSIONS = new Set([
   '.cs',

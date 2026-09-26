@@ -19,7 +19,7 @@ import {
 test('findSuppressions finds each kind and marks issue-linked lines', () => {
   const text = [
     '// eslint-disable-next-line react-hooks/exhaustive-deps -- reason',
-    '// eslint-disable-next-line react-hooks/exhaustive-deps -- removed by #1821',
+    '// eslint-disable-next-line react-hooks/exhaustive-deps -- removed by (#1821)',
     '#pragma warning disable CS8509',
     '#pragma warning restore CS8509',
     '[ExcludeFromCodeCoverage(Justification = "SQL Server only")]',
@@ -56,6 +56,19 @@ test('findSuppressions does not treat pragmas or colours without an issue number
   const [hit] = findSuppressions('#pragma warning disable EF1003 // fixed SQL');
   assert.equal(hit.linked, false);
   assert.equal(findSuppressions('// eslint-disable-line -- see &#39;quote&#39;')[0].linked, false);
+  assert.equal(findSuppressions('// eslint-disable-line -- color #333')[0].linked, false);
+  assert.equal(findSuppressions('// eslint-disable-line -- removed by #1821')[0].linked, false);
+});
+
+test('findSuppressions splits CRLF the same as LF', () => {
+  const crlf = findSuppressions('// eslint-disable-line\r\n#pragma warning disable CS1\r\n');
+  assert.deepEqual(
+    crlf.map((hit) => [hit.line, hit.kind, hit.linked]),
+    [
+      [1, 'eslint-disable', false],
+      [2, 'pragma-warning-disable', false],
+    ],
+  );
 });
 
 test('isScannedPath keeps source files and skips generated, vendored, and doc paths', () => {
