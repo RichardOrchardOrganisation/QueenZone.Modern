@@ -104,6 +104,8 @@ public sealed class InMemoryIdempotencyStoreTests
         var memberId = Guid.NewGuid();
         var operationId = Guid.NewGuid();
         var writes = new WriteCounter();
+        var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var first = store.ExecuteAsync(
             memberId,
@@ -112,10 +114,12 @@ public sealed class InMemoryIdempotencyStoreTests
             "hash-a",
             async ct =>
             {
-                await Task.Delay(40, ct);
+                firstEntered.SetResult();
+                await releaseFirst.Task.WaitAsync(ct);
                 return await WriteAsync(ct, writes, "only-once");
             },
             CancellationToken.None);
+        await firstEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
         var second = store.ExecuteAsync(
             memberId,
             IdempotencyOperationKinds.MessageCompose,
@@ -123,6 +127,10 @@ public sealed class InMemoryIdempotencyStoreTests
             "hash-a",
             ct => WriteAsync(ct, writes, "duplicate"),
             CancellationToken.None);
+
+        // The first write is still in flight, so the duplicate must wait rather than run.
+        Assert.False(second.IsCompleted);
+        releaseFirst.SetResult();
 
         var results = await Task.WhenAll(first, second);
         Assert.Equal(1, writes.Count);

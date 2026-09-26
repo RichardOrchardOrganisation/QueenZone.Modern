@@ -169,8 +169,11 @@ public sealed class EfFanPerformanceSubmissionRepositoryTests : IAsyncDisposable
     public async Task GetPendingAsync_ReturnsReviewableStatusesNewestFirst()
     {
         var older = await repository.CreateAsync(NewSubmission(Guid.NewGuid(), "Older pending"));
-        await Task.Delay(5);
         var newer = await repository.CreateAsync(NewSubmission(Guid.NewGuid(), "Newer pending"));
+        var submittedAt = DateTimeOffset.UtcNow;
+        (await dbContext.FanPerformanceSubmissions.SingleAsync(row => row.Id == older.Id)).SubmittedAt = submittedAt.AddMinutes(-1);
+        (await dbContext.FanPerformanceSubmissions.SingleAsync(row => row.Id == newer.Id)).SubmittedAt = submittedAt;
+        await dbContext.SaveChangesAsync();
         var withdrawn = await repository.CreateAsync(NewSubmission(Guid.NewGuid(), "Withdrawn"));
         await repository.UpdateStatusAsync(
             withdrawn.Id,
