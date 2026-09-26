@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,6 +10,7 @@ import {
   findSuppressions,
   formatBaseline,
   isScannedPath,
+  listSourceFiles,
   main,
   readRepo,
   totalsByKind,
@@ -111,6 +111,25 @@ function makeRepo(files) {
   return root;
 }
 
+test('listSourceFiles skips dot-directories, build output, and generated native projects', () => {
+  const root = makeRepo({
+    'src/a.ts': 'a',
+    'src/QueenZone.Web/bin/Release/b.cs': 'b',
+    'src/QueenZone.Web/obj/c.cs': 'c',
+    'src/QueenZone.Mobile/node_modules/pkg/d.js': 'd',
+    'src/QueenZone.Mobile/android/app/e.js': 'e',
+    'src/QueenZone.Mobile/src/f.tsx': 'f',
+    '.claude/worktrees/copy/src/g.ts': 'g',
+    '.git/h.js': 'h',
+    'Directory.Build.props': 'i',
+  });
+  assert.deepEqual(listSourceFiles(root).sort(), [
+    'Directory.Build.props',
+    'src/QueenZone.Mobile/src/f.tsx',
+    'src/a.ts',
+  ]);
+});
+
 test('readRepo reads only scanned files', () => {
   const root = makeRepo({ 'src/a.ts': 'a', 'docs/b.md': 'b' });
   assert.deepEqual(readRepo(root, ['src/a.ts', 'docs/b.md']), [['src/a.ts', 'a']]);
@@ -124,9 +143,6 @@ test('main --write then check passes, and a new unlinked suppression fails', () 
   const logs = [];
   const errors = [];
   const io = { root, log: (line) => logs.push(line), error: (line) => errors.push(line) };
-
-  // main() lists files with `git ls-files`, so the temp repo needs an index.
-  initGit(root);
 
   assert.equal(main(['--write'], io), 0);
   const baseline = JSON.parse(readFileSync(path.join(root, BASELINE_PATH), 'utf8'));
@@ -152,9 +168,3 @@ test('main --write then check passes, and a new unlinked suppression fails', () 
   assert.equal(main(['--list'], io), 0);
   assert.deepEqual(logs, ['src/a.ts:1 [eslint-disable] // eslint-disable-line']);
 });
-
-function initGit(root) {
-  const run = (args) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
-  run(['init', '-q']);
-  run(['add', '-A']);
-}

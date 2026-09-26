@@ -15,10 +15,11 @@
  *   node scripts/check-suppressions.mjs --write  # rewrite the baseline
  *   node scripts/check-suppressions.mjs --list   # print every unlinked suppression
  *
- * The audit behind the baseline is docs/architecture/workaround-audit.md.
+ * Files are found by walking the working tree (build output, dependencies and dot-directories
+ * are skipped), so untracked source files count too. The audit behind the baseline is
+ * docs/architecture/workaround-audit.md.
  */
-import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -63,6 +64,13 @@ const IGNORED_PATHS = [
   /^docs\//,
   /^scripts\/check-suppressions(?:\.test)?\.mjs$/,
 ];
+
+/**
+ * Build output, dependencies, and generated native projects. Skipped by name at any depth, along
+ * with every dot-directory (.git, .github, .claude worktrees, .expo, ...).
+ */
+const SKIPPED_DIRECTORIES = new Set(['node_modules', 'bin', 'obj', 'TestResults', 'coverage', 'artifacts']);
+const SKIPPED_DIRECTORY_PATHS = new Set(['src/QueenZone.Mobile/ios', 'src/QueenZone.Mobile/android']);
 
 export function repoRootFrom(moduleUrl = import.meta.url) {
   return path.resolve(path.dirname(fileURLToPath(moduleUrl)), '..');
@@ -157,12 +165,26 @@ export function totalsByKind(counts) {
   return Object.fromEntries(Object.entries(totals).sort(([a], [b]) => compareText(a, b)));
 }
 
-function listTrackedFiles(root) {
-  const output = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  return output.split('\0').filter(Boolean);
+/**
+ * Repo-relative POSIX paths of every file under `root`, minus build output and dot-directories.
+ * Walks the tree instead of running `git ls-files`, so the check starts no external process.
+ */
+export function listSourceFiles(root, relativeDir = '') {
+  const files = [];
+  for (const entry of readdirSync(path.join(root, relativeDir), { withFileTypes: true })) {
+    const relative = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      if (!entry.name.startsWith('.') && !SKIPPED_DIRECTORIES.has(entry.name) && !SKIPPED_DIRECTORY_PATHS.has(relative)) {
+        files.push(...listSourceFiles(root, relative));
+      }
+    } else if (entry.isFile()) {
+      files.push(relative);
+    }
+  }
+  return files;
 }
 
-export function readRepo(root, files = listTrackedFiles(root)) {
+export function readRepo(root, files = listSourceFiles(root)) {
   return files
     .filter(isScannedPath)
     .sort(compareText)
