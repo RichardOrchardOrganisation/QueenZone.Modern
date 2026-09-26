@@ -69,7 +69,7 @@ test('evidence markdown escapes mentions, closing keywords and link breakout', (
       evidence: [
         { url: 'https://example.test/sonar', text: 'Fixes #12 @admin [break](https://evil.example)' },
         { url: 'javascript:alert(1)', text: 'CI step Compile' },
-        { text: 'NOSONAR + Skip = true' },
+        { text: 'Skip analyzer + Skip = true' },
       ],
     },
     config,
@@ -80,7 +80,7 @@ test('evidence markdown escapes mentions, closing keywords and link breakout', (
   assert.ok(issue.body.includes('\\@admin'));
   assert.ok(issue.body.includes('\\[break\\]'));
   assert.doesNotMatch(issue.body, /javascript:alert/);
-  assert.match(issue.body, /NOSONAR \+ Skip = true/);
+  assert.match(issue.body, /Skip analyzer \+ Skip = true/);
 });
 
 test('storm issue lists the ranked signals', () => {
