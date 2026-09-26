@@ -27,7 +27,8 @@ public sealed class ModernForumPostEntityConfiguration : IEntityTypeConfiguratio
             .HasDatabaseName("UQ_ModernForumPost_LegacyPostId");
         builder.HasIndex(post => new { post.AuthorMemberId, post.PostedAt })
             .HasDatabaseName("IX_ModernForumPost_AuthorMemberId_PostedAt");
-        builder.HasIndex(post => new { post.AuthorLegacyUserId, post.PostedAt })
+        builder.HasIndex(post => new { post.AuthorLegacyUserId, post.PostedAt, post.Id })
+            .IsDescending(false, true, true)
             .HasDatabaseName("IX_ModernForumPost_AuthorLegacyUserId_PostedAt");
         builder.HasIndex(post => post.PostedAt)
             .HasDatabaseName("IX_ModernForumPost_PostedAt_Visible")
