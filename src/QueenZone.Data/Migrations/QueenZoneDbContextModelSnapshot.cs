@@ -1470,7 +1470,8 @@ namespace QueenZone.Data.Migrations
 
                     b.HasIndex("ThreadId");
 
-                    b.HasIndex("AuthorLegacyUserId", "PostedAt")
+                    b.HasIndex("AuthorLegacyUserId", "PostedAt", "Id")
+                        .IsDescending(false, true, true)
                         .HasDatabaseName("IX_ModernForumPost_AuthorLegacyUserId_PostedAt");
 
                     b.HasIndex("AuthorMemberId", "PostedAt")
