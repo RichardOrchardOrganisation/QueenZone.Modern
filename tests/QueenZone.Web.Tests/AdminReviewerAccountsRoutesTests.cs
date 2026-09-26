@@ -32,6 +32,10 @@ public sealed class AdminReviewerAccountsRoutesTests : IClassFixture<QueenZoneWe
         const string password = "create-reviewer-password";
         var admin = factory.CreateAdminClient();
         var page = await admin.GetStringAsync("/admin/reviewer-accounts");
+        Assert.Contains("for=\"Input_Password\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"Input_Password\"", page, StringComparison.Ordinal);
+        Assert.Contains("for=\"Input_ConfirmPassword\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"Input_ConfirmPassword\"", page, StringComparison.Ordinal);
 
         var response = await admin.PostAsync(
             "/admin/reviewer-accounts",
@@ -65,6 +69,10 @@ public sealed class AdminReviewerAccountsRoutesTests : IClassFixture<QueenZoneWe
         var admin = factory.CreateAdminClient();
         var pagePath = $"/admin/reviewer-accounts/{account.Id}";
         var page = await admin.GetStringAsync(pagePath);
+        Assert.Contains("for=\"Input_NewPassword\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"Input_NewPassword\"", page, StringComparison.Ordinal);
+        Assert.Contains("for=\"Input_ConfirmNewPassword\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"Input_ConfirmNewPassword\"", page, StringComparison.Ordinal);
 
         var response = await admin.PostAsync(
             pagePath,

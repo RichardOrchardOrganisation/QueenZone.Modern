@@ -64,7 +64,7 @@ public sealed class NewsDiscoveryHttpClient(HttpClient httpClient) : INewsDiscov
                     $"Discovery response from '{finalUrl}' exceeds the {OutboundUrlSafety.DefaultMaxResponseBytes}-byte limit.");
             }
 
-            buffer.Write(chunk, 0, read);
+            await buffer.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
         }
 
         var charset = response.Content.Headers.ContentType?.CharSet;
