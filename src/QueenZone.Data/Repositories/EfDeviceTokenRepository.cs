@@ -31,7 +31,7 @@ public sealed class EfDeviceTokenRepository(QueenZoneDbContext dbContext) : IDev
                 await dbContext.SaveChangesAsync(cancellationToken);
                 return token;
             }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && attempt < MaxUniqueConflictRetries)
+            catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation() && attempt < MaxUniqueConflictRetries)
             {
                 // A concurrent register (or a case-insensitive unique hit the find missed)
                 // inserted first. Detach the failed INSERT and update that row.
@@ -82,7 +82,4 @@ public sealed class EfDeviceTokenRepository(QueenZoneDbContext dbContext) : IDev
         return dbContext.DeviceTokens
             .SingleOrDefaultAsync(row => row.DeviceId.ToLower() == normalized, cancellationToken);
     }
-
-    internal static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
-        exception.IsUniqueConstraintViolation();
 }

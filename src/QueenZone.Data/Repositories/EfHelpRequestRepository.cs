@@ -11,23 +11,11 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var entity = new HelpRequestEntity
-        {
-            Id = request.Id == Guid.Empty ? Guid.NewGuid() : request.Id,
-            Topic = HelpRequestTopic.Normalize(request.Topic),
-            Subject = RequireTrimmed(request.Subject, 200),
-            Message = RequireTrimmed(request.Message, 4000),
-            Name = RequireTrimmed(request.Name, 100),
-            Email = RequireTrimmed(request.Email, 256),
-            NormalizedEmail = NormalizeEmail(request.NormalizedEmail, request.Email),
-            MemberId = request.MemberId,
-            Status = HelpRequestStatus.Open,
-            SubmittedAt = request.SubmittedAt == default ? DateTimeOffset.UtcNow : request.SubmittedAt,
-        };
+        var entity = HelpRequestRecords.NewEntity(request);
 
         dbContext.HelpRequests.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Map(entity);
+        return HelpRequestRecords.Map(entity);
     }
 
     public async Task<HelpRequest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -36,7 +24,7 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
             .AsNoTracking()
             .SingleOrDefaultAsync(row => row.Id == id, cancellationToken);
 
-        return entity is null ? null : Map(entity);
+        return entity is null ? null : HelpRequestRecords.Map(entity);
     }
 
     public async Task<HelpRequestListPage> ListAsync(
@@ -47,7 +35,7 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var statusFilter = NormalizeOptionalStatus(status);
+        var statusFilter = HelpRequestRecords.NormalizeStatusFilter(status);
 
         var query = dbContext.HelpRequests.AsNoTracking();
         if (statusFilter is not null)
@@ -123,13 +111,10 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
             return null;
         }
 
-        entity.Status = HelpRequestStatus.Normalize(status);
-        entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(notes, 500);
+        HelpRequestRecords.ApplyStatus(entity, status, reviewerEmail, notes);
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Map(entity);
+        return HelpRequestRecords.Map(entity);
     }
 
     public async Task<int> CountByEmailSinceAsync(
@@ -137,7 +122,7 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
         DateTimeOffset sinceUtc,
         CancellationToken cancellationToken = default)
     {
-        var key = NormalizeEmail(normalizedEmail, normalizedEmail);
+        var key = HelpRequestRecords.NormalizeEmail(normalizedEmail, normalizedEmail);
         var rows = await dbContext.HelpRequests
             .AsNoTracking()
             .Where(row => row.NormalizedEmail == key)
@@ -176,53 +161,4 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
             dbContext.Database.ProviderName,
             "Microsoft.EntityFrameworkCore.Sqlite",
             StringComparison.Ordinal);
-
-    internal static string NormalizeEmail(string? normalizedEmail, string email)
-    {
-        var source = string.IsNullOrWhiteSpace(normalizedEmail) ? email : normalizedEmail;
-        return source.Trim().ToUpperInvariant();
-    }
-
-    private static string? NormalizeOptionalStatus(string? status)
-    {
-        if (string.IsNullOrWhiteSpace(status) || string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return HelpRequestStatus.Normalize(status);
-    }
-
-    private static string RequireTrimmed(string value, int maxLength)
-    {
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
-    private static HelpRequest Map(HelpRequestEntity entity) =>
-        new(
-            entity.Id,
-            entity.Topic,
-            entity.Subject,
-            entity.Message,
-            entity.Name,
-            entity.Email,
-            entity.NormalizedEmail,
-            entity.MemberId,
-            entity.Status,
-            entity.SubmittedAt,
-            entity.ReviewedAt,
-            entity.ReviewerEmail,
-            entity.ReviewNotes);
 }

@@ -159,21 +159,6 @@ public sealed class EfDeviceTokenRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public void IsUniqueConstraintViolation_DetectsSqliteAndSqlServerMessages()
-    {
-        var sqlite = new DbUpdateException(
-            "conflict",
-            new Exception("UNIQUE constraint failed: DeviceTokens.DeviceId"));
-        var sqlServer = new DbUpdateException(
-            "conflict",
-            new Exception("Cannot insert duplicate key row in object 'dbo.DeviceTokens' with unique index 'IX_DeviceTokens_DeviceId'. The duplicate key value is (e3c869b0-f770-4ee4-be4a-46c63ccba90f)."));
-
-        Assert.True(EfDeviceTokenRepository.IsUniqueConstraintViolation(sqlite));
-        Assert.True(EfDeviceTokenRepository.IsUniqueConstraintViolation(sqlServer));
-        Assert.False(EfDeviceTokenRepository.IsUniqueConstraintViolation(new DbUpdateException("other", new Exception("timeout"))));
-    }
-
-    [Fact]
     public async Task UpsertAsync_UniqueConflictOnInsert_UpdatesExistingRow()
     {
         var alice = await SeedAccountAsync("alice-conflict@example.com");

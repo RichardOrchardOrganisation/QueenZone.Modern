@@ -243,7 +243,7 @@ public sealed class EfHomePollRepository(QueenZoneDbContext dbContext, TimeProvi
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
         {
             throw new ForumPollVoteException(
                 ForumPollVoteException.AlreadyVoted,
@@ -278,9 +278,6 @@ public sealed class EfHomePollRepository(QueenZoneDbContext dbContext, TimeProvi
                 .ToList(),
         };
     }
-
-    internal static bool IsUniqueConstraintViolation(DbUpdateException exception) =>
-        exception.IsUniqueConstraintViolation();
 
     private async Task<HomePollResults> BuildResultsAsync(
         HomePollEntity poll,

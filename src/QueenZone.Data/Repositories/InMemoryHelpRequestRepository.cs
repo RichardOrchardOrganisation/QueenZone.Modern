@@ -15,22 +15,10 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
 
         lock (sync)
         {
-            var entity = new HelpRequestEntity
-            {
-                Id = request.Id == Guid.Empty ? Guid.NewGuid() : request.Id,
-                Topic = HelpRequestTopic.Normalize(request.Topic),
-                Subject = RequireTrimmed(request.Subject, 200),
-                Message = RequireTrimmed(request.Message, 4000),
-                Name = RequireTrimmed(request.Name, 100),
-                Email = RequireTrimmed(request.Email, 256),
-                NormalizedEmail = EfHelpRequestRepository.NormalizeEmail(request.NormalizedEmail, request.Email),
-                MemberId = request.MemberId,
-                Status = HelpRequestStatus.Open,
-                SubmittedAt = request.SubmittedAt == default ? DateTimeOffset.UtcNow : request.SubmittedAt,
-            };
+            var entity = HelpRequestRecords.NewEntity(request);
 
             requests.Add(entity);
-            return Task.FromResult(Map(entity));
+            return Task.FromResult(HelpRequestRecords.Map(entity));
         }
     }
 
@@ -39,7 +27,7 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
         lock (sync)
         {
             var entity = requests.SingleOrDefault(row => row.Id == id);
-            return Task.FromResult(entity is null ? null : Map(entity));
+            return Task.FromResult(entity is null ? null : HelpRequestRecords.Map(entity));
         }
     }
 
@@ -51,7 +39,7 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var statusFilter = NormalizeOptionalStatus(status);
+        var statusFilter = HelpRequestRecords.NormalizeStatusFilter(status);
 
         lock (sync)
         {
@@ -93,12 +81,9 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
                 return Task.FromResult<HelpRequest?>(null);
             }
 
-            entity.Status = HelpRequestStatus.Normalize(status);
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(notes, 500);
+            HelpRequestRecords.ApplyStatus(entity, status, reviewerEmail, notes);
 
-            return Task.FromResult<HelpRequest?>(Map(entity));
+            return Task.FromResult<HelpRequest?>(HelpRequestRecords.Map(entity));
         }
     }
 
@@ -107,7 +92,7 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
         DateTimeOffset sinceUtc,
         CancellationToken cancellationToken = default)
     {
-        var key = EfHelpRequestRepository.NormalizeEmail(normalizedEmail, normalizedEmail);
+        var key = HelpRequestRecords.NormalizeEmail(normalizedEmail, normalizedEmail);
         lock (sync)
         {
             var count = requests.Count(row =>
@@ -137,47 +122,4 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
             return Task.FromResult(count);
         }
     }
-
-    private static string? NormalizeOptionalStatus(string? status)
-    {
-        if (string.IsNullOrWhiteSpace(status) || string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return HelpRequestStatus.Normalize(status);
-    }
-
-    private static string RequireTrimmed(string value, int maxLength)
-    {
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
-    private static HelpRequest Map(HelpRequestEntity entity) =>
-        new(
-            entity.Id,
-            entity.Topic,
-            entity.Subject,
-            entity.Message,
-            entity.Name,
-            entity.Email,
-            entity.NormalizedEmail,
-            entity.MemberId,
-            entity.Status,
-            entity.SubmittedAt,
-            entity.ReviewedAt,
-            entity.ReviewerEmail,
-            entity.ReviewNotes);
 }

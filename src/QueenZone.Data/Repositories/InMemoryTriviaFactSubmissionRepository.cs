@@ -30,9 +30,9 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                     : Guid.NewGuid(),
                 SubmitterMemberId = submission.SubmitterMemberId,
                 Text = submission.Text.Trim(),
-                Category = NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
+                Category = SubmissionInput.NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
                 Difficulty = NormalizeDifficulty(submission.Difficulty),
-                SourceNote = NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
+                SourceNote = SubmissionInput.NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
                 Status = TriviaFactSubmissionStatus.Pending,
                 SubmittedAt = DateTimeOffset.UtcNow,
             };
@@ -145,8 +145,8 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
             entity.Status = TriviaFactSubmissionStatus.Approved;
             entity.PromotedTriviaId = promotedTriviaId;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
             {
@@ -185,13 +185,13 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 throw new InvalidOperationException(error);
             }
 
-            var normalizedReason = NormalizeOptional(rejectionReason, 500)
+            var normalizedReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
                 ?? throw new InvalidOperationException("A rejection reason is required.");
             entity.Status = TriviaFactSubmissionStatus.Rejected;
             entity.RejectionReason = normalizedReason;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
             {
@@ -263,18 +263,7 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
 
     private static string? NormalizeDifficulty(string? value)
     {
-        var trimmed = NormalizeOptional(value, TriviaValidation.MaxDifficultyLength);
+        var trimmed = SubmissionInput.NormalizeOptional(value, TriviaValidation.MaxDifficultyLength);
         return trimmed?.ToLowerInvariant();
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 }
