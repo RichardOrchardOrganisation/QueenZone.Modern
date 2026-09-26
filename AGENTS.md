@@ -24,6 +24,7 @@ This repository is the modern QueenZone rebuild. The project is archive-first: i
 - `docs/agent-bitwarden-secrets.md` is the multi-machine Bitwarden Secrets Manager (`bws`) setup for local agents (Windows vs macOS).
 - `.cursor/agents/` and `.cursor/skills/orchestrate-epic/` are the **Cursor-only** issue-queue overlay (planner / implementer / verifier / reviewer). Pin `/orchestrate-epic` as a Custom Mode in Cursor. Grok and other non-Cursor agents do not use that loop — they stay a single agent in the current chat (see [Grok and other non-Cursor agents](#grok-and-other-non-cursor-agents)). The portable protocol is the **issue-queue** Cursor plugin (`~/.cursor/plugins/local/issue-queue`, skill `/orchestrate-issues`). This repo keeps copies so a clone works without the plugin.
 - `docs/feature-map/` is the maintained mobile + web feature map (entry points, sources, test IDs, Maestro flows, E2E specs). Both verify skills read it. `node scripts/check-feature-map.mjs` (also `npm run preflight` in `src/QueenZone.Mobile`) fails CI when a screen or public/member page is unmapped.
+- `docs/architecture/workaround-audit.md` lists every known workaround, suppression, and version pin with a keep / remove decision. `config/suppression-baseline.json` is its CI ratchet (see [Workarounds and suppressions](#workarounds-and-suppressions)).
 
 Keep durable workflow guidance in this file and keep user-facing setup guidance in `README.md`.
 
@@ -123,6 +124,21 @@ The same loop is packaged as the **issue-queue** Cursor plugin for other repos: 
 In that Custom Mode, use `/orchestrate-epic` for **one issue** (`work on #757`), an epic's children, or an explicit list (`work on #15 #16 #17`). Skip planner when the queue has a single issue. The parent keeps a scoreboard and loops **one issue at a time** through implementer → verifier → reviewer → (one implementer response if the review requested changes) → PR so child context does not accumulate in the parent chat. Reviewer runs once per issue; do not send the same ticket back for a second review. Do not run sibling implementers in parallel. Share the parent checkout; do not isolate a git worktree per issue (that re-runs `dotnet restore` via `.cursor/worktrees.json` and is the usual cause of a slow queue). Website and `src/QueenZone.Mobile` are both in scope; do not mix those surfaces in one implementer unless the issue requires both. Child branches use `cursor/` unless the prompt names another agent.
 
 Grok 4.6 effort when that Cursor mode is pinned: parent high (xhigh only if the split is messy), planner high, implementer medium, verifier high, reviewer high.
+
+## Workarounds and suppressions
+
+The codebase is agents' memory, so a workaround copied once becomes the pattern. `docs/architecture/workaround-audit.md` is the inventory; these are the rules.
+
+- Do not add a lint, analyzer, or coverage suppression (`eslint-disable`, `#pragma warning disable`, `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `[SuppressMessage]`, `[ExcludeFromCodeCoverage]`, `NuGetAuditSuppress`, `istanbul ignore`) to get a change through. Fix the code. If a suppression is truly needed, give the reason and the issue that removes it on the same line: `// eslint-disable-next-line some/rule -- reason (#1234)`.
+- `node scripts/check-suppressions.mjs` (the `Suppression check` workflow) fails when a file gains an unlinked suppression, and when a file drops below `config/suppression-baseline.json`. After removing suppressions, run `node scripts/check-suppressions.mjs --write` and commit the lower baseline. Never raise it by hand.
+- Do not copy these existing exceptions into new code. Each is kept for a reason that doesn't carry over:
+  - `[ExcludeFromCodeCoverage]` on SQL Server-only repository paths, EF entities, and `QueenZone.Tools` commands. Cover new code with SQLite or in-memory tests instead.
+  - `#pragma warning disable EF1003` in `EfAdminNewsRepository` (SQL from fixed schema branches). Never do this for SQL built from request data.
+  - `#pragma warning disable CS8509` in `MemberApiEndpoints.MapNewsSuggestionOutcome`. Use an `is` check when failures share a result.
+  - `react-hooks/exhaustive-deps` disables. Destructure the function you call (`const { refresh } = paged;`) and list it, or make helpers stable with `useCallback`. Reanimated shared values in `ZoomableArchiveImage` are the only kept case.
+  - The six React Compiler rules still `off` in `src/QueenZone.Mobile/eslint.config.js` (#1821). Don't turn off more rules.
+  - The mobile `react-native-reanimated` / `react-native-worklets` pins, the JS-thread pinch/double-tap in `ZoomableArchiveImage`, and the `image-size` override (#1782).
+- Before writing a small private helper (normalise, truncate, tag-strip, rowversion check, unique-violation check), search for a shared one: `SubmissionInput`, `DbUpdateExceptionExtensions`. Known duplicates still waiting to merge are listed in #1822; don't add another copy.
 
 ## Testing Expectations
 
