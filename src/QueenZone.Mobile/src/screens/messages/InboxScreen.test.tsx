@@ -1,4 +1,4 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { archiveConversation, fetchInbox } from '../../api/messages';
 import { ApiError } from '../../api/client';
 import { getContentCache } from '../../cache';
@@ -30,11 +30,19 @@ jest.mock('../../offlineQueue', () => ({
   updateOfflineItem: jest.fn(),
 }));
 
+let mockLastFocusEffect: (() => void | (() => void)) | null = null;
+
 jest.mock('@react-navigation/native', () => {
   const actual = jest.requireActual('@react-navigation/native');
+  const { useEffect } = jest.requireActual('react');
   return {
     ...actual,
     useNavigation: () => ({ navigate: jest.fn() }),
+    // Runs like a single focus on mount, and keeps the effect so a test can refocus the screen.
+    useFocusEffect: (effect: () => void | (() => void)) => {
+      mockLastFocusEffect = effect;
+      useEffect(effect, [effect]);
+    },
   };
 });
 
@@ -143,6 +151,22 @@ describe('InboxScreen', () => {
 
     await waitFor(() => expect(archiveConversationMock).toHaveBeenCalledWith('tok', 'convo-1'));
     await waitFor(() => expect(fetchInboxMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('refreshes from the network when the screen is focused again', async () => {
+    mockSession.isSignedIn = true;
+    mockSession.accessToken = 'tok';
+    fetchInboxMock.mockResolvedValue(pagedResponse([inboxConversationFixture()], 1, 1));
+    renderInbox();
+    await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
+    expect(fetchInboxMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      mockLastFocusEffect?.();
+    });
+
+    await waitFor(() => expect(fetchInboxMock).toHaveBeenCalledTimes(2));
+    expect(fetchInboxMock).toHaveBeenLastCalledWith('tok', expect.objectContaining({ networkOnly: true }));
   });
 
   it('shows markup and URLs in the preview as plain text', async () => {
