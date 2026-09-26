@@ -122,54 +122,30 @@ internal static class PhotoDimInventoryCommand
         IPhotoRepository repository,
         PhotoDimInventoryOptions options)
     {
-        var categories = await repository.GetCategoriesAsync(options.CancellationToken);
-        if (options.CategoryId is int categoryId)
-        {
-            categories = categories.Where(category => category.CatId == categoryId).ToList();
-        }
-        else if (!string.IsNullOrWhiteSpace(options.CategorySlug))
-        {
-            categories = categories
-                .Where(category => string.Equals(category.Slug, options.CategorySlug, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
-        var photos = new List<PhotoItem>();
-        foreach (var category in categories)
-        {
-            var items = await repository.GetCategoryAllAsync(category.CatId, options.CancellationToken);
-            photos.AddRange(items);
-            if (options.Limit is int limit && photos.Count >= limit)
-            {
-                return photos.Take(limit).ToList();
-            }
-        }
-
-        return photos;
+        return await PhotoCategoryScan.LoadPhotosAsync(
+            repository,
+            options.CategoryId,
+            options.CategorySlug,
+            options.Limit,
+            options.CancellationToken);
     }
 
-    private static void WriteUsage(string? errorMessage)
-    {
-        if (!string.IsNullOrWhiteSpace(errorMessage))
-        {
-            Console.Error.WriteLine(errorMessage);
-            Console.Error.WriteLine();
-        }
-
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- photo-dim-inventory [options]");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Options:");
-        Console.Error.WriteLine("  --connection-string <cs>   SQL Server connection (or ConnectionStrings__QueenZoneLegacy)");
-        Console.Error.WriteLine("  --category-id <id>         Limit to one category id");
-        Console.Error.WriteLine("  --category-slug <slug>     Limit to one category slug");
-        Console.Error.WriteLine("  --limit <n>                Cap number of photos counted");
-        Console.Error.WriteLine("  --output <path>            Write report text to a file");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Read-only. Does not update PIC_WIDTH / PIC_HEIGHT.");
-        Console.Error.WriteLine("SQL-only variant: docs/sql/009-photo-dimension-inventory.sql");
-        Console.Error.WriteLine("Never log connection strings.");
-    }
+    private static void WriteUsage(string? errorMessage) =>
+        ToolArgs.WriteUsage(
+            errorMessage,
+            "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- photo-dim-inventory [options]",
+            "",
+            "Options:",
+            "  --connection-string <cs>   SQL Server connection (or ConnectionStrings__QueenZoneLegacy)",
+            "  --category-id <id>         Limit to one category id",
+            "  --category-slug <slug>     Limit to one category slug",
+            "  --limit <n>                Cap number of photos counted",
+            "  --output <path>            Write report text to a file",
+            "",
+            "Read-only. Does not update PIC_WIDTH / PIC_HEIGHT.",
+            "SQL-only variant: docs/sql/009-photo-dimension-inventory.sql",
+            "Never log connection strings.");
 
     private sealed class DimensionRow
     {
@@ -218,11 +194,11 @@ internal sealed class PhotoDimInventoryOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--category-id", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var id, out var idError))
             {
-                if (!int.TryParse(args[++index], out var id))
+                if (idError is not null)
                 {
-                    return Invalid("--category-id must be an integer.");
+                    return Invalid(idError);
                 }
 
                 categoryId = id;
@@ -235,11 +211,11 @@ internal sealed class PhotoDimInventoryOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--limit", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var parsedLimit, out var parsedLimitError))
             {
-                if (!int.TryParse(args[++index], out var parsedLimit) || parsedLimit < 1)
+                if (parsedLimitError is not null)
                 {
-                    return Invalid("--limit must be a positive integer.");
+                    return Invalid(parsedLimitError);
                 }
 
                 limit = parsedLimit;
