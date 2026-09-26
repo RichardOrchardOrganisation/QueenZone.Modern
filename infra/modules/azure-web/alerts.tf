@@ -254,7 +254,10 @@ resource "azurerm_monitor_metric_alert" "availability" {
 
   name                = "qz-prod-availability"
   resource_group_name = var.resource_group_name
-  scopes              = [azurerm_application_insights.production.id]
+  scopes = [
+    azurerm_application_insights_standard_web_test.health[0].id,
+    azurerm_application_insights.production.id,
+  ]
   description         = "Standard web test qz-prod-health failed from 2 or more locations."
   severity            = 1
   enabled             = true
