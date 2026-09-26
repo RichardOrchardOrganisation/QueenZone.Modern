@@ -6,7 +6,8 @@ The zone, public DNS records, both Worker scripts, and both Worker routes set `l
 
 ## Archive traffic controls
 
-- The zone custom-firewall ruleset blocks `ClaudeBot`, `Claude-SearchBot`, `AionBot`, `Amazonbot`, `SemrushBot`, `MJ12bot`, and `serpstatbot` on the apex and `www` hosts. These were the crawlers proven to drive sustained Azure SQL Data IO; Googlebot and bingbot remain allowed.
+- The zone custom-firewall ruleset skips Browser Integrity Check, security level, and managed WAF for `GET /health` on the apex and `www` hosts. Azure availability probes for `qz-prod-health` must traverse Cloudflare (App Service denies non-Cloudflare ingress), and those probes are non-browser clients from Azure datacenter IPs. The skip is path-and-method scoped so the rest of the site keeps Medium security and BIC.
+- The same ruleset then blocks `ClaudeBot`, `Claude-SearchBot`, `AionBot`, `Amazonbot`, `SemrushBot`, `MJ12bot`, and `serpstatbot` on the apex and `www` hosts. These were the crawlers proven to drive sustained Azure SQL Data IO; Googlebot and bingbot remain allowed.
 - The archive-author rate-limit ruleset blocks a source IP for 10 seconds after more than 10 requests in 10 seconds. It limits bursts across unique author IDs that edge caching cannot absorb.
 - The zone cache ruleset caches cookie-free `GET /forum/archive-authors/*` responses at the edge for one hour. Any request carrying a cookie bypasses this rule and follows the application's authentication-aware cache policy.
 
