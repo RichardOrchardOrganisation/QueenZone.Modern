@@ -211,7 +211,7 @@ BEGIN
             CAST(Q_FORUM_LAST_POST AS datetime2(0)) AS LastActivityAt,
             CONVERT(bit, 0) AS IsSynthetic
         FROM dbo.Q_FORUM_T
-        WHERE LTRIM(RTRIM(ISNULL(Q_FORUM_NAME, ''))) <> ''
+        WHERE NULLIF(LTRIM(RTRIM(Q_FORUM_NAME)), '') IS NOT NULL
 
         UNION ALL
 
@@ -793,7 +793,7 @@ BEGIN
     (
         SELECT CAST(Q_FORUM_ID AS int) AS LegacyForumId
         FROM dbo.Q_FORUM_T
-        WHERE LTRIM(RTRIM(ISNULL(Q_FORUM_NAME, ''))) <> ''
+        WHERE NULLIF(LTRIM(RTRIM(Q_FORUM_NAME)), '') IS NOT NULL
 
         UNION
 

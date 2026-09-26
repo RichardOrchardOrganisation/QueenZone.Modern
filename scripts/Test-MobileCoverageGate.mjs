@@ -332,7 +332,7 @@ export function parseCobertura(contents, { repoRoot = defaultRepoRoot } = {}) {
       addHit(coverage.lines, number, hits);
       addHit(coverage.statements, String(number), hits);
 
-      const condition = /condition-coverage="[^"]*\((\d+)\/(\d+)\)"/.exec(attrs);
+      const condition = /condition-coverage="[^"(]*\((\d+)\/(\d+)\)"/.exec(attrs);
       if (condition) {
         const covered = Number(condition[1]);
         const total = Number(condition[2]);
