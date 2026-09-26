@@ -3,6 +3,7 @@ using QueenZone.Tools;
 
 namespace QueenZone.Tools.Tests;
 
+[Collection(EnvironmentVariableCollection.Name)]
 public sealed class CheckLinksCommandTests
 {
     [Fact]
