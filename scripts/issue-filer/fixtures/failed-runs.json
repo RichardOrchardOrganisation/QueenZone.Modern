@@ -1,0 +1,66 @@
+{
+  "runs": [
+    {
+      "id": 1,
+      "name": "CI",
+      "html_url": "https://github.com/example/repo/actions/runs/1",
+      "head_sha": "aaa111",
+      "created_at": "2026-09-20T00:00:00Z",
+      "event": "push"
+    },
+    {
+      "id": 2,
+      "name": "CI",
+      "html_url": "https://github.com/example/repo/actions/runs/2",
+      "head_sha": "bbb222",
+      "created_at": "2026-09-21T00:00:00Z",
+      "event": "merge_group"
+    },
+    {
+      "id": 3,
+      "name": "CI",
+      "html_url": "https://github.com/example/repo/actions/runs/3",
+      "head_sha": "ccc333",
+      "created_at": "2026-09-22T00:00:00Z",
+      "event": "push"
+    },
+    {
+      "id": 4,
+      "name": "CI",
+      "html_url": "https://github.com/example/repo/actions/runs/4",
+      "head_sha": "aaa111",
+      "created_at": "2026-09-23T00:00:00Z",
+      "event": "push"
+    }
+  ],
+  "jobsByRunId": {
+    "1": [
+      {
+        "name": "test",
+        "conclusion": "failure",
+        "steps": [{ "name": "Run tests", "conclusion": "failure" }]
+      }
+    ],
+    "2": [
+      {
+        "name": "test",
+        "conclusion": "failure",
+        "steps": [{ "name": "Run tests", "conclusion": "failure" }]
+      }
+    ],
+    "3": [
+      {
+        "name": "test",
+        "conclusion": "failure",
+        "steps": [{ "name": "Run tests", "conclusion": "failure" }]
+      }
+    ],
+    "4": [
+      {
+        "name": "build",
+        "conclusion": "failure",
+        "steps": [{ "name": "Compile", "conclusion": "failure" }]
+      }
+    ]
+  }
+}
