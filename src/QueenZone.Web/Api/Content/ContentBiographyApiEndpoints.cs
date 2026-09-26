@@ -11,16 +11,17 @@ public static class ContentBiographyApiEndpoints
 {
     internal static void MapContentBiographyApiEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/biography", GetBiographyChaptersAsync)
-            .WithName("GetContentBiographyChapters")
-            .WithSummary("Paged list of biography chapters, in reading order.")
-            .Produces<ApiPagedResponse<BiographyChapterListItemDto>>();
+        group.MapPagedList<BiographyChapterListItemDto>(
+            "/biography",
+            GetBiographyChaptersAsync,
+            "GetContentBiographyChapters",
+            "Paged list of biography chapters, in reading order.");
 
-        group.MapGet("/biography/{id:int}", GetBiographyChapterDetailAsync)
-            .WithName("GetContentBiographyChapterDetail")
-            .WithSummary("A single biography chapter, with adjacent-chapter navigation.")
-            .Produces<BiographyChapterDetailDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<BiographyChapterDetailDto>(
+            "/biography/{id:int}",
+            GetBiographyChapterDetailAsync,
+            "GetContentBiographyChapterDetail",
+            "A single biography chapter, with adjacent-chapter navigation.");
     }
 
     internal static async Task<IResult> GetBiographyChaptersAsync(
@@ -29,22 +30,13 @@ public static class ContentBiographyApiEndpoints
         int? pageSize,
         CancellationToken cancellationToken)
     {
-        var request = ApiPagination.Normalize(page, pageSize);
         var chapters = BiographyChapterOrdering.ByDisplaySequenceAscending(
             await publicQueryCache.GetBiographyChaptersAsync(cancellationToken));
-
-        var pageItems = chapters
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .ToList();
-
-        var response = ApiPagedResponse<BiographyChapterListItemDto>.Create(
-            ContentApiMapper.ToBiographyChapterListItems(pageItems),
-            request.Page,
-            request.PageSize,
-            chapters.Count);
-
-        return Results.Ok(response);
+        return ApiV1EndpointHelpers.OkPagedSlice(
+            chapters,
+            page,
+            pageSize,
+            ContentApiMapper.ToBiographyChapterListItems);
     }
 
     internal static async Task<IResult> GetBiographyChapterDetailAsync(
@@ -55,10 +47,7 @@ public static class ContentBiographyApiEndpoints
         var chapter = await biographyRepository.GetByIdAsync(id, cancellationToken);
         if (chapter is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No biography chapter with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No biography chapter with id '{id}'.");
         }
 
         var navigation = await biographyRepository.GetAdjacentChaptersAsync(id, cancellationToken);

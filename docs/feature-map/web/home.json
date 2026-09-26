@@ -1,0 +1,32 @@
+{
+  "area": "home",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [
+        "homepage",
+        "front page",
+        "archive hero"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/SmokeTests.cs",
+        "tests/QueenZone.Web.E2E/CuratedPageLayoutSmokeTests.cs"
+      ],
+      "selectors": [
+        "#qz-hero-archive"
+      ],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/homepage.md",
+      "id": "web.home.index",
+      "name": "Homepage",
+      "page": "Pages/Index.cshtml",
+      "url": "/",
+      "entry": "Open /"
+    }
+  ]
+}

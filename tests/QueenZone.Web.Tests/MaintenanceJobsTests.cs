@@ -277,21 +277,21 @@ public sealed class MaintenanceJobsTests
         services.AddSingleton<IMemberAccountRepository, InMemoryMemberAccountRepository>();
         services.AddScoped<AppleAccountTokenService>();
         await using var provider = services.BuildServiceProvider();
+        var clock = new TimerAwareFakeTimeProvider();
         using var hosted = new AppleTokenRevocationHostedService(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System,
-            NullLogger<AppleTokenRevocationHostedService>.Instance)
-        {
-            StartupDelay = TimeSpan.FromMilliseconds(20),
-            RunInterval = Timeout.InfiniteTimeSpan,
-        };
+            clock,
+            NullLogger<AppleTokenRevocationHostedService>.Instance);
 
         await hosted.StartAsync(CancellationToken.None);
-        var activity = await WaitForActivityAsync(listener, "AppleTokenRevocation");
-        await listener.WaitUntilStoppedAsync(activity);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(AppleTokenRevocationHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
         await hosted.StopAsync(CancellationToken.None);
 
+        var activity = Assert.Single(listener.Started, item => item.OperationName == "AppleTokenRevocation");
         Assert.Equal(ActivityKind.Internal, activity.Kind);
+        Assert.True(activity.IsStopped);
     }
 
     [Fact]
@@ -299,20 +299,22 @@ public sealed class MaintenanceJobsTests
     {
         using var listener = QueenZoneActivityTestListener.Listen();
         await using var provider = new ServiceCollection().BuildServiceProvider();
+        var clock = new TimerAwareFakeTimeProvider();
         using var hosted = new AppleTokenRevocationHostedService(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System,
-            NullLogger<AppleTokenRevocationHostedService>.Instance)
-        {
-            StartupDelay = TimeSpan.FromMilliseconds(20),
-            RunInterval = Timeout.InfiniteTimeSpan,
-        };
+            clock,
+            NullLogger<AppleTokenRevocationHostedService>.Instance);
 
         await hosted.StartAsync(CancellationToken.None);
-        var activity = await WaitForActivityAsync(listener, "AppleTokenRevocation");
-        await listener.WaitUntilStoppedAsync(activity);
+        await clock.WaitForTimersCreatedAsync(1);
+        clock.Advance(AppleTokenRevocationHostedService.DefaultStartupDelay);
+
+        // The run throws (no AppleAccountTokenService registered); a second wait means the loop
+        // logged the failure and kept its schedule.
+        await clock.WaitForTimersCreatedAsync(2);
         await hosted.StopAsync(CancellationToken.None);
 
+        var activity = Assert.Single(listener.Started, item => item.OperationName == "AppleTokenRevocation");
         Assert.True(activity.IsStopped);
     }
 
@@ -321,16 +323,16 @@ public sealed class MaintenanceJobsTests
     {
         using var listener = QueenZoneActivityTestListener.Listen();
         await using var provider = new ServiceCollection().BuildServiceProvider();
+        var clock = new TimerAwareFakeTimeProvider();
         using var hosted = new AppleTokenRevocationHostedService(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System,
-            NullLogger<AppleTokenRevocationHostedService>.Instance)
-        {
-            StartupDelay = TimeSpan.FromHours(1),
-        };
+            clock,
+            NullLogger<AppleTokenRevocationHostedService>.Instance);
 
         await hosted.StartAsync(CancellationToken.None);
+        await clock.WaitForTimersCreatedAsync(1);
         await hosted.StopAsync(CancellationToken.None);
+        clock.Advance(AppleTokenRevocationHostedService.DefaultStartupDelay);
 
         Assert.DoesNotContain(listener.Started, item => item.OperationName == "AppleTokenRevocation");
     }
@@ -344,23 +346,6 @@ public sealed class MaintenanceJobsTests
         services.AddQueenZoneMaintenanceWorker(new ConfigurationBuilder().Build());
         configure?.Invoke(services);
         return services.BuildServiceProvider(validateScopes: true);
-    }
-
-    private static async Task<Activity> WaitForActivityAsync(QueenZoneActivityTestListener listener, string operationName)
-    {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (DateTime.UtcNow < deadline)
-        {
-            var activity = listener.Started.ToArray().FirstOrDefault(item => item.OperationName == operationName);
-            if (activity is not null)
-            {
-                return activity;
-            }
-
-            await Task.Delay(20);
-        }
-
-        throw new TimeoutException($"Activity {operationName} did not start.");
     }
 
     private sealed class CapturingLoggerProvider : ILoggerProvider

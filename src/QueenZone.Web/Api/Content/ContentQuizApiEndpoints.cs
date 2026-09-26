@@ -11,10 +11,11 @@ public static class ContentQuizApiEndpoints
 {
     internal static void MapContentQuizApiEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/quizzes", GetQuizzesAsync)
-            .WithName("GetContentQuizzes")
-            .WithSummary("Paged list of published quizzes. Unpublished quizzes never appear.")
-            .Produces<ApiPagedResponse<QuizListItemDto>>();
+        group.MapPagedList<QuizListItemDto>(
+            "/quizzes",
+            GetQuizzesAsync,
+            "GetContentQuizzes",
+            "Paged list of published quizzes. Unpublished quizzes never appear.");
 
         group.MapGet("/quizzes/leaderboard", GetQuizLeaderboardAsync)
             .WithName("GetContentQuizLeaderboard")
@@ -70,11 +71,11 @@ public static class ContentQuizApiEndpoints
             .WithSummary("Today's (UTC) Quiz Sprint standings using each member's best run, plus players today. Optional Bearer includes the viewer's own entry even outside the top page.")
             .Produces<SprintDailyBoardDto>();
 
-        group.MapGet("/quizzes/{id:guid}", GetQuizDetailAsync)
-            .WithName("GetContentQuizDetail")
-            .WithSummary("A published quiz shaped for play: options only, no correct-answer flag.")
-            .Produces<QuizDetailDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<QuizDetailDto>(
+            "/quizzes/{id:guid}",
+            GetQuizDetailAsync,
+            "GetContentQuizDetail",
+            "A published quiz shaped for play: options only, no correct-answer flag.");
 
         group.MapPost("/quizzes/{id:guid}/attempts", SubmitQuizAsync)
             .WithName("SubmitContentQuizAttempt")
@@ -94,16 +95,12 @@ public static class ContentQuizApiEndpoints
         int? pageSize,
         CancellationToken cancellationToken)
     {
-        var request = ApiPagination.Normalize(page, pageSize);
         var all = await quizRepository.GetPublishedAsync(cancellationToken);
-        var items = all
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
-            .Select(ContentApiMapper.ToQuizListItemDto)
-            .ToList();
-
-        var response = ApiPagedResponse<QuizListItemDto>.Create(items, request.Page, request.PageSize, all.Count);
-        return Results.Ok(response);
+        return ApiV1EndpointHelpers.OkPagedSlice(
+            all,
+            page,
+            pageSize,
+            static items => items.Select(ContentApiMapper.ToQuizListItemDto).ToList());
     }
 
     internal static async Task<IResult> GetQuizDetailAsync(
@@ -114,10 +111,7 @@ public static class ContentQuizApiEndpoints
         var quiz = await quizRepository.GetPublishedForPlayAsync(id, cancellationToken);
         if (quiz is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No published quiz with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No published quiz with id '{id}'.");
         }
 
         return Results.Ok(ContentApiMapper.ToQuizDetailDto(quiz));

@@ -5,6 +5,7 @@
 #
 # Usage (repo root):
 #   ./scripts/run-mobile-android-smoke-self-hosted.sh <release-apk> [--prove-failure]
+#   ./scripts/run-mobile-android-smoke-self-hosted.sh <release-apk> --suite proof --feature mobile.photos.viewer
 set -euo pipefail
 
 apk="${1:-}"
@@ -111,10 +112,14 @@ fi
 
 export ANDROID_SERIAL="$serial"
 export MAESTRO_TARGET_DEVICE="$serial"
-./scripts/run-mobile-device-smoke.sh \
-  --platform android \
-  --suite smoke \
-  --skip-build \
-  --no-build \
-  --apk "$apk" \
-  "$@"
+suite="${DEVICE_SUITE:-smoke}"
+feature="${DEVICE_FEATURE:-}"
+smoke_args=(--platform android --suite "$suite" --skip-build --no-build --apk "$apk")
+if [[ "$suite" = "proof" ]]; then
+  if [[ -z "$feature" ]]; then
+    echo "DEVICE_FEATURE is required when DEVICE_SUITE=proof." >&2
+    exit 2
+  fi
+  smoke_args+=(--feature "$feature")
+fi
+./scripts/run-mobile-device-smoke.sh "${smoke_args[@]}" "$@"

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using QueenZone.Storage;
 using SixLabors.ImageSharp;
 
@@ -15,13 +16,12 @@ public static class PhotoSubmissionImageProcessor
 
     public const int ThumbSizePixels = PhotoWebpDerivatives.DefaultThumbSizePixels;
 
-    public static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
+    public static readonly FrozenSet<string> AllowedContentTypes = FrozenSet.Create(
+        StringComparer.OrdinalIgnoreCase,
         "image/jpeg",
         "image/png",
         "image/webp",
-        "image/tiff",
-    };
+        "image/tiff");
 
     public sealed record ProcessedPhotoSubmission(
         MemoryStream Original,

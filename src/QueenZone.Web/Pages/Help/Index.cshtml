@@ -1,7 +1,8 @@
 @page "/contact"
 @model QueenZone.Web.Pages.Help.IndexModel
 @{
-    // Avoid asp-validation-summary's <li style="display:none"> placeholder (style-src 'self').
+    // asp-validation-summary emits a hidden list-item placeholder with an inline style.
+    // style-src 'self' blocks that style, so client validation stays off on this page.
     ViewContext.ClientValidationEnabled = false;
 }
 

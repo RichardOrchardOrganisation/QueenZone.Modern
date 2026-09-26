@@ -36,6 +36,9 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
             row.Submitter != null ? row.Submitter.DisplayName : null,
             row.Submitter != null ? row.Submitter.Email : null);
 
+    // Map(entity) and the SQL projection must stay identical; compiling the projection keeps one copy.
+    private static readonly Func<TriviaFactSubmissionEntity, TriviaFactSubmission> MapEntity = SubmissionProjection.Compile();
+
     public async Task<TriviaFactSubmission> CreateAsync(
         NewTriviaFactSubmission submission,
         CancellationToken cancellationToken = default)
@@ -44,14 +47,12 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
 
         var entity = new TriviaFactSubmissionEntity
         {
-            Id = submission.Id is { } preferredId && preferredId != Guid.Empty
-                ? preferredId
-                : Guid.NewGuid(),
+            Id = SubmissionInput.IdOrNew(submission.Id),
             SubmitterMemberId = submission.SubmitterMemberId,
             Text = submission.Text.Trim(),
-            Category = NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
+            Category = SubmissionInput.NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
             Difficulty = NormalizeDifficulty(submission.Difficulty),
-            SourceNote = NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
+            SourceNote = SubmissionInput.NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
             Status = TriviaFactSubmissionStatus.Pending,
             SubmittedAt = DateTimeOffset.UtcNow,
         };
@@ -126,8 +127,8 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
         entity.Status = TriviaFactSubmissionStatus.Approved;
         entity.PromotedTriviaId = promotedTriviaId;
         entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
         dbContext.TriviaFactSubmissionAuditLogs.Add(new TriviaFactSubmissionAuditLogEntity
         {
@@ -164,13 +165,13 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
             throw new InvalidOperationException(error);
         }
 
-        var normalizedReason = NormalizeOptional(rejectionReason, 500)
+        var normalizedReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
             ?? throw new InvalidOperationException("A rejection reason is required.");
         entity.Status = TriviaFactSubmissionStatus.Rejected;
         entity.RejectionReason = normalizedReason;
         entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
         dbContext.TriviaFactSubmissionAuditLogs.Add(new TriviaFactSubmissionAuditLogEntity
         {
@@ -202,19 +203,8 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
 
     private static string? NormalizeDifficulty(string? value)
     {
-        var trimmed = NormalizeOptional(value, TriviaValidation.MaxDifficultyLength);
+        var trimmed = SubmissionInput.NormalizeOptional(value, TriviaValidation.MaxDifficultyLength);
         return trimmed?.ToLowerInvariant();
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 
     internal IQueryable<TriviaFactSubmissionListItem> PendingQueueQuery(int skip, int take) =>
@@ -233,21 +223,5 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
             .AsNoTracking()
             .Where(row => row.SubmitterMemberId == submitterMemberId);
 
-    private static TriviaFactSubmission Map(TriviaFactSubmissionEntity entity) =>
-        new(
-            entity.Id,
-            entity.SubmitterMemberId,
-            entity.Text,
-            entity.Category,
-            entity.Difficulty,
-            entity.SourceNote,
-            entity.Status,
-            entity.SubmittedAt,
-            entity.ReviewedAt,
-            entity.ReviewerEmail,
-            entity.ReviewNotes,
-            entity.RejectionReason,
-            entity.PromotedTriviaId,
-            entity.Submitter?.DisplayName,
-            entity.Submitter?.Email);
+    private static TriviaFactSubmission Map(TriviaFactSubmissionEntity entity) => MapEntity(entity);
 }

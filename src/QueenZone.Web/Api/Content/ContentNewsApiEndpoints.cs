@@ -11,16 +11,17 @@ public static class ContentNewsApiEndpoints
 {
     internal static void MapContentNewsApiEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/news", GetNewsListAsync)
-            .WithName("GetContentNewsList")
-            .WithSummary("Paged list of published news articles. Optional 'decade' (e.g. 2010) filters server-side to that 10-year span, or 'year' (e.g. 2008) to a single year; 'year' wins if both are given. Out-of-range years are ignored.")
-            .Produces<ApiPagedResponse<NewsListItemDto>>();
+        group.MapPagedList<NewsListItemDto>(
+            "/news",
+            GetNewsListAsync,
+            "GetContentNewsList",
+            "Paged list of published news articles. Optional 'decade' (e.g. 2010) filters server-side to that 10-year span, or 'year' (e.g. 2008) to a single year; 'year' wins if both are given. Out-of-range years are ignored.");
 
-        group.MapGet("/news/{id:int}", GetNewsDetailAsync)
-            .WithName("GetContentNewsDetail")
-            .WithSummary("A single published news article.")
-            .Produces<NewsDetailDto>()
-            .ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapDetail<NewsDetailDto>(
+            "/news/{id:int}",
+            GetNewsDetailAsync,
+            "GetContentNewsDetail",
+            "A single published news article.");
 
         group.MapGet("/news/years", GetNewsYearRangeAsync)
             .WithName("GetContentNewsYearRange")
@@ -46,13 +47,11 @@ public static class ContentNewsApiEndpoints
             cancellationToken);
         var totalCount = await publicQueryCache.GetNewsPublishedCountAsync(filter, cancellationToken);
 
-        var response = ApiPagedResponse<NewsListItemDto>.Create(
+        return ApiV1EndpointHelpers.OkPaged(
             await newsDiscussion.ToListItemsAsync(items, cancellationToken),
             request.Page,
             request.PageSize,
             totalCount);
-
-        return Results.Ok(response);
     }
 
     internal static async Task<IResult> GetNewsYearRangeAsync(
@@ -72,10 +71,7 @@ public static class ContentNewsApiEndpoints
         var item = await newsRepository.GetByIdAsync(id, cancellationToken);
         if (item is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No published news article with id '{id}'.");
+            return ApiV1EndpointHelpers.NotFound($"No published news article with id '{id}'.");
         }
 
         return Results.Ok(await newsDiscussion.ToDetailAsync(item, cancellationToken));

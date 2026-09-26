@@ -23,11 +23,11 @@
       <input asp-for="Input.DisplayName" autocomplete="off" />
       <span asp-validation-for="Input.DisplayName"></span>
 
-      <label asp-for="Input.Password"></label>
+      <label asp-for="Input.Password" for="Input_Password"></label>
       <input id="Input_Password" name="Input.Password" type="password" autocomplete="new-password" />
       <span asp-validation-for="Input.Password"></span>
 
-      <label asp-for="Input.ConfirmPassword"></label>
+      <label asp-for="Input.ConfirmPassword" for="Input_ConfirmPassword"></label>
       <input id="Input_ConfirmPassword" name="Input.ConfirmPassword" type="password" autocomplete="new-password" />
       <span asp-validation-for="Input.ConfirmPassword"></span>
 

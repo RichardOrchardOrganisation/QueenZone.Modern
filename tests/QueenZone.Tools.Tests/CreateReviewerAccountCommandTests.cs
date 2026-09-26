@@ -7,6 +7,7 @@ using QueenZone.Tools;
 
 namespace QueenZone.Tools.Tests;
 
+[Collection(EnvironmentVariableCollection.Name)]
 public sealed class CreateReviewerAccountCommandTests
 {
     [Fact]

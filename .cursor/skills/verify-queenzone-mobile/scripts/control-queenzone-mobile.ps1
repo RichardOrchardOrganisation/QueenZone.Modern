@@ -13,13 +13,17 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet("launch", "doctor", "url", "drive", "cleanup")]
+    [ValidateSet("launch", "doctor", "url", "drive", "cleanup", "capture-proof")]
     [string] $Command,
 
     [int] $Port = 5098,
 
-    [ValidateSet("launch", "tabs", "home", "news", "photos", "search", "forum", "profile", "auth", "attach", "discussion", "unread")]
-    [string] $Flow = "news"
+    [string] $Flow = "news",
+
+    [string] $Feature,
+
+    [ValidateSet("android", "ios")]
+    [string] $Platform = "android"
 )
 
 Set-StrictMode -Version Latest
@@ -43,6 +47,8 @@ if (-not $RepoRoot) {
     throw "Could not find QueenZone.sln above $SkillRoot."
 }
 
+. (Join-Path $RepoRoot "scripts/FeatureMap.ps1")
+
 $RunDir = Join-Path $SkillRoot ".run"
 $StatePath = Join-Path $RunDir "state.json"
 $FixturePath = Join-Path $RunDir "host.json"
@@ -52,19 +58,14 @@ $ProjectPath = Join-Path $RepoRoot "src\QueenZone.Web\QueenZone.Web.csproj"
 $NewsDetailPath = "/api/v1/content/news/1003"
 $NewsTitle = "QueenZone modernisation begins"
 
-$FlowFiles = @{
-    launch  = "src/QueenZone.Mobile/maestro/flows/01-launch.yaml"
-    tabs    = "src/QueenZone.Mobile/maestro/flows/02-tabs.yaml"
-    home    = "src/QueenZone.Mobile/maestro/flows/03-home-detail.yaml"
-    news    = "src/QueenZone.Mobile/maestro/flows/04-news-story.yaml"
-    photos  = "src/QueenZone.Mobile/maestro/flows/05-photography.yaml"
-    search  = "src/QueenZone.Mobile/maestro/flows/06-archive-search.yaml"
-    forum   = "src/QueenZone.Mobile/maestro/flows/07-forum.yaml"
-    profile = "src/QueenZone.Mobile/maestro/flows/08-profile-signed-out.yaml"
-    auth    = "src/QueenZone.Mobile/maestro/flows/09-authenticated.yaml"
-    attach  = "src/QueenZone.Mobile/maestro/flows/10-forum-attach.yaml"
-    discussion = "src/QueenZone.Mobile/maestro/flows/11-news-discussion.yaml"
-    unread  = "src/QueenZone.Mobile/maestro/flows/12-masthead-unread.yaml"
+function Resolve-MappedFlowEntry {
+    param([string] $IdOrAlias)
+    $entries = Get-QueenZoneFeatureMap -RepoRoot $RepoRoot
+    $entry = Resolve-QueenZoneFeature -Entries $entries -IdOrAlias $IdOrAlias
+    if (-not $entry) {
+        throw "Unknown feature or drive alias '$IdOrAlias'. Use a docs/feature-map id (for example mobile.photos.viewer) or a drive alias such as news, photos, search."
+    }
+    return $entry
 }
 
 function Read-State {
@@ -226,7 +227,11 @@ switch ($Command) {
         }
         Invoke-Health -BaseUrl $state.url
         $fixture = Read-Fixture
-        $flowRel = $FlowFiles[$Flow]
+        $mapped = Resolve-MappedFlowEntry -IdOrAlias $Flow
+        $flowRel = Get-QueenZoneDriveFlow -Entry $mapped -FlowName $Flow
+        if ([string]::IsNullOrWhiteSpace($flowRel)) {
+            throw "Feature $($mapped.id) has no Maestro flow for '$Flow'."
+        }
         $flowPath = Join-Path $RepoRoot $flowRel
         if (-not (Test-Path $flowPath)) {
             throw "Flow file missing: $flowRel"
@@ -263,7 +268,102 @@ switch ($Command) {
         if (Test-Path (Join-Path $results "junit.xml")) {
             Copy-Item (Join-Path $results "junit.xml") (Join-Path $artifactDir "junit.xml") -Force
         }
-        Write-Output "Drive ok: $Flow. Copied JUnit to $artifactDir"
+        Write-Output "Drive ok: $Flow ($($mapped.id)). Copied JUnit to $artifactDir"
+        return
+    }
+
+    "capture-proof" {
+        $featureId = if (-not [string]::IsNullOrWhiteSpace($Feature)) { $Feature } else { $Flow }
+        $mapped = Resolve-MappedFlowEntry -IdOrAlias $featureId
+        $proofDir = Get-QueenZoneProofDir -RepoRoot $RepoRoot -FeatureId $mapped.id -Platform $Platform
+        $sha = Get-QueenZoneHeadSha -RepoRoot $RepoRoot
+        $flows = @($mapped.flows | ForEach-Object { [string] $_ } | Where-Object { $_ })
+        $namedCheck = "CI workflow mobile-device-smoke.yml suite=proof feature=$($mapped.id) ($Platform)"
+        $reason = $null
+
+        if ($Platform -eq "ios") {
+            if ($IsLinux -or -not (Get-Command xcrun -ErrorAction SilentlyContinue)) {
+                $reason = "iOS Simulator is impossible on this host"
+            }
+            else {
+                $booted = & xcrun simctl list devices booted 2>$null
+                if ($booted -notmatch "Booted") {
+                    $reason = "no booted iOS Simulator"
+                }
+            }
+        }
+        else {
+            $adb = Get-Command adb -ErrorAction SilentlyContinue
+            if (-not $adb) {
+                $reason = "adb is not on PATH and no Android emulator is reachable"
+            }
+            else {
+                $devices = & adb devices
+                if ($devices -notmatch "device$") {
+                    $reason = "no Android emulator or device in adb devices"
+                }
+            }
+        }
+
+        if ($reason) {
+            $detail = "NOT RUN: $reason, needs $namedCheck. Expo web is not accepted as mobile proof."
+            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform $Platform -Flows $flows -Result "NOT RUN" -Detail $detail
+            Write-Output $detail
+            Write-Output "Wrote $proofDir/proof.md"
+            exit 1
+        }
+
+        $state = Read-State
+        if (-not $state) {
+            $detail = "NOT RUN: contract host is not running, needs control-queenzone-mobile.ps1 launch then $namedCheck"
+            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform $Platform -Flows $flows -Result "NOT RUN" -Detail $detail
+            Write-Output $detail
+            exit 1
+        }
+        Invoke-Health -BaseUrl $state.url
+        $fixture = Read-Fixture
+        $maestro = Get-Command maestro -ErrorAction SilentlyContinue
+        if (-not $maestro) {
+            $detail = "NOT RUN: maestro is not on PATH, needs $namedCheck"
+            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform $Platform -Flows $flows -Result "NOT RUN" -Detail $detail
+            Write-Output $detail
+            exit 1
+        }
+        if ($flows.Count -eq 0) {
+            $detail = "NOT RUN: feature $($mapped.id) has no Maestro flows, needs a mapped flow before proof"
+            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform $Platform -Flows $flows -Result "NOT RUN" -Detail $detail
+            Write-Output $detail
+            exit 1
+        }
+
+        if ($flows -match "09-authenticated|10-forum-attach|12-masthead-unread") {
+            $token = [string] $fixture.member.accessToken
+            $env:SMOKE_AUTH_URL = "queenzone://smoke-auth?accessToken=$([uri]::EscapeDataString($token))"
+        }
+        if ($flows -match "10-forum-attach") {
+            $env:ATTACH_TOPIC_ID = [string] $fixture.attachTopicId
+        }
+
+        $results = Join-Path $proofDir "maestro"
+        New-Item -ItemType Directory -Force -Path $results | Out-Null
+        $flowPaths = $flows | ForEach-Object { Join-Path $RepoRoot $_ }
+        & maestro test @flowPaths --format junit --output (Join-Path $proofDir "junit.xml") --debug-output (Join-Path $results "debug") --flatten-debug-output
+        $maestroCode = $LASTEXITCODE
+        if ($Platform -eq "ios") {
+            & xcrun simctl io booted screenshot (Join-Path $proofDir "screenshot.png")
+        }
+        else {
+            $png = Join-Path $proofDir "screenshot.png"
+            & adb exec-out screencap -p | Set-Content -Path $png -AsByteStream
+        }
+        $result = if ($maestroCode -eq 0) { "PASS" } else { "FAIL" }
+        $detail = "Maestro exited $maestroCode for $($mapped.id) on $Platform."
+        Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform $Platform -Flows $flows -Result $result -Detail $detail
+        Write-Output "$result : $detail"
+        Write-Output "Proof: $proofDir"
+        if ($maestroCode -ne 0) {
+            exit $maestroCode
+        }
         return
     }
 

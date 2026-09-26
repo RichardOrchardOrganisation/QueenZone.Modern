@@ -12,6 +12,7 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
+[Collection(EnvironmentVariableCollection.Name)]
 public sealed class MobileApiContractHostTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly QueenZoneWebApplicationFactory factory;

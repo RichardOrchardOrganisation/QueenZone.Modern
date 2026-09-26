@@ -1,0 +1,177 @@
+{
+  "area": "static",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/About.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.about",
+      "name": "About",
+      "page": "Pages/About.cshtml",
+      "url": "/about",
+      "entry": "Footer → About"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Privacy.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.privacy",
+      "name": "Privacy",
+      "page": "Pages/Privacy.cshtml",
+      "url": "/privacy",
+      "entry": "Footer → Privacy"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Terms.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.terms",
+      "name": "Terms",
+      "page": "Pages/Terms.cshtml",
+      "url": "/terms",
+      "entry": "Footer → Terms"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Links.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.links",
+      "name": "Links",
+      "page": "Pages/Links.cshtml",
+      "url": "/links",
+      "entry": "Open /links"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/MobileApps.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.mobileApps",
+      "name": "Mobile apps",
+      "page": "Pages/MobileApps.cshtml",
+      "url": "/mobile-apps",
+      "entry": "Open /mobile-apps"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Help/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.contact",
+      "name": "Contact",
+      "page": "Pages/Help/Index.cshtml",
+      "url": "/contact",
+      "entry": "Footer → Contact"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Help/Confirmation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.contactConfirmation",
+      "name": "Contact confirmation",
+      "page": "Pages/Help/Confirmation.cshtml",
+      "url": "/contact/confirmation",
+      "entry": "Contact form → confirmation"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Help/LegacyRedirect.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.helpRedirect",
+      "name": "Legacy help redirect",
+      "page": "Pages/Help/LegacyRedirect.cshtml",
+      "url": "/help/{*path}",
+      "entry": "Open a legacy /help/... URL",
+      "kind": "handler"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Error.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.error",
+      "name": "Error",
+      "page": "Pages/Error.cshtml",
+      "url": "/error/{statusCode?}",
+      "entry": "Unhandled error or /error/{code}"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/NotFound.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.static.notFound",
+      "name": "Not found",
+      "page": "Pages/NotFound.cshtml",
+      "url": "/404",
+      "entry": "Unknown public URL, or /404"
+    }
+  ]
+}

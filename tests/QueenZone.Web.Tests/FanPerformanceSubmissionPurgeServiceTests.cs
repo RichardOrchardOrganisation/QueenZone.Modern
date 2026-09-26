@@ -105,23 +105,21 @@ public sealed class FanPerformanceSubmissionPurgeServiceTests
         services.AddScoped<FanPerformanceSubmissionPurgeService>();
         using var provider = services.BuildServiceProvider();
 
+        // Only the hosted loop's waits use the fake clock; the purge itself judges age from the
+        // system clock registered above, matching the timestamps seeded relative to UtcNow.
+        var clock = new TimerAwareFakeTimeProvider();
         using var hosted = new FanPerformanceSubmissionPurgeHostedService(
             provider.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System,
-            NullLogger<FanPerformanceSubmissionPurgeHostedService>.Instance)
-        {
-            StartupDelay = TimeSpan.FromMilliseconds(20),
-            RunInterval = Timeout.InfiniteTimeSpan,
-        };
+            clock,
+            NullLogger<FanPerformanceSubmissionPurgeHostedService>.Instance);
 
         await hosted.StartAsync(CancellationToken.None);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
-        while (backend.Exists(BlobUploadContainers.FanPerformances, rejected.BlobPath)
-            && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(20);
-        }
+        await clock.WaitForTimersCreatedAsync(1);
 
+        Assert.True(backend.Exists(BlobUploadContainers.FanPerformances, rejected.BlobPath));
+
+        clock.Advance(FanPerformanceSubmissionPurgeHostedService.DefaultStartupDelay);
+        await clock.WaitForTimersCreatedAsync(2);
         await hosted.StopAsync(CancellationToken.None);
         Assert.False(backend.Exists(BlobUploadContainers.FanPerformances, rejected.BlobPath));
     }

@@ -1,0 +1,69 @@
+{
+  "area": "home",
+  "surface": "mobile",
+  "entries": [
+    {
+      "aliases": [
+        "homepage",
+        "home tab",
+        "launch",
+        "home screen"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/home/HomeScreen.tsx"
+      ],
+      "testIds": [
+        "homeScreen",
+        "homeHero",
+        "homeQuote",
+        "homeSearch",
+        "homeMessages",
+        "tabHome"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/01-launch.yaml",
+        "src/QueenZone.Mobile/maestro/flows/02-tabs.yaml",
+        "src/QueenZone.Mobile/maestro/flows/03-home-detail.yaml",
+        "src/QueenZone.Mobile/maestro/flows/12-masthead-unread.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/home.md",
+      "id": "mobile.home.home",
+      "name": "Home",
+      "screen": "HomeStack/Home",
+      "entry": "Launch the app, or tap the Home tab",
+      "drive": {
+        "launch": "src/QueenZone.Mobile/maestro/flows/01-launch.yaml",
+        "tabs": "src/QueenZone.Mobile/maestro/flows/02-tabs.yaml",
+        "home": "src/QueenZone.Mobile/maestro/flows/03-home-detail.yaml",
+        "unread": "src/QueenZone.Mobile/maestro/flows/12-masthead-unread.yaml"
+      }
+    },
+    {
+      "aliases": [
+        "daily quote",
+        "home quote"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/home/QuoteScreen.tsx"
+      ],
+      "testIds": [
+        "quoteScreen",
+        "quoteBack",
+        "quoteContext",
+        "homeQuote"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/home.md",
+      "id": "mobile.home.quote",
+      "name": "Quote",
+      "screen": "HomeStack/Quote",
+      "entry": "Home → quote card"
+    }
+  ]
+}
