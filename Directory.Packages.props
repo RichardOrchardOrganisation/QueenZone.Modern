@@ -36,7 +36,6 @@
     <PackageVersion Include="Microsoft.Identity.Web" Version="4.15.0" />
     <PackageVersion Include="NUglify" Version="1.23.1" />
     <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
 
     <!-- tests -->
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />

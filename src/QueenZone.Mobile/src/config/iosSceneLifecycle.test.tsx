@@ -1,5 +1,5 @@
 // The config plugin is CommonJS because Expo loads it in Node during prebuild.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS config plugin loaded by Expo in Node.
 const sceneLifecycle = require('../../plugins/withIosSceneLifecycle.cjs') as {
   applySceneLifecycleToAppDelegate: (contents: string) => string;
   applySceneManifest: (infoPlist: Record<string, unknown>) => Record<string, unknown>;

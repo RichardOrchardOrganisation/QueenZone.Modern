@@ -121,13 +121,14 @@ export function usePagedContent<T>(
   const refreshingRef = useRef(false);
   const loadingMoreRef = useRef(false);
 
-  const applyPageMeta = (response: ApiPagedResponse<T>) => {
+  // Refs and state setters only, so its identity is stable and the effect/callbacks below can list it.
+  const applyPageMeta = useCallback((response: ApiPagedResponse<T>) => {
     pageRef.current = response.page;
     totalPagesRef.current = response.totalPages;
     setPage(response.page);
     setTotalPages(response.totalPages);
     setTotalCount(response.totalCount);
-  };
+  }, []);
 
   useEffect(() => {
     const { generation, signal } = coordinator.begin();
@@ -167,8 +168,7 @@ export function usePagedContent<T>(
       });
 
     return () => coordinator.invalidate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- generation-guard omit: applyPageMeta is a local helper; listing it would retrigger the load effect.
-  }, [coordinator, reloadToken, pageSize, resetKey]);
+  }, [applyPageMeta, coordinator, reloadToken, pageSize, resetKey]);
 
   const refresh = useCallback(() => {
     const { generation, signal } = coordinator.begin();
@@ -214,8 +214,7 @@ export function usePagedContent<T>(
           setLoading(false);
         });
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- generation-guard omit: applyPageMeta is a local helper; listing it would recreate refresh each render.
-  }, [coordinator]);
+  }, [applyPageMeta, coordinator]);
 
   const loadMore = useCallback(() => {
     if (loadingRef.current || refreshingRef.current || loadingMoreRef.current) {
@@ -246,8 +245,7 @@ export function usePagedContent<T>(
         loadingMoreRef.current = false;
         setLoadingMore(false);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- generation-guard omit: applyPageMeta is a local helper; listing it would recreate loadMore each render.
-  }, [coordinator]);
+  }, [applyPageMeta, coordinator]);
 
   return {
     items,

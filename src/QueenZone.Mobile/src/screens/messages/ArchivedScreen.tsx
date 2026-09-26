@@ -54,15 +54,16 @@ function ArchivedList({ navigation }: Pick<Props, 'navigation'>) {
     accessToken ?? '',
   );
 
+  const { refresh: refreshPaged } = paged;
+
   useFocusEffect(
     useCallback(() => {
       if (skipNextFocusRefresh.current) {
         skipNextFocusRefresh.current = false;
         return;
       }
-      paged.refresh();
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- omit the whole paged object; refresh identity is the listed dep.
-    }, [paged.refresh]),
+      refreshPaged();
+    }, [refreshPaged]),
   );
 
   const handleUnarchive = useCallback(
@@ -74,15 +75,14 @@ function ArchivedList({ navigation }: Pick<Props, 'navigation'>) {
       setUnarchivingId(conversationId);
       try {
         await unarchiveConversation(accessToken, conversationId);
-        paged.refresh();
+        refreshPaged();
       } catch {
         setActionError('Unable to unarchive this conversation. Try again.');
       } finally {
         setUnarchivingId(null);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit the whole paged object; refresh identity is the listed dep.
-    [accessToken, paged.refresh],
+    [accessToken, refreshPaged],
   );
 
   const openConversation = useCallback(
