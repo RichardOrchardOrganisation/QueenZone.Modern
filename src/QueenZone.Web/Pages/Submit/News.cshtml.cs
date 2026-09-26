@@ -60,17 +60,9 @@ public sealed class NewsModel(NewsSuggestionService newsSuggestionService) : Pag
             Notes,
             cancellationToken);
 
-        // Records synthesize a copy constructor, so CS8509 cannot see the nested sum as closed.
-#pragma warning disable CS8509
-        return outcome switch
-        {
-            SubmitOutcome.Accepted => Redirect("/submit/news/confirmation"),
-            SubmitOutcome.InvalidField
-                or SubmitOutcome.DuplicateActive
-                or SubmitOutcome.DailyLimit
-                or SubmitOutcome.SignInRequired => FailurePage(outcome.Message),
-        };
-#pragma warning restore CS8509
+        return outcome is SubmitOutcome.Accepted
+            ? Redirect("/submit/news/confirmation")
+            : FailurePage(outcome.Message);
 
         IActionResult FailurePage(string message)
         {

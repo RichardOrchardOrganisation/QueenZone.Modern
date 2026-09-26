@@ -1,4 +1,5 @@
-import { screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { RefreshControl } from 'react-native';
 import { fetchForumCategories, fetchForumStats } from '../../api';
 import type { ForumCategoryListItem } from '../../api/types';
 import { pagedResponse } from '../../test/fixtures';
@@ -86,5 +87,22 @@ describe('ForumScreen', () => {
     expect(screen.queryByText(formatForumCount(99))).toBeNull();
     expect(screen.queryByText(formatForumCount(99999))).toBeNull();
     expect(fetchStats).toHaveBeenCalledWith(expect.any(AbortSignal));
+  });
+
+  it('pull-to-refresh reloads both the boards and the forum stats', async () => {
+    fetchCategories.mockResolvedValue(pagedResponse([categoryFixture()], 1, 1));
+    fetchStats.mockResolvedValue({ boardCount: 1, threadCount: 3, postCount: 10 });
+
+    renderForum();
+    await waitFor(() => expect(screen.getByText('General')).toBeOnTheScreen());
+    expect(fetchCategories).toHaveBeenCalledTimes(1);
+    expect(fetchStats).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+    });
+
+    await waitFor(() => expect(fetchCategories).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetchStats).toHaveBeenCalledTimes(2));
   });
 });

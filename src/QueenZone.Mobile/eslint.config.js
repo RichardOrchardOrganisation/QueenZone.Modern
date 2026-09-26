@@ -46,22 +46,14 @@ module.exports = defineConfig([
           ],
         },
       ],
-      // eslint-plugin-react-hooks@7 recommended also ships React Compiler rules.
-      // Those would force SessionContext / query-hook rewrites (#1143). Out of this PR.
-      'react-hooks/static-components': 'off',
-      'react-hooks/use-memo': 'off',
+      // eslint-plugin-react-hooks@7 recommended also ships React Compiler rules. These six
+      // still have violations; each is switched back on by #1821. Do not add to this list.
       'react-hooks/preserve-manual-memoization': 'off',
-      'react-hooks/incompatible-library': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/globals': 'off',
       'react-hooks/refs': 'off',
       'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/error-boundaries': 'off',
       'react-hooks/purity': 'off',
-      'react-hooks/set-state-in-render': 'off',
-      'react-hooks/unsupported-syntax': 'off',
-      'react-hooks/config': 'off',
-      'react-hooks/gating': 'off',
     },
   },
   {

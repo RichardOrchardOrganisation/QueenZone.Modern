@@ -48,11 +48,12 @@ export function ForumScreen({ navigation }: Props) {
     });
   }, [forumStats.data?.threadCount, paged.items, paged.totalCount]);
 
+  const { reload: reloadStats } = forumStats;
+  const { refresh: refreshPaged } = paged;
   const refresh = useCallback(() => {
-    forumStats.reload();
-    paged.refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit whole paged/forumStats objects; named fields are already listed.
-  }, [forumStats.reload, paged.refresh]);
+    reloadStats();
+    refreshPaged();
+  }, [reloadStats, refreshPaged]);
 
   const compose = () => {
     openForumComposer(navigation, isSignedIn, {});
