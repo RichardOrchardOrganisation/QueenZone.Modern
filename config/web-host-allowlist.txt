@@ -1,0 +1,82 @@
+# Shrink-only allowlist of Web.Tests classes that still construct a host per test.
+# Format: ClassName: one-line reason
+# Adding an entry needs architect or reviewer sign-off. Later slices only remove rows.
+# Permanent private-host exceptions (stay after slice 4 unless the reason changes):
+#   AdminSearchIndexTests, HomePageRoutesTests startup/boot-config, mobile auth classes.
+# Remaining rows are unconverted classes from slices 2-4.
+AdminAntiforgeryRoutesTests: still builds a per-test host; convert in a later slice
+AdminBiographyRoutesTests: still builds a per-test host; convert in a later slice
+AdminDashboardEfRoutesTests: still builds a per-test host; convert in a later slice
+AdminDashboardGoogleAnalyticsTrafficTests: still builds a per-test host; convert in a later slice
+AdminDashboardSubmissionQueueTests: still builds a per-test host; convert in a later slice
+AdminFreddieTributeRoutesTests: still builds a per-test host; convert in a later slice
+AdminMembersRoutesTests: still builds a per-test host; convert in a later slice
+AdminNewsAgentGuidanceRoutesTests: still builds a per-test host; convert in a later slice
+AdminNewsCacheInvalidationTests: still builds a per-test host; convert in a later slice
+AdminNewsDiscoveryEfRoutesTests: still builds a per-test host; convert in a later slice
+AdminNewsDiscoveryRoutesTests: still builds a per-test host; convert in a later slice
+AdminNewsEfRoutesTests: still builds a per-test host; convert in a later slice
+AdminNewsRoutesTests: still builds a per-test host; convert in a later slice
+AdminPollsRoutesTests: still builds a per-test host; convert in a later slice
+AdminQuizzesRoutesTests: still builds a per-test host; convert in a later slice
+AdminSearchIndexTests: owns the in-process job singleton
+AdminTimelineRoutesTests: still builds a per-test host; convert in a later slice
+AdminTriviaRoutesTests: still builds a per-test host; convert in a later slice
+ArchiveAuthorPageTests: still builds a per-test host; convert in a later slice
+ArticlesRoutesTests: still builds a per-test host; convert in a later slice
+BiographyRoutesTests: still builds a per-test host; convert in a later slice
+CommunityArticleRoutesTests: still builds a per-test host; convert in a later slice
+ContactApiTests: still builds a per-test host; convert in a later slice
+ContentApiFanPerformancesTests: still builds a per-test host; convert in a later slice
+ContentApiHomePollTests: still builds a per-test host; convert in a later slice
+ContentApiNewsTests: still builds a per-test host; convert in a later slice
+ContentApiOnThisDayAndLiveActivityTests: still builds a per-test host; convert in a later slice
+ContentApiQuizTests: still builds a per-test host; convert in a later slice
+ContentApiQuoteTests: still builds a per-test host; convert in a later slice
+ContentApiTimelineEventTests: still builds a per-test host; convert in a later slice
+ContentApiTriviaTests: still builds a per-test host; convert in a later slice
+EditorImageUploadEndpointsTests: still builds a per-test host; convert in a later slice
+FanPerformanceAdminRoutesTests: still builds a per-test host; convert in a later slice
+FanPerformanceRateLimitTests: still builds a per-test host; convert in a later slice
+FanPerformancesPageTests: still builds a per-test host; convert in a later slice
+FollowingRoutesTests: still builds a per-test host; convert in a later slice
+ForumApiAttachmentDownloadTests: still builds a per-test host; convert in a later slice
+ForumApiWriteTests: still builds a per-test host; convert in a later slice
+ForumAttachmentEndpointsTests: still builds a per-test host; convert in a later slice
+ForumAttachmentWriteRoutesTests: still builds a per-test host; convert in a later slice
+ForumWriteRoutesTests: still builds a per-test host; convert in a later slice
+FreddieTributePageTests: still builds a per-test host; convert in a later slice
+GoogleAnalyticsTests: still builds a per-test host; convert in a later slice
+HealthEndpointsTests: still builds a per-test host; convert in a later slice
+HelpRoutesTests: still builds a per-test host; convert in a later slice
+HomeOnThisDayTests: still builds a per-test host; convert in a later slice
+HomePageRoutesTests: startup and boot-config assertions; remaining page tests convert in a later slice
+HomePollIndexRoutesTests: still builds a per-test host; convert in a later slice
+LinksRoutesTests: still builds a per-test host; convert in a later slice
+MeApiTests: still builds a per-test host; convert in a later slice
+MemberAuthenticationTests: still builds a per-test host; convert in a later slice
+MemberAvatarEndpointsTests: still builds a per-test host; convert in a later slice
+MemberPhotoSubmissionApiTests: still builds a per-test host; convert in a later slice
+MessagesApiTests: still builds a per-test host; convert in a later slice
+MobileAuthPasswordGrantTests: mobile auth host-per-test; convert remaining flows in a later slice
+MobileAuthProductionStartupTests: Production-environment host; slice 2 shared Production fixture
+MobileAuthRateLimitRouteTests: mobile auth host-per-test; convert remaining flows in a later slice
+MobileAuthRefreshFlowTests: mobile auth host-per-test; convert remaining flows in a later slice
+MobileOAuthPkceFlowTests: mobile auth host-per-test; convert remaining flows in a later slice
+MutationRateLimitRouteTests: still builds a per-test host; convert in a later slice
+NewsArticleDiscussionPreviewTests: still builds a per-test host; convert in a later slice
+NewsSuggestionRoutesTests: still builds a per-test host; convert in a later slice
+NotificationDispatchWritePathTests: still builds a per-test host; convert in a later slice
+PhotoSubmissionRoutesTests: still builds a per-test host; convert in a later slice
+PrivateMessageRateLimitRouteTests: still builds a per-test host; convert in a later slice
+PrivateMessageRoutesTests: still builds a per-test host; convert in a later slice
+PublicOutputCacheTests: Production-environment host; slice 2 shared Production fixture
+PublicRssFeedTests: still builds a per-test host; convert in a later slice
+QuizPagesRoutesTests: still builds a per-test host; convert in a later slice
+QuizQuestionSubmissionRoutesTests: still builds a per-test host; convert in a later slice
+QuizSprintPagesTests: still builds a per-test host; convert in a later slice
+QuizSprintRunTests: still builds a per-test host; convert in a later slice
+SearchApiTests: still builds a per-test host; convert in a later slice
+SearchIndexSyncTests: still builds a per-test host; convert in a later slice
+SearchPageTests: still builds a per-test host; convert in a later slice
+TriviaPageTests: still builds a per-test host; convert in a later slice

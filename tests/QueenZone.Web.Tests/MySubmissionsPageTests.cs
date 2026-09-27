@@ -1,44 +1,28 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
-using QueenZone.Routing;
-using QueenZone.Storage;
 using QueenZone.Web;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class MySubmissionsPageTests :
+    IClassFixture<InspectableBlobWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
-    private readonly InMemoryBlobStorageBackend blobBackend = new();
+    private readonly WebHostVariantCache variants;
 
-    public MySubmissionsPageTests(WebApplicationFactory<Program> factory)
+    public MySubmissionsPageTests(
+        InspectableBlobWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService>(_ =>
-                    new AzureBlobUploadService(blobBackend, Options.Create(new BlobUploadOptions())));
-            });
-        });
+        this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -126,31 +110,12 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
     [Fact]
     public async Task Get_NewsTab_ResolvesPromotedArticlesInSingleBatch()
     {
-        var firstArticle = new NewsItem(
-            1002,
-            "First promoted story",
-            "First excerpt",
-            "First body",
-            new DateTime(2026, 9, 13, 9, 0, 0, DateTimeKind.Utc),
-            null,
-            true,
-            "first-promoted-story");
-        var secondArticle = new NewsItem(
-            1003,
-            "Second promoted story",
-            "Second excerpt",
-            "Second body",
-            new DateTime(2026, 9, 14, 9, 0, 0, DateTimeKind.Utc),
-            null,
-            true,
-            "second-promoted-story");
-        var trackingNews = new TrackingNewsRepository(new FixedNewsRepository([firstArticle, secondArticle]));
-        using var testFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<INewsRepository>();
-                services.AddSingleton<INewsRepository>(trackingNews);
-            }));
+        var firstArticle = WebHostVariants.TrackingPromotedNewsItems()[0];
+        var secondArticle = WebHostVariants.TrackingPromotedNewsItems()[1];
+        var testFactory = variants.Get(WebHostVariants.TrackingPromotedNews);
+        await testFactory.ResetAsync();
+        var trackingNews = testFactory.TrackingNews;
+        Assert.NotNull(trackingNews);
         const string email = "mysubs-news-batch@example.com";
         var client = await CreateSignedInMemberClientAsync(
             email,
@@ -521,59 +486,4 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
 
     [GeneratedRegex("""name="DraftId"[^>]*value="(?<id>[^"]+)""", RegexOptions.IgnoreCase)]
     private static partial Regex DraftIdRegex();
-
-    private sealed class TrackingNewsRepository(INewsRepository inner) : INewsRepository
-    {
-        public int GetByIdCallCount { get; private set; }
-
-        public int GetByIdsCallCount { get; private set; }
-
-        public IReadOnlyList<int> LastRequestedIds { get; private set; } = [];
-
-        public Task<IReadOnlyList<NewsItem>> GetLatestAsync(
-            int count,
-            CancellationToken cancellationToken = default) =>
-            inner.GetLatestAsync(count, cancellationToken);
-
-        public Task<IReadOnlyList<NewsItem>> GetArchivePageAsync(
-            int page,
-            int pageSize,
-            NewsArchiveFilter filter = default,
-            CancellationToken cancellationToken = default) =>
-            inner.GetArchivePageAsync(page, pageSize, filter, cancellationToken);
-
-        public Task<int> GetPublishedCountAsync(
-            NewsArchiveFilter filter = default,
-            CancellationToken cancellationToken = default) =>
-            inner.GetPublishedCountAsync(filter, cancellationToken);
-
-        public Task<NewsArchiveYearRange> GetArchiveYearRangeAsync(CancellationToken cancellationToken = default) =>
-            inner.GetArchiveYearRangeAsync(cancellationToken);
-
-        public Task<NewsItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        {
-            GetByIdCallCount++;
-            return inner.GetByIdAsync(id, cancellationToken);
-        }
-
-        public Task<IReadOnlyList<NewsItem>> GetByIdsAsync(
-            IReadOnlyCollection<int> ids,
-            CancellationToken cancellationToken = default)
-        {
-            GetByIdsCallCount++;
-            LastRequestedIds = ids.ToArray();
-            return inner.GetByIdsAsync(ids, cancellationToken);
-        }
-
-        public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(
-            CancellationToken cancellationToken = default) =>
-            inner.GetPublishedSitemapEntriesAsync(cancellationToken);
-
-        public Task<NewsSearchPage> SearchAsync(
-            string query,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken = default) =>
-            inner.SearchAsync(query, page, pageSize, cancellationToken);
-    }
 }

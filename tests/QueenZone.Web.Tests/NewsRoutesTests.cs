@@ -1,19 +1,19 @@
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>, IClassFixture<WebHostVariantCache>
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public NewsRoutesTests(QueenZoneWebApplicationFactory factory)
+    public NewsRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -101,11 +101,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task EmptyArchiveShowsMessageAndRejectsLaterPages()
     {
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository([]));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.EmptyNews).CreateClient();
 
         var body = await client.GetStringAsync("/news");
         var response = await client.GetAsync("/news/page/2");
@@ -150,22 +146,8 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task NewsArchiveAndDetail_LinkVerifiedSubmitterProfile()
     {
-        var submitterMemberId = Guid.NewGuid();
-        var item = new NewsItem(
-            5100,
-            "Member submitted news",
-            "Member-submitted excerpt.",
-            "Member-submitted body.",
-            new DateTime(2026, 8, 3, 8, 0, 0, DateTimeKind.Utc),
-            null,
-            true,
-            SubmitterMemberId: submitterMemberId,
-            SubmitterDisplayName: "News Contributor");
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository([item]));
-            })).CreateClient();
+        var submitterMemberId = WebHostVariants.MemberSubmittedNewsSubmitterId;
+        var client = variants.Get(WebHostVariants.MemberSubmittedNews).CreateClient();
 
         var archiveBody = await client.GetStringAsync("/news");
         var detailBody = await client.GetStringAsync("/news/5100/member-submitted-news");
@@ -264,31 +246,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task NewsDetailRendersSafeSourceLinkAndRejectsUnsafeUrls()
     {
-        var items = new[]
-        {
-            new NewsItem(
-                5001,
-                "Article with source",
-                "Excerpt with source.",
-                "Published body.",
-                new DateTime(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc),
-                "https://example.com/original-story",
-                true),
-            new NewsItem(
-                5002,
-                "Article with unsafe source",
-                "Unsafe source excerpt.",
-                "Published body.",
-                new DateTime(2026, 5, 2, 9, 0, 0, DateTimeKind.Utc),
-                "javascript:alert(1)",
-                true)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.SourceLinkNews).CreateClient();
 
         var safeBody = await client.GetStringAsync("/news/5001/article-with-source");
         var unsafeBody = await client.GetStringAsync("/news/5002/article-with-unsafe-source");
@@ -304,23 +262,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task NewsDetailSanitizesUnsafeLegacyHtmlInBody()
     {
-        var items = new[]
-        {
-            new NewsItem(
-                5003,
-                "Unsafe HTML article",
-                "Unsafe excerpt.",
-                "<script>alert('xss')</script><p>Safe <strong>legacy</strong> paragraph</p>",
-                new DateTime(2026, 5, 3, 9, 0, 0, DateTimeKind.Utc),
-                null,
-                true)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.UnsafeHtmlNews).CreateClient();
 
         var body = await client.GetStringAsync("/news/5003/unsafe-html-article");
 
@@ -331,31 +273,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task DuplicateLegacyRowsResolveToLatestPublishedDetailWithoutError()
     {
-        var items = new[]
-        {
-            new NewsItem(
-                4242,
-                "Latest duplicate title",
-                "Latest excerpt",
-                "<p>Latest duplicate body</p>",
-                new DateTime(2026, 4, 2, 9, 0, 0, DateTimeKind.Utc),
-                null,
-                true),
-            new NewsItem(
-                4242,
-                "Older duplicate title",
-                "Older excerpt",
-                "<p>Older duplicate body</p>",
-                new DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc),
-                null,
-                true)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.DuplicateLegacyNews).CreateClient();
 
         var body = await client.GetStringAsync("/news/4242/latest-duplicate-title");
 
@@ -388,39 +306,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task NewsArchiveOrdersByCreatedDateDescending()
     {
-        var items = new[]
-        {
-            new NewsItem(
-                3001,
-                "Oldest article",
-                "Oldest excerpt.",
-                "Oldest body.",
-                new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                true),
-            new NewsItem(
-                3002,
-                "Newest article",
-                "Newest excerpt.",
-                "Newest body.",
-                new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                true),
-            new NewsItem(
-                3003,
-                "Middle article",
-                "Middle excerpt.",
-                "Middle body.",
-                new DateTime(2022, 3, 15, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                true)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.DateOrderedNews).CreateClient();
 
         var body = await client.GetStringAsync("/news");
         var dates = Regex.Matches(body, "<time datetime=\"(\\d{4}-\\d{2}-\\d{2})\">")
@@ -439,40 +325,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task DuplicateLegacyRowsAreDeduplicatedBeforePaging()
     {
-        var duplicateItems = Enumerable.Range(1, 25)
-            .Select(id => new NewsItem(
-                id,
-                $"Published article {id}",
-                $"Excerpt {id}",
-                $"Body {id}",
-                new DateTime(2026, 1, id, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                true))
-            .ToList();
-
-        duplicateItems.Add(new NewsItem(
-            5,
-            "Duplicate copy of article 5",
-            "Older duplicate excerpt",
-            "Older duplicate body",
-            new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc),
-            null,
-            true));
-
-        duplicateItems.Add(new NewsItem(
-            99,
-            "Hidden duplicate candidate",
-            "Should not render",
-            "Should not render",
-            new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc),
-            null,
-            false));
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository(duplicateItems));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.DeduplicatedPagingNews).CreateClient();
 
         var pageOne = await client.GetStringAsync("/news");
         var pageTwo = await client.GetStringAsync("/news/page/2");
@@ -507,42 +360,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task NewsArchiveRendersUgcThumbnailsThroughArticlesProxy()
     {
-        var items = new[]
-        {
-            new NewsItem(
-                6100,
-                "Article with uploaded image",
-                "Has a UGC thumbnail.",
-                "Body",
-                new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                true,
-                ImageBlobKey: "editors/me/hero.webp"),
-            new NewsItem(
-                6101,
-                "Article without image",
-                "Uses the placeholder.",
-                "Body",
-                new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                true),
-            new NewsItem(
-                6102,
-                "Article with gallery pick",
-                "Falls back until the PIC row is resolved.",
-                "Body",
-                new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc),
-                null,
-                true,
-                ImageBlobKey: "gallery:3120",
-                ImageGalleryPicId: 3120)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.UgcThumbnailNews).CreateClient();
 
         var body = await client.GetStringAsync("/news");
 
@@ -571,21 +389,7 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task NewsDetailRendersArticleImageOrPlaceholder()
     {
-        var withImage = new NewsItem(
-            6200,
-            "Detail with image",
-            "Excerpt",
-            "Body",
-            new DateTime(2026, 8, 2, 0, 0, 0, DateTimeKind.Utc),
-            null,
-            true,
-            ImageBlobKey: "editors/me/hero.webp");
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<INewsRepository>(new FixedNewsRepository([withImage]));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.DetailImageNews).CreateClient();
 
         var withImageBody = await client.GetStringAsync("/news/6200/detail-with-image");
         var sampleBody = await factory.CreateClient().GetStringAsync("/news/1003/queenzone-modernisation-begins");

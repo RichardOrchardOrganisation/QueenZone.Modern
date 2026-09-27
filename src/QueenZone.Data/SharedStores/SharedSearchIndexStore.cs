@@ -54,4 +54,12 @@ public sealed class SharedSearchIndexStore
             return documentsBySourceKey.Values.ToList();
         }
     }
+
+    public void Clear()
+    {
+        lock (sync)
+        {
+            documentsBySourceKey.Clear();
+        }
+    }
 }

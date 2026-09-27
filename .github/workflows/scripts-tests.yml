@@ -27,3 +27,9 @@ jobs:
 
       - name: Validate issue-filer config
         run: node scripts/issue-filer/run.mjs --validate
+
+      - name: Guard Web.Tests host construction
+        shell: pwsh
+        run: |
+          pwsh -File ./scripts/Test-WebHostConstruction.ps1 -SelfTest
+          pwsh -File ./scripts/Test-WebHostConstruction.ps1
