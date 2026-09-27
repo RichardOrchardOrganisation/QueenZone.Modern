@@ -25,7 +25,7 @@ public sealed class SharedHelperTests
     [Fact]
     public void EnsureRowVersion_SkipsCheckWhenNoExpectedVersionSupplied()
     {
-        QueenZoneConcurrency.EnsureRowVersion([1], null);
+        Assert.Null(Record.Exception(() => QueenZoneConcurrency.EnsureRowVersion([1], null)));
     }
 
     [Fact]
