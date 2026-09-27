@@ -179,13 +179,18 @@ if (ResponseCompressionBootstrap.IsEnabled(app.Environment))
     app.UseResponseCompression();
 }
 
-app.UseApiV1ExceptionHandler();
+// HTML exception re-execute must stay on the main pipeline. Nesting
+// UseExceptionHandler("/error") inside UseWhen breaks re-execution, and
+// UseStatusCodePagesWithReExecute then turns the failed /error path into
+// 404 (same class of bug as ApiV1ErrorHandling.UseApiV1StatusCodePages).
+// Register this before the API handler so /api/v1 still gets JSON Problem
+// Details from the inner UseWhen exception handler.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseWhen(
-        static context => !ApiV1.IsApiPath(context.Request.Path),
-        branch => branch.UseExceptionHandler("/error"));
+    app.UseExceptionHandler("/error");
 }
+
+app.UseApiV1ExceptionHandler();
 
 // PhysicalFileProvider excludes dot-prefixed files/folders by default, so the generic
 // UseStaticFiles() below would 404 on /.well-known/* (used for Microsoft's domain

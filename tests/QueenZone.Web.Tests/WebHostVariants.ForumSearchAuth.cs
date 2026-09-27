@@ -92,6 +92,12 @@ public static partial class WebHostVariants
         NoSettings,
         HostServiceProfile.None);
 
+    public static readonly WebHostVariant ThrowingForumArchiveAuthor = new(
+        nameof(ThrowingForumArchiveAuthor),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.ThrowingForumArchiveAuthor);
+
     public static readonly WebHostVariant TestingArchiveAuthorLinkProfile = new(
         nameof(TestingArchiveAuthorLinkProfile),
         "Testing",
@@ -280,6 +286,12 @@ public static partial class WebHostVariants
     {
         services.RemoveAll<IQuizRepository>();
         services.AddSingleton<IQuizRepository, ThrowingSprintBoardQuizRepository>();
+    }
+
+    private static void AddThrowingForumArchiveAuthor(IServiceCollection services)
+    {
+        services.RemoveAll<IForumArchiveAuthorRepository>();
+        services.AddSingleton<IForumArchiveAuthorRepository>(new ThrowingForumArchiveAuthorRepository());
     }
 
     private static void AddExternalCookieMobilePkce(IServiceCollection services)

@@ -232,3 +232,20 @@ internal sealed class MemoryBlobUploadService : IBlobUploadService
         return memoryBlob;
     }
 }
+
+internal sealed class ThrowingForumArchiveAuthorRepository : IForumArchiveAuthorRepository
+{
+    public Task<ForumArchiveAuthorSummary?> GetSummaryAsync(
+        int legacyUserId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<ForumArchiveAuthorSummary?>(
+            new ForumArchiveAuthorSummary(legacyUserId, "throwing-author", new DateTime(1970, 11, 27), PostCount: 1));
+
+    public Task<MemberPublicActivityPage> GetPostsPageAsync(
+        int legacyUserId,
+        int page,
+        int pageSize,
+        int totalCount,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("Simulated archive-author query failure.");
+}
