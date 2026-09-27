@@ -82,7 +82,7 @@ $script:EfWafCaseWeight = 20
 
 function Test-IsWafSource {
     param([string] $Text)
-    return $Text -match 'IClassFixture<\s*(?:WebApplicationFactory|QueenZoneWebApplicationFactory|ProductionWebApplicationFactory|WebHostVariantCache)' -or
+    return $Text -match 'IClassFixture<\s*\w*(?:WebApplicationFactory|WebHostVariantCache|HostFixture)' -or
         $Text -match 'WebApplicationFactory<\s*Program\s*>' -or
         $Text -match 'ProductionHostFixture'
 }
@@ -102,7 +102,8 @@ function Test-IsEfWafSource {
     }
 
     return $Text -match 'IAsyncLifetime' -or
-        $Text -match 'AdminEfWebTestHarness' -or
+        $Text -match 'AdminEfWeb(?:TestHarness|ApplicationFactory)' -or
+        $Text -match 'AdminDashboardEfWebApplicationFactory' -or
         $Text -match '\.UseSqlite\('
 }
 
@@ -520,6 +521,22 @@ public sealed class SmallWafTests : IClassFixture<QueenZoneWebApplicationFactory
         Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafATests"
         Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafBTests"
 
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "AdminNewsEfRoutesTests" -Source @"
+public sealed class AdminNewsEfRoutesTests : IClassFixture<AdminEfWebApplicationFactory>, IAsyncLifetime
+{
+    [Fact] public void One() {}
+    [Fact] public void Two() {}
+}
+"@
+
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "AdminDashboardEfRoutesTests" -Source @"
+public sealed class AdminDashboardEfRoutesTests : IClassFixture<AdminDashboardEfWebApplicationFactory>
+{
+    [Fact] public void One() {}
+    [Fact] public void Two() {}
+}
+"@
+
         Write-SelfTestClassFile -Root $tempRoot -ClassName "ProdWafTests" -Source @"
 public sealed class ProdWafTests : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -557,7 +574,7 @@ public sealed class SqliteUnitTests
 "@
 
         $discovered = @(Get-TestClasses -Root $tempRoot)
-        Assert-SelfTestEqual $discovered.Count 9 "fixture class count"
+        Assert-SelfTestEqual $discovered.Count 11 "fixture class count"
 
         $byName = @{}
         foreach ($class in $discovered) {
@@ -581,6 +598,11 @@ public sealed class SqliteUnitTests
         Assert-SelfTestEqual $byName["SharedProdWafBTests"].Weight 3 "shared prod collection string name"
         Assert-SelfTestEqual $byName["SharedProdWafATests"].IsProductionCollection $true "collection flag A"
         Assert-SelfTestEqual $byName["SharedProdWafBTests"].IsProductionCollection $true "collection flag B"
+        Assert-SelfTestEqual $byName["AdminNewsEfRoutesTests"].Kind "EF-WAF" "Admin*EfRoutes IAsyncLifetime stays EF-WAF"
+        Assert-SelfTestEqual $byName["AdminNewsEfRoutesTests"].Weight 40 "AdminNewsEfRoutes 2 facts * 20"
+        Assert-SelfTestEqual $byName["AdminDashboardEfRoutesTests"].Kind "EF-WAF" "AdminDashboardEfRoutes factory name stays EF-WAF"
+        Assert-SelfTestEqual $byName["AdminDashboardEfRoutesTests"].Weight 40 "AdminDashboardEfRoutes 2 facts * 20"
+        Assert-SelfTestEqual $byName["AdminDashboardEfRoutesTests"].IsWaf $true "AdminDashboardEf factory is WAF"
 
         $assignments = @(Get-ShardAssignments -Classes $discovered -Count 2)
         $sharedProdShards = @(Get-ClassShardIndexes -Assignments $assignments -Names @("SharedProdWafATests", "SharedProdWafBTests"))

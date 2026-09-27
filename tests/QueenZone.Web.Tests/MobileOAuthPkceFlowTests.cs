@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,21 +10,18 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MobileOAuthPkceFlowTests
+public sealed class MobileOAuthPkceFlowTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
-    private static QueenZoneWebApplicationFactory CreateFactory() =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.AddAuthentication()
-                .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                    MemberAuthenticationSchemes.ExternalCookie, _ => { });
+    private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory pkce;
 
-            foreach (var provider in MemberAuthenticationSchemes.ExternalProviders)
-            {
-                services.AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, TestOAuthProviderHandler>(provider, _ => { });
-            }
-        });
+    public MobileOAuthPkceFlowTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
+    {
+        this.factory = factory;
+        pkce = variants.Get(WebHostVariants.ExternalCookieMobilePkce);
+    }
 
     [Theory]
     [InlineData(MemberAuthenticationSchemes.Google)]
@@ -35,7 +31,7 @@ public sealed class MobileOAuthPkceFlowTests
     [InlineData(MemberAuthenticationSchemes.Apple)]
     public async Task PkceFlow_ReturnsAccessAndRefreshTokens_WithoutMemberCookie(string provider)
     {
-        using var factory = CreateFactory();
+        var factory = pkce;
         var pair = MobileAuthPkceTestData.CreatePair();
         const string state = "mobile-csrf-state";
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -101,7 +97,7 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task Callback_VerifiedEmailMatch_ConfirmsOnTheWebsiteBeforeIssuingACode()
     {
-        using var factory = CreateFactory();
+        var factory = pkce;
         const string email = "mobile-confirm@example.com";
         const string password = "S3curePass!";
         using (var scope = factory.Services.CreateScope())
@@ -161,7 +157,7 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task Authorize_UnknownProvider_RedirectsWithError()
     {
-        using var factory = CreateFactory();
+        var factory = pkce;
         var pair = MobileAuthPkceTestData.CreatePair();
         using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
@@ -177,7 +173,7 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task Authorize_UnregisteredRedirect_ReturnsJsonError()
     {
-        using var factory = CreateFactory();
+        var factory = pkce;
         var pair = MobileAuthPkceTestData.CreatePair();
         using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
@@ -194,7 +190,7 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task Token_WithoutFormContent_ReturnsInvalidRequest()
     {
-        using var factory = CreateFactory();
+        var factory = pkce;
         using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
         var response = await client.PostAsync(
@@ -209,7 +205,7 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task Session_WithoutBearerToken_ReturnsUnauthorized()
     {
-        using var factory = CreateFactory();
+        var factory = pkce;
         using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
         var response = await client.GetAsync(MobileAuthEndpoints.SessionPath);
@@ -220,7 +216,7 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task WebLoginPage_StillRenders()
     {
-        using var factory = CreateFactory();
+        var factory = pkce;
         using var client = factory.CreateAnonymousClient();
 
         var response = await client.GetAsync("/account/login");
@@ -233,7 +229,6 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task Callback_WithoutExternalLogin_ReturnsAccessDenied()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
         var response = await client.GetAsync($"{MobileAuthEndpoints.CallbackPath}?rid=missing");
@@ -246,7 +241,6 @@ public sealed class MobileOAuthPkceFlowTests
     [Fact]
     public async Task DefaultHost_Authorize_ReportsProviderUnavailable()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         var pair = MobileAuthPkceTestData.CreatePair();
         using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 

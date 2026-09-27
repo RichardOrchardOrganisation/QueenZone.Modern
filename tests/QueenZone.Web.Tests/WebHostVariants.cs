@@ -888,6 +888,54 @@ public static partial class WebHostVariants
                 services.RemoveAll<IArticleRepository>();
                 services.AddSingleton<IArticleRepository>(new SqlFailingCommunityArticleRepository());
                 break;
+            case HostServiceProfile.LockedForumTopic1002:
+                AddLockedForumTopic1002(services);
+                break;
+            case HostServiceProfile.LegacyForumAttachmentMemoryBlobs:
+                AddLegacyForumAttachmentMemoryBlobs(services);
+                break;
+            case HostServiceProfile.LegacyForumAttachmentMissingBlob:
+                AddLegacyForumAttachmentMissingBlob(services);
+                break;
+            case HostServiceProfile.ModernForumAttachmentDownload:
+                AddModernForumAttachmentDownload(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.ForumAttachmentMemoryBlob:
+                AddForumAttachmentMemoryBlob(services);
+                break;
+            case HostServiceProfile.SiteSearchTimeout:
+                AddSiteSearchTimeout(services);
+                break;
+            case HostServiceProfile.ThrowingSearchIndex:
+                AddThrowingSearchIndex(services);
+                break;
+            case HostServiceProfile.WarmupThrowingNewsLatest:
+                AddWarmupThrowingNewsLatest(services);
+                break;
+            case HostServiceProfile.ThrowingSprintBoardQuiz:
+                AddThrowingSprintBoardQuiz(services);
+                break;
+            case HostServiceProfile.ExternalCookieMobilePkce:
+                AddExternalCookieMobilePkce(services);
+                break;
+            case HostServiceProfile.ExternalCookieMobilePkceMutableClock:
+                AddExternalCookieMobilePkceMutableClock(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.RecordingPushDispatch:
+                AddRecordingPushDispatch(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.RecordingPushDispatchFakeWatch:
+                AddRecordingPushDispatchFakeWatch(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.RecordingPushDispatchAlwaysWatch:
+                AddRecordingPushDispatchAlwaysWatch(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.ThrowingNotificationDispatcher:
+                AddThrowingNotificationDispatcher(services);
+                break;
+            case HostServiceProfile.SeedableMemberPageActivity:
+                AddSeedableMemberPageActivity(services, RequireContext(context, profile));
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown host service profile.");
         }
@@ -1653,6 +1701,22 @@ public enum HostServiceProfile
     RecordingMemberActivity,
     MutableCommunityArticles,
     SqlFailingCommunityArticles,
+    LockedForumTopic1002,
+    LegacyForumAttachmentMemoryBlobs,
+    LegacyForumAttachmentMissingBlob,
+    ModernForumAttachmentDownload,
+    ForumAttachmentMemoryBlob,
+    SiteSearchTimeout,
+    ThrowingSearchIndex,
+    WarmupThrowingNewsLatest,
+    ThrowingSprintBoardQuiz,
+    ExternalCookieMobilePkce,
+    ExternalCookieMobilePkceMutableClock,
+    RecordingPushDispatch,
+    RecordingPushDispatchFakeWatch,
+    RecordingPushDispatchAlwaysWatch,
+    ThrowingNotificationDispatcher,
+    SeedableMemberPageActivity,
 }
 
 public interface IResettableHostFixture
@@ -1733,6 +1797,16 @@ internal sealed class HostServiceContext
 
     public SharedNewsAgentGuidanceStore? AdminGuidance { get; set; }
 
+    public FixedIdAttachmentRepository? FixedForumAttachment { get; set; }
+
+    public RecordingPushTransport? PushTransport { get; set; }
+
+    public FakeTopicWatchLookup? TopicWatch { get; set; }
+
+    public ConfigurableAlwaysWatchLookup? AlwaysWatch { get; set; }
+
+    public SeedableMemberPageActivityRepository? MemberPageActivity { get; set; }
+
     public void Reset()
     {
         BlobBackend.Clear();
@@ -1763,6 +1837,11 @@ internal sealed class HostServiceContext
         AdminTimeline?.Clear();
         AdminFreddieTributes?.Reset();
         AdminGuidance?.Clear();
+        FixedForumAttachment?.Reset();
+        PushTransport?.Reset();
+        TopicWatch?.Reset();
+        AlwaysWatch?.Reset();
+        MemberPageActivity?.Reset();
     }
 }
 

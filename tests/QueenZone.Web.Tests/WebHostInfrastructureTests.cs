@@ -514,4 +514,50 @@ public sealed class WebHostInfrastructureTests
         community.Reset();
         Assert.Equal(0, activity.FeedPageCalls);
     }
+
+    [Fact]
+    public async Task Slice3d_variants_register_expected_services_and_reset()
+    {
+        await using var cache = new WebHostVariantCache();
+
+        var clocked = cache.Get(WebHostVariants.ExternalCookieMobilePkceMutableClock);
+        using var clockClient = clocked.CreateAnonymousClient();
+        Assert.NotNull(clocked.Clock);
+        clocked.Clock!.SetUtcNow(new DateTimeOffset(2026, 9, 27, 0, 0, 0, TimeSpan.Zero));
+        clocked.Clock.Advance(TimeSpan.FromSeconds(301));
+        Assert.Equal(new DateTimeOffset(2026, 9, 27, 0, 5, 1, TimeSpan.Zero), clocked.Clock.GetUtcNow());
+        await clocked.ResetAsync();
+        Assert.Equal(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), clocked.Clock.GetUtcNow());
+
+        var recording = cache.Get(WebHostVariants.TestingRecordingPushDispatchFakeWatch);
+        using var recordingClient = recording.CreateAnonymousClient();
+        Assert.NotNull(recording.PushTransport);
+        Assert.NotNull(recording.TopicWatch);
+        recording.PushTransport!.ThrowOnSend = new InvalidOperationException("reset me");
+        recording.TopicWatch!.Watchers[1] = [Guid.NewGuid()];
+        await recording.ResetAsync();
+        Assert.Null(recording.PushTransport.ThrowOnSend);
+        Assert.Empty(recording.PushTransport.Sends);
+        Assert.Empty(recording.TopicWatch.Watchers);
+
+        var activity = cache.Get(WebHostVariants.TestingSeedableMemberPageActivity);
+        using var activityClient = activity.CreateAnonymousClient();
+        Assert.NotNull(activity.MemberPageActivity);
+        activity.MemberPageActivity!.Seed(
+        [
+            new MemberPublicActivityItem(
+                MemberPublicActivityType.ForumPost,
+                "Seeded topic",
+                "summary",
+                DateTimeOffset.UtcNow,
+                ContentId: 1,
+                ParentId: 1000,
+                Slug: "seeded-topic"),
+        ]);
+        var page = await activity.MemberPageActivity.GetPageAsync(Guid.NewGuid(), null, 1, 10);
+        Assert.Equal(1, page.TotalCount);
+        await activity.ResetAsync();
+        var cleared = await activity.MemberPageActivity.GetPageAsync(Guid.NewGuid(), null, 1, 10);
+        Assert.Equal(0, cleared.TotalCount);
+    }
 }

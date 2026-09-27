@@ -1,23 +1,25 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web.Pages;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class SearchPageTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class SearchPageTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory timeoutHost;
 
-    public SearchPageTests(QueenZoneWebApplicationFactory factory)
+    public SearchPageTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        timeoutHost = variants.Get(WebHostVariants.SiteSearchTimeout);
     }
 
     [Fact]
@@ -59,12 +61,7 @@ public sealed class SearchPageTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task SearchPage_sql_timeout_renders_in_page_unavailable_not_not_found()
     {
-        using var timeoutFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ISiteSearchService>();
-            services.AddSingleton<ISiteSearchService>(new TimeoutSiteSearchService());
-        });
-        using var client = timeoutFactory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = timeoutHost.CreateAnonymousClient(allowAutoRedirect: false);
 
         using var response = await client.GetAsync("/search?q=Bohemian+Rhapsody");
         var body = await response.Content.ReadAsStringAsync();
@@ -134,12 +131,7 @@ public sealed class SearchPageTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task SearchPage_sql_timeout_renders_unavailable_under_chips_with_u_mt_4()
     {
-        using var timeoutFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ISiteSearchService>();
-            services.AddSingleton<ISiteSearchService>(new TimeoutSiteSearchService());
-        });
-        using var client = timeoutFactory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = timeoutHost.CreateAnonymousClient(allowAutoRedirect: false);
 
         var body = await client.GetStringAsync("/search?q=Bohemian+Rhapsody");
         var section = AssertSingleSearchSection(body);

@@ -12,7 +12,9 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MessagesApiTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class MessagesApiTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -20,10 +22,12 @@ public sealed class MessagesApiTests : IClassFixture<QueenZoneWebApplicationFact
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory limitedFactory;
 
-    public MessagesApiTests(QueenZoneWebApplicationFactory factory)
+    public MessagesApiTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        limitedFactory = variants.Get(WebHostVariants.TestingPrivateMessageRateLimit1);
     }
 
     [Fact]
@@ -737,15 +741,6 @@ public sealed class MessagesApiTests : IClassFixture<QueenZoneWebApplicationFact
     [Fact]
     public async Task Reply_ReturnsTooManyRequests_AfterSharedRateLimit()
     {
-        await using var limitedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.Configure<PrivateMessageRateLimitOptions>(opts =>
-            {
-                opts.MaxMessagesPerWindow = 1;
-                opts.NewAccountMaxMessagesPerWindow = 1;
-            });
-        });
-
         var aliceId = Guid.NewGuid();
         var bobId = Guid.NewGuid();
         await SeedMemberAsync(limitedFactory, aliceId, "API Reply Limit Alice", "api-reply-limit-alice@example.com");

@@ -2,31 +2,17 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using QueenZone.Data;
-using QueenZone.Storage;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumAttachmentWriteRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumAttachmentWriteRoutesTests : IClassFixture<WebHostVariantCache>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory factory;
 
-    public ForumAttachmentWriteRoutesTests(WebApplicationFactory<Program> factory)
+    public ForumAttachmentWriteRoutesTests(WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService, MemoryBlobUploadService>();
-            });
-        });
+        factory = variants.Get(WebHostVariants.TestingForumAttachmentMemoryBlob);
     }
 
     [Fact]

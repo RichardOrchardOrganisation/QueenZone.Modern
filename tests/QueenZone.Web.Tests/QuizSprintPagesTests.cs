@@ -3,19 +3,28 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class QuizSprintPagesTests
+public sealed class QuizSprintPagesTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private readonly VariantWebApplicationFactory isolated;
+
+    public QuizSprintPagesTests(WebHostVariantCache variants)
+    {
+        isolated = variants.Get(WebHostVariants.IsolatedQuizzes);
+    }
+
+    public Task InitializeAsync() => isolated.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Guest_results_prompt_to_sign_in_and_are_not_ranked()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishPoolAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
@@ -31,7 +40,6 @@ public sealed class QuizSprintPagesTests
     [Fact]
     public async Task Signed_in_run_is_ranked_and_shown_on_results_leaderboard_and_homepage()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishPoolAsync(isolated);
         using var member = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         member.DefaultRequestHeaders.Add(TestMemberAuthHandler.MemberIdHeader, Guid.NewGuid().ToString());
@@ -55,7 +63,6 @@ public sealed class QuizSprintPagesTests
     [Fact]
     public async Task Guest_results_offer_to_save_the_score_and_signing_in_adds_it()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishPoolAsync(isolated);
         using var guest = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         var landing = await guest.GetStringAsync("/quizzes/sprint");
@@ -85,7 +92,6 @@ public sealed class QuizSprintPagesTests
     [Fact]
     public async Task Answer_endpoint_reveals_correctness_for_a_live_round_only()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishPoolAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         var round = (await (await client.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null))
@@ -114,7 +120,6 @@ public sealed class QuizSprintPagesTests
     [Fact]
     public async Task Api_daily_board_lists_a_recorded_member()
     {
-        using var isolated = IsolatedQuizzes();
         var memberId = Guid.NewGuid();
         using (var scope = isolated.Services.CreateScope())
         {
@@ -135,7 +140,6 @@ public sealed class QuizSprintPagesTests
     [Fact]
     public async Task Leaderboard_offers_today_and_all_time_and_the_api_scopes_match()
     {
-        using var isolated = IsolatedQuizzes();
         var memberId = Guid.NewGuid();
         using (var scope = isolated.Services.CreateScope())
         {
@@ -215,15 +219,4 @@ public sealed class QuizSprintPagesTests
         await quizzes.PublishAsync(id);
     }
 
-    private static QueenZoneWebApplicationFactory IsolatedQuizzes()
-    {
-        var store = new SharedQuizStore();
-        return QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<SharedQuizStore>();
-            services.RemoveAll<IQuizRepository>();
-            services.AddSingleton(store);
-            services.AddSingleton<IQuizRepository>(_ => new InMemoryQuizRepository(store));
-        });
-    }
 }

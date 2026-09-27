@@ -63,6 +63,12 @@ internal sealed class RecordingPushTransport : IPushTransport
 
     public int TokenSendCount => Sends.Sum(send => send.Tokens.Count);
 
+    public void Reset()
+    {
+        Sends.Clear();
+        ThrowOnSend = null;
+    }
+
     public Task SendAsync(
         IReadOnlyList<PushDeviceToken> tokens,
         PushNotificationPayload payload,
@@ -81,6 +87,8 @@ internal sealed class RecordingPushTransport : IPushTransport
 internal sealed class FakeTopicWatchLookup : ITopicWatchLookup
 {
     public Dictionary<int, IReadOnlyList<Guid>> Watchers { get; } = [];
+
+    public void Reset() => Watchers.Clear();
 
     public Task<IReadOnlyList<Guid>> ListMemberIdsAsync(
         int topicId,
@@ -126,6 +134,18 @@ internal sealed class AlwaysWatchLookup(Guid memberId) : ITopicWatchLookup
         int topicId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Guid>>([memberId]);
+}
+
+internal sealed class ConfigurableAlwaysWatchLookup : ITopicWatchLookup
+{
+    public Guid MemberId { get; set; }
+
+    public void Reset() => MemberId = Guid.Empty;
+
+    public Task<IReadOnlyList<Guid>> ListMemberIdsAsync(
+        int topicId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>(MemberId == Guid.Empty ? [] : [MemberId]);
 }
 
 internal static class DeviceTokenTestData

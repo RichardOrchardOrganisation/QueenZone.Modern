@@ -131,6 +131,16 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
 
     internal SharedNewsAgentGuidanceStore? AdminGuidance => context.AdminGuidance;
 
+    internal FixedIdAttachmentRepository? FixedForumAttachment => context.FixedForumAttachment;
+
+    internal RecordingPushTransport? PushTransport => context.PushTransport;
+
+    internal FakeTopicWatchLookup? TopicWatch => context.TopicWatch;
+
+    internal ConfigurableAlwaysWatchLookup? AlwaysWatch => context.AlwaysWatch;
+
+    internal SeedableMemberPageActivityRepository? MemberPageActivity => context.MemberPageActivity;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(variant.Environment);
