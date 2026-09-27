@@ -9,9 +9,11 @@ namespace QueenZone.Web.Tests;
 
 public sealed class HelpRoutesTests :
     IClassFixture<ExternalCookieWebApplicationFactory>,
-    IClassFixture<WebHostVariantCache>
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly ExternalCookieWebApplicationFactory resettableFactory;
     private readonly WebHostVariantCache variants;
 
     public HelpRoutesTests(
@@ -19,8 +21,13 @@ public sealed class HelpRoutesTests :
         WebHostVariantCache variants)
     {
         this.factory = factory;
+        resettableFactory = factory;
         this.variants = variants;
     }
+
+    public Task InitializeAsync() => resettableFactory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Get_Contact_IsPublicAndAsksForContactDetails()

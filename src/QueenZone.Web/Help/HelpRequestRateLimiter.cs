@@ -9,6 +9,7 @@ public sealed class HelpRequestRateLimiter(
     IOptions<HelpRequestOptions> options)
 {
     private readonly Lock gate = new();
+    private readonly HashSet<string> keys = [];
 
     public bool IsAllowed(Guid? memberId, string? clientIp)
     {
@@ -40,12 +41,27 @@ public sealed class HelpRequestRateLimiter(
             }
 
             cache.Set(ipKey, ipCount + 1, TimeSpan.FromHours(1));
+            keys.Add(ipKey);
             if (memberKey is not null)
             {
                 cache.Set(memberKey, memberCount + 1, TimeSpan.FromMinutes(1));
+                keys.Add(memberKey);
             }
 
             return true;
+        }
+    }
+
+    public void Reset()
+    {
+        lock (gate)
+        {
+            foreach (var key in keys)
+            {
+                cache.Remove(key);
+            }
+
+            keys.Clear();
         }
     }
 }

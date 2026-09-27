@@ -50,7 +50,7 @@ public sealed class FollowingRoutesTests :
     [Fact]
     public async Task Get_Following_ShowsNoActivityEmptyState_WhenFollowedMembersHaveNoPublicItems()
     {
-        var host = WithActivity([]);
+        var host = await WithActivity([]);
         var (client, viewer) = await CreateMemberAsync(host, "follow-no-items@example.com", "No Items Viewer");
         var quiet = await CreateAccountAsync(host, "follow-quiet@example.com", "Quiet Member");
         await host.Services.GetRequiredService<IMemberFollowRepository>()
@@ -74,7 +74,7 @@ public sealed class FollowingRoutesTests :
             Item(MemberPublicActivityType.Article, "Bob article", bobId, "Feed Bob", DateTimeOffset.Parse("2026-08-03T11:00:00Z"), slug: "bob-article"),
             Item(MemberPublicActivityType.ForumPost, "Carol forum", carolId, "Feed Carol", DateTimeOffset.Parse("2026-08-03T13:00:00Z"), 203, 103, "carol-forum"),
         };
-        var host = WithActivity(items);
+        var host = await WithActivity(items);
         var recorder = (RecordingMemberPublicActivityRepository)host.Services.GetRequiredService<IMemberPublicActivityRepository>();
         var (client, viewer) = await CreateMemberAsync(host, "feed-viewer@example.com", "Feed Viewer");
         await CreateAccountAsync(host, "feed-alice@example.com", "Feed Alice", aliceId);
@@ -111,7 +111,7 @@ public sealed class FollowingRoutesTests :
             Item(MemberPublicActivityType.ForumPost, "Alice stays", aliceId, "Change Alice", DateTimeOffset.UtcNow, 1, 1, "alice-stays"),
             Item(MemberPublicActivityType.ForumPost, "Bob arrives", bobId, "Change Bob", DateTimeOffset.UtcNow.AddMinutes(-1), 2, 2, "bob-arrives"),
         };
-        var host = WithActivity(items);
+        var host = await WithActivity(items);
         var (client, viewer) = await CreateMemberAsync(host, "follow-change@example.com", "Change Viewer");
         await CreateAccountAsync(host, "follow-change-alice@example.com", "Change Alice", aliceId);
         await CreateAccountAsync(host, "follow-change-bob@example.com", "Change Bob", bobId);
@@ -143,7 +143,7 @@ public sealed class FollowingRoutesTests :
             Item(MemberPublicActivityType.ForumPost, "Blocked post", blockedId, "Blocked Member", DateTimeOffset.UtcNow, 1, 1, "blocked-post"),
             Item(MemberPublicActivityType.ForumPost, "Deleted post", deletedId, "Deleted Member", DateTimeOffset.UtcNow, 2, 2, "deleted-post"),
         };
-        var host = WithActivity(items);
+        var host = await WithActivity(items);
         var recorder = (RecordingMemberPublicActivityRepository)host.Services.GetRequiredService<IMemberPublicActivityRepository>();
         var (client, viewer) = await CreateMemberAsync(host, "follow-filter@example.com", "Filter Viewer");
         await CreateAccountAsync(host, "follow-blocked@example.com", "Blocked Member", blockedId);
@@ -175,7 +175,7 @@ public sealed class FollowingRoutesTests :
             Item(MemberPublicActivityType.ForumPost, "Visible post", visibleId, "Visible Member", DateTimeOffset.UtcNow, 1, 1, "visible-post"),
             Item(MemberPublicActivityType.ForumPost, "Blocked leftover", blockedId, "Blocked Member", DateTimeOffset.UtcNow.AddMinutes(-1), 2, 2, "blocked-leftover"),
         };
-        var host = WithActivity(items);
+        var host = await WithActivity(items);
         var (client, viewer) = await CreateMemberAsync(host, "follow-leftover@example.com", "Leftover Viewer");
         await CreateAccountAsync(host, "follow-visible@example.com", "Visible Member", visibleId);
         await CreateAccountAsync(host, "follow-leftover-blocked@example.com", "Blocked Member", blockedId);
@@ -206,7 +206,7 @@ public sealed class FollowingRoutesTests :
                 1000 + index,
                 $"topic-{index}"))
             .ToList();
-        var host = WithActivity(items);
+        var host = await WithActivity(items);
         var (client, viewer) = await CreateMemberAsync(host, "follow-page@example.com", "Page Viewer");
         await CreateAccountAsync(host, "follow-page-author@example.com", "Page Author", authorId);
         await host.Services.GetRequiredService<IMemberFollowRepository>()
@@ -222,9 +222,10 @@ public sealed class FollowingRoutesTests :
         Assert.DoesNotContain("Topic 1</a>", secondPage);
     }
 
-    private VariantWebApplicationFactory WithActivity(IReadOnlyList<MemberPublicActivityItem> items)
+    private async Task<VariantWebApplicationFactory> WithActivity(IReadOnlyList<MemberPublicActivityItem> items)
     {
         var host = variants.Get(WebHostVariants.TestingRecordingMemberActivity);
+        await host.ResetAsync();
         var recorder = host.MemberActivity
             ?? throw new InvalidOperationException("TestingRecordingMemberActivity must register RecordingMemberPublicActivityRepository.");
         recorder.Seed(items);

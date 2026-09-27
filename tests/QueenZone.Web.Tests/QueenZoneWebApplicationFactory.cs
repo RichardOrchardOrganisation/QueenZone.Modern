@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using QueenZone.Data;
+using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
@@ -9,7 +12,7 @@ namespace QueenZone.Web.Tests;
 /// Shared <see cref="WebApplicationFactory{TEntryPoint}"/> for deterministic Web.Tests hosts.
 /// Always uses the Testing environment so sample/in-memory data and test auth stay enabled.
 /// </summary>
-public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>
+public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IResettableHostFixture
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -37,6 +40,24 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>
 
     public HttpClient CreateAdminClient(string? email = null, bool allowAutoRedirect = false) =>
         AdminHttpTestHelpers.CreateClient(this, email ?? AdminHttpTestHelpers.AdminEmail);
+
+    public virtual async Task ResetAsync()
+    {
+        Services.GetService<HelpRequestRateLimiter>()?.Reset();
+        if (Services.GetService<IEditorialArticleRepository>() is InMemoryEditorialArticleRepository editorial)
+        {
+            editorial.Clear();
+        }
+
+        Services.GetService<SharedSearchIndexStore>()?.Clear();
+        if (Services.GetService<IOutputCacheStore>() is not { } outputCache)
+        {
+            return;
+        }
+
+        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
+        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
+    }
 
     private sealed class ConfiguredFactory(Action<IServiceCollection> configureServices) : QueenZoneWebApplicationFactory
     {

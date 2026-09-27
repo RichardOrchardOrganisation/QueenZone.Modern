@@ -326,6 +326,21 @@ public sealed class WebHostInfrastructureTests
     }
 
     [Fact]
+    public async Task WebHostVariantCache_Get_starts_host_and_exposes_context()
+    {
+        await using var cache = new WebHostVariantCache();
+
+        var activity = cache.Get(WebHostVariants.TestingRecordingMemberActivity);
+        Assert.NotNull(activity.MemberActivity);
+
+        var community = cache.Get(WebHostVariants.TestingMutableCommunityArticles);
+        Assert.NotNull(community.CommunityArticles);
+
+        var quota = cache.Get(WebHostVariants.PhotoUploadQuota1);
+        Assert.NotNull(quota.UploadQuota);
+    }
+
+    [Fact]
     public void Recording_activity_and_community_articles_seed_and_reset()
     {
         var activity = new RecordingMemberPublicActivityRepository();

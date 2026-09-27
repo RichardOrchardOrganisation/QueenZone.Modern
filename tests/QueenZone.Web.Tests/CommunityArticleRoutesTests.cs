@@ -177,7 +177,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_Articles_Returns200_WithPublishedCommunityArticle()
     {
-        var client = WithRepo([Published("test-community-slug", "Community Test Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("test-community-slug", "Community Test Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var body = await client.GetStringAsync("/articles");
 
@@ -187,7 +187,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_CommunityDetail_Returns200_ForPublishedArticle()
     {
-        var client = WithRepo([Published("my-published-article", "My Published Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("my-published-article", "My Published Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var response = await client.GetAsync("/articles/my-published-article");
 
@@ -200,14 +200,14 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     public async Task CommunityArticle_ListAndDetailLinkSubmittedByProfile()
     {
         var authorMemberId = Guid.NewGuid();
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             Published(
                 "linked-author",
                 "Linked Author Article",
                 DateTimeOffset.UtcNow.AddDays(-1),
                 authorMemberId: authorMemberId),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var listBody = await client.GetStringAsync("/articles");
         var detailBody = await client.GetStringAsync("/articles/linked-author");
@@ -219,7 +219,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_CommunityDetail_Returns404_ForUnknownSlug()
     {
-        var client = WithRepo([]).CreateClient();
+        var client = (await WithRepo([])).CreateClient();
 
         var response = await client.GetAsync("/articles/does-not-exist");
 
@@ -229,7 +229,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_CommunityDetail_Returns404_WhenSlugNotInPublishedSet()
     {
-        var client = WithRepo([Published("different-slug", "Different Article", DateTimeOffset.UtcNow)]).CreateClient();
+        var client = (await WithRepo([Published("different-slug", "Different Article", DateTimeOffset.UtcNow)])).CreateClient();
 
         var response = await client.GetAsync("/articles/draft-only-slug");
 
@@ -242,12 +242,12 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
         var t1 = DateTimeOffset.UtcNow.AddDays(-2);
         var t2 = DateTimeOffset.UtcNow.AddDays(-1);
         var t3 = DateTimeOffset.UtcNow;
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             Published("older-article", "Older Article", t1),
             Published("target-article", "Target Article", t2),
             Published("newer-article", "Newer Article", t3),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var body = await client.GetStringAsync("/articles/target-article");
 
@@ -258,7 +258,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_CommunityDetail_RendersReadTime()
     {
-        var client = WithRepo([Published("read-time-article", "Read Time Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("read-time-article", "Read Time Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var body = await client.GetStringAsync("/articles/read-time-article");
 
@@ -268,7 +268,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_ArticlesFeed_Returns200_WithRssContent()
     {
-        var client = WithRepo([Published("rss-test-article", "RSS Test Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("rss-test-article", "RSS Test Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var response = await client.GetAsync("/articles/feed.rss");
 
@@ -282,7 +282,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_ArticlesFeed_WithNoArticles_ReturnsEmptyRss()
     {
-        var client = WithRepo([]).CreateClient();
+        var client = (await WithRepo([])).CreateClient();
 
         var response = await client.GetAsync("/articles/feed.rss");
 
@@ -295,13 +295,13 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_ArticlesFeed_WithExcerpt_IncludesDescription()
     {
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             new PublishedArticleSubmission(
                 Guid.NewGuid(), "Excerpted Article", "excerpted-article",
                 "This is the excerpt.", "<p>Body.</p>",
                 null, null, DateTimeOffset.UtcNow.AddDays(-1), "Author", 50),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var body = await client.GetStringAsync("/articles/feed.rss");
 
@@ -311,11 +311,11 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_Articles_TagFilter_ShowsOnlyMatchingArticles()
     {
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             Published("tagged-article", "Tagged Article", DateTimeOffset.UtcNow.AddDays(-2), tags: "queen,freddie"),
             Published("other-article", "Other Article", DateTimeOffset.UtcNow.AddDays(-1), tags: "roger"),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var body = await client.GetStringAsync("/articles?tag=queen");
 
@@ -326,7 +326,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     [Fact]
     public async Task Get_Articles_WhenCommunityPageOutOfRange_Returns404()
     {
-        var client = WithRepo([Published("only-one", "Only One", DateTimeOffset.UtcNow)]).CreateClient();
+        var client = (await WithRepo([Published("only-one", "Only One", DateTimeOffset.UtcNow)])).CreateClient();
 
         var response = await client.GetAsync("/articles?cp=99");
 
@@ -365,9 +365,10 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
     // Helpers
     // -------------------------------------------------------------------------
 
-    private WebApplicationFactory<Program> WithRepo(IEnumerable<PublishedArticleSubmission> seed)
+    private async Task<WebApplicationFactory<Program>> WithRepo(IEnumerable<PublishedArticleSubmission> seed)
     {
         var host = variants.Get(WebHostVariants.TestingMutableCommunityArticles);
+        await host.ResetAsync();
         var repository = host.CommunityArticles
             ?? throw new InvalidOperationException("TestingMutableCommunityArticles must register MutableCommunityArticleRepository.");
         repository.Seed(seed);

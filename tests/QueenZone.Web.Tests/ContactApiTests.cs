@@ -12,7 +12,8 @@ namespace QueenZone.Web.Tests;
 
 public sealed class ContactApiTests :
     IClassFixture<QueenZoneWebApplicationFactory>,
-    IClassFixture<WebHostVariantCache>
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly QueenZoneWebApplicationFactory factory;
     private readonly WebHostVariantCache variants;
@@ -24,6 +25,10 @@ public sealed class ContactApiTests :
         this.factory = factory;
         this.variants = variants;
     }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Get_ContactForm_IsPublicAndMatchesWebsiteCopy()
