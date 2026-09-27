@@ -12,7 +12,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
 no_build=false
-if [ "${1:-}" = "--no-build" ]; then
+if [[ "${1:-}" = "--no-build" ]]; then
   no_build=true
 fi
 
@@ -27,7 +27,7 @@ export QUEENZONE_MOBILE_CONTRACT_FIXTURE="${QUEENZONE_MOBILE_CONTRACT_FIXTURE:-$
 
 rm -f "$QUEENZONE_MOBILE_CONTRACT_FIXTURE" "${QUEENZONE_MOBILE_CONTRACT_FIXTURE}.tmp"
 
-if [ "$no_build" != true ]; then
+if [[ "$no_build" != true ]]; then
   dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
 fi
 
@@ -35,7 +35,7 @@ log="$(mktemp /tmp/queenzone-mobile-api-contract-host.XXXXXX.log)"
 host_pid=""
 
 cleanup() {
-  if [ -n "${host_pid}" ] && kill -0 "$host_pid" 2>/dev/null; then
+  if [[ -n "${host_pid}" ]] && kill -0 "$host_pid" 2>/dev/null; then
     kill "$host_pid" 2>/dev/null || true
     wait "$host_pid" 2>/dev/null || true
   fi
@@ -52,7 +52,7 @@ dotnet run \
 host_pid=$!
 
 for i in $(seq 1 60); do
-  if [ -f "$QUEENZONE_MOBILE_CONTRACT_FIXTURE" ]; then
+  if [[ -f "$QUEENZONE_MOBILE_CONTRACT_FIXTURE" ]]; then
     break
   fi
   if ! kill -0 "$host_pid" 2>/dev/null; then
@@ -63,7 +63,7 @@ for i in $(seq 1 60); do
   sleep 1
 done
 
-if [ ! -f "$QUEENZONE_MOBILE_CONTRACT_FIXTURE" ]; then
+if [[ ! -f "$QUEENZONE_MOBILE_CONTRACT_FIXTURE" ]]; then
   echo "Timed out waiting for $QUEENZONE_MOBILE_CONTRACT_FIXTURE" >&2
   cat "$log" >&2 || true
   exit 1

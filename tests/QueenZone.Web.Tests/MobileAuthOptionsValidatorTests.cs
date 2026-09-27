@@ -11,6 +11,12 @@ public sealed class MobileAuthOptionsValidatorTests
     }
 
     [Fact]
+    public void DefaultsRefreshTokenReuseGraceSecondsToFiveMinutes()
+    {
+        Assert.Equal(300, new MobileAuthOptions().RefreshTokenReuseGraceSeconds);
+    }
+
+    [Fact]
     public void AllowsMissingSigningKey_InProduction()
     {
         var result = new MobileAuthOptionsValidator()

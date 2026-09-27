@@ -1,8 +1,15 @@
+import * as Haptics from 'expo-haptics';
 import { RefreshControl } from 'react-native';
 import { fireEvent, screen } from '@testing-library/react-native';
 import { renderWithProviders } from '../test/render';
 import { dark, light, palette, ThemeProvider } from '../theme';
 import { ThemedRefreshControl } from './ThemedRefreshControl';
+
+jest.mock('expo-haptics', () => ({
+  selectionAsync: jest.fn(async () => {}),
+}));
+
+const selectionAsync = jest.mocked(Haptics.selectionAsync);
 
 function renderControl(preference: 'dark' | 'light', onRefresh = jest.fn(), refreshing = false) {
   renderWithProviders(
@@ -32,11 +39,22 @@ describe('ThemedRefreshControl', () => {
     expect(control.props.progressBackgroundColor).not.toBe(light.surfacePage);
   });
 
-  it('forwards refreshing and onRefresh without changing epoch behaviour', () => {
+  it('provides subtle haptic feedback and forwards onRefresh', () => {
     const onRefresh = jest.fn();
     const { control } = renderControl('dark', onRefresh, false);
     expect(control.props.refreshing).toBe(false);
     fireEvent(control, 'refresh');
+    expect(selectionAsync).toHaveBeenCalledTimes(1);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refreshes when haptic feedback is unavailable', () => {
+    selectionAsync.mockRejectedValueOnce(new Error('Haptics unavailable'));
+    const onRefresh = jest.fn();
+    const { control } = renderControl('dark', onRefresh, false);
+
+    fireEvent(control, 'refresh');
+
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });

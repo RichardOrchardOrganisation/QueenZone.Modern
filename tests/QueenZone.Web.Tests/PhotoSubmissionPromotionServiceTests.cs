@@ -259,10 +259,10 @@ public sealed class PhotoSubmissionPromotionServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+        public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
             string containerName,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<GalleryBlobDescriptor>>([]);
+            AsyncEnumerable.Empty<GalleryBlobDescriptor>();
     }
 
     private sealed class FailingOnPromoteSubmissionRepository : IPhotoSubmissionRepository

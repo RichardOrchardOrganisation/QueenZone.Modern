@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Options;
 
 namespace QueenZone.Web;
@@ -7,66 +6,15 @@ public sealed class GalleryOrphanSweepHostedService(
     IServiceScopeFactory scopeFactory,
     IOptions<GalleryOrphanSweepOptions> options,
     TimeProvider timeProvider,
-    ILogger<GalleryOrphanSweepHostedService> logger) : BackgroundService
+    ILogger<GalleryOrphanSweepHostedService> logger)
+    : PeriodicScopedHostedService(scopeFactory, timeProvider, logger, DefaultRunInterval)
 {
-    internal static readonly TimeSpan DefaultStartupDelay = TimeSpan.FromMinutes(5);
-
     internal static readonly TimeSpan DefaultRunInterval = TimeSpan.FromHours(6);
 
-    internal TimeSpan StartupDelay { get; init; } = DefaultStartupDelay;
+    protected override string FailureMessage => "Gallery orphan sweep failed.";
 
-    internal TimeSpan RunInterval { get; init; } = DefaultRunInterval;
+    protected override bool IsEnabled => options.Value.Enabled;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await Task.Delay(StartupDelay, timeProvider, stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            if (!options.Value.Enabled)
-            {
-                await Task.Delay(RunInterval, timeProvider, stoppingToken);
-                continue;
-            }
-
-            using (var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
-                "GalleryOrphanSweep",
-                ActivityKind.Internal))
-            {
-                try
-                {
-                    await using var scope = scopeFactory.CreateAsyncScope();
-                    var service = scope.ServiceProvider.GetRequiredService<GalleryOrphanSweepService>();
-                    var result = await service.SweepAsync(stoppingToken);
-                    if (result.OrphansFound > 0)
-                    {
-                        logger.LogInformation(
-                            "Gallery orphan sweep scanned {BlobsScanned} blob(s), found {OrphansFound} orphan(s), " +
-                            "deleted {OrphansDeleted}, {DeleteFailures} delete failure(s).",
-                            result.BlobsScanned,
-                            result.OrphansFound,
-                            result.OrphansDeleted,
-                            result.DeleteFailures);
-                    }
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Gallery orphan sweep failed.");
-                }
-            }
-
-            await Task.Delay(RunInterval, timeProvider, stoppingToken);
-        }
-    }
+    protected override Task RunJobAsync(IServiceProvider scopedServices, CancellationToken cancellationToken) =>
+        MaintenanceJobs.RunGalleryOrphanSweepAsync(scopedServices, Logger, cancellationToken);
 }

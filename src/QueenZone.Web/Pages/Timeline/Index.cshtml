@@ -29,7 +29,7 @@
         <span class="qz-htl-chip__dot qz-htl-chip__dot--other"></span>Other
       </button>
     </div>
-    <span class="qz-htl-count" id="qz-htl-count" aria-live="polite">@Model.TotalEventCount events</span>
+    <span class="qz-htl-count" id="qz-htl-count" aria-live="polite">@Model.VisibleEventCount events in @Model.SelectedDecade</span>
   </div>
 </div>
 
@@ -43,14 +43,14 @@
       @foreach (var decade in Model.Decades)
       {
         <div class="qz-htl-rail__decade-group" data-rail-decade="@decade.Decade">
-          <button class="qz-htl-rail__decade-btn" data-jump-decade="@decade.Decade" aria-current="false">
+          <a class="qz-htl-rail__decade-btn" data-jump-decade="@decade.Decade" aria-current="@(decade.Decade == Model.SelectedDecade ? "page" : "false")" href="/timeline?decade=@decade.Decade#decade-@decade.Decade">
             @decade.Decade
             <span class="qz-htl-rail__decade-count">@decade.Events.Count</span>
-          </button>
+          </a>
           <div class="qz-htl-rail__years" aria-hidden="true">
             @foreach (var year in decade.Years)
             {
-              <button class="qz-htl-rail__year-btn" data-jump-year="@year">@year</button>
+              <a class="qz-htl-rail__year-btn" data-jump-year="@year" href="/timeline?decade=@decade.Decade#year-@year">@year</a>
             }
           </div>
         </div>
@@ -65,7 +65,7 @@
       }
       else
       {
-        @foreach (var decade in Model.Decades)
+        @foreach (var decade in Model.VisibleDecades)
         {
           <section class="qz-htl-decade" data-decade="@decade.Decade" id="decade-@decade.Decade">
             <div class="qz-htl-decade__heading">
@@ -78,6 +78,10 @@
               @for (int i = 0; i < decade.Events.Count; i++)
               {
                 var row = decade.Events[i];
+                @if (i == 0 || decade.Events[i - 1].Year != row.Year)
+                {
+                  <span id="year-@row.Year"></span>
+                }
                 <article class="qz-htl-row@(i == 0 ? " qz-htl-row--first" : "")"
                          data-year="@row.Year"
                          data-cat="@row.DisplayCategory"
@@ -240,19 +244,21 @@
   var YEAR_OFFSET = 96;
 
   document.querySelectorAll('.qz-htl-rail__decade-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', function (event) {
       var sec = document.getElementById('decade-' + btn.dataset.jumpDecade);
       if (!sec) return;
+      event.preventDefault();
       var top = sec.getBoundingClientRect().top + window.scrollY - DECADE_OFFSET;
       window.scrollTo({ top: top, behavior: 'smooth' });
     });
   });
 
   document.querySelectorAll('.qz-htl-rail__year-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
+    btn.addEventListener('click', function (event) {
       var year = btn.dataset.jumpYear;
       var row = document.querySelector('.qz-htl-row[data-year="' + year + '"]:not([hidden])');
       if (!row) return;
+      event.preventDefault();
       var top = row.getBoundingClientRect().top + window.scrollY - YEAR_OFFSET;
       window.scrollTo({ top: top, behavior: 'smooth' });
     });

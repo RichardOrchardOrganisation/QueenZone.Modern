@@ -58,4 +58,10 @@ public sealed class InMemoryAdminFanPerformanceRepository(SharedFanPerformanceSt
 
         return Task.CompletedTask;
     }
+
+    public Task DeleteAsync(int id, string editorEmail, CancellationToken cancellationToken = default)
+    {
+        store.Delete(id, editorEmail);
+        return Task.CompletedTask;
+    }
 }

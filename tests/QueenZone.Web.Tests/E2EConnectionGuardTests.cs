@@ -1,5 +1,6 @@
 namespace QueenZone.Web.Tests;
 
+[Collection(EnvironmentVariableCollection.Name)]
 public sealed class E2EConnectionGuardTests
 {
     private const string MachineName = "AGENT-01";
@@ -90,6 +91,7 @@ public sealed class E2EConnectionGuardTests
     [Fact]
     public void EnsureSafe_allows_sqlexpress_lan_address_env_var_with_port()
     {
+        var previous = Environment.GetEnvironmentVariable("SQLEXPRESS_LAN_ADDRESS");
         Environment.SetEnvironmentVariable("SQLEXPRESS_LAN_ADDRESS", "192.168.1.237,1433");
         try
         {
@@ -101,7 +103,7 @@ public sealed class E2EConnectionGuardTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("SQLEXPRESS_LAN_ADDRESS", null);
+            Environment.SetEnvironmentVariable("SQLEXPRESS_LAN_ADDRESS", previous);
         }
     }
 }

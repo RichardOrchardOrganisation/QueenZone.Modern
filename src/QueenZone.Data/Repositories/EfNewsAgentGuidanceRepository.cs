@@ -88,7 +88,7 @@ public sealed class EfNewsAgentGuidanceRepository(QueenZoneDbContext dbContext) 
         }
         else
         {
-            EnsureRowVersion(draft, expectedRowVersion);
+            QueenZoneConcurrency.EnsureRequiredRowVersion<NewsAgentGuidanceConcurrencyException>(draft.RowVersion, expectedRowVersion);
             draft.Content = sanitized;
             draft.ContentHash = hash;
             draft.CreatedByEmail = email;
@@ -120,7 +120,7 @@ public sealed class EfNewsAgentGuidanceRepository(QueenZoneDbContext dbContext) 
                         cancellationToken)
                     ?? throw new InvalidOperationException($"No draft guidance exists for {NewsAgentGuidanceText.ToStorageType(type)}.");
 
-                EnsureRowVersion(draft, expectedRowVersion);
+                QueenZoneConcurrency.EnsureRequiredRowVersion<NewsAgentGuidanceConcurrencyException>(draft.RowVersion, expectedRowVersion);
 
                 var published = await dbContext.NewsAgentGuidanceRevisions
                     .SingleOrDefaultAsync(
@@ -265,14 +265,6 @@ public sealed class EfNewsAgentGuidanceRepository(QueenZoneDbContext dbContext) 
         if (!dbContext.Database.IsSqlServer())
         {
             entity.RowVersion = Guid.NewGuid().ToByteArray();
-        }
-    }
-
-    private static void EnsureRowVersion(NewsAgentGuidanceRevisionEntity entity, byte[]? expectedRowVersion)
-    {
-        if (expectedRowVersion is null || entity.RowVersion is null || !entity.RowVersion.SequenceEqual(expectedRowVersion))
-        {
-            throw new NewsAgentGuidanceConcurrencyException();
         }
     }
 

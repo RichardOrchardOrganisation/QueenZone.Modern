@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PhotoDetailDimensionsRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PhotoDetailDimensionsRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PhotoDetailDimensionsRoutesTests(WebApplicationFactory<Program> factory)
+    public PhotoDetailDimensionsRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

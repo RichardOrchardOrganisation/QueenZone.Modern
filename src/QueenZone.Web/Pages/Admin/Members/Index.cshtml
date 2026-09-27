@@ -6,7 +6,8 @@
   <h1>Members</h1>
 
   <form method="get" class="admin-search-form">
-    <input type="search" name="query" value="@Model.Query" placeholder="Search by display name or email" />
+    <label class="visually-hidden" for="member-search">Search by display name or email</label>
+    <input id="member-search" type="search" name="query" value="@Model.Query" placeholder="Search by display name or email" />
     <button type="submit" class="qz-button">Search</button>
   </form>
 

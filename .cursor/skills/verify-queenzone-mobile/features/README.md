@@ -1,5 +1,7 @@
 # QueenZone.Mobile verification map
 
+The machine-readable map of every mobile screen lives in [`docs/feature-map/`](../../../../docs/feature-map/README.md). Read that index to resolve a vague request to an `id`, sources, `testIds`, and Maestro flows. This folder keeps the prose recipes those entries point at via `recipe`.
+
 This directory is the maintained source for verifying visitor-facing QueenZone.Mobile behavior. Read this index before driving the app, then use the matching feature file as the recipe.
 
 ## Baseline preconditions
@@ -16,7 +18,8 @@ This directory is the maintained source for verifying visitor-facing QueenZone.M
 - Start every recipe from the launched app state (`01-launch.yaml` visible `home-screen` / `home-hero`) unless a feature says otherwise.
 - Prefer `testID` values from `src/QueenZone.Mobile/src/test/testIds.ts` and the ids already used in `src/QueenZone.Mobile/maestro/flows/`.
 - Treat every Maestro command as literal.
-- Run one flow through `control-queenzone-mobile.ps1 drive -Flow <id>`.
+- Run one flow through `control-queenzone-mobile.ps1 drive -Flow <id>` (aliases resolve from `docs/feature-map/`).
+- Capture PR proof with `control-queenzone-mobile.ps1 capture-proof -Feature <map-id>`.
 - Do not remove proof artifacts during cleanup. Do not kill the emulator during cleanup.
 
 ## Proof and skip reporting

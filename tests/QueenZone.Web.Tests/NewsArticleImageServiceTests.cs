@@ -427,7 +427,7 @@ public sealed class NewsArticleImageServiceTests
             return inner.DeleteAsync(containerName, blobName, cancellationToken);
         }
 
-        public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+        public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
             string containerName,
             CancellationToken cancellationToken = default) =>
             inner.ListBlobsAsync(containerName, cancellationToken);

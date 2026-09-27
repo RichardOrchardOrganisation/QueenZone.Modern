@@ -97,4 +97,13 @@ public sealed class SharedQuoteStore
             return true;
         }
     }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            quotes.Clear();
+            nextId = 1;
+        }
+    }
 }

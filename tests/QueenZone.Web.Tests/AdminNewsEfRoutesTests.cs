@@ -1,36 +1,22 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminNewsEfRoutesTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
+public sealed class AdminNewsEfRoutesTests : IClassFixture<AdminEfWebApplicationFactory>, IAsyncLifetime
 {
-    private readonly WebApplicationFactory<Program> baseFactory;
-    private readonly AdminEfWebTestHarness harness;
-    private WebApplicationFactory<Program> factory = null!;
+    private readonly AdminEfWebApplicationFactory factory;
 
-    public AdminNewsEfRoutesTests(WebApplicationFactory<Program> baseFactory)
+    public AdminNewsEfRoutesTests(AdminEfWebApplicationFactory factory)
     {
-        this.baseFactory = baseFactory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.UseSetting("ConnectionStrings:QueenZoneLegacy", string.Empty);
-        });
-        harness = new AdminEfWebTestHarness();
+        this.factory = factory;
     }
 
-    public Task InitializeAsync()
-    {
-        factory = harness.CreateFactory(baseFactory);
-        harness.EnsureSchema(factory.Services);
-        return Task.CompletedTask;
-    }
+    public Task InitializeAsync() => factory.ResetAsync();
 
-    public async Task DisposeAsync() => await harness.DisposeAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Ef_backed_create_edit_publish_unpublish_delete_round_trip()

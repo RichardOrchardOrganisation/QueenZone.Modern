@@ -283,7 +283,7 @@ The public site reads forum pages through `ModernForumRepository` by default (se
 ## Infrastructure (OpenTofu)
 
 The Azure/Cloudflare infrastructure control plane (epic
-[#615](https://github.com/richardorchard/QueenZone.Modern/issues/615)) is
+[#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615)) is
 managed by OpenTofu, entirely separate from application deploys above.
 
 - Contributor workflow (local validation, provider upgrades, first import,

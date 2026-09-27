@@ -1,0 +1,54 @@
+/* ============================================================
+   QUEENZONE · TYPOGRAPHY TOKENS
+   Cormorant Garamond (display) · Inter (UI/body) · Cinzel (titling)
+   Editorial hierarchy — type carries most of the visual weight.
+   ============================================================ */
+:root {
+  /* ---- Families ---- */
+  --font-display: 'Cormorant Garamond', 'Times New Roman', Georgia, serif;
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-titling: 'Cinzel', 'Cormorant Garamond', serif; /* anniversary / feature titles only */
+
+  /* ---- Weights ---- */
+  --fw-light:    300; /* @kind font */
+  --fw-regular:  400; /* @kind font */
+  --fw-medium:   500; /* @kind font */
+  --fw-semibold: 600; /* @kind font */
+  --fw-bold:     700; /* @kind font */
+
+  /* ---- Display scale (Cormorant Garamond) — large, editorial ---- */
+  --fs-display-1: 5rem;     /* 80px — hero headline                  */
+  --fs-display-2: 3.5rem;   /* 56px — page title                     */
+  --fs-display-3: 2.5rem;   /* 40px — section heading                */
+  --fs-display-4: 1.875rem; /* 30px — card / article title           */
+
+  /* ---- Body & UI scale (Inter) ---- */
+  --fs-lead:  1.3125rem; /* 21px — standfirst / intro paragraph      */
+  --fs-body:  1.0625rem; /* 17px — body copy                         */
+  --fs-sm:    0.9375rem; /* 15px — secondary / captions              */
+  --fs-xs:    0.8125rem; /* 13px — meta, labels                      */
+
+  /* ---- Eyebrow / titling (Cinzel) ---- */
+  --fs-eyebrow: 0.75rem; /* 12px — uppercase kicker                   */
+
+  /* ---- Line heights ---- */
+  --lh-tight:   1.04;  /* @kind font */
+  --lh-snug:    1.18;  /* @kind font */
+  --lh-normal:  1.6;   /* @kind font */
+  --lh-relaxed: 1.75;  /* @kind font */
+
+  /* ---- Letter spacing ---- */
+  --ls-display:  -0.015em; /* tighten large serif                    */
+  --ls-normal:    0em;
+  --ls-eyebrow:   0.22em;  /* wide tracking for Cinzel kickers        */
+  --ls-caps:      0.08em;
+
+  /* ---- Semantic type roles ---- */
+  --type-hero:    var(--fw-medium) var(--fs-display-1)/var(--lh-tight) var(--font-display);
+  --type-h1:      var(--fw-medium) var(--fs-display-2)/var(--lh-tight) var(--font-display);
+  --type-h2:      var(--fw-medium) var(--fs-display-3)/var(--lh-snug) var(--font-display);
+  --type-h3:      var(--fw-semibold) var(--fs-display-4)/var(--lh-snug) var(--font-display);
+  --type-lead:    var(--fw-regular) var(--fs-lead)/var(--lh-relaxed) var(--font-body);
+  --type-body:    var(--fw-regular) var(--fs-body)/var(--lh-normal) var(--font-body);
+  --type-meta:    var(--fw-medium) var(--fs-xs)/1.4 var(--font-body);
+}

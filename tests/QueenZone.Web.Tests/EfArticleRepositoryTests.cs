@@ -52,6 +52,7 @@ public sealed class EfArticleRepositoryTests : IDisposable
             Slug = slug,
             Excerpt = excerpt,
             Body = "Body text for " + title,
+            WordCount = EfArticleSubmissionRepository.EstimateWordCount("Body text for " + title),
             Tags = tags,
             CoverImageBlobPath = coverImageBlobPath,
             Status = ArticleSubmissionStatus.Published,
@@ -118,6 +119,8 @@ public sealed class EfArticleRepositoryTests : IDisposable
         Assert.Equal("newer", result[0].Slug);
         Assert.Equal("older", result[1].Slug);
         Assert.Equal("Test Author", result[0].AuthorDisplayName);
+        Assert.Equal(string.Empty, result[0].Body);
+        Assert.True(result[0].WordCount > 0);
     }
 
     [Fact]
@@ -177,6 +180,7 @@ public sealed class EfArticleRepositoryTests : IDisposable
         Assert.Equal("My Article", result.Title);
         Assert.Equal("An excerpt.", result.Excerpt);
         Assert.Equal("Test Author", result.AuthorDisplayName);
+        Assert.NotEmpty(result.Body);
     }
 
     [Fact]
@@ -277,5 +281,61 @@ public sealed class EfArticleRepositoryTests : IDisposable
         var result = await Repo().GetSitemapEntriesAsync();
 
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task ListAndCount_IncludeStandaloneEditorialArticles_WithoutLoadingBodies()
+    {
+        AddPublished("community", "Community Article", DateTimeOffset.UtcNow.AddDays(-1));
+        dbContext.EditorialArticles.Add(new EditorialArticleEntity
+        {
+            Id = Guid.NewGuid(),
+            Title = "Editorial draft",
+            Slug = "editorial-draft",
+            Excerpt = "Draft excerpt",
+            Body = "Draft body",
+            AuthorName = "Editor",
+            Category = "Feature",
+            Status = EditorialArticleStatus.Published,
+            PublishedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            UpdatedBy = "editor@test.local",
+            LiveTitle = "Editorial live",
+            LiveSlug = "editorial-live",
+            LiveExcerpt = "Live excerpt",
+            LiveBody = "This full live body must stay out of list queries.",
+            LiveWordCount = 10,
+            LiveAuthorName = "Editor",
+            LiveCategory = "Feature",
+            LivePublishedAt = DateTimeOffset.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var repository = Repo();
+        var page = await repository.GetPageAsync(1, 10);
+
+        Assert.Equal(2, await repository.GetCountAsync());
+        var editorial = Assert.Single(page, article => article.Slug == "editorial-live");
+        Assert.Equal(string.Empty, editorial.Body);
+        Assert.Equal(10, editorial.WordCount);
+    }
+
+    [Fact]
+    public void PublishedListSql_OmitsBodies_AndPagesInSqlServer()
+    {
+        var options = new DbContextOptionsBuilder<QueenZoneDbContext>()
+            .UseSqlServer("Server=(local);Database=QueryShapeOnly;Trusted_Connection=True;TrustServerCertificate=True")
+            .Options;
+        using var sqlServerContext = new QueenZoneDbContext(options);
+        var sql = new EfArticleRepository(sqlServerContext)
+            .PublishedListQuery()
+            .OrderByDescending(article => article.PublishedAt)
+            .Skip(12)
+            .Take(12)
+            .ToQueryString();
+
+        Assert.DoesNotContain("Body", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("UNION ALL", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("OFFSET", sql, StringComparison.OrdinalIgnoreCase);
     }
 }

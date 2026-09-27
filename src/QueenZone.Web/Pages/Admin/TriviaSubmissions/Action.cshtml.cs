@@ -42,9 +42,9 @@ public sealed class ActionModel(
         var draft = new AdminTriviaDraft(
             (Text ?? string.Empty).Trim(),
             true,
-            NormalizeOptional(Category),
-            NormalizeDifficulty(Difficulty),
-            NormalizeOptional(Source));
+            TriviaValidation.NormalizeOptional(Category),
+            TriviaValidation.NormalizeDifficulty(Difficulty),
+            TriviaValidation.NormalizeOptional(Source));
 
         var errors = TriviaValidation.ValidateDraft(draft);
         if (errors.Count > 0)
@@ -108,14 +108,5 @@ public sealed class ActionModel(
         TempData["TriviaSubmissionMessage"] = message;
         TempData["TriviaSubmissionMessageKind"] = kind;
         return Redirect($"/admin/trivia-submissions/{id}");
-    }
-
-    private static string? NormalizeOptional(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? NormalizeDifficulty(string? value)
-    {
-        var trimmed = NormalizeOptional(value);
-        return trimmed?.ToLowerInvariant();
     }
 }

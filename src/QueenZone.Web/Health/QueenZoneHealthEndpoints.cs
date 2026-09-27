@@ -130,7 +130,7 @@ public static class QueenZoneHealthEndpoints
         {
             context.Response.StatusCode = StatusCodes.Status200OK;
             context.Response.ContentType = "application/json; charset=utf-8";
-            await context.Response.WriteAsync("""{"status":"ok"}""");
+            await context.Response.WriteAsync("""{"status":"ok"}""", context.RequestAborted);
             return true;
         }
 
@@ -185,6 +185,7 @@ public static class QueenZoneHealthEndpoints
         await JsonSerializer.SerializeAsync(
             httpContext.Response.Body,
             payload,
-            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase },
+            httpContext.RequestAborted);
     }
 }

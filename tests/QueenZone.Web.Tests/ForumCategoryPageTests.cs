@@ -3,13 +3,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumCategoryPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumCategoryPageTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumCategoryPageTests(WebApplicationFactory<Program> factory)
+    public ForumCategoryPageTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

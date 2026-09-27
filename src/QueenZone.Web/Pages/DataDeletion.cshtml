@@ -5,7 +5,7 @@
   ViewData["CanonicalPath"] = "/data-deletion";
 }
 
-<partial name="_PageHero" model='@(("Your Data", "Data Deletion", "How to remove your personal information from Queenzone.", "Last updated 12 August 2026"))' />
+<partial name="_PageHero" model='@(("Your Data", "Data Deletion", "How to remove your personal information from Queenzone.", "Last updated 23 September 2026"))' />
 
 <section class="qz-section qz-section--warm">
   <div class="qz-container qz-container--text">
@@ -13,16 +13,15 @@
     <p class="lede">You can delete your account and personal sign-in data at any time.</p>
 
     <h2>What we store</h2>
-    <p>If you have a Queenzone account, we store your email address, display name, and (where applicable) a reference to the social login provider you used (Google, Microsoft, Discord, or GitHub). We do not store passwords in plain text.</p>
+    <p>If you have a Queenzone account, we store your email address, display name, and (where applicable) a reference to the social login provider you used (Google, Microsoft, Discord, GitHub, or Apple). We do not store passwords in plain text.</p>
 
     <h2>How to delete your account</h2>
-    <p>Sign in, open <a href="/account/settings">Account settings</a>, and select <strong>Delete my account</strong>. You will be signed out after confirming the request.</p>
+    <p>In the app, open Settings → Delete my account. On the website, sign in, open <a href="/account/settings">Account settings</a>, and select <strong>Delete my account</strong>. Type DELETE to confirm. Your account will be disabled and you will be signed out.</p>
     <p>If you cannot sign in, use the <a href="/contact">Contact</a> form or email <a href="mailto:privacy@queenzone.org">privacy@queenzone.org</a> from the address associated with your account.</p>
 
     <h2>What happens after the request</h2>
-    <p>Your public display name changes immediately to <strong>Deleted member</strong>. Your profile and avatar are hidden, and forum posts and private messages remain with anonymised attribution.</p>
-    <p>During the <strong>30-day cooling-off period</strong>, you can sign back in and cancel deletion from Account settings. Cancelling restores your display name, avatar, profile, and retained-content attribution.</p>
-    <p>After 30 days, sign-in is blocked and we permanently purge your email address, password hash, social sign-in references, and stored avatar. We retain a non-personal account record so content relationships remain valid. Any existing link to a legacy QueenZone account is retained for now.</p>
+    <p>Your profile and avatar are hidden immediately. We remove your email address, password hash, social sign-in references, modern posts and messages, submitted content, and uploads. Posts and messages become deleted placeholders where other members' conversations or threads need to remain coherent. Uploaded files and Sign in with Apple tokens may finish removing through a retrying background process. Your legacy public archive posts remain, but their link to your modern account is removed.</p>
+    <p>We provide a private status receipt after confirmation. It works after sign-out and shows when removal is complete; save its page address if cleanup is still in progress. Immediate deletion cannot be cancelled. If you previously scheduled deletion under the older 30-day policy, you may still sign in and cancel that request before its due date. If you use Sign in with Apple, you can also remove QueenZone under Apple Account Settings → Sign in with Apple.</p>
 
     <h2>Contact</h2>
     <p>For any questions about your data, use the <a href="/contact">Contact</a> form or email <a href="mailto:privacy@queenzone.org">privacy@queenzone.org</a>.</p>

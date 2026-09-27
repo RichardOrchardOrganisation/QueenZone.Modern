@@ -1,18 +1,19 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
-using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class GoogleAnalyticsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class GoogleAnalyticsTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
-    private const string MeasurementId = "G-V2W56BZ3KZ";
+    private const string MeasurementId = WebHostVariants.AnalyticsMeasurementId;
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory configured;
 
-    public GoogleAnalyticsTests(WebApplicationFactory<Program> factory)
+    public GoogleAnalyticsTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
+        configured = variants.Get(WebHostVariants.AnalyticsMeasurementConfigured);
     }
 
     [Fact]
@@ -57,13 +58,5 @@ public sealed class GoogleAnalyticsTests : IClassFixture<WebApplicationFactory<P
         Assert.DoesNotContain(MeasurementId, body);
     }
 
-    private HttpClient CreateClientWithMeasurementId() =>
-        factory.WithWebHostBuilder(builder =>
-            builder.ConfigureAppConfiguration((_, configurationBuilder) =>
-            {
-                configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    [$"{AnalyticsOptions.SectionName}:MeasurementId"] = MeasurementId
-                });
-            })).CreateClient();
+    private HttpClient CreateClientWithMeasurementId() => configured.CreateClient();
 }

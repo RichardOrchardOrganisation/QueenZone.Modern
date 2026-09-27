@@ -25,9 +25,10 @@
   }).Where(ext => ext.Length > 0).Distinct());
 }
 
-<div class="qz-form__field qz-forum-compose__attachments">
-  <label for="Attachments">Attachments <span class="qz-meta">(optional)</span></label>
+<div class="qz-field qz-field--spaced qz-forum-compose__attachments">
+  <label class="qz-label" for="Attachments">Attachments <span class="qz-meta">(optional)</span></label>
   <input id="Attachments"
+         class="qz-input"
          name="Attachments"
          type="file"
          multiple
@@ -36,6 +37,6 @@
     Up to @options.MaxFilesPerPost files, @maxMb MB each, @totalMb MB total.
     Images, PDF, ZIP, audio, and common office documents. Download requires sign-in.
   </p>
-  <span class="field-validation-error" data-valmsg-for="Attachments" data-valmsg-replace="true"></span>
-  <div asp-validation-for="Attachments"></div>
+  <span class="qz-error qz-error--text field-validation-error" data-valmsg-for="Attachments" data-valmsg-replace="true"></span>
+  <div class="qz-error qz-error--text" asp-validation-for="Attachments"></div>
 </div>

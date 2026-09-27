@@ -15,10 +15,29 @@ public static class MeApiEndpoints
 
     public static void MapMeApiEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/v1/account-deletion-status", async (
+                string? receipt,
+                MemberDeletionReceiptService receipts,
+                CancellationToken cancellationToken) =>
+            {
+                var progress = await receipts.GetProgressAsync(receipt, cancellationToken);
+                return progress is null
+                    ? Results.NotFound()
+                    : Results.Ok(new DeletionProgressResponse(progress.IsComplete ? "complete" : "processing"));
+            })
+            .WithName("GetAccountDeletionStatus")
+            .WithGroupName(ApiV1.OpenApiDocumentName)
+            .WithTags("Me")
+            .WithSummary("Check an account deletion with its private status receipt after sign-out.")
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AnonymousWrite)
+            .Produces<DeletionProgressResponse>()
+            .Produces(StatusCodes.Status404NotFound);
+
         var group = app.MapGroup("/api/v1")
             .WithGroupName(ApiV1.OpenApiDocumentName)
             .WithTags("Me")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
         group.MapGet("/me", GetMeAsync)
@@ -33,7 +52,8 @@ public static class MeApiEndpoints
             .Accepts<MemberProfilePatchRequest>("application/json")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/avatar", UploadAvatarAsync)
             .WithName("UploadMemberAvatar")
@@ -41,14 +61,16 @@ public static class MeApiEndpoints
             .Accepts<IFormFile>("multipart/form-data")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapDelete("/me/avatar", RemoveAvatarAsync)
             .WithName("RemoveMemberAvatar")
             .WithSummary("Remove the current avatar.")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/legacy-link", ClaimLegacyAsync)
             .WithName("ClaimLegacyAccount")
@@ -56,29 +78,33 @@ public static class MeApiEndpoints
             .Accepts<ClaimLegacyRequest>("application/json")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapDelete("/me/legacy-link", UnlinkLegacyAsync)
             .WithName("UnlinkLegacyAccount")
             .WithSummary("Unlink the claimed classic forum account.")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/deletion-request", RequestDeletionAsync)
             .WithName("RequestAccountDeletion")
-            .WithSummary("Schedule account deletion after typing DELETE. Revokes mobile refresh tokens.")
+            .WithSummary("Delete an account after typing DELETE. Revokes mobile refresh tokens.")
             .Accepts<DeletionRequestBody>("application/json")
             .Produces<DeletionRequestedResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/me/deletion-request/cancel", CancelDeletionAsync)
             .WithName("CancelAccountDeletion")
             .WithSummary("Cancel a scheduled account deletion during the cooling-off period.")
             .Produces<MemberProfileDto>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 
     internal static async Task<IResult> GetMeAsync(
@@ -277,6 +303,7 @@ public static class MeApiEndpoints
         ClaimsPrincipal user,
         MemberAccountService memberAccountService,
         IMobileAuthGrantRepository mobileAuthGrantRepository,
+        MemberDeletionReceiptService deletionReceipts,
         DeletionRequestBody? request,
         CancellationToken cancellationToken)
     {
@@ -294,7 +321,9 @@ public static class MeApiEndpoints
             return BadRequest(AccountDeletionCopy.ConfirmationRequired);
         }
 
-        var result = await memberAccountService.RequestDeletionAsync(memberId, cancellationToken);
+        var result = request?.Immediate == true
+            ? await memberAccountService.DeleteImmediatelyAsync(memberId, cancellationToken)
+            : await memberAccountService.RequestDeletionAsync(memberId, cancellationToken);
         if (!result.Succeeded || result.Account is null)
         {
             return BadRequest(result.Error ?? "Could not request account deletion.");
@@ -309,9 +338,10 @@ public static class MeApiEndpoints
             MemberAccountDeletionPolicy.RetentionDays);
         return Results.Ok(new DeletionRequestedResponse(
             Requested: true,
-            ScheduledDeletionAt: ToUtc(scheduled),
-            AccountDeletionCopy.RequestedTitle,
-            AccountDeletionCopy.RequestedMessage));
+            ScheduledDeletionAt: request?.Immediate == true ? null : ToUtc(scheduled),
+            request?.Immediate == true ? AccountDeletionCopy.ImmediateTitle : AccountDeletionCopy.RequestedTitle,
+            request?.Immediate == true ? AccountDeletionCopy.ImmediateMessage : AccountDeletionCopy.RequestedMessage,
+            request?.Immediate == true ? deletionReceipts.Issue(memberId) : null));
     }
 
     internal static async Task<IResult> CancelDeletionAsync(

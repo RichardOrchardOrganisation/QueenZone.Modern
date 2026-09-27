@@ -1,18 +1,16 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCache>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public CommunityArticleRoutesTests(WebApplicationFactory<Program> factory)
+    public CommunityArticleRoutesTests(WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.variants = variants;
     }
 
     // -------------------------------------------------------------------------
@@ -179,7 +177,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_Articles_Returns200_WithPublishedCommunityArticle()
     {
-        var client = WithRepo([Published("test-community-slug", "Community Test Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("test-community-slug", "Community Test Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var body = await client.GetStringAsync("/articles");
 
@@ -189,7 +187,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_CommunityDetail_Returns200_ForPublishedArticle()
     {
-        var client = WithRepo([Published("my-published-article", "My Published Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("my-published-article", "My Published Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var response = await client.GetAsync("/articles/my-published-article");
 
@@ -202,14 +200,14 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     public async Task CommunityArticle_ListAndDetailLinkSubmittedByProfile()
     {
         var authorMemberId = Guid.NewGuid();
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             Published(
                 "linked-author",
                 "Linked Author Article",
                 DateTimeOffset.UtcNow.AddDays(-1),
                 authorMemberId: authorMemberId),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var listBody = await client.GetStringAsync("/articles");
         var detailBody = await client.GetStringAsync("/articles/linked-author");
@@ -221,7 +219,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_CommunityDetail_Returns404_ForUnknownSlug()
     {
-        var client = WithRepo([]).CreateClient();
+        var client = (await WithRepo([])).CreateClient();
 
         var response = await client.GetAsync("/articles/does-not-exist");
 
@@ -231,7 +229,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_CommunityDetail_Returns404_WhenSlugNotInPublishedSet()
     {
-        var client = WithRepo([Published("different-slug", "Different Article", DateTimeOffset.UtcNow)]).CreateClient();
+        var client = (await WithRepo([Published("different-slug", "Different Article", DateTimeOffset.UtcNow)])).CreateClient();
 
         var response = await client.GetAsync("/articles/draft-only-slug");
 
@@ -244,12 +242,12 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
         var t1 = DateTimeOffset.UtcNow.AddDays(-2);
         var t2 = DateTimeOffset.UtcNow.AddDays(-1);
         var t3 = DateTimeOffset.UtcNow;
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             Published("older-article", "Older Article", t1),
             Published("target-article", "Target Article", t2),
             Published("newer-article", "Newer Article", t3),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var body = await client.GetStringAsync("/articles/target-article");
 
@@ -260,7 +258,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_CommunityDetail_RendersReadTime()
     {
-        var client = WithRepo([Published("read-time-article", "Read Time Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("read-time-article", "Read Time Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var body = await client.GetStringAsync("/articles/read-time-article");
 
@@ -270,7 +268,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_ArticlesFeed_Returns200_WithRssContent()
     {
-        var client = WithRepo([Published("rss-test-article", "RSS Test Article", DateTimeOffset.UtcNow.AddDays(-1))]).CreateClient();
+        var client = (await WithRepo([Published("rss-test-article", "RSS Test Article", DateTimeOffset.UtcNow.AddDays(-1))])).CreateClient();
 
         var response = await client.GetAsync("/articles/feed.rss");
 
@@ -284,7 +282,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_ArticlesFeed_WithNoArticles_ReturnsEmptyRss()
     {
-        var client = WithRepo([]).CreateClient();
+        var client = (await WithRepo([])).CreateClient();
 
         var response = await client.GetAsync("/articles/feed.rss");
 
@@ -297,13 +295,13 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_ArticlesFeed_WithExcerpt_IncludesDescription()
     {
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             new PublishedArticleSubmission(
                 Guid.NewGuid(), "Excerpted Article", "excerpted-article",
                 "This is the excerpt.", "<p>Body.</p>",
                 null, null, DateTimeOffset.UtcNow.AddDays(-1), "Author", 50),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var body = await client.GetStringAsync("/articles/feed.rss");
 
@@ -313,11 +311,11 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_Articles_TagFilter_ShowsOnlyMatchingArticles()
     {
-        var client = WithRepo(
+        var client = (await WithRepo(
         [
             Published("tagged-article", "Tagged Article", DateTimeOffset.UtcNow.AddDays(-2), tags: "queen,freddie"),
             Published("other-article", "Other Article", DateTimeOffset.UtcNow.AddDays(-1), tags: "roger"),
-        ]).CreateClient();
+        ])).CreateClient();
 
         var body = await client.GetStringAsync("/articles?tag=queen");
 
@@ -328,7 +326,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_Articles_WhenCommunityPageOutOfRange_Returns404()
     {
-        var client = WithRepo([Published("only-one", "Only One", DateTimeOffset.UtcNow)]).CreateClient();
+        var client = (await WithRepo([Published("only-one", "Only One", DateTimeOffset.UtcNow)])).CreateClient();
 
         var response = await client.GetAsync("/articles?cp=99");
 
@@ -338,7 +336,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_Articles_WhenCommunityRepoThrowsSqlException_StillReturnsArchive()
     {
-        var client = WithArticleRepository(new SqlFailingArticleRepo()).CreateClient();
+        var client = variants.Get(WebHostVariants.TestingSqlFailingCommunityArticles).CreateClient();
 
         var response = await client.GetAsync("/articles");
 
@@ -351,7 +349,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     [Fact]
     public async Task Get_ArticlesFeed_WhenCommunityRepoThrowsSqlException_StillReturnsArchiveRss()
     {
-        var client = WithArticleRepository(new SqlFailingArticleRepo()).CreateClient();
+        var client = variants.Get(WebHostVariants.TestingSqlFailingCommunityArticles).CreateClient();
 
         var response = await client.GetAsync("/articles/feed.rss");
 
@@ -367,12 +365,15 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
     // Helpers
     // -------------------------------------------------------------------------
 
-    private WebApplicationFactory<Program> WithRepo(IEnumerable<PublishedArticleSubmission> seed) =>
-        WithArticleRepository(new StubArticleRepo(seed));
-
-    private WebApplicationFactory<Program> WithArticleRepository(IArticleRepository repository) =>
-        factory.WithWebHostBuilder(b => b.ConfigureServices(s =>
-            s.AddSingleton<IArticleRepository>(repository)));
+    private async Task<WebApplicationFactory<Program>> WithRepo(IEnumerable<PublishedArticleSubmission> seed)
+    {
+        var host = variants.Get(WebHostVariants.TestingMutableCommunityArticles);
+        await host.ResetAsync();
+        var repository = host.CommunityArticles
+            ?? throw new InvalidOperationException("TestingMutableCommunityArticles must register MutableCommunityArticleRepository.");
+        repository.Seed(seed);
+        return host;
+    }
 
     private static PublishedArticleSubmission Published(
         string slug, string title, DateTimeOffset publishedAt,
@@ -390,106 +391,6 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebApplicationFa
             "Test Author",
             100,
             authorMemberId);
-
-    private sealed class SqlFailingArticleRepo : IArticleRepository
-    {
-        public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
-
-        public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
-            int page, int pageSize, string? tag = null, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
-
-        public Task<PublishedArticleSubmission?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
-
-        public Task<(PublishedArticleSubmission? Previous, PublishedArticleSubmission? Next)> GetAdjacentAsync(
-            DateTimeOffset publishedAt, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
-
-        public Task<IReadOnlyList<PublishedArticleSubmission>> GetSitemapEntriesAsync(CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
-    }
-
-    private static class SqlExceptionFactory
-    {
-        public static Microsoft.Data.SqlClient.SqlException Create()
-        {
-            var sqlClient = typeof(Microsoft.Data.SqlClient.SqlException).Assembly;
-            var errorCollectionType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlErrorCollection")
-                ?? throw new InvalidOperationException("SqlErrorCollection type not found.");
-            var errorType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlError")
-                ?? throw new InvalidOperationException("SqlError type not found.");
-
-            var collection = Activator.CreateInstance(errorCollectionType, nonPublic: true)
-                ?? throw new InvalidOperationException("Unable to create SqlErrorCollection.");
-
-            var errorCtor = errorType.GetConstructors(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .OrderByDescending(c => c.GetParameters().Length)
-                .First();
-            var errorArgs = errorCtor.GetParameters().Select(p =>
-            {
-                if (p.ParameterType == typeof(int))
-                {
-                    return (object)208;
-                }
-
-                if (p.ParameterType == typeof(byte))
-                {
-                    return (byte)16;
-                }
-
-                if (p.ParameterType == typeof(string))
-                {
-                    return "Invalid object name 'ArticleSubmissions'.";
-                }
-
-                if (p.ParameterType == typeof(uint))
-                {
-                    return 0u;
-                }
-
-                if (typeof(Exception).IsAssignableFrom(p.ParameterType))
-                {
-                    return null!;
-                }
-
-                return p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType)! : null!;
-            }).ToArray();
-            var error = errorCtor.Invoke(errorArgs);
-
-            errorCollectionType
-                .GetMethod("Add", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(collection, [error]);
-
-            var createException = typeof(Microsoft.Data.SqlClient.SqlException)
-                .GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-                .Where(m => m.Name == "CreateException")
-                .OrderBy(m => m.GetParameters().Length)
-                .First();
-            var createArgs = createException.GetParameters().Select(p =>
-            {
-                if (p.ParameterType == errorCollectionType)
-                {
-                    return collection;
-                }
-
-                if (p.ParameterType == typeof(string))
-                {
-                    return "12.0.0";
-                }
-
-                if (p.ParameterType == typeof(Guid))
-                {
-                    return Guid.Empty;
-                }
-
-                return null!;
-            }).ToArray();
-
-            return (Microsoft.Data.SqlClient.SqlException)createException.Invoke(null, createArgs)!;
-        }
-    }
 
     // Stub IArticleSubmissionRepository — only GetPublishedAsync is used by InMemoryArticleRepository
     private sealed class StubSubmissionRepo(IEnumerable<PublishedArticleSubmission> published) : IArticleSubmissionRepository

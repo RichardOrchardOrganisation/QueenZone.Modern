@@ -162,6 +162,7 @@ public sealed class AdminFanPerformanceWriteServiceTests
             Options.Create(new PublicQueryCacheOptions()),
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
+            new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
             new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
             new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
             new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
@@ -170,7 +171,8 @@ public sealed class AdminFanPerformanceWriteServiceTests
             new InMemoryQuoteRepository(SampleQuoteData.CreateSeedQuotes()),
             new InMemoryTriviaRepository(SampleTriviaData.CreateSeedFacts()),
             new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()));
+            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
+            new InMemoryFreddieTributeRepository(new SharedFreddieTributeStore(SampleFreddieTributeData.CreateSeedTributes())));
 
     private static CoreSitemapService CreateSitemapService(IOutputCacheStore outputCache, IMemoryCache cache) =>
         new(

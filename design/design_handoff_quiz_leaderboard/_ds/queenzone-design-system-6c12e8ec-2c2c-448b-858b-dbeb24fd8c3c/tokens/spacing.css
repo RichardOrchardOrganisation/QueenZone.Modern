@@ -1,0 +1,51 @@
+/* ============================================================
+   QUEENZONE · SPACING, RADII, SHADOWS, MOTION
+   Generous white space. Magazine grid. Restrained corners.
+   ============================================================ */
+:root {
+  /* ---- Spacing scale (4px base) ---- */
+  --space-1:  0.25rem;  /* 4   */
+  --space-2:  0.5rem;   /* 8   */
+  --space-3:  0.75rem;  /* 12  */
+  --space-4:  1rem;     /* 16  */
+  --space-5:  1.5rem;   /* 24  */
+  --space-6:  2rem;     /* 32  */
+  --space-7:  3rem;     /* 48  */
+  --space-8:  4rem;     /* 64  */
+  --space-9:  6rem;     /* 96  */
+  --space-10: 8rem;     /* 128 — section breathing room */
+
+  /* ---- Layout ---- */
+  --container-max:   1280px; /* editorial max width        */
+  --container-text:  680px;  /* long-form reading measure  */
+  --gutter:          1.5rem; /* mobile-first gutter        */
+  --gutter-lg:       2.5rem;
+
+  /* ---- Radii — small & restrained, never playful ---- */
+  --radius-none: 0;
+  --radius-xs:   2px;  /* inputs, tags                */
+  --radius-sm:   3px;  /* buttons, cards              */
+  --radius-md:   4px;  /* media frames                */
+  --radius-pill: 999px;
+
+  /* ---- Hairline borders ---- */
+  --border-width: 1px; /* @kind spacing */
+
+  /* ---- Shadows — soft, editorial, never heavy ---- */
+  --shadow-none:  none;
+  --shadow-sm:    0 1px 2px rgba(17, 17, 17, 0.04);
+  --shadow-card:  0 1px 3px rgba(17, 17, 17, 0.05), 0 8px 24px rgba(17, 17, 17, 0.06);
+  --shadow-lift:  0 4px 12px rgba(17, 17, 17, 0.08), 0 18px 48px rgba(17, 17, 17, 0.10);
+  --shadow-focus: 0 0 0 3px var(--focus-ring);
+
+  /* Cinematic image protection gradient (over photography) */
+  --scrim-bottom: linear-gradient(to top, rgba(17,17,17,0.78) 0%, rgba(17,17,17,0.32) 38%, rgba(17,17,17,0) 72%); /* @kind other */
+  --scrim-soft:   linear-gradient(to top, rgba(17,17,17,0.55) 0%, rgba(17,17,17,0) 60%); /* @kind other */
+
+  /* ---- Motion — subtle, slow, elegant ---- */
+  --ease-out:   cubic-bezier(0.22, 0.61, 0.36, 1);   /* @kind other */
+  --ease-inout: cubic-bezier(0.65, 0.05, 0.36, 1); /* @kind other */
+  --dur-fast:   180ms;  /* @kind other */
+  --dur-base:   320ms;  /* @kind other */
+  --dur-slow:   620ms;  /* @kind other */
+}

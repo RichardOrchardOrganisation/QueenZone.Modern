@@ -3,10 +3,13 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.FileProviders.Physical;
+using QueenZone.Data;
 using QueenZone.Web;
 using QueenZone.Web.Health;
 using QueenZone.Web.Sitemap;
 
+// Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
+RegexDefaults.ApplyProcessDefault();
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -67,7 +70,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AddFolderApplicationModelConvention(
         "/Submit",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
-            QueenZoneRateLimitPolicies.MemberWrite)));
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
     options.Conventions.AddPageApplicationModelConvention(
         "/Account/ExternalLogin",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
@@ -79,11 +82,46 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AddPageApplicationModelConvention(
         "/Account/Settings",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
-            QueenZoneRateLimitPolicies.Upload)));
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
     options.Conventions.AddPageApplicationModelConvention(
         "/Search",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
             QueenZoneRateLimitPolicies.Search)));
+
+    foreach (var page in new[]
+    {
+        "/Index",
+        "/Account/Delete",
+        "/Account/MySubmissions",
+        "/Forum/Block",
+        "/Forum/EditPost",
+        "/Forum/HideAuthor",
+        "/Forum/NewThread",
+        "/Forum/Report",
+        "/Forum/Topic",
+        "/Forum/TopicPage",
+        "/Members/Profile",
+        "/Quizzes/Play",
+    })
+    {
+        options.Conventions.AddPageApplicationModelConvention(
+            page,
+            model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+                QueenZoneRateLimitPolicies.AuthenticatedWrite)));
+    }
+
+    options.Conventions.AddFolderApplicationModelConvention(
+        "/Messages",
+        model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
+
+    foreach (var page in new[] { "/Help/Index", "/Quizzes/Sprint" })
+    {
+        options.Conventions.AddPageApplicationModelConvention(
+            page,
+            model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+                QueenZoneRateLimitPolicies.AnonymousWrite)));
+    }
 });
 
 var app = builder.Build();
@@ -141,13 +179,18 @@ if (ResponseCompressionBootstrap.IsEnabled(app.Environment))
     app.UseResponseCompression();
 }
 
-app.UseApiV1ExceptionHandler();
+// HTML exception re-execute must stay on the main pipeline. Nesting
+// UseExceptionHandler("/error") inside UseWhen breaks re-execution, and
+// UseStatusCodePagesWithReExecute then turns the failed /error path into
+// 404 (same class of bug as ApiV1ErrorHandling.UseApiV1StatusCodePages).
+// Register this before the API handler so /api/v1 still gets JSON Problem
+// Details from the inner UseWhen exception handler.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseWhen(
-        static context => !ApiV1.IsApiPath(context.Request.Path),
-        branch => branch.UseExceptionHandler("/error"));
+    app.UseExceptionHandler("/error");
 }
+
+app.UseApiV1ExceptionHandler();
 
 // PhysicalFileProvider excludes dot-prefixed files/folders by default, so the generic
 // UseStaticFiles() below would 404 on /.well-known/* (used for Microsoft's domain
@@ -286,7 +329,7 @@ app.MapNotificationPreferencesApiEndpoints();
 app.MapRazorPages().CacheOutput(PublicOutputCachePolicies.PublicHtml);
 app.MapFallbackToPage("/NotFound");
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;
 

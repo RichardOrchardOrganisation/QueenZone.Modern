@@ -51,6 +51,24 @@ describe('usePullToRefresh', () => {
     await act(async () => {
       result.current.onRefresh();
     });
+    expect(result.current.refreshing).toBe(true);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
+  });
+
+  it('keeps refreshing true for a painted frame and min duration when the task resolves immediately', async () => {
+    const { result } = renderHook(() => usePullToRefresh([() => Promise.resolve()]));
+
+    await act(async () => {
+      result.current.onRefresh();
+    });
+    expect(result.current.refreshing).toBe(true);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.refreshing).toBe(true);
+
     await waitFor(() => expect(result.current.refreshing).toBe(false));
   });
 

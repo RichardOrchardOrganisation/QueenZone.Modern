@@ -51,6 +51,7 @@ public sealed class RequestLogScopeMiddlewareTests
         Assert.False(scope.ContainsKey("Name"));
         Assert.False(scope.ContainsKey("DisplayName"));
         Assert.False(scope.ContainsKey("AdminEmail"));
+        Assert.False(scope.ContainsKey("AdminEmailFingerprint"));
         Assert.DoesNotContain(scope.Values, value => value is string text
             && (text.Contains("member@example.com", StringComparison.Ordinal)
                 || text.Contains("Display Name", StringComparison.Ordinal)));
@@ -102,13 +103,15 @@ public sealed class RequestLogScopeMiddlewareTests
         Assert.Equal(Activity.Current?.TraceId.ToString() ?? "admin-trace", scope["TraceId"]);
         Assert.False(scope.ContainsKey("MemberId"));
         Assert.False(scope.ContainsKey("AdminEmail"));
+        Assert.False(scope.ContainsKey("AdminEmailFingerprint"));
+        Assert.False(scope.ContainsKey("IsAdmin"));
         Assert.DoesNotContain(scope.Keys, key => key.Contains("Name", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(scope.Values, value => value is string text
             && text.Contains("not-an-admin@example.com", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task Allowlisted_admin_principal_scope_includes_admin_email()
+    public async Task Allowlisted_admin_principal_scope_includes_is_admin_without_email()
     {
         var logger = new RecordingScopeLogger();
         var context = new DefaultHttpContext
@@ -133,7 +136,13 @@ public sealed class RequestLogScopeMiddlewareTests
         var scope = Assert.Single(logger.Scopes);
         Assert.Equal(Activity.Current?.TraceId.ToString() ?? "admin-trace", scope["TraceId"]);
         Assert.False(scope.ContainsKey("MemberId"));
-        Assert.Equal("admin@example.com", scope["AdminEmail"]);
+        Assert.False(scope.ContainsKey("AdminEmail"));
+        Assert.False(scope.ContainsKey("AdminEmailFingerprint"));
+        Assert.Equal(true, scope["IsAdmin"]);
+        Assert.Equal(["TraceId", "IsAdmin"], scope.Keys);
+        Assert.DoesNotContain(scope.Values, value => value is string text
+            && (text.Contains("admin@example.com", StringComparison.Ordinal)
+                || text.Contains("Admin User", StringComparison.Ordinal)));
     }
 
     [Theory]

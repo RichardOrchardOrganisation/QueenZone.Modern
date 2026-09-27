@@ -14,6 +14,7 @@ import {
   type AuthTokens,
 } from '../api/auth';
 import { TokenEndpointError } from '../api/errors';
+import { toUrlSafeBase64 } from '../text/trimRuns.ts';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -307,7 +308,7 @@ async function sha256Base64Url(value: string): Promise<string> {
   const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value, {
     encoding: Crypto.CryptoEncoding.BASE64,
   });
-  return digest.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return toUrlSafeBase64(digest);
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -316,5 +317,5 @@ function base64Url(bytes: Uint8Array): string {
     binary += String.fromCharCode(byte);
   }
 
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return toUrlSafeBase64(btoa(binary));
 }

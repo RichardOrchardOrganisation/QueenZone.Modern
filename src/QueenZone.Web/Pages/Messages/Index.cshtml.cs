@@ -23,7 +23,7 @@ public sealed class IndexModel(PrivateMessageService privateMessageService) : Pa
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge();
@@ -48,7 +48,7 @@ public sealed class IndexModel(PrivateMessageService privateMessageService) : Pa
         Guid conversationId,
         CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge();
@@ -71,7 +71,7 @@ public sealed class IndexModel(PrivateMessageService privateMessageService) : Pa
         Guid conversationId,
         CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge();
@@ -88,17 +88,5 @@ public sealed class IndexModel(PrivateMessageService privateMessageService) : Pa
 
         TempData[SuccessMessageKey] = "Conversation removed from your inbox.";
         return RedirectToPage("./Index");
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var directId = ForumMember.GetMemberId(User);
-        if (directId is not null)
-        {
-            return directId;
-        }
-
-        var memberAuth = await HttpContext.AuthenticateMemberAsync();
-        return memberAuth.Succeeded ? ForumMember.GetMemberId(memberAuth.Principal) : null;
     }
 }

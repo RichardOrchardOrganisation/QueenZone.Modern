@@ -1,10 +1,11 @@
-import { Linking } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
 import { fetchArticleDetail, fetchNewsDetail } from '../../api';
 import { ApiError } from '../../api/client';
 import { articleDetailFixture } from '../../test/fixtures';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
 import { testIds } from '../../test/testIds';
+import { openExternalUrlCopy } from '../../ui/openExternalUrl';
 import { StoryScreen } from './StoryScreen';
 
 jest.mock('../../api', () => {
@@ -44,6 +45,7 @@ describe('StoryScreen', () => {
     fetchNews.mockReset();
     fetchDetail.mockResolvedValue(articleDetailFixture());
     jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    jest.spyOn(Alert, 'alert');
   });
 
   afterEach(() => {
@@ -78,6 +80,22 @@ describe('StoryScreen', () => {
       'https://www.queenzone.org/articles/101/inside-the-making-of-bohemian-rhapsody',
     );
     expect(screen.queryByText('Queenzone archive')).toBeNull();
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('alerts when a YouTube source URL cannot be opened and does not throw', async () => {
+    const youtube = 'https://www.youtube.com/watch?v=1GfZoSuG8WY';
+    fetchDetail.mockResolvedValue(articleDetailFixture({ source: youtube }));
+    jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error(`Unable to open URL: ${youtube}`));
+    renderStory();
+    await waitFor(() => expect(screen.getByLabelText('Open source')).toBeOnTheScreen());
+
+    const user = userEvent.setup();
+    await user.press(screen.getByLabelText('Open source'));
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith(openExternalUrlCopy.title, openExternalUrlCopy.body),
+    );
+    expect(Linking.openURL).toHaveBeenCalledWith(youtube);
   });
 
   it('uses Articles as the eyebrow when category is missing', async () => {

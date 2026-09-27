@@ -19,11 +19,17 @@ public static class AuthRateLimitRejection
         var logger = http.RequestServices
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("QueenZone.Web.RateLimiting");
+        var policyName = http.GetEndpoint()?
+            .Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            ?? "global-or-unnamed";
+        var partitionType = PartitionType(policyName);
 
         logger.LogWarning(
-            "Rate limit rejected {Method} {Path} from {ClientIp}",
+            "Rate limit rejected {Method} {Path} by {Policy} ({PartitionType}) from {ClientIp}",
             ApiV1ErrorHandling.SanitizeHttpMethodForLog(http.Request.Method),
             ApiV1ErrorHandling.SanitizeForLog(http.Request.Path.Value),
+            policyName,
+            partitionType,
             http.Connection.RemoteIpAddress?.ToString() ?? "unknown");
 
         if (http.Response.HasStarted)
@@ -61,4 +67,14 @@ public static class AuthRateLimitRejection
         path.StartsWithSegments(MobileAuthEndpoints.AuthorizePath, StringComparison.OrdinalIgnoreCase)
         || path.StartsWithSegments(MobileAuthEndpoints.CallbackPath, StringComparison.OrdinalIgnoreCase)
         || path.StartsWithSegments(MobileAuthEndpoints.TokenPath, StringComparison.OrdinalIgnoreCase);
+
+    internal static string PartitionType(string policyName) => policyName switch
+    {
+        QueenZoneRateLimitPolicies.AnonymousWrite => "client-ip",
+        QueenZoneRateLimitPolicies.AuthenticatedWrite => "member-and-client-ip",
+        QueenZoneRateLimitPolicies.Auth => "client-ip",
+        QueenZoneRateLimitPolicies.MemberWrite or QueenZoneRateLimitPolicies.Upload => "member-or-client-ip",
+        QueenZoneRateLimitPolicies.Search => "client-ip",
+        _ => "policy-defined",
+    };
 }

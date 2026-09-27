@@ -1,6 +1,6 @@
 # OpenTofu remote state and workload identities
 
-Issue: [#616](https://github.com/richardorchard/QueenZone.Modern/issues/616), step 2 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615).
+Issue: [#616](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/616), step 2 of epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615).
 
 **Bootstrapped and locally verified:** 2026-08-13. **First real production plan/apply:** 2026-09-03 — see [`opentofu-ci-and-runbooks.md`](opentofu-ci-and-runbooks.md#what-actually-happened-on-the-first-real-apply). Production is now under full OpenTofu management (76 resources imported across Azure and Cloudflare, zero deletes).
 
@@ -28,6 +28,7 @@ The non-secret backend settings are committed at [`infra/backend/production.back
 | Authorised local operator | `Storage Blob Data Contributor` on `tfstate` only | Existing operator access; bootstrap adds none | N/A |
 | `QueenZone OpenTofu Plan` | `Storage Blob Data Contributor` on `tfstate` only | `Reader` on `Queenzone-RG`, plus the custom `QueenZone OpenTofu Plan - App Service Config Reader` role (`Microsoft.Web/sites/config/list/action` only) on `Queenzone-RG` | `opentofu-plan` environment |
 | `QueenZone OpenTofu Apply` | `Storage Blob Data Contributor` on `tfstate` only | `Contributor` on `Queenzone-RG` | approval-gated `opentofu-apply` environment |
+| `QueenZone Telemetry Read` | none | `Monitoring Reader` on `Queenzone-RG` and `Log Analytics Reader` on `queenzone-prod-law` | `telemetry-read` environment, created by `Bootstrap-TelemetryReadIdentity.ps1` (#1805). Richard runs that script; CI must not create the Entra app. |
 
 **Dev extension, 2026-09-04:** after explicit maintainer approval, the dev
 resource group was created through a one-resource OpenTofu plan in `dev.tfstate`.

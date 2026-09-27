@@ -6,13 +6,13 @@
 
   function escapeHtml(text) {
     return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
   }
 
   function buildQuoteHtml(author, plainText) {
-    var body = escapeHtml(plainText.trim()).replace(/\n/g, "<br>");
+    var body = escapeHtml(plainText.trim()).replaceAll("\n", "<br>");
     var attribution = author ? escapeHtml(author) + " wrote:" : "Quote:";
     return "<blockquote><strong>" + attribution + "</strong><br>" + body + "</blockquote><p><br></p>";
   }

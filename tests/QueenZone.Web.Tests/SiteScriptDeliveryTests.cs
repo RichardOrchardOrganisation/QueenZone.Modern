@@ -4,13 +4,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class SiteScriptDeliveryTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SiteScriptDeliveryTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public SiteScriptDeliveryTests(WebApplicationFactory<Program> factory)
+    public SiteScriptDeliveryTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

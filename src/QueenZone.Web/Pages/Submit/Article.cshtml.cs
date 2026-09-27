@@ -43,7 +43,7 @@ public sealed class ArticleModel(
             return await LoadEditableDraftAsync(editId, cancellationToken);
         }
 
-        if (await GetCurrentMemberIdAsync() is null)
+        if (await HttpContext.AuthenticateMemberIdAsync() is null)
         {
             return Redirect("/account/login");
         }
@@ -58,7 +58,7 @@ public sealed class ArticleModel(
 
     private async Task<IActionResult> LoadEditableDraftAsync(Guid id, CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -89,7 +89,7 @@ public sealed class ArticleModel(
 
     public async Task<IActionResult> OnPostAsync(string? action, CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -159,17 +159,5 @@ public sealed class ArticleModel(
         }
 
         return Page();
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
     }
 }

@@ -78,13 +78,13 @@ public sealed class CanonicalHostRedirectTests
     }
 }
 
-public sealed class CanonicalHostRedirectIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class CanonicalHostRedirectIntegrationTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public CanonicalHostRedirectIntegrationTests(WebApplicationFactory<Program> factory)
+    public CanonicalHostRedirectIntegrationTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

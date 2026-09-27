@@ -15,7 +15,7 @@ public static class FanPerformanceReportApiEndpoints
             .WithGroupName(ApiV1.OpenApiDocumentName)
             .WithTags("Me")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
-            .RequireRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
         group.MapPost("/{id:int}/report", CreateReportAsync)
@@ -26,7 +26,8 @@ public static class FanPerformanceReportApiEndpoints
             .Produces<FanPerformanceReportCreatedDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 
     internal static async Task<IResult> CreateReportAsync(

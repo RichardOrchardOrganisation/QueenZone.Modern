@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using QueenZone.Data;
 
 namespace QueenZone.NewsAgent;
 
@@ -121,7 +122,7 @@ public static partial class NewsArticlePageParser
             return;
         }
 
-        var normalizedContext = NormalizeWhitespace(Decode(HtmlTagRegex().Replace(context, " ")));
+        var normalizedContext = NormalizeWhitespace(Decode(HtmlTags.Pattern().Replace(context, " ")));
         if ((iframe && !IsVideoHost(uri.Host))
             || (!iframe && !IsMediaLink(uri, normalizedContext)))
         {
@@ -316,7 +317,4 @@ public static partial class NewsArticlePageParser
 
     [GeneratedRegex(@"\btitle\s*=\s*(?<delimiter>[""'])(?<value>[\s\S]*?)\k<delimiter>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TitleAttributeRegex();
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex HtmlTagRegex();
 }

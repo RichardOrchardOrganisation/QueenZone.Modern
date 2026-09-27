@@ -1,0 +1,471 @@
+{
+  "area": "archive",
+  "surface": "mobile",
+  "entries": [
+    {
+      "aliases": [
+        "archive tab",
+        "archive home"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/ArchiveHubScreen.tsx"
+      ],
+      "testIds": [
+        "archiveHubScreen",
+        "tabArchive"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.hub",
+      "name": "Archive hub",
+      "screen": "ArchiveStack/ArchiveHub",
+      "entry": "Tap the Archive tab"
+    },
+    {
+      "aliases": [
+        "long-form articles"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/ArticlesIndexScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.articles",
+      "name": "Articles index",
+      "screen": "ArchiveStack/Articles",
+      "entry": "Archive tab → Articles"
+    },
+    {
+      "aliases": [
+        "article story",
+        "long-form story"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/StoryScreen.tsx"
+      ],
+      "testIds": [
+        "articleStoryScreen"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.story",
+      "name": "Archive article",
+      "screen": "ArchiveStack/Story",
+      "entry": "Archive → Articles → story"
+    },
+    {
+      "aliases": [
+        "band biography"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/BiographyScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.biography",
+      "name": "Biography",
+      "screen": "ArchiveStack/Biography",
+      "entry": "Archive tab → Biography"
+    },
+    {
+      "aliases": [
+        "biography chapter"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/BiographyChapterScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.biographyChapter",
+      "name": "Biography chapter",
+      "screen": "ArchiveStack/BiographyChapter",
+      "entry": "Archive → Biography → chapter"
+    },
+    {
+      "aliases": [
+        "albums list"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/DiscographyScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.discography",
+      "name": "Discography",
+      "screen": "ArchiveStack/Discography",
+      "entry": "Archive tab → Discography"
+    },
+    {
+      "aliases": [
+        "album page",
+        "studio album"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/AlbumScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.album",
+      "name": "Album",
+      "screen": "ArchiveStack/Album",
+      "entry": "Archive → Discography → album"
+    },
+    {
+      "aliases": [
+        "history timeline"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/TimelineScreen.tsx"
+      ],
+      "testIds": [
+        "timelineBack"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.timeline",
+      "name": "Timeline",
+      "screen": "ArchiveStack/Timeline",
+      "entry": "Archive tab → Timeline"
+    },
+    {
+      "aliases": [
+        "history event"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/TimelineEventScreen.tsx"
+      ],
+      "testIds": [
+        "timelineEventScreen",
+        "timelineEventBack",
+        "timelineEventSeeAll",
+        "timelineEventSource"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.timelineEvent",
+      "name": "Timeline event",
+      "screen": "ArchiveStack/TimelineEvent",
+      "entry": "Archive → Timeline → event"
+    },
+    {
+      "aliases": [
+        "tribute concert archive"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/FreddieTributeScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.freddieTribute",
+      "name": "Freddie Tribute",
+      "screen": "ArchiveStack/FreddieTribute",
+      "entry": "Archive tab → Freddie Tribute"
+    },
+    {
+      "aliases": [
+        "fan covers",
+        "songfiles"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/FanPerformancesScreen.tsx"
+      ],
+      "testIds": [
+        "fanPerformancesScreen",
+        "fanPerformancesPlayAll"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.fanPerformances",
+      "name": "Fan performances",
+      "screen": "ArchiveStack/FanPerformances",
+      "entry": "Archive tab → Fan performances"
+    },
+    {
+      "aliases": [
+        "fan performance player"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/FanPerformanceDetailScreen.tsx"
+      ],
+      "testIds": [
+        "fanPerformanceReport"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.fanPerformanceDetail",
+      "name": "Fan performance",
+      "screen": "ArchiveStack/FanPerformanceDetail",
+      "entry": "Archive → Fan performances → item"
+    },
+    {
+      "aliases": [
+        "upload a cover"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/FanPerformanceSubmitScreen.tsx"
+      ],
+      "testIds": [
+        "fanPerformanceSubmit",
+        "fanPerformanceSubmitPick",
+        "fanPerformanceSubmitSend"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.archive.fanPerformanceSubmit",
+      "name": "Submit a fan performance",
+      "screen": "ArchiveStack/FanPerformanceSubmit",
+      "entry": "Archive → Fan performances → submit"
+    },
+    {
+      "aliases": [
+        "offline fan performances"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/FanPerformanceDownloadsScreen.tsx"
+      ],
+      "testIds": [
+        "fanPerformanceDownloadsScreen",
+        "fanPerformanceDownloads"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.fanPerformanceDownloads",
+      "name": "Fan performance downloads",
+      "screen": "ArchiveStack/FanPerformanceDownloads",
+      "entry": "Archive → Fan performances → downloads"
+    },
+    {
+      "aliases": [
+        "trivia card"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/TriviaScreen.tsx"
+      ],
+      "testIds": [
+        "triviaScreen",
+        "triviaNext",
+        "triviaMeta"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.trivia",
+      "name": "Trivia",
+      "screen": "ArchiveStack/Trivia",
+      "entry": "Archive tab → Trivia"
+    },
+    {
+      "aliases": [
+        "quizzes"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/QuizListScreen.tsx"
+      ],
+      "testIds": [
+        "quizListScreen"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.quizList",
+      "name": "Quiz list",
+      "screen": "ArchiveStack/QuizList",
+      "entry": "Archive tab → Quiz"
+    },
+    {
+      "aliases": [
+        "take a quiz"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/QuizPlayScreen.tsx"
+      ],
+      "testIds": [
+        "quizPlayScreen",
+        "quizOption",
+        "quizSubmit",
+        "quizResult"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.quizPlay",
+      "name": "Quiz play",
+      "screen": "ArchiveStack/QuizPlay",
+      "entry": "Archive → Quiz → start"
+    },
+    {
+      "aliases": [
+        "quiz scores"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/QuizLeaderboardScreen.tsx"
+      ],
+      "testIds": [
+        "quizLeaderboardScreen",
+        "quizLeaderboardTabWeek",
+        "quizLeaderboardTabAll"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.quizLeaderboard",
+      "name": "Quiz leaderboard",
+      "screen": "ArchiveStack/QuizLeaderboard",
+      "entry": "Archive → Quiz → leaderboard"
+    },
+    {
+      "aliases": [
+        "sprint quiz"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/QuizSprintScreen.tsx"
+      ],
+      "testIds": [
+        "quizSprintScreen",
+        "quizSprintBegin",
+        "quizSprintPlay",
+        "homeSprintCard"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.quizSprint",
+      "name": "Quiz Sprint",
+      "screen": "ArchiveStack/QuizSprint",
+      "entry": "Archive tab → Quiz Sprint, or Home sprint card"
+    },
+    {
+      "aliases": [
+        "sprint scores"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/QuizSprintLeaderboardScreen.tsx"
+      ],
+      "testIds": [
+        "quizSprintLeaderboardScreen",
+        "quizSprintLeaderboardTabDaily"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.quizSprintLeaderboard",
+      "name": "Quiz Sprint leaderboard",
+      "screen": "ArchiveStack/QuizSprintLeaderboard",
+      "entry": "Archive → Quiz Sprint → leaderboard"
+    },
+    {
+      "aliases": [
+        "the archive"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/AboutArchiveScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.about",
+      "name": "About the archive",
+      "screen": "ArchiveStack/AboutArchive",
+      "entry": "Archive tab → The archive"
+    },
+    {
+      "aliases": [
+        "search",
+        "archive search",
+        "find modernisation"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/SearchScreen.tsx"
+      ],
+      "testIds": [
+        "searchScreen",
+        "searchInput",
+        "searchTypeFilters",
+        "homeSearch"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/06-archive-search.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/search.md",
+      "id": "mobile.archive.search",
+      "name": "Search",
+      "screen": [
+        "HomeStack/Search",
+        "NewsStack/Search",
+        "PhotosStack/Search",
+        "ArchiveStack/Search",
+        "ForumStack/Search"
+      ],
+      "entry": "Home search field, or any tab header search",
+      "drive": {
+        "search": "src/QueenZone.Mobile/maestro/flows/06-archive-search.yaml"
+      }
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "caps": {
+    "gardener": {
+      "maxIssues": 2,
+      "periodDays": 7
+    },
+    "telemetry": {
+      "maxIssues": 3,
+      "periodDays": 1
+    },
+    "commentsPerRun": 10,
+    "stormThreshold": 5,
+    "minOccurrences": 2
+  },
+  "labels": {
+    "gardener": "gardener",
+    "guardrail": "guardrail",
+    "regression": "regression",
+    "telemetry": ["bug", "from-telemetry"],
+    "needsTriage": "needs-triage"
+  },
+  "match": {
+    "closedCompletedReopenDays": 30,
+    "closedLookbackDays": 90,
+    "commentCooldownHours": 24
+  },
+  "logIssueTitle": "Issue filer log",
+  "reportIssueNumber": 1802,
+  "botLogins": ["github-actions[bot]"],
+  "mention": "@richardorchard",
+  "sonar": {
+    "host": "https://sonarcloud.io",
+    "organizationEnv": "SONAR_ORGANIZATION",
+    "projectKeyEnv": "SONAR_PROJECT_KEY"
+  },
+  "areas": [
+    {
+      "id": "news",
+      "prefixes": ["src/QueenZone.Web/Pages/News", "src/QueenZone.Mobile/src/screens/news/"]
+    },
+    {
+      "id": "photos",
+      "prefixes": ["src/QueenZone.Web/Pages/Photos", "src/QueenZone.Mobile/src/screens/photos/"]
+    },
+    {
+      "id": "forum",
+      "prefixes": ["src/QueenZone.Web/Pages/Forum", "src/QueenZone.Mobile/src/screens/forum/"]
+    },
+    {
+      "id": "archive",
+      "prefixes": ["src/QueenZone.Web/Pages/Archive", "src/QueenZone.Mobile/src/screens/archive/"]
+    },
+    {
+      "id": "messages",
+      "prefixes": ["src/QueenZone.Web/Pages/Messages", "src/QueenZone.Mobile/src/screens/messages/"]
+    },
+    {
+      "id": "account",
+      "prefixes": ["src/QueenZone.Web/Pages/Account", "src/QueenZone.Mobile/src/screens/account/"]
+    },
+    {
+      "id": "auth",
+      "prefixes": ["src/QueenZone.Web/Pages/Account/Login", "src/QueenZone.Mobile/src/screens/account/SignIn"]
+    },
+    {
+      "id": "home",
+      "prefixes": ["src/QueenZone.Web/Pages/Index", "src/QueenZone.Mobile/src/screens/home/"]
+    },
+    {
+      "id": "web",
+      "prefixes": ["src/QueenZone.Web/"]
+    },
+    {
+      "id": "mobile",
+      "prefixes": ["src/QueenZone.Mobile/"]
+    },
+    {
+      "id": "data",
+      "prefixes": ["src/QueenZone.Data/"]
+    },
+    {
+      "id": "infra",
+      "prefixes": [".github/", "infra/"]
+    },
+    {
+      "id": "scripts",
+      "prefixes": ["scripts/"]
+    }
+  ],
+  "suppressionPatterns": [
+    { "id": "pragma-warning-disable", "includes": "#pragma warning disable" },
+    { "id": "suppress-message", "includes": "[SuppressMessage" },
+    { "id": "nosonar", "includes": "NOSONAR" },
+    { "id": "eslint-disable", "includes": "eslint-disable" },
+    { "id": "ts-expect-error", "includes": "@ts-expect-error" },
+    { "id": "ts-ignore", "includes": "@ts-ignore" },
+    { "id": "test-skip-call", "includes": ".skip(" },
+    { "id": "nunit-ignore", "includes": "[Ignore" },
+    { "id": "xunit-skip", "includes": "Skip =" }
+  ]
+}

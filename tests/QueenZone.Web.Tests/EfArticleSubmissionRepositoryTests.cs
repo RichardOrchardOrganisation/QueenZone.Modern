@@ -44,6 +44,8 @@ public sealed class EfArticleSubmissionRepositoryTests : IAsyncDisposable
         Assert.Equal("My First Article", saved.Title);
         Assert.Equal(ArticleSubmissionStatus.Draft, saved.Status);
         Assert.Equal("my-first-article", saved.Slug);
+        var row = await dbContext.ArticleSubmissions.AsNoTracking().SingleAsync(a => a.Id == saved.Id);
+        Assert.Equal(EfArticleSubmissionRepository.EstimateWordCount(saved.Body), row.WordCount);
     }
 
     [Fact]
@@ -56,6 +58,8 @@ public sealed class EfArticleSubmissionRepositoryTests : IAsyncDisposable
         Assert.Equal(created.Id, updated.Id);
         Assert.Equal("Updated Title", updated.Title);
         Assert.Equal("updated-title", updated.Slug);
+        var row = await dbContext.ArticleSubmissions.AsNoTracking().SingleAsync(a => a.Id == updated.Id);
+        Assert.Equal(EfArticleSubmissionRepository.EstimateWordCount(updated.Body), row.WordCount);
     }
 
     [Fact]

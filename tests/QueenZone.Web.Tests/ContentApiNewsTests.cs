@@ -2,19 +2,19 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContentApiNewsTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ContentApiNewsTests : IClassFixture<QueenZoneWebApplicationFactory>, IClassFixture<WebHostVariantCache>
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public ContentApiNewsTests(QueenZoneWebApplicationFactory factory)
+    public ContentApiNewsTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -139,35 +139,7 @@ public sealed class ContentApiNewsTests : IClassFixture<QueenZoneWebApplicationF
         // 25 recent (2020s) articles plus one 2008 article — an unfiltered default page (size 20)
         // never reaches the 2008 article, so a naive client-side decade filter over that page
         // would incorrectly report "no articles" for the 2000s (issue #838).
-        var items = new List<NewsItem>();
-        for (var i = 0; i < 25; i++)
-        {
-            items.Add(new NewsItem(
-                2000 + i,
-                $"2020s article {i}",
-                "Excerpt",
-                "Body",
-                new DateTime(2020, 6, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(-i),
-                null,
-                true));
-        }
-
-        items.Add(new NewsItem(
-            9999,
-            "Old article from the 2000s",
-            "Excerpt",
-            "Body",
-            new DateTime(2008, 3, 4, 0, 0, 0, DateTimeKind.Utc),
-            null,
-            true));
-
-        using var appFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<INewsRepository>();
-            services.AddSingleton<INewsRepository>(_ => new FixedNewsRepository(items));
-        });
-
-        using var client = appFactory.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.NewsDecadeFilter2000s).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/news?decade=2000");
 
@@ -182,15 +154,7 @@ public sealed class ContentApiNewsTests : IClassFixture<QueenZoneWebApplicationF
     [Fact]
     public async Task News_list_decade_filter_with_no_matches_returns_empty_page_not_error()
     {
-        using var appFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<INewsRepository>();
-            services.AddSingleton<INewsRepository>(_ => new FixedNewsRepository([
-                new NewsItem(1, "Only 2026 article", "Ex", "Body", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
-            ]));
-        });
-
-        using var client = appFactory.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.NewsOnly2026).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/news?decade=1990");
 
@@ -227,35 +191,7 @@ public sealed class ContentApiNewsTests : IClassFixture<QueenZoneWebApplicationF
     {
         // Same setup as the decade-filter test, but the year-rail scrubber (issue #886) needs a
         // single-year window rather than a 10-year one.
-        var items = new List<NewsItem>();
-        for (var i = 0; i < 25; i++)
-        {
-            items.Add(new NewsItem(
-                2000 + i,
-                $"2020s article {i}",
-                "Excerpt",
-                "Body",
-                new DateTime(2020, 6, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(-i),
-                null,
-                true));
-        }
-
-        items.Add(new NewsItem(
-            9999,
-            "Old article from 2008",
-            "Excerpt",
-            "Body",
-            new DateTime(2008, 3, 4, 0, 0, 0, DateTimeKind.Utc),
-            null,
-            true));
-
-        using var appFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<INewsRepository>();
-            services.AddSingleton<INewsRepository>(_ => new FixedNewsRepository(items));
-        });
-
-        using var client = appFactory.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.NewsDecadeFilter2000s).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/news?year=2008");
 
@@ -270,16 +206,7 @@ public sealed class ContentApiNewsTests : IClassFixture<QueenZoneWebApplicationF
     [Fact]
     public async Task News_list_year_filter_wins_when_decade_is_also_supplied()
     {
-        using var appFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<INewsRepository>();
-            services.AddSingleton<INewsRepository>(_ => new FixedNewsRepository([
-                new NewsItem(1, "2008 article", "Ex", "Body", new DateTime(2008, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
-                new NewsItem(2, "2015 article", "Ex", "Body", new DateTime(2015, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
-            ]));
-        });
-
-        using var client = appFactory.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.NewsYearBeatsDecade).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/news?decade=2010&year=2008");
 
@@ -293,17 +220,7 @@ public sealed class ContentApiNewsTests : IClassFixture<QueenZoneWebApplicationF
     [Fact]
     public async Task News_years_returns_min_and_max_published_year()
     {
-        using var appFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<INewsRepository>();
-            services.AddSingleton<INewsRepository>(_ => new FixedNewsRepository([
-                new NewsItem(1, "Oldest", "Ex", "Body", new DateTime(2006, 5, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
-                new NewsItem(2, "Newest", "Ex", "Body", new DateTime(2026, 6, 11, 0, 0, 0, DateTimeKind.Utc), null, true),
-                new NewsItem(3, "Hidden", "Ex", "Body", new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, false),
-            ]));
-        });
-
-        using var client = appFactory.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.NewsYears2006To2026).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/news/years");
 

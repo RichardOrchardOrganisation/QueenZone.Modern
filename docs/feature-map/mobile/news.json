@@ -1,0 +1,92 @@
+{
+  "area": "news",
+  "surface": "mobile",
+  "entries": [
+    {
+      "aliases": [
+        "news tab",
+        "news list"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/news/NewsIndexScreen.tsx"
+      ],
+      "testIds": [
+        "newsScreen",
+        "newsYearRail",
+        "newsSuggest",
+        "tabNews"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/news.md",
+      "id": "mobile.news.index",
+      "name": "News index",
+      "screen": "NewsStack/NewsIndex",
+      "entry": "Tap the News tab"
+    },
+    {
+      "aliases": [
+        "news",
+        "article 1003",
+        "news detail",
+        "discussion"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/news/NewsStoryScreen.tsx"
+      ],
+      "testIds": [
+        "newsStoryScreen",
+        "newsStoryBack",
+        "newsStoryDiscussion",
+        "newsStoryDiscussionCta"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/04-news-story.yaml",
+        "src/QueenZone.Mobile/maestro/flows/11-news-discussion.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/news.md",
+      "id": "mobile.news.story",
+      "name": "News story",
+      "screen": [
+        "HomeStack/Story",
+        "NewsStack/Story"
+      ],
+      "entry": "Home latest-news card, or News tab → story",
+      "drive": {
+        "news": "src/QueenZone.Mobile/maestro/flows/04-news-story.yaml",
+        "discussion": "src/QueenZone.Mobile/maestro/flows/11-news-discussion.yaml"
+      }
+    },
+    {
+      "aliases": [
+        "suggest a story",
+        "news suggestion"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/news/SuggestNewsScreen.tsx"
+      ],
+      "testIds": [
+        "suggestNewsScreen",
+        "suggestNewsUrl",
+        "suggestNewsSubmit",
+        "suggestNewsSignIn"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/15-news-suggestion.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.news.suggest",
+      "name": "Suggest news",
+      "screen": "HomeStack/SuggestNews",
+      "entry": "News index header → Suggest news, or Home profile path"
+    }
+  ]
+}

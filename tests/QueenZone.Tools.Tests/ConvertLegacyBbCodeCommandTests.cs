@@ -40,6 +40,22 @@ public sealed class ConvertLegacyBbCodeCommandTests
         Assert.False(options.IsValid);
     }
 
+    [Theory]
+    [InlineData("--limit", "0", "--limit must be a positive integer.")]
+    [InlineData("--delay-ms", "-3", "--delay-ms must be >= 0.")]
+    public void Parse_RejectsInvalidIntegers(string flag, string value, string expected)
+    {
+        var options = ConvertLegacyBbCodeOptions.Parse(
+        [
+            "--connection-string", "Server=.;Database=test;",
+            flag,
+            value,
+        ]);
+
+        Assert.False(options.IsValid);
+        Assert.Equal(expected, options.ErrorMessage);
+    }
+
     [Fact]
     public async Task RunCore_DryRun_PlansConvertibleRowsAndSkipsFalsePositives()
     {

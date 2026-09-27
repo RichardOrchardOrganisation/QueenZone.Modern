@@ -60,17 +60,17 @@ public static class UgcProxyEndpoints
                 resolvedName,
                 cancellationToken);
 
-            // Fall back to full image when thumb is missing.
-            if (content is null && useThumb)
-            {
-                content = await blobUploadService.OpenReadAsync(
-                    container,
-                    normalized,
-                    cancellationToken);
-            }
-
+            // A missing thumb is not the original. Caching that fallback would pin a
+            // full-size image under the thumb URL for a week.
             if (content is null)
             {
+                return Results.NotFound();
+            }
+
+            // Anonymous /ugc serves images only. Documents download through the member route.
+            if (!IsAnonymousImageContentType(content.ContentType))
+            {
+                await content.DisposeAsync();
                 return Results.NotFound();
             }
 
@@ -81,6 +81,21 @@ public static class UgcProxyEndpoints
             return Results.NotFound();
         }
     }
+
+    private static readonly HashSet<string> AnonymousImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/webp",
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+    };
+
+    /// <summary>
+    /// Image types the anonymous proxy may render inline. Anything else is a download.
+    /// </summary>
+    internal static bool IsAnonymousImageContentType(string? contentType) =>
+        contentType is not null
+        && AnonymousImageContentTypes.Contains(contentType);
 
     /// <summary>Streams a UGC blob with long-lived Cache-Control for anonymous CDN/browser reuse.</summary>
     internal sealed class CachedBlobStreamResult(Stream stream, string contentType) : IResult

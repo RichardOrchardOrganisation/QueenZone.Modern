@@ -151,7 +151,8 @@
       "name": "queenzone-alerts",
       "type": "Microsoft.Insights/actionGroups",
       "id": "/subscriptions/610e3b3a-028d-4f1b-ac1d-a5567a4f8b9d/resourceGroups/Queenzone-RG/providers/microsoft.insights/actionGroups/queenzone-alerts",
-      "opentofuTreatment": "import"
+      "opentofuTreatment": "import",
+      "notes": "#1805 imports this in azure-web. Keep the existing email receiver; do not add a webhook. Address not recorded here."
     },
     {
       "name": "queenzone-dev-health",

@@ -23,6 +23,7 @@ import { HomeMessagesSection } from './HomeMessagesSection';
 import { HomeNewsSection } from './HomeNewsSection';
 import { HomeOnThisDaySection } from './HomeOnThisDaySection';
 import { HomePollCard } from './HomePollCard';
+import { HomeSprintCard } from './HomeSprintCard';
 import { HomeQueenQuoteSection } from './HomeQueenQuoteSection';
 import { TabRootMasthead } from './TabRootMasthead';
 import { useHomeScreenData } from './useHomeScreenData';
@@ -76,6 +77,7 @@ export function HomeScreen({ navigation }: Props) {
       style={[styles.flex, { backgroundColor: c.surfacePage }]}
       data={[]}
       renderItem={() => null}
+      alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={data.pull.refreshing} onRefresh={data.pull.onRefresh} />
       }
@@ -110,6 +112,8 @@ export function HomeScreen({ navigation }: Props) {
               </Text>
             </View>
           ) : null}
+
+          <HomeSprintCard onPlay={() => navigation.navigate('ArchiveTab', nestedTabParams('QuizSprint'))} />
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
             {homeFilters.map((option) => (

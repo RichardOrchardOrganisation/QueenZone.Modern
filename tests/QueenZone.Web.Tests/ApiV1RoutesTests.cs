@@ -149,6 +149,22 @@ public sealed class ApiV1RoutesTests : IClassFixture<QueenZoneWebApplicationFact
         Assert.True(paths.TryGetProperty("/api/v1/me/notification-preferences", out _));
         Assert.True(paths.GetProperty("/api/v1/me/notification-preferences").TryGetProperty("get", out _));
         Assert.True(paths.GetProperty("/api/v1/me/notification-preferences").TryGetProperty("patch", out _));
+        Assert.True(paths.GetProperty("/api/v1/contact")
+            .GetProperty("post")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
+        Assert.True(paths.GetProperty("/api/v1/me")
+            .GetProperty("patch")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
+        Assert.True(paths.GetProperty("/api/v1/forum/topics/{id}/watch")
+            .GetProperty("post")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
+        Assert.False(paths.GetProperty("/api/v1/forum/topics/{id}/watch")
+            .GetProperty("get")
+            .GetProperty("responses")
+            .TryGetProperty("429", out _));
         Assert.True(paths.TryGetProperty("/api/v1/admin/", out _) || paths.TryGetProperty("/api/v1/admin", out _));
         Assert.False(paths.TryGetProperty("/health", out _));
         Assert.False(paths.TryGetProperty("/api/uploads/editor-image", out _));
@@ -158,6 +174,24 @@ public sealed class ApiV1RoutesTests : IClassFixture<QueenZoneWebApplicationFact
         Assert.True(schemes.TryGetProperty("bearer", out var bearer));
         Assert.Equal("http", bearer.GetProperty("type").GetString());
         Assert.Equal("bearer", bearer.GetProperty("scheme").GetString());
+    }
+
+    [Theory]
+    [InlineData("/api/v1/forum/topics/{id}/posts", 15, 15)]
+    [InlineData("/api/v1/content/photos/categories/{slug}/items", 24, 24)]
+    [InlineData("/api/v1/me/messages", 50, 100)]
+    [InlineData("/api/v1/me/messages/archived", 50, 100)]
+    public async Task OpenApi_list_operations_state_their_actual_page_size_limits(string path, int expectedDefault, int expectedMax)
+    {
+        using var client = factory.CreateAnonymousClient();
+        using var response = await client.GetAsync(ApiV1.OpenApiPath);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var document = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var description = document.GetProperty("paths").GetProperty(path).GetProperty("get")
+            .GetProperty("description").GetString();
+        Assert.Contains($"defaults to {expectedDefault}", description, StringComparison.Ordinal);
+        Assert.Contains($"maximum of {expectedMax}", description, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -20,7 +20,7 @@ public sealed class InMemoryIdempotencyStore(TimeProvider? timeProvider = null) 
         ArgumentException.ThrowIfNullOrWhiteSpace(payloadHash);
         ArgumentNullException.ThrowIfNull(action);
 
-        CleanupExpired();
+        await CleanupExpiredAsync(cancellationToken);
         var key = Key(memberId, operationKind, operationId);
         var gate = gates.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken);

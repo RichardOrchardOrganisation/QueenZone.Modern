@@ -30,4 +30,22 @@ public static class HttpContextMemberAuthExtensions
 
         return memberCookie;
     }
+
+    /// <summary>
+    /// Returns the signed-in member's id from <see cref="AuthenticateMemberAsync"/>, or
+    /// <see langword="null"/> when the request is not a member session. The ambient
+    /// <c>HttpContext.User</c> is deliberately ignored because it may be the admin scheme.
+    /// </summary>
+    public static async Task<Guid?> AuthenticateMemberIdAsync(this HttpContext httpContext)
+    {
+        var authResult = await httpContext.AuthenticateMemberAsync();
+        return authResult.Succeeded ? ForumMember.GetMemberId(authResult.Principal) : null;
+    }
+
+    /// <summary>
+    /// Returns the member id from the ambient <c>HttpContext.User</c> when it already carries
+    /// one, otherwise falls back to <see cref="AuthenticateMemberIdAsync"/>.
+    /// </summary>
+    public static async Task<Guid?> GetSignedInMemberIdAsync(this HttpContext httpContext) =>
+        ForumMember.GetMemberId(httpContext.User) ?? await httpContext.AuthenticateMemberIdAsync();
 }

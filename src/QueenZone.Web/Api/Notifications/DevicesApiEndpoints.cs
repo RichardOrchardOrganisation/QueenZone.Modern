@@ -15,10 +15,9 @@ public static class DevicesApiEndpoints
 
     public static void MapDevicesApiEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/notifications")
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Notifications")
+        var group = app.MapApiV1Group("/api/v1/notifications", "Notifications")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
         group.MapPost("/devices", RegisterDeviceAsync)
@@ -27,13 +26,15 @@ public static class DevicesApiEndpoints
             .Accepts<DeviceRegisterRequest>("application/json")
             .Produces<DeviceRegisteredResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapDelete("/devices/{deviceId}", UnregisterDeviceAsync)
             .WithName("UnregisterDevice")
             .WithSummary("Unregister this device's push token (sign-out, permission revoked, or settings toggle).")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 
     internal static async Task<IResult> RegisterDeviceAsync(

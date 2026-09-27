@@ -57,6 +57,22 @@ describe('ArchiveHubScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('Trivia');
   });
 
+  it('opens the Quiz route from the Test yourself row', async () => {
+    const user = userEvent.setup();
+    const navigation = fakeNavigation();
+    renderWithProviders(
+      <ArchiveHubScreen
+        navigation={navigation as never}
+        route={{ key: 'archive', name: 'ArchiveHub' } as never}
+      />,
+      { navigation: false },
+    );
+    await flushVirtualizedList();
+
+    await user.press(screen.getByRole('button', { name: /Test yourself\. Quiz Sprint\./ }));
+    expect(navigation.navigate).toHaveBeenCalledWith('QuizSprint');
+  });
+
   it('opens Timeline in-stack from the listing row', async () => {
     const user = userEvent.setup();
     const navigation = fakeNavigation();

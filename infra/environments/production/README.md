@@ -10,6 +10,10 @@ or deletion. Do not apply from a local operator session. The protected
 
 Use [`scripts/Test-OpenTofu.ps1`](../../../scripts/Test-OpenTofu.ps1) for local validation. See [`docs/architecture/opentofu-contributor-runbook.md`](../../../docs/architecture/opentofu-contributor-runbook.md) before planning, importing, moving state, or applying.
 
+## Production alerts (#1805)
+
+`module.azure_web_target` imports `queenzone-alerts` and creates the `qz-prod-*` scheduled-query rules, standard web test `qz-prod-health`, and the two-location availability metric alert. The first plan after this lands must show that import plus creates (and the optional Cloudflare `GET /health` skip). It must not destroy or replace the action group. Richard still has to run `infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1` for the `telemetry-read` OIDC identity; that is outside this apply.
+
 ## Phase 7 staged migration
 
 Issue #1272 moved production to `canadaeast`. After four days of verified
@@ -27,3 +31,16 @@ write-only field; it is ephemeral and cannot enter the plan or state.
 Follow
 [`production-region-migration.md`](../../../docs/architecture/production-region-migration.md)
 for the phased apply, copy, verification, cutover, and retirement gates.
+
+## SQL firewall and auditing
+
+`queenzone-prod-sql` allows the possible outbound IPs of `queenzone-prod` and
+does not manage `AllowAllWindowsAzureIps`. `lifecycle.destroy = false` forgets
+that rule from state and leaves the Azure object in place. After apply, confirm
+`/health/ready`, then delete the live `0.0.0.0` rule only once GitHub-hosted
+migration runners have a firewall path of their own. `queenzone-sql-server`
+keeps its Azure-services rule for `queenzone-dev-db`.
+
+Auditing writes `SQLSecurityAuditEvents` to `queenzone-prod-law` (30-day
+workspace retention). Entra-only SQL authentication is not part of this
+change.

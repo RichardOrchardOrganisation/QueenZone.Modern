@@ -23,4 +23,18 @@ public sealed class InMemoryBlobStorageBackendTests
         Assert.DoesNotContain("songfiles", content.ETag, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("clip.mp3", content.ETag, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task Clear_removes_all_uploaded_blobs()
+    {
+        var backend = new InMemoryBlobStorageBackend();
+        await using var upload = new MemoryStream("payload"u8.ToArray());
+        await backend.UploadAsync("ugc-avatars", "probe.bin", upload, "application/octet-stream");
+        Assert.True(backend.Exists("ugc-avatars", "probe.bin"));
+
+        backend.Clear();
+
+        Assert.False(backend.Exists("ugc-avatars", "probe.bin"));
+        Assert.Null(await backend.OpenReadAsync("ugc-avatars", "probe.bin"));
+    }
 }

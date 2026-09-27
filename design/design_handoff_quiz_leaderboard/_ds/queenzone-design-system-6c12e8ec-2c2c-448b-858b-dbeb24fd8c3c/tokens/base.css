@@ -1,0 +1,79 @@
+/* ============================================================
+   QUEENZONE · Base element styling & editorial primitives.
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: var(--type-body);
+  color: var(--text-primary);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  letter-spacing: var(--ls-display);
+  line-height: var(--lh-tight);
+  margin: 0 0 var(--space-4);
+  text-wrap: balance;
+}
+
+p { margin: 0 0 var(--space-4); text-wrap: pretty; }
+
+a { color: var(--link); text-decoration: none; transition: color var(--dur-fast) var(--ease-out); }
+a:hover { color: var(--link-hover); }
+
+img { max-width: 100%; display: block; }
+
+::selection { background: var(--qz-gold-tint); color: var(--qz-charcoal); }
+
+/* ---- Eyebrow / kicker (Cinzel, wide tracking) ---- */
+.qz-eyebrow {
+  font-family: var(--font-titling);
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ---- Long-form reading column ---- */
+.qz-prose {
+  max-width: var(--container-text);
+  font: var(--type-body);
+  line-height: var(--lh-relaxed);
+  color: var(--qz-grey-700);
+}
+.qz-prose p { margin: 0 0 var(--space-5); }
+.qz-prose a { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+
+/* ---- Editorial divider with crest-seal feel ---- */
+.qz-rule {
+  border: 0;
+  height: 1px;
+  background: var(--hairline);
+  margin: var(--space-7) 0;
+}
+
+/* ---- Reusable image scrim helper ---- */
+.qz-scrim { position: relative; }
+.qz-scrim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--scrim-bottom);
+  pointer-events: none;
+}
+
+/* ---- Gentle entrance (respects reduced motion) ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .qz-reveal { animation: qz-fade-up var(--dur-slow) var(--ease-out) both; }
+  @keyframes qz-fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}

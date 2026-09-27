@@ -10,13 +10,13 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminPhotoRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminPhotoRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public AdminPhotoRoutesTests(WebApplicationFactory<Program> factory)
+    public AdminPhotoRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
@@ -138,6 +138,107 @@ public sealed class AdminPhotoRoutesTests : IClassFixture<WebApplicationFactory<
 
         var indexBody = await client.GetStringAsync("/admin/photos");
         Assert.Contains("associated gallery blobs", indexBody);
+    }
+
+    [Fact]
+    public async Task AdminPhotos_CreateRejectsMissingFileAndTitle()
+    {
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
+        var page = await client.GetStringAsync("/admin/photos/new");
+        var token = AdminHttpTestHelpers.ExtractAntiforgeryToken(page);
+        var missingFile = await client.PostAsync("/admin/photos/create", new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                [AdminPhotosPageModel.AntiforgeryTokenFieldName] = token,
+                ["catId"] = "9",
+                ["title"] = "Photo",
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, missingFile.StatusCode);
+        Assert.Contains("A photo file is required.", await client.GetStringAsync("/admin/photos/new"));
+
+        await using var image = await CreateJpegAsync(80, 80);
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(token), AdminPhotosPageModel.AntiforgeryTokenFieldName);
+        content.Add(new StringContent("9"), "catId");
+        content.Add(new StringContent(" "), "title");
+        content.Add(new StreamContent(image), "file", "photo.jpg");
+        var missingTitle = await client.PostAsync("/admin/photos/create", content);
+        Assert.Equal(HttpStatusCode.Redirect, missingTitle.StatusCode);
+        Assert.Contains("Title is required.", await client.GetStringAsync("/admin/photos/new"));
+    }
+
+    [Fact]
+    public async Task AdminPhotos_EditAndActionsReportMissingPhoto()
+    {
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/admin/photos/999999")).StatusCode);
+
+        var page = await client.GetStringAsync("/admin/photos/new");
+        var token = AdminHttpTestHelpers.ExtractAntiforgeryToken(page);
+        var fields = new Dictionary<string, string>
+        {
+            [AdminPhotosPageModel.AntiforgeryTokenFieldName] = token,
+            ["title"] = "Changed",
+            ["year"] = "2024",
+            ["catId"] = "9",
+            ["dateTime"] = "2024-01-01",
+        };
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.PostAsync("/admin/photos/999999/save", new FormUrlEncodedContent(fields))).StatusCode);
+
+        var regenerate = await client.PostAsync("/admin/photos/999999/regeneratethumb",
+            new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, regenerate.StatusCode);
+        var delete = await client.PostAsync("/admin/photos/999999/delete",
+            new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, delete.StatusCode);
+        Assert.Equal("/admin/photos/999999", delete.Headers.Location!.OriginalString);
+    }
+
+    [Fact]
+    public async Task AdminPhotos_SaveReplacesImageAndReportsValidationErrors()
+    {
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
+        var newPage = await client.GetStringAsync("/admin/photos/new");
+        var token = AdminHttpTestHelpers.ExtractAntiforgeryToken(newPage);
+        await using var original = await CreateJpegAsync(80, 80);
+        using var create = new MultipartFormDataContent();
+        create.Add(new StringContent(token), AdminPhotosPageModel.AntiforgeryTokenFieldName);
+        create.Add(new StringContent("9"), "catId");
+        create.Add(new StringContent("Before edit"), "title");
+        create.Add(new StreamContent(original), "file", "original.jpg");
+        var created = await client.PostAsync("/admin/photos/create", create);
+        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        var path = created.Headers.Location!.OriginalString;
+        var editPage = await client.GetStringAsync(path);
+        token = AdminHttpTestHelpers.ExtractAntiforgeryToken(editPage);
+
+        var fields = new Dictionary<string, string>
+        {
+            [AdminPhotosPageModel.AntiforgeryTokenFieldName] = token,
+            ["title"] = " ",
+            ["catId"] = "9",
+            ["year"] = "2024",
+            ["dateTime"] = "2024-01-01",
+        };
+        var invalid = await client.PostAsync($"{path}/save", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, invalid.StatusCode);
+        Assert.Contains("Title is required.", await client.GetStringAsync(path));
+
+        await using var replacement = await CreateJpegAsync(120, 90);
+        using var save = new MultipartFormDataContent();
+        save.Add(new StringContent(token), AdminPhotosPageModel.AntiforgeryTokenFieldName);
+        save.Add(new StringContent("After edit"), "title");
+        save.Add(new StringContent("9"), "catId");
+        save.Add(new StringContent("2024"), "year");
+        save.Add(new StringContent("2024-01-01"), "dateTime");
+        save.Add(new StreamContent(replacement), "replaceFile", "replacement.jpg");
+        var saved = await client.PostAsync($"{path}/save", save);
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        var updated = await client.GetStringAsync(path);
+        Assert.Contains("After edit", updated);
+        Assert.Contains("Full image: 120 &times; 90", updated);
+        Assert.Contains("Photo updated.", updated);
     }
 
     private static async Task<HttpResponseMessage> PostActionAsync(HttpClient client, string actionPath)

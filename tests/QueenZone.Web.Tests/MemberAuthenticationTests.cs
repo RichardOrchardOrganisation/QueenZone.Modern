@@ -1,19 +1,21 @@
 using System.Net;
-using AspNet.Security.OAuth.Apple;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MemberAuthenticationTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class MemberAuthenticationTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public MemberAuthenticationTests(QueenZoneWebApplicationFactory factory)
+    public MemberAuthenticationTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -59,13 +61,7 @@ public sealed class MemberAuthenticationTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task LoginPageShowsAppleOnlyWhenFullyConfigured()
     {
-        using var configuredFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Authentication:Apple:ClientId", "org.queenzone.web");
-            builder.UseSetting("Authentication:Apple:TeamId", "TEAM123456");
-            builder.UseSetting("Authentication:Apple:KeyId", "KEY1234567");
-            builder.UseSetting("Authentication:Apple:PrivateKey", "test-private-key");
-        });
+        var configuredFactory = variants.Get(WebHostVariants.TestingAppleOAuth);
         var client = configuredFactory.CreateClient();
 
         var body = await client.GetStringAsync("/account/login");
@@ -77,25 +73,7 @@ public sealed class MemberAuthenticationTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task AppleLoginStartsAppleAuthorizationFlow()
     {
-        using var configuredFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Authentication:Apple:ClientId", "org.queenzone.web");
-            builder.UseSetting("Authentication:Apple:TeamId", "TEAM123456");
-            builder.UseSetting("Authentication:Apple:KeyId", "KEY1234567");
-            builder.UseSetting("Authentication:Apple:PrivateKey", "test-private-key");
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddAuthentication().AddApple(MemberAuthenticationSchemes.Apple, options =>
-                {
-                    options.ClientId = "org.queenzone.web";
-                    options.TeamId = "TEAM123456";
-                    options.KeyId = "KEY1234567";
-                    options.GenerateClientSecret = true;
-                    options.PrivateKey = (_, _) =>
-                        Task.FromResult<ReadOnlyMemory<char>>("test-private-key".AsMemory());
-                });
-            });
-        });
+        var configuredFactory = variants.Get(WebHostVariants.TestingAppleOAuth);
         var client = configuredFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,

@@ -5,7 +5,7 @@ namespace QueenZone.Web.Pages.FreddieTribute;
 
 public sealed class TributePageModel(
     IFreddieTributeRepository tributeRepository,
-    IPhotoRepository photoRepository) : FreddieTributeArchivePageModel(tributeRepository, photoRepository)
+    PublicQueryCacheService publicQueryCache) : FreddieTributeArchivePageModel(tributeRepository, publicQueryCache)
 {
     public async Task<IActionResult> OnGetAsync(int pageNumber, CancellationToken cancellationToken) =>
         await LoadArchivePageAsync(pageNumber, cancellationToken);

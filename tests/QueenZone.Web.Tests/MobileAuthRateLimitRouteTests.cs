@@ -1,20 +1,29 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MobileAuthRateLimitRouteTests
+public sealed class MobileAuthRateLimitRouteTests : IClassFixture<WebHostVariantCache>
 {
+    private readonly VariantWebApplicationFactory ipAuthorize;
+    private readonly VariantWebApplicationFactory ipPassword;
+    private readonly VariantWebApplicationFactory accountLimit;
+
+    public MobileAuthRateLimitRouteTests(WebHostVariantCache variants)
+    {
+        ipAuthorize = variants.Get(WebHostVariants.ExternalCookieMobilePkceAuthRateLimitIp1);
+        ipPassword = variants.Get(WebHostVariants.ExternalCookieMobilePkceAuthRateLimitIp1Password);
+        accountLimit = variants.Get(WebHostVariants.ExternalCookieMobilePkceAuthRateLimitAccount1);
+    }
+
     [Fact]
     public async Task Authorize_ReturnsRfc6749TooManyRequests_AfterIpLimit()
     {
-        using var factory = CreateFactory(ipPermitLimit: 1);
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var client = ipAuthorize.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var pair = MobileAuthPkceTestData.CreatePair();
 
         var first = await client.GetAsync(AuthorizeUrl(pair.Challenge));
@@ -31,8 +40,7 @@ public sealed class MobileAuthRateLimitRouteTests
     [Fact]
     public async Task Refresh_ReturnsRfc6749TooManyRequests_AfterAccountLimit()
     {
-        using var factory = CreateFactory(accountPermitLimit: 1);
-        var issued = await CompletePkceAsync(factory);
+        var issued = await CompletePkceAsync(accountLimit);
 
         using var refreshRequest = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -52,8 +60,7 @@ public sealed class MobileAuthRateLimitRouteTests
     [Fact]
     public async Task PasswordGrant_ReturnsRfc6749TooManyRequests_AfterIpLimit()
     {
-        using var factory = CreateFactory(ipPermitLimit: 1);
-        using (var scope = factory.Services.CreateScope())
+        using (var scope = ipPassword.Services.CreateScope())
         {
             var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
             var seeded = await members.RegisterAsync(
@@ -63,7 +70,7 @@ public sealed class MobileAuthRateLimitRouteTests
             Assert.True(seeded.Succeeded, seeded.Error);
         }
 
-        using var client = factory.CreateAnonymousClient();
+        using var client = ipPassword.CreateAnonymousClient();
         using var firstRequest = PasswordForm();
         var first = await client.PostAsync(MobileAuthEndpoints.TokenPath, firstRequest);
         using var secondRequest = PasswordForm();
@@ -77,30 +84,6 @@ public sealed class MobileAuthRateLimitRouteTests
         Assert.DoesNotContain("auth-password-rate@example.com", await second.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.DoesNotContain("correct horse battery staple", await second.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
-
-    private static QueenZoneWebApplicationFactory CreateFactory(
-        int ipPermitLimit = 30,
-        int accountPermitLimit = 10) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.Configure<AuthRateLimitingOptions>(opts =>
-            {
-                opts.IpPermitLimit = ipPermitLimit;
-                opts.IpWindowMinutes = 60;
-                opts.AccountPermitLimit = accountPermitLimit;
-                opts.AccountWindowMinutes = 60;
-            });
-
-            services.AddAuthentication()
-                .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                    MemberAuthenticationSchemes.ExternalCookie, _ => { });
-
-            foreach (var provider in MemberAuthenticationSchemes.ExternalProviders)
-            {
-                services.AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, TestOAuthProviderHandler>(provider, _ => { });
-            }
-        });
 
     private static async Task<(HttpClient Client, string AccessToken, string RefreshToken)> CompletePkceAsync(
         QueenZoneWebApplicationFactory factory)

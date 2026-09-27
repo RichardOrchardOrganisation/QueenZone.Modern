@@ -1,0 +1,71 @@
+/* ============================================================
+   QUEENZONE · COLOR TOKENS
+   ~90% monochrome foundation, ~10% accent. Gold is rarest of all.
+   ============================================================ */
+:root {
+  /* ---- Monochrome foundation ---- */
+  --qz-white:        #FFFFFF; /* Pure White  — primary background        */
+  --qz-warm-white:   #F7F6F3; /* Warm White  — secondary backgrounds     */
+  --qz-grey-light:   #E8E8E8; /* Light Grey  — borders & separators      */
+  --qz-charcoal:     #2B2B2B; /* Charcoal    — primary text              */
+  --qz-black:        #111111; /* Rich Black  — heroes, footer, drama      */
+
+  /* Extended neutral ramp (derived, for tints & states) */
+  --qz-grey-50:   #FBFBFA;
+  --qz-grey-100:  #F2F1ED;
+  --qz-grey-200:  #E8E8E8;
+  --qz-grey-300:  #D6D6D2;
+  --qz-grey-400:  #B4B4AF;
+  --qz-grey-500:  #8A8A85;
+  --qz-grey-600:  #5F5F5B;
+  --qz-grey-700:  #3D3D3B;
+  --qz-grey-800:  #2B2B2B;
+  --qz-grey-900:  #1A1A1A;
+
+  /* ---- Accents (used sparingly) ---- */
+  --qz-blue:       #244A8F; /* Royal Blue   — links, active nav, CTA      */
+  --qz-blue-deep:  #1B3A72; /* hover/press for blue                       */
+  --qz-blue-tint:  #ECF0F7; /* faint blue wash for active surfaces        */
+
+  --qz-purple:       #5D3A8A; /* Royal Purple — archive, history, timeline */
+  --qz-purple-deep:  #492C6E;
+  --qz-purple-tint:  #F0ECF5;
+
+  --qz-burgundy:       #6B1F33; /* Burgundy   — featured, editorial, premium */
+  --qz-burgundy-deep:  #551828;
+  --qz-burgundy-tint:  #F6ECEE;
+
+  --qz-gold:       #B89A4A; /* Antique Gold — anniversary, badges (rarest) */
+  --qz-gold-deep:  #9C8038;
+  --qz-gold-tint:  #F6F1E3;
+
+  /* ============================================================
+     SEMANTIC ALIASES — reference these in product code
+     ============================================================ */
+  --surface-page:        var(--qz-white);
+  --surface-raised:      var(--qz-warm-white);
+  --surface-card:        var(--qz-white);
+  --surface-inverse:     var(--qz-black);
+  --surface-overlay:     rgba(17, 17, 17, 0.62);
+
+  --text-primary:        var(--qz-charcoal);
+  --text-secondary:      var(--qz-grey-600);
+  --text-muted:          var(--qz-grey-500);
+  --text-on-dark:        var(--qz-white);
+  --text-on-dark-muted:  rgba(255, 255, 255, 0.66);
+
+  --border-default:      var(--qz-grey-200);
+  --border-strong:       var(--qz-grey-300);
+  --border-on-dark:      rgba(255, 255, 255, 0.16);
+  --hairline:            var(--qz-grey-200);
+
+  --link:                var(--qz-blue);
+  --link-hover:          var(--qz-blue-deep);
+
+  --accent-archive:      var(--qz-purple);   /* historical / timeline      */
+  --accent-editorial:    var(--qz-burgundy); /* featured / premium stories */
+  --accent-cta:          var(--qz-blue);     /* primary actions            */
+  --accent-special:      var(--qz-gold);     /* anniversaries / badges      */
+
+  --focus-ring:          rgba(36, 74, 143, 0.45);
+}

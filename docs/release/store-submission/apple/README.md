@@ -25,12 +25,12 @@ Prepared 29 August 2026. This pack is version-neutral and can be used while the 
 - App Group: `group.org.queenzone.mobile`
 - Current development marketing version: `0.1.0`
 - Orientation: portrait
-- Device support: iPhone and iPad
+- Device support: iPhone
 - Production site/API: `https://www.queenzone.org`
 
 ## Do not submit until
 
-- Final screenshots have been captured from the selected release candidate on iPhone and iPad.
+- Final iPhone screenshots have been captured from the selected release candidate.
 - A release icon without an alpha channel has been installed in the build and verified from the archived IPA.
 - The legal seller/copyright name and App Review contact details are confirmed.
 - App privacy answers are checked against the final SDK list and production configuration.

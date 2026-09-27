@@ -484,33 +484,43 @@ public sealed class PublicQueryCacheServiceTests
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var articlesRepository = new CountingArticlesRepository();
-        var service = CreateService(memoryCache, articlesRepository: articlesRepository);
+        var communityArticleRepository = new CountingCommunityArticleRepository();
+        var service = CreateService(
+            memoryCache,
+            articlesRepository: articlesRepository,
+            communityArticleRepository: communityArticleRepository);
 
         var firstArchive = await service.GetArticlesArchivePageAsync(1, 12);
         var secondArchive = await service.GetArticlesArchivePageAsync(1, 12);
         var otherArchive = await service.GetArticlesArchivePageAsync(2, 12);
         var firstLatest = await service.GetLatestArticlesAsync(3);
         var secondLatest = await service.GetLatestArticlesAsync(3);
+        var firstCommunity = await service.GetLatestCommunityArticlesAsync(3);
+        var secondCommunity = await service.GetLatestCommunityArticlesAsync(3);
         await service.GetArticlePublishedCountAsync();
         await service.GetArticlePublishedCountAsync();
 
         Assert.Same(firstArchive, secondArchive);
         Assert.NotSame(firstArchive, otherArchive);
         Assert.Same(firstLatest, secondLatest);
+        Assert.Same(firstCommunity, secondCommunity);
         Assert.Equal(2, articlesRepository.ArchivePageCallCount);
         Assert.Equal(1, articlesRepository.LatestCallCount);
         Assert.Equal(1, articlesRepository.PublishedCountCallCount);
+        Assert.Equal(1, communityArticleRepository.PageCallCount);
 
         service.InvalidateArticlesCache();
 
         _ = await service.GetArticlesArchivePageAsync(1, 12);
         _ = await service.GetArticlesArchivePageAsync(2, 12);
         _ = await service.GetLatestArticlesAsync(3);
+        _ = await service.GetLatestCommunityArticlesAsync(3);
         _ = await service.GetArticlePublishedCountAsync();
 
         Assert.Equal(4, articlesRepository.ArchivePageCallCount);
         Assert.Equal(2, articlesRepository.LatestCallCount);
         Assert.Equal(2, articlesRepository.PublishedCountCallCount);
+        Assert.Equal(2, communityArticleRepository.PageCallCount);
     }
 
     [Fact]
@@ -661,6 +671,23 @@ public sealed class PublicQueryCacheServiceTests
     }
 
     [Fact]
+    public async Task DiscographyAlbumDetailsAreCachedPerAlbum()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var repository = new CountingDiscographyRepository();
+        var service = CreateService(memoryCache, discographyRepository: repository);
+
+        var first = await service.GetDiscographyAlbumByIdAsync(1);
+        var second = await service.GetDiscographyAlbumByIdAsync(1);
+        var other = await service.GetDiscographyAlbumByIdAsync(2);
+
+        Assert.Same(first, second);
+        Assert.NotNull(first);
+        Assert.Null(other);
+        Assert.Equal(2, repository.DetailCallCount);
+    }
+
+    [Fact]
     public async Task CatalogInvalidation_does_not_evict_unrelated_families()
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
@@ -700,6 +727,33 @@ public sealed class PublicQueryCacheServiceTests
         Assert.Equal(1, discographyRepository.AlbumsCallCount);
     }
 
+    [Fact]
+    public async Task FreddieSample_WarmCache_DoesNotPickIdsAgain()
+    {
+        var tributes = new CountingFreddieTributeRepository(
+            new FreddieTribute(7, "Maya", "Still shining.", "India", "24 November 2001", "10:00"));
+        var photos = new CountingFreddiePhotoRepository();
+        var cache = CreateService(
+            new MemoryCache(new MemoryCacheOptions()),
+            photoRepository: photos,
+            freddieTributeRepository: tributes);
+
+        var first = await cache.GetFeaturedFreddieTributeAsync();
+        var second = await cache.GetFeaturedFreddieTributeAsync();
+        Assert.Equal(7, first!.Id);
+        Assert.Equal(7, second!.Id);
+        Assert.Equal(1, tributes.PickCallCount);
+        Assert.Equal(2, tributes.ByIdCallCount);
+
+        var firstPhotos = await cache.GetFreddieTributePhotosAsync();
+        var secondPhotos = await cache.GetFreddieTributePhotosAsync();
+        Assert.Equal(4, firstPhotos.Count);
+        Assert.Equal(firstPhotos.Select(item => item.PicId), secondPhotos.Select(item => item.PicId));
+        Assert.Equal(1, photos.PickCallCount);
+        Assert.Equal(2, photos.ByIdCallCount);
+        Assert.Equal(1, photos.CategoriesCallCount);
+    }
+
     private static ServiceProvider CreateWarmupProvider(PublicQueryCacheService cache)
     {
         var services = new ServiceCollection();
@@ -711,6 +765,7 @@ public sealed class PublicQueryCacheServiceTests
         IMemoryCache memoryCache,
         INewsRepository? newsRepository = null,
         IArticlesRepository? articlesRepository = null,
+        IArticleRepository? communityArticleRepository = null,
         IForumRepository? forumRepository = null,
         IQueenHistoryRepository? historyRepository = null,
         IPhotoRepository? photoRepository = null,
@@ -720,12 +775,14 @@ public sealed class PublicQueryCacheServiceTests
         ITriviaRepository? triviaRepository = null,
         IBiographyRepository? biographyRepository = null,
         IDiscographyRepository? discographyRepository = null,
+        IFreddieTributeRepository? freddieTributeRepository = null,
         PublicQueryCacheOptions? options = null) =>
         new(
             memoryCache,
             Options.Create(options ?? new PublicQueryCacheOptions()),
             newsRepository ?? new CountingNewsRepository(),
             articlesRepository ?? new CountingArticlesRepository(),
+            communityArticleRepository ?? new CountingCommunityArticleRepository(),
             forumRepository ?? new CountingForumRepository(),
             historyRepository ?? new CountingQueenHistoryRepository(),
             photoRepository ?? new CountingPhotoRepository(),
@@ -734,7 +791,8 @@ public sealed class PublicQueryCacheServiceTests
             quoteRepository ?? new CountingQuoteRepository(),
             triviaRepository ?? new CountingTriviaRepository(),
             biographyRepository ?? new CountingBiographyRepository(),
-            discographyRepository ?? new CountingDiscographyRepository());
+            discographyRepository ?? new CountingDiscographyRepository(),
+            freddieTributeRepository ?? new UnusedFreddieTributeRepository());
 
     private class CountingLiveActivityQueryService : ILiveActivityQueryService
     {
@@ -904,6 +962,47 @@ public sealed class PublicQueryCacheServiceTests
             Task.FromResult<IReadOnlyList<SitemapContentEntry>>([new SitemapContentEntry(item.Id, item.Title, item.PublishedAt)]);
     }
 
+    private sealed class CountingCommunityArticleRepository : IArticleRepository
+    {
+        private readonly PublishedArticleSubmission item = new(
+            Guid.NewGuid(),
+            "Cached community article",
+            "cached-community-article",
+            "Cached community excerpt.",
+            string.Empty,
+            null,
+            null,
+            DateTimeOffset.Parse("2026-07-06T00:00:00Z"),
+            "Cached Author",
+            20);
+
+        public int PageCallCount { get; private set; }
+
+        public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
+            Task.FromResult(1);
+
+        public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
+            int page,
+            int pageSize,
+            string? tag = null,
+            CancellationToken ct = default)
+        {
+            PageCallCount++;
+            return Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>([item]);
+        }
+
+        public Task<PublishedArticleSubmission?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
+            Task.FromResult<PublishedArticleSubmission?>(slug == item.Slug ? item : null);
+
+        public Task<(PublishedArticleSubmission? Previous, PublishedArticleSubmission? Next)> GetAdjacentAsync(
+            DateTimeOffset publishedAt,
+            CancellationToken ct = default) =>
+            Task.FromResult<(PublishedArticleSubmission?, PublishedArticleSubmission?)>((null, null));
+
+        public Task<IReadOnlyList<PublishedArticleSubmission>> GetSitemapEntriesAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>([item]);
+    }
+
     private class CountingForumRepository : IForumRepository
     {
         private readonly ForumCategoryItem category = new(
@@ -1053,7 +1152,7 @@ public sealed class PublicQueryCacheServiceTests
 
     private class CountingPhotoRepository : IPhotoRepository
     {
-        public int CategoriesCallCount { get; private set; }
+        public int CategoriesCallCount { get; protected set; }
 
         public int PageCallCount { get; private set; }
 
@@ -1111,6 +1210,18 @@ public sealed class PublicQueryCacheServiceTests
         public Task<IReadOnlyList<PhotoItem>> GetRandomPublishedInCategoryAsync(
             int catId,
             int take,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public virtual Task<IReadOnlyList<int>> PickRandomPublishedPhotoIdsAsync(
+            int catId,
+            int take,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public virtual Task<IReadOnlyList<PhotoItem>> GetPublishedByIdsAsync(
+            int catId,
+            IReadOnlyList<int> picIds,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -1224,14 +1335,21 @@ public sealed class PublicQueryCacheServiceTests
 
         public int AlbumsCallCount { get; private set; }
 
+        public int DetailCallCount { get; private set; }
+
         public Task<IReadOnlyList<AlbumSummary>> GetAlbumsAsync(CancellationToken cancellationToken = default)
         {
             AlbumsCallCount++;
             return Task.FromResult<IReadOnlyList<AlbumSummary>>([album]);
         }
 
-        public Task<AlbumDetail?> GetAlbumByIdAsync(int albumId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<AlbumDetail?>(null);
+        public Task<AlbumDetail?> GetAlbumByIdAsync(int albumId, CancellationToken cancellationToken = default)
+        {
+            DetailCallCount++;
+            return Task.FromResult<AlbumDetail?>(albumId == 1
+                ? new AlbumDetail(1, "Cached album", "cached-album", 1975, "Queen", null, null, [])
+                : null);
+        }
     }
 
     private sealed class ConcurrentEntryGate(int expected)
@@ -1337,6 +1455,97 @@ public sealed class PublicQueryCacheServiceTests
         {
             await gate.EnterAsync(cancellationToken);
             return await base.GetCategoriesAsync(cancellationToken);
+        }
+    }
+
+    private sealed class UnusedFreddieTributeRepository : IFreddieTributeRepository
+    {
+        public Task<FreddieTributePage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<FreddieTribute?> GetRandomAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<int?> PickRandomVisibleIdAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<FreddieTribute?> GetVisibleByIdAsync(int id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class CountingFreddieTributeRepository(FreddieTribute tribute) : IFreddieTributeRepository
+    {
+        public int PickCallCount { get; private set; }
+
+        public int ByIdCallCount { get; private set; }
+
+        public Task<FreddieTributePage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<FreddieTribute?> GetRandomAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<int?> PickRandomVisibleIdAsync(CancellationToken cancellationToken = default)
+        {
+            PickCallCount++;
+            return Task.FromResult<int?>(tribute.Id);
+        }
+
+        public Task<FreddieTribute?> GetVisibleByIdAsync(int id, CancellationToken cancellationToken = default)
+        {
+            ByIdCallCount++;
+            return Task.FromResult<FreddieTribute?>(id == tribute.Id ? tribute : null);
+        }
+    }
+
+    private sealed class CountingFreddiePhotoRepository : CountingPhotoRepository
+    {
+        public int PickCallCount { get; private set; }
+
+        public int ByIdCallCount { get; private set; }
+
+        public override Task<IReadOnlyList<PhotoCategory>> GetCategoriesAsync(CancellationToken cancellationToken = default)
+        {
+            CategoriesCallCount++;
+            return Task.FromResult<IReadOnlyList<PhotoCategory>>(
+            [
+                new PhotoCategory(18, "Freddie Mercury", "freddie-mercury", 4, null),
+            ]);
+        }
+
+        public override Task<IReadOnlyList<int>> PickRandomPublishedPhotoIdsAsync(
+            int catId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            PickCallCount++;
+            IReadOnlyList<int> ids = [301, 302, 303, 304];
+            return Task.FromResult(ids);
+        }
+
+        public override Task<IReadOnlyList<PhotoItem>> GetPublishedByIdsAsync(
+            int catId,
+            IReadOnlyList<int> picIds,
+            CancellationToken cancellationToken = default)
+        {
+            ByIdCallCount++;
+            IReadOnlyList<PhotoItem> items = picIds
+                .Select(id => new PhotoItem(
+                    id,
+                    catId,
+                    "Freddie Mercury",
+                    "freddie-mercury",
+                    $"Photo {id}",
+                    $"https://cdn.queenzone.org/freddie-mercury/{id}.jpg",
+                    $"https://cdn.queenzone.org/freddie-mercury/{id}-t.jpg",
+                    100,
+                    100,
+                    800,
+                    600,
+                    1986,
+                    new DateTime(1986, 7, 12)))
+                .ToList();
+            return Task.FromResult(items);
         }
     }
 }

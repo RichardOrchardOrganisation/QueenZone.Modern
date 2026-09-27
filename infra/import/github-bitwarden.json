@@ -88,6 +88,17 @@
         ],
         "opentofuTreatment": "outside",
         "notes": "Contributor on Queenzone-RG; requires richardorchard approval. Do not reuse for routine zip deploys."
+      },
+      {
+        "name": "telemetry-read",
+        "protectionRules": ["branch_policy"],
+        "variableNames": [
+          "ARM_CLIENT_ID",
+          "ARM_SUBSCRIPTION_ID",
+          "ARM_TENANT_ID"
+        ],
+        "opentofuTreatment": "outside",
+        "notes": "Created by infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1 (#1805). Monitoring Reader on Queenzone-RG and Log Analytics Reader on queenzone-prod-law. Richard runs the bootstrap; CI must not create the Entra app."
       }
     ],
     "repositorySecretNames": [

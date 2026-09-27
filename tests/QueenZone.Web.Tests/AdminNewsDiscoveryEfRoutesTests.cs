@@ -1,37 +1,22 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminNewsDiscoveryEfRoutesTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
+public sealed class AdminNewsDiscoveryEfRoutesTests : IClassFixture<AdminEfWebApplicationFactory>, IAsyncLifetime
 {
-    private readonly WebApplicationFactory<Program> baseFactory;
-    private readonly AdminEfWebTestHarness harness;
-    private WebApplicationFactory<Program> factory = null!;
+    private readonly AdminEfWebApplicationFactory factory;
 
-    public AdminNewsDiscoveryEfRoutesTests(WebApplicationFactory<Program> baseFactory)
+    public AdminNewsDiscoveryEfRoutesTests(AdminEfWebApplicationFactory factory)
     {
-        this.baseFactory = baseFactory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.UseSetting("ConnectionStrings:QueenZoneLegacy", string.Empty);
-        });
-        harness = new AdminEfWebTestHarness();
+        this.factory = factory;
     }
 
-    public Task InitializeAsync()
-    {
-        factory = harness.CreateFactory(baseFactory);
-        harness.EnsureSchema(factory.Services);
-        return Task.CompletedTask;
-    }
+    public Task InitializeAsync() => factory.ResetAsync();
 
-    public async Task DisposeAsync() => await harness.DisposeAsync();
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Ef_backed_promote_creates_admin_draft_and_updates_candidate()
@@ -100,25 +85,9 @@ public sealed class AdminNewsDiscoveryEfRoutesTests : IClassFixture<WebApplicati
     public async Task Ef_backed_promote_rolls_back_when_candidate_update_fails()
     {
         var candidateId = await SeedDraftedCandidateAsync();
+        factory.PromoteGate.FailPromoteStatusUpdate = true;
 
-        var failingFactory = harness.CreateFactory(baseFactory, services =>
-        {
-            services.RemoveAll<INewsDiscoveryRepository>();
-            services.AddScoped<INewsDiscoveryRepository>(sp =>
-            {
-                var inner = new EfNewsDiscoveryRepository(sp.GetRequiredService<QueenZoneDbContext>());
-                return new ConfigurableNewsDiscoveryRepository(inner)
-                {
-                    TryUpdateCandidateStatusHandler = (id, update, ct) =>
-                        update.Status == NewsCandidateStatus.PromotedToArticle
-                            ? Task.FromResult(false)
-                            : inner.TryUpdateCandidateStatusAsync(id, update, ct)
-                };
-            });
-        });
-        failingFactory.Services.GetRequiredService<QueenZoneDbContext>(); // ensure schema from InitializeAsync still valid - same connection
-
-        var client = AdminHttpTestHelpers.CreateClient(failingFactory, AdminHttpTestHelpers.AdminEmail);
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
         var promoteResponse = await AdminHttpTestHelpers.PostDiscoveryActionAsync(
             client,
             $"/admin/news-discovery/{candidateId}/promote",
@@ -128,7 +97,7 @@ public sealed class AdminNewsDiscoveryEfRoutesTests : IClassFixture<WebApplicati
         var reviewBody = await client.GetStringAsync($"/admin/news-discovery/{candidateId}");
         Assert.Contains("Promotion failed while updating the discovery candidate", reviewBody);
 
-        await using var scope = failingFactory.Services.CreateAsyncScope();
+        await using var scope = factory.Services.CreateAsyncScope();
         var adminRepository = scope.ServiceProvider.GetRequiredService<IAdminNewsRepository>();
         var articles = await adminRepository.GetAllAsync();
         Assert.DoesNotContain(articles, article => article.Title == "Discovery draft title");

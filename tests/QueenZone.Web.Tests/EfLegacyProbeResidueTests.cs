@@ -54,6 +54,10 @@ public sealed class EfLegacyProbeResidueTests
         Assert.False(string.IsNullOrWhiteSpace(PhotoSubmissionAuditResidueQuery(dbContext).ToQueryString()));
         Assert.False(string.IsNullOrWhiteSpace(ArticleSubmissionResidueQuery(dbContext).ToQueryString()));
         Assert.False(string.IsNullOrWhiteSpace(NewsSuggestionResidueQuery(dbContext).ToQueryString()));
+        Assert.False(string.IsNullOrWhiteSpace(TriviaFactSubmissionResidueQuery(dbContext).ToQueryString()));
+        Assert.False(string.IsNullOrWhiteSpace(TriviaFactSubmissionAuditResidueQuery(dbContext).ToQueryString()));
+        Assert.False(string.IsNullOrWhiteSpace(FanPerformanceSubmissionResidueQuery(dbContext).ToQueryString()));
+        Assert.False(string.IsNullOrWhiteSpace(FanPerformanceSubmissionAuditResidueQuery(dbContext).ToQueryString()));
         Assert.False(string.IsNullOrWhiteSpace(PhotoAdminAuditResidueQuery(dbContext).ToQueryString()));
         Assert.False(string.IsNullOrWhiteSpace(SearchDocumentResidueQuery(dbContext).ToQueryString()));
     }
@@ -88,6 +92,10 @@ public sealed class EfLegacyProbeResidueTests
         Assert.True(await PhotoSubmissionAuditResidueQuery(dbContext).AnyAsync());
         Assert.True(await ArticleSubmissionResidueQuery(dbContext).AnyAsync());
         Assert.True(await NewsSuggestionResidueQuery(dbContext).AnyAsync());
+        Assert.True(await TriviaFactSubmissionResidueQuery(dbContext).AnyAsync());
+        Assert.True(await TriviaFactSubmissionAuditResidueQuery(dbContext).AnyAsync());
+        Assert.True(await FanPerformanceSubmissionResidueQuery(dbContext).AnyAsync());
+        Assert.True(await FanPerformanceSubmissionAuditResidueQuery(dbContext).AnyAsync());
         Assert.True(await PhotoAdminAuditResidueQuery(dbContext).AnyAsync());
         Assert.True(await SearchDocumentResidueQuery(dbContext).AnyAsync());
     }
@@ -141,6 +149,16 @@ public sealed class EfLegacyProbeResidueTests
             "Residue found in PhotoSubmissionAuditLog.");
         Assert.False(await ArticleSubmissionResidueQuery(dbContext).AnyAsync(), "Residue found in ArticleSubmissions.");
         Assert.False(await NewsSuggestionResidueQuery(dbContext).AnyAsync(), "Residue found in NewsSuggestions.");
+        Assert.False(await TriviaFactSubmissionResidueQuery(dbContext).AnyAsync(), "Residue found in TriviaFactSubmissions.");
+        Assert.False(
+            await TriviaFactSubmissionAuditResidueQuery(dbContext).AnyAsync(),
+            "Residue found in TriviaFactSubmissionAuditLog.");
+        Assert.False(
+            await FanPerformanceSubmissionResidueQuery(dbContext).AnyAsync(),
+            "Residue found in FanPerformanceSubmissions.");
+        Assert.False(
+            await FanPerformanceSubmissionAuditResidueQuery(dbContext).AnyAsync(),
+            "Residue found in FanPerformanceSubmissionAuditLog.");
         Assert.False(await PhotoAdminAuditResidueQuery(dbContext).AnyAsync(), "Residue found in PhotoAdminAuditLog.");
         var searchDocumentResidue = await SearchDocumentResidueQuery(dbContext)
             .Select(document => new SearchDocumentResidueRef(document.ContentType, document.SourceKey))
@@ -299,6 +317,37 @@ public sealed class EfLegacyProbeResidueTests
             suggestion.Url.Contains(UiTestMarker)
             || (suggestion.Title != null && suggestion.Title.Contains(UiTestMarker)));
 
+    // CommunitySubmissionWorkflowTests (#1596) trivia submit + reject.
+    private static IQueryable<TriviaFactSubmissionEntity> TriviaFactSubmissionResidueQuery(
+        QueenZoneDbContext dbContext) =>
+        dbContext.TriviaFactSubmissions.Where(submission =>
+            submission.Text.Contains(UiTestMarker));
+
+    private static IQueryable<TriviaFactSubmissionAuditLogEntity> TriviaFactSubmissionAuditResidueQuery(
+        QueenZoneDbContext dbContext) =>
+        dbContext.TriviaFactSubmissionAuditLogs.Where(audit =>
+            (audit.Details != null && audit.Details.Contains(UiTestMarker))
+            || dbContext.TriviaFactSubmissions.Any(submission =>
+                submission.Id == audit.TriviaFactSubmissionId
+                && submission.Text.Contains(UiTestMarker)));
+
+    // CommunitySubmissionWorkflowTests (#1596) fan-performance submit + reject.
+    private static IQueryable<FanPerformanceSubmissionEntity> FanPerformanceSubmissionResidueQuery(
+        QueenZoneDbContext dbContext) =>
+        dbContext.FanPerformanceSubmissions.Where(submission =>
+            submission.Title.Contains(UiTestMarker)
+            || submission.CoveredSong.Contains(UiTestMarker)
+            || submission.PerformedBy.Contains(UiTestMarker)
+            || (submission.Description != null && submission.Description.Contains(UiTestMarker)));
+
+    private static IQueryable<FanPerformanceSubmissionAuditLogEntity> FanPerformanceSubmissionAuditResidueQuery(
+        QueenZoneDbContext dbContext) =>
+        dbContext.FanPerformanceSubmissionAuditLogs.Where(audit =>
+            (audit.Details != null && audit.Details.Contains(UiTestMarker))
+            || dbContext.FanPerformanceSubmissions.Any(submission =>
+                submission.Id == audit.FanPerformanceSubmissionId
+                && submission.Title.Contains(UiTestMarker)));
+
     private static IQueryable<PhotoAdminAuditLogEntity> PhotoAdminAuditResidueQuery(QueenZoneDbContext dbContext) =>
         dbContext.PhotoAdminAuditLogs.Where(audit =>
             audit.ActorEmail == "admin@test.local"
@@ -337,6 +386,8 @@ public sealed class EfLegacyProbeResidueTests
         var otherMemberId = Guid.NewGuid();
         var conversationId = Guid.NewGuid();
         var photoSubmissionId = Guid.NewGuid();
+        var triviaSubmissionId = Guid.NewGuid();
+        var fanPerformanceSubmissionId = Guid.NewGuid();
 
         dbContext.MemberAccounts.AddRange(
             new MemberAccount
@@ -407,6 +458,42 @@ public sealed class EfLegacyProbeResidueTests
             UrlHash = new string('a', 64),
             Title = marker,
             SubmittedAt = now,
+        });
+        dbContext.TriviaFactSubmissions.Add(new TriviaFactSubmissionEntity
+        {
+            Id = triviaSubmissionId,
+            SubmitterMemberId = markedMemberId,
+            Text = marker,
+            SubmittedAt = now,
+        });
+        dbContext.TriviaFactSubmissionAuditLogs.Add(new TriviaFactSubmissionAuditLogEntity
+        {
+            TriviaFactSubmissionId = triviaSubmissionId,
+            Action = "proof",
+            ActorEmail = "residue-proof@e2e.queenzone.local",
+            OccurredAt = now,
+            Details = marker,
+        });
+        dbContext.FanPerformanceSubmissions.Add(new FanPerformanceSubmissionEntity
+        {
+            Id = fanPerformanceSubmissionId,
+            SubmitterMemberId = markedMemberId,
+            Title = marker,
+            CoveredSong = marker,
+            PerformedBy = marker,
+            BlobPath = marker,
+            OriginalFileName = "proof.mp3",
+            MimeType = "audio/mpeg",
+            SubmittedAt = now,
+            RightsDeclaredAt = now,
+        });
+        dbContext.FanPerformanceSubmissionAuditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
+        {
+            FanPerformanceSubmissionId = fanPerformanceSubmissionId,
+            Action = "proof",
+            ActorEmail = "residue-proof@e2e.queenzone.local",
+            OccurredAt = now,
+            Details = marker,
         });
 
         dbContext.PrivateConversations.Add(new PrivateConversationEntity

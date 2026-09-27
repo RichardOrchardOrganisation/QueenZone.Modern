@@ -1,35 +1,28 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Storage;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class FanPerformancesPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class FanPerformancesPageTests :
+    IClassFixture<ExternalCookieWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public FanPerformancesPageTests(WebApplicationFactory<Program> factory)
+    public FanPerformancesPageTests(
+        ExternalCookieWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -101,26 +94,25 @@ public sealed class FanPerformancesPageTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task EnhancedAudioUsesSharedVisuallyHiddenRule()
+    {
+        var client = factory.CreateClient();
+
+        var css = await client.GetStringAsync("/css/site.css");
+
+        // Selector grouping is the contract here: enhanced audio must reuse the accessible visually-hidden
+        // rule rather than a private copy. Computed style needs a browser, so the served CSS text is checked.
+        var sharedRule = Regex.Match(
+            css,
+            @"\.visually-hidden,\s*\.qz-stage-list\.is-enhanced \.qz-stage-row__audio\s*\{(?<body>[^}]*)\}");
+        Assert.True(sharedRule.Success);
+        Assert.Contains("clip: rect(0, 0, 0, 0);", sharedRule.Groups["body"].Value);
+    }
+
+    [Fact]
     public async Task FanPerformancesPage_PlayAllCatalogSpansEveryPage_WhenMemberSignedIn()
     {
-        var performances = Enumerable.Range(1, 25)
-            .Select(index => new FanPerformance(
-                index,
-                $"Track {index}",
-                "Performer",
-                "Cover",
-                $"{index}.mp3",
-                1024,
-                new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(index)))
-            .ToList();
-        await using var customFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IFanPerformanceRepository>();
-                services.AddSingleton<IFanPerformanceRepository>(new InMemoryFanPerformanceRepository(performances));
-            });
-        });
+        var customFactory = variants.Get(WebHostVariants.ExternalCookieFanPerformanceCatalog25);
         var client = await CreateSignedInMemberClientAsync(factory: customFactory);
 
         var pageOne = await client.GetStringAsync("/fan-performances");

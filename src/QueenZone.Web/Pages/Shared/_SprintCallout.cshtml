@@ -1,0 +1,24 @@
+@model SprintBoard
+@{
+  var top = new SprintBoard(Model.Rows.Take(3).ToList(), null, Model.Players);
+}
+<section class="qz-sprint-callout qz-band-dark" id="quiz-sprint" aria-label="Daily challenge: Quiz Sprint">
+  <partial name="_PictureImage" model='@(("/design-system/assets/crest-white.png", "", true, "qz-sprint-callout__crest"))' />
+  <div class="qz-container qz-sprint-callout__grid">
+    <div>
+      <p class="qz-sprint__eyebrow">The daily challenge</p>
+      <h2 class="qz-sprint-callout__title">The sixty-second Queen quiz</h2>
+      <p class="qz-sprint-callout__body">
+        A new run every day, drawn from the archive. One minute, one streak, one place on the leaderboard.@(Model.Players > 0 ? $" {Model.Players:N0} member{(Model.Players == 1 ? " has" : "s have")} played today." : "")
+      </p>
+      <div class="qz-sprint__buttons">
+        <a class="qz-sprint__cta" href="/quizzes/sprint">Play the sprint</a>
+        <a class="qz-sprint__link" href="/quizzes/leaderboard">See the leaderboard</a>
+      </div>
+    </div>
+    <div class="qz-sprint-callout__top">
+      <p class="qz-sprint__eyebrow">Today's top three</p>
+      <partial name="_SprintBoard" model='@((top, true, "No scores yet today. Be the first on the board."))' />
+    </div>
+  </div>
+</section>

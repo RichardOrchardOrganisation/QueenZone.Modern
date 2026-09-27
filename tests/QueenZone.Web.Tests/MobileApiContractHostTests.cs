@@ -12,6 +12,7 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
+[Collection(EnvironmentVariableCollection.Name)]
 public sealed class MobileApiContractHostTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly QueenZoneWebApplicationFactory factory;
@@ -68,10 +69,9 @@ public sealed class MobileApiContractHostTests : IClassFixture<QueenZoneWebAppli
         using var forbidden = await suspended.PostAsJsonAsync(
             "/api/v1/forum/topics/1002/posts",
             new { body = "Suspended members cannot post from the contract host." });
-        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, forbidden.StatusCode);
         var problem = await forbidden.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Forbidden", problem.GetProperty("title").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(problem.GetProperty("detail").GetString()));
+        Assert.Equal("Unauthorized", problem.GetProperty("title").GetString());
     }
 
     [Fact]

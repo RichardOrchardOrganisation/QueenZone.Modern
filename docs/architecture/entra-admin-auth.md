@@ -4,7 +4,7 @@ This documents the Microsoft Entra (Azure AD) app registration and App Service s
 
 ## Why this exists
 
-PR Phase A production hardening (epic [#312](https://github.com/richardorchard/QueenZone.Modern/issues/312), issues #313–#315) makes the web app **fail to start** outside Development/Testing when `AzureAd:ClientId` is missing or still a placeholder such as `YOUR_CLIENT_ID`.
+PR Phase A production hardening (epic [#312](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/312), issues #313–#315) makes the web app **fail to start** outside Development/Testing when `AzureAd:ClientId` is missing or still a placeholder such as `YOUR_CLIENT_ID`.
 
 App Service must therefore carry real Entra settings. Committed `appsettings.json` only has placeholders; secrets never belong in git.
 

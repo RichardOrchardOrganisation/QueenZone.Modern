@@ -48,7 +48,7 @@ public sealed partial class AdminPrivateMessageReportRoutesTests : IClassFixture
     public async Task Admin_CanOpenDetail_ViewIsAudited_AndStatusChangeIsAudited()
     {
         var (reporterId, reportedId, reportId) = await SeedReportAsync("detail-flow");
-        var privateMessageRepository = factory.Services.GetRequiredService<IPrivateMessageRepository>();
+        var privateMessageRepository = factory.Services.GetRequiredService<IPrivateMessageModerationRepository>();
 
         var admin = factory.CreateAdminClient(AdminEmail);
         var queue = await admin.GetStringAsync("/admin/private-messages");
@@ -92,6 +92,7 @@ public sealed partial class AdminPrivateMessageReportRoutesTests : IClassFixture
     {
         var memberAccountRepository = factory.Services.GetRequiredService<IMemberAccountRepository>();
         var privateMessageRepository = factory.Services.GetRequiredService<IPrivateMessageRepository>();
+        var moderationRepository = factory.Services.GetRequiredService<IPrivateMessageModerationRepository>();
 
         var reporter = await memberAccountRepository.CreateAsync(NewMember($"reporter-{slug}@example.com", $"Reporter {slug}"));
         var reported = await memberAccountRepository.CreateAsync(NewMember($"reported-{slug}@example.com", $"Reported {slug}"));
@@ -101,7 +102,7 @@ public sealed partial class AdminPrivateMessageReportRoutesTests : IClassFixture
         var conversationId = sent.ConversationId!.Value;
         var message = (await privateMessageRepository.GetConversationAsync(conversationId, reporter.Id))!.Messages[^1];
 
-        var report = await privateMessageRepository.CreateReportAsync(
+        var report = await moderationRepository.CreateReportAsync(
             reporter.Id, conversationId, message.Id, "Harassment", DateTimeOffset.UtcNow);
         Assert.True(report.Succeeded);
 

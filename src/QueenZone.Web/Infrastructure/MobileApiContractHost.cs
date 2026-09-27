@@ -405,8 +405,8 @@ public sealed class MobileApiContractHostedService(
             "Mobile API contract host ready. baseUrl={BaseUrl} fixture={FixturePath}",
             fixture.BaseUrl,
             path);
-        Console.Out.WriteLine($"QUEENZONE_MOBILE_CONTRACT_READY {fixture.BaseUrl}");
-        Console.Out.Flush();
+        await Console.Out.WriteLineAsync($"QUEENZONE_MOBILE_CONTRACT_READY {fixture.BaseUrl}");
+        await Console.Out.FlushAsync(cancellationToken);
     }
 
     private void OnStarted()

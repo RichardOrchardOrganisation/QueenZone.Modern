@@ -102,7 +102,7 @@ describe('shouldHideTabBar', () => {
 });
 
 describe('archive hub destinations', () => {
-  it('lists the archive hub rows including Trivia', () => {
+  it('lists the archive hub rows including Trivia and Quiz', () => {
     assert.deepEqual([...ARCHIVE_HUB_IDS], [
       'stories',
       'timeline',
@@ -112,9 +112,10 @@ describe('archive hub destinations', () => {
       'fan-performances',
       'recently-restored',
       'trivia',
+      'quiz',
       'about',
     ]);
-    assert.equal(ARCHIVE_HUB_IDS.length, 9);
+    assert.equal(ARCHIVE_HUB_IDS.length, 10);
     assert.deepEqual(
       archiveDestinations.map((row) => row.id),
       [...ARCHIVE_HUB_IDS],

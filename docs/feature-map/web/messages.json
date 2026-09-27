@@ -1,0 +1,80 @@
+{
+  "area": "messages",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [
+        "inbox"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Messages/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/PrivateMessagingWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.messages.inbox",
+      "name": "Messages",
+      "page": "Pages/Messages/Index.cshtml",
+      "url": "/messages",
+      "entry": "Signed-in header → Messages, or open /messages"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Messages/Archived.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.messages.archived",
+      "name": "Archived messages",
+      "page": "Pages/Messages/Archived.cshtml",
+      "url": "/messages/archived",
+      "entry": "Messages → Archived"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Messages/Conversation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/PrivateMessagingWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.messages.conversation",
+      "name": "Conversation",
+      "page": "Pages/Messages/Conversation.cshtml",
+      "url": "/messages/{conversationId}",
+      "entry": "Messages → conversation"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Messages/Compose.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.messages.compose",
+      "name": "Compose message",
+      "page": "Pages/Messages/Compose.cshtml",
+      "url": "/messages/compose",
+      "entry": "Messages → compose"
+    }
+  ]
+}

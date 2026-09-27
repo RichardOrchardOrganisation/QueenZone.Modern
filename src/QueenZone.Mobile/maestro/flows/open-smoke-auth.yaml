@@ -2,9 +2,27 @@ appId: org.queenzone.mobile
 ---
 # Inject the Testing fixture token. Caller must already show chrome so
 # SessionProvider (Linking) is mounted — App.tsx BootSplash keeps it off
-# until after 'booting'. Fresh-install iOS still shows the Open confirm.
+# until after 'booting'. Fresh-install iOS still shows the Open confirm,
+# and that sheet can land several seconds after openLink returns (#1455).
 - openLink: ${SMOKE_AUTH_URL}
 - runFlow: accept-ios-open-link.yaml
+# Hosted iOS 26 journeys raise the first Open sheet after accept-ios-open-link's
+# 15s optional wait (run 35910502340: first wait WARNED, Open only after a
+# second openLink). Stacking that second URL while the first confirm is still
+# pending leaves a leftover "Open in QueenZone?" over signed-out Home, so
+# home-messages never appears (#1703). Poll for the late first sheet before
+# the #1281 retry. optional waits so a still-unsigned-in cold start can
+# continue to one more openLink.
+- runFlow:
+    when:
+      platform: iOS
+      notVisible:
+        id: home-messages
+    commands:
+      - runFlow: poll-late-ios-open-for-home.yaml
+      - runFlow: poll-late-ios-open-for-home.yaml
+      - runFlow: poll-late-ios-open-for-home.yaml
+      - runFlow: poll-late-ios-open-for-home.yaml
 # iOS can accept the system Open prompt without delivering the first
 # foreground URL event. Retry once when the signed-in masthead affordance did
 # not appear. Hosted iOS 26 simulators can show another Open confirmation for
@@ -17,7 +35,33 @@ appId: org.queenzone.mobile
     commands:
       - openLink: ${SMOKE_AUTH_URL}
       - runFlow: accept-ios-open-link.yaml
-- extendedWaitUntil:
-    visible:
-      id: home-messages
-    timeout: 20000
+# Leftover first-URL confirm can appear after the retry tap (#1703). Keep
+# dismissing it while requiring home-messages — do not sit on a wait that
+# ignores the sheet. Android keeps the existing 20s wait.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - retry:
+          maxRetries: 2
+          commands:
+            - runFlow:
+                when:
+                  visible:
+                    text: '^Open$'
+                commands:
+                  - tapOn:
+                      text: '^Open$'
+                      retryTapIfNoChange: true
+            - extendedWaitUntil:
+                visible:
+                  id: home-messages
+                timeout: 8000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: home-messages
+          timeout: 20000

@@ -3,7 +3,8 @@ using Microsoft.Playwright;
 namespace QueenZone.Web.E2E;
 
 /// <summary>
-/// axe-core smoke: critical accessibility issues fail the build.
+/// axe-core smoke for curated PR-gate pages: critical always fails; serious
+/// fails unless <see cref="AxeSeriousExceptions"/> lists a triaged legacy pair.
 /// </summary>
 [Parallelizable(ParallelScope.Self)]
 [TestFixture]
@@ -17,30 +18,20 @@ public class AccessibilitySmokeTests : E2EPageTest
         await Page.GotoAsync("/");
         await Expect(Page.GetByText("Latest news")).ToBeVisibleAsync();
 
-        var skipLink = Page.GetByRole(AriaRole.Link, new() { Name = "Skip to content" });
-        await Expect(skipLink).ToBeAttachedAsync();
-
-        await Page.Keyboard.PressAsync("Tab");
-        await Expect(skipLink).ToBeFocusedAsync();
-
-        await skipLink.PressAsync("Enter");
-
-        var main = Page.GetByRole(AriaRole.Main);
-        await Expect(main).ToHaveAttributeAsync("id", "main-content");
-        await Expect(main).ToBeFocusedAsync();
+        await KeyboardAssertions.AssertSkipLinkMovesFocusToMainAsync(Page);
     }
 
     [Test]
-    public async Task Homepage_HasNoCriticalAxeViolations()
+    public async Task Homepage_HasNoBlockingAxeViolations()
     {
         await Page.GotoAsync("/");
         await Expect(Page.GetByText("Latest news")).ToBeVisibleAsync();
 
-        await AxeAssertions.AssertNoCriticalViolationsAsync(Page);
+        await AxeAssertions.AssertNoBlockingViolationsAsync(Page, "/");
     }
 
     [Test]
-    public async Task NewsDetail_HasNoCriticalAxeViolations()
+    public async Task NewsDetail_HasNoBlockingAxeViolations()
     {
         await Page.GotoAsync("/news/1003/queenzone-modernisation-begins");
         await Expect(Page.GetByRole(AriaRole.Heading, new()
@@ -49,11 +40,13 @@ public class AccessibilitySmokeTests : E2EPageTest
             Level = 1
         })).ToBeVisibleAsync();
 
-        await AxeAssertions.AssertNoCriticalViolationsAsync(Page);
+        await AxeAssertions.AssertNoBlockingViolationsAsync(
+            Page,
+            "/news/1003/queenzone-modernisation-begins");
     }
 
     [Test]
-    public async Task ForumTopic_HasNoCriticalAxeViolations()
+    public async Task ForumTopic_HasNoBlockingAxeViolations()
     {
         await Page.GotoAsync("/forum/topic/1002/ranking-every-studio-album");
         await Expect(Page.GetByRole(AriaRole.Heading, new()
@@ -62,6 +55,8 @@ public class AccessibilitySmokeTests : E2EPageTest
             Level = 1
         })).ToBeVisibleAsync();
 
-        await AxeAssertions.AssertNoCriticalViolationsAsync(Page);
+        await AxeAssertions.AssertNoBlockingViolationsAsync(
+            Page,
+            "/forum/topic/1002/ranking-every-studio-album");
     }
 }

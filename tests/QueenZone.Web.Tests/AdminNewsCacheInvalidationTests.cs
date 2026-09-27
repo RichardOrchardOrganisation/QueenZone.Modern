@@ -1,9 +1,5 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 using QueenZone.Web.Pages.Admin.News;
@@ -15,21 +11,24 @@ namespace QueenZone.Web.Tests;
 /// used by homepage latest news and archive published counts.
 /// </summary>
 [Collection(AdminNewsDeleteErrorCollection.Name)]
-public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
     private const string AdminEmail = "admin@test.local";
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory factory;
 
-    public AdminNewsCacheInvalidationTests(WebApplicationFactory<Program> factory)
+    public AdminNewsCacheInvalidationTests(WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        factory = variants.Get(WebHostVariants.IsolatedAdminNews);
     }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Publish_invalidates_homepage_latest_news_cache()
     {
-        var store = new SharedNewsStore();
-        var client = CreateClient(AdminEmail, store);
+        var client = CreateClient(AdminEmail);
 
         // Warm the public latest-news cache (homepage uses count 5).
         var homeBefore = await client.GetStringAsync("/");
@@ -47,8 +46,7 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
     [Fact]
     public async Task Unpublish_invalidates_homepage_latest_news_cache()
     {
-        var store = new SharedNewsStore();
-        var client = CreateClient(AdminEmail, store);
+        var client = CreateClient(AdminEmail);
 
         var articleId = await CreateDraftAsync(client, "Cache invalidate unpublish title");
         Assert.Equal(HttpStatusCode.Redirect, (await PostActionAsync(client, $"/admin/news/{articleId}/publish")).StatusCode);
@@ -65,8 +63,7 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
     [Fact]
     public async Task Delete_published_article_invalidates_homepage_latest_news_cache()
     {
-        var store = new SharedNewsStore();
-        var client = CreateClient(AdminEmail, store);
+        var client = CreateClient(AdminEmail);
 
         var articleId = await CreateDraftAsync(client, "Cache invalidate delete title");
         Assert.Equal(HttpStatusCode.Redirect, (await PostActionAsync(client, $"/admin/news/{articleId}/publish")).StatusCode);
@@ -96,8 +93,8 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
             null,
             null,
             null));
-        var store = new SharedNewsStore(seed);
-        var client = CreateClient(AdminEmail, store);
+        factory.AdminNews!.Seed(seed);
+        var client = CreateClient(AdminEmail);
 
         var archiveBefore = await client.GetStringAsync("/news");
         Assert.Contains("Page 1 of 2", archiveBefore);
@@ -115,8 +112,7 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
     [Fact]
     public async Task Edit_published_article_invalidates_homepage_latest_news_cache()
     {
-        var store = new SharedNewsStore();
-        var client = CreateClient(AdminEmail, store);
+        var client = CreateClient(AdminEmail);
 
         var articleId = await CreateDraftAsync(client, "Original cache edit title");
         Assert.Equal(HttpStatusCode.Redirect, (await PostActionAsync(client, $"/admin/news/{articleId}/publish")).StatusCode);
@@ -145,8 +141,7 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
     [Fact]
     public async Task Publish_invalidates_news_sitemap_cache()
     {
-        var store = new SharedNewsStore();
-        var client = CreateClient(AdminEmail, store);
+        var client = CreateClient(AdminEmail);
 
         // Warm output cache for the news sitemap.
         var sitemapBefore = await client.GetStringAsync("/sitemap-news.xml");
@@ -162,8 +157,7 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
     [Fact]
     public async Task Unpublish_invalidates_news_sitemap_cache()
     {
-        var store = new SharedNewsStore();
-        var client = CreateClient(AdminEmail, store);
+        var client = CreateClient(AdminEmail);
 
         var articleId = await CreateDraftAsync(client, "Sitemap cache unpublish title");
         Assert.Equal(HttpStatusCode.Redirect, (await PostActionAsync(client, $"/admin/news/{articleId}/publish")).StatusCode);
@@ -180,8 +174,7 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
     [Fact]
     public async Task Edit_published_article_invalidates_news_sitemap_cache()
     {
-        var store = new SharedNewsStore();
-        var client = CreateClient(AdminEmail, store);
+        var client = CreateClient(AdminEmail);
 
         var articleId = await CreateDraftAsync(client, "Sitemap original edit title");
         Assert.Equal(HttpStatusCode.Redirect, (await PostActionAsync(client, $"/admin/news/{articleId}/publish")).StatusCode);
@@ -227,33 +220,8 @@ public sealed partial class AdminNewsCacheInvalidationTests : IClassFixture<WebA
         return int.Parse(editPath.Split('/')[3], System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private HttpClient CreateClient(string email, SharedNewsStore store)
-    {
-        var appFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<SharedNewsStore>();
-                services.RemoveAll<INewsRepository>();
-                services.RemoveAll<IAdminNewsRepository>();
-                services.RemoveAll<INewsAuditRepository>();
-                services.RemoveAll<INewsDiscoveryRepository>();
-                services.RemoveAll<SharedNewsDiscoveryStore>();
-                services.AddSingleton(store);
-                services.AddSingleton<INewsRepository>(_ => new QueenZone.Data.InMemoryNewsRepository(store));
-                services.AddSingleton<IAdminNewsRepository>(_ => new InMemoryAdminNewsRepository(store));
-                services.AddSingleton<INewsAuditRepository>(_ => new InMemoryNewsAuditRepository(store));
-                services.AddSingleton<SharedNewsDiscoveryStore>();
-                services.AddSingleton<INewsDiscoveryRepository, InMemoryNewsDiscoveryRepository>();
-            }));
-
-        var client = appFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            HandleCookies = true,
-            AllowAutoRedirect = false
-        });
-        client.DefaultRequestHeaders.Add(TestAuthHandler.UserEmailHeader, email);
-        return client;
-    }
+    private HttpClient CreateClient(string email) =>
+        AdminHttpTestHelpers.CreateClient(factory, email);
 
     private static async Task<HttpResponseMessage> PostArticleAsync(
         HttpClient client,

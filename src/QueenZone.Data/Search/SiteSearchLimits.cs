@@ -14,4 +14,11 @@ public static class SiteSearchLimits
     /// up to this many hits; <c>totalCount</c> is never larger.
     /// </summary>
     public const int MaxRankedMatches = 1000;
+
+    /// <summary>
+    /// Maximum full-text candidates scanned for a typed search before the content-type filter
+    /// and final ranked-match cap are applied. This keeps rare content types discoverable without
+    /// allowing a common term to rank the entire search corpus.
+    /// </summary>
+    public const int TypedMatchScanLimit = 5000;
 }

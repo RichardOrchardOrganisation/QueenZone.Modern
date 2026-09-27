@@ -1,6 +1,6 @@
 # Sanitised OpenTofu import inventory
 
-Read-only audit artefacts for [#624](https://github.com/richardorchard/QueenZone.Modern/issues/624).
+Read-only audit artefacts for [#624](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/624).
 
 | File | Contents |
 | --- | --- |

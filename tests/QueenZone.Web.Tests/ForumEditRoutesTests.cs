@@ -8,13 +8,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumEditRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumEditRoutesTests(WebApplicationFactory<Program> factory)
+    public ForumEditRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class ForumEditRoutesTests : IClassFixture<WebApplicationFactory<P
     {
         var ownerId = Guid.NewGuid();
         var postId = await CreateOwnedPostAsync(ownerId, "Admin target");
-        var adminClient = CreateMemberClient(Guid.NewGuid(), email: "admin@test.local");
+        var adminClient = CreateAdminClient();
         var form = await adminClient.GetStringAsync($"/forum/post/{postId}/edit");
         Assert.Contains("Save changes", form);
         var token = ExtractAntiforgeryToken(form);
@@ -101,6 +101,38 @@ public sealed class ForumEditRoutesTests : IClassFixture<WebApplicationFactory<P
         var topicPath = ForumRoutes.GetTopicCanonicalPath(updated.TopicId, updated.TopicSubject);
         var topicHtml = await adminClient.GetStringAsync(topicPath);
         Assert.DoesNotContain($"href=\"/forum/post/{postId}/edit\"", topicHtml);
+    }
+
+    [Fact]
+    public async Task AllowlistedMemberEmail_CannotEditAnotherMembersPost()
+    {
+        var ownerId = Guid.NewGuid();
+        var postId = await CreateOwnedPostAsync(ownerId, "Owner body");
+        var client = CreateMemberClient(Guid.NewGuid(), email: "admin@test.local");
+
+        var response = await client.GetAsync($"/forum/post/{postId}/edit");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("You do not have permission to edit this post.", html);
+    }
+
+    [Fact]
+    public async Task AllowlistedMemberEmail_CanStillEditOwnPostInsideTheWindow()
+    {
+        var memberId = Guid.NewGuid();
+        var postId = await CreateOwnedPostAsync(memberId, "Own body");
+        var client = CreateMemberClient(memberId, email: "admin@test.local");
+        var form = await client.GetStringAsync($"/forum/post/{postId}/edit");
+        var token = ExtractAntiforgeryToken(form);
+
+        var response = await client.PostAsync($"/forum/post/{postId}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["Body"] = "Own rewrite",
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
     [Fact]
@@ -173,6 +205,17 @@ public sealed class ForumEditRoutesTests : IClassFixture<WebApplicationFactory<P
             ?? throw new InvalidOperationException("Expected in-memory forum write repository in Testing.");
         var topicId = int.Parse(Regex.Match(response.Headers.Location!.OriginalString, @"/forum/topic/(\d+)/").Groups[1].Value);
         return created.GetPostsForTopic(topicId).Single().PostId;
+    }
+
+    private HttpClient CreateAdminClient()
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            HandleCookies = true,
+            AllowAutoRedirect = false,
+        });
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserEmailHeader, "admin@test.local");
+        return client;
     }
 
     private HttpClient CreateMemberClient(Guid memberId, string displayName = "Forum Fan", string? email = null)

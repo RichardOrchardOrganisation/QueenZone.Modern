@@ -1,19 +1,19 @@
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ArticlesRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ArticlesRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>, IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public ArticlesRoutesTests(WebApplicationFactory<Program> factory)
+    public ArticlesRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -84,11 +84,7 @@ public sealed class ArticlesRoutesTests : IClassFixture<WebApplicationFactory<Pr
     [Fact]
     public async Task EmptyArchiveShowsMessageAndRejectsLaterPages()
     {
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IArticlesRepository>(new InMemoryArticlesRepository([]));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.EmptyArticles).CreateClient();
 
         var body = await client.GetStringAsync("/articles");
         var response = await client.GetAsync("/articles/page/2");
@@ -111,43 +107,7 @@ public sealed class ArticlesRoutesTests : IClassFixture<WebApplicationFactory<Pr
     [Fact]
     public async Task ArticleDetailRendersOverlayImageAuthorAndTags()
     {
-        var editorial = new InMemoryEditorialArticleRepository();
-        var articles = new QueenZone.Data.InMemoryArticlesRepository(
-            [
-                new ArticleItem(
-                    5004,
-                    "Legacy archive title",
-                    "Legacy excerpt.",
-                    "<p>Legacy body.</p>",
-                    new DateTime(2026, 5, 4, 9, 0, 0, DateTimeKind.Utc),
-                    null,
-                    "Features",
-                    true),
-            ],
-            editorial);
-        var draft = await editorial.SaveDraftAsync(
-            new EditorialArticleDraft(
-                null,
-                5004,
-                null,
-                "Overlay archive title",
-                null,
-                "Overlay excerpt.",
-                "<p>Overlay body.</p>",
-                "Overlay Author",
-                "Features",
-                "overlay,tags",
-                null,
-                "editors/admin/overlay.webp",
-                DateTimeOffset.Parse("2026-05-04T09:00:00Z")),
-            "admin");
-        await editorial.SetStatusAsync(draft.Id, EditorialArticleStatus.Published, "admin");
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IArticlesRepository>(articles);
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.OverlayImageArticle).CreateClient();
 
         var body = await client.GetStringAsync("/articles/5004/overlay-archive-title");
 
@@ -199,33 +159,7 @@ public sealed class ArticlesRoutesTests : IClassFixture<WebApplicationFactory<Pr
     [Fact]
     public async Task ArticleDetailRendersSafeSourceLinkAndPlainTextAttribution()
     {
-        var items = new[]
-        {
-            new ArticleItem(
-                5001,
-                "Article with source link",
-                "Excerpt with source.",
-                "<p>Published body.</p>",
-                new DateTime(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc),
-                "https://example.com/original-story",
-                "Features",
-                true),
-            new ArticleItem(
-                5002,
-                "Article with attribution",
-                "Attribution excerpt.",
-                "<p>Published body.</p>",
-                new DateTime(2026, 5, 2, 9, 0, 0, DateTimeKind.Utc),
-                "Queen Magazine",
-                "Features",
-                true)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IArticlesRepository>(new InMemoryArticlesRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.SourceLinkArticles).CreateClient();
 
         var linkedBody = await client.GetStringAsync("/articles/5001/article-with-source-link");
         var attributedBody = await client.GetStringAsync("/articles/5002/article-with-attribution");
@@ -238,24 +172,7 @@ public sealed class ArticlesRoutesTests : IClassFixture<WebApplicationFactory<Pr
     [Fact]
     public async Task ArticleDetailSanitizesUnsafeLegacyHtmlInBody()
     {
-        var items = new[]
-        {
-            new ArticleItem(
-                5003,
-                "Unsafe HTML article",
-                "Unsafe excerpt.",
-                "<script>alert('xss')</script><p>Safe <strong>legacy</strong> paragraph</p>",
-                new DateTime(2026, 5, 3, 9, 0, 0, DateTimeKind.Utc),
-                null,
-                null,
-                true)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IArticlesRepository>(new InMemoryArticlesRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.UnsafeHtmlArticle).CreateClient();
 
         var body = await client.GetStringAsync("/articles/5003/unsafe-html-article");
 
@@ -287,18 +204,7 @@ public sealed class ArticlesRoutesTests : IClassFixture<WebApplicationFactory<Pr
     [Fact]
     public async Task ArticlesArchiveOrdersByCreatedDateDescending()
     {
-        var items = new[]
-        {
-            new ArticleItem(3001, "Oldest article", "Oldest excerpt.", "<p>Oldest body.</p>", new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, null, true),
-            new ArticleItem(3002, "Newest article", "Newest excerpt.", "<p>Newest body.</p>", new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc), null, null, true),
-            new ArticleItem(3003, "Middle article", "Middle excerpt.", "<p>Middle body.</p>", new DateTime(2022, 3, 15, 0, 0, 0, DateTimeKind.Utc), null, null, true)
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IArticlesRepository>(new InMemoryArticlesRepository(items));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.DateOrderedArticles).CreateClient();
 
         var body = await client.GetStringAsync("/articles");
         var dates = Regex.Matches(body, "<time datetime=\"(\\d{4}-\\d{2}-\\d{2})\">")

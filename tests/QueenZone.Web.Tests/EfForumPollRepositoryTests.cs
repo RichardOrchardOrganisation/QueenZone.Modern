@@ -202,6 +202,30 @@ public sealed class EfForumPollRepositoryTests : IAsyncDisposable
         Assert.NotEmpty(errors);
     }
 
+    [Fact]
+    public async Task AdminWithoutMemberAccount_CanClosePoll()
+    {
+        var member = await SeedMemberAsync();
+        await SeedCategoryAsync();
+        var created = await writeRepository.CreateThreadAsync(new NewForumThread(
+            1,
+            member.Id,
+            member.DisplayName,
+            "Admin close",
+            "<p>Body</p>",
+            Now,
+            new NewForumPoll("Q?", false, null, null, ["One", "Two"], member.Id)));
+
+        var open = await pollRepository.GetPollWithResultsAsync(created.TopicId, null, viewerIsAdmin: true);
+        Assert.NotNull(open);
+        Assert.True(open!.CanViewerClose);
+
+        await pollRepository.ClosePollAsync(open.PollId, Guid.Empty, isAdmin: true);
+        var closed = await pollRepository.GetPollWithResultsAsync(created.TopicId, null, viewerIsAdmin: true);
+        Assert.True(closed!.IsClosed);
+        Assert.False(closed.CanViewerClose);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await dbContext.DisposeAsync();

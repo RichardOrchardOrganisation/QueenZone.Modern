@@ -14,8 +14,8 @@ public class PrivateMessagingMobileTests : E2EPageTest
 {
     private const string TestMemberIdHeader = "X-Test-Member-Id";
     private const string TestMemberNameHeader = "X-Test-Member-Name";
-    private const int PhoneWidth = 390;
-    private const int PhoneHeight = 844;
+    private const int PhoneWidth = CuratedLayoutPages.PhoneWidth;
+    private const int PhoneHeight = CuratedLayoutPages.PhoneHeight;
 
     public override BrowserNewContextOptions ContextOptions() =>
         new()
@@ -51,13 +51,6 @@ public class PrivateMessagingMobileTests : E2EPageTest
         await ExpectNoHorizontalOverflowAsync();
     }
 
-    private async Task ExpectNoHorizontalOverflowAsync()
-    {
-        var noHorizontalOverflow = await Page.EvaluateAsync<bool>(
-            "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1");
-        Assert.That(
-            noHorizontalOverflow,
-            Is.True,
-            "Messaging pages should not require horizontal scrolling on a phone viewport.");
-    }
+    private Task ExpectNoHorizontalOverflowAsync() =>
+        PageShapeAssertions.AssertNoHorizontalOverflowAsync(Page, Page.Url);
 }

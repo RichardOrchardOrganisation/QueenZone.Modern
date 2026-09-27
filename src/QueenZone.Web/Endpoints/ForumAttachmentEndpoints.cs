@@ -7,8 +7,8 @@ namespace QueenZone.Web;
 
 /// <summary>
 /// Member-gated forum attachment downloads.
-/// Modern attachments stream from private UGC storage; legacy import files redirect
-/// through the cdn2.queenzone.org Worker (Content-Disposition capable).
+/// Modern and legacy attachments both stream from private storage with
+/// <c>Content-Disposition: attachment</c>. Legacy files are not redirected to a CDN.
 /// </summary>
 public static class ForumAttachmentEndpoints
 {
@@ -17,8 +17,13 @@ public static class ForumAttachmentEndpoints
         app.MapGet("/forum/attachment/legacy/{legacyPostId:int}", async (
                 int legacyPostId,
                 IForumAttachmentRepository attachmentRepository,
+                IBlobUploadService blobUploadService,
                 CancellationToken cancellationToken) =>
-            await ServeLegacyAsync(legacyPostId, attachmentRepository, cancellationToken))
+            await ServeLegacyAsync(
+                legacyPostId,
+                attachmentRepository,
+                blobUploadService,
+                cancellationToken))
             .RequireAuthorization(MemberAuthenticationSchemes.MemberPolicy)
             .WithName("DownloadLegacyForumAttachment");
 
@@ -41,6 +46,7 @@ public static class ForumAttachmentEndpoints
     internal static async Task<IResult> ServeLegacyAsync(
         int legacyPostId,
         IForumAttachmentRepository attachmentRepository,
+        IBlobUploadService blobUploadService,
         CancellationToken cancellationToken)
     {
         var legacy = await attachmentRepository.GetLegacyAsync(legacyPostId, cancellationToken);
@@ -66,7 +72,33 @@ public static class ForumAttachmentEndpoints
             return Results.NotFound();
         }
 
-        return Results.Redirect(ForumAttachmentPaths.BuildLegacyCdnUrl(fileName));
+        try
+        {
+            var content = await blobUploadService.OpenReadAsync(
+                ForumAttachmentPaths.LegacyContainerName,
+                fileName,
+                cancellationToken);
+
+            if (content is null)
+            {
+                return Results.NotFound();
+            }
+
+            var contentType = string.IsNullOrWhiteSpace(content.ContentType)
+                ? ForumAttachmentValidator.GuessContentType(fileName)
+                : content.ContentType;
+
+            // Download disposition so PDF/HTML is not rendered on the site origin.
+            return Results.File(
+                content.Stream,
+                contentType,
+                fileDownloadName: fileName,
+                enableRangeProcessing: false);
+        }
+        catch (NotSupportedException)
+        {
+            return Results.NotFound();
+        }
     }
 
     internal static async Task<IResult> ServeModernAsync(

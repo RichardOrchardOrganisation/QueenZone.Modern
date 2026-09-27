@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,10 +31,11 @@ public interface IGalleryPhotoBlobService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lists blobs in the container along with their last-modified time. Returns an empty
-    /// list if the container does not exist.
+    /// Streams blobs in the container along with their last-modified time, one service page at
+    /// a time, so a large container is never held in memory. Yields nothing if the container
+    /// does not exist.
     /// </summary>
-    Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+    IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
         string containerName,
         CancellationToken cancellationToken = default);
 
@@ -102,18 +104,18 @@ public sealed class NullGalleryPhotoBlobService : IGalleryPhotoBlobService
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+    public IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
         string containerName,
         CancellationToken cancellationToken = default)
     {
         var prefix = containerName + "/";
         lock (sync)
         {
-            IReadOnlyList<GalleryBlobDescriptor> result = blobs.Keys
+            return blobs.Keys
                 .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .Select(key => new GalleryBlobDescriptor(key[prefix.Length..], lastModified[key]))
-                .ToList();
-            return Task.FromResult(result);
+                .ToList()
+                .ToAsyncEnumerable();
         }
     }
 
@@ -162,23 +164,21 @@ public sealed class AzureGalleryPhotoBlobService(BlobServiceClient blobServiceCl
         await blob.DeleteIfExistsAsync(cancellationToken: cancellationToken);
     }
 
-    public async Task<IReadOnlyList<GalleryBlobDescriptor>> ListBlobsAsync(
+    public async IAsyncEnumerable<GalleryBlobDescriptor> ListBlobsAsync(
         string containerName,
-        CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var container = blobServiceClient.GetBlobContainerClient(containerName);
         if (!await container.ExistsAsync(cancellationToken))
         {
-            return [];
+            yield break;
         }
 
-        var results = new List<GalleryBlobDescriptor>();
+        // GetBlobsAsync fetches one service page (up to 5,000 names) per round trip.
         await foreach (var blob in container.GetBlobsAsync(cancellationToken: cancellationToken))
         {
-            results.Add(new GalleryBlobDescriptor(blob.Name, blob.Properties.LastModified ?? DateTimeOffset.MinValue));
+            yield return new GalleryBlobDescriptor(blob.Name, blob.Properties.LastModified ?? DateTimeOffset.MinValue);
         }
-
-        return results;
     }
 }
 

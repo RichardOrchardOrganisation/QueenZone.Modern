@@ -21,12 +21,12 @@
       <input asp-for="Input.DisplayName" autocomplete="off" />
       <span asp-validation-for="Input.DisplayName"></span>
 
-      <label asp-for="Input.NewPassword"></label>
+      <label asp-for="Input.NewPassword" for="Input_NewPassword"></label>
       <input id="Input_NewPassword" name="Input.NewPassword" type="password" autocomplete="new-password" />
       <span asp-validation-for="Input.NewPassword"></span>
       <p>Leave blank to keep the current password. Existing passwords cannot be displayed because only a one-way hash is stored.</p>
 
-      <label asp-for="Input.ConfirmNewPassword"></label>
+      <label asp-for="Input.ConfirmNewPassword" for="Input_ConfirmNewPassword"></label>
       <input id="Input_ConfirmNewPassword" name="Input.ConfirmNewPassword" type="password" autocomplete="new-password" />
       <span asp-validation-for="Input.ConfirmNewPassword"></span>
 

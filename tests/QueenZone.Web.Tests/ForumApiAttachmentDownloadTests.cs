@@ -1,53 +1,66 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using QueenZone.Data;
-using QueenZone.Storage;
+using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ForumApiAttachmentDownloadTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory legacyBlobs;
+    private readonly VariantWebApplicationFactory modernDownload;
 
-    public ForumApiAttachmentDownloadTests(QueenZoneWebApplicationFactory factory)
+    public ForumApiAttachmentDownloadTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        legacyBlobs = variants.Get(WebHostVariants.TestingLegacyForumAttachmentMemoryBlobs);
+        modernDownload = variants.Get(WebHostVariants.TestingModernForumAttachmentDownload);
     }
 
+    public Task InitializeAsync() => modernDownload.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     [Fact]
-    public async Task Legacy_image_without_thumb_redirects_for_signed_in_member()
+    public async Task Legacy_image_without_thumb_streams_for_signed_in_member()
     {
-        using var client = CreateBearerClient();
+        using var client = CreateBearerClient(legacyBlobs);
 
         using var response = await client.GetAsync(
             $"{ForumApiEndpoints.RootPath}/attachments/legacy/1002");
+        var body = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(
-            "https://cdn2.queenzone.org/attachments/anoto-setlist-scan.jpg",
-            response.Headers.Location!.OriginalString);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("scan-bytes", body);
+        Assert.Null(response.Headers.Location);
+        var disposition = response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty;
+        Assert.Contains("attachment", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("anoto-setlist-scan.jpg", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("cdn2.queenzone.org", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task Legacy_non_image_redirects_for_signed_in_member()
+    public async Task Legacy_non_image_streams_for_signed_in_member()
     {
-        using var client = CreateBearerClient();
+        using var client = CreateBearerClient(legacyBlobs);
 
         using var response = await client.GetAsync(
             $"{ForumApiEndpoints.RootPath}/attachments/legacy/1101");
+        var body = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(
-            "https://cdn2.queenzone.org/attachments/opera-side-two-notes.pdf",
-            response.Headers.Location!.OriginalString);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("%PDF-notes", body);
+        Assert.Null(response.Headers.Location);
+        var disposition = response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty;
+        Assert.Contains("attachment", disposition, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("opera-side-two-notes.pdf", disposition, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -71,40 +84,8 @@ public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWeb
     [Fact]
     public async Task Modern_attachment_streams_for_signed_in_member()
     {
-        var attachmentId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
-        var memoryBlob = new MemoryBlobUploadService();
-        await memoryBlob.UploadAsync(
-            new MemoryStream(Encoding.UTF8.GetBytes("hello attachment")),
-            "notes.txt",
-            BlobUploadContainers.Forum,
-            new BlobUploadContext { PreferredBlobName = "members/test/notes.txt" });
-
-        var stored = new StoredForumAttachment(
-            attachmentId,
-            PostId: 1,
-            LegacyPostId: 9001,
-            OriginalFileName: "notes.txt",
-            BlobPath: "members/test/notes.txt",
-            ContainerName: BlobUploadContainers.Forum,
-            FileSizeBytes: 16,
-            MimeType: "text/plain",
-            UploadedAt: DateTimeOffset.UtcNow,
-            DownloadCount: 0);
-        var fixedRepo = new FixedIdAttachmentRepository(stored);
-
-        var testFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IForumAttachmentRepository>();
-                services.AddSingleton<IForumAttachmentRepository>(fixedRepo);
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService>(memoryBlob);
-            });
-        });
-
-        using var client = CreateBearerClient(testFactory);
+        var attachmentId = FixedIdAttachmentRepository.ModernAttachmentId;
+        using var client = CreateBearerClient(modernDownload);
 
         using var response = await client.GetAsync(
             $"{ForumApiEndpoints.RootPath}/attachments/9001/{attachmentId}");
@@ -112,7 +93,7 @@ public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWeb
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("hello attachment", body);
-        Assert.Equal(1, fixedRepo.DownloadCount);
+        Assert.Equal(1, modernDownload.FixedForumAttachment!.DownloadCount);
         var disposition = response.Content.Headers.ContentDisposition?.ToString() ?? string.Empty;
         Assert.Contains("notes.txt", disposition, StringComparison.OrdinalIgnoreCase);
     }
@@ -146,18 +127,20 @@ public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWeb
         var paths = payload.GetProperty("paths");
 
         Assert.True(paths.TryGetProperty("/api/v1/forum/attachments/legacy/{legacyPostId}", out var legacy));
-        Assert.True(legacy.TryGetProperty("get", out _));
+        Assert.True(legacy.TryGetProperty("get", out var legacyGet));
+        Assert.True(legacyGet.GetProperty("responses").TryGetProperty("200", out _));
+        Assert.False(legacyGet.GetProperty("responses").TryGetProperty("302", out _));
         Assert.True(paths.TryGetProperty("/api/v1/forum/attachments/{legacyPostId}/{attachmentId}", out var modern));
         Assert.True(modern.TryGetProperty("get", out _));
     }
 
-    private HttpClient CreateBearerClient() => CreateBearerClient(factory);
-
     private static HttpClient CreateBearerClient(WebApplicationFactory<Program> source)
     {
+        var memberId = Guid.NewGuid();
+        MemberBearerAccounts.Ensure(source.Services, memberId, $"{memberId:N}@example.test", "Forum Attach Member");
         using var scope = source.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
-        var token = issuer.IssueAccessToken(Guid.NewGuid(), "attach@example.test", "Forum Attach Member");
+        var token = issuer.IssueAccessToken(memberId, "attach@example.test", "Forum Attach Member");
         var client = source.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -165,48 +148,5 @@ public sealed class ForumApiAttachmentDownloadTests : IClassFixture<QueenZoneWeb
         });
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
-    }
-
-    private sealed class FixedIdAttachmentRepository(StoredForumAttachment attachment) : IForumAttachmentRepository
-    {
-        public int DownloadCount { get; private set; }
-
-        public Task AddAttachmentsAsync(
-            int legacyPostId,
-            IEnumerable<NewForumAttachment> attachments,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<IReadOnlyList<StoredForumAttachment>> GetByLegacyPostIdsAsync(
-            IReadOnlyCollection<int> legacyPostIds,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<StoredForumAttachment>>(
-                legacyPostIds.Contains(attachment.LegacyPostId) ? [attachment] : []);
-
-        public Task<StoredForumAttachment?> GetAsync(
-            int legacyPostId,
-            Guid attachmentId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(
-                legacyPostId == attachment.LegacyPostId && attachmentId == attachment.Id
-                    ? attachment
-                    : null);
-
-        public Task<LegacyForumAttachmentLookup?> GetLegacyAsync(
-            int legacyPostId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<LegacyForumAttachmentLookup?>(null);
-
-        public Task IncrementDownloadCountAsync(
-            Guid attachmentId,
-            CancellationToken cancellationToken = default)
-        {
-            if (attachmentId == attachment.Id)
-            {
-                DownloadCount += 1;
-            }
-
-            return Task.CompletedTask;
-        }
     }
 }

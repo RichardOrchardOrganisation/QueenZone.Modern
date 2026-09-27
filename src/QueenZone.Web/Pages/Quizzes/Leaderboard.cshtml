@@ -1,0 +1,42 @@
+@page "/quizzes/leaderboard"
+@model LeaderboardModel
+@using QueenZone.Data
+@{
+  var scope = Model.Scope;
+  var isDaily = scope == QuizSprintBoardScope.Daily;
+  var (heading, standfirst, empty) = scope switch
+  {
+    QuizSprintBoardScope.AllTime => ("Best runs", "Each member's single best sixty-second run, ever.", "No Sprint scores yet. Be the first on the board."),
+    QuizSprintBoardScope.Total => ("Total points", "Every point a member has scored across all their runs.", "No Sprint scores yet. Be the first on the board."),
+    _ => ("Today's leaderboard", "Each member's best sixty-second run today. The board resets at midnight UTC.", "No scores yet today. Be the first on the board."),
+  };
+  string TabClass(QuizSprintBoardScope tab) => scope == tab ? "qz-sprint-tabs__tab qz-sprint-tabs__tab--active" : "qz-sprint-tabs__tab";
+  string? Current(QuizSprintBoardScope tab) => scope == tab ? "page" : null;
+}
+
+<section class="qz-sprint-results qz-band-dark">
+  <partial name="_PictureImage" model='@(("/design-system/assets/crest-white.png", "", false, "qz-sprint-results__crest"))' />
+  <div class="qz-container">
+    <p class="qz-sprint__eyebrow">Quiz Sprint</p>
+    <h1 class="qz-sprint-intro__title">@heading</h1>
+    <p class="qz-sprint-intro__standfirst">@standfirst</p>
+    <div class="qz-sprint__buttons"><a class="qz-sprint__cta" href="/quizzes/sprint">Play the sprint</a></div>
+  </div>
+</section>
+
+<section class="qz-section qz-section--warm">
+  <div class="qz-container">
+    <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+    <nav class="qz-sprint-tabs" aria-label="Leaderboard period">
+      <a class="@TabClass(QuizSprintBoardScope.Daily)" href="/quizzes/leaderboard" aria-current="@Current(QuizSprintBoardScope.Daily)">Today</a>
+      <a class="@TabClass(QuizSprintBoardScope.AllTime)" href="/quizzes/leaderboard?scope=all" aria-current="@Current(QuizSprintBoardScope.AllTime)">Best run</a>
+      <a class="@TabClass(QuizSprintBoardScope.Total)" href="/quizzes/leaderboard?scope=total" aria-current="@Current(QuizSprintBoardScope.Total)">Total points</a>
+    </nav>
+    <partial name="_SprintBoard" model='@((Model.Board, false, empty))' />
+    <p class="qz-quiz-leaderboard__total">@Model.Board.Players member@(Model.Board.Players == 1 ? "" : "s") ranked@(isDaily ? " today" : "").</p>
+    @if (!Model.SignedIn)
+    {
+      <p class="qz-quiz-leaderboard__total">Scores are only added for signed-in members. <a href="/account/login?returnUrl=%2Fquizzes%2Fleaderboard">Sign in to be ranked</a>.</p>
+    }
+  </div>
+</section>

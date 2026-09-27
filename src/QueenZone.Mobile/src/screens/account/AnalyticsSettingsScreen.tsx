@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Linking, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useState } from 'react';
 import { useAnalyticsConsent } from '../../analytics/consent';
 import { updateAnalyticsConsent } from '../../analytics/telemetry';
@@ -7,6 +7,7 @@ import type { HomeStackParamList } from '../../navigation/types';
 import { space, type, useTheme } from '../../theme';
 import { Button } from '../../ui/Button';
 import { Eyebrow } from '../../ui/Eyebrow';
+import { openExternalUrl } from '../../ui/openExternalUrl';
 import { SettingsRow } from '../../ui/SettingsRow';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'AnalyticsSettings'>;
@@ -48,7 +49,7 @@ export function AnalyticsSettingsScreen(_: Props) {
         accessibilityLabel="Share anonymous analytics"
       />
       <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl }}>
-        <Button label="Read privacy policy" variant="outline" onPress={() => void Linking.openURL(privacyUrl)} />
+        <Button label="Read privacy policy" variant="outline" onPress={() => void openExternalUrl(privacyUrl)} />
       </View>
     </ScrollView>
   );

@@ -10,6 +10,21 @@ output "import_contract" {
   }
 }
 
+output "log_analytics_workspace_id" {
+  description = "Log Analytics workspace that receives site telemetry and SQL audit events."
+  value       = azurerm_log_analytics_workspace.production.id
+}
+
+output "action_group_id" {
+  description = "Imported production action group that receives qz-prod-* alerts. Empty in non-production environments."
+  value       = try(azurerm_monitor_action_group.alerts[0].id, null)
+}
+
+output "possible_outbound_ip_addresses" {
+  description = "Every outbound IP address the App Service stamp may assign to this site."
+  value       = azurerm_linux_web_app.production.possible_outbound_ip_address_list
+}
+
 output "web_app_id" {
   description = "Managed production web app resource ID."
   value       = azurerm_linux_web_app.production.id

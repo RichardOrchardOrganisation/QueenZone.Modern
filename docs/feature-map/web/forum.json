@@ -1,0 +1,209 @@
+{
+  "area": "forum",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [
+        "forum boards",
+        "forum index"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/SmokeTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
+      "id": "web.forum.index",
+      "name": "Forum",
+      "page": "Pages/Forum.cshtml",
+      "url": "/forum",
+      "entry": "Header Forum, or open /forum"
+    },
+    {
+      "aliases": [
+        "the music"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/Category.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
+      "id": "web.forum.category",
+      "name": "Forum board",
+      "page": "Pages/Forum/Category.cshtml",
+      "url": "/forum/{id}/{slug}",
+      "entry": "Forum → board"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/CategoryPage.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.forum.categoryPage",
+      "name": "Forum board page",
+      "page": "Pages/Forum/CategoryPage.cshtml",
+      "url": "/forum/{id}/{slug}/page/{pageNumber}",
+      "entry": "Forum board → next page"
+    },
+    {
+      "aliases": [
+        "ranking thread"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/Topic.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/SmokeTests.cs",
+        "tests/QueenZone.Web.E2E/ForumPostingWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
+      "id": "web.forum.topic",
+      "name": "Forum topic",
+      "page": "Pages/Forum/Topic.cshtml",
+      "url": "/forum/topic/{topicId}/{slug}",
+      "entry": "Forum board → topic"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/TopicPage.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.forum.topicPage",
+      "name": "Forum topic page",
+      "page": "Pages/Forum/TopicPage.cshtml",
+      "url": "/forum/topic/{topicId}/{slug}/page/{pageNumber}",
+      "entry": "Forum topic → next page"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/NewThread.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/ForumPostingWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.forum.newThread",
+      "name": "New thread",
+      "page": "Pages/Forum/NewThread.cshtml",
+      "url": "/forum/c/{categorySlug}/new-thread",
+      "entry": "Forum board → new thread"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/EditPost.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.forum.editPost",
+      "name": "Edit post",
+      "page": "Pages/Forum/EditPost.cshtml",
+      "url": "/forum/post/{postId}/edit",
+      "entry": "Forum post → edit"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/Report.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.forum.report",
+      "name": "Report a post",
+      "page": "Pages/Forum/Report.cshtml",
+      "url": "/forum/post/{postId}/report",
+      "entry": "Forum post → report"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/Block.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/ForumBlockWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.forum.block",
+      "name": "Block a member",
+      "page": "Pages/Forum/Block.cshtml",
+      "url": "/forum/post/{postId}/block",
+      "entry": "Forum post → block author"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/HideAuthor.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.forum.hideAuthor",
+      "name": "Hide author",
+      "page": "Pages/Forum/HideAuthor.cshtml",
+      "url": "/forum/post/{postId}/hide-author",
+      "entry": "Forum post → hide author"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/ArchiveAuthor.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.forum.archiveAuthor",
+      "name": "Archive author",
+      "page": "Pages/Forum/ArchiveAuthor.cshtml",
+      "url": "/forum/archive-authors/{legacyUserId}",
+      "entry": "Forum post → archive author profile"
+    }
+  ]
+}

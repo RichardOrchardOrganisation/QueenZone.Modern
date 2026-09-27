@@ -43,12 +43,12 @@ Those designs become **incorrect or leaky** only if instance count &gt; 1 (stale
 
 ## Archived / deferred work (cost)
 
-Tracked under epic [#312](https://github.com/richardorchard/QueenZone.Modern/issues/312) Phase D:
+Tracked under epic [#312](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/312) Phase D:
 
 | Issue | Title | Disposition |
 | --- | --- | --- |
-| [#323](https://github.com/richardorchard/QueenZone.Modern/issues/323) | Distributed cache/rate-limits (Redis) | **Not planned** while on single B1 — closed as not planned |
-| [#326](https://github.com/richardorchard/QueenZone.Modern/issues/326) | Document scale-out readiness | **Done** by this document |
+| [#323](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/323) | Distributed cache/rate-limits (Redis) | **Not planned** while on single B1 — closed as not planned |
+| [#326](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/326) | Document scale-out readiness | **Done** by this document |
 
 Do not reopen #323 unless this document is updated to allow multi-instance hosting **and** a paid distributed cache (or an accepted alternative).
 
@@ -58,9 +58,9 @@ These improve reliability on the current B1 single worker and do **not** require
 
 | Issue | Title | Notes |
 | --- | --- | --- |
-| [#324](https://github.com/richardorchard/QueenZone.Modern/issues/324) | Azure SQL retry + sane command timeouts | Transient fault handling; no new Azure SKU |
-| [#325](https://github.com/richardorchard/QueenZone.Modern/issues/325) | Readiness health checks (SQL/blob) | Ops signal only; keep `/health` cheap for liveness |
-| [#330](https://github.com/richardorchard/QueenZone.Modern/issues/330) | Per-member daily upload quotas | Process-local; container/size caps still enforced; AV scanning not planned |
+| [#324](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/324) | Azure SQL retry + sane command timeouts | Transient fault handling; no new Azure SKU |
+| [#325](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/325) | Readiness health checks (SQL/blob) | Ops signal only; keep `/health` cheap for liveness |
+| [#330](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/330) | Per-member daily upload quotas | Process-local; container/size caps still enforced; AV scanning not planned |
 
 ## If scale-out is reconsidered later
 
@@ -108,4 +108,4 @@ Do not cache watch state, poll viewer/vote state, attachment bytes, or fan-perfo
 - [`azure-hosting-plan.md`](azure-hosting-plan.md) — overall Azure shape  
 - [`opentofu-inventory.md`](opentofu-inventory.md) — live estate ownership for OpenTofu  
 - [`public-query-cache.md`](public-query-cache.md) — process-local public query cache  
-- Epic [#312](https://github.com/richardorchard/QueenZone.Modern/issues/312) — performance / security improvement backlog  
+- Epic [#312](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/312) — performance / security improvement backlog  

@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Extensions.DependencyInjection;
+using QueenZone.Data;
+using QueenZone.Storage;
+using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
@@ -9,7 +12,7 @@ namespace QueenZone.Web.Tests;
 /// Shared <see cref="WebApplicationFactory{TEntryPoint}"/> for deterministic Web.Tests hosts.
 /// Always uses the Testing environment so sample/in-memory data and test auth stay enabled.
 /// </summary>
-public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>
+public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IResettableHostFixture
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -22,12 +25,6 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>
     {
     }
 
-    /// <summary>
-    /// Creates a factory that applies additional DI configuration on top of Testing defaults.
-    /// </summary>
-    public static QueenZoneWebApplicationFactory WithServices(Action<IServiceCollection> configureServices) =>
-        new ConfiguredFactory(configureServices);
-
     public HttpClient CreateAnonymousClient(bool allowAutoRedirect = true) =>
         CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -38,11 +35,53 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>
     public HttpClient CreateAdminClient(string? email = null, bool allowAutoRedirect = false) =>
         AdminHttpTestHelpers.CreateClient(this, email ?? AdminHttpTestHelpers.AdminEmail);
 
-    private sealed class ConfiguredFactory(Action<IServiceCollection> configureServices) : QueenZoneWebApplicationFactory
+    public virtual async Task ResetAsync()
     {
-        protected override void ConfigureTestServices(IWebHostBuilder builder)
+        Services.GetService<HelpRequestRateLimiter>()?.Reset();
+        if (Services.GetService<IEditorialArticleRepository>() is InMemoryEditorialArticleRepository editorial)
         {
-            builder.ConfigureTestServices(configureServices);
+            editorial.Clear();
         }
+
+        Services.GetService<SharedSearchIndexStore>()?.Clear();
+        if (Services.GetService<IMemberAccountRepository>() is InMemoryMemberAccountRepository members)
+        {
+            members.Clear();
+        }
+
+        Services.GetService<SharedDeviceTokenStore>()?.Clear();
+        if (Services.GetService<IBlobStorageBackend>() is InMemoryBlobStorageBackend blobs)
+        {
+            blobs.Clear();
+        }
+
+        if (Services.GetService<IBlobUploadService>() is MemoryBlobUploadService memoryBlobs)
+        {
+            memoryBlobs.Reset();
+        }
+
+        if (Services.GetService<IForumWriteRepository>() is InMemoryForumWriteRepository forum)
+        {
+            forum.Clear();
+        }
+
+        var publicQueries = Services.GetService<PublicQueryCacheService>();
+        publicQueries?.InvalidateTriviaCache();
+        publicQueries?.InvalidateQuotesCache();
+        publicQueries?.InvalidateNewsCache();
+        publicQueries?.InvalidateArticlesCache();
+        publicQueries?.InvalidateBiographyCache();
+        publicQueries?.InvalidateHistoryCache();
+        publicQueries?.InvalidateFanPerformanceCache();
+        publicQueries?.InvalidatePhotoCache();
+        publicQueries?.InvalidateDiscographyCache();
+        publicQueries?.InvalidateForumStatsCache();
+        if (Services.GetService<IOutputCacheStore>() is not { } outputCache)
+        {
+            return;
+        }
+
+        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
+        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
     }
 }
