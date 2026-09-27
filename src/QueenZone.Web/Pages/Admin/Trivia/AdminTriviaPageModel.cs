@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Admin.Trivia;
 
-public abstract class AdminTriviaPageModel : PageModel
+public abstract class AdminTriviaPageModel : AdminEditPageModel
 {
     public const string AntiforgeryTokenFieldName = "__RequestVerificationToken";
 

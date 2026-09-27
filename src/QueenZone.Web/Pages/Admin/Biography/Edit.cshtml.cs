@@ -13,21 +13,19 @@ public sealed class EditModel(IBiographyRepository biographyRepository) : AdminB
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
-    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
-    {
-        var chapter = await biographyRepository.GetByIdAsync(id, cancellationToken);
-        if (chapter is null)
-        {
-            return NotFound();
-        }
-
-        StatusMessage = TempData[MessageKey] as string;
-        StatusMessageKind = TempData[MessageKindKey] as string;
-        ViewData["Title"] = "Edit biography chapter";
-        Breadcrumbs = AdminBreadcrumbs.Page("Biography", "/admin/biography", "Edit chapter");
-        Form = BuildForm(chapter, ToDraft(chapter), null);
-        return Page();
-    }
+    public Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken) =>
+        LoadEditAsync(
+            id,
+            biographyRepository.GetByIdAsync,
+            chapter =>
+            {
+                StatusMessage = TempData[MessageKey] as string;
+                StatusMessageKind = TempData[MessageKindKey] as string;
+                ViewData["Title"] = "Edit biography chapter";
+                Breadcrumbs = AdminBreadcrumbs.Page("Biography", "/admin/biography", "Edit chapter");
+                Form = BuildForm(chapter, ToDraft(chapter), null);
+            },
+            cancellationToken);
 
     public static ChapterFormViewModel BuildForm(
         BiographyChapterItem chapter,

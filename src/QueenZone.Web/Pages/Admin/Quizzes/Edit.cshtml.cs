@@ -15,22 +15,20 @@ public sealed class EditModel(IQuizRepository quizRepository) : AdminQuizPageMod
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
-    public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
-    {
-        var quiz = await quizRepository.GetByIdAsync(id, cancellationToken);
-        if (quiz is null)
-        {
-            return NotFound();
-        }
-
-        Quiz = quiz;
-        StatusMessage = TempData[MessageKey] as string;
-        StatusMessageKind = TempData[MessageKindKey] as string;
-        ViewData["Title"] = "Edit quiz";
-        Breadcrumbs = AdminBreadcrumbs.Page("Quizzes", "/admin/quizzes", "Edit quiz");
-        Form = BuildForm(quiz, QuizFormViewModel.ToDraft(quiz), null);
-        return Page();
-    }
+    public Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken) =>
+        LoadEditAsync(
+            id,
+            quizRepository.GetByIdAsync,
+            quiz =>
+            {
+                Quiz = quiz;
+                StatusMessage = TempData[MessageKey] as string;
+                StatusMessageKind = TempData[MessageKindKey] as string;
+                ViewData["Title"] = "Edit quiz";
+                Breadcrumbs = AdminBreadcrumbs.Page("Quizzes", "/admin/quizzes", "Edit quiz");
+                Form = BuildForm(quiz, QuizFormViewModel.ToDraft(quiz), null);
+            },
+            cancellationToken);
 
     public static QuizFormViewModel BuildForm(
         QuizAdminDetail quiz,
