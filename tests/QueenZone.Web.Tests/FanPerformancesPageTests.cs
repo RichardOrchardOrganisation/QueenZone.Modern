@@ -98,6 +98,8 @@ public sealed class FanPerformancesPageTests : IClassFixture<ExternalCookieWebAp
 
         var css = await client.GetStringAsync("/css/site.css");
 
+        // Selector grouping is the contract here: enhanced audio must reuse the accessible visually-hidden
+        // rule rather than a private copy. Computed style needs a browser, so the served CSS text is checked.
         var sharedRule = Regex.Match(
             css,
             @"\.visually-hidden,\s*\.qz-stage-list\.is-enhanced \.qz-stage-row__audio\s*\{(?<body>[^}]*)\}");

@@ -16,19 +16,32 @@ public sealed class AdminNewsActionLayeringTests
     }
 
     [Fact]
-    public void PagesSource_DoesNotReferenceDbContextOrEntityFramework()
+    public void PageModels_DoNotDependOnDbContextEntityFrameworkOrServiceProvider()
     {
-        var pagesDir = Path.Combine(FindRepoRoot(), "src", "QueenZone.Web", "Pages");
-        Assert.True(Directory.Exists(pagesDir), pagesDir);
-        var files = Directory.GetFiles(pagesDir, "*.cs", SearchOption.AllDirectories);
-        Assert.NotEmpty(files);
+        var pageModels = typeof(Program).Assembly.GetTypes()
+            .Where(type => type.Namespace?.StartsWith("QueenZone.Web.Pages", StringComparison.Ordinal) == true
+                && typeof(Microsoft.AspNetCore.Mvc.RazorPages.PageModel).IsAssignableFrom(type))
+            .ToList();
+        Assert.NotEmpty(pageModels);
 
-        foreach (var file in files)
+        foreach (var pageModel in pageModels)
         {
-            var text = File.ReadAllText(file);
-            Assert.DoesNotContain("Microsoft.EntityFrameworkCore", text);
-            Assert.DoesNotContain("QueenZoneDbContext", text);
-            Assert.DoesNotContain("IServiceProvider.GetService", text);
+            var dependencies = pageModel
+                .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .SelectMany(ctor => ctor.GetParameters())
+                .Select(parameter => parameter.ParameterType)
+                .Concat(pageModel
+                    .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Select(field => field.FieldType));
+
+            foreach (var dependency in dependencies)
+            {
+                Assert.False(
+                    dependency == typeof(QueenZoneDbContext)
+                        || dependency == typeof(IServiceProvider)
+                        || dependency.Namespace?.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) == true,
+                    $"{pageModel.FullName} depends on {dependency.FullName}; page models go through services.");
+            }
         }
     }
 
@@ -39,21 +52,5 @@ public sealed class AdminNewsActionLayeringTests
         Assert.DoesNotContain(typeof(IServiceProvider), parameterTypes);
         Assert.DoesNotContain(typeof(QueenZoneDbContext), parameterTypes);
         Assert.Contains(writeService, parameterTypes);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "QueenZone.sln")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("Could not find QueenZone.sln from the test output directory.");
     }
 }
