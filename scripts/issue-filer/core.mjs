@@ -139,6 +139,33 @@ function isCheckGap(candidate, findingRules) {
   return Boolean(info?.check);
 }
 
+function queueUnmatchedCreates({ unmatched, existing, loop, now, stormThreshold, skipped, matched }) {
+  const ingested = unmatched.filter((candidate) => candidate.ingested);
+  const live = unmatched.filter((candidate) => !candidate.ingested);
+  if (unmatched.length > stormThreshold) {
+    if (ingested.length > 0) {
+      for (const candidate of live) {
+        skipped.push({ candidate, reason: 'storm' });
+      }
+      return ingested;
+    }
+    for (const candidate of unmatched) {
+      skipped.push({ candidate, reason: 'storm' });
+    }
+    const storm = stormCandidate(unmatched, loop, now);
+    const stormMatch = findMatch(storm, existing);
+    if (stormMatch) {
+      matched.push({ candidate: storm, match: stormMatch });
+      return [];
+    }
+    return [storm];
+  }
+  if (ingested.length > 0) {
+    return [...ingested, ...live];
+  }
+  return unmatched;
+}
+
 function stormCandidate(ranked, loop, now) {
   const date = isoDate(now);
   return {
@@ -223,21 +250,15 @@ export function planFilings({
     }
   }
 
-  const createQueue = [];
-  if (unmatched.length > stormThreshold) {
-    for (const candidate of unmatched) {
-      skipped.push({ candidate, reason: 'storm' });
-    }
-    const storm = stormCandidate(unmatched, loop, clock);
-    const stormMatch = findMatch(storm, existing);
-    if (stormMatch) {
-      matched.push({ candidate: storm, match: stormMatch });
-    } else {
-      createQueue.push(storm);
-    }
-  } else {
-    createQueue.push(...unmatched);
-  }
+  const createQueue = queueUnmatchedCreates({
+    unmatched,
+    existing,
+    loop,
+    now: clock,
+    stormThreshold,
+    skipped,
+    matched,
+  });
 
   for (const { candidate, match } of matched) {
     if (match.state === 'open') {
