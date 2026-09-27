@@ -1,11 +1,10 @@
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.OutputCaching;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Admin.Polls;
 
-public abstract class AdminPollPageModel : PageModel
+public abstract class AdminPollPageModel : AdminEditPageModel
 {
     public const string AntiforgeryTokenFieldName = "__RequestVerificationToken";
 
