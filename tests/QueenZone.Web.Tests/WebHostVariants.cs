@@ -832,8 +832,10 @@ public static class WebHostVariants
     private static void AddIsolatedTrivia(IServiceCollection services, HostServiceContext context)
     {
         context.Trivia ??= new SharedTriviaStore();
+        services.RemoveAll<SharedTriviaStore>();
         services.RemoveAll<ITriviaRepository>();
-        services.AddSingleton<ITriviaRepository>(new InMemoryTriviaRepository(context.Trivia));
+        services.AddSingleton(context.Trivia);
+        services.AddSingleton<ITriviaRepository>(_ => new InMemoryTriviaRepository(context.Trivia));
     }
 
     private static void AddSequentialTrivia(IServiceCollection services, HostServiceContext context)
