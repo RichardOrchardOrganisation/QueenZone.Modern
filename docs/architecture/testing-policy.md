@@ -37,6 +37,12 @@ Good targets:
 
 Unit tests must run on every build and in every pull request.
 
+#### Repository contract tests
+
+When a repository interface has both an in-memory implementation used by route tests and an EF implementation, put observable behavior in an abstract test class. Keep each `[Fact]` in that base class and derive one concrete class for the in-memory repository and one for EF over SQLite. The subclasses supply the repository and equivalent seed members; xUnit runs every inherited case against both implementations. See `PrivateMessageRepositoryContractTests` and `QuizQuestionSubmissionRepositoryContractTests`.
+
+Assert results through the interface (ordering, paging, validation, state transitions, and visibility). Keep provider-specific checks such as SQL persistence, execution strategies, locking, and audit rows in the concrete class. If a behavior cannot pass for both, document the intentional difference beside its provider-specific test rather than silently duplicating or skipping the case. SQLite contract coverage does not replace the opt-in SQL Server probes for provider-specific mappings and writes.
+
 Code coverage is reported for the default automated test suite. Treat coverage as a review signal, not as a replacement for useful assertions. New or changed pure logic should normally include targeted unit coverage, especially for canonical routes, pagination, visibility rules, date formatting, and HTML sanitisation.
 
 ### Web Integration Tests

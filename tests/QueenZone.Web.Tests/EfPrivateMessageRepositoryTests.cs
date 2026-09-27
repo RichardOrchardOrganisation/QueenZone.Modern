@@ -7,7 +7,7 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
+public sealed class EfPrivateMessageRepositoryTests : PrivateMessageRepositoryContractTests, IAsyncDisposable
 {
     private readonly SqliteConnection connection;
     private readonly QueenZoneDbContext dbContext;
@@ -16,6 +16,13 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     private readonly Guid aliceId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private readonly Guid bobId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private readonly Guid carolId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+    protected override IPrivateMessageRepository Repository => repository;
+    protected override Guid AliceId => aliceId;
+    protected override Guid BobId => bobId;
+    protected override Guid CarolId => carolId;
+    protected override string BobName => "Bob EF";
+    protected override string CarolName => "Carol EF";
 
     public EfPrivateMessageRepositoryTests()
     {
@@ -160,57 +167,17 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Inbox_OrdersByLastMessageSortKey_AndHidesOtherConversations()
+    public async Task Reply_PersistsLastMessageSortKeyAtTheMessageTip()
     {
-        await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Older",
-            DateTimeOffset.Parse("2026-08-02T08:00:00Z"));
-        await repository.SendNewOrExistingAsync(
-            aliceId,
-            carolId,
-            "Newer",
-            DateTimeOffset.Parse("2026-08-02T09:00:00Z"));
+        var created = await repository.SendNewOrExistingAsync(aliceId, bobId, "Start", DateTimeOffset.Parse("2026-08-02T12:00:00Z"));
+        await repository.ReplyAsync(created.ConversationId!.Value, bobId, "Reply", DateTimeOffset.Parse("2026-08-02T12:01:00Z"));
 
-        var inbox = await repository.GetInboxAsync(aliceId);
-        Assert.Equal(["Carol EF", "Bob EF"], inbox.Items.Select(i => i.OtherParticipantDisplayName).ToArray());
-
-        var bobInbox = await repository.GetInboxAsync(bobId);
-        Assert.DoesNotContain(bobInbox.Items, i => i.OtherParticipantId == carolId);
-    }
-
-    [Fact]
-    public async Task Inbox_OrdersByLastMessageSortKey_EvenWhenTimestampsSkew()
-    {
-        // Insert Carol first with a late wall-clock timestamp, then Bob with an earlier timestamp.
-        // SortKey (insert order) must win inbox ranking over LastMessageAt.
-        await repository.SendNewOrExistingAsync(
-            aliceId,
-            carolId,
-            "Carol first insert",
-            DateTimeOffset.Parse("2026-08-02T20:00:00Z"));
-        await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Bob later insert, earlier clock",
-            DateTimeOffset.Parse("2026-08-02T08:00:00Z"));
-
-        var inbox = await repository.GetInboxAsync(aliceId);
-        Assert.Equal(["Bob EF", "Carol EF"], inbox.Items.Select(i => i.OtherParticipantDisplayName).ToArray());
-        Assert.True(inbox.Items[0].LastMessageAt < inbox.Items[1].LastMessageAt);
-
-        var bobConversation = await dbContext.PrivateConversations
-            .AsNoTracking()
-            .SingleAsync(c =>
-                (c.MemberLowId == aliceId && c.MemberHighId == bobId)
-                || (c.MemberLowId == bobId && c.MemberHighId == aliceId));
-        var carolConversation = await dbContext.PrivateConversations
-            .AsNoTracking()
-            .SingleAsync(c =>
-                (c.MemberLowId == aliceId && c.MemberHighId == carolId)
-                || (c.MemberLowId == carolId && c.MemberHighId == aliceId));
-        Assert.True(bobConversation.LastMessageSortKey > carolConversation.LastMessageSortKey);
+        var conversation = await dbContext.PrivateConversations.AsNoTracking()
+            .SingleAsync(c => c.Id == created.ConversationId.Value);
+        var tipSortKey = await dbContext.PrivateMessages.AsNoTracking()
+            .Where(m => m.ConversationId == created.ConversationId.Value)
+            .MaxAsync(m => m.SortKey);
+        Assert.Equal(tipSortKey, conversation.LastMessageSortKey);
     }
 
     [Fact]
@@ -230,29 +197,6 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Archive_HidesConversationFromInbox_ButNotForOtherParticipant()
-    {
-        var created = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Archive me",
-            DateTimeOffset.Parse("2026-08-03T09:00:00Z"));
-        var conversationId = created.ConversationId!.Value;
-
-        Assert.True(await repository.ArchiveConversationAsync(conversationId, aliceId));
-
-        var aliceInbox = await repository.GetInboxAsync(aliceId);
-        Assert.Empty(aliceInbox.Items);
-
-        var bobInbox = await repository.GetInboxAsync(bobId);
-        Assert.Single(bobInbox.Items);
-
-        var aliceArchived = await repository.GetArchivedInboxAsync(aliceId);
-        Assert.Single(aliceArchived.Items);
-        Assert.Equal(bobId, aliceArchived.Items[0].OtherParticipantId);
-    }
-
-    [Fact]
     public async Task Archive_ReturnsFalse_WhenMemberIsNotParticipant()
     {
         var created = await repository.SendNewOrExistingAsync(
@@ -262,68 +206,6 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
             DateTimeOffset.Parse("2026-08-03T09:05:00Z"));
 
         Assert.False(await repository.ArchiveConversationAsync(created.ConversationId!.Value, carolId));
-    }
-
-    [Fact]
-    public async Task NewMessage_UnarchivesConversation_ForBothParticipants()
-    {
-        var created = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Start",
-            DateTimeOffset.Parse("2026-08-03T09:10:00Z"));
-        var conversationId = created.ConversationId!.Value;
-
-        await repository.ArchiveConversationAsync(conversationId, aliceId);
-        Assert.Empty((await repository.GetInboxAsync(aliceId)).Items);
-
-        await repository.ReplyAsync(
-            conversationId,
-            bobId,
-            "New reply reopens it",
-            DateTimeOffset.Parse("2026-08-03T09:11:00Z"));
-
-        var aliceInbox = await repository.GetInboxAsync(aliceId);
-        Assert.Single(aliceInbox.Items);
-
-        var aliceArchived = await repository.GetArchivedInboxAsync(aliceId);
-        Assert.Empty(aliceArchived.Items);
-    }
-
-    [Fact]
-    public async Task Unarchive_MovesConversationBackToInbox()
-    {
-        var created = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Toggle me",
-            DateTimeOffset.Parse("2026-08-03T09:15:00Z"));
-        var conversationId = created.ConversationId!.Value;
-
-        await repository.ArchiveConversationAsync(conversationId, aliceId);
-        Assert.True(await repository.UnarchiveConversationAsync(conversationId, aliceId));
-
-        Assert.Single((await repository.GetInboxAsync(aliceId)).Items);
-        Assert.Empty((await repository.GetArchivedInboxAsync(aliceId)).Items);
-    }
-
-    [Fact]
-    public async Task Remove_HidesConversationFromInbox_ButNotForOtherParticipant()
-    {
-        var created = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Remove me",
-            DateTimeOffset.Parse("2026-08-03T09:00:00Z"));
-        var conversationId = created.ConversationId!.Value;
-
-        Assert.True(await repository.RemoveConversationAsync(conversationId, aliceId));
-
-        var aliceInbox = await repository.GetInboxAsync(aliceId);
-        Assert.Empty(aliceInbox.Items);
-
-        var bobInbox = await repository.GetInboxAsync(bobId);
-        Assert.Single(bobInbox.Items);
     }
 
     [Fact]
@@ -352,70 +234,6 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
 
         Assert.True(await repository.RemoveConversationAsync(conversationId, bobId));
         Assert.Equal(0, await repository.CountUnreadConversationsAsync(bobId));
-    }
-
-    [Fact]
-    public async Task NewMessage_RestoresRemovedConversation_ForBothParticipants()
-    {
-        var created = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Start",
-            DateTimeOffset.Parse("2026-08-03T09:10:00Z"));
-        var conversationId = created.ConversationId!.Value;
-
-        await repository.RemoveConversationAsync(conversationId, aliceId);
-        Assert.Empty((await repository.GetInboxAsync(aliceId)).Items);
-
-        await repository.ReplyAsync(
-            conversationId,
-            bobId,
-            "New reply reopens it",
-            DateTimeOffset.Parse("2026-08-03T09:11:00Z"));
-
-        var aliceInbox = await repository.GetInboxAsync(aliceId);
-        Assert.Single(aliceInbox.Items);
-    }
-
-    [Fact]
-    public async Task Reply_UpdatesPreviewAndSortKeyTip_KeepsMonotonicLastMessageAt()
-    {
-        var created = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Start",
-            DateTimeOffset.Parse("2026-08-02T12:00:00Z"));
-        var conversationId = created.ConversationId!.Value;
-
-        await repository.ReplyAsync(
-            conversationId,
-            bobId,
-            "Newer reply",
-            DateTimeOffset.Parse("2026-08-02T12:02:00Z"));
-        await repository.ReplyAsync(
-            conversationId,
-            aliceId,
-            "Older reply commits later",
-            DateTimeOffset.Parse("2026-08-02T12:01:00Z"));
-
-        var inbox = await repository.GetInboxAsync(aliceId);
-        var item = Assert.Single(inbox.Items);
-        // Insert order / SortKey wins for preview and tip ranking; LastMessageAt stays monotonic.
-        Assert.Equal("Older reply commits later", item.LastMessagePreview);
-        Assert.Equal(DateTimeOffset.Parse("2026-08-02T12:02:00Z"), item.LastMessageAt);
-
-        var conversation = await dbContext.PrivateConversations
-            .AsNoTracking()
-            .SingleAsync(c => c.Id == conversationId);
-        var tipSortKey = await dbContext.PrivateMessages
-            .AsNoTracking()
-            .Where(m => m.ConversationId == conversationId)
-            .MaxAsync(m => m.SortKey);
-        Assert.Equal(tipSortKey, conversation.LastMessageSortKey);
-
-        var detail = await repository.GetConversationAsync(conversationId, aliceId);
-        Assert.Equal(3, detail!.Messages.Count);
-        Assert.Equal("Older reply commits later", detail.Messages[^1].Body);
     }
 
     [Fact]
@@ -682,45 +500,6 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task GetConversation_PagesMessages_DefaultingToLatestPage()
-    {
-        var created = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Msg 1",
-            DateTimeOffset.Parse("2026-08-02T16:00:00Z"));
-        var conversationId = created.ConversationId!.Value;
-        for (var i = 2; i <= 5; i++)
-        {
-            await repository.ReplyAsync(
-                conversationId,
-                aliceId,
-                $"Msg {i}",
-                DateTimeOffset.Parse("2026-08-02T16:00:00Z").AddMinutes(i));
-        }
-
-        var latest = await repository.GetConversationAsync(conversationId, bobId, page: null, pageSize: 2);
-        Assert.NotNull(latest);
-        Assert.Equal(5, latest.TotalCount);
-        Assert.Equal(3, latest.Page);
-        Assert.Equal(3, latest.TotalPages);
-        // Latest window is newest pageSize messages (not a short remainder page).
-        Assert.Equal(["Msg 4", "Msg 5"], latest.Messages.Select(m => m.Body).ToArray());
-
-        var first = await repository.GetConversationAsync(conversationId, bobId, page: 1, pageSize: 2);
-        Assert.NotNull(first);
-        Assert.Equal(1, first.Page);
-        Assert.Equal(["Msg 1", "Msg 2"], first.Messages.Select(m => m.Body).ToArray());
-
-        var middle = await repository.GetConversationAsync(conversationId, bobId, page: 2, pageSize: 2);
-        Assert.NotNull(middle);
-        Assert.Equal(["Msg 3", "Msg 4"], middle.Messages.Select(m => m.Body).ToArray());
-
-        var explicitLast = await repository.GetConversationAsync(conversationId, bobId, page: 3, pageSize: 2);
-        Assert.Equal(["Msg 4", "Msg 5"], explicitLast!.Messages.Select(m => m.Body).ToArray());
-    }
-
-    [Fact]
     public async Task MarkConversationRead_IsConditionalAcrossContexts()
     {
         var created = await repository.SendNewOrExistingAsync(
@@ -776,53 +555,6 @@ public sealed class EfPrivateMessageRepositoryTests : IAsyncDisposable
         var item = Assert.Single(inbox.Items);
         Assert.True(item.HasUnread);
         Assert.Equal(detail.Messages.Count(m => !m.IsMine && m.SortKey > midpoint.SortKey), item.UnreadCount);
-    }
-
-    [Fact]
-    public async Task CountMessagesBySenderSinceAsync_CountsOnlyMessagesInWindow()
-    {
-        var since = DateTimeOffset.Parse("2026-08-06T10:00:00Z");
-        var created = await repository.SendNewOrExistingAsync(aliceId, bobId, "Before window", since.AddMinutes(-5));
-        await repository.ReplyAsync(created.ConversationId!.Value, aliceId, "Inside window", since.AddMinutes(1));
-        await repository.ReplyAsync(created.ConversationId.Value, aliceId, "Also inside window", since.AddMinutes(2));
-
-        Assert.Equal(2, await repository.CountMessagesBySenderSinceAsync(aliceId, since));
-        Assert.Equal(0, await repository.CountMessagesBySenderSinceAsync(bobId, since));
-    }
-
-    [Fact]
-    public async Task CountIdenticalMessagesBySenderSinceAsync_MatchesExactBodyOnly()
-    {
-        var since = DateTimeOffset.Parse("2026-08-06T10:00:00Z");
-        var created = await repository.SendNewOrExistingAsync(aliceId, bobId, "Repeat me", since);
-        await repository.ReplyAsync(created.ConversationId!.Value, aliceId, "Repeat me", since.AddMinutes(1));
-        await repository.ReplyAsync(created.ConversationId.Value, aliceId, "Different", since.AddMinutes(2));
-
-        Assert.Equal(2, await repository.CountIdenticalMessagesBySenderSinceAsync(aliceId, "Repeat me", since));
-        Assert.Equal(1, await repository.CountIdenticalMessagesBySenderSinceAsync(aliceId, "Different", since));
-    }
-
-    [Fact]
-    public async Task CountDistinctNewRecipientsSinceAsync_ExcludesRepliesInOlderConversations()
-    {
-        var since = DateTimeOffset.Parse("2026-08-06T10:00:00Z");
-
-        // Existing conversation, started before the window: a reply here should not count.
-        var oldConversation = await repository.SendNewOrExistingAsync(
-            aliceId,
-            bobId,
-            "Old conversation",
-            since.AddMinutes(-30));
-        await repository.ReplyAsync(
-            oldConversation.ConversationId!.Value,
-            aliceId,
-            "Reply in old thread",
-            since.AddMinutes(1));
-
-        // New conversation, started inside the window: this should count.
-        await repository.SendNewOrExistingAsync(aliceId, carolId, "New conversation", since.AddMinutes(2));
-
-        Assert.Equal(1, await repository.CountDistinctNewRecipientsSinceAsync(aliceId, since));
     }
 
     [Fact]
