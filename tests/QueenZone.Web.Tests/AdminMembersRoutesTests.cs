@@ -356,7 +356,7 @@ public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApp
 
     private WebApplicationFactory<Program> CreateTimeoutHideFactory()
     {
-        var timeout = SiteSearchSqlTimeoutTests.CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
         return factory.WithWebHostBuilder(builder =>

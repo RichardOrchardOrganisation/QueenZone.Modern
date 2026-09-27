@@ -287,16 +287,6 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public void HideAndUnhide_SourceDoesNotCallRefreshReadStats()
-    {
-        var path = Path.Combine(FindRepoRoot(), "src", "QueenZone.Data", "Repositories", "EfForumWriteRepository.cs");
-        var source = File.ReadAllText(path);
-        Assert.DoesNotContain("ExecuteSqlRaw", source);
-        Assert.DoesNotContain("RefreshReadStatsIfSqlServer", source);
-        Assert.DoesNotContain("ModernForum_RefreshReadStats", source);
-    }
-
-    [Fact]
     public async Task CreateThreadAsync_TruncatesBodyToLegacyColumnLimit()
     {
         var member = await SeedMemberAsync();
@@ -534,22 +524,6 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
                 FOREIGN KEY (ThreadId) REFERENCES ModernForumThread (Id)
             );
             """);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "QueenZone.sln")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("Could not find QueenZone.sln from the test output directory.");
     }
 
     private sealed class RecordingCommandInterceptor(List<string> commands) : DbCommandInterceptor

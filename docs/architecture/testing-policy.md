@@ -81,6 +81,14 @@ Examples:
 
 Exception: exact markup assertions are still appropriate when markup sanitization or security output is the contract under test (for example, ensuring disallowed attributes are stripped).
 
+Parse with `TestHtmlAssertions` (backed by AngleSharp) rather than matching raw markup: `AssertPageTitle`, `MetaName` / `MetaProperty` / `AssertMetaProperty`, `LinkHref`, `Select` and `SingleElement`. They ignore attribute order, quoting and whitespace.
+
+Do not read source files as text to assert on behaviour. If the text really is the contract (for example a hand-written SQL script that only runs on SQL Server, or an architecture rule that can't be reflected), narrow the test to that one thing and say why in a comment. Architecture rules should check types by reflection (constructor parameters, field types), as `AdminNewsActionLayeringTests` does. When a test needs a repo file, use `RepoPaths.Combine(...)`, and for a `SqlException` use `SqlExceptionFactory.Create(number, message)`; do not add local copies.
+
+### Test naming
+
+New tests use `Method_Scenario_Result` (for example `IncrementDownloadCountAsync_MissingAttachment_DoesNotThrow`). The codebase also has `sentence_case` and `PascalSentence` names; leave those alone, don't mass-rename, and follow the convention of the file you're editing only when it is the only one there. A test with no assertion must say what it expects, for example `Assert.Null(await Record.ExceptionAsync(...))`.
+
 ### Data Integration Tests
 
 Use data integration tests for the real restored legacy SQL Server database. These are opt-in unless a controlled test database is available in CI.
