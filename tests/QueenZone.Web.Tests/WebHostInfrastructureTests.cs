@@ -341,6 +341,93 @@ public sealed class WebHostInfrastructureTests
     }
 
     [Fact]
+    public async Task IsolatedHomePolls_and_trivia_reset_clears_seed()
+    {
+        await using var cache = new WebHostVariantCache();
+        var pollsHost = cache.Get(WebHostVariants.IsolatedHomePolls);
+        using var pollClient = pollsHost.CreateAnonymousClient();
+        var polls = pollsHost.Services.GetRequiredService<IHomePollRepository>();
+        var pollId = await polls.CreateAsync(new AdminHomePollDraft("Reset poll?", ["A", "B"]), Guid.NewGuid());
+        await polls.PublishAsync(pollId);
+        Assert.NotNull(await polls.GetCurrentAsync(null));
+
+        await pollsHost.ResetAsync();
+        Assert.Null(await polls.GetCurrentAsync(null));
+
+        var triviaHost = cache.Get(WebHostVariants.IsolatedTrivia);
+        using var triviaClient = triviaHost.CreateAnonymousClient();
+        var trivia = triviaHost.Services.GetRequiredService<ITriviaRepository>();
+        await trivia.CreateAsync(new AdminTriviaDraft("Reset fact", true));
+        Assert.NotEmpty(await trivia.GetAllAsync());
+
+        await triviaHost.ResetAsync();
+        Assert.Empty(await trivia.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task IsolatedNewsDiscussion_seeds_and_resets()
+    {
+        await using var cache = new WebHostVariantCache();
+        var host = cache.Get(WebHostVariants.IsolatedNewsDiscussion);
+        using var client = host.CreateAnonymousClient();
+        Assert.NotNull(host.SeedableNews);
+        Assert.NotNull(host.SeedableDiscussion);
+
+        host.SeedableNews!.Seed(new NewsItem(
+            6101,
+            "Seeded discussion",
+            "Excerpt",
+            "Body",
+            new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc),
+            null,
+            true,
+            ForumTopicId: 1002));
+        host.SeedableDiscussion!.Seed(1002, 2, [new NewsDiscussionPreview("Alice", DateTime.UtcNow, "Hi")]);
+        Assert.Equal("Seeded discussion", (await host.Services.GetRequiredService<INewsRepository>().GetByIdAsync(6101))?.Title);
+        var discussion = await host.Services.GetRequiredService<INewsForumDiscussionLookup>()
+            .GetDiscussionAsync(1002, 2);
+        Assert.Equal(2, discussion.ReplyCount);
+
+        await host.ResetAsync();
+        Assert.Null(await host.Services.GetRequiredService<INewsRepository>().GetByIdAsync(6101));
+        var cleared = await host.Services.GetRequiredService<INewsForumDiscussionLookup>()
+            .GetDiscussionAsync(1002, 2);
+        Assert.Equal(0, cleared.ReplyCount);
+    }
+
+    [Fact]
+    public async Task Content_api_variants_register_expected_services()
+    {
+        await using var cache = new WebHostVariantCache();
+
+        var emptyQuotes = cache.Get(WebHostVariants.EmptyQuotes);
+        using var quoteClient = emptyQuotes.CreateAnonymousClient();
+        Assert.Null(await emptyQuotes.Services.GetRequiredService<IQuoteRepository>().GetRandomPublishedAsync());
+
+        var throwBlob = cache.Get(WebHostVariants.ThrowOnReadBlob);
+        using var blobClient = throwBlob.CreateAnonymousClient();
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            throwBlob.Services.GetRequiredService<IBlobUploadService>().OpenReadAsync("songfiles", "x.mp3"));
+
+        var clock = cache.Get(WebHostVariants.IsolatedQuizzesWithClock);
+        using var clockClient = clock.CreateAnonymousClient();
+        Assert.NotNull(clock.Clock);
+        clock.Clock!.SetUtcNow(new DateTimeOffset(2026, 9, 18, 0, 0, 0, TimeSpan.Zero));
+        clock.Clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(new DateTimeOffset(2026, 9, 18, 0, 0, 1, TimeSpan.Zero), clock.Clock.GetUtcNow());
+        await clock.ResetAsync();
+        Assert.Equal(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), clock.Clock.GetUtcNow());
+
+        var sequential = cache.Get(WebHostVariants.SequentialTrivia);
+        using var sequentialClient = sequential.CreateAnonymousClient();
+        Assert.NotNull(sequential.SequentialTrivia);
+        await sequential.Services.GetRequiredService<ITriviaRepository>().GetAllAsync();
+        Assert.Equal(1, sequential.SequentialTrivia!.AllCallCount);
+        await sequential.ResetAsync();
+        Assert.Equal(0, sequential.SequentialTrivia.AllCallCount);
+    }
+
+    [Fact]
     public void Recording_activity_and_community_articles_seed_and_reset()
     {
         var activity = new RecordingMemberPublicActivityRepository();

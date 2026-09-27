@@ -53,9 +53,13 @@ public sealed class HelpRequestRateLimiter(
 
     public void Reset()
     {
-        var previous = Interlocked.Exchange(ref resetSource, new CancellationTokenSource());
-        previous.Cancel();
-        previous.Dispose();
+        lock (gate)
+        {
+            var previous = resetSource;
+            resetSource = new CancellationTokenSource();
+            previous.Cancel();
+            previous.Dispose();
+        }
     }
 
     private MemoryCacheEntryOptions CreateEntryOptions(TimeSpan expiration)

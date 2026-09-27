@@ -1,19 +1,20 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PublicRssFeedTests : IClassFixture<PreviewPublicBaseUrlWebApplicationFactory>
+public sealed class PublicRssFeedTests :
+    IClassFixture<PreviewPublicBaseUrlWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public PublicRssFeedTests(PreviewPublicBaseUrlWebApplicationFactory factory)
+    public PublicRssFeedTests(PreviewPublicBaseUrlWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -81,21 +82,10 @@ public sealed class PublicRssFeedTests : IClassFixture<PreviewPublicBaseUrlWebAp
             "Author",
             40);
 
-        var client = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureAppConfiguration((_, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Site:PublicBaseUrl"] = "https://preview.queenzone.test",
-                });
-            });
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IArticleRepository>(new FixedArticleRepository([community]));
-            });
-        }).CreateClient();
+        var host = variants.Get(WebHostVariants.PreviewPublicBaseUrlMutableCommunityArticles);
+        await host.ResetAsync();
+        host.CommunityArticles!.Seed([community]);
+        var client = host.CreateClient();
 
         var body = await client.GetStringAsync(ArticlesRoutes.FeedPath);
 
@@ -104,28 +94,6 @@ public sealed class PublicRssFeedTests : IClassFixture<PreviewPublicBaseUrlWebAp
         Assert.Contains("Community excerpt for feed.", body);
         // Archive seed items remain available alongside community.
         Assert.Contains("Inside the Making of Bohemian Rhapsody", body);
-    }
-
-    private sealed class FixedArticleRepository(IEnumerable<PublishedArticleSubmission> seed) : IArticleRepository
-    {
-        private readonly IReadOnlyList<PublishedArticleSubmission> items = [.. seed];
-
-        public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
-            Task.FromResult(items.Count);
-
-        public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
-            int page, int pageSize, string? tag = null, CancellationToken ct = default) =>
-            Task.FromResult(items);
-
-        public Task<PublishedArticleSubmission?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
-            Task.FromResult(items.FirstOrDefault(a => a.Slug == slug));
-
-        public Task<(PublishedArticleSubmission? Previous, PublishedArticleSubmission? Next)> GetAdjacentAsync(
-            DateTimeOffset publishedAt, CancellationToken ct = default) =>
-            Task.FromResult<(PublishedArticleSubmission?, PublishedArticleSubmission?)>((null, null));
-
-        public Task<IReadOnlyList<PublishedArticleSubmission>> GetSitemapEntriesAsync(CancellationToken ct = default) =>
-            Task.FromResult(items);
     }
 
     [Fact]

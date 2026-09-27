@@ -112,4 +112,18 @@ public sealed class InMemoryTriviaRepositoryWriteTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SetPublishedAsync(42, true));
     }
+
+    [Fact]
+    public async Task Clear_removes_facts_and_resets_ids()
+    {
+        var store = new SharedTriviaStore();
+        var repository = new InMemoryTriviaRepository(store);
+        await repository.CreateAsync(new AdminTriviaDraft("Keep then clear", true));
+        Assert.NotEmpty(await repository.GetAllAsync());
+
+        store.Clear();
+
+        Assert.Empty(await repository.GetAllAsync());
+        Assert.Equal(1, await repository.CreateAsync(new AdminTriviaDraft("After clear", true)));
+    }
 }

@@ -50,6 +50,13 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IR
         }
 
         Services.GetService<SharedSearchIndexStore>()?.Clear();
+        var publicQueries = Services.GetService<PublicQueryCacheService>();
+        publicQueries?.InvalidateTriviaCache();
+        publicQueries?.InvalidateQuotesCache();
+        publicQueries?.InvalidateNewsCache();
+        publicQueries?.InvalidateArticlesCache();
+        publicQueries?.InvalidateBiographyCache();
+        publicQueries?.InvalidateHistoryCache();
         if (Services.GetService<IOutputCacheStore>() is not { } outputCache)
         {
             return;

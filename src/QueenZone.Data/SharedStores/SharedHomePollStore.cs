@@ -31,4 +31,13 @@ public sealed class SharedHomePollStore
             writer(polls, votes);
         }
     }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            polls.Clear();
+            votes.Clear();
+        }
+    }
 }

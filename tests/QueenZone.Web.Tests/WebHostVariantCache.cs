@@ -95,6 +95,20 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
 
     internal MutableCommunityArticleRepository? CommunityArticles => context.CommunityArticles;
 
+    internal SharedHomePollStore? HomePolls => context.HomePolls;
+
+    internal SharedTriviaStore? Trivia => context.Trivia;
+
+    internal SequentialTriviaRepository? SequentialTrivia => context.SequentialTrivia;
+
+    internal MutableTimeProvider? Clock => context.Clock;
+
+    internal SeedableNewsRepository? SeedableNews => context.SeedableNews;
+
+    internal SeedableDiscussionLookup? SeedableDiscussion => context.SeedableDiscussion;
+
+    internal CountingBiographyRepository? CountingBiography => context.CountingBiography;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(variant.Environment);

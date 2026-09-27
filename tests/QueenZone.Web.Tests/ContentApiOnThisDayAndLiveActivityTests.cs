@@ -1,13 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContentApiOnThisDayAndLiveActivityTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ContentApiOnThisDayAndLiveActivityTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -15,10 +15,14 @@ public sealed class ContentApiOnThisDayAndLiveActivityTests : IClassFixture<Quee
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public ContentApiOnThisDayAndLiveActivityTests(QueenZoneWebApplicationFactory factory)
+    public ContentApiOnThisDayAndLiveActivityTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -27,8 +31,7 @@ public sealed class ContentApiOnThisDayAndLiveActivityTests : IClassFixture<Quee
         // Pin the clock: sample seed is sparse. 27 Aug 2026 (the CI flake date) has
         // no exact match and nothing inside the +/-7 day window (John Deacon is
         // 19 Aug; Freddie's birthday is 5 Sep).
-        using var isolated = CreateFactoryForUtcDate(2026, 7, 13);
-        using var client = isolated.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.FixedUtc20260713).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/on-this-day");
 
@@ -42,8 +45,7 @@ public sealed class ContentApiOnThisDayAndLiveActivityTests : IClassFixture<Quee
     [Fact]
     public async Task OnThisDay_falls_back_to_nearby_seed_event()
     {
-        using var isolated = CreateFactoryForUtcDate(2026, 7, 12);
-        using var client = isolated.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.FixedUtc20260712).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/on-this-day");
 
@@ -55,8 +57,7 @@ public sealed class ContentApiOnThisDayAndLiveActivityTests : IClassFixture<Quee
     [Fact]
     public async Task OnThisDay_returns_json_null_when_seed_has_no_nearby_event()
     {
-        using var isolated = CreateFactoryForUtcDate(2026, 8, 27);
-        using var client = isolated.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.FixedUtc20260827).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/on-this-day");
 
@@ -77,14 +78,6 @@ public sealed class ContentApiOnThisDayAndLiveActivityTests : IClassFixture<Quee
         Assert.True(payload!.NewForumRepliesToday >= 0);
     }
 
-    private static QueenZoneWebApplicationFactory CreateFactoryForUtcDate(int year, int month, int day) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<TimeProvider>();
-            services.AddSingleton<TimeProvider>(
-                new FixedTimeProvider(new DateTimeOffset(year, month, day, 12, 0, 0, TimeSpan.Zero)));
-        });
-
     private static async Task<T?> ReadOnThisDayJsonAsync<T>(HttpResponseMessage response)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -98,10 +91,5 @@ public sealed class ContentApiOnThisDayAndLiveActivityTests : IClassFixture<Quee
             response.Content.Headers.ContentType?.MediaType);
 
         return JsonSerializer.Deserialize<T>(body, JsonOptions);
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }
