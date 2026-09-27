@@ -53,13 +53,15 @@ public sealed class HelpRequestRateLimiter(
 
     public void Reset()
     {
+        CancellationTokenSource previous;
         lock (gate)
         {
-            var previous = resetSource;
+            previous = resetSource;
             resetSource = new CancellationTokenSource();
-            previous.Cancel();
-            previous.Dispose();
         }
+
+        previous.Cancel();
+        previous.Dispose();
     }
 
     private MemoryCacheEntryOptions CreateEntryOptions(TimeSpan expiration)

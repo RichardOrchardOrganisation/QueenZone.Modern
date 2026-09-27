@@ -1,18 +1,25 @@
 using System.Net;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class AdminTriviaRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory writes;
 
-    public AdminTriviaRoutesTests(QueenZoneWebApplicationFactory factory)
+    public AdminTriviaRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        writes = variants.Get(WebHostVariants.IsolatedTrivia);
     }
+
+    public Task InitializeAsync() => writes.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AnonymousUserCannotAccessAdminTrivia()
@@ -108,8 +115,8 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task PostCreate_shows_fact_on_admin_list()
     {
-        var store = new SharedTriviaStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var text = $"WAF create {Guid.NewGuid():N}";
 
         var create = await PostCreateAsync(client, text, category: "Tours", isPublished: true);
@@ -125,7 +132,7 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task PostCreate_validation_error_redisplays_the_form()
     {
-        var client = CreateWriteClient(new SharedTriviaStore());
+        var client = CreateWriteClient();
         var formPage = await client.GetStringAsync("/admin/trivia/new");
         var fields = new Dictionary<string, string>
         {
@@ -148,8 +155,8 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task PostEdit_updates_fact_on_the_admin_form()
     {
-        var store = new SharedTriviaStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var original = $"WAF edit source {Guid.NewGuid():N}";
         var updated = $"WAF edit saved {Guid.NewGuid():N}";
 
@@ -184,8 +191,8 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task PostDelete_removes_created_fact()
     {
-        var store = new SharedTriviaStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var text = $"WAF delete {Guid.NewGuid():N}";
         var create = await PostCreateAsync(client, text, category: "Band", isPublished: true);
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
@@ -209,8 +216,8 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task PostTogglePublish_unpublishes_fact()
     {
-        var store = new SharedTriviaStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var text = $"WAF unpublish {Guid.NewGuid():N}";
 
         var create = await PostCreateAsync(client, text, category: "Band", isPublished: true);
@@ -237,8 +244,8 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task PostDelete_preservesCategoryFilterAndPageNumberOnRedirect()
     {
-        var store = new SharedTriviaStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var text = $"WAF delete filtered {Guid.NewGuid():N}";
         var create = await PostCreateAsync(client, text, category: "Albums", isPublished: true);
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
@@ -262,8 +269,8 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task PostTogglePublish_preservesCategoryFilterAndPageNumberOnRedirect()
     {
-        var store = new SharedTriviaStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var text = $"WAF toggle filtered {Guid.NewGuid():N}";
         var create = await PostCreateAsync(client, text, category: "Band", isPublished: true);
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
@@ -288,8 +295,8 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task ListIsPaginatedWhenFactCountExceedsPageSize()
     {
-        var store = new SharedTriviaStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var marker = $"WAF page {Guid.NewGuid():N}";
         for (var i = 0; i < AdminTriviaRoutes.ListPageSize + 1; i++)
         {
@@ -305,19 +312,10 @@ public sealed class AdminTriviaRoutesTests : IClassFixture<QueenZoneWebApplicati
         Assert.Contains($"{marker} 0", secondPage);
     }
 
-    private HttpClient CreateWriteClient(SharedTriviaStore store)
-    {
-        var appFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<SharedTriviaStore>();
-                services.RemoveAll<ITriviaRepository>();
-                services.AddSingleton(store);
-                services.AddSingleton<ITriviaRepository>(_ => new InMemoryTriviaRepository(store));
-            }));
+    private SharedTriviaStore WriteStore => writes.Trivia!;
 
-        return AdminHttpTestHelpers.CreateClient(appFactory, AdminHttpTestHelpers.AdminEmail);
-    }
+    private HttpClient CreateWriteClient() =>
+        AdminHttpTestHelpers.CreateClient(writes, AdminHttpTestHelpers.AdminEmail);
 
     private static async Task<HttpResponseMessage> PostCreateAsync(
         HttpClient client,

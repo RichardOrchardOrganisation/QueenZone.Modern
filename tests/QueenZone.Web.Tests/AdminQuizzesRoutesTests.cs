@@ -1,17 +1,26 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminQuizzesRoutesTests
+public sealed class AdminQuizzesRoutesTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
+    private readonly VariantWebApplicationFactory factory;
+
+    public AdminQuizzesRoutesTests(WebHostVariantCache variants)
+    {
+        factory = variants.Get(WebHostVariants.IsolatedQuizzes);
+    }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     [Fact]
     public async Task AnonymousUserCannotAccessAdminQuizzes()
     {
-        using var isolated = IsolatedQuizzes();
-        using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
         var response = await client.GetAsync("/admin/quizzes");
 
@@ -21,8 +30,7 @@ public sealed class AdminQuizzesRoutesTests
     [Fact]
     public async Task Admin_can_create_publish_unpublish_and_delete_a_draft_quiz()
     {
-        using var isolated = IsolatedQuizzes();
-        using var client = isolated.CreateAdminClient();
+        using var client = factory.CreateAdminClient();
 
         var list = await client.GetAsync("/admin/quizzes");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
@@ -33,7 +41,7 @@ public sealed class AdminQuizzesRoutesTests
         var created = await PostCreateAsync(client, "Admin quiz?");
         Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
 
-        using var scope = isolated.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var quizzes = scope.ServiceProvider.GetRequiredService<IQuizRepository>();
         var all = await quizzes.GetAllAsync();
         Assert.Single(all);
@@ -57,8 +65,7 @@ public sealed class AdminQuizzesRoutesTests
     [Fact]
     public async Task Create_rejects_a_question_with_no_correct_option()
     {
-        using var isolated = IsolatedQuizzes();
-        using var client = isolated.CreateAdminClient();
+        using var client = factory.CreateAdminClient();
 
         var formPage = await client.GetStringAsync("/admin/quizzes/new");
         var token = AdminHttpTestHelpers.ExtractAntiforgeryToken(formPage);
@@ -78,7 +85,7 @@ public sealed class AdminQuizzesRoutesTests
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("exactly one option must be marked correct", body, StringComparison.Ordinal);
 
-        using var scope = isolated.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var quizzes = scope.ServiceProvider.GetRequiredService<IQuizRepository>();
         Assert.Empty(await quizzes.GetAllAsync());
     }
@@ -86,11 +93,10 @@ public sealed class AdminQuizzesRoutesTests
     [Fact]
     public async Task Admin_cannot_edit_or_delete_a_quiz_once_it_has_results()
     {
-        using var isolated = IsolatedQuizzes();
-        using var client = isolated.CreateAdminClient();
+        using var client = factory.CreateAdminClient();
         await PostCreateAsync(client, "Locked quiz?");
 
-        using var scope = isolated.Services.CreateScope();
+        using var scope = factory.Services.CreateScope();
         var quizzes = scope.ServiceProvider.GetRequiredService<IQuizRepository>();
         var quizId = (await quizzes.GetAllAsync())[0].Id;
         await quizzes.PublishAsync(quizId);
@@ -126,24 +132,11 @@ public sealed class AdminQuizzesRoutesTests
     [Fact]
     public async Task AuthorizedAdminGetsNotFoundForMissingQuiz()
     {
-        using var isolated = IsolatedQuizzes();
-        using var client = isolated.CreateAdminClient();
+        using var client = factory.CreateAdminClient();
 
         var response = await client.GetAsync($"/admin/quizzes/{Guid.NewGuid()}/edit");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    private static QueenZoneWebApplicationFactory IsolatedQuizzes()
-    {
-        var store = new SharedQuizStore();
-        return QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<SharedQuizStore>();
-            services.RemoveAll<IQuizRepository>();
-            services.AddSingleton(store);
-            services.AddSingleton<IQuizRepository>(_ => new InMemoryQuizRepository(store));
-        });
     }
 
     private static async Task<HttpResponseMessage> PostCreateAsync(HttpClient client, string title)

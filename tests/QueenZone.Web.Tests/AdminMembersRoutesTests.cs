@@ -1,23 +1,23 @@
 using System.Net;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
+public sealed class AdminMembersRoutesTests :
+    IClassFixture<ExternalCookieWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public AdminMembersRoutesTests(ExternalCookieWebApplicationFactory factory)
+    public AdminMembersRoutesTests(ExternalCookieWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApp
     public async Task Suspend_WhenHideTimesOut_RedirectsToMemberPageWithError_Not404()
     {
         const string email = "timeout-spammer@example.com";
-        var timeoutFactory = CreateTimeoutHideFactory();
+        var timeoutFactory = variants.Get(WebHostVariants.ExternalCookieTimeoutHideForum);
         var memberId = await CreateMemberAsync(timeoutFactory, email, "Timeout Spammer", "google-timeout-spammer");
         var admin = CreateAdminClient(timeoutFactory, AdminEmail);
         var detail = await admin.GetStringAsync($"/admin/members/{memberId}");
@@ -263,7 +263,7 @@ public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApp
     public async Task Suspend_WhenRevokeFails_RedirectsToMemberPageWithRetryRevokeError()
     {
         const string email = "revoke-fail@example.com";
-        var revokeFactory = CreateRevokeFailFactory();
+        var revokeFactory = variants.Get(WebHostVariants.ExternalCookieThrowingRevokeMobileAuth);
         var memberId = await CreateMemberAsync(revokeFactory, email, "Revoke Fail", "google-revoke-fail");
         var admin = CreateAdminClient(revokeFactory, AdminEmail);
         var detail = await admin.GetStringAsync($"/admin/members/{memberId}");
@@ -354,32 +354,6 @@ public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApp
         _ = second;
     }
 
-    private WebApplicationFactory<Program> CreateTimeoutHideFactory()
-    {
-        var timeout = SqlExceptionFactory.Create(
-            SiteSearchSqlTimeout.SqlErrorNumber,
-            "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
-        return factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IForumWriteRepository>();
-                services.AddSingleton<IForumWriteRepository>(
-                    new TimeoutHideForumWriteRepository(new InMemoryForumWriteRepository(), timeout));
-            });
-        });
-    }
-
-    private WebApplicationFactory<Program> CreateRevokeFailFactory() =>
-        factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IMobileAuthGrantRepository>();
-                services.AddSingleton<IMobileAuthGrantRepository>(new ThrowingRevokeMobileAuthGrantRepository());
-            });
-        });
-
     private HttpClient CreateAdminClient(string? email = null) =>
         CreateAdminClient(factory, email);
 
@@ -442,104 +416,5 @@ public sealed class AdminMembersRoutesTests : IClassFixture<ExternalCookieWebApp
             html, """name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""");
         Assert.True(match.Success, "Antiforgery token was not found in the form.");
         return match.Groups["token"].Value;
-    }
-
-    private sealed class TimeoutHideForumWriteRepository(
-        IForumWriteRepository inner,
-        Exception timeout) : IForumWriteRepository
-    {
-        public Task<ForumThreadCreateResult> CreateThreadAsync(
-            NewForumThread thread, CancellationToken cancellationToken = default) =>
-            inner.CreateThreadAsync(thread, cancellationToken);
-
-        public Task<int> CreatePostAsync(NewForumPost post, CancellationToken cancellationToken = default) =>
-            inner.CreatePostAsync(post, cancellationToken);
-
-        public Task<ForumEditablePost?> GetPostAsync(int postId, CancellationToken cancellationToken = default) =>
-            inner.GetPostAsync(postId, cancellationToken);
-
-        public Task<ForumPostUpdateResult> UpdatePostAsync(
-            int postId,
-            Guid editorMemberId,
-            string sanitisedBody,
-            bool isAdmin,
-            int editWindowMinutes,
-            DateTimeOffset? expectedUpdatedAt = null,
-            CancellationToken cancellationToken = default) =>
-            inner.UpdatePostAsync(
-                postId, editorMemberId, sanitisedBody, isAdmin, editWindowMinutes, expectedUpdatedAt, cancellationToken);
-
-        public Task<ForumWriteThread?> GetThreadAsync(int topicId, CancellationToken cancellationToken = default) =>
-            inner.GetThreadAsync(topicId, cancellationToken);
-
-        public Task<int> CountPostsByMemberSinceAsync(
-            Guid memberId, DateTimeOffset since, CancellationToken cancellationToken = default) =>
-            inner.CountPostsByMemberSinceAsync(memberId, since, cancellationToken);
-
-        public Task<int> CountApprovedPostsByMemberAsync(
-            Guid memberId, CancellationToken cancellationToken = default) =>
-            inner.CountApprovedPostsByMemberAsync(memberId, cancellationToken);
-
-        public Task<ForumAuthorContentSummary> GetAuthorForumContentSummaryAsync(
-            Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            inner.GetAuthorForumContentSummaryAsync(memberId, displayName, cancellationToken);
-
-        public Task<ForumAuthorContentSummary?> FindNoAccountForumAuthorAsync(
-            string displayName, CancellationToken cancellationToken = default) =>
-            inner.FindNoAccountForumAuthorAsync(displayName, cancellationToken);
-
-        public Task HideAuthorForumContentAsync(
-            Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            throw timeout;
-
-        public Task UnhideAuthorForumContentAsync(
-            Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            inner.UnhideAuthorForumContentAsync(memberId, displayName, cancellationToken);
-
-        public Task<int> EnsureCategoryAsync(
-            string slug, string name, CancellationToken cancellationToken = default) =>
-            inner.EnsureCategoryAsync(slug, name, cancellationToken);
-    }
-
-    private sealed class ThrowingRevokeMobileAuthGrantRepository : IMobileAuthGrantRepository
-    {
-        public Task StoreAuthorizationCodeAsync(
-            QueenZone.Data.Entities.MobileAuthAuthorizationCodeEntity code,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<QueenZone.Data.Entities.MobileAuthAuthorizationCodeEntity?> RedeemAuthorizationCodeAsync(
-            string codeHash,
-            DateTime utcNow,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<QueenZone.Data.Entities.MobileAuthAuthorizationCodeEntity?>(null);
-
-        public Task StoreRefreshTokenAsync(
-            QueenZone.Data.Entities.MobileAuthRefreshTokenEntity token,
-            CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<QueenZone.Data.Entities.MobileAuthRefreshTokenEntity?> FindRefreshTokenByHashAsync(
-            string tokenHash,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<QueenZone.Data.Entities.MobileAuthRefreshTokenEntity?>(null);
-
-        public Task<bool> TryRevokeRefreshTokenAsync(
-            string tokenHash,
-            DateTime utcNow,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(false);
-
-        public Task<int> RevokeAllRefreshTokensForMemberAsync(
-            Guid memberAccountId,
-            DateTime utcNow,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("token store unavailable");
-
-        public Task<bool> LinkRefreshTokenRotationAsync(
-            string oldTokenHash,
-            string newTokenHash,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(false);
     }
 }

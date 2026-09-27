@@ -1,29 +1,27 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminAntiforgeryRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class AdminAntiforgeryRoutesTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
-    private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory factory;
 
-    public AdminAntiforgeryRoutesTests(QueenZoneWebApplicationFactory factory)
+    public AdminAntiforgeryRoutesTests(WebHostVariantCache variants)
     {
-        this.factory = factory;
+        factory = variants.Get(WebHostVariants.IsolatedAdminNews);
     }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task News_create_without_antiforgery_token_returns_bad_request()
     {
-        var store = new SharedNewsStore();
-        var client = AdminHttpTestHelpers.CreateClient(
-            CreateInMemoryFactory(store),
-            AdminHttpTestHelpers.AdminEmail);
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
 
         var response = await AdminHttpTestHelpers.PostArticleAsync(
             client,
@@ -44,7 +42,7 @@ public sealed class AdminAntiforgeryRoutesTests : IClassFixture<QueenZoneWebAppl
     [Fact]
     public async Task News_publish_without_antiforgery_token_returns_bad_request()
     {
-        var store = new SharedNewsStore(
+        factory.AdminNews!.Seed(
         [
             new AdminNewsArticle(
                 1,
@@ -60,9 +58,7 @@ public sealed class AdminAntiforgeryRoutesTests : IClassFixture<QueenZoneWebAppl
                 null)
         ]);
 
-        var client = AdminHttpTestHelpers.CreateClient(
-            CreateInMemoryFactory(store),
-            AdminHttpTestHelpers.AdminEmail);
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
 
         var response = await AdminHttpTestHelpers.PostNewsActionAsync(
             client,
@@ -75,13 +71,10 @@ public sealed class AdminAntiforgeryRoutesTests : IClassFixture<QueenZoneWebAppl
     [Fact]
     public async Task Discovery_promote_without_antiforgery_token_returns_bad_request()
     {
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryRepository = new InMemoryNewsDiscoveryRepository(discoveryStore);
+        var discoveryRepository = factory.Services.GetRequiredService<INewsDiscoveryRepository>();
         var candidateId = await SeedDraftedCandidateAsync(discoveryRepository);
 
-        var client = AdminHttpTestHelpers.CreateClient(
-            CreateInMemoryFactory(new SharedNewsStore(), discoveryRepository),
-            AdminHttpTestHelpers.AdminEmail);
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
 
         var response = await AdminHttpTestHelpers.PostDiscoveryActionAsync(
             client,
@@ -95,9 +88,7 @@ public sealed class AdminAntiforgeryRoutesTests : IClassFixture<QueenZoneWebAppl
     [Fact]
     public async Task Discovery_queue_run_without_antiforgery_token_returns_bad_request()
     {
-        var client = AdminHttpTestHelpers.CreateClient(
-            CreateInMemoryFactory(new SharedNewsStore()),
-            AdminHttpTestHelpers.AdminEmail);
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
 
         var response = await client.PostAsync(
             "/admin/news-discovery?handler=queuerun",
@@ -109,9 +100,7 @@ public sealed class AdminAntiforgeryRoutesTests : IClassFixture<QueenZoneWebAppl
     [Fact]
     public async Task Discovery_queue_url_ingestion_without_antiforgery_token_returns_bad_request()
     {
-        var client = AdminHttpTestHelpers.CreateClient(
-            CreateInMemoryFactory(new SharedNewsStore()),
-            AdminHttpTestHelpers.AdminEmail);
+        var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
 
         var response = await client.PostAsync(
             "/admin/news-discovery?handler=queueurlingestion",
@@ -124,34 +113,7 @@ public sealed class AdminAntiforgeryRoutesTests : IClassFixture<QueenZoneWebAppl
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private WebApplicationFactory<Program> CreateInMemoryFactory(
-        SharedNewsStore store,
-        INewsDiscoveryRepository? discoveryRepository = null) =>
-        factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<SharedNewsStore>();
-                services.RemoveAll<INewsRepository>();
-                services.RemoveAll<IAdminNewsRepository>();
-                services.RemoveAll<INewsAuditRepository>();
-                services.RemoveAll<INewsDiscoveryRepository>();
-                services.RemoveAll<SharedNewsDiscoveryStore>();
-                services.AddSingleton(store);
-                services.AddSingleton<INewsRepository>(_ => new QueenZone.Data.InMemoryNewsRepository(store));
-                services.AddSingleton<IAdminNewsRepository>(_ => new InMemoryAdminNewsRepository(store));
-                services.AddSingleton<INewsAuditRepository>(_ => new InMemoryNewsAuditRepository(store));
-                if (discoveryRepository is not null)
-                {
-                    services.AddSingleton(discoveryRepository);
-                }
-                else
-                {
-                    services.AddSingleton<SharedNewsDiscoveryStore>();
-                    services.AddSingleton<INewsDiscoveryRepository, InMemoryNewsDiscoveryRepository>();
-                }
-            }));
-
-    private static async Task<int> SeedDraftedCandidateAsync(InMemoryNewsDiscoveryRepository discoveryRepository)
+    private static async Task<int> SeedDraftedCandidateAsync(INewsDiscoveryRepository discoveryRepository)
     {
         var sourceId = await discoveryRepository.UpsertSourceAsync(new NewsDiscoverySourceDraft(
             "antiforgery-source",

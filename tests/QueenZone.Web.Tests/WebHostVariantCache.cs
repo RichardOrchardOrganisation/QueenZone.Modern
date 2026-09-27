@@ -109,6 +109,28 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
 
     internal CountingBiographyRepository? CountingBiography => context.CountingBiography;
 
+    internal SharedQuoteStore? Quotes => context.Quotes;
+
+    internal SharedNewsStore? AdminNews => context.AdminNews;
+
+    internal SharedNewsDiscoveryStore? AdminDiscovery => context.AdminDiscovery;
+
+    internal AdminNewsMutationOverrides? AdminNewsMutations => context.AdminNewsMutations;
+
+    internal ConfigurableNewsDiscoveryRepository? ConfigurableDiscovery => context.ConfigurableDiscovery;
+
+    internal ConfigurableNewsAiClient? NewsAi => context.NewsAi;
+
+    internal SharedNewsAgentRunRequestStore? NewsAgentRunRequests => context.NewsAgentRunRequests;
+
+    internal SharedBiographyStore? AdminBiography => context.AdminBiography;
+
+    internal SharedQueenHistoryStore? AdminTimeline => context.AdminTimeline;
+
+    internal SharedFreddieTributeStore? AdminFreddieTributes => context.AdminFreddieTributes;
+
+    internal SharedNewsAgentGuidanceStore? AdminGuidance => context.AdminGuidance;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(variant.Environment);

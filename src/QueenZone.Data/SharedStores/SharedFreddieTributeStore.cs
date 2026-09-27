@@ -3,6 +3,7 @@ namespace QueenZone.Data;
 public sealed class SharedFreddieTributeStore(IEnumerable<FreddieTribute> seedTributes)
 {
     private readonly object gate = new();
+    private readonly FreddieTribute[] seed = [.. seedTributes];
     private readonly List<TributeState> tributes = seedTributes
         .Select(tribute => new TributeState(tribute, true))
         .ToList();
@@ -107,6 +108,15 @@ public sealed class SharedFreddieTributeStore(IEnumerable<FreddieTribute> seedTr
 
             tributes.RemoveAt(index);
             return true;
+        }
+    }
+
+    internal void Reset()
+    {
+        lock (gate)
+        {
+            tributes.Clear();
+            tributes.AddRange(seed.Select(tribute => new TributeState(tribute, true)));
         }
     }
 

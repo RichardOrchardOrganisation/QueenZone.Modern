@@ -538,4 +538,21 @@ public sealed class SharedNewsDiscoveryStore
             return existing.Id;
         }
     }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            sources.Clear();
+            candidates.Clear();
+            evidence.Clear();
+            aiRuns.Clear();
+            drafts.Clear();
+            nextSourceId = 1;
+            nextCandidateId = 1;
+            nextEvidenceId = 1;
+            nextAiRunId = 1;
+            nextDraftId = 1;
+        }
+    }
 }

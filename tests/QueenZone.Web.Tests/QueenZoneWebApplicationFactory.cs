@@ -57,6 +57,10 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IR
         publicQueries?.InvalidateArticlesCache();
         publicQueries?.InvalidateBiographyCache();
         publicQueries?.InvalidateHistoryCache();
+        publicQueries?.InvalidateFanPerformanceCache();
+        publicQueries?.InvalidatePhotoCache();
+        publicQueries?.InvalidateDiscographyCache();
+        publicQueries?.InvalidateForumStatsCache();
         if (Services.GetService<IOutputCacheStore>() is not { } outputCache)
         {
             return;
