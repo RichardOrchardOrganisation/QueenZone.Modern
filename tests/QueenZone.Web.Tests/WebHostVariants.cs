@@ -915,6 +915,9 @@ public static partial class WebHostVariants
             case HostServiceProfile.ThrowingSprintBoardQuiz:
                 AddThrowingSprintBoardQuiz(services);
                 break;
+            case HostServiceProfile.ThrowingForumArchiveAuthor:
+                AddThrowingForumArchiveAuthor(services);
+                break;
             case HostServiceProfile.ExternalCookieMobilePkce:
                 AddExternalCookieMobilePkce(services);
                 break;
@@ -1710,6 +1713,7 @@ public enum HostServiceProfile
     ThrowingSearchIndex,
     WarmupThrowingNewsLatest,
     ThrowingSprintBoardQuiz,
+    ThrowingForumArchiveAuthor,
     ExternalCookieMobilePkce,
     ExternalCookieMobilePkceMutableClock,
     RecordingPushDispatch,
@@ -1730,6 +1734,14 @@ public static class TestIds
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         return $"{name}-{Guid.NewGuid():N}";
+    }
+
+    public static int ForNumeric(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var hash = HashCode.Combine(name, Guid.NewGuid());
+        var id = hash == int.MinValue ? int.MaxValue : Math.Abs(hash);
+        return id == 0 ? 1 : id;
     }
 }
 

@@ -9,6 +9,12 @@ namespace QueenZone.Web;
 /// </summary>
 public static partial class ApiV1ErrorHandling
 {
+    /// <summary>
+    /// Register after the HTML <c>UseExceptionHandler("/error")</c> so this inner
+    /// handler writes JSON Problem Details for <c>/api/v1</c>. Do not put the HTML
+    /// re-execute handler inside <c>UseWhen</c>: that breaks re-execution and turns
+    /// unhandled exceptions into 404s.
+    /// </summary>
     public static IApplicationBuilder UseApiV1ExceptionHandler(this IApplicationBuilder app)
     {
         app.UseWhen(

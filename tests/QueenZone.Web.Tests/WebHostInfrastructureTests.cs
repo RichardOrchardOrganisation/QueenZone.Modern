@@ -28,6 +28,18 @@ public sealed class WebHostInfrastructureTests
     }
 
     [Fact]
+    public void TestIds_ForNumeric_returns_unique_positive_ids()
+    {
+        var first = TestIds.ForNumeric("archive-author-throw");
+        var second = TestIds.ForNumeric("archive-author-throw");
+
+        Assert.True(first > 0);
+        Assert.True(second > 0);
+        Assert.NotEqual(first, second);
+        Assert.Throws<ArgumentException>(() => TestIds.ForNumeric(" "));
+    }
+
+    [Fact]
     public void SeededRandomOrder_keeps_discovery_order_when_seed_is_unset()
     {
         var items = new[] { "a", "b", "c" };

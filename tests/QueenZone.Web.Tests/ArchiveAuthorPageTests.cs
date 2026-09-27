@@ -13,12 +13,14 @@ public sealed class ArchiveAuthorPageTests :
     private readonly WebApplicationFactory<Program> factory;
     private readonly VariantWebApplicationFactory linkRedirect;
     private readonly VariantWebApplicationFactory linkProfile;
+    private readonly VariantWebApplicationFactory throwingAuthor;
 
     public ArchiveAuthorPageTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
         linkRedirect = variants.Get(WebHostVariants.TestingArchiveAuthorLinkRedirect);
         linkProfile = variants.Get(WebHostVariants.TestingArchiveAuthorLinkProfile);
+        throwingAuthor = variants.Get(WebHostVariants.ThrowingForumArchiveAuthor);
     }
 
     [Fact]
@@ -56,6 +58,20 @@ public sealed class ArchiveAuthorPageTests :
         var response = await client.GetAsync("/forum/archive-authors/999999");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ArchiveAuthorPage_UnhandledRepositoryException_ReturnsServerError()
+    {
+        using var client = throwingAuthor.CreateDefaultClient();
+
+        var response = await client.GetAsync($"/forum/archive-authors/{TestIds.ForNumeric("archive-author-throw")}");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Contains("Something went wrong", body);
+        Assert.Contains("Error reference:", body);
+        Assert.DoesNotContain("Page Not Found", body);
     }
 
     [Fact]
