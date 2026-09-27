@@ -7,6 +7,8 @@ import {
   candidateFromEvidence,
   correlateSignals,
   dependencyKey,
+  dimensionWhere,
+  evidenceKqlForAlert,
   exceptionKey,
   extractSentryPath,
   extractTraceId,
@@ -18,6 +20,7 @@ import {
   parseArgAlerts,
   parseEvidenceRows,
   parseSentryIssue,
+  redact,
   requestKey,
   routeMatchesTemplate,
   sentryKey,
@@ -52,10 +55,28 @@ test('normalizeRoute replaces numeric and GUID segments only', () => {
   assert.equal(normalizeRoute(''), '');
 });
 
+test('redact masks emails, addresses, tokens, connection-string pairs, and long secrets', () => {
+  assert.equal(redact('mail user@example.com please'), 'mail [email] please');
+  assert.equal(redact('from 203.0.113.10'), 'from [ip]');
+  assert.equal(redact('v6 2001:0db8:85a3:0000:0000:8a2e:0370:7334'), 'v6 [ip]');
+  assert.equal(redact('jwt eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig'), 'jwt [token]');
+  assert.equal(redact('auth Bearer abcdefghijklmnop'), 'auth [token]');
+  assert.equal(redact('key sk-abcdefghijklmnopqrstuvwxyz1234'), 'key [token]');
+  assert.equal(redact('Password=hunter2;AccountKey=abcdEF1234;SharedAccessSignature=sv=2020'), 'Password=[secret];AccountKey=[secret];SharedAccessSignature=[secret]');
+  assert.equal(redact('hex 0123456789abcdef0123456789abcdef'), 'hex [secret]');
+  assert.equal(redact('b64 YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY='), 'b64 [secret]');
+  const long = redact(`prefix ${'x'.repeat(200)}`);
+  assert.ok(long.length <= 120);
+  assert.match(long, /…$/);
+});
+
 test('dedupe keys follow the architecture lock', () => {
   assert.equal(sentryKey(12345), 'sentry:12345');
   assert.equal(exceptionKey('System.NullReferenceException at Home'), 'ai:exc:System.NullReferenceException_at_Home');
   assert.equal(requestKey('GET /news/1003/foo'), 'ai:req:/news/{id}/foo:5xx');
+  assert.equal(requestKey('GET /news/1003/foo', 'p95'), 'ai:req:/news/{id}/foo:p95');
+  assert.equal(keysForEvidence('qz-prod-request-p95', { Name: 'GET /news/1003/foo' })[0], 'ai:req:/news/{id}/foo:p95');
+  assert.equal(keysForEvidence('qz-prod-exception-spike', { ProblemId: 'spike' })[0], 'ai:exc:spike');
   assert.equal(dependencyKey('SQL', 'queenzone-db'), 'ai:dep:SQL:queenzone-db');
   assert.equal(availabilityKey('qz-prod-health'), 'ai:avail:qz-prod-health');
   assert.equal(ingestionKey(), 'ai:ingest:cap');
@@ -105,6 +126,24 @@ test('parseArgAlerts keeps only fired qz-prod-* rules and ignores other alerts',
   assert.equal(alerts[0].rule, 'qz-prod-server-5xx');
   assert.deepEqual(parseArgAlerts({ data: [] }), []);
   assert.deepEqual(parseArgAlerts([]), []);
+});
+
+test('evidence KQL is scoped to the fired alert dimension', () => {
+  const scoped = evidenceKqlForAlert({
+    rule: 'qz-prod-exception-new-problem',
+    dimensions: { ProblemId: 'System.NullReferenceException' },
+  });
+  assert.match(scoped, /ProblemId == 'System\.NullReferenceException'/);
+  assert.equal(evidenceKqlForAlert({ rule: 'qz-prod-exception-new-problem', dimensions: {} }), '');
+  assert.equal(dimensionWhere({
+    rule: 'qz-prod-server-5xx',
+    dimensions: { Name: 'GET /news/1/story' },
+  }), "Name == 'GET /news/1/story'");
+  assert.match(evidenceKqlForAlert({
+    rule: 'qz-prod-dependency-failures',
+    dimensions: { DependencyType: 'SQL', Target: 'queenzone-db' },
+  }), /DependencyType == 'SQL' and Target == 'queenzone-db'/);
+  assert.match(evidenceKqlForAlert({ rule: 'qz-prod-exception-spike' }), /ProblemId='spike'/);
 });
 
 test('parseEvidenceRows builds request and exception keys', () => {
@@ -180,6 +219,11 @@ test('Sentry parsing uses extra.path or the last api breadcrumb with status >= 5
   assert.equal(candidate.area, 'news');
   assert.equal(candidate.count, 1);
   assert.equal(candidate.release, 'mobile@1.0.0');
+  assert.equal(parseSentryIssue({
+    id: 'leak',
+    title: 'crash user@example.com',
+    lastSeen: '2026-09-27T10:00:00Z',
+  }, {}, { since: new Date('2026-09-27T08:00:00Z') }).title, '[sentry] crash [email]');
 
   assert.equal(parseSentryIssue({
     id: '9',

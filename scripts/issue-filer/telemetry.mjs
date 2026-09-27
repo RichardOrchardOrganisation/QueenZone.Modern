@@ -13,6 +13,35 @@ const DEFAULT_SENTRY_ORG = 'self-0tb';
 const DEFAULT_SENTRY_PROJECT = 'queenzone-mobile';
 
 export const LOOKBACK_HOURS = 2;
+export const REDACT_MAX_LENGTH = 120;
+
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
+const IPV6_RE = /\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{0,4}\b/g;
+const JWT_RE = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
+const BEARER_RE = /\b(?:Bearer|token)\s+[A-Za-z0-9._\-+/=]{8,}/gi;
+const API_KEY_RE = /\b(?:sk|pk|ghp|gho|github_pat|AIza)[-_][A-Za-z0-9_-]{16,}\b/g;
+const CONN_PAIR_RE = /\b(?:Password|Pwd|Pass|User\s*ID|User\s*Id|Username|UID|AccountKey|SharedAccessSignature|SharedAccessKey|Server|Data\s*Source|Initial\s*Catalog|Database)\s*=\s*[^;\s]+/gi;
+const LONG_HEX_RE = /\b[0-9A-Fa-f]{32,}\b/g;
+const LONG_B64_RE = /\b[A-Za-z0-9+/]{32,}={1,2}(?![A-Za-z0-9+/=])/g;
+
+export function redact(text, { maxLength = REDACT_MAX_LENGTH } = {}) {
+  let value = String(text ?? '');
+  value = value.replace(EMAIL_RE, '[email]');
+  value = value.replace(IPV4_RE, '[ip]');
+  value = value.replace(IPV6_RE, '[ip]');
+  value = value.replace(BEARER_RE, '[token]');
+  value = value.replace(JWT_RE, '[token]');
+  value = value.replace(CONN_PAIR_RE, (match) => `${match.split('=')[0].trim()}=[secret]`);
+  value = value.replace(API_KEY_RE, '[token]');
+  value = value.replace(LONG_HEX_RE, '[secret]');
+  value = value.replace(LONG_B64_RE, '[secret]');
+  value = value.replace(/\s+/g, ' ').trim();
+  if (maxLength > 0 && value.length > maxLength) {
+    return `${value.slice(0, Math.max(1, maxLength - 1))}…`;
+  }
+  return value;
+}
 
 export const ARG_ALERTS_QUERY = `
 alertsmanagementresources
@@ -24,56 +53,130 @@ alertsmanagementresources
 `.trim();
 
 const EVIDENCE_COLUMNS = `project ProblemId, operation_Name, ResultCode, operation_Ids, ItemCount, AppVersion, AppRoleInstance, lastSeen, DependencyType, target, test`;
+export const REQUIRES_DIMENSION = new Set([
+  'qz-prod-server-5xx',
+  'qz-prod-exception-new-problem',
+  'qz-prod-dependency-failures',
+  'qz-prod-request-p95',
+]);
 
-export const EVIDENCE_KQL = {
-  'qz-prod-server-5xx': `
+export function kqlLiteral(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw || !/^[A-Za-z0-9_./{}:+\s\-()[\]]{1,200}$/.test(raw)) {
+    return '';
+  }
+  return `'${raw.replace(/'/g, "''")}'`;
+}
+
+function dimensionValue(dimensions, ...names) {
+  const map = dimensions || {};
+  for (const name of names) {
+    if (map[name] != null && String(map[name]).trim()) {
+      return String(map[name]).trim();
+    }
+  }
+  return '';
+}
+
+export function dimensionWhere(alert) {
+  const rule = alert?.rule || '';
+  const dimensions = alert?.dimensions || {};
+  if (rule === 'qz-prod-server-5xx' || rule === 'qz-prod-request-p95') {
+    const literal = kqlLiteral(dimensionValue(dimensions, 'Name', 'name', 'operation_Name'));
+    return literal ? `Name == ${literal}` : '';
+  }
+  if (rule === 'qz-prod-exception-new-problem') {
+    const literal = kqlLiteral(dimensionValue(dimensions, 'ProblemId', 'problemId'));
+    return literal ? `ProblemId == ${literal}` : '';
+  }
+  if (rule === 'qz-prod-dependency-failures') {
+    const type = kqlLiteral(dimensionValue(dimensions, 'DependencyType', 'dependencyType'));
+    const target = kqlLiteral(dimensionValue(dimensions, 'Target', 'target'));
+    const parts = [];
+    if (type) {
+      parts.push(`DependencyType == ${type}`);
+    }
+    if (target) {
+      parts.push(`Target == ${target}`);
+    }
+    return parts.join(' and ');
+  }
+  if (rule === 'qz-prod-availability') {
+    const literal = kqlLiteral(dimensionValue(dimensions, 'Name', 'name', 'test'));
+    return literal ? `Name == ${literal}` : '';
+  }
+  return '';
+}
+
+function whereLine(filter) {
+  return filter ? `| where ${filter}\n` : '';
+}
+
+const EVIDENCE_BUILDERS = {
+  'qz-prod-server-5xx': (filter) => `
 AppRequests
 | where toint(ResultCode) >= 500
-| summarize ItemCount=sum(ItemCount), ResultCode=max(toint(ResultCode)), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated) by Name
+${whereLine(filter)}| summarize ItemCount=sum(ItemCount), ResultCode=max(toint(ResultCode)), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated) by Name
 | extend ProblemId='', operation_Name=Name, DependencyType='', target='', test=''
 | ${EVIDENCE_COLUMNS}
 `.trim(),
-  'qz-prod-exception-new-problem': `
+  'qz-prod-exception-new-problem': (filter) => `
 AppExceptions
-| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), operation_Name=any(OperationName) by ProblemId
+${whereLine(filter)}| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), operation_Name=any(OperationName) by ProblemId
 | extend ResultCode=0, DependencyType='', target='', test=''
 | ${EVIDENCE_COLUMNS}
 `.trim(),
-  'qz-prod-exception-spike': `
+  'qz-prod-exception-spike': (filter) => `
 AppExceptions
-| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), operation_Name=any(OperationName) by ProblemId
-| extend ResultCode=0, DependencyType='', target='', test=''
+${whereLine(filter)}| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), operation_Name=any(OperationName)
+| extend ProblemId='spike', ResultCode=0, DependencyType='', target='', test=''
 | ${EVIDENCE_COLUMNS}
 `.trim(),
-  'qz-prod-dependency-failures': `
+  'qz-prod-dependency-failures': (filter) => `
 AppDependencies
 | where Success == false
-| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), operation_Name=any(OperationName) by DependencyType, Target
+${whereLine(filter)}| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), operation_Name=any(OperationName) by DependencyType, Target
 | extend ProblemId='', ResultCode=0, target=Target, test=''
 | ${EVIDENCE_COLUMNS}
 `.trim(),
-  'qz-prod-availability': `
+  'qz-prod-availability': (filter) => `
 AppAvailabilityResults
 | where Success == false
-| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(Id, 5), AppVersion=any(AppVersion), AppRoleInstance=any(Location), lastSeen=max(TimeGenerated) by Name
+${whereLine(filter)}| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(Id, 5), AppVersion=any(AppVersion), AppRoleInstance=any(Location), lastSeen=max(TimeGenerated) by Name
 | extend ProblemId='', operation_Name=Name, ResultCode=0, DependencyType='', target='', test=Name
 | ${EVIDENCE_COLUMNS}
 `.trim(),
-  'qz-prod-ingestion-cap': `
+  'qz-prod-ingestion-cap': () => `
 _LogOperation
 | where * has 'OverQuota' or * has 'over-quota' or * has 'CollectionDisabled' or * has 'collection-stopped'
 | summarize ItemCount=count(), lastSeen=max(TimeGenerated)
 | extend ProblemId='', operation_Name='', ResultCode=0, operation_Ids=dynamic([]), AppVersion='', AppRoleInstance='', DependencyType='', target='', test='ingestion'
 | ${EVIDENCE_COLUMNS}
 `.trim(),
-  'qz-prod-request-p95': `
+  'qz-prod-request-p95': (filter) => `
 AppRequests
 | where Name !has '/health'
-| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), ResultCode=max(toint(ResultCode)) by Name
+${whereLine(filter)}| summarize ItemCount=sum(ItemCount), operation_Ids=make_set(OperationId, 5), AppVersion=any(AppVersion), AppRoleInstance=any(AppRoleInstance), lastSeen=max(TimeGenerated), ResultCode=max(toint(ResultCode)) by Name
 | extend ProblemId='', operation_Name=Name, DependencyType='', target='', test=''
 | ${EVIDENCE_COLUMNS}
 `.trim(),
 };
+
+export const EVIDENCE_KQL = Object.fromEntries(
+  Object.entries(EVIDENCE_BUILDERS).map(([rule, build]) => [rule, build('')]),
+);
+
+export function evidenceKqlForAlert(alert) {
+  const builder = EVIDENCE_BUILDERS[alert?.rule];
+  if (!builder) {
+    return '';
+  }
+  const filter = dimensionWhere(alert);
+  if (REQUIRES_DIMENSION.has(alert.rule) && !filter) {
+    return '';
+  }
+  return builder(filter);
+}
 
 export function keyPart(value, fallback = 'unknown') {
   const raw = String(value ?? '').trim();
@@ -91,8 +194,8 @@ export function exceptionKey(problemId) {
   return `ai:exc:${keyPart(problemId)}`;
 }
 
-export function requestKey(operationName) {
-  return `ai:req:${keyPart(normalizeRoute(operationName) || 'unknown')}:5xx`;
+export function requestKey(operationName, suffix = '5xx') {
+  return `ai:req:${keyPart(normalizeRoute(operationName) || 'unknown')}:${suffix}`;
 }
 
 export function dependencyKey(type, target) {
@@ -311,6 +414,9 @@ function evidenceKind(rule) {
 
 export function keysForEvidence(rule, row) {
   const kind = evidenceKind(rule);
+  if (rule === 'qz-prod-request-p95') {
+    return [requestKey(pick(row, ['operation_Name', 'Name', 'name']), 'p95')];
+  }
   if (kind === 'request') {
     return [requestKey(pick(row, ['operation_Name', 'Name', 'name']))];
   }
@@ -322,6 +428,10 @@ export function keysForEvidence(rule, row) {
   }
   if (kind === 'ingestion') {
     return [ingestionKey()];
+  }
+  if (rule === 'qz-prod-exception-spike') {
+    const problemId = pick(row, ['ProblemId', 'problemId']);
+    return [problemId && problemId !== 'spike' ? exceptionKey(problemId) : 'ai:exc:spike'];
   }
   return [exceptionKey(pick(row, ['ProblemId', 'problemId']))];
 }
@@ -470,7 +580,7 @@ export function parseSentryIssue(issue, event, {
     source: 'sentry',
     sources: ['sentry'],
     keys: [sentryKey(issue.id)],
-    title: `[sentry] ${issue.title || issue.metadata?.title || issue.id}`.slice(0, 200),
+    title: redact(`[sentry] ${issue.title || issue.metadata?.title || issue.id}`),
     area,
     featureId: feature?.id || '',
     captureProof: captureProofCommand(feature?.id || ''),
@@ -478,9 +588,9 @@ export function parseSentryIssue(issue, event, {
     count,
     firstSeen: issue.firstSeen || issue.first_seen || lastSeen,
     lastSeen,
-    release: event?.release || issue.project?.slug || '',
+    release: redact(event?.release || issue.project?.slug || '', { maxLength: 80 }),
     deployedTip,
-    frames: frames.map(formatFrame),
+    frames: frames.map((frame) => redact(formatFrame(frame), { maxLength: 200 })),
     route,
     operationId: extractTraceId(event),
     operationIds: [extractTraceId(event)].filter(Boolean),
@@ -501,22 +611,22 @@ export function candidateFromEvidence(row, {
   const area = feature?.area || 'unknown';
   const evidence = [];
   if (alert?.id) {
-    evidence.push({ text: `Fired alert ${alert.rule}` });
+    evidence.push({ text: redact(`Fired alert ${alert.rule}`) });
   }
   for (const id of row.operationIds.slice(0, 5)) {
-    evidence.push({ text: `operation_Id ${id}` });
+    evidence.push({ text: redact(`operation_Id ${id}`) });
   }
   if (row.release) {
-    evidence.push({ text: `AppVersion ${row.release}` });
+    evidence.push({ text: redact(`AppVersion ${row.release}`) });
   }
   if (row.roleInstance) {
-    evidence.push({ text: `AppRoleInstance ${row.roleInstance}` });
+    evidence.push({ text: redact(`AppRoleInstance ${row.roleInstance}`) });
   }
   return {
     source: 'appinsights',
     sources: ['appinsights'],
     keys: row.keys,
-    title: `[appinsights] ${row.rule} ${row.operationName || row.problemId || row.target || row.test || row.rule}`.slice(0, 200),
+    title: redact(`[appinsights] ${row.rule} ${row.operationName || row.problemId || row.target || row.test || row.rule}`),
     area,
     featureId: feature?.id || '',
     captureProof: captureProofCommand(feature?.id || ''),

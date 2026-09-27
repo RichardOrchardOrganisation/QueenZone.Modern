@@ -259,6 +259,7 @@ export async function runFiler(options = {}) {
     appInsightsEvidence: options.appInsightsEvidence,
     appInsightsAlertsPath: options.appInsightsAlertsPath,
     appInsightsEvidencePath: options.appInsightsEvidencePath,
+    azureWarningsPath: options.azureWarningsPath,
     featureMap: options.featureMap,
     deployedTip: options.deployedTip,
     fetchImpl: options.fetchImpl,

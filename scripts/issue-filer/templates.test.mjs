@@ -9,6 +9,7 @@ import {
   escapeMarkdown,
   formatPlanSummary,
   labelsFor,
+  safeTitle,
 } from './templates.mjs';
 
 const { config } = loadFilerFiles(repoRootFrom());
@@ -119,6 +120,85 @@ test('evidence markdown escapes mentions, closing keywords and link breakout', (
   assert.ok(issue.body.includes('\\[break\\]'));
   assert.doesNotMatch(issue.body, /javascript:alert/);
   assert.match(issue.body, /Skip analyzer \+ Skip = true/);
+});
+
+test('safeTitle redacts telemetry text and neutralises mentions', () => {
+  const title = safeTitle('[sentry] user@example.com @admin Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aaa.bbb');
+  assert.doesNotMatch(title, /user@example\.com/);
+  assert.doesNotMatch(title, /eyJhbGci/);
+  assert.match(title, /\\\[email\\\]/);
+  assert.match(title, /\\@admin/);
+  assert.match(title, /\\\[sentry\\\]/);
+});
+
+test('issue title, storm list, log comment, and will-create lines redact external text', () => {
+  const leaky = {
+    source: 'sentry',
+    keys: ['sentry:99'],
+    title: '[sentry] leak user@example.com @oncall Password=hunter2',
+    area: 'news',
+    evidence: [{ text: 'token ghp_abcdefghijklmnopqrstuvwxyz1234 from 203.0.113.10' }],
+    count: 3,
+    firstSeen: '2026-09-27T09:00:00Z',
+    lastSeen: '2026-09-27T10:00:00Z',
+    frames: ['src/app.ts:1 in load user@example.com'],
+    release: 'mobile@1.0.0',
+  };
+  const issue = buildIssue({ candidate: leaky, config, loop: 'telemetry' });
+  assert.doesNotMatch(issue.title, /user@example\.com/);
+  assert.doesNotMatch(issue.title, /hunter2/);
+  assert.match(issue.title, /\\\[email\\\]/);
+  assert.match(issue.title, /Password=\\\[secret\\\]/);
+  assert.doesNotMatch(issue.body, /ghp_/);
+  assert.doesNotMatch(issue.body, /203\.0\.113\.10/);
+  assert.match(issue.body, /\\\[token\\\]/);
+  assert.match(issue.body, /\\\[ip\\\]/);
+
+  const storm = buildIssue({
+    candidate: {
+      ...leaky,
+      storm: true,
+      title: 'Telemetry storm 2026-09-26',
+      keys: ['storm:telemetry:2026-09-26'],
+      source: 'telemetry',
+      stormCandidates: [leaky],
+    },
+    config,
+    loop: 'telemetry',
+  });
+  assert.match(storm.body, /Ranked signals/);
+  assert.doesNotMatch(storm.body, /user@example\.com/);
+  assert.match(storm.body, /\\\[email\\\]/);
+
+  const log = buildLogComment({
+    create: [{ candidate: leaky }],
+    reopen: [{ issueNumber: 8, candidate: leaky }],
+    mention: '@richardorchard',
+  });
+  assert.match(log, /@richardorchard/);
+  assert.doesNotMatch(log, /user@example\.com/);
+  assert.match(log, /create: .*\\\[email\\\]/);
+
+  const summary = formatPlanSummary({
+    create: [{ candidate: leaky }],
+    comment: [],
+    reopen: [],
+    skipped: [],
+    expiredIgnores: [],
+  });
+  assert.match(summary, /will create:/);
+  assert.doesNotMatch(summary, /user@example\.com/);
+  assert.doesNotMatch(summary, /hunter2/);
+});
+
+test('azure collect warnings are visible in the plan summary', () => {
+  const silent = formatPlanSummary(
+    { create: [], comment: [], reopen: [], skipped: [], expiredIgnores: [] },
+    { warnings: ['azure: azure-graph-failed'] },
+  );
+  assert.match(silent, /warnings: azure: azure-graph-failed/);
+  assert.match(silent, /not a clean zero-alert no-op/);
+  assert.doesNotMatch(silent, /Silent run/);
 });
 
 test('storm issue lists the ranked signals', () => {

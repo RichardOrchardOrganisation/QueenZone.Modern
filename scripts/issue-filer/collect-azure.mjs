@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ARG_ALERTS_QUERY, EVIDENCE_KQL, firedRuleNames, parseArgAlerts } from './telemetry.mjs';
+import { ARG_ALERTS_QUERY, REQUIRES_DIMENSION, evidenceKqlForAlert, parseArgAlerts } from './telemetry.mjs';
 
 function parseArgs(argv) {
   const args = {
@@ -25,6 +25,8 @@ function parseArgs(argv) {
       args.alertsOut = list.shift();
     } else if (flag === '--evidence-out') {
       args.evidenceOut = list.shift();
+    } else if (flag === '--warnings-out') {
+      args.warningsOut = list.shift();
     } else {
       throw new Error(`Unknown argument: ${flag}`);
     }
@@ -90,6 +92,43 @@ function parseJson(text, fallback) {
   }
 }
 
+function collectResult({ alerts = [], evidence = {}, warnings = [] }) {
+  return {
+    alerts,
+    evidence,
+    warnings,
+    warning: warnings[0] || '',
+  };
+}
+
+export function isCollectFailure(warning) {
+  return warning === 'azure-graph-failed'
+    || warning === 'azure-workspace-failed'
+    || String(warning).startsWith('azure-kql-failed:');
+}
+
+function writeOutputs(args, { alerts, evidence, warnings = [] }) {
+  writeFileSync(args.alertsOut, `${JSON.stringify(alerts)}\n`);
+  writeFileSync(args.evidenceOut, `${JSON.stringify(evidence)}\n`);
+  const warningsOut = args.warningsOut || process.env.TELEMETRY_AZURE_WARNINGS_PATH;
+  if (warningsOut && warnings.length > 0) {
+    writeFileSync(warningsOut, `${warnings.join('\n')}\n`);
+  }
+}
+
+function evidenceRows(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+  if (Array.isArray(payload?.tables)) {
+    return payload.tables;
+  }
+  return [];
+}
+
 export async function collectAzureSignals(args, options = {}) {
   const execOptions = { exec: options.exec, timeoutMs: options.timeoutMs };
   await runCommand('az', ['config', 'set', 'extension.use_dynamic_install=yes_without_prompt', '--only-show-errors'], execOptions);
@@ -108,17 +147,22 @@ export async function collectAzureSignals(args, options = {}) {
     'json',
   ]), execOptions);
   if (graph.code !== 0) {
-    writeFileSync(args.alertsOut, '[]\n');
-    writeFileSync(args.evidenceOut, '{}\n');
-    return { alerts: [], evidence: {}, warning: 'azure-graph-failed' };
+    const result = collectResult({ warnings: ['azure-graph-failed'] });
+    writeOutputs(args, result);
+    return result;
   }
 
   const alerts = parseArgAlerts(parseJson(graph.stdout, { data: [] }));
-  writeFileSync(args.alertsOut, `${JSON.stringify(alerts)}\n`);
-  const rules = firedRuleNames(alerts);
-  if (rules.length === 0) {
-    writeFileSync(args.evidenceOut, '{}\n');
-    return { alerts, evidence: {}, warning: '' };
+  const queryable = alerts
+    .map((alert) => ({ alert, query: evidenceKqlForAlert(alert) }))
+    .filter((item) => item.query);
+  const warnings = alerts
+    .filter((alert) => REQUIRES_DIMENSION.has(alert.rule) && !evidenceKqlForAlert(alert))
+    .map((alert) => `azure-kql-unscoped:${alert.rule}`);
+  if (queryable.length === 0) {
+    const result = collectResult({ alerts, warnings });
+    writeOutputs(args, result);
+    return result;
   }
 
   const workspace = await runCommand('az', azArgs([
@@ -139,14 +183,14 @@ export async function collectAzureSignals(args, options = {}) {
   ]), execOptions);
   const workspaceId = String(workspace.stdout || '').trim();
   if (workspace.code !== 0 || !workspaceId) {
-    writeFileSync(args.evidenceOut, '{}\n');
-    return { alerts, evidence: {}, warning: 'azure-workspace-failed' };
+    const result = collectResult({ alerts, warnings: [...warnings, 'azure-workspace-failed'] });
+    writeOutputs(args, result);
+    return result;
   }
 
   const evidence = {};
-  for (const rule of rules) {
-    const query = EVIDENCE_KQL[rule];
-    const result = await runCommand('az', azArgs([
+  for (const { alert, query } of queryable) {
+    const kql = await runCommand('az', azArgs([
       'monitor',
       'log-analytics',
       'query',
@@ -159,16 +203,16 @@ export async function collectAzureSignals(args, options = {}) {
       '--output',
       'json',
     ]), execOptions);
-    evidence[rule] = result.code === 0 ? parseJson(result.stdout, []) : [];
-    if (!Array.isArray(evidence[rule])) {
-      evidence[rule] = evidence[rule]?.data || evidence[rule]?.tables || [];
-      if (!Array.isArray(evidence[rule])) {
-        evidence[rule] = [];
-      }
+    if (kql.code !== 0) {
+      warnings.push(`azure-kql-failed:${alert.rule}`);
+      continue;
     }
+    const rows = evidenceRows(parseJson(kql.stdout, []));
+    evidence[alert.rule] = [...(evidence[alert.rule] || []), ...rows];
   }
-  writeFileSync(args.evidenceOut, `${JSON.stringify(evidence)}\n`);
-  return { alerts, evidence, warning: '' };
+  const result = collectResult({ alerts, evidence, warnings });
+  writeOutputs(args, result);
+  return result;
 }
 
 export async function main(argv = process.argv.slice(2), deps = {}) {
@@ -176,16 +220,24 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
   const result = await collectAzureSignals(args, deps);
   (deps.stdout || console.log)(`Fired qz-prod-* alerts: ${result.alerts.length}`);
   (deps.stdout || console.log)(`Evidence rule buckets: ${Object.keys(result.evidence).length}`);
-  if (result.warning) {
-    (deps.stdout || console.log)(`Azure collect warning: ${result.warning}`);
+  const warn = deps.stderr || console.error;
+  for (const warning of result.warnings || []) {
+    warn(`::warning::Azure collect: ${warning}`);
+  }
+  if ((result.warnings || []).some(isCollectFailure)) {
+    return 1;
   }
   return 0;
 }
 
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (invokedDirectly) {
-  main().catch((error) => {
-    console.error(error.message || error);
+  main().then((code) => {
+    if (code) {
+      process.exitCode = code;
+    }
+  }).catch((error) => {
+    console.error(`::warning::Azure collect: ${error.message || error}`);
     process.exitCode = 1;
   });
 }

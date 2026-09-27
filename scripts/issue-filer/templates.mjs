@@ -1,6 +1,6 @@
 import { isGuardrail } from './core.mjs';
 import { parseFilerMarker } from './finding.mjs';
-import { telemetrySourceLabels } from './telemetry.mjs';
+import { redact, telemetrySourceLabels } from './telemetry.mjs';
 
 export function buildMarker({ keys, source }) {
   const safeKeys = (keys || []).filter((key) => key && !/\s/.test(key));
@@ -59,6 +59,10 @@ export function escapeMarkdown(text) {
     .replace(/#(\d+)/g, '#\u200b$1');
 }
 
+export function safeTitle(text) {
+  return escapeMarkdown(redact(text));
+}
+
 function safeUrl(url) {
   try {
     const parsed = new URL(String(url || ''));
@@ -78,7 +82,7 @@ function evidenceLines(evidence = []) {
   return evidence
     .slice(0, 20)
     .map((item) => {
-      const label = escapeMarkdown(item.text || item.url || 'evidence');
+      const label = escapeMarkdown(redact(item.text || item.url || 'evidence'));
       const url = safeUrl(item.url);
       return url ? `- [${label}](${url})` : `- ${label}`;
     })
@@ -97,7 +101,7 @@ function proposedCheck(candidate) {
 
 function stormList(candidates = []) {
   return candidates
-    .map((item) => `- **${item.title}** (${item.count}) keys: \`${(item.keys || []).join(', ')}\``)
+    .map((item) => `- **${safeTitle(item.title)}** (${item.count}) keys: \`${(item.keys || []).join(', ')}\``)
     .join('\n');
 }
 
@@ -109,13 +113,13 @@ function telemetryIssueBody(candidate, { previousIssue } = {}) {
     : '';
   const frames = (candidate.frames || []).slice(0, 5);
   const frameLines = frames.length > 0
-    ? frames.map((frame) => `- \`${escapeMarkdown(frame)}\``).join('\n')
+    ? frames.map((frame) => `- \`${escapeMarkdown(redact(frame, { maxLength: 200 }))}\``).join('\n')
     : '- No in-app frames were supplied.';
   const featureId = candidate.featureId || 'unmapped';
   const proof = candidate.captureProof || 'Not mapped: add a feature-map id before running capture-proof.';
   return `## User story
 
-As a QueenZone maintainer, I want production telemetry key \`${escapeMarkdown(candidate.keys?.[0] || candidate.title)}\` diagnosed so the failure stops reaching visitors or members.
+As a QueenZone maintainer, I want production telemetry key \`${escapeMarkdown(redact(candidate.keys?.[0] || candidate.title))}\` diagnosed so the failure stops reaching visitors or members.
 
 ## Acceptance criteria
 
@@ -126,7 +130,7 @@ As a QueenZone maintainer, I want production telemetry key \`${escapeMarkdown(ca
 ## Evidence
 
 - Event count: ${candidate.count}
-- Release / deployed tip: ${escapeMarkdown(candidate.release || candidate.deployedTip || 'unknown')}
+- Release / deployed tip: ${escapeMarkdown(redact(candidate.release || candidate.deployedTip || 'unknown', { maxLength: 80 }))}
 - First seen: ${candidate.firstSeen || 'unknown'}
 - Last seen: ${candidate.lastSeen || 'unknown'}
 - Feature-map id: ${escapeMarkdown(featureId)}
@@ -150,7 +154,7 @@ export function buildIssue({ candidate, config, previousIssue, loop = 'gardener'
   const labels = labelsFor(candidate, config, loop);
   if (loop === 'telemetry') {
     return {
-      title: candidate.title,
+      title: safeTitle(candidate.title),
       body: telemetryIssueBody(candidate, { previousIssue }).replace(/\n{3,}/g, '\n\n').trim() + '\n',
       labels,
     };
@@ -196,7 +200,7 @@ export function buildComment({ candidate, kind }) {
   const lines = [
     `## ${heading}`,
     '',
-    `Count is now **${candidate.count}** for \`${candidate.keys?.[0] || candidate.title}\`.`,
+    `Count is now **${candidate.count}** for \`${escapeMarkdown(redact(candidate.keys?.[0] || candidate.title))}\`.`,
     '',
     evidenceLines(candidate.evidence),
     '',
@@ -206,8 +210,8 @@ export function buildComment({ candidate, kind }) {
 }
 
 export function buildLogComment({ create, reopen, mention }) {
-  const filed = (create || []).map((item) => `- create: ${item.candidate.title}`).join('\n');
-  const reopened = (reopen || []).map((item) => `- reopen: #${item.issueNumber} ${item.candidate.title}`).join('\n');
+  const filed = (create || []).map((item) => `- create: ${safeTitle(item.candidate.title)}`).join('\n');
+  const reopened = (reopen || []).map((item) => `- reopen: #${item.issueNumber} ${safeTitle(item.candidate.title)}`).join('\n');
   return [
     `${mention} Issue filer wrote ${create.length} issue(s) and reopened ${reopen.length}.`,
     filed,
@@ -254,13 +258,17 @@ export function formatPlanSummary(plan, extras = {}) {
     lines.push(`- warnings: ${extras.warnings.join('; ')}`);
   }
   if (plan.create.length === 0 && plan.comment.length === 0 && plan.reopen.length === 0) {
-    lines.push('', 'Silent run: nothing to file.');
+    if (extras.warnings?.length) {
+      lines.push('', 'Collect warnings were recorded; this is not a clean zero-alert no-op.');
+    } else {
+      lines.push('', 'Silent run: nothing to file.');
+    }
   }
   for (const item of plan.create) {
-    lines.push(`- will create: ${item.candidate.title}`);
+    lines.push(`- will create: ${safeTitle(item.candidate.title)}`);
   }
   for (const item of plan.skipped.filter((row) => row.suggestIgnore)) {
-    lines.push(`- suggest ignore for closed-as-not-planned #${item.issue} (${item.candidate.title})`);
+    lines.push(`- suggest ignore for closed-as-not-planned #${item.issue} (${safeTitle(item.candidate.title)})`);
   }
   for (const entry of plan.expiredIgnores) {
     lines.push(`- expired ignore: ${entry.reason}`);

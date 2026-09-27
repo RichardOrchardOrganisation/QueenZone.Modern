@@ -1,7 +1,10 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFilerFiles, repoRootFrom } from '../config.mjs';
-import { collect } from './telemetry.mjs';
+import { collect, defaultSentrySearch, sentryNextPageUrl } from './telemetry.mjs';
 
 const { config } = loadFilerFiles(repoRootFrom());
 const since = new Date('2026-09-27T08:00:00Z');
@@ -62,6 +65,57 @@ test('zero fired alerts is a clean no-op on the App Insights side', async () => 
     appInsightsEvidence: {},
   });
   assert.deepEqual(candidates, []);
+});
+
+test('azure warning file is surfaced so a collect failure is not a silent no-op', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'telemetry-warn-'));
+  const warnPath = path.join(dir, 'warnings.txt');
+  writeFileSync(warnPath, 'azure-graph-failed\n');
+  const warnings = [];
+  const candidates = await collect({
+    config,
+    since,
+    warnings,
+    root: repoRootFrom(),
+    sentryIssues: [],
+    appInsightsAlerts: [],
+    appInsightsEvidence: {},
+    azureWarningsPath: warnPath,
+  });
+  assert.deepEqual(candidates, []);
+  assert.match(warnings[0], /azure-graph-failed/);
+});
+
+test('Sentry Link next URL is pinned to sentry.io', () => {
+  assert.equal(
+    String(sentryNextPageUrl('<https://sentry.io/api/0/issues/?cursor=1>; rel="next"')),
+    'https://sentry.io/api/0/issues/?cursor=1',
+  );
+  assert.equal(sentryNextPageUrl('<https://evil.example/steal>; rel="next"'), '');
+  assert.equal(sentryNextPageUrl('<http://127.0.0.1/x>; rel="next"'), '');
+  assert.equal(sentryNextPageUrl('<https://sentry.io.evil.example/x>; rel="next"'), '');
+});
+
+test('defaultSentrySearch refuses a Link next URL off sentry.io', async () => {
+  const urls = [];
+  const issues = await defaultSentrySearch({
+    token: 't',
+    fetchImpl: async (url) => {
+      urls.push(String(url));
+      return {
+        ok: true,
+        json: async () => [{ id: '1' }],
+        headers: {
+          get: (name) => (String(name).toLowerCase() === 'link'
+            ? '<https://evil.example/next>; rel="next"'
+            : ''),
+        },
+      };
+    },
+  });
+  assert.equal(issues.length, 1);
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /sentry\.io/);
 });
 
 test('Sentry search errors are swallowed so App Insights can still file', async () => {

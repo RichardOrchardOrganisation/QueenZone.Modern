@@ -403,6 +403,68 @@ test('later correlated keys are appended to an existing marker', async () => {
   assert.match(update[2].body, /keys=sentry:1,ai:req:\/news\/\{id\}:5xx/);
 });
 
+test('listIssuesByLabel throw blocks create', async () => {
+  const github = fakeGithub();
+  github.listIssuesByLabel = async () => {
+    throw new Error('label lookup failed');
+  };
+  await assert.rejects(() => runFiler({
+    root: repoRootFrom(),
+    dryRun: false,
+    now,
+    github,
+    config,
+    ignore,
+    findingRules,
+    loop: 'telemetry',
+    collectors: [
+      async () => [{
+        source: 'sentry',
+        keys: ['sentry:9'],
+        title: '[sentry] leak user@example.com',
+        area: 'news',
+        evidence: [],
+        count: 2,
+        level: 'L2',
+      }],
+    ],
+    stdout: () => {},
+  }), /label lookup failed/);
+  assert.ok(!github.calls.some((call) => call[0] === 'createIssue'));
+});
+
+test('telemetry dry-run will-create lines use redacted titles', async () => {
+  const lines = [];
+  await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    loop: 'telemetry',
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [
+      async () => [{
+        source: 'sentry',
+        keys: ['sentry:9'],
+        title: '[sentry] leak user@example.com Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aaa.bbb',
+        area: 'news',
+        evidence: [],
+        count: 2,
+        level: 'L2',
+      }],
+    ],
+    existing: [],
+    stdout: (line) => lines.push(String(line)),
+  });
+  const text = lines.join('\n');
+  assert.match(text, /will create:/);
+  assert.doesNotMatch(text, /user@example\.com/);
+  assert.doesNotMatch(text, /eyJhbGci/);
+  assert.match(text, /\\\[email\\\]/);
+});
+
 test('missing ingest-findings file fails closed', () => {
   assert.throws(
     () => resolveIngestFindingsPath(repoRootFrom(), 'scripts/issue-filer/missing-findings.json'),

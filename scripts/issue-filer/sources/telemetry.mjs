@@ -56,12 +56,34 @@ export async function defaultSentrySearch({
     }
     const data = await response.json();
     issues.push(...(Array.isArray(data) ? data : []));
-    const link = response.headers.get?.('link') || '';
-    const match = /<([^>]+)>;\s*rel="next"/i.exec(link);
-    next = match ? new URL(match[1]) : '';
+    const link = response.headers.get?.('link') || response.headers.get?.('Link') || '';
+    next = sentryNextPageUrl(link);
     pages += 1;
   }
   return issues;
+}
+
+export function sentryNextPageUrl(linkHeader, { allowedHost = 'sentry.io' } = {}) {
+  const header = String(linkHeader || '');
+  for (const part of header.split(',')) {
+    const match = /<([^>]+)>\s*;\s*rel="next"/i.exec(part);
+    if (!match) {
+      continue;
+    }
+    try {
+      const url = new URL(match[1]);
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+        return '';
+      }
+      if (url.hostname.toLowerCase() !== allowedHost) {
+        return '';
+      }
+      return url;
+    } catch {
+      return '';
+    }
+  }
+  return '';
 }
 
 export async function defaultSentryLatestEvent({
@@ -185,6 +207,18 @@ export async function collect(ctx) {
       } catch (error) {
         warnings.push(`sentry: ${error.message}`);
       }
+    }
+  }
+
+  const azureWarningsPath = ctx.azureWarningsPath || process.env.TELEMETRY_AZURE_WARNINGS_PATH;
+  if (azureWarningsPath) {
+    try {
+      const text = readFileSync(azureWarningsPath, 'utf8');
+      for (const line of text.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)) {
+        warnings.push(`azure: ${line}`);
+      }
+    } catch {
+      // Missing warning file is a clean collect.
     }
   }
 
