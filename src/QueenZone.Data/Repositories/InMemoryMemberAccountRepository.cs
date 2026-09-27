@@ -747,5 +747,17 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
         }
     }
 
+    internal void Clear()
+    {
+        lock (gate)
+        {
+            accounts.Clear();
+            externalLogins.Clear();
+            socialLinks.Clear();
+            deletionAuditLogs.Clear();
+            pendingDeletionBlobs.Clear();
+        }
+    }
+
     private static string Normalize(string email) => email.Trim().ToUpperInvariant();
 }

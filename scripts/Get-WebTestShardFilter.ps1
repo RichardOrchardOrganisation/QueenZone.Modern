@@ -101,9 +101,9 @@ function Test-IsEfWafSource {
         return $false
     }
 
-    return $Text -match 'IAsyncLifetime' -or
-        $Text -match 'AdminEfWeb(?:TestHarness|ApplicationFactory)' -or
+    return $Text -match 'AdminEfWeb(?:TestHarness|ApplicationFactory)' -or
         $Text -match 'AdminDashboardEfWebApplicationFactory' -or
+        $Text -match 'Admin\w*Ef(?:Routes|SubmissionQueue)Tests' -or
         $Text -match '\.UseSqlite\('
 }
 
@@ -455,8 +455,13 @@ function Write-EfWafSelfTestClass {
     )
 
     Write-SelfTestClassFile -Root $Root -ClassName $ClassName -Source @"
-public sealed class $ClassName : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
+public sealed class $ClassName : IClassFixture<WebApplicationFactory<Program>>
 {
+    public ${ClassName}()
+    {
+        builder.UseSqlite(connection);
+    }
+
     [Fact] public void One() {}
     [Fact] public void Two() {}
 }
@@ -521,6 +526,14 @@ public sealed class SmallWafTests : IClassFixture<QueenZoneWebApplicationFactory
         Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafATests"
         Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafBTests"
 
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "InMemoryResetWafTests" -Source @"
+public sealed class InMemoryResetWafTests : IClassFixture<QueenZoneWebApplicationFactory>, IAsyncLifetime
+{
+    [Fact] public void One() {}
+    [Fact] public void Two() {}
+}
+"@
+
         Write-SelfTestClassFile -Root $tempRoot -ClassName "AdminNewsEfRoutesTests" -Source @"
 public sealed class AdminNewsEfRoutesTests : IClassFixture<AdminEfWebApplicationFactory>, IAsyncLifetime
 {
@@ -574,7 +587,7 @@ public sealed class SqliteUnitTests
 "@
 
         $discovered = @(Get-TestClasses -Root $tempRoot)
-        Assert-SelfTestEqual $discovered.Count 11 "fixture class count"
+        Assert-SelfTestEqual $discovered.Count 12 "fixture class count"
 
         $byName = @{}
         foreach ($class in $discovered) {
@@ -598,7 +611,9 @@ public sealed class SqliteUnitTests
         Assert-SelfTestEqual $byName["SharedProdWafBTests"].Weight 3 "shared prod collection string name"
         Assert-SelfTestEqual $byName["SharedProdWafATests"].IsProductionCollection $true "collection flag A"
         Assert-SelfTestEqual $byName["SharedProdWafBTests"].IsProductionCollection $true "collection flag B"
-        Assert-SelfTestEqual $byName["AdminNewsEfRoutesTests"].Kind "EF-WAF" "Admin*EfRoutes IAsyncLifetime stays EF-WAF"
+        Assert-SelfTestEqual $byName["InMemoryResetWafTests"].Kind "WAF" "in-memory IAsyncLifetime reset is not EF-WAF"
+        Assert-SelfTestEqual $byName["InMemoryResetWafTests"].Weight 10 "in-memory IAsyncLifetime 2 facts * 5"
+        Assert-SelfTestEqual $byName["AdminNewsEfRoutesTests"].Kind "EF-WAF" "Admin*EfRoutes factory name stays EF-WAF"
         Assert-SelfTestEqual $byName["AdminNewsEfRoutesTests"].Weight 40 "AdminNewsEfRoutes 2 facts * 20"
         Assert-SelfTestEqual $byName["AdminDashboardEfRoutesTests"].Kind "EF-WAF" "AdminDashboardEfRoutes factory name stays EF-WAF"
         Assert-SelfTestEqual $byName["AdminDashboardEfRoutesTests"].Weight 40 "AdminDashboardEfRoutes 2 facts * 20"

@@ -51,7 +51,7 @@ $script:InfrastructureFileNames = [System.Collections.Generic.HashSet[string]]::
         "EnvironmentWebApplicationFactories.cs",
         "WebHostVariants.cs",
         "WebHostVariants.Admin.cs",
-        "WebHostVariants.Slice3d.cs",
+        "WebHostVariants.ForumSearchAuth.cs",
         "WebHostVariantCache.cs",
         "InspectableBlobWebApplicationFactory.cs",
         "AdminEfWebTestHarness.cs",
@@ -139,7 +139,8 @@ function Get-HostConstructionHits {
     $hits = @()
     $files = Get-ChildItem -LiteralPath $Root -Filter *.cs -File
     foreach ($file in $files) {
-        if ($script:InfrastructureFileNames.Contains($file.Name)) {
+        if ($script:InfrastructureFileNames.Contains($file.Name) -or
+            $file.Name -like "WebHostVariants*.cs") {
             continue
         }
 
@@ -232,6 +233,13 @@ public class QueenZoneWebApplicationFactory {
     public static QueenZoneWebApplicationFactory WithServices() => new QueenZoneWebApplicationFactory();
 }
 "@
+        Set-Content -LiteralPath (Join-Path $tempRoot "WebHostVariants.ForumSearchAuth.cs") -Value @"
+public static class WebHostVariants {
+    public static void One() {
+        factory.WithWebHostBuilder(builder => { });
+    }
+}
+"@
         Set-Content -LiteralPath (Join-Path $tempRoot "AllowedHostTests.cs") -Value @"
 public sealed class AllowedHostTests {
     public void One() {
@@ -252,6 +260,7 @@ public sealed class BannedHostTests {
         Assert-SelfTestEqual ($classes -contains "AllowedHostTests") $true "allowed class detected"
         Assert-SelfTestEqual ($classes -contains "BannedHostTests") $true "banned class detected"
         Assert-SelfTestEqual ($classes -contains "QueenZoneWebApplicationFactory") $false "infrastructure excluded"
+        Assert-SelfTestEqual ($classes -contains "WebHostVariants") $false "WebHostVariants*.cs treated as infrastructure"
 
         $allowlistPath = Join-Path $tempRoot "allowlist.txt"
         Set-Content -LiteralPath $allowlistPath -Value @"

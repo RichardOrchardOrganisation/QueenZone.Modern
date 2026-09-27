@@ -38,3 +38,4 @@ jobs:
         run: |
           pwsh -File ./scripts/Test-WebHostConstruction.ps1 -SelfTest
           pwsh -File ./scripts/Test-WebHostConstruction.ps1
+          pwsh -File ./scripts/Get-WebTestShardFilter.ps1 -SelfTest
