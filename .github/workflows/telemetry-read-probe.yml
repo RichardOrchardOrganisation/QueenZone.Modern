@@ -17,8 +17,11 @@ on:
       - ".github/workflows/telemetry-read-probe.yml"
 
 permissions:
-  contents: read
   id-token: write
+
+concurrency:
+  group: telemetry-read-probe
+  cancel-in-progress: false
 
 jobs:
   probe:
@@ -52,6 +55,7 @@ jobs:
         with:
           script: |
             const token = await core.getIDToken('api://AzureADTokenExchange');
+            core.setSecret(token);
             const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
             core.info(`OIDC subject: ${payload.sub}`);
             core.info(`OIDC audience: ${payload.aud}`);
@@ -71,20 +75,38 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
         run: |
           set -euo pipefail
+          az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+          az config set extension.dynamic_install_allow_preview=true --only-show-errors
+          if ! az extension show --name log-analytics --only-show-errors >/dev/null 2>&1; then
+            az extension add --name log-analytics --allow-preview true --only-show-errors
+          fi
           workspace_id="$(az monitor log-analytics workspace show \
             --subscription "${ARM_SUBSCRIPTION_ID}" \
             --resource-group Queenzone-RG \
             --workspace-name queenzone-prod-law \
             --query customerId \
-            --output tsv)"
+            --output tsv \
+            --only-show-errors)"
+          # The log-analytics extension flattens REST tables[] into a list of
+          # row objects (Count + TableName), not tables[0].rows[0][0].
+          # https://github.com/Azure/azure-cli-extensions/blob/main/src/log-analytics/azext_loganalytics/custom.py
           count="$(az monitor log-analytics query \
             --workspace "${workspace_id}" \
             --analytics-query "union * | count" \
             --timespan PT1H \
-            --query "tables[0].rows[0][0]" \
-            --output tsv)"
+            --query "[0].Count" \
+            --output tsv \
+            --only-show-errors)"
           if ! [[ "${count}" =~ ^[0-9]+$ ]]; then
             echo "::error::Log Analytics query did not return a single count."
+            result_json="$(az monitor log-analytics query \
+              --workspace "${workspace_id}" \
+              --analytics-query "union * | count" \
+              --timespan PT1H \
+              --output json \
+              --only-show-errors || true)"
+            printf '%s' "${result_json}" | jq -c 'if type=="array" then {result_type:"list",length:length,keys:(if length>0 and (.[0]|type)=="object" then (.[0]|keys) else [] end)} elif type=="object" then {result_type:"object",keys:keys} else {result_type:type} end' 2>/dev/null \
+              || echo "result_type=unparseable"
             exit 1
           fi
           echo "Telemetry read probe succeeded. row_count=${count}"

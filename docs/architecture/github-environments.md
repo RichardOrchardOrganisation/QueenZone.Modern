@@ -4,7 +4,7 @@ Issue: [#1377](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/is
 
 This is the durable map of GitHub Environments used by QueenZone Actions. Environments live only in GitHub Settings today; workflows reference them by exact name. Create and protect an environment **before** merging a workflow that first references it — GitHub auto-creates an unprotected environment on first use.
 
-The four production environments exist (Gilfoyle / Delivery, #1377). Each uses **custom** deployment policies (`custom_branch_policies=true`, `protected_branches=false`). Environment **secret counts are 0 by design**: `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stays a repository secret. Only environment **variables** (Bitwarden UUID→name maps, ARM IDs, Sentry) live on the environments.
+The four production environments from #1377 exist (Gilfoyle / Delivery). Each of those uses **custom** deployment policies (`custom_branch_policies=true`, `protected_branches=false`). `telemetry-read` (#1805) is a fifth production-adjacent environment; it uses **protected branches** rather than custom policies. Environment **secret counts are 0 by design**: `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stays a repository secret. Only environment **variables** (Bitwarden UUID→name maps, ARM IDs, Sentry) live on the environments.
 
 ## Why not rename `dev` / `deploy` in place
 
@@ -28,12 +28,12 @@ Production `dotnet ef database update` stays on `deploy.yml` `migrate` (tag `v*`
 | Environment | Purpose | Environment variables (confirmed) | Protection | Workflows / jobs |
 | --- | --- | --- | --- | --- |
 | `prod-release` | Production migrate + zip deploy | `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` maps only the Canada East publish profile, Canada East migration connection string, and `MOBILE_AUTH_SIGNING_KEY`. Repo-level Bitwarden token. | **Custom** branch `main` + tags `v*` | `deploy.yml` `migrate`; `deploy.yml` `deploy` |
-| `prod-deploy` | ARM/OIDC App Service settings | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`, plus a narrow `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` mapping for `MOBILE_AUTH_SIGNING_KEY` only. No ARM vars on any other prod environment. | **Custom** branch `main` + tags `v*` | `deploy.yml` `configure-app-settings`; `app-service-setting-names-check.yml` |
+| `prod-deploy` | ARM/OIDC App Service settings | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`, plus a narrow `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` mapping for `MOBILE_AUTH_SIGNING_KEY` only. ARM vars also live on `telemetry-read` (read-only Monitor identity). | **Custom** branch `main` + tags `v*` | `deploy.yml` `configure-app-settings`; `app-service-setting-names-check.yml` |
 | `prod-google-play` | Play signing / store upload | `BITWARDEN_MOBILE_BUILD_SECRETS` plus Sentry vars (`SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`). Mapping yields Android keystore outputs, `SENTRY_AUTH_TOKEN`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. **No ARM.** | **Custom** branch `main` | `publish-android-google-play.yml` `publish-android` only |
 | `prod-data-read` | Read production to refresh/resync the SQL Express mirror | Narrow Bitwarden map: Canada East publish profile + migration connection string **only** (not the probe-password / mobile-auth entries). The generic output aliases are retained for these workflows. Repo-level Bitwarden token. | **Custom** branch `main` (scheduled runs use the default branch) | `nightly-legacy-checks.yml` `sync-legacy-db`; `test-migrations-against-mirror.yml` `resync-mirror` only |
 | `telemetry-read` | Read-only Azure Monitor / Log Analytics for App Insights triage (#1805) | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` after Richard runs `infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1`. No environment secrets. Sentry mapping for the triage workflow is a separate app-side Bitwarden variable. | **Protected branches** (bootstrap default; no required reviewer) | `telemetry-read-probe.yml` (#1805 step one). Future `telemetry-triage.yml`. Do not create the Entra app from CI. |
 
-`SIXLABORS_LICENSE_KEY` and `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stay **repository** secrets. Do not add environment secrets to these four environments unless a later split requires it.
+`SIXLABORS_LICENSE_KEY` and `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stay **repository** secrets. Do not add environment secrets to these five environments unless a later split requires it.
 
 Development App Service environments (`dev-migrate`, `dev-deploy`, `dev-data-refresh`) are unchanged. See [`dev-curated-snapshot.md`](dev-curated-snapshot.md) and [`opentofu-dev-environment.md`](opentofu-dev-environment.md).
 
