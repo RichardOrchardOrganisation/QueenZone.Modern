@@ -139,6 +139,12 @@ test('suppressions parse added lines from a git log patch', () => {
   assert.equal(nosonar.count, 1);
 });
 
+test('suppressions preserve the destination path from a diff header', () => {
+  const patch = 'diff --git a/src/old b/name.cs b/src/new b/name.cs\n+checked-marker\n';
+  const candidates = parseSuppressionDiff(patch, [{ id: 'marker', includes: 'checked-marker' }], { config });
+  assert.equal(candidates[0].evidence[0].text.includes('src/new b/name.cs'), true);
+});
+
 test('suppressions collect reads ctx.patch', async () => {
   const patch = readFileSync(path.join(here, 'fixtures', 'suppression.diff'), 'utf8');
   const candidates = await collectSuppressions({ config, patch, since: new Date('2026-09-19T00:00:00Z') });

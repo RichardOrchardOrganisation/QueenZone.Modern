@@ -347,5 +347,5 @@ export function unregisteredRules(candidates, findingRules = []) {
       ids.add(candidate.rule);
     }
   }
-  return [...ids].sort();
+  return [...ids].sort((left, right) => left.localeCompare(right));
 }

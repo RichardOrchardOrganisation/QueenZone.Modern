@@ -1,10 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countRecentFilings, findMatch, planFilings, rankCandidates } from './core.mjs';
+import { countRecentFilings, findMatch, planFilings, rankCandidates, unregisteredRules } from './core.mjs';
 import { loadFilerFiles, repoRootFrom } from './config.mjs';
 
 const now = new Date('2026-09-26T08:00:00Z');
 const { config } = loadFilerFiles(repoRootFrom());
+
+test('unregistered rules are deduplicated and sorted as strings', () => {
+  const candidates = ['review.zeta', 'review.alpha', 'review.zeta'].map((rule) => ({
+    source: 'review',
+    rule,
+  }));
+  assert.deepEqual(unregisteredRules(candidates), ['review.alpha', 'review.zeta']);
+});
 
 function candidate(overrides = {}) {
   return {

@@ -49,7 +49,7 @@ test('listIssuesByLabel paginates, skips pull requests, and normalizes fields', 
         },
         { number: 9, title: 'pr', pull_request: {}, user: { login: 'x' }, labels: [], state: 'open' },
       ],
-      { headers: { link: '<https://api.github.com/repos/o/r/issues?page=2>; rel="next"' } },
+      { headers: { link: '<https://api.github.com/repos/o/r/issues?page=1>; rel="prev", <https://api.github.com/repos/o/r/issues?page=2>; rel="next"; type="application/json"' } },
     );
   };
   const client = createGitHubClient({ token: 't', owner: 'o', repo: 'r', fetchImpl });
