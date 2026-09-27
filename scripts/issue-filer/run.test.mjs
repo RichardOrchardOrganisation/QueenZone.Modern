@@ -4,7 +4,8 @@ import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFilerFiles, repoRootFrom } from './config.mjs';
-import { loadExisting, main, parseArgs, runFiler } from './run.mjs';
+import { loadExisting, main, parseArgs, resolveIngestFindingsPath, runFiler } from './run.mjs';
+import { DEFAULT_INGEST_FINDINGS } from './sources/review.mjs';
 
 const { config, ignore, findingRules } = loadFilerFiles(repoRootFrom());
 const now = new Date('2026-09-26T08:00:00Z');
@@ -63,8 +64,11 @@ test('parseArgs defaults and rejects bad values', () => {
     lookbackDays: 7,
     maxIssues: 2,
     loop: 'gardener',
+    ingestFindings: null,
   });
   assert.equal(parseArgs(['--dry-run', '--lookback-days', '60', '--max-issues', '3']).lookbackDays, 60);
+  assert.equal(parseArgs(['--ingest-findings']).ingestFindings, DEFAULT_INGEST_FINDINGS);
+  assert.equal(parseArgs(['--ingest-findings', 'tmp/findings.json', '--dry-run']).ingestFindings, 'tmp/findings.json');
   assert.throws(() => parseArgs(['--loop', 'nope']), /gardener or telemetry/);
 });
 
@@ -283,4 +287,55 @@ test('60-day lookback can read a backfill file without classifying comments', as
     since: new Date('2026-07-28T00:00:00Z'),
   });
   assert.equal(backfill[0].count, 2);
+});
+
+test('default run does not ingest the committed 60-day findings file', async () => {
+  const result = await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [async () => []],
+    existing: [],
+    stdout: () => {},
+  });
+  assert.equal(result.plan.create.length, 0);
+  assert.equal(result.candidates.length, 0);
+});
+
+test('ingest-findings reads the committed file and caps the top two review rules', async () => {
+  const lines = [];
+  const result = await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    ingestFindings: DEFAULT_INGEST_FINDINGS,
+    collectors: [async () => []],
+    existing: [],
+    maxIssues: 2,
+    stdout: (line) => lines.push(String(line)),
+  });
+  assert.equal(result.plan.create.length, 2);
+  assert.equal(result.plan.create[0].candidate.rule, 'mobile.swallowed-error-state');
+  assert.equal(result.plan.create[0].candidate.level, 'L1');
+  assert.equal(result.plan.create[0].candidate.ingested, true);
+  assert.equal(result.plan.create[1].candidate.rule, 'test.in-memory-not-sql');
+  assert.equal(result.plan.create[1].candidate.level, 'L2');
+  assert.ok(result.plan.skipped.some((item) => item.reason === 'cap'));
+  assert.ok(!result.plan.create.some((item) => item.candidate.storm));
+  assert.match(lines.join('\n'), /mobile\.swallowed-error-state/);
+});
+
+test('missing ingest-findings file fails closed', () => {
+  assert.throws(
+    () => resolveIngestFindingsPath(repoRootFrom(), 'scripts/issue-filer/missing-findings.json'),
+    /Ingest findings file not found/,
+  );
 });

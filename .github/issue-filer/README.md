@@ -9,7 +9,8 @@ Shared, deterministic issue filer for the weekly gardener (#1804) and, later, te
 | `config.json` | Caps, labels, Sonar project, feature-map area prefixes, suppression patterns |
 | `ignore.json` | Documented skip list (not a prompt) |
 | `finding-rules.json` | Registered `qz-finding` rule ids (`id`, `title`, `level`, `check`) |
-| `backfill/review-findings-60d.json` | Optional 60-day classified review comments. Created by a separate one-off run; the weekly gardener does not write or require it |
+| `backfill/review-findings-60d.json` | Optional 60-day classified review comments at the `.github/issue-filer/` path. The weekly gardener reads this only when `lookback_days` is 60 or more |
+| `scripts/issue-filer/review-findings-60d.json` | Classified 60-day review findings for #1802 AC3. Ingested only when `--ingest-findings` is passed |
 | `scripts/issue-filer/` | Pure `planFilings` core, injected GitHub client, source collectors, templates |
 
 ## Ignore list
@@ -51,7 +52,7 @@ The filer lists issues by its labels (open, plus closed in the last 90 days) and
 
 `node scripts/issue-filer/run.mjs --dry-run` prints the plan and writes nothing. Manual `workflow_dispatch` on `.github/workflows/gardener.yml` defaults to dry-run. The Monday 00:00 UTC schedule (08:00 Perth) runs live.
 
-The weekly job uses a 7-day lookback. It does **not** run the 60-day backfill or classify untagged review comments. Dispatch `lookback_days=60` and `max_issues=3` later, after the backfill file exists, for #1802 AC3.
+The weekly job uses a 7-day lookback. It does **not** ingest classified historical findings or classify untagged review comments. For #1802 AC3, dispatch `ingest_findings=true`, `max_issues=2`, and `dry_run=true` first (then the same inputs with `dry_run=false`). Ingested findings use the same dedupe, caps, ignore list, and templates as live candidates, and they are not collapsed into a storm issue when they fit under the cap.
 
 SonarCloud credentials stay out of git. The gardener reads `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` from the environment (repository variables) and skips the Sonar source when either is unset.
 

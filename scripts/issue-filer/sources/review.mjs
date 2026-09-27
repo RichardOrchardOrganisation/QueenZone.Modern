@@ -4,6 +4,7 @@ import { areaForFile, filerDir, ruleInfo } from '../config.mjs';
 import { lowestLevel, parseFindings } from '../finding.mjs';
 
 const BACKFILL_REL = ['backfill', 'review-findings-60d.json'];
+export const DEFAULT_INGEST_FINDINGS = 'scripts/issue-filer/review-findings-60d.json';
 
 function evidenceUrl(item) {
   return item.html_url || item.htmlUrl || item.url || '';
@@ -48,9 +49,8 @@ function groupReviewFindings(findings, { config, findingRules }) {
   return candidates.sort((left, right) => left.rule.localeCompare(right.rule));
 }
 
-function readBackfill(root) {
-  const filePath = path.join(filerDir(root), ...BACKFILL_REL);
-  if (!existsSync(filePath)) {
+export function readFindingsFile(filePath) {
+  if (!filePath || !existsSync(filePath)) {
     return [];
   }
   const payload = JSON.parse(readFileSync(filePath, 'utf8'));
@@ -61,6 +61,15 @@ function readBackfill(root) {
     url: row.url || row.html_url || '',
     at: row.at || row.created_at || row.createdAt || '',
   }));
+}
+
+function readBackfill(root) {
+  return readFindingsFile(path.join(filerDir(root), ...BACKFILL_REL));
+}
+
+export function ingestedCandidates(filePath, { config, findingRules } = {}) {
+  return groupReviewFindings(readFindingsFile(filePath), { config, findingRules: findingRules || [] })
+    .map((candidate) => ({ ...candidate, ingested: true }));
 }
 
 export async function collect(ctx) {

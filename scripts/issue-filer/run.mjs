@@ -5,15 +5,15 @@
  *   node scripts/issue-filer/run.mjs --validate
  *   node scripts/issue-filer/run.mjs --loop gardener --lookback-days 7 --max-issues 2 --dry-run
  */
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadFilerFiles, repoRootFrom, validateFilerFiles } from './config.mjs';
 import { planFilings, unregisteredRules } from './core.mjs';
-import { isFilerComment } from './finding.mjs';
+import { isFilerComment, keysOverlap } from './finding.mjs';
 import { createGitHubClient, parseRepository } from './github-client.mjs';
 import { collect as collectCi } from './sources/ci.mjs';
-import { collect as collectReview } from './sources/review.mjs';
+import { collect as collectReview, DEFAULT_INGEST_FINDINGS, ingestedCandidates } from './sources/review.mjs';
 import { collect as collectSonar, defaultSonarSearch } from './sources/sonar.mjs';
 import { collect as collectSuppressions } from './sources/suppressions.mjs';
 import {
@@ -42,6 +42,7 @@ export function parseArgs(argv) {
     lookbackDays: 7,
     maxIssues: 2,
     loop: 'gardener',
+    ingestFindings: null,
   };
   const list = [...argv];
   while (list.length > 0) {
@@ -56,6 +57,13 @@ export function parseArgs(argv) {
       args.maxIssues = Number(list.shift());
     } else if (flag === '--loop') {
       args.loop = list.shift();
+    } else if (flag === '--ingest-findings') {
+      const next = list[0];
+      if (next && !next.startsWith('--')) {
+        args.ingestFindings = list.shift();
+      } else {
+        args.ingestFindings = DEFAULT_INGEST_FINDINGS;
+      }
     } else {
       throw new Error(`Unknown argument: ${flag}`);
     }
@@ -70,6 +78,45 @@ export function parseArgs(argv) {
     throw new Error('--loop must be gardener or telemetry');
   }
   return args;
+}
+
+export function resolveIngestFindingsPath(root, ingestFindings) {
+  if (!ingestFindings) {
+    return null;
+  }
+  const filePath = path.isAbsolute(ingestFindings)
+    ? ingestFindings
+    : path.join(root, ingestFindings);
+  if (!existsSync(filePath)) {
+    throw new Error(`Ingest findings file not found: ${filePath}`);
+  }
+  return filePath;
+}
+
+function mergeIngestedCandidates(candidates, extras) {
+  const merged = [...candidates];
+  for (const extra of extras) {
+    const hit = merged.find((candidate) => keysOverlap(candidate.keys, extra.keys));
+    if (hit) {
+      hit.ingested = true;
+      if ((extra.count || 0) > (hit.count || 0)) {
+        hit.count = extra.count;
+        hit.level = extra.level || hit.level;
+        hit.title = extra.title || hit.title;
+        hit.firstSeen = extra.firstSeen || hit.firstSeen;
+        hit.lastSeen = extra.lastSeen || hit.lastSeen;
+        hit.proposedCheck = extra.proposedCheck || hit.proposedCheck;
+      }
+      const seen = new Set((hit.evidence || []).map((item) => item.url || item.text));
+      hit.evidence = [
+        ...(hit.evidence || []),
+        ...(extra.evidence || []).filter((item) => !seen.has(item.url || item.text)),
+      ];
+      continue;
+    }
+    merged.push(extra);
+  }
+  return merged;
 }
 
 function uniqueIssues(lists) {
@@ -176,9 +223,17 @@ export async function runFiler(options = {}) {
     patch: options.patch,
   };
 
-  const candidates = [];
+  let candidates = [];
   for (const collect of collectors) {
     candidates.push(...(await collect(ctx)));
+  }
+  const ingestPath = options.ingestFindingsPath
+    || resolveIngestFindingsPath(root, options.ingestFindings);
+  if (ingestPath) {
+    candidates = mergeIngestedCandidates(
+      candidates,
+      ingestedCandidates(ingestPath, { config, findingRules }),
+    );
   }
 
   const existing = options.existing || (github ? await loadExisting(github, config, now) : []);
@@ -302,6 +357,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     lookbackDays: args.lookbackDays,
     maxIssues: args.maxIssues,
     loop: args.loop,
+    ingestFindings: args.ingestFindings,
     github,
     sonarSearch,
     writeSummary: deps.writeSummary || writeStepSummary,

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFilerFiles, repoRootFrom } from './config.mjs';
 import { collect as collectCi, groupFailedRuns } from './sources/ci.mjs';
-import { collect as collectReview } from './sources/review.mjs';
+import { collect as collectReview, DEFAULT_INGEST_FINDINGS, ingestedCandidates } from './sources/review.mjs';
 import { collect as collectSonar, groupSonarIssues } from './sources/sonar.mjs';
 import { collect as collectSuppressions, parseSuppressionDiff } from './sources/suppressions.mjs';
 
@@ -40,6 +40,33 @@ test('review source groups tags by rule and reports malformed tags', async () =>
   assert.ok(malformed.some((item) => item.fields.rule === 'not-a-rule'));
   const docs = candidates.find((item) => item.rule === 'docs.agents-md-drift');
   assert.equal(docs.count, 1);
+});
+
+test('lookback 60 does not ingest scripts/issue-filer findings without the flag', async () => {
+  const candidates = await collectReview({
+    config,
+    findingRules: [],
+    pulls: [],
+    lookbackDays: 60,
+    root: repoRootFrom(),
+    since: new Date('2026-07-28T00:00:00Z'),
+  });
+  assert.deepEqual(candidates, []);
+});
+
+test('ingestedCandidates groups the committed 60-day findings file', () => {
+  const candidates = ingestedCandidates(path.join(repoRootFrom(), DEFAULT_INGEST_FINDINGS), {
+    config,
+    findingRules: [],
+  });
+  const swallowed = candidates.find((item) => item.rule === 'mobile.swallowed-error-state');
+  const inMemory = candidates.find((item) => item.rule === 'test.in-memory-not-sql');
+  assert.equal(swallowed.count, 4);
+  assert.equal(swallowed.level, 'L1');
+  assert.equal(swallowed.ingested, true);
+  assert.equal(inMemory.count, 4);
+  assert.equal(inMemory.level, 'L2');
+  assert.equal(inMemory.keys[0], 'review:test.in-memory-not-sql');
 });
 
 test('review source does not read the 60-day backfill on a weekly lookback', async () => {

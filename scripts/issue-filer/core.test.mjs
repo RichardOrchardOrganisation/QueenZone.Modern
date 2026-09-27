@@ -284,6 +284,74 @@ test('same-day storm rerun comments on the existing storm issue', () => {
   assert.equal(rerun.comment[0].candidate.storm, true);
 });
 
+test('ingested findings still honor the ignore list', () => {
+  const plan = planFilings({
+    candidates: [candidate({
+      keys: ['review:mobile.swallowed-error-state'],
+      title: '[review] mobile.swallowed-error-state (4 PRs)',
+      rule: 'mobile.swallowed-error-state',
+      count: 4,
+      level: 'L1',
+      ingested: true,
+    })],
+    existing: [],
+    ignore: {
+      entries: [{
+        match: { source: 'review', rule: 'mobile.swallowed-error-state' },
+        reason: 'already tracked',
+        expires: '2027-01-01',
+      }],
+    },
+    config,
+    now,
+  });
+  assert.equal(plan.create.length, 0);
+  assert.equal(plan.skipped[0].reason, 'ignored');
+});
+
+test('storm does not swallow ingested findings under the cap', () => {
+  const live = Array.from({ length: 6 }, (_, index) => candidate({
+    keys: [`review:live-${index}`],
+    title: `[review] live-${index} (2 PRs)`,
+    rule: `docs.live-${index}`,
+    count: 2,
+    level: 'L2',
+  }));
+  const ingested = [
+    candidate({
+      keys: ['review:mobile.swallowed-error-state'],
+      title: '[review] mobile.swallowed-error-state (4 PRs)',
+      rule: 'mobile.swallowed-error-state',
+      count: 4,
+      level: 'L1',
+      ingested: true,
+    }),
+    candidate({
+      keys: ['review:test.in-memory-not-sql'],
+      title: '[review] test.in-memory-not-sql (4 PRs)',
+      rule: 'test.in-memory-not-sql',
+      count: 4,
+      level: 'L2',
+      ingested: true,
+    }),
+  ];
+  const plan = planFilings({
+    candidates: [...live, ...ingested],
+    existing: [],
+    ignore: { entries: [] },
+    config,
+    now,
+    maxIssues: 2,
+  });
+  assert.equal(plan.create.length, 2);
+  assert.deepEqual(plan.create.map((item) => item.candidate.rule), [
+    'mobile.swallowed-error-state',
+    'test.in-memory-not-sql',
+  ]);
+  assert.ok(!plan.create.some((item) => item.candidate.storm));
+  assert.equal(plan.skipped.filter((item) => item.reason === 'storm').length, 6);
+});
+
 test('comment cap is 10 per run', () => {
   const candidates = Array.from({ length: 12 }, (_, index) => candidate({
     keys: [`review:rule-${index}`],

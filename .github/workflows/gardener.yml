@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       lookback_days:
-        description: Days of history to scan (weekly default 7; use 60 only for the later #1802 backfill)
+        description: Days of history to scan (weekly default 7)
         type: string
         default: "7"
       max_issues:
@@ -18,6 +18,10 @@ on:
         description: Print the plan without writing issues
         type: boolean
         default: true
+      ingest_findings:
+        description: Ingest committed 60-day classified review findings (scripts/issue-filer/review-findings-60d.json)
+        type: boolean
+        default: false
 
 concurrency:
   group: issue-filer
@@ -52,10 +56,14 @@ jobs:
           LOOKBACK_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_days || '7' }}
           MAX_ISSUES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_issues || '2' }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          INGEST_FINDINGS: ${{ github.event_name == 'workflow_dispatch' && inputs.ingest_findings }}
         run: |
           extra=()
           if [ "${DRY_RUN}" = "true" ]; then
             extra+=(--dry-run)
+          fi
+          if [ "${INGEST_FINDINGS}" = "true" ]; then
+            extra+=(--ingest-findings)
           fi
           node scripts/issue-filer/run.mjs \
             --loop gardener \
