@@ -69,13 +69,15 @@ can't be indexed twice". SonarCloud's indexed components currently
 classify .NET and mobile test files as tests (`UTS`) and mobile product
 files as sources (`FIL`).
 
-Automatic Analysis cannot install the Expo package, so it cannot resolve
-`expo/tsconfig.base` from the mobile typecheck configs. The standalone
-`src/QueenZone.Mobile/tsconfig.sonar.json` copies the Expo compiler
-options for Sonar's TypeScript analysis. Compare it with the installed
-Expo base when updating Expo. The normal mobile configs remain
-the typecheck source of truth. Python analysis declares supported Python
-3 versions in `.sonarcloud.properties`.
+Python analysis declares the supported Python 3 versions in
+`.sonarcloud.properties`. Automatic Analysis lacks the installed Expo
+package and warns that it cannot resolve `expo/tsconfig.base` from the
+mobile typecheck configs. A checked-in copy of Expo's base removed that
+warning but caused 23 unexpected Sonar analyzer failures in the PR scan,
+so the mobile configs still extend the package. The normal CI mobile
+typecheck and coverage gates remain authoritative. Automatic Analysis
+does not expose raw logs, so the NuGet restore warning cannot be traced
+to a package there; the full solution restores locally.
 
 The project's Analysis Scope settings in the Sonar UI are empty. Do not
 set the same exclusions or test paths there. This file is the single
