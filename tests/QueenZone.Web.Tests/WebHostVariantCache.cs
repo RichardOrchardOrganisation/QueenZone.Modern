@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,6 +76,8 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
 
     internal TrackingNewsRepository? TrackingNews => context.TrackingNews;
 
+    internal CountingArticlesRepository? CountingArticles => context.CountingArticles;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(variant.Environment);
@@ -83,15 +86,25 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
             builder.UseSetting(QueenZoneDevelopmentHost.SkipLocalSettingsKey, "true");
         }
 
+        if (string.Equals(variant.Environment, "Production", StringComparison.Ordinal))
+        {
+            ProductionHostSettings.Apply(builder);
+        }
+
         if (variant.Settings.Count > 0)
         {
+            foreach (var pair in variant.Settings)
+            {
+                builder.UseSetting(pair.Key, pair.Value);
+            }
+
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(variant.Settings));
         }
 
         builder.ConfigureTestServices(services => WebHostVariants.Apply(variant.Services, services, context));
     }
 
-    public Task ResetAsync()
+    public async Task ResetAsync()
     {
         context.Reset();
         if (Services.GetService<IEditorialArticleRepository>() is InMemoryEditorialArticleRepository editorial)
@@ -100,6 +113,17 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
         }
 
         Services.GetService<SharedSearchIndexStore>()?.Clear();
-        return Task.CompletedTask;
+        if (!string.Equals(variant.Environment, "Production", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (Services.GetService<IOutputCacheStore>() is not { } outputCache)
+        {
+            return;
+        }
+
+        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
+        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
     }
 }

@@ -1,9 +1,6 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
@@ -19,32 +16,33 @@ namespace QueenZone.Web.Tests;
 /// </item>
 /// <item>
 /// <description>
-/// Production-shaped cases use <c>UseEnvironment("Production")</c> plus the same production host
-/// settings as <see cref="ResponseCompressionTests"/> so output cache is enabled without a real
-/// Azure AD app. Empty <c>ConnectionStrings:QueenZoneLegacy</c> keeps in-memory sample data.
-/// No special env vars are required beyond a normal <c>dotnet test</c> run.
+/// Production-shaped cases use the shared <see cref="ProductionHostFixture"/> so output cache is
+/// enabled without a real Azure AD app. Empty <c>ConnectionStrings:QueenZoneLegacy</c> keeps
+/// in-memory sample data. No special env vars are required beyond a normal <c>dotnet test</c> run.
 /// </description>
 /// </item>
 /// </list>
 /// </summary>
-public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicationFactory>
+[Collection(ProductionHostCollection.Name)]
+public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly ProductionHostFixture production;
+    private readonly WebHostVariantCache variants;
 
-    public PublicOutputCacheTests(QueenZoneWebApplicationFactory factory)
+    public PublicOutputCacheTests(ProductionHostFixture production, WebHostVariantCache variants)
     {
-        this.factory = factory;
+        this.production = production;
+        this.variants = variants;
     }
 
     [Fact]
     public async Task RazorPagesAreNotServedFromOutputCache()
     {
-        var repository = new CountingArticlesRepository();
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IArticlesRepository>(repository);
-            })).CreateClient();
+        var host = variants.Get(WebHostVariants.TestingCountingArticles);
+        await host.ResetAsync();
+        var repository = host.CountingArticles
+            ?? throw new InvalidOperationException("TestingCountingArticles must register CountingArticlesRepository.");
+        var client = host.CreateClient();
 
         var first = await client.GetStringAsync("/articles");
         var callsAfterFirstRequest = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
@@ -61,13 +59,9 @@ public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task Production_anonymous_public_html_is_served_from_output_cache_on_second_request()
     {
-        var repository = new CountingArticlesRepository();
-        var productionFactory = CreateProductionFactory(services =>
-        {
-            services.AddSingleton<IArticlesRepository>(repository);
-        });
-
-        var client = productionFactory.CreateClient(new WebApplicationFactoryClientOptions
+        await production.ResetAsync();
+        var repository = production.Articles;
+        var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = false,
@@ -101,12 +95,9 @@ public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task Production_tracking_query_reuses_the_canonical_public_html_cache_entry()
     {
-        var repository = new CountingArticlesRepository();
-        var productionFactory = CreateProductionFactory(services =>
-        {
-            services.AddSingleton<IArticlesRepository>(repository);
-        });
-        var client = productionFactory.CreateClient(new WebApplicationFactoryClientOptions
+        await production.ResetAsync();
+        var repository = production.Articles;
+        var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             HandleCookies = false,
@@ -129,8 +120,8 @@ public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicati
         // Policy unit tests already cover authenticated bypass; this integration case proves an
         // excluded path is not held in the public HTML output cache by checking that two GETs
         // still exercise the endpoint (health is cheap and always uncached by policy).
-        var productionFactory = CreateProductionFactory();
-        var client = productionFactory.CreateClient();
+        await production.ResetAsync();
+        var client = production.Factory.CreateClient();
 
         using var first = await client.GetAsync("/health");
         using var second = await client.GetAsync("/health");
@@ -160,20 +151,6 @@ public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicati
         Assert.Equal(expected, PublicOutputCachePolicies.IsPublicReadOnlyRequest(CreateHttpContext(method, path)));
     }
 
-    private WebApplicationFactory<Program> CreateProductionFactory(
-        Action<IServiceCollection>? configureServices = null)
-    {
-        return factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Production");
-            ResponseCompressionTests.ApplyProductionHostTestSettings(builder);
-            if (configureServices is not null)
-            {
-                builder.ConfigureServices(configureServices);
-            }
-        });
-    }
-
     private static string StripCspNonces(string html) =>
         System.Text.RegularExpressions.Regex.Replace(html, "nonce=\"[^\"]*\"", "nonce=\"\"");
 
@@ -183,47 +160,5 @@ public sealed class PublicOutputCacheTests : IClassFixture<QueenZoneWebApplicati
         context.Request.Method = method;
         context.Request.Path = path;
         return context;
-    }
-
-    private sealed class CountingArticlesRepository : IArticlesRepository
-    {
-        private readonly ArticleItem article = new(
-            7801,
-            "Cached archive article",
-            "Output cache test article.",
-            "<p>Output cache test body.</p>",
-            new DateTime(2026, 7, 6, 0, 0, 0, DateTimeKind.Utc),
-            null,
-            "Testing",
-            true);
-
-        public int ArchivePageCallCount { get; private set; }
-
-        public int PublishedCountCallCount { get; private set; }
-
-        public Task<IReadOnlyList<ArticleItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ArticleItem>>([article]);
-
-        public Task<IReadOnlyList<ArticleItem>> GetArchivePageAsync(
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken = default)
-        {
-            ArchivePageCallCount++;
-            return Task.FromResult<IReadOnlyList<ArticleItem>>([article]);
-        }
-
-        public Task<int> GetPublishedCountAsync(CancellationToken cancellationToken = default)
-        {
-            PublishedCountCallCount++;
-            return Task.FromResult(1);
-        }
-
-        public Task<ArticleItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ArticleItem?>(id == article.Id ? article : null);
-
-        public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SitemapContentEntry>>(
-                [new SitemapContentEntry(article.Id, article.Title, article.PublishedAt)]);
     }
 }

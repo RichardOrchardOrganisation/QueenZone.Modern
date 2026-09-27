@@ -230,6 +230,63 @@ public sealed class WebHostInfrastructureTests
     }
 
     [Fact]
+    public async Task CountingArticlesRepository_counts_and_resets()
+    {
+        var repository = new CountingArticlesRepository();
+
+        Assert.Equal(0, repository.ArchivePageCallCount);
+        Assert.Equal(0, repository.PublishedCountCallCount);
+
+        Assert.Equal(1, await repository.GetPublishedCountAsync());
+        Assert.Single(await repository.GetArchivePageAsync(1, 10));
+        Assert.Equal("Cached archive article", (await repository.GetByIdAsync(7801))?.Title);
+        Assert.Null(await repository.GetByIdAsync(1));
+        Assert.Single(await repository.GetLatestAsync(1));
+        Assert.Single(await repository.GetPublishedSitemapEntriesAsync());
+
+        Assert.Equal(1, repository.ArchivePageCallCount);
+        Assert.Equal(1, repository.PublishedCountCallCount);
+
+        repository.Reset();
+
+        Assert.Equal(0, repository.ArchivePageCallCount);
+        Assert.Equal(0, repository.PublishedCountCallCount);
+    }
+
+    [Fact]
+    public void Apply_counting_articles_profile_requires_context()
+    {
+        var services = new ServiceCollection();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => WebHostVariants.Apply(HostServiceProfile.CountingArticles, services, null));
+        Assert.Contains("requires a fixture context", ex.Message);
+    }
+
+    [Fact]
+    public void Apply_counting_articles_registers_the_same_repository()
+    {
+        var services = new ServiceCollection();
+        var context = new HostServiceContext();
+
+        WebHostVariants.Apply(HostServiceProfile.CountingArticles, services, context);
+        WebHostVariants.Apply(HostServiceProfile.CountingArticles, services, context);
+
+        using var provider = services.BuildServiceProvider();
+        Assert.Same(context.CountingArticles, provider.GetRequiredService<IArticlesRepository>());
+        context.CountingArticles!.Reset();
+        Assert.Equal(0, context.CountingArticles.ArchivePageCallCount);
+    }
+
+    [Fact]
+    public void ProductionHostSettings_include_fail_closed_stubs()
+    {
+        Assert.Equal(string.Empty, ProductionHostSettings.Values["ConnectionStrings:QueenZoneLegacy"]);
+        Assert.Equal(ProductionHostSettings.MobileAuthSigningKey, ProductionHostSettings.Values["MobileAuth:SigningKey"]);
+        Assert.Equal("localhost;127.0.0.1", ProductionHostSettings.Values["QueenZoneHostFiltering:AllowedHosts"]);
+        Assert.Equal(ProductionHostCollection.Name, "Production host");
+    }
+
+    [Fact]
     public void Apply_inspectable_profile_requires_context()
     {
         var services = new ServiceCollection();

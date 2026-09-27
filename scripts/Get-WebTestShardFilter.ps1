@@ -76,13 +76,20 @@ $script:ObservedDurations = @{}
 $script:UnitCaseWeight = 1
 $script:SqliteUnitCaseWeight = 2
 $script:WafCaseWeight = 5
+$script:SharedProductionWafCaseWeight = 3
 $script:ProductionWafCaseWeight = 10
 $script:EfWafCaseWeight = 20
 
 function Test-IsWafSource {
     param([string] $Text)
-    return $Text -match 'IClassFixture<\s*(?:WebApplicationFactory|QueenZoneWebApplicationFactory)' -or
-        $Text -match 'WebApplicationFactory<\s*Program\s*>'
+    return $Text -match 'IClassFixture<\s*(?:WebApplicationFactory|QueenZoneWebApplicationFactory|ProductionWebApplicationFactory|WebHostVariantCache)' -or
+        $Text -match 'WebApplicationFactory<\s*Program\s*>' -or
+        $Text -match 'ProductionHostFixture'
+}
+
+function Test-IsProductionHostCollection {
+    param([string] $Text)
+    return $Text -match '\[Collection(?:Attribute)?\s*\(\s*(?:ProductionHostCollection\.Name|"Production host")\s*\)'
 }
 
 function Test-IsEfWafSource {
@@ -104,7 +111,46 @@ function Test-IsProductionWafSource {
         [bool] $IsWaf,
         [string] $Text
     )
-    return $IsWaf -and $Text -match 'UseEnvironment\(\s*"Production"\s*\)'
+    if (-not $IsWaf) {
+        return $false
+    }
+
+    return $Text -match 'UseEnvironment\(\s*"Production"\s*\)' -or
+        $Text -match 'IClassFixture<\s*ProductionWebApplicationFactory' -or
+        $Text -match 'ProductionHostFixture' -or
+        (Test-IsProductionHostCollection -Text $Text)
+}
+
+function Get-AttributedClassStart {
+    param(
+        [string] $Text,
+        [int] $ClassIndex
+    )
+
+    $i = $ClassIndex
+    while ($i -gt 0 -and [char]::IsWhiteSpace($Text[$i - 1])) {
+        $i--
+    }
+
+    while ($i -gt 0 -and $Text[$i - 1] -eq ']') {
+        $depth = 1
+        $i--
+        while ($i -gt 0 -and $depth -gt 0) {
+            $i--
+            if ($Text[$i] -eq ']') {
+                $depth++
+            }
+            elseif ($Text[$i] -eq '[') {
+                $depth--
+            }
+        }
+
+        while ($i -gt 0 -and [char]::IsWhiteSpace($Text[$i - 1])) {
+            $i--
+        }
+    }
+
+    return $i
 }
 
 function Get-CaseCount {
@@ -127,7 +173,8 @@ function Get-ClassKind {
         [bool] $IsWaf,
         [bool] $IsEfWaf,
         [bool] $IsProductionWaf,
-        [bool] $IsSqliteUnit
+        [bool] $IsSqliteUnit,
+        [bool] $IsProductionCollection = $false
     )
 
     if ($IsEfWaf) {
@@ -155,12 +202,17 @@ function Get-ClassWeight {
         [bool] $IsWaf,
         [bool] $IsEfWaf,
         [bool] $IsProductionWaf,
-        [bool] $IsSqliteUnit
+        [bool] $IsSqliteUnit,
+        [bool] $IsProductionCollection = $false
     )
 
     $multiplier = $script:UnitCaseWeight
     if ($IsEfWaf) {
         $multiplier = $script:EfWafCaseWeight
+    }
+    elseif ($IsProductionCollection) {
+        # Shared collection host: one Production boot for the group, not per class.
+        $multiplier = $script:SharedProductionWafCaseWeight
     }
     elseif ($IsProductionWaf) {
         $multiplier = $script:ProductionWafCaseWeight
@@ -199,23 +251,26 @@ function Get-TestClasses {
                 $text.Length
             }
 
-            $body = $text.Substring($match.Index, $endIndex - $match.Index)
+            $bodyStart = Get-AttributedClassStart -Text $text -ClassIndex $match.Index
+            $body = $text.Substring($bodyStart, $endIndex - $bodyStart)
             $isWaf = Test-IsWafSource -Text $body
             $isEfWaf = Test-IsEfWafSource -IsWaf $isWaf -Text $body
+            $isProductionCollection = Test-IsProductionHostCollection -Text $body
             $isProductionWaf = Test-IsProductionWafSource -IsWaf $isWaf -Text $body
             $isSqliteUnit = (-not $isWaf) -and ($body -match '\.UseSqlite\(')
             $cases = Get-CaseCount -Text $body
 
             $classes += [pscustomobject]@{
-                Name            = $match.Groups[1].Value
-                IsWaf           = $isWaf
-                IsEfWaf         = $isEfWaf
-                IsProductionWaf = $isProductionWaf
-                IsSqliteUnit    = $isSqliteUnit
-                Kind            = Get-ClassKind -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit
-                Cases           = $cases
-                Weight          = Get-ClassWeight -Cases $cases -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit
-                File            = $_.Name
+                Name                    = $match.Groups[1].Value
+                IsWaf                   = $isWaf
+                IsEfWaf                 = $isEfWaf
+                IsProductionWaf         = $isProductionWaf
+                IsProductionCollection  = $isProductionCollection
+                IsSqliteUnit            = $isSqliteUnit
+                Kind                    = Get-ClassKind -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit -IsProductionCollection $isProductionCollection
+                Cases                   = $cases
+                Weight                  = Get-ClassWeight -Cases $cases -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit -IsProductionCollection $isProductionCollection
+                File                    = $_.Name
             }
         }
     }
@@ -227,21 +282,103 @@ function Get-TestClasses {
             $isWaf = [bool]($_.Group | Where-Object IsWaf | Select-Object -First 1)
             $isEfWaf = [bool]($_.Group | Where-Object IsEfWaf | Select-Object -First 1)
             $isProductionWaf = [bool]($_.Group | Where-Object IsProductionWaf | Select-Object -First 1)
+            $isProductionCollection = [bool]($_.Group | Where-Object IsProductionCollection | Select-Object -First 1)
             $isSqliteUnit = [bool]($_.Group | Where-Object IsSqliteUnit | Select-Object -First 1)
             $cases = ($_.Group | Measure-Object Cases -Sum).Sum
             [pscustomobject]@{
-                Name            = $_.Name
-                IsWaf           = $isWaf
-                IsEfWaf         = $isEfWaf
-                IsProductionWaf = $isProductionWaf
-                IsSqliteUnit    = $isSqliteUnit
-                Kind            = Get-ClassKind -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit
-                Cases           = $cases
-                Weight          = Get-ClassWeight -Cases $cases -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit
-                File            = ($_.Group | Select-Object -First 1).File
+                Name                   = $_.Name
+                IsWaf                  = $isWaf
+                IsEfWaf                = $isEfWaf
+                IsProductionWaf        = $isProductionWaf
+                IsProductionCollection = $isProductionCollection
+                IsSqliteUnit           = $isSqliteUnit
+                Kind                   = Get-ClassKind -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit -IsProductionCollection $isProductionCollection
+                Cases                  = $cases
+                Weight                 = Get-ClassWeight -Cases $cases -IsWaf $isWaf -IsEfWaf $isEfWaf -IsProductionWaf $isProductionWaf -IsSqliteUnit $isSqliteUnit -IsProductionCollection $isProductionCollection
+                File                   = ($_.Group | Select-Object -First 1).File
             }
         } |
         Sort-Object Name
+}
+
+function Test-IsProductionCollectionClass {
+    param($Class)
+    return ($Class.PSObject.Properties.Name -contains "IsProductionCollection") -and [bool]$Class.IsProductionCollection
+}
+
+function Get-EffectiveClassWeight {
+    param($Class)
+
+    if ($script:ObservedDurations.ContainsKey($Class.Name)) {
+        return [Math]::Max(1, [long]$script:ObservedDurations[$Class.Name])
+    }
+
+    return [long]$Class.Weight * 1000
+}
+
+function Get-LowestLoadIndex {
+    param([long[]] $Loads)
+
+    $best = 0
+    for ($i = 1; $i -lt $Loads.Count; $i++) {
+        if ($Loads[$i] -lt $Loads[$best]) {
+            $best = $i
+        }
+    }
+
+    return $best
+}
+
+function Get-ProductionCollectionBundle {
+    param([object[]] $Classes)
+
+    $members = @($Classes | Where-Object { Test-IsProductionCollectionClass $_ })
+    if ($members.Count -eq 0) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Name            = "__ProductionHostCollection"
+        IsBundle        = $true
+        EffectiveWeight = [long]($members | Measure-Object EffectiveWeight -Sum).Sum
+        Members         = @($members | Sort-Object Name)
+    }
+}
+
+function Add-AssignedClasses {
+    param(
+        $Item,
+        [System.Collections.Generic.List[object]] $Bucket
+    )
+
+    if ($Item.PSObject.Properties.Name -contains "IsBundle" -and $Item.IsBundle) {
+        foreach ($member in $Item.Members) {
+            $Bucket.Add($member) | Out-Null
+        }
+
+        return
+    }
+
+    $Bucket.Add($Item) | Out-Null
+}
+
+function Get-ClassShardIndexes {
+    param(
+        [object[]] $Assignments,
+        [string[]] $Names
+    )
+
+    return @(
+        $(
+            foreach ($assignment in $Assignments) {
+                foreach ($class in $assignment.Classes) {
+                    if ($class.Name -in $Names) {
+                        $assignment.ShardIndex
+                    }
+                }
+            }
+        ) | Sort-Object -Unique
+    )
 }
 
 function Get-ShardAssignments {
@@ -256,25 +393,27 @@ function Get-ShardAssignments {
     # Heaviest first, then name — deterministic and packs expensive hosts first.
     $weightedClasses = @(
         foreach ($class in $Classes) {
-            $effectiveWeight = [long]$class.Weight * 1000
-            if ($script:ObservedDurations.ContainsKey($class.Name)) {
-                $effectiveWeight = [Math]::Max(1, [long]$script:ObservedDurations[$class.Name])
-            }
-            $class | Add-Member -NotePropertyName EffectiveWeight -NotePropertyValue $effectiveWeight -Force -PassThru
+            $class | Add-Member -NotePropertyName EffectiveWeight -NotePropertyValue (Get-EffectiveClassWeight $class) -Force -PassThru
         }
     )
 
-    $ordered = $weightedClasses | Sort-Object @{ Expression = "EffectiveWeight"; Descending = $true }, Name
-    foreach ($class in $ordered) {
-        $best = 0
-        for ($i = 1; $i -lt $Count; $i++) {
-            if ($loads[$i] -lt $loads[$best]) {
-                $best = $i
-            }
-        }
+    $assignable = [System.Collections.Generic.List[object]]::new()
+    foreach ($class in @($weightedClasses | Where-Object { -not (Test-IsProductionCollectionClass $_) })) {
+        $assignable.Add($class) | Out-Null
+    }
 
-        $buckets[$best].Add($class) | Out-Null
-        $loads[$best] += $class.EffectiveWeight
+    # Shared Production collection classes serialize on one host. Keep them on one
+    # shard so CI does not boot that host once per shard.
+    $bundle = Get-ProductionCollectionBundle -Classes $weightedClasses
+    if ($null -ne $bundle) {
+        $assignable.Add($bundle) | Out-Null
+    }
+
+    $ordered = $assignable | Sort-Object @{ Expression = "EffectiveWeight"; Descending = $true }, Name
+    foreach ($item in $ordered) {
+        $best = Get-LowestLoadIndex -Loads $loads
+        Add-AssignedClasses -Item $item -Bucket $buckets[$best]
+        $loads[$best] += $item.EffectiveWeight
     }
 
     for ($i = 0; $i -lt $Count; $i++) {
@@ -298,11 +437,55 @@ function Assert-SelfTestEqual {
     }
 }
 
+function Write-SelfTestClassFile {
+    param(
+        [string] $Root,
+        [string] $ClassName,
+        [string] $Source
+    )
+
+    Set-Content -LiteralPath (Join-Path $Root "$ClassName.cs") -Value $Source
+}
+
+function Write-EfWafSelfTestClass {
+    param(
+        [string] $Root,
+        [string] $ClassName
+    )
+
+    Write-SelfTestClassFile -Root $Root -ClassName $ClassName -Source @"
+public sealed class $ClassName : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
+{
+    [Fact] public void One() {}
+    [Fact] public void Two() {}
+}
+"@
+}
+
+function Write-SharedProductionSelfTestClass {
+    param(
+        [string] $Root,
+        [string] $ClassName,
+        [string] $CollectionExpression
+    )
+
+    Write-SelfTestClassFile -Root $Root -ClassName $ClassName -Source @"
+[Collection($CollectionExpression)]
+public sealed class $ClassName
+{
+    public ${ClassName}(ProductionHostFixture production) {}
+
+    [Fact]
+    public void One() {}
+}
+"@
+}
+
 function Invoke-ShardFilterSelfTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("qz-shard-filter-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
     try {
-        Set-Content -LiteralPath (Join-Path $tempRoot "TinyUnitTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "TinyUnitTests" -Source @"
 public sealed class TinyUnitTests
 {
     [Fact]
@@ -310,7 +493,7 @@ public sealed class TinyUnitTests
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "HugeUnitTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "HugeUnitTests" -Source @"
 public sealed class HugeUnitTests
 {
     [Fact] public void A() {}
@@ -326,7 +509,7 @@ public sealed class HugeUnitTests
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "SmallWafTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "SmallWafTests" -Source @"
 public sealed class SmallWafTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     [Fact]
@@ -334,23 +517,10 @@ public sealed class SmallWafTests : IClassFixture<QueenZoneWebApplicationFactory
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "EfWafATests.cs") -Value @"
-public sealed class EfWafATests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
-{
-    [Fact] public void One() {}
-    [Fact] public void Two() {}
-}
-"@
+        Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafATests"
+        Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafBTests"
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "EfWafBTests.cs") -Value @"
-public sealed class EfWafBTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
-{
-    [Fact] public void One() {}
-    [Fact] public void Two() {}
-}
-"@
-
-        Set-Content -LiteralPath (Join-Path $tempRoot "ProdWafTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "ProdWafTests" -Source @"
 public sealed class ProdWafTests : IClassFixture<WebApplicationFactory<Program>>
 {
     public ProdWafTests()
@@ -368,7 +538,10 @@ public sealed class ProdWafTests : IClassFixture<WebApplicationFactory<Program>>
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "SqliteUnitTests.cs") -Value @"
+        Write-SharedProductionSelfTestClass -Root $tempRoot -ClassName "SharedProdWafATests" -CollectionExpression "ProductionHostCollection.Name"
+        Write-SharedProductionSelfTestClass -Root $tempRoot -ClassName "SharedProdWafBTests" -CollectionExpression '"Production host"'
+
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "SqliteUnitTests" -Source @"
 public sealed class SqliteUnitTests
 {
     public SqliteUnitTests()
@@ -384,7 +557,7 @@ public sealed class SqliteUnitTests
 "@
 
         $discovered = @(Get-TestClasses -Root $tempRoot)
-        Assert-SelfTestEqual $discovered.Count 7 "fixture class count"
+        Assert-SelfTestEqual $discovered.Count 9 "fixture class count"
 
         $byName = @{}
         foreach ($class in $discovered) {
@@ -403,17 +576,17 @@ public sealed class SqliteUnitTests
         Assert-SelfTestEqual $byName["ProdWafTests"].Kind "PROD-WAF" "prod WAF kind"
         Assert-SelfTestEqual $byName["SqliteUnitTests"].Weight 4 "sqlite unit 2 facts * 2"
         Assert-SelfTestEqual $byName["SqliteUnitTests"].Kind "sqlite" "sqlite kind"
+        Assert-SelfTestEqual $byName["SharedProdWafATests"].Kind "PROD-WAF" "shared prod collection kind"
+        Assert-SelfTestEqual $byName["SharedProdWafATests"].Weight 3 "shared prod collection 1 fact * 3"
+        Assert-SelfTestEqual $byName["SharedProdWafBTests"].Weight 3 "shared prod collection string name"
+        Assert-SelfTestEqual $byName["SharedProdWafATests"].IsProductionCollection $true "collection flag A"
+        Assert-SelfTestEqual $byName["SharedProdWafBTests"].IsProductionCollection $true "collection flag B"
 
         $assignments = @(Get-ShardAssignments -Classes $discovered -Count 2)
-        $efShards = @(
-            foreach ($assignment in $assignments) {
-                foreach ($class in $assignment.Classes) {
-                    if ($class.Name -in @("EfWafATests", "EfWafBTests")) {
-                        $assignment.ShardIndex
-                    }
-                }
-            }
-        ) | Sort-Object -Unique
+        $sharedProdShards = @(Get-ClassShardIndexes -Assignments $assignments -Names @("SharedProdWafATests", "SharedProdWafBTests"))
+        Assert-SelfTestEqual $sharedProdShards.Count 1 "shared Production collection classes must stay on one shard"
+
+        $efShards = @(Get-ClassShardIndexes -Assignments $assignments -Names @("EfWafATests", "EfWafBTests"))
         Assert-SelfTestEqual $efShards.Count 2 "equal-weight EF WAF hosts must split across shards"
 
         $loads = @($assignments | ForEach-Object { $_.Load })
