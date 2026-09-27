@@ -1589,7 +1589,7 @@ public sealed class AdminNewsRoutesTests :
 
     private WebApplicationFactory<Program> CreateFactory(SharedNewsStore store)
     {
-        IsolatedNews.Seed(IsolatedNews.GetAllArticles());
+        IsolatedNews.Seed(store.GetAllArticles());
         return isolated;
     }
 

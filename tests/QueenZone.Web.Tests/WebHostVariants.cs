@@ -1139,9 +1139,14 @@ public static partial class WebHostVariants
 
     private static void AddStaleFanPerformanceSubmissions(IServiceCollection services, HostServiceContext context)
     {
-        context.FanPerformanceSubmissions ??= new InMemoryFanPerformanceSubmissionRepository();
         services.RemoveAll<IFanPerformanceSubmissionRepository>();
-        services.AddSingleton<IFanPerformanceSubmissionRepository>(context.FanPerformanceSubmissions);
+        services.AddSingleton<IFanPerformanceSubmissionRepository>(sp =>
+        {
+            var members = sp.GetRequiredService<IMemberAccountRepository>();
+            context.FanPerformanceSubmissions ??= new InMemoryFanPerformanceSubmissionRepository(id =>
+                members.FindByIdAsync(id).GetAwaiter().GetResult());
+            return context.FanPerformanceSubmissions;
+        });
     }
 
     private static void AddStubEditorBlob(IServiceCollection services, HostServiceContext context)
