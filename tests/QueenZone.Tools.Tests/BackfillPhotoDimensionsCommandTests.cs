@@ -129,6 +129,73 @@ public sealed class BackfillPhotoDimensionsCommandTests
         Assert.Equal(1, probe.Calls);
     }
 
+    [Fact]
+    public async Task RunCore_Fails_WhenProbeCannotDecodeImage()
+    {
+        var (exit, error) = await RunCoreCapturingError(
+            new StubProbe { Result = null },
+            new BackfillPhotoRow(11, "/missing.jpg", 0, 0, 1, 1));
+
+        Assert.Equal(1, exit);
+        Assert.Contains("FAIL pic_id=11: could not load/decode image", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunCore_Fails_WhenMeasuredSizeIsNonPositive()
+    {
+        var (exit, error) = await RunCoreCapturingError(
+            new StubProbe { Result = new MeasuredPhotoSize(0, 480) },
+            new BackfillPhotoRow(12, "/zero.jpg", 0, 0, 1, 1));
+
+        Assert.Equal(1, exit);
+        Assert.Contains("FAIL pic_id=12: measured non-positive size", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunCore_Fails_WhenMeasuredSizeExceedsSmallint()
+    {
+        var (exit, error) = await RunCoreCapturingError(
+            new StubProbe { Result = new MeasuredPhotoSize(short.MaxValue + 1, 1080) },
+            new BackfillPhotoRow(13, "/huge.jpg", 0, 0, 1, 1));
+
+        Assert.Equal(1, exit);
+        Assert.Contains("FAIL pic_id=13: measured 32768x1080 exceeds smallint", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunCore_Fails_WhenProbeThrows()
+    {
+        var (exit, error) = await RunCoreCapturingError(
+            new ThrowingProbe(),
+            new BackfillPhotoRow(14, "/boom.jpg", 0, 0, 1, 1));
+
+        Assert.Equal(1, exit);
+        Assert.Contains("FAIL pic_id=14: probe exploded", error, StringComparison.Ordinal);
+    }
+
+    private static async Task<(int ExitCode, string Error)> RunCoreCapturingError(
+        IPhotoDimensionProbe probe,
+        BackfillPhotoRow row)
+    {
+        var options = BackfillPhotoDimensionsOptions.Parse(
+        [
+            "--connection-string", "Server=.;Database=test;",
+            "--delay-ms", "0",
+        ]);
+        using var error = new StringWriter();
+        var originalError = Console.Error;
+        Console.SetError(error);
+        try
+        {
+            var exit = await BackfillPhotoDimensionsCommand.RunCoreAsync(options, [row], probe);
+            return (exit, error.ToString());
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
     private sealed class StubProbe : IPhotoDimensionProbe
     {
         public int Calls { get; private set; }
@@ -140,5 +207,11 @@ public sealed class BackfillPhotoDimensionsCommandTests
             Calls++;
             return Task.FromResult(Result);
         }
+    }
+
+    private sealed class ThrowingProbe : IPhotoDimensionProbe
+    {
+        public Task<MeasuredPhotoSize?> MeasureAsync(BackfillPhotoRow row, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("probe exploded");
     }
 }

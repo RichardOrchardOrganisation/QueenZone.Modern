@@ -2,6 +2,7 @@ using QueenZone.Tools;
 
 namespace QueenZone.Tools.Tests;
 
+[Collection(EnvironmentVariableCollection.Name)]
 public sealed class ImportCommandTests
 {
     [Theory]
@@ -148,6 +149,101 @@ public sealed class ImportCommandTests
             Console.SetOut(originalOut);
             File.Delete(csvPath);
         }
+    }
+
+    [Fact]
+    public void ImportOptions_Parse_ReadsConnectionStringFlag()
+    {
+        var options = ImportOptions.Parse(
+        [
+            "import-quotes",
+            "--csv",
+            "quotes.csv",
+            "--connection-string",
+            "Server=.;Database=test;",
+        ],
+        "import-quotes");
+
+        Assert.True(options.IsValid);
+        Assert.Equal("quotes.csv", options.CsvPath);
+        Assert.Equal("Server=.;Database=test;", options.ConnectionString);
+        Assert.False(options.DryRun);
+    }
+
+    [Fact]
+    public void ImportOptions_Parse_RejectsUnsupportedArgument()
+    {
+        var options = ImportOptions.Parse(
+        [
+            "import-history",
+            "--csv",
+            "history.csv",
+            "--dry-run",
+            "--unknown",
+        ],
+        "import-history");
+
+        Assert.False(options.IsValid);
+        Assert.Equal("Unsupported or incomplete argument: --unknown", options.ErrorMessage);
+    }
+
+    [Fact]
+    public void ImportOptions_Parse_RequiresConnectionStringWhenNotDryRun()
+    {
+        var previous = Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
+        Environment.SetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy", null);
+        try
+        {
+            var options = ImportOptions.Parse(
+            [
+                "import-trivia",
+                "--csv",
+                "trivia.csv",
+            ],
+            "import-trivia");
+
+            Assert.False(options.IsValid);
+            Assert.Equal(
+                "--connection-string or ConnectionStrings__QueenZoneLegacy is required.",
+                options.ErrorMessage);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy", previous);
+        }
+    }
+
+    [Fact]
+    public void ImportOptions_Parse_UsesLegacyConnectionStringEnvironmentVariable()
+    {
+        var previous = Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
+        Environment.SetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy", "Server=env;Database=test;");
+        try
+        {
+            var options = ImportOptions.Parse(
+            [
+                "import-quotes",
+                "--csv",
+                "quotes.csv",
+            ],
+            "import-quotes");
+
+            Assert.True(options.IsValid);
+            Assert.Equal("Server=env;Database=test;", options.ConnectionString);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy", previous);
+        }
+    }
+
+    [Fact]
+    public void ImportOptions_Parse_RejectsWrongCommandName()
+    {
+        var options = ImportOptions.Parse(["import-quotes"], "import-trivia");
+
+        Assert.False(options.IsValid);
+        Assert.Equal("Command is required.", options.ErrorMessage);
     }
 
     private static string WriteTempCsv(string contents)
