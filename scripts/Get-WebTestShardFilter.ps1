@@ -301,6 +301,86 @@ function Get-TestClasses {
         Sort-Object Name
 }
 
+function Test-IsProductionCollectionClass {
+    param($Class)
+    return ($Class.PSObject.Properties.Name -contains "IsProductionCollection") -and [bool]$Class.IsProductionCollection
+}
+
+function Get-EffectiveClassWeight {
+    param($Class)
+
+    if ($script:ObservedDurations.ContainsKey($Class.Name)) {
+        return [Math]::Max(1, [long]$script:ObservedDurations[$Class.Name])
+    }
+
+    return [long]$Class.Weight * 1000
+}
+
+function Get-LowestLoadIndex {
+    param([long[]] $Loads)
+
+    $best = 0
+    for ($i = 1; $i -lt $Loads.Count; $i++) {
+        if ($Loads[$i] -lt $Loads[$best]) {
+            $best = $i
+        }
+    }
+
+    return $best
+}
+
+function Get-ProductionCollectionBundle {
+    param([object[]] $Classes)
+
+    $members = @($Classes | Where-Object { Test-IsProductionCollectionClass $_ })
+    if ($members.Count -eq 0) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Name            = "__ProductionHostCollection"
+        IsBundle        = $true
+        EffectiveWeight = [long]($members | Measure-Object EffectiveWeight -Sum).Sum
+        Members         = @($members | Sort-Object Name)
+    }
+}
+
+function Add-AssignedClasses {
+    param(
+        $Item,
+        [System.Collections.Generic.List[object]] $Bucket
+    )
+
+    if ($Item.PSObject.Properties.Name -contains "IsBundle" -and $Item.IsBundle) {
+        foreach ($member in $Item.Members) {
+            $Bucket.Add($member) | Out-Null
+        }
+
+        return
+    }
+
+    $Bucket.Add($Item) | Out-Null
+}
+
+function Get-ClassShardIndexes {
+    param(
+        [object[]] $Assignments,
+        [string[]] $Names
+    )
+
+    return @(
+        $(
+            foreach ($assignment in $Assignments) {
+                foreach ($class in $assignment.Classes) {
+                    if ($class.Name -in $Names) {
+                        $assignment.ShardIndex
+                    }
+                }
+            }
+        ) | Sort-Object -Unique
+    )
+}
+
 function Get-ShardAssignments {
     param(
         [object[]] $Classes,
@@ -313,58 +393,26 @@ function Get-ShardAssignments {
     # Heaviest first, then name — deterministic and packs expensive hosts first.
     $weightedClasses = @(
         foreach ($class in $Classes) {
-            $effectiveWeight = [long]$class.Weight * 1000
-            if ($script:ObservedDurations.ContainsKey($class.Name)) {
-                $effectiveWeight = [Math]::Max(1, [long]$script:ObservedDurations[$class.Name])
-            }
-            $class | Add-Member -NotePropertyName EffectiveWeight -NotePropertyValue $effectiveWeight -Force -PassThru
+            $class | Add-Member -NotePropertyName EffectiveWeight -NotePropertyValue (Get-EffectiveClassWeight $class) -Force -PassThru
         }
     )
 
-    # Shared Production collection classes serialize on one host. Keep them on one
-    # shard so CI does not boot that host once per shard.
-    $productionCollection = @(
-        $weightedClasses | Where-Object {
-            $_.PSObject.Properties.Name -contains "IsProductionCollection" -and $_.IsProductionCollection
-        }
-    )
     $assignable = [System.Collections.Generic.List[object]]::new()
-    foreach ($class in @(
-            $weightedClasses | Where-Object {
-                -not ($_.PSObject.Properties.Name -contains "IsProductionCollection" -and $_.IsProductionCollection)
-            }
-        )) {
+    foreach ($class in @($weightedClasses | Where-Object { -not (Test-IsProductionCollectionClass $_) })) {
         $assignable.Add($class) | Out-Null
     }
 
-    if ($productionCollection.Count -gt 0) {
-        $bundleWeight = [long]($productionCollection | Measure-Object EffectiveWeight -Sum).Sum
-        $assignable.Add([pscustomobject]@{
-                Name            = "__ProductionHostCollection"
-                IsBundle        = $true
-                EffectiveWeight = $bundleWeight
-                Members         = @($productionCollection | Sort-Object Name)
-            }) | Out-Null
+    # Shared Production collection classes serialize on one host. Keep them on one
+    # shard so CI does not boot that host once per shard.
+    $bundle = Get-ProductionCollectionBundle -Classes $weightedClasses
+    if ($null -ne $bundle) {
+        $assignable.Add($bundle) | Out-Null
     }
 
     $ordered = $assignable | Sort-Object @{ Expression = "EffectiveWeight"; Descending = $true }, Name
     foreach ($item in $ordered) {
-        $best = 0
-        for ($i = 1; $i -lt $Count; $i++) {
-            if ($loads[$i] -lt $loads[$best]) {
-                $best = $i
-            }
-        }
-
-        if ($item.PSObject.Properties.Name -contains "IsBundle" -and $item.IsBundle) {
-            foreach ($member in $item.Members) {
-                $buckets[$best].Add($member) | Out-Null
-            }
-        }
-        else {
-            $buckets[$best].Add($item) | Out-Null
-        }
-
+        $best = Get-LowestLoadIndex -Loads $loads
+        Add-AssignedClasses -Item $item -Bucket $buckets[$best]
         $loads[$best] += $item.EffectiveWeight
     }
 
@@ -523,30 +571,10 @@ public sealed class SqliteUnitTests
         Assert-SelfTestEqual $byName["SharedProdWafBTests"].IsProductionCollection $true "collection flag B"
 
         $assignments = @(Get-ShardAssignments -Classes $discovered -Count 2)
-        $sharedProdShards = @(
-            $(
-                foreach ($assignment in $assignments) {
-                    foreach ($class in $assignment.Classes) {
-                        if ($class.Name -in @("SharedProdWafATests", "SharedProdWafBTests")) {
-                            $assignment.ShardIndex
-                        }
-                    }
-                }
-            ) | Sort-Object -Unique
-        )
+        $sharedProdShards = @(Get-ClassShardIndexes -Assignments $assignments -Names @("SharedProdWafATests", "SharedProdWafBTests"))
         Assert-SelfTestEqual $sharedProdShards.Count 1 "shared Production collection classes must stay on one shard"
 
-        $efShards = @(
-            $(
-                foreach ($assignment in $assignments) {
-                    foreach ($class in $assignment.Classes) {
-                        if ($class.Name -in @("EfWafATests", "EfWafBTests")) {
-                            $assignment.ShardIndex
-                        }
-                    }
-                }
-            ) | Sort-Object -Unique
-        )
+        $efShards = @(Get-ClassShardIndexes -Assignments $assignments -Names @("EfWafATests", "EfWafBTests"))
         Assert-SelfTestEqual $efShards.Count 2 "equal-weight EF WAF hosts must split across shards"
 
         $loads = @($assignments | ForEach-Object { $_.Load })
