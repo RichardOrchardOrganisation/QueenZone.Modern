@@ -78,7 +78,7 @@ public sealed class ForumPostAttachmentTests
     }
 
     [Fact]
-    public void FromStored_BuildsDownloadPathAndImageThumb()
+    public void FromStored_BuildsDownloadPathAndImagePreview()
     {
         var stored = new StoredForumAttachment(
             Guid.Parse("11111111-1111-1111-1111-111111111111"),
@@ -96,7 +96,7 @@ public sealed class ForumPostAttachmentTests
 
         Assert.Equal("/forum/attachment/55/11111111-1111-1111-1111-111111111111", view.Url);
         Assert.True(view.IsImage);
-        Assert.Equal("/ugc/forum/members/abc/cover.webp?size=thumb", view.ThumbnailUrl);
+        Assert.Equal("/ugc/forum/members/abc/cover.webp", view.ThumbnailUrl);
     }
 
     [Fact]

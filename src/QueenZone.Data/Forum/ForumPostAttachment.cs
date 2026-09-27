@@ -51,8 +51,9 @@ public sealed record ForumPostAttachment(
         string? thumb = null;
         if (stored.IsImage)
         {
-            // Full-size images also live behind the private UGC proxy; thumbs follow the same naming rule.
-            thumb = $"/ugc/forum/{stored.BlobPath.TrimStart('/')}?size=thumb";
+            // Form attachments upload the original image only. Use that blob for the
+            // preview; asking the UGC proxy for a derivative returns 404.
+            thumb = $"/ugc/forum/{stored.BlobPath.TrimStart('/')}";
         }
 
         return new ForumPostAttachment(
