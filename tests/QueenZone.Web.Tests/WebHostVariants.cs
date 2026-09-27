@@ -1139,12 +1139,15 @@ public static partial class WebHostVariants
 
     private static void AddStaleFanPerformanceSubmissions(IServiceCollection services, HostServiceContext context)
     {
+        // Assign the context fake during Apply so Get()/ResetAsync expose it before any
+        // IFanPerformanceSubmissionRepository resolve. Isolated credit names still need
+        // IMemberAccountRepository, which is only available after the host is built.
+        context.FanPerformanceSubmissions ??= new InMemoryFanPerformanceSubmissionRepository(id =>
+            context.FanPerformanceMembers?.FindByIdAsync(id).GetAwaiter().GetResult());
         services.RemoveAll<IFanPerformanceSubmissionRepository>();
         services.AddSingleton<IFanPerformanceSubmissionRepository>(sp =>
         {
-            var members = sp.GetRequiredService<IMemberAccountRepository>();
-            context.FanPerformanceSubmissions ??= new InMemoryFanPerformanceSubmissionRepository(id =>
-                members.FindByIdAsync(id).GetAwaiter().GetResult());
+            context.FanPerformanceMembers ??= sp.GetRequiredService<IMemberAccountRepository>();
             return context.FanPerformanceSubmissions;
         });
     }
@@ -1685,6 +1688,8 @@ internal sealed class HostServiceContext
     public ConfigurableNewsSuggestionRepository? ConfigurableNewsSuggestions { get; set; }
 
     public InMemoryFanPerformanceSubmissionRepository? FanPerformanceSubmissions { get; set; }
+
+    public IMemberAccountRepository? FanPerformanceMembers { get; set; }
 
     public EditorStubBlobUploadService? EditorBlob { get; set; }
 

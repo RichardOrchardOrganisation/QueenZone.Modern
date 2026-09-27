@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
+using QueenZone.Data.Entities;
 using QueenZone.Storage;
 
 namespace QueenZone.Web.Tests;
@@ -338,6 +339,54 @@ public sealed class WebHostInfrastructureTests
 
         var quota = cache.Get(WebHostVariants.PhotoUploadQuota1);
         Assert.NotNull(quota.UploadQuota);
+
+        var staleFan = cache.Get(WebHostVariants.TestingStaleFanPerformanceSubmissions);
+        Assert.NotNull(staleFan.FanPerformanceSubmissions);
+        await staleFan.ResetAsync();
+        Assert.NotNull(staleFan.FanPerformanceSubmissions);
+
+        var isolatedFan = cache.Get(WebHostVariants.IsolatedFanPerformanceSubmissions);
+        Assert.NotNull(isolatedFan.FanPerformanceSubmissions);
+    }
+
+    [Fact]
+    public async Task IsolatedFanPerformanceSubmissions_resolves_contributor_credits_and_resets()
+    {
+        await using var cache = new WebHostVariantCache();
+        var isolatedFan = cache.Get(WebHostVariants.IsolatedFanPerformanceSubmissions);
+        Assert.NotNull(isolatedFan.FanPerformanceSubmissions);
+
+        var members = isolatedFan.Services.GetRequiredService<IMemberAccountRepository>();
+        var submissions = isolatedFan.Services.GetRequiredService<IFanPerformanceSubmissionRepository>();
+        Assert.Same(isolatedFan.FanPerformanceSubmissions, submissions);
+
+        var member = await members.CreateAsync(new MemberAccount
+        {
+            Id = Guid.NewGuid(),
+            Email = $"{TestIds.For("credit-fan")}@example.com",
+            DisplayName = "Credit Fan",
+            CreatedAt = DateTime.UtcNow,
+        });
+        var created = await submissions.CreateAsync(new NewFanPerformanceSubmission(
+            member.Id,
+            "Credit cover",
+            "Reaching Out",
+            "Mike Ryde",
+            null,
+            "pending/credit.mp3",
+            "credit.mp3",
+            1024,
+            "audio/mpeg",
+            120,
+            DateTimeOffset.UtcNow,
+            FanPerformanceSubmissionRights.DeclarationVersion));
+        await submissions.PromoteAsync(created.Id, 187, "admin@test.local", null);
+        var credits = await submissions.GetApprovedContributorCreditsAsync([187]);
+        Assert.Equal("Credit Fan", credits[187].DisplayName);
+
+        await isolatedFan.ResetAsync();
+        Assert.NotNull(isolatedFan.FanPerformanceSubmissions);
+        Assert.Null(await isolatedFan.FanPerformanceSubmissions.GetByIdAsync(created.Id));
     }
 
     [Fact]
