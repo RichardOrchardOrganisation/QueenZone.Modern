@@ -161,6 +161,74 @@ public sealed class FanPerformanceDurationResolverTests
         Assert.Equal(first, second);
     }
 
+    [Fact]
+    public async Task ResolveAsync_CachesNullAfterBlobReadFailure()
+    {
+        var performance = new FanPerformance(55, "Test", "Fan", "", "track.mp3", 10,
+            DateTime.UtcNow);
+        var blobs = new FailingReadBlobService();
+        var resolver = new FanPerformanceDurationResolver(blobs, new MemoryCache(new MemoryCacheOptions()));
+
+        Assert.Null(await resolver.ResolveAsync(performance, CancellationToken.None));
+        Assert.Null(await resolver.ResolveAsync(performance, CancellationToken.None));
+        Assert.Equal(1, blobs.ReadCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ReturnsNullWhenBlobStreamIsEmpty()
+    {
+        var performance = new FanPerformance(56, "Test", "Fan", "", "empty.mp3", 10,
+            DateTime.UtcNow);
+        var blobs = new EmptyReadBlobService();
+        var resolver = new FanPerformanceDurationResolver(blobs,
+            new MemoryCache(new MemoryCacheOptions()));
+
+        Assert.Null(await resolver.ResolveAsync(performance, CancellationToken.None));
+        Assert.Equal(1, blobs.ReadCount);
+    }
+
+    private sealed class FailingReadBlobService : IBlobUploadService
+    {
+        public int ReadCount { get; private set; }
+
+        public Task<BlobContent?> OpenReadAsync(string containerName, string blobName,
+            CancellationToken cancellationToken = default)
+        {
+            ReadCount++;
+            throw new IOException("read failed");
+        }
+
+        public Task<BlobUploadResult> UploadAsync(Stream content, string originalFileName,
+            string containerName, BlobUploadContext? context = null,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task DeleteAsync(string containerName, string blobName,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class EmptyReadBlobService : IBlobUploadService
+    {
+        public int ReadCount { get; private set; }
+
+        public Task<BlobContent?> OpenReadAsync(string containerName, string blobName,
+            CancellationToken cancellationToken = default)
+        {
+            ReadCount++;
+            return Task.FromResult<BlobContent?>(new BlobContent
+            {
+                Stream = new MemoryStream(),
+                ContentType = "audio/mpeg",
+            });
+        }
+
+        public Task<BlobUploadResult> UploadAsync(Stream content, string originalFileName,
+            string containerName, BlobUploadContext? context = null,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task DeleteAsync(string containerName, string blobName,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private static byte[] CreateCbrPayload(int length)
     {
         var bytes = new byte[length];

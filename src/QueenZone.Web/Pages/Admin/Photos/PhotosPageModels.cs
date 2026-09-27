@@ -63,9 +63,15 @@ public sealed class NewModel(IAdminPhotoRepository adminPhotoRepository) : Admin
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
+    public string? StatusMessage { get; private set; }
+
+    public string? StatusMessageKind { get; private set; }
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Categories = await adminPhotoRepository.GetCategoriesAsync(cancellationToken);
+        StatusMessage = TempData[MessageKey] as string;
+        StatusMessageKind = TempData[MessageKindKey] as string;
         ViewData["Title"] = "Add photo";
         Breadcrumbs = AdminBreadcrumbs.Page("Photos", "/admin/photos", "Add photo");
     }

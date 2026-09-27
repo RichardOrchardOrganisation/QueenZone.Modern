@@ -61,6 +61,35 @@ public sealed class EfForumAttachmentRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task MergeModernAsync_AddsStoredAttachmentsInUploadOrder()
+    {
+        var member = await SeedMemberAsync();
+        await SeedCategoryAsync();
+        var created = await writeRepository.CreateThreadAsync(new NewForumThread(
+            1, member.Id, member.DisplayName, "Merge attachments", "<p>Body</p>",
+            DateTimeOffset.UtcNow));
+        var firstTime = DateTimeOffset.Parse("2026-07-11T12:00:00Z");
+        await attachmentRepository.AddAttachmentsAsync(created.StarterPostId,
+        [
+            new NewForumAttachment("later.pdf", "p/later.pdf", "ugc-forum", 20, "application/pdf", firstTime.AddMinutes(1)),
+            new NewForumAttachment("first.pdf", "p/first.pdf", "ugc-forum", 10, "application/pdf", firstTime),
+        ]);
+        var posts = new List<ForumPostItem>
+        {
+            new(created.StarterPostId, "body", DateTime.UtcNow, "u", null, 0, null,
+                [new ForumPostAttachment("legacy.jpg", 5, "/legacy")]),
+            new(999999, "other", DateTime.UtcNow, "u", null, 0, null),
+        };
+
+        var merged = await ForumAttachmentMerge.MergeModernAsync(dbContext, posts);
+
+        Assert.Equal(new[] { "legacy.jpg", "first.pdf", "later.pdf" },
+            merged[0].Attachments!.Select(a => a.FileName));
+        Assert.Same(posts[1], merged[1]);
+        Assert.Empty(await ForumAttachmentMerge.MergeModernAsync(dbContext, []));
+    }
+
+    [Fact]
     public async Task IncrementDownloadCountAsync_BumpsCounter()
     {
         var member = await SeedMemberAsync();
