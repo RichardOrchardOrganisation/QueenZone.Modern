@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 
 namespace QueenZone.Web;
 
@@ -9,7 +10,7 @@ public sealed class HelpRequestRateLimiter(
     IOptions<HelpRequestOptions> options)
 {
     private readonly Lock gate = new();
-    private readonly HashSet<string> keys = [];
+    private CancellationTokenSource resetSource = new();
 
     public bool IsAllowed(Guid? memberId, string? clientIp)
     {
@@ -40,12 +41,10 @@ public sealed class HelpRequestRateLimiter(
                 return false;
             }
 
-            cache.Set(ipKey, ipCount + 1, TimeSpan.FromHours(1));
-            keys.Add(ipKey);
+            cache.Set(ipKey, ipCount + 1, CreateEntryOptions(TimeSpan.FromHours(1)));
             if (memberKey is not null)
             {
-                cache.Set(memberKey, memberCount + 1, TimeSpan.FromMinutes(1));
-                keys.Add(memberKey);
+                cache.Set(memberKey, memberCount + 1, CreateEntryOptions(TimeSpan.FromMinutes(1)));
             }
 
             return true;
@@ -54,14 +53,18 @@ public sealed class HelpRequestRateLimiter(
 
     public void Reset()
     {
-        lock (gate)
-        {
-            foreach (var key in keys)
-            {
-                cache.Remove(key);
-            }
+        var previous = Interlocked.Exchange(ref resetSource, new CancellationTokenSource());
+        previous.Cancel();
+        previous.Dispose();
+    }
 
-            keys.Clear();
-        }
+    private MemoryCacheEntryOptions CreateEntryOptions(TimeSpan expiration)
+    {
+        var entryOptions = new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = expiration,
+        };
+        entryOptions.AddExpirationToken(new CancellationChangeToken(Volatile.Read(ref resetSource).Token));
+        return entryOptions;
     }
 }

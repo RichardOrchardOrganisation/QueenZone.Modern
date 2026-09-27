@@ -52,6 +52,7 @@ public sealed class HelpRequestRateLimiterTests
         limiter.Reset();
 
         Assert.True(limiter.IsAllowed(memberId, "203.0.113.30"));
+        Assert.False(limiter.IsAllowed(memberId, "203.0.113.30"));
     }
 
     private static HelpRequestRateLimiter CreateLimiter(int maxPerHour = 3, int maxPerMemberPerMinute = 20)
