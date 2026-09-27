@@ -53,20 +53,31 @@ truth.
 
 [`.sonarcloud.properties`](../../.sonarcloud.properties) at the repo
 root is the Automatic Analysis scope file. It excludes `design/**`
-(unshipped prototypes) and `docs/backlog/**` (offline quiz generator),
-and marks the real test layouts as tests:
+(unshipped prototypes) and `docs/backlog/**` (offline quiz generator).
+The .NET scanner computes its own initial source and test sets, so
+`sonar.sources` and `sonar.tests` are unsupported. The test inclusions
+describe the real test layouts:
 
 - `tests/**` — .NET test projects (`QueenZone.*.Tests`, `QueenZone.Web.E2E`)
 - `src/QueenZone.Mobile/**/*.test.ts(x)` — colocated mobile unit tests
 - `src/QueenZone.Mobile/src/test/**` and `jest.setup.ts` — fixtures and harness
 - `src/QueenZone.Mobile/**/__tests__/**` — standard Jest tree if one appears
 
-Automatic Analysis defaults `sonar.sources` to `.`. The same test globs
-are therefore also listed on `sonar.exclusions`, so they leave the
-source set before `sonar.tests` / `sonar.test.inclusions` claim them.
-A path in both sets fails the first full `main` scan with "File can't
-be indexed twice". Product files under `src/QueenZone.Mobile/` stay in
-sources; only the test globs above are tests.
+The same test globs are also listed on `sonar.exclusions` so they do not
+enter the source set. A path in both sets fails analysis with "File
+can't be indexed twice". SonarCloud's indexed components currently
+classify .NET and mobile test files as tests (`UTS`) and mobile product
+files as sources (`FIL`).
+
+Python analysis declares the supported Python 3 versions in
+`.sonarcloud.properties`. Automatic Analysis lacks the installed Expo
+package and warns that it cannot resolve `expo/tsconfig.base` from the
+mobile typecheck configs. A checked-in copy of Expo's base removed that
+warning but caused 23 unexpected Sonar analyzer failures in the PR scan,
+so the mobile configs still extend the package. The normal CI mobile
+typecheck and coverage gates remain authoritative. Automatic Analysis
+does not expose raw logs, so the NuGet restore warning cannot be traced
+to a package there; the full solution restores locally.
 
 The project's Analysis Scope settings in the Sonar UI are empty. Do not
 set the same exclusions or test paths there. This file is the single
