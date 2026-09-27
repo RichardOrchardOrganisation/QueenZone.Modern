@@ -138,6 +138,32 @@ public static class WebHostVariants
         NoSettings,
         HostServiceProfile.IsolatedQuizzes);
 
+    private static readonly ImmutableSortedDictionary<string, string?> AppleOAuthSettings =
+        ImmutableSortedDictionary.CreateRange(
+        [
+            KeyValuePair.Create<string, string?>("Authentication:Apple:ClientId", "org.queenzone.web"),
+            KeyValuePair.Create<string, string?>("Authentication:Apple:TeamId", "TEAM123456"),
+            KeyValuePair.Create<string, string?>("Authentication:Apple:KeyId", "KEY1234567"),
+            KeyValuePair.Create<string, string?>("Authentication:Apple:PrivateKey", "test-private-key"),
+        ]);
+
+    private static readonly ImmutableSortedDictionary<string, string?> AllMobileOAuthSettings =
+        ImmutableSortedDictionary.CreateRange(
+        [
+            KeyValuePair.Create<string, string?>("Authentication:Google:ClientId", "google-test-client"),
+            KeyValuePair.Create<string, string?>("Authentication:Google:ClientSecret", "google-test-secret"),
+            KeyValuePair.Create<string, string?>("Authentication:Microsoft:ClientId", "ms-test-client"),
+            KeyValuePair.Create<string, string?>("Authentication:Microsoft:ClientSecret", "ms-test-secret"),
+            KeyValuePair.Create<string, string?>("Authentication:Discord:ClientId", "discord-test-client"),
+            KeyValuePair.Create<string, string?>("Authentication:Discord:ClientSecret", "discord-test-secret"),
+            KeyValuePair.Create<string, string?>("Authentication:GitHub:ClientId", "github-test-client"),
+            KeyValuePair.Create<string, string?>("Authentication:GitHub:ClientSecret", "github-test-secret"),
+            KeyValuePair.Create<string, string?>("Authentication:Apple:ClientId", "apple-test-client"),
+            KeyValuePair.Create<string, string?>("Authentication:Apple:TeamId", "TEAMID"),
+            KeyValuePair.Create<string, string?>("Authentication:Apple:KeyId", "KEYID"),
+            KeyValuePair.Create<string, string?>("Authentication:Apple:PrivateKey", "test-apple-private-key"),
+        ]);
+
     public static readonly WebHostVariant TestingAppleOAuth = new(
         nameof(TestingAppleOAuth),
         "Testing",
@@ -284,32 +310,6 @@ public static class WebHostVariants
         HostServiceProfile.SqlFailingCommunityArticles);
 
     internal const string LegacyClaimableEmail = "legacy-me@example.com";
-
-    private static readonly ImmutableSortedDictionary<string, string?> AppleOAuthSettings =
-        ImmutableSortedDictionary.CreateRange(
-        [
-            KeyValuePair.Create<string, string?>("Authentication:Apple:ClientId", "org.queenzone.web"),
-            KeyValuePair.Create<string, string?>("Authentication:Apple:TeamId", "TEAM123456"),
-            KeyValuePair.Create<string, string?>("Authentication:Apple:KeyId", "KEY1234567"),
-            KeyValuePair.Create<string, string?>("Authentication:Apple:PrivateKey", "test-private-key"),
-        ]);
-
-    private static readonly ImmutableSortedDictionary<string, string?> AllMobileOAuthSettings =
-        ImmutableSortedDictionary.CreateRange(
-        [
-            KeyValuePair.Create<string, string?>("Authentication:Google:ClientId", "google-test-client"),
-            KeyValuePair.Create<string, string?>("Authentication:Google:ClientSecret", "google-test-secret"),
-            KeyValuePair.Create<string, string?>("Authentication:Microsoft:ClientId", "ms-test-client"),
-            KeyValuePair.Create<string, string?>("Authentication:Microsoft:ClientSecret", "ms-test-secret"),
-            KeyValuePair.Create<string, string?>("Authentication:Discord:ClientId", "discord-test-client"),
-            KeyValuePair.Create<string, string?>("Authentication:Discord:ClientSecret", "discord-test-secret"),
-            KeyValuePair.Create<string, string?>("Authentication:GitHub:ClientId", "github-test-client"),
-            KeyValuePair.Create<string, string?>("Authentication:GitHub:ClientSecret", "github-test-secret"),
-            KeyValuePair.Create<string, string?>("Authentication:Apple:ClientId", "apple-test-client"),
-            KeyValuePair.Create<string, string?>("Authentication:Apple:TeamId", "TEAMID"),
-            KeyValuePair.Create<string, string?>("Authentication:Apple:KeyId", "KEYID"),
-            KeyValuePair.Create<string, string?>("Authentication:Apple:PrivateKey", "test-apple-private-key"),
-        ]);
 
     private static ImmutableSortedDictionary<string, string?> FanPerformanceRateLimitSettings(
         int audioPermitLimit,
