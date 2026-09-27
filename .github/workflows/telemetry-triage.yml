@@ -1,0 +1,174 @@
+# Part of #1805. Scheduled poller that turns new/regressed Sentry issues
+# and fired qz-prod-* App Insights alerts into GitHub issues through the
+# shared #1804 issue filer. No inbound webhook. No auto-fix PRs.
+#
+# Safety: scheduled runs default to dry-run (log the plan, file nothing)
+# unless repository variable TELEMETRY_TRIAGE_FILE_ISSUES is exactly `true`.
+# workflow_dispatch uses the dry_run input (default true).
+#
+# SENTRY_TRIAGE_TOKEN comes from Bitwarden via BITWARDEN_TELEMETRY_TRIAGE_SECRETS.
+# Do not use SENTRY_AUTH_TOKEN (symbol upload only).
+#
+# App Insights uses OIDC in environment telemetry-read (same pattern as
+# telemetry-read-probe.yml). Zero fired qz-prod-* alerts is a clean no-op.
+# Federated credential github-org-telemetry-read is environment-scoped;
+# pull_request is omitted because a PR job cannot satisfy that subject and
+# the protected-branch environment policy at the same time.
+name: Telemetry triage
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the plan without writing issues
+        type: boolean
+        default: true
+
+concurrency:
+  group: issue-filer
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+  id-token: write
+
+jobs:
+  triage:
+    name: Poll Sentry and App Insights
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: telemetry-read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Resolve deployed tip from the last successful deploy.yml run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="$(gh run list --workflow deploy.yml --status success --limit 1 --json headSha --jq '.[0].headSha // empty')"
+          echo "DEPLOYED_TIP_SHA=${sha}" >> "${GITHUB_ENV}"
+          echo "Resolved deployed tip sha_length=${#sha}"
+
+      - name: Fetch Sentry triage token
+        if: ${{ vars.BITWARDEN_TELEMETRY_TRIAGE_SECRETS != '' }}
+        id: bitwarden-secrets
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
+          secrets: ${{ vars.BITWARDEN_TELEMETRY_TRIAGE_SECRETS }}
+
+      - name: Confirm Sentry token mapping without printing the value
+        env:
+          SENTRY_TRIAGE_TOKEN: ${{ steps.bitwarden-secrets.outputs.SENTRY_TRIAGE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SENTRY_TRIAGE_TOKEN}" ]; then
+            echo "SENTRY_TRIAGE_TOKEN is absent; Sentry collection will no-op."
+          else
+            echo "SENTRY_TRIAGE_TOKEN is present (length ${#SENTRY_TRIAGE_TOKEN})."
+          fi
+
+      - name: Seed empty App Insights signal files
+        run: |
+          set -euo pipefail
+          echo '[]' > "${RUNNER_TEMP}/telemetry-alerts.json"
+          echo '{}' > "${RUNNER_TEMP}/telemetry-evidence.json"
+
+      - name: Confirm telemetry-read ARM variables are present
+        id: arm-vars
+        env:
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!name}" ]; then
+              echo "Missing environment variable ${name} on telemetry-read. App Insights collection will no-op."
+              missing=1
+            fi
+          done
+          echo "present=$([ "${missing}" -eq 0 ] && echo true || echo false)" >> "${GITHUB_OUTPUT}"
+
+      - name: Report OIDC subject without logging the token
+        if: steps.arm-vars.outputs.present == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const token = await core.getIDToken('api://AzureADTokenExchange');
+            core.setSecret(token);
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+            core.info(`OIDC subject: ${payload.sub}`);
+            core.info(`OIDC audience: ${payload.aud}`);
+
+      - name: Azure login
+        if: steps.arm-vars.outputs.present == 'true'
+        id: azure-login
+        continue-on-error: true
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Confirm subscription access without changing resources
+        if: steps.azure-login.outcome == 'success'
+        continue-on-error: true
+        run: test "$(az account show --query state -o tsv)" = Enabled
+
+      - name: Collect fired qz-prod-* alerts and evidence KQL
+        if: steps.azure-login.outcome == 'success'
+        continue-on-error: true
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          node scripts/issue-filer/collect-azure.mjs \
+            --subscription "${ARM_SUBSCRIPTION_ID}" \
+            --alerts-out "${RUNNER_TEMP}/telemetry-alerts.json" \
+            --evidence-out "${RUNNER_TEMP}/telemetry-evidence.json"
+
+      - name: Run telemetry filer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SENTRY_TRIAGE_TOKEN: ${{ steps.bitwarden-secrets.outputs.SENTRY_TRIAGE_TOKEN }}
+          TELEMETRY_ALERTS_PATH: ${{ runner.temp }}/telemetry-alerts.json
+          TELEMETRY_EVIDENCE_PATH: ${{ runner.temp }}/telemetry-evidence.json
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          TELEMETRY_TRIAGE_FILE_ISSUES: ${{ vars.TELEMETRY_TRIAGE_FILE_ISSUES }}
+        run: |
+          set -euo pipefail
+          extra=()
+          dry=1
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [ "${INPUT_DRY_RUN}" = "false" ]; then
+              dry=0
+            fi
+          elif [ "${TELEMETRY_TRIAGE_FILE_ISSUES}" = "true" ]; then
+            dry=0
+          fi
+          if [ "${dry}" = "1" ]; then
+            extra+=(--dry-run)
+            echo "Dry-run: logging the plan without filing issues."
+          else
+            echo "Live run: the shared filer may create or comment on issues."
+          fi
+          node scripts/issue-filer/run.mjs \
+            --loop telemetry \
+            --lookback-hours 2 \
+            --max-issues 3 \
+            "${extra[@]}"

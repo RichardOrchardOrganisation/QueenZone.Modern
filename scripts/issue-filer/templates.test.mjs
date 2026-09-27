@@ -37,9 +37,47 @@ test('marker is the last line of a filed issue', () => {
 
 test('telemetry labels skip proposed-check and can mark needs-triage', () => {
   assert.deepEqual(
-    labelsFor({ ...candidate, area: 'unknown', source: 'sentry' }, config, 'telemetry'),
-    ['bug', 'from-telemetry', 'needs-triage'],
+    labelsFor({ ...candidate, area: 'unknown', source: 'sentry', keys: ['sentry:1'] }, config, 'telemetry'),
+    ['bug', 'from-telemetry', 'from-sentry', 'needs-triage'],
   );
+  assert.deepEqual(
+    labelsFor({
+      ...candidate,
+      area: 'news',
+      source: 'telemetry',
+      keys: ['sentry:1', 'ai:req:/news/{id}:5xx'],
+    }, config, 'telemetry'),
+    ['bug', 'from-telemetry', 'from-sentry', 'from-appinsights', 'news'],
+  );
+});
+
+test('telemetry issue body carries AC4 fields and the AC5 capture-proof command', () => {
+  const issue = buildIssue({
+    candidate: {
+      source: 'sentry',
+      keys: ['sentry:555'],
+      title: '[sentry] TypeError',
+      area: 'news',
+      featureId: 'web.news.detail',
+      captureProof: 'pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 capture-proof -Feature web.news.detail',
+      evidence: [{ url: 'https://sentry.io/issues/555', text: 'Sentry issue' }],
+      count: 4,
+      firstSeen: '2026-09-27T09:00:00Z',
+      lastSeen: '2026-09-27T10:00:00Z',
+      release: 'mobile@1.2.3',
+      frames: ['src/QueenZone.Mobile/src/screens/news/NewsStoryScreen.tsx:40 in load'],
+    },
+    config,
+    loop: 'telemetry',
+  });
+  assert.match(issue.body, /root cause is fixed/i);
+  assert.match(issue.body, /7 days after deploy/);
+  assert.match(issue.body, /Event count: 4/);
+  assert.match(issue.body, /mobile\\@1\.2\.3/);
+  assert.match(issue.body, /NewsStoryScreen/);
+  assert.match(issue.body, /capture-proof -Feature web\.news\.detail/);
+  assert.match(issue.body, /<!-- qz-filer v=1 keys=sentry:555 source=sentry -->/);
+  assert.deepEqual(issue.labels, ['bug', 'from-telemetry', 'from-sentry', 'news']);
 });
 
 test('comments and log mention stay silent-friendly', () => {

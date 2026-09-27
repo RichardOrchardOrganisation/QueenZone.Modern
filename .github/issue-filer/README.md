@@ -1,6 +1,6 @@
 # Issue filer
 
-Shared, deterministic issue filer for the weekly gardener (#1804) and, later, telemetry triage (#1805). There is no LLM in this path. The gardener never opens pull requests.
+Shared, deterministic issue filer for the weekly gardener (#1804) and telemetry triage (#1805). There is no LLM in this path. Neither loop opens pull requests.
 
 ## Layout
 
@@ -12,6 +12,8 @@ Shared, deterministic issue filer for the weekly gardener (#1804) and, later, te
 | `backfill/review-findings-60d.json` | Optional 60-day classified review comments at the `.github/issue-filer/` path. The weekly gardener reads this only when `lookback_days` is 60 or more |
 | `scripts/issue-filer/review-findings-60d.json` | Classified 60-day review findings for #1802 AC3. Ingested only when `--ingest-findings` is passed |
 | `scripts/issue-filer/` | Pure `planFilings` core, injected GitHub client, source collectors, templates |
+| `scripts/issue-filer/telemetry.mjs` | Sentry/App Insights parse, route normalisation, correlation, dedupe keys |
+| `.github/workflows/telemetry-triage.yml` | 30-minute poller (2h lookback) that feeds the telemetry loop |
 
 ## Ignore list
 
@@ -52,6 +54,8 @@ The filer lists issues by its labels (open, plus closed in the last 90 days) and
 
 `node scripts/issue-filer/run.mjs --dry-run` prints the plan and writes nothing. Manual `workflow_dispatch` on `.github/workflows/gardener.yml` defaults to dry-run. The Monday 00:00 UTC schedule (08:00 Perth) runs live.
 
+Telemetry triage (`.github/workflows/telemetry-triage.yml`) is a scheduled poll every 30 minutes plus `workflow_dispatch`. It shares `concurrency: issue-filer` with the gardener. **Scheduled runs default to dry-run** (they log the plan and file nothing) unless repository variable `TELEMETRY_TRIAGE_FILE_ISSUES` is exactly `true`. Dispatch uses the `dry_run` input (default true). Sentry auth is `SENTRY_TRIAGE_TOKEN` from Bitwarden via `BITWARDEN_TELEMETRY_TRIAGE_SECRETS` — never `SENTRY_AUTH_TOKEN`. App Insights reads fired `qz-prod-*` alerts through the `telemetry-read` OIDC identity; zero fired alerts is a clean no-op. When a later signal matches either key of an existing issue, the new key is appended to the marker and a comment is added.
+
 The weekly job uses a 7-day lookback. It does **not** ingest classified historical findings or classify untagged review comments. For #1802 AC3, dispatch `ingest_findings=true`, `max_issues=2`, and `dry_run=true` first (then the same inputs with `dry_run=false`). Ingested findings use the same dedupe, caps, ignore list, and templates as live candidates, and they are not collapsed into a storm issue when they fit under the cap.
 
 SonarCloud credentials stay out of git. The gardener reads `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` from the environment (repository variables) and skips the Sonar source when either is unset.
@@ -60,5 +64,6 @@ SonarCloud credentials stay out of git. The gardener reads `SONAR_ORGANIZATION` 
 
 ```bash
 node scripts/issue-filer/run.mjs --validate
+node scripts/issue-filer/run.mjs --loop telemetry --lookback-hours 2 --max-issues 3 --dry-run
 node --test $(find scripts -name '*.test.mjs' | sort)
 ```

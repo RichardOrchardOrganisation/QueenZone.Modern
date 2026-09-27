@@ -109,9 +109,20 @@ export function createGitHubClient({
       return data;
     },
 
-    async reopen(issueNumber) {
-      const { data } = await request('PATCH', `/repos/${owner}/${repo}/issues/${issueNumber}`, { state: 'open' });
+    async updateIssue(issueNumber, { body, state } = {}) {
+      const payload = {};
+      if (body !== undefined) {
+        payload.body = body;
+      }
+      if (state !== undefined) {
+        payload.state = state;
+      }
+      const { data } = await request('PATCH', `/repos/${owner}/${repo}/issues/${issueNumber}`, payload);
       return normalizeIssue(data);
+    },
+
+    async reopen(issueNumber) {
+      return this.updateIssue(issueNumber, { state: 'open' });
     },
 
     async addLabels(issueNumber, labels) {

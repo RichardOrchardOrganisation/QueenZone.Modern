@@ -1,4 +1,6 @@
 import { isGuardrail } from './core.mjs';
+import { parseFilerMarker } from './finding.mjs';
+import { telemetrySourceLabels } from './telemetry.mjs';
 
 export function buildMarker({ keys, source }) {
   const safeKeys = (keys || []).filter((key) => key && !/\s/.test(key));
@@ -9,7 +11,10 @@ export function labelsFor(candidate, config, loop = 'gardener') {
   const labels = [];
   if (loop === 'telemetry') {
     labels.push(...(config.labels.telemetry || ['bug', 'from-telemetry']));
-    if (candidate.area === 'unknown') {
+    labels.push(...telemetrySourceLabels(candidate));
+    if (candidate.area && candidate.area !== 'unknown') {
+      labels.push(candidate.area);
+    } else {
       labels.push(config.labels.needsTriage || 'needs-triage');
     }
   } else {
@@ -19,6 +24,26 @@ export function labelsFor(candidate, config, loop = 'gardener') {
     }
   }
   return [...new Set(labels.filter(Boolean))];
+}
+
+export function replaceFilerMarker(body, { keys, source }) {
+  const next = buildMarker({ keys, source });
+  const current = String(body || '');
+  if (!/<!-- qz-filer v=1 /.test(current)) {
+    return `${current.trim()}\n\n${next}\n`;
+  }
+  return current.replace(/<!-- qz-filer v=1 [^>]*-->/, next);
+}
+
+export function mergedMarkerKeys(existingBody, candidate) {
+  const previous = parseFilerMarker(existingBody)?.keys || [];
+  const next = [...previous];
+  for (const key of candidate?.keys || []) {
+    if (key && !next.includes(key)) {
+      next.push(key);
+    }
+  }
+  return next;
 }
 
 export function escapeMarkdown(text) {
@@ -76,9 +101,61 @@ function stormList(candidates = []) {
     .join('\n');
 }
 
-export function buildIssue({ candidate, config, previousIssue, loop = 'gardener' }) {
+function telemetryIssueBody(candidate, { previousIssue } = {}) {
   const marker = buildMarker({ keys: candidate.keys, source: candidate.source });
+  const previous = previousIssue ? `\nPreviously closed as #${previousIssue}.\n` : '';
+  const storm = candidate.storm
+    ? `\n## Ranked signals\n\n${stormList(candidate.stormCandidates)}\n`
+    : '';
+  const frames = (candidate.frames || []).slice(0, 5);
+  const frameLines = frames.length > 0
+    ? frames.map((frame) => `- \`${escapeMarkdown(frame)}\``).join('\n')
+    : '- No in-app frames were supplied.';
+  const featureId = candidate.featureId || 'unmapped';
+  const proof = candidate.captureProof || 'Not mapped: add a feature-map id before running capture-proof.';
+  return `## User story
+
+As a QueenZone maintainer, I want production telemetry key \`${escapeMarkdown(candidate.keys?.[0] || candidate.title)}\` diagnosed so the failure stops reaching visitors or members.
+
+## Acceptance criteria
+
+1. The root cause is fixed.
+2. A regression test reproduces the failure, or the issue explains why that is not practical.
+3. No new events for this key for 7 days after deploy.
+
+## Evidence
+
+- Event count: ${candidate.count}
+- Release / deployed tip: ${escapeMarkdown(candidate.release || candidate.deployedTip || 'unknown')}
+- First seen: ${candidate.firstSeen || 'unknown'}
+- Last seen: ${candidate.lastSeen || 'unknown'}
+- Feature-map id: ${escapeMarkdown(featureId)}
+${evidenceLines(candidate.evidence)}
+
+## Stack summary
+
+${frameLines}
+${storm}
+## Reproduction (AC5)
+
+The repro runs when Bob or Dinesh picks up this issue. There is no automatic agent run in v1.
+
+\`${escapeMarkdown(proof)}\`
+${previous}
+${marker}
+`;
+}
+
+export function buildIssue({ candidate, config, previousIssue, loop = 'gardener' }) {
   const labels = labelsFor(candidate, config, loop);
+  if (loop === 'telemetry') {
+    return {
+      title: candidate.title,
+      body: telemetryIssueBody(candidate, { previousIssue }).replace(/\n{3,}/g, '\n\n').trim() + '\n',
+      labels,
+    };
+  }
+  const marker = buildMarker({ keys: candidate.keys, source: candidate.source });
   const previous = previousIssue ? `\nPreviously closed as #${previousIssue}.\n` : '';
   const storm = candidate.storm
     ? `\n## Ranked signals\n\n${stormList(candidate.stormCandidates)}\n`
