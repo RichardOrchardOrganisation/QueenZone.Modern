@@ -1,0 +1,90 @@
+# Part of #1805 (step one). Proves the telemetry-read OIDC identity can
+# sign in and run one read-only Log Analytics count. Do not print query
+# rows, workspace IDs, or secret values.
+#
+# Federated credential github-org-telemetry-read is environment-scoped
+# (docs/architecture/github-organization-oidc.md). GitHub environment
+# telemetry-read allows protected branches only (main). pull_request is
+# omitted on purpose: a PR job cannot satisfy that subject and the
+# environment branch policy at the same time.
+name: Telemetry read probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/telemetry-read-probe.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    name: OIDC login and read-only KQL count
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: telemetry-read
+    steps:
+      - name: Confirm telemetry-read ARM variables are present
+        env:
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in ARM_CLIENT_ID ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing environment variable ${name} on telemetry-read."
+              missing=1
+            fi
+          done
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+          echo "telemetry-read ARM variables are present."
+
+      - name: Report OIDC subject without logging the token
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const token = await core.getIDToken('api://AzureADTokenExchange');
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+            core.info(`OIDC subject: ${payload.sub}`);
+            core.info(`OIDC audience: ${payload.aud}`);
+
+      - name: Azure login
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Confirm subscription access without changing resources
+        run: test "$(az account show --query state -o tsv)" = Enabled
+
+      - name: Run read-only Log Analytics count
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          workspace_id="$(az monitor log-analytics workspace show \
+            --subscription "${ARM_SUBSCRIPTION_ID}" \
+            --resource-group Queenzone-RG \
+            --workspace-name queenzone-prod-law \
+            --query customerId \
+            --output tsv)"
+          count="$(az monitor log-analytics query \
+            --workspace "${workspace_id}" \
+            --analytics-query "union * | count" \
+            --timespan PT1H \
+            --query "tables[0].rows[0][0]" \
+            --output tsv)"
+          if ! [[ "${count}" =~ ^[0-9]+$ ]]; then
+            echo "::error::Log Analytics query did not return a single count."
+            exit 1
+          fi
+          echo "Telemetry read probe succeeded. row_count=${count}"
