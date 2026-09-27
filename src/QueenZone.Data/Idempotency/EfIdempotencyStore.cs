@@ -63,7 +63,7 @@ public sealed class EfIdempotencyStore(QueenZoneDbContext dbContext, TimeProvide
                 },
                 cancellationToken);
         }
-        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
         {
             var winner = await FindAsync(memberId, operationKind, operationId, cancellationToken);
             if (winner is null)
@@ -132,33 +132,6 @@ public sealed class EfIdempotencyStore(QueenZoneDbContext dbContext, TimeProvide
         string.Equals(existing.PayloadHash, payloadHash, StringComparison.Ordinal)
             ? IdempotencyExecuteResult<T>.Replay(existing)
             : IdempotencyExecuteResult<T>.Conflict();
-
-    internal static bool IsUniqueConstraintViolation(Exception exception)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            var typeName = current.GetType().Name;
-            if (string.Equals(typeName, "SqliteException", StringComparison.Ordinal)
-                && current.GetType().GetProperty("SqliteErrorCode")?.GetValue(current) is 19)
-            {
-                return true;
-            }
-
-            if (string.Equals(typeName, "SqlException", StringComparison.Ordinal)
-                && current.GetType().GetProperty("Number")?.GetValue(current) is 2601 or 2627)
-            {
-                return true;
-            }
-
-            if (current.Message.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase)
-                || current.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private static string? Truncate(string? value, int maxLength)
     {

@@ -76,7 +76,7 @@ public sealed class SharedNewsAgentGuidanceStore
                 return Clone(draft);
             }
 
-            EnsureRowVersion(draft, expectedRowVersion);
+            QueenZoneConcurrency.EnsureRequiredRowVersion<NewsAgentGuidanceConcurrencyException>(draft.RowVersion, expectedRowVersion);
             draft.Content = sanitizedContent;
             draft.ContentHash = contentHash;
             draft.CreatedByEmail = editorEmail;
@@ -96,7 +96,7 @@ public sealed class SharedNewsAgentGuidanceStore
                 item.Type == type && item.Status == NewsAgentGuidanceStatus.Draft)
                 ?? throw new InvalidOperationException($"No draft guidance exists for {NewsAgentGuidanceText.ToStorageType(type)}.");
 
-            EnsureRowVersion(draft, expectedRowVersion);
+            QueenZoneConcurrency.EnsureRequiredRowVersion<NewsAgentGuidanceConcurrencyException>(draft.RowVersion, expectedRowVersion);
 
             var published = revisions.SingleOrDefault(item =>
                 item.Type == type && item.Status == NewsAgentGuidanceStatus.Published);
@@ -151,14 +151,6 @@ public sealed class SharedNewsAgentGuidanceStore
 
     private int NextRevisionNumber(NewsAgentGuidanceType type) =>
         revisions.Where(item => item.Type == type).Select(item => item.RevisionNumber).DefaultIfEmpty(0).Max() + 1;
-
-    private static void EnsureRowVersion(NewsAgentGuidanceRevisionEntity entity, byte[]? expectedRowVersion)
-    {
-        if (expectedRowVersion is null || !entity.RowVersion.SequenceEqual(expectedRowVersion))
-        {
-            throw new NewsAgentGuidanceConcurrencyException();
-        }
-    }
 
     private static byte[] NextRowVersion() => Guid.NewGuid().ToByteArray();
 

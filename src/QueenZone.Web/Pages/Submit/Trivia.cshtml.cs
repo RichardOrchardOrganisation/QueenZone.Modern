@@ -54,9 +54,9 @@ public sealed class TriviaModel(ITriviaFactSubmissionRepository triviaFactSubmis
         ViewData["Title"] = "Suggest a trivia fact";
 
         var text = (Text ?? string.Empty).Trim();
-        var category = NormalizeOptional(Category);
-        var difficulty = NormalizeDifficulty(Difficulty);
-        var sourceNote = NormalizeOptional(SourceNote);
+        var category = TriviaValidation.NormalizeOptional(Category);
+        var difficulty = TriviaValidation.NormalizeDifficulty(Difficulty);
+        var sourceNote = TriviaValidation.NormalizeOptional(SourceNote);
 
         foreach (var error in TriviaValidation.ValidateSuggestion(text, category, difficulty, sourceNote))
         {
@@ -73,14 +73,5 @@ public sealed class TriviaModel(ITriviaFactSubmissionRepository triviaFactSubmis
             cancellationToken);
 
         return Redirect($"/submit/trivia/confirmation/{created.Id:D}");
-    }
-
-    private static string? NormalizeOptional(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? NormalizeDifficulty(string? value)
-    {
-        var trimmed = NormalizeOptional(value);
-        return trimmed?.ToLowerInvariant();
     }
 }

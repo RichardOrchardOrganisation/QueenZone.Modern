@@ -31,7 +31,7 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 SubmitterMemberId = submission.SubmitterMemberId,
                 Text = submission.Text.Trim(),
                 Category = SubmissionInput.NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
-                Difficulty = NormalizeDifficulty(submission.Difficulty),
+                Difficulty = TriviaValidation.NormalizeDifficulty(submission.Difficulty, TriviaValidation.MaxDifficultyLength),
                 SourceNote = SubmissionInput.NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
                 Status = TriviaFactSubmissionStatus.Pending,
                 SubmittedAt = DateTimeOffset.UtcNow,
@@ -259,11 +259,5 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
             entity.PromotedTriviaId,
             member?.DisplayName,
             member?.Email);
-    }
-
-    private static string? NormalizeDifficulty(string? value)
-    {
-        var trimmed = SubmissionInput.NormalizeOptional(value, TriviaValidation.MaxDifficultyLength);
-        return trimmed?.ToLowerInvariant();
     }
 }

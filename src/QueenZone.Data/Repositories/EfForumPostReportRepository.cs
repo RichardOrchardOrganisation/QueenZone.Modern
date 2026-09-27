@@ -33,7 +33,7 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             row.BodyHtml,
             authorMemberId,
             row.AuthorDisplayName,
-            ToOffset(row.PostedAt));
+            LegacyDateTime.ToOffset(row.PostedAt));
     }
 
     public async Task<ForumPostReportResult> CreateAsync(
@@ -268,7 +268,7 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             .Select(item => new { item.LegacyPostId, item.AuthorDisplayName, item.BodyHtml, item.PostedAt })
             .ToListAsync(cancellationToken);
         return contextRows.Select(item => new ForumPostReportContextItem(
-            item.LegacyPostId, item.AuthorDisplayName, item.BodyHtml, ToOffset(item.PostedAt))).ToList();
+            item.LegacyPostId, item.AuthorDisplayName, item.BodyHtml, LegacyDateTime.ToOffset(item.PostedAt))).ToList();
     }
 
     private async Task<Guid?> ResolveAuthorMemberIdAsync(
@@ -286,7 +286,4 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             .Select(account => (Guid?)account.Id)
             .SingleOrDefaultAsync(cancellationToken);
     }
-
-    private static DateTimeOffset ToOffset(DateTime? value) =>
-        new(DateTime.SpecifyKind(value ?? DateTime.MinValue, DateTimeKind.Utc));
 }
