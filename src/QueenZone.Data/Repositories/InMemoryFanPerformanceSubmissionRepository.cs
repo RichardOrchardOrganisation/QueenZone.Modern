@@ -53,8 +53,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -62,8 +61,8 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
                 .Where(row => FanPerformanceSubmissionWorkflow.CanAdminAct(row.Status))
                 .OrderByDescending(row => row.SubmittedAt)
                 .ThenBy(row => row.Id)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(row =>
                 {
                     var member = resolveMember?.Invoke(row.SubmitterMemberId);
@@ -112,8 +111,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -123,8 +121,8 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
                 .ToList();
 
             IReadOnlyList<FanPerformanceSubmission> items = owned
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(Map)
                 .ToList();
 
@@ -260,19 +258,12 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
     {
         lock (sync)
         {
-            IReadOnlyList<SubmissionContributor> result = submissions
-                .Where(row => row.SubmittedAt >= monthStart)
-                .GroupBy(row => row.SubmitterMemberId)
-                .Select(group =>
-                {
-                    var member = resolveMember?.Invoke(group.Key);
-                    return new SubmissionContributor(group.Key, member?.DisplayName ?? "Unknown member", group.Count());
-                })
-                .OrderByDescending(contributor => contributor.Count)
-                .Take(maxCount)
-                .ToList();
-
-            return Task.FromResult(result);
+            var rows = submissions.Select(row => new SubmissionContributorRow
+            {
+                MemberId = row.SubmitterMemberId,
+                SubmittedAt = row.SubmittedAt,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.TopContributors(rows, monthStart, maxCount, id => resolveMember?.Invoke(id)?.DisplayName));
         }
     }
 
