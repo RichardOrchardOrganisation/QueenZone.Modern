@@ -144,8 +144,20 @@ public sealed class ToolsAppCommandDispatchTests
     [Fact]
     public async Task RunAsync_RoutesDevSnapshot_AndSurfacesParseError()
     {
-        var ex = await Assert.ThrowsAsync<ArgumentException>(() => ToolsApp.RunAsync(["dev-snapshot"]));
-        Assert.Contains("copy or verify", ex.Message, StringComparison.Ordinal);
+        using var error = new StringWriter();
+        var originalError = Console.Error;
+        Console.SetError(error);
+        try
+        {
+            var exitCode = await ToolsApp.RunAsync(["dev-snapshot"]);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains("copy or verify", error.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
     }
 
     [Fact]
