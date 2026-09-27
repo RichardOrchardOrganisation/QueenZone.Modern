@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.OutputCaching;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
+using QueenZone.Storage;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
@@ -25,12 +25,6 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IR
     {
     }
 
-    /// <summary>
-    /// Creates a factory that applies additional DI configuration on top of Testing defaults.
-    /// </summary>
-    public static QueenZoneWebApplicationFactory WithServices(Action<IServiceCollection> configureServices) =>
-        new ConfiguredFactory(configureServices);
-
     public HttpClient CreateAnonymousClient(bool allowAutoRedirect = true) =>
         CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -50,6 +44,27 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IR
         }
 
         Services.GetService<SharedSearchIndexStore>()?.Clear();
+        if (Services.GetService<IMemberAccountRepository>() is InMemoryMemberAccountRepository members)
+        {
+            members.Clear();
+        }
+
+        Services.GetService<SharedDeviceTokenStore>()?.Clear();
+        if (Services.GetService<IBlobStorageBackend>() is InMemoryBlobStorageBackend blobs)
+        {
+            blobs.Clear();
+        }
+
+        if (Services.GetService<IBlobUploadService>() is MemoryBlobUploadService memoryBlobs)
+        {
+            memoryBlobs.Reset();
+        }
+
+        if (Services.GetService<IForumWriteRepository>() is InMemoryForumWriteRepository forum)
+        {
+            forum.Clear();
+        }
+
         var publicQueries = Services.GetService<PublicQueryCacheService>();
         publicQueries?.InvalidateTriviaCache();
         publicQueries?.InvalidateQuotesCache();
@@ -68,13 +83,5 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IR
 
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
-    }
-
-    private sealed class ConfiguredFactory(Action<IServiceCollection> configureServices) : QueenZoneWebApplicationFactory
-    {
-        protected override void ConfigureTestServices(IWebHostBuilder builder)
-        {
-            builder.ConfigureTestServices(configureServices);
-        }
     }
 }

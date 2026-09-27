@@ -133,6 +133,7 @@ internal sealed class FixedIdAttachmentRepository : IForumAttachmentRepository
 internal sealed class MemoryBlobUploadService : IBlobUploadService
 {
     private readonly Dictionary<string, (byte[] Bytes, string ContentType)> store = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (byte[] Bytes, string ContentType)> seed = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task<BlobUploadResult> UploadAsync(
         Stream content,
@@ -184,6 +185,24 @@ internal sealed class MemoryBlobUploadService : IBlobUploadService
         });
     }
 
+    public void Reset()
+    {
+        store.Clear();
+        foreach (var pair in seed)
+        {
+            store[pair.Key] = pair.Value;
+        }
+    }
+
+    private void CaptureSeed()
+    {
+        seed.Clear();
+        foreach (var pair in store)
+        {
+            seed[pair.Key] = pair.Value;
+        }
+    }
+
     public static MemoryBlobUploadService WithLegacyForumBlobs()
     {
         var memoryBlob = new MemoryBlobUploadService();
@@ -197,6 +216,7 @@ internal sealed class MemoryBlobUploadService : IBlobUploadService
             "opera-side-two-notes.pdf",
             ForumAttachmentPaths.LegacyContainerName,
             new BlobUploadContext { PreferredBlobName = "opera-side-two-notes.pdf" }).GetAwaiter().GetResult();
+        memoryBlob.CaptureSeed();
         return memoryBlob;
     }
 
@@ -208,6 +228,7 @@ internal sealed class MemoryBlobUploadService : IBlobUploadService
             "notes.txt",
             BlobUploadContainers.Forum,
             new BlobUploadContext { PreferredBlobName = "members/test/notes.txt" }).GetAwaiter().GetResult();
+        memoryBlob.CaptureSeed();
         return memoryBlob;
     }
 }

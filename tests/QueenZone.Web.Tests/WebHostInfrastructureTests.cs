@@ -516,7 +516,88 @@ public sealed class WebHostInfrastructureTests
     }
 
     [Fact]
-    public async Task Slice3d_variants_register_expected_services_and_reset()
+    public async Task ResetAsync_clears_members_device_tokens_blobs_and_forum_rows()
+    {
+        await using var cache = new WebHostVariantCache();
+        var factory = cache.Get(WebHostVariants.Testing);
+        using var client = factory.CreateAnonymousClient();
+        var members = factory.Services.GetRequiredService<IMemberAccountRepository>();
+        var tokens = factory.Services.GetRequiredService<IDeviceTokenRepository>();
+        var blobs = factory.Services.GetRequiredService<IBlobStorageBackend>();
+        var forum = Assert.IsType<InMemoryForumWriteRepository>(
+            factory.Services.GetRequiredService<IForumWriteRepository>());
+
+        var member = await members.CreateAsync(new MemberAccount
+        {
+            Id = Guid.NewGuid(),
+            Email = $"{TestIds.For("reset-member")}@example.test",
+            DisplayName = "Reset Member",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await tokens.UpsertAsync(new DeviceTokenEntity
+        {
+            Id = Guid.NewGuid(),
+            DeviceId = TestIds.For("reset-device"),
+            MemberAccountId = member.Id,
+            Platform = DevicePushPlatform.Fcm,
+            Token = "reset-token",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        await blobs.UploadAsync(
+            BlobUploadContainers.Forum,
+            "reset/probe.txt",
+            new MemoryStream("reset-probe"u8.ToArray()),
+            "text/plain");
+        await forum.CreateThreadAsync(new NewForumThread(
+            1,
+            member.Id,
+            member.DisplayName,
+            "Reset forum row",
+            "<p>Clear me</p>",
+            DateTimeOffset.UtcNow));
+
+        Assert.NotNull(await members.FindByIdAsync(member.Id));
+        Assert.NotEmpty(await tokens.ListByMemberIdsAsync([member.Id]));
+        Assert.NotNull(await blobs.OpenReadAsync(BlobUploadContainers.Forum, "reset/probe.txt"));
+        Assert.Contains(forum.GetCreatedThreads(), thread => thread.Subject == "Reset forum row");
+
+        await factory.ResetAsync();
+
+        Assert.Null(await members.FindByIdAsync(member.Id));
+        Assert.Empty(await tokens.ListByMemberIdsAsync([member.Id]));
+        Assert.Null(await blobs.OpenReadAsync(BlobUploadContainers.Forum, "reset/probe.txt"));
+        Assert.DoesNotContain(forum.GetCreatedThreads(), thread => thread.Subject == "Reset forum row");
+    }
+
+    [Fact]
+    public async Task MemoryBlobUploadService_reset_restores_seed_and_drops_extra_blobs()
+    {
+        await using var cache = new WebHostVariantCache();
+        var legacy = cache.Get(WebHostVariants.TestingLegacyForumAttachmentMemoryBlobs);
+        using var client = legacy.CreateAnonymousClient();
+        var blobs = legacy.Services.GetRequiredService<IBlobUploadService>();
+
+        Assert.NotNull(await blobs.OpenReadAsync(
+            ForumAttachmentPaths.LegacyContainerName,
+            "anoto-setlist-scan.jpg"));
+        await blobs.UploadAsync(
+            new MemoryStream("extra-bytes"u8.ToArray()),
+            "extra.bin",
+            ForumAttachmentPaths.LegacyContainerName,
+            new BlobUploadContext { PreferredBlobName = "extra.bin" });
+        Assert.NotNull(await blobs.OpenReadAsync(ForumAttachmentPaths.LegacyContainerName, "extra.bin"));
+
+        await legacy.ResetAsync();
+
+        Assert.NotNull(await blobs.OpenReadAsync(
+            ForumAttachmentPaths.LegacyContainerName,
+            "anoto-setlist-scan.jpg"));
+        Assert.Null(await blobs.OpenReadAsync(ForumAttachmentPaths.LegacyContainerName, "extra.bin"));
+    }
+
+    [Fact]
+    public async Task Forum_search_auth_variants_register_expected_services_and_reset()
     {
         await using var cache = new WebHostVariantCache();
 
