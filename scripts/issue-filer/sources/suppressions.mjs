@@ -21,9 +21,11 @@ export function parseSuppressionDiff(patch, patterns, { config } = {}) {
       date = Number.isNaN(parsed) ? dateMatch[1] : new Date(parsed).toISOString();
       continue;
     }
-    const fileMatch = line.match(/^diff --git a\/(.+) b\/(.+)$/);
-    if (fileMatch) {
-      file = fileMatch[2];
+    if (line.startsWith('diff --git a/')) {
+      const separator = line.indexOf(' b/', 'diff --git a/'.length);
+      if (separator !== -1) {
+        file = line.slice(separator + 3);
+      }
       continue;
     }
     if (!line.startsWith('+') || line.startsWith('+++')) {

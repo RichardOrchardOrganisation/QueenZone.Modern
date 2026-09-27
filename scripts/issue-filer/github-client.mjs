@@ -1,6 +1,19 @@
 const API_VERSION = '2022-11-28';
 const DEFAULT_TIMEOUT_MS = 20_000;
 
+function nextPageUrl(linkHeader) {
+  for (const link of String(linkHeader).split(',')) {
+    const [target, ...parameters] = link.trim().split(';');
+    if (!target.startsWith('<') || !target.endsWith('>')) {
+      continue;
+    }
+    if (parameters.some((parameter) => parameter.trim() === 'rel="next"')) {
+      return target.slice(1, -1);
+    }
+  }
+  return '';
+}
+
 function normalizeIssue(issue) {
   return {
     number: issue.number,
@@ -67,8 +80,7 @@ export function createGitHubClient({
       const { data, headers } = await request('GET', next);
       items.push(...(Array.isArray(data) ? data : []));
       const link = headers.get?.('link') || headers.Link || headers.link || '';
-      const match = String(link).match(/<([^>]+)>;\s*rel="next"/);
-      next = match ? match[1] : '';
+      next = nextPageUrl(link);
     }
     return items;
   }
@@ -141,8 +153,7 @@ export function createGitHubClient({
         const { data, headers } = await request('GET', next);
         items.push(...(data.workflow_runs || []));
         const link = headers.get?.('link') || headers.Link || headers.link || '';
-        const match = String(link).match(/<([^>]+)>;\s*rel="next"/);
-        next = match ? match[1] : '';
+        next = nextPageUrl(link);
         if (items.length >= 200) {
           break;
         }
