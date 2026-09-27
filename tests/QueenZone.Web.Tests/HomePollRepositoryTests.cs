@@ -189,4 +189,19 @@ public sealed class HomePollRepositoryTests
             repository.CastVoteAsync(draft!.Options[0].OptionId, Guid.NewGuid()));
         Assert.Equal(ForumPollVoteException.NotFound, ex.Code);
     }
+
+    [Fact]
+    public async Task Clear_removes_polls_and_votes()
+    {
+        var store = new SharedHomePollStore();
+        var polls = new InMemoryHomePollRepository(store);
+        var id = await polls.CreateAsync(new AdminHomePollDraft("Clear me?", ["A", "B"]), Guid.NewGuid());
+        await polls.PublishAsync(id);
+        Assert.NotNull(await polls.GetCurrentAsync(null));
+
+        store.Clear();
+
+        Assert.Null(await polls.GetCurrentAsync(null));
+        Assert.Empty(await polls.GetAllAsync());
+    }
 }

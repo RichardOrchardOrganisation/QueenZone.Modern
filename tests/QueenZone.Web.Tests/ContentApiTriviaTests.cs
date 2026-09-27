@@ -1,12 +1,14 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContentApiTriviaTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ContentApiTriviaTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -14,11 +16,17 @@ public sealed class ContentApiTriviaTests : IClassFixture<QueenZoneWebApplicatio
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory isolatedTrivia;
 
-    public ContentApiTriviaTests(QueenZoneWebApplicationFactory factory)
+    public ContentApiTriviaTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        isolatedTrivia = variants.Get(WebHostVariants.IsolatedTrivia);
     }
+
+    public Task InitializeAsync() => isolatedTrivia.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Random_trivia_requires_no_auth_and_returns_a_published_fact()
@@ -36,12 +44,7 @@ public sealed class ContentApiTriviaTests : IClassFixture<QueenZoneWebApplicatio
     [Fact]
     public async Task Random_trivia_returns_json_null_when_nothing_is_published()
     {
-        using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ITriviaRepository>();
-            services.AddSingleton<ITriviaRepository>(new InMemoryTriviaRepository([]));
-        });
-        using var client = isolated.CreateAnonymousClient();
+        using var client = isolatedTrivia.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/trivia/random");
 
@@ -52,9 +55,9 @@ public sealed class ContentApiTriviaTests : IClassFixture<QueenZoneWebApplicatio
     [Fact]
     public async Task Random_trivia_returns_json_null_when_only_unpublished_facts_exist()
     {
-        using var isolated = IsolatedTrivia(
-            new TriviaFactItem(21, "Draft only", DateTime.UtcNow, false, "Band", TriviaDifficulty.Easy, "Notes"));
-        using var client = isolated.CreateAnonymousClient();
+        var trivia = isolatedTrivia.Services.GetRequiredService<ITriviaRepository>();
+        await trivia.CreateAsync(new AdminTriviaDraft("Draft only", false, "Band", TriviaDifficulty.Easy, "Notes"));
+        using var client = isolatedTrivia.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/trivia/random");
 
@@ -65,22 +68,20 @@ public sealed class ContentApiTriviaTests : IClassFixture<QueenZoneWebApplicatio
     [Fact]
     public async Task Random_trivia_returns_optional_fields()
     {
-        using var isolated = IsolatedTrivia(
-            new TriviaFactItem(
-                22,
-                "Freddie Mercury was born Farrokh Bulsara.",
-                DateTime.UtcNow,
-                true,
-                "Band",
-                TriviaDifficulty.Easy,
-                "Queen official biography"));
-        using var client = isolated.CreateAnonymousClient();
+        var trivia = isolatedTrivia.Services.GetRequiredService<ITriviaRepository>();
+        var id = await trivia.CreateAsync(new AdminTriviaDraft(
+            "Freddie Mercury was born Farrokh Bulsara.",
+            true,
+            "Band",
+            TriviaDifficulty.Easy,
+            "Queen official biography"));
+        using var client = isolatedTrivia.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/trivia/random");
 
         var payload = await ReadRandomTriviaJsonAsync<TriviaDto>(response);
         Assert.NotNull(payload);
-        Assert.Equal(22, payload.Id);
+        Assert.Equal(id, payload.Id);
         Assert.Equal("Freddie Mercury was born Farrokh Bulsara.", payload.Text);
         Assert.Equal("Band", payload.Category);
         Assert.Equal(TriviaDifficulty.Easy, payload.Difficulty);
@@ -90,15 +91,20 @@ public sealed class ContentApiTriviaTests : IClassFixture<QueenZoneWebApplicatio
     [Fact]
     public async Task Random_trivia_omits_blank_optional_fields()
     {
-        using var isolated = IsolatedTrivia(
-            new TriviaFactItem(23, "We Will Rock You uses stadium stomp percussion.", DateTime.UtcNow, true, "   ", "  ", "   "));
-        using var client = isolated.CreateAnonymousClient();
+        var trivia = isolatedTrivia.Services.GetRequiredService<ITriviaRepository>();
+        var id = await trivia.CreateAsync(new AdminTriviaDraft(
+            "We Will Rock You uses stadium stomp percussion.",
+            true,
+            "   ",
+            "  ",
+            "   "));
+        using var client = isolatedTrivia.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/trivia/random");
 
         var payload = await ReadRandomTriviaJsonAsync<TriviaDto>(response);
         Assert.NotNull(payload);
-        Assert.Equal(23, payload.Id);
+        Assert.Equal(id, payload.Id);
         Assert.Null(payload.Category);
         Assert.Null(payload.Difficulty);
         Assert.Null(payload.Source);
@@ -116,13 +122,6 @@ public sealed class ContentApiTriviaTests : IClassFixture<QueenZoneWebApplicatio
         Assert.Null(dto.Difficulty);
         Assert.Null(dto.Source);
     }
-
-    private static QueenZoneWebApplicationFactory IsolatedTrivia(params TriviaFactItem[] facts) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ITriviaRepository>();
-            services.AddSingleton<ITriviaRepository>(new InMemoryTriviaRepository(facts));
-        });
 
     private static async Task<T?> ReadRandomTriviaJsonAsync<T>(HttpResponseMessage response)
     {

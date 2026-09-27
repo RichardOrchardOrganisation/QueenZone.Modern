@@ -1,17 +1,29 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class QuizPagesRoutesTests
+public sealed class QuizPagesRoutesTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
+    private readonly VariantWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
+
+    public QuizPagesRoutesTests(WebHostVariantCache variants)
+    {
+        this.variants = variants;
+        factory = variants.Get(WebHostVariants.IsolatedQuizzes);
+    }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     [Fact]
     public async Task Quizzes_index_redirects_to_the_sprint_without_listing_quiz_types()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var scope = isolated.Services.CreateScope();
         var quizzes = scope.ServiceProvider.GetRequiredService<IQuizRepository>();
         await quizzes.CreateAsync(SampleDraft("Hidden draft"), Guid.NewGuid());
@@ -32,7 +44,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Play_page_404s_for_a_draft_quiz()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var scope = isolated.Services.CreateScope();
         var quizzes = scope.ServiceProvider.GetRequiredService<IQuizRepository>();
         var draftId = await quizzes.CreateAsync(SampleDraft(), Guid.NewGuid());
@@ -46,7 +58,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Play_page_never_leaks_the_correct_answer_before_submit()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         var quizId = await PublishSampleAsync(isolated);
 
         using var client = isolated.CreateAnonymousClient();
@@ -59,7 +71,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Anonymous_visitor_can_complete_a_quiz_but_the_attempt_is_not_recorded()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         var quizId = await PublishSampleAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
@@ -88,7 +100,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Signed_in_member_completing_a_quiz_is_recorded()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         var quizId = await PublishSampleAsync(isolated);
         var (q1Id, _, correctOptionId) = await GetQuestionAndCorrectOptionAsync(isolated, quizId);
 
@@ -121,7 +133,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Sprint_get_start_redirects_to_landing_without_starting_a_round()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         await PublishSampleAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
@@ -143,7 +155,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Sprint_post_start_with_published_pool_returns_ticket_and_questions()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         await PublishSampleAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         var landing = await client.GetStringAsync("/quizzes/sprint");
@@ -161,7 +173,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Sprint_post_start_with_empty_pool_shows_empty_pool_message()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
         var landing = await client.GetStringAsync("/quizzes/sprint");
@@ -187,7 +199,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Sprint_uses_only_published_questions_and_shows_a_visible_countdown()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using (var scope = isolated.Services.CreateScope())
         {
             var quizzes = scope.ServiceProvider.GetRequiredService<IQuizRepository>();
@@ -211,7 +223,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Sprint_scores_correct_answers_without_deducting_for_wrong_answers()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         var quizId = await PublishSampleAsync(isolated);
         var (q1Id, q2Id, correctOptionId) = await GetQuestionAndCorrectOptionAsync(isolated, quizId);
         using var scope = isolated.Services.CreateScope();
@@ -240,13 +252,14 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Sprint_rejects_results_after_the_deadline()
     {
-        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 18, 0, 0, 0, TimeSpan.Zero));
-        using var isolated = IsolatedQuizzes(clock);
+        var isolated = variants.Get(WebHostVariants.IsolatedQuizzesWithClock);
+        await isolated.ResetAsync();
+        isolated.Clock!.SetUtcNow(new DateTimeOffset(2026, 9, 18, 0, 0, 0, TimeSpan.Zero));
         await PublishSampleAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         var landing = await client.GetStringAsync("/quizzes/sprint");
         var round = await StartSprintAsync(client, landing);
-        clock.Advance(TimeSpan.FromSeconds(66));
+        isolated.Clock.Advance(TimeSpan.FromSeconds(66));
 
         var response = await client.PostAsync("/quizzes/sprint?handler=Finish", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -261,7 +274,7 @@ public sealed class QuizPagesRoutesTests
     [Fact]
     public async Task Sprint_rejects_a_tampered_answer_ticket()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         await PublishSampleAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         var landing = await client.GetStringAsync("/quizzes/sprint");
@@ -288,32 +301,6 @@ public sealed class QuizPagesRoutesTests
 
     private static string ExtractTicket(string html) =>
         Regex.Match(html, "name=\"ticket\" value=\"([^\"]+)\"").Groups[1].Value;
-
-    private static QueenZoneWebApplicationFactory IsolatedQuizzes(TimeProvider? clock = null)
-    {
-        var store = new SharedQuizStore();
-        return QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<SharedQuizStore>();
-            services.RemoveAll<IQuizRepository>();
-            services.AddSingleton(store);
-            services.AddSingleton<IQuizRepository>(_ => new InMemoryQuizRepository(store));
-            if (clock is not null)
-            {
-                services.RemoveAll<TimeProvider>();
-                services.AddSingleton(clock);
-            }
-        });
-    }
-
-    private sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        private DateTimeOffset current = now;
-
-        public override DateTimeOffset GetUtcNow() => current;
-
-        public void Advance(TimeSpan duration) => current += duration;
-    }
 
     private static AdminQuizDraft SampleDraft(string title = "Sample quiz") =>
         new(

@@ -5,20 +5,23 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Storage;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContentApiFanPerformancesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ContentApiFanPerformancesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public ContentApiFanPerformancesTests(QueenZoneWebApplicationFactory factory)
+    public ContentApiFanPerformancesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -46,31 +49,13 @@ public sealed class ContentApiFanPerformancesTests : IClassFixture<QueenZoneWebA
     [Fact]
     public async Task FanPerformances_list_reads_stored_duration_without_opening_blobs()
     {
-        using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IBlobUploadService>();
-            services.AddSingleton<IBlobUploadService, ThrowOnReadBlobService>();
-        });
-        using var client = isolated.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.ThrowOnReadBlob).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/fan-performances");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var payload = await response.Content.ReadFromJsonAsync<ApiPagedResponse<FanPerformanceDto>>();
         Assert.Equal(320, payload!.Items[0].DurationSeconds);
-    }
-
-    private sealed class ThrowOnReadBlobService : IBlobUploadService
-    {
-        public Task<BlobUploadResult> UploadAsync(Stream content, string originalFileName, string containerName,
-            BlobUploadContext? context = null, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task DeleteAsync(string containerName, string blobName, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<BlobContent?> OpenReadAsync(string containerName, string blobName, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("List must not open audio blobs.");
     }
 
     [Fact]
@@ -125,7 +110,7 @@ public sealed class ContentApiFanPerformancesTests : IClassFixture<QueenZoneWebA
             .CreateAsync(new MemberAccount
             {
                 Id = Guid.NewGuid(),
-                Email = "credit-fan@example.com",
+                Email = $"{TestIds.For("credit-fan")}@example.com",
                 DisplayName = "Credit Fan",
                 CreatedAt = DateTime.UtcNow,
             });

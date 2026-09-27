@@ -1,19 +1,18 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>, IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public BiographyRoutesTests(QueenZoneWebApplicationFactory factory)
+    public BiographyRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -49,22 +48,7 @@ public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task BiographyIndexStripsHtmlFromLegacySummary()
     {
-        var chapters = new[]
-        {
-            new BiographyChapterItem(
-                8001,
-                "1946 - 1969",
-                "<p>A founding chapter <strong>summary</strong> with HTML.</p>",
-                "<p>Body text.</p>",
-                1,
-                new DateTime(1969, 12, 31, 0, 0, 0, DateTimeKind.Utc))
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IBiographyRepository>(new InMemoryBiographyRepository(chapters));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.HtmlSummaryBiography).CreateClient();
 
         var body = await client.GetStringAsync("/biography");
 
@@ -93,17 +77,9 @@ public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task BiographyDetailReusesOneCachedListForNavigationAcrossRequests()
     {
-        var chapters = new[]
-        {
-            new BiographyChapterItem(1, "First", "First summary", "First body", 1, DateTime.UtcNow),
-            new BiographyChapterItem(2, "Second", "Second summary", "Second body", 2, DateTime.UtcNow),
-        };
-        var repository = new CountingBiographyRepository(chapters);
-        using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IBiographyRepository>();
-            services.AddSingleton<IBiographyRepository>(repository);
-        });
+        var isolated = variants.Get(WebHostVariants.CountingBiography);
+        await isolated.ResetAsync();
+        var repository = isolated.CountingBiography!;
         using var client = isolated.CreateAnonymousClient();
 
         var first = await client.GetStringAsync("/biography/2/second");
@@ -164,22 +140,7 @@ public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task BiographyDetailSanitizesUnsafeLegacyHtmlInBody()
     {
-        var chapters = new[]
-        {
-            new BiographyChapterItem(
-                7001,
-                "2026",
-                string.Empty,
-                "<script>alert('xss')</script><p>Safe <strong>legacy</strong> paragraph</p>",
-                1,
-                new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc))
-        };
-
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IBiographyRepository>(new InMemoryBiographyRepository(chapters));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.UnsafeHtmlBiography).CreateClient();
 
         var body = await client.GetStringAsync("/biography/7001/2026");
 
@@ -193,11 +154,7 @@ public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task EmptyBiographyShowsMessage()
     {
-        var client = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<IBiographyRepository>(new InMemoryBiographyRepository([]));
-            })).CreateClient();
+        var client = variants.Get(WebHostVariants.EmptyBiography).CreateClient();
 
         var body = await client.GetStringAsync("/biography");
 
@@ -236,34 +193,4 @@ public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(expected, BiographyTitle.GetYearMarker(title));
     }
 
-    private sealed class CountingBiographyRepository(IReadOnlyList<BiographyChapterItem> chapters) : IBiographyRepository
-    {
-        public int ListCallCount { get; private set; }
-        public int DetailCallCount { get; private set; }
-        public int AdjacentCallCount { get; private set; }
-
-        public Task<IReadOnlyList<BiographyChapterItem>> GetChaptersAsync(CancellationToken cancellationToken = default)
-        {
-            ListCallCount++;
-            return Task.FromResult(chapters);
-        }
-
-        public Task<BiographyChapterItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        {
-            DetailCallCount++;
-            return Task.FromResult(chapters.SingleOrDefault(chapter => chapter.Id == id));
-        }
-
-        public Task<BiographyChapterNav> GetAdjacentChaptersAsync(int id, CancellationToken cancellationToken = default)
-        {
-            AdjacentCallCount++;
-            return Task.FromResult(new BiographyChapterNav(null, null));
-        }
-
-        public Task<int> CreateAsync(AdminBiographyDraft draft, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task UpdateAsync(int id, AdminBiographyDraft draft, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-    }
 }

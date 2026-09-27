@@ -1,20 +1,19 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class FreddieTributePageTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class FreddieTributePageTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public FreddieTributePageTests(QueenZoneWebApplicationFactory factory)
+    public FreddieTributePageTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -60,23 +59,7 @@ public sealed class FreddieTributePageTests : IClassFixture<QueenZoneWebApplicat
     [Fact]
     public async Task FreddieTributePage_WithoutFreddieCategory_OmitsPhotoGallery()
     {
-        await using var customFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<SharedPhotoStore>();
-                services.RemoveAll<IPhotoRepository>();
-                services.AddSingleton(_ => new SharedPhotoStore(
-                [
-                    new PhotoCategorySeed(9, "Brian May",
-                    [
-                        new PhotoItemSeed(101, "Brian", "/Brian_May/img-101.jpg", "/Brian_May/img-101-t.jpg", new DateTime(1986, 7, 12)),
-                    ]),
-                ]));
-                services.AddSingleton<IPhotoRepository, InMemoryPhotoRepository>();
-            });
-        });
-        var client = customFactory.CreateClient();
+        var client = variants.Get(WebHostVariants.PhotosWithoutFreddieCategory).CreateClient();
 
         var body = await client.GetStringAsync("/freddie-mercury-tribute");
 
@@ -88,17 +71,7 @@ public sealed class FreddieTributePageTests : IClassFixture<QueenZoneWebApplicat
     [Fact]
     public async Task FreddieTributePage_WithoutTributes_RendersEmptyState()
     {
-        await using var customFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<SharedFreddieTributeStore>();
-                services.RemoveAll<IFreddieTributeRepository>();
-                services.AddSingleton(_ => new SharedFreddieTributeStore([]));
-                services.AddSingleton<IFreddieTributeRepository, InMemoryFreddieTributeRepository>();
-            });
-        });
-        var client = customFactory.CreateClient();
+        var client = variants.Get(WebHostVariants.EmptyFreddieTributes).CreateClient();
 
         var body = await client.GetStringAsync("/freddie-mercury-tribute");
 

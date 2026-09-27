@@ -138,6 +138,209 @@ public static class WebHostVariants
         NoSettings,
         HostServiceProfile.IsolatedQuizzes);
 
+    public static readonly WebHostVariant IsolatedQuizzesWithClock = new(
+        nameof(IsolatedQuizzesWithClock),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedQuizzesWithClock);
+
+    public static readonly WebHostVariant IsolatedHomePolls = new(
+        nameof(IsolatedHomePolls),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedHomePolls);
+
+    public static readonly WebHostVariant IsolatedTrivia = new(
+        nameof(IsolatedTrivia),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedTrivia);
+
+    public static readonly WebHostVariant ThrowOnReadBlob = new(
+        nameof(ThrowOnReadBlob),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.ThrowOnReadBlob);
+
+    public static readonly WebHostVariant EmptyQuotes = new(
+        nameof(EmptyQuotes),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.EmptyQuotes);
+
+    public static readonly WebHostVariant SequentialTrivia = new(
+        nameof(SequentialTrivia),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.SequentialTrivia);
+
+    public static readonly WebHostVariant FixedUtc20260713 = new(
+        nameof(FixedUtc20260713),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.FixedUtc20260713);
+
+    public static readonly WebHostVariant FixedUtc20260712 = new(
+        nameof(FixedUtc20260712),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.FixedUtc20260712);
+
+    public static readonly WebHostVariant FixedUtc20260827 = new(
+        nameof(FixedUtc20260827),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.FixedUtc20260827);
+
+    public static readonly WebHostVariant TimelineDeepOffPage = new(
+        nameof(TimelineDeepOffPage),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.TimelineDeepOffPage);
+
+    public static readonly WebHostVariant UnpublishedTimelineEvent = new(
+        nameof(UnpublishedTimelineEvent),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.UnpublishedTimelineEvent);
+
+    public static readonly WebHostVariant NewsDecadeFilter2000s = new(
+        nameof(NewsDecadeFilter2000s),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.NewsDecadeFilter2000s);
+
+    public static readonly WebHostVariant NewsOnly2026 = new(
+        nameof(NewsOnly2026),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.NewsOnly2026);
+
+    public static readonly WebHostVariant NewsYearBeatsDecade = new(
+        nameof(NewsYearBeatsDecade),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.NewsYearBeatsDecade);
+
+    public static readonly WebHostVariant NewsYears2006To2026 = new(
+        nameof(NewsYears2006To2026),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.NewsYears2006To2026);
+
+    public static readonly WebHostVariant IsolatedNewsDiscussion = new(
+        nameof(IsolatedNewsDiscussion),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedNewsDiscussion);
+
+    public static readonly WebHostVariant OfficialQueenOnlineLinks = new(
+        nameof(OfficialQueenOnlineLinks),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.OfficialQueenOnlineLinks);
+
+    public static readonly WebHostVariant HiddenUnavailableLinks = new(
+        nameof(HiddenUnavailableLinks),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.HiddenUnavailableLinks);
+
+    public static readonly WebHostVariant DeadOnlyLinks = new(
+        nameof(DeadOnlyLinks),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.DeadOnlyLinks);
+
+    public static readonly WebHostVariant BareLegacyUrlLinks = new(
+        nameof(BareLegacyUrlLinks),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.BareLegacyUrlLinks);
+
+    public static readonly WebHostVariant MalformedMailtoLinks = new(
+        nameof(MalformedMailtoLinks),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.MalformedMailtoLinks);
+
+    public static readonly WebHostVariant PreviewPublicBaseUrlMutableCommunityArticles = new(
+        nameof(PreviewPublicBaseUrlMutableCommunityArticles),
+        "Testing",
+        ImmutableSortedDictionary.CreateRange(
+        [
+            KeyValuePair.Create<string, string?>(
+                "Site:PublicBaseUrl",
+                PreviewPublicBaseUrlWebApplicationFactory.PublicBaseUrl),
+        ]),
+        HostServiceProfile.MutableCommunityArticles);
+
+    public static readonly WebHostVariant EmptyArticles = new(
+        nameof(EmptyArticles),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.EmptyArticles);
+
+    public static readonly WebHostVariant OverlayImageArticle = new(
+        nameof(OverlayImageArticle),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.OverlayImageArticle);
+
+    public static readonly WebHostVariant SourceLinkArticles = new(
+        nameof(SourceLinkArticles),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.SourceLinkArticles);
+
+    public static readonly WebHostVariant UnsafeHtmlArticle = new(
+        nameof(UnsafeHtmlArticle),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.UnsafeHtmlArticle);
+
+    public static readonly WebHostVariant DateOrderedArticles = new(
+        nameof(DateOrderedArticles),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.DateOrderedArticles);
+
+    public static readonly WebHostVariant HtmlSummaryBiography = new(
+        nameof(HtmlSummaryBiography),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.HtmlSummaryBiography);
+
+    public static readonly WebHostVariant CountingBiography = new(
+        nameof(CountingBiography),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.CountingBiography);
+
+    public static readonly WebHostVariant UnsafeHtmlBiography = new(
+        nameof(UnsafeHtmlBiography),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.UnsafeHtmlBiography);
+
+    public static readonly WebHostVariant EmptyBiography = new(
+        nameof(EmptyBiography),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.EmptyBiography);
+
+    public static readonly WebHostVariant PhotosWithoutFreddieCategory = new(
+        nameof(PhotosWithoutFreddieCategory),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.PhotosWithoutFreddieCategory);
+
+    public static readonly WebHostVariant EmptyFreddieTributes = new(
+        nameof(EmptyFreddieTributes),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.EmptyFreddieTributes);
+
     private static readonly ImmutableSortedDictionary<string, string?> AppleOAuthSettings =
         ImmutableSortedDictionary.CreateRange(
         [
@@ -399,6 +602,118 @@ public static class WebHostVariants
             case HostServiceProfile.IsolatedQuizzes:
                 AddIsolatedQuizzes(services, RequireContext(context, profile));
                 break;
+            case HostServiceProfile.IsolatedQuizzesWithClock:
+                AddIsolatedQuizzes(services, RequireContext(context, profile));
+                AddMutableClock(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedHomePolls:
+                AddIsolatedHomePolls(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedTrivia:
+                AddIsolatedTrivia(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.ThrowOnReadBlob:
+                services.RemoveAll<IBlobUploadService>();
+                services.AddSingleton<IBlobUploadService, ThrowOnReadBlobService>();
+                break;
+            case HostServiceProfile.EmptyQuotes:
+                services.RemoveAll<IQuoteRepository>();
+                services.AddSingleton<IQuoteRepository>(new InMemoryQuoteRepository([]));
+                break;
+            case HostServiceProfile.SequentialTrivia:
+                AddSequentialTrivia(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.FixedUtc20260713:
+                AddFixedClock(services, new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero));
+                break;
+            case HostServiceProfile.FixedUtc20260712:
+                AddFixedClock(services, new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero));
+                break;
+            case HostServiceProfile.FixedUtc20260827:
+                AddFixedClock(services, new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+                break;
+            case HostServiceProfile.TimelineDeepOffPage:
+                ReplaceHistory(services, TimelineDeepOffPageItems());
+                break;
+            case HostServiceProfile.UnpublishedTimelineEvent:
+                ReplaceHistory(services, [TimelineEvent(13, "Draft event", new DateTime(1975, 10, 31, 0, 0, 0, DateTimeKind.Utc), isPublished: false)]);
+                break;
+            case HostServiceProfile.NewsDecadeFilter2000s:
+                ReplaceNews(services, NewsDecadeFilter2000sItems());
+                break;
+            case HostServiceProfile.NewsOnly2026:
+                ReplaceNews(services, [
+                    new NewsItem(1, "Only 2026 article", "Ex", "Body", new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
+                ]);
+                break;
+            case HostServiceProfile.NewsYearBeatsDecade:
+                ReplaceNews(services, [
+                    new NewsItem(1, "2008 article", "Ex", "Body", new DateTime(2008, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
+                    new NewsItem(2, "2015 article", "Ex", "Body", new DateTime(2015, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
+                ]);
+                break;
+            case HostServiceProfile.NewsYears2006To2026:
+                ReplaceNews(services, [
+                    new NewsItem(1, "Oldest", "Ex", "Body", new DateTime(2006, 5, 1, 0, 0, 0, DateTimeKind.Utc), null, true),
+                    new NewsItem(2, "Newest", "Ex", "Body", new DateTime(2026, 6, 11, 0, 0, 0, DateTimeKind.Utc), null, true),
+                    new NewsItem(3, "Hidden", "Ex", "Body", new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, false),
+                ]);
+                break;
+            case HostServiceProfile.IsolatedNewsDiscussion:
+                AddIsolatedNewsDiscussion(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.OfficialQueenOnlineLinks:
+                ReplaceLinks(services, OfficialQueenOnlineLinkCategories());
+                break;
+            case HostServiceProfile.HiddenUnavailableLinks:
+                ReplaceLinks(services, HiddenUnavailableLinkCategories(), HiddenUnavailableLinkChecks());
+                break;
+            case HostServiceProfile.DeadOnlyLinks:
+                ReplaceLinks(services, DeadOnlyLinkCategories(), DeadOnlyLinkChecks());
+                break;
+            case HostServiceProfile.BareLegacyUrlLinks:
+                ReplaceLinks(services, BareLegacyUrlLinkCategories());
+                break;
+            case HostServiceProfile.MalformedMailtoLinks:
+                ReplaceLinks(services, MalformedMailtoLinkCategories());
+                break;
+            case HostServiceProfile.EmptyArticles:
+                services.RemoveAll<IArticlesRepository>();
+                services.AddSingleton<IArticlesRepository>(new QueenZone.Data.InMemoryArticlesRepository([]));
+                break;
+            case HostServiceProfile.OverlayImageArticle:
+                AddOverlayImageArticle(services);
+                break;
+            case HostServiceProfile.SourceLinkArticles:
+                services.RemoveAll<IArticlesRepository>();
+                services.AddSingleton<IArticlesRepository>(new QueenZone.Data.InMemoryArticlesRepository(SourceLinkArticleItems()));
+                break;
+            case HostServiceProfile.UnsafeHtmlArticle:
+                services.RemoveAll<IArticlesRepository>();
+                services.AddSingleton<IArticlesRepository>(new QueenZone.Data.InMemoryArticlesRepository(UnsafeHtmlArticleItems()));
+                break;
+            case HostServiceProfile.DateOrderedArticles:
+                services.RemoveAll<IArticlesRepository>();
+                services.AddSingleton<IArticlesRepository>(new QueenZone.Data.InMemoryArticlesRepository(DateOrderedArticleItems()));
+                break;
+            case HostServiceProfile.HtmlSummaryBiography:
+                ReplaceBiography(services, HtmlSummaryBiographyChapters());
+                break;
+            case HostServiceProfile.CountingBiography:
+                AddCountingBiography(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.UnsafeHtmlBiography:
+                ReplaceBiography(services, UnsafeHtmlBiographyChapters());
+                break;
+            case HostServiceProfile.EmptyBiography:
+                ReplaceBiography(services, []);
+                break;
+            case HostServiceProfile.PhotosWithoutFreddieCategory:
+                ReplacePhotos(services, PhotosWithoutFreddieCategorySeed());
+                break;
+            case HostServiceProfile.EmptyFreddieTributes:
+                ReplaceFreddieTributes(services, []);
+                break;
             case HostServiceProfile.AppleOAuth:
                 AddAppleOAuth(services);
                 break;
@@ -490,6 +805,145 @@ public static class WebHostVariants
         services.AddSingleton<IQuizRepository>(_ => new InMemoryQuizRepository(context.QuizStore));
         services.RemoveAll<IQuizQuestionSubmissionRepository>();
         services.AddSingleton<IQuizQuestionSubmissionRepository>(context.QuizQuestionSubmissions);
+    }
+
+    private static void AddMutableClock(IServiceCollection services, HostServiceContext context)
+    {
+        context.Clock ??= new MutableTimeProvider();
+        services.RemoveAll<TimeProvider>();
+        services.AddSingleton<TimeProvider>(context.Clock);
+    }
+
+    private static void AddFixedClock(IServiceCollection services, DateTimeOffset utcNow)
+    {
+        services.RemoveAll<TimeProvider>();
+        services.AddSingleton<TimeProvider>(new FixedTimeProvider(utcNow));
+    }
+
+    private static void AddIsolatedHomePolls(IServiceCollection services, HostServiceContext context)
+    {
+        context.HomePolls ??= new SharedHomePollStore();
+        services.RemoveAll<SharedHomePollStore>();
+        services.RemoveAll<IHomePollRepository>();
+        services.AddSingleton(context.HomePolls);
+        services.AddSingleton<IHomePollRepository>(_ => new InMemoryHomePollRepository(context.HomePolls));
+    }
+
+    private static void AddIsolatedTrivia(IServiceCollection services, HostServiceContext context)
+    {
+        context.Trivia ??= new SharedTriviaStore();
+        services.RemoveAll<ITriviaRepository>();
+        services.AddSingleton<ITriviaRepository>(new InMemoryTriviaRepository(context.Trivia));
+    }
+
+    private static void AddSequentialTrivia(IServiceCollection services, HostServiceContext context)
+    {
+        context.SequentialTrivia ??= new SequentialTriviaRepository(
+            new TriviaFactItem(41, "First published Queen trivia fact", DateTime.UtcNow, true, "Band", TriviaDifficulty.Easy, null),
+            new TriviaFactItem(43, "Unpublished draft fact must never render", DateTime.UtcNow, false, "Band", TriviaDifficulty.Hard, "Draft"));
+        services.RemoveAll<ITriviaRepository>();
+        services.AddSingleton<ITriviaRepository>(context.SequentialTrivia);
+    }
+
+    private static void ReplaceHistory(IServiceCollection services, IReadOnlyList<QueenHistoryEvent> events)
+    {
+        services.RemoveAll<IQueenHistoryRepository>();
+        services.AddSingleton<IQueenHistoryRepository>(new InMemoryQueenHistoryRepository(events));
+    }
+
+    private static void AddIsolatedNewsDiscussion(IServiceCollection services, HostServiceContext context)
+    {
+        context.SeedableNews ??= new SeedableNewsRepository();
+        context.SeedableDiscussion ??= new SeedableDiscussionLookup();
+        services.RemoveAll<INewsRepository>();
+        services.AddSingleton<INewsRepository>(context.SeedableNews);
+        services.RemoveAll<INewsForumDiscussionLookup>();
+        services.AddSingleton<INewsForumDiscussionLookup>(context.SeedableDiscussion);
+    }
+
+    private static void ReplaceLinks(
+        IServiceCollection services,
+        IReadOnlyList<QueenLinkCategory> categories,
+        IReadOnlyList<QueenLinkCheckUpdate>? checks = null)
+    {
+        var repository = new InMemoryLinksRepository(categories);
+        if (checks is { Count: > 0 })
+        {
+            repository.UpsertCheckResultsAsync(checks).GetAwaiter().GetResult();
+        }
+
+        services.RemoveAll<ILinksRepository>();
+        services.AddSingleton<ILinksRepository>(repository);
+    }
+
+    private static void AddOverlayImageArticle(IServiceCollection services)
+    {
+        var editorial = new InMemoryEditorialArticleRepository();
+        var articles = new QueenZone.Data.InMemoryArticlesRepository(
+            [
+                new ArticleItem(
+                    5004,
+                    "Legacy archive title",
+                    "Legacy excerpt.",
+                    "<p>Legacy body.</p>",
+                    new DateTime(2026, 5, 4, 9, 0, 0, DateTimeKind.Utc),
+                    null,
+                    "Features",
+                    true),
+            ],
+            editorial);
+        var draft = editorial.SaveDraftAsync(
+            new EditorialArticleDraft(
+                null,
+                5004,
+                null,
+                "Overlay archive title",
+                null,
+                "Overlay excerpt.",
+                "<p>Overlay body.</p>",
+                "Overlay Author",
+                "Features",
+                "overlay,tags",
+                null,
+                "editors/admin/overlay.webp",
+                DateTimeOffset.Parse("2026-05-04T09:00:00Z")),
+            "admin").GetAwaiter().GetResult();
+        editorial.SetStatusAsync(draft.Id, EditorialArticleStatus.Published, "admin").GetAwaiter().GetResult();
+        services.RemoveAll<IArticlesRepository>();
+        services.AddSingleton<IArticlesRepository>(articles);
+    }
+
+    private static void ReplaceBiography(IServiceCollection services, IReadOnlyList<BiographyChapterItem> chapters)
+    {
+        services.RemoveAll<IBiographyRepository>();
+        services.AddSingleton<IBiographyRepository>(new InMemoryBiographyRepository(chapters));
+    }
+
+    private static void AddCountingBiography(IServiceCollection services, HostServiceContext context)
+    {
+        context.CountingBiography ??= new CountingBiographyRepository(
+        [
+            new BiographyChapterItem(1, "First", "First summary", "First body", 1, DateTime.UtcNow),
+            new BiographyChapterItem(2, "Second", "Second summary", "Second body", 2, DateTime.UtcNow),
+        ]);
+        services.RemoveAll<IBiographyRepository>();
+        services.AddSingleton<IBiographyRepository>(context.CountingBiography);
+    }
+
+    private static void ReplacePhotos(IServiceCollection services, IReadOnlyList<PhotoCategorySeed> seed)
+    {
+        services.RemoveAll<SharedPhotoStore>();
+        services.RemoveAll<IPhotoRepository>();
+        services.AddSingleton(_ => new SharedPhotoStore(seed));
+        services.AddSingleton<IPhotoRepository, InMemoryPhotoRepository>();
+    }
+
+    private static void ReplaceFreddieTributes(IServiceCollection services, IReadOnlyList<FreddieTribute> tributes)
+    {
+        services.RemoveAll<SharedFreddieTributeStore>();
+        services.RemoveAll<IFreddieTributeRepository>();
+        services.AddSingleton(_ => new SharedFreddieTributeStore(tributes));
+        services.AddSingleton<IFreddieTributeRepository, InMemoryFreddieTributeRepository>();
     }
 
     private static void AddAppleOAuth(IServiceCollection services)
@@ -790,6 +1244,196 @@ public static class WebHostVariants
             true,
             "second-promoted-story"),
     ];
+
+    private static List<NewsItem> NewsDecadeFilter2000sItems()
+    {
+        var items = new List<NewsItem>();
+        for (var i = 0; i < 25; i++)
+        {
+            items.Add(new NewsItem(
+                2000 + i,
+                $"2020s article {i}",
+                "Excerpt",
+                "Body",
+                new DateTime(2020, 6, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(-i),
+                null,
+                true));
+        }
+
+        items.Add(new NewsItem(
+            9999,
+            "Old article from the 2000s",
+            "Excerpt",
+            "Body",
+            new DateTime(2008, 3, 4, 0, 0, 0, DateTimeKind.Utc),
+            null,
+            true));
+        return items;
+    }
+
+    private static QueenHistoryEvent[] TimelineDeepOffPageItems() =>
+    [
+        TimelineEvent(1, "First page event", new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
+        TimelineEvent(9999, "Deep off-page event", new DateTime(1985, 7, 13, 0, 0, 0, DateTimeKind.Utc)),
+    ];
+
+    internal static QueenHistoryEvent TimelineEvent(
+        int id,
+        string title,
+        DateTime eventDate,
+        bool isPublished = true) =>
+        new(
+            id,
+            title,
+            "Queen play Live Aid.",
+            eventDate,
+            QueenHistoryDatePrecision.ExactDate,
+            QueenHistoryEventCategory.Concert,
+            100,
+            QueenHistoryEventSourceType.Wikipedia,
+            $"event-{id}",
+            "https://en.wikipedia.org/wiki/Live_Aid",
+            isPublished);
+
+    private static QueenLinkCategory[] OfficialQueenOnlineLinkCategories() =>
+    [
+        new QueenLinkCategory(
+            1,
+            "Official",
+            [
+                new QueenLink(1, "Queen Online", "https://www.queenonline.com/", "Official Queen site.", 1, true),
+            ]),
+    ];
+
+    private static QueenLinkCategory[] HiddenUnavailableLinkCategories() =>
+    [
+        new QueenLinkCategory(
+            1,
+            "Official",
+            [
+                new QueenLink(1, "Queen Online", "https://www.queenonline.com/", "Official Queen site.", 1, true),
+                new QueenLink(2, "Missing Site", "https://missing.example.test/", "Gone.", 1, false),
+            ]),
+        new QueenLinkCategory(
+            2,
+            "Dead Category",
+            [
+                new QueenLink(3, "Dead Only", "https://dead.example.test/", "Gone.", 2, false),
+            ]),
+    ];
+
+    private static QueenLinkCheckUpdate[] HiddenUnavailableLinkChecks() =>
+    [
+        new QueenLinkCheckUpdate(2, "https://missing.example.test/", DateTime.UtcNow, false, true, 3, 404, null),
+        new QueenLinkCheckUpdate(3, "https://dead.example.test/", DateTime.UtcNow, false, true, 3, 404, null),
+    ];
+
+    private static QueenLinkCategory[] DeadOnlyLinkCategories() =>
+    [
+        new QueenLinkCategory(
+            1,
+            "Dead Category",
+            [
+                new QueenLink(1, "Dead Only", "https://dead.example.test/", "Gone.", 1, false),
+            ]),
+    ];
+
+    private static QueenLinkCheckUpdate[] DeadOnlyLinkChecks() =>
+    [
+        new QueenLinkCheckUpdate(1, "https://dead.example.test/", DateTime.UtcNow, false, true, 3, 404, null),
+    ];
+
+    private static QueenLinkCategory[] BareLegacyUrlLinkCategories() =>
+    [
+        new QueenLinkCategory(
+            1,
+            "Official",
+            [
+                new QueenLink(1, "Queen Online", "www.queenonline.com", "Official Queen site.", 1, true),
+            ]),
+    ];
+
+    private static QueenLinkCategory[] MalformedMailtoLinkCategories() =>
+    [
+        new QueenLinkCategory(
+            1,
+            "Broken",
+            [
+                new QueenLink(1, "Malformed", "mailto:someone@example.test", "Not a public web link.", 1, false),
+            ]),
+    ];
+
+    private static ArticleItem[] SourceLinkArticleItems() =>
+    [
+        new ArticleItem(
+            5001,
+            "Article with source link",
+            "Excerpt with source.",
+            "<p>Published body.</p>",
+            new DateTime(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc),
+            "https://example.com/original-story",
+            "Features",
+            true),
+        new ArticleItem(
+            5002,
+            "Article with attribution",
+            "Attribution excerpt.",
+            "<p>Published body.</p>",
+            new DateTime(2026, 5, 2, 9, 0, 0, DateTimeKind.Utc),
+            "Queen Magazine",
+            "Features",
+            true),
+    ];
+
+    private static ArticleItem[] UnsafeHtmlArticleItems() =>
+    [
+        new ArticleItem(
+            5003,
+            "Unsafe HTML article",
+            "Unsafe excerpt.",
+            "<script>alert('xss')</script><p>Safe <strong>legacy</strong> paragraph</p>",
+            new DateTime(2026, 5, 3, 9, 0, 0, DateTimeKind.Utc),
+            null,
+            null,
+            true),
+    ];
+
+    private static ArticleItem[] DateOrderedArticleItems() =>
+    [
+        new ArticleItem(3001, "Oldest article", "Oldest excerpt.", "<p>Oldest body.</p>", new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, null, true),
+        new ArticleItem(3002, "Newest article", "Newest excerpt.", "<p>Newest body.</p>", new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc), null, null, true),
+        new ArticleItem(3003, "Middle article", "Middle excerpt.", "<p>Middle body.</p>", new DateTime(2022, 3, 15, 0, 0, 0, DateTimeKind.Utc), null, null, true),
+    ];
+
+    private static BiographyChapterItem[] HtmlSummaryBiographyChapters() =>
+    [
+        new BiographyChapterItem(
+            8001,
+            "1946 - 1969",
+            "<p>A founding chapter <strong>summary</strong> with HTML.</p>",
+            "<p>Body text.</p>",
+            1,
+            new DateTime(1969, 12, 31, 0, 0, 0, DateTimeKind.Utc)),
+    ];
+
+    private static BiographyChapterItem[] UnsafeHtmlBiographyChapters() =>
+    [
+        new BiographyChapterItem(
+            7001,
+            "2026",
+            string.Empty,
+            "<script>alert('xss')</script><p>Safe <strong>legacy</strong> paragraph</p>",
+            1,
+            new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc)),
+    ];
+
+    private static PhotoCategorySeed[] PhotosWithoutFreddieCategorySeed() =>
+    [
+        new PhotoCategorySeed(9, "Brian May",
+        [
+            new PhotoItemSeed(101, "Brian", "/Brian_May/img-101.jpg", "/Brian_May/img-101-t.jpg", new DateTime(1986, 7, 12)),
+        ]),
+    ];
 }
 
 /// <summary>Value-equal key for a cached web host. Service swaps are an enum, not a lambda.</summary>
@@ -817,6 +1461,38 @@ public enum HostServiceProfile
     TrackingPromotedNews,
     CountingArticles,
     IsolatedQuizzes,
+    IsolatedQuizzesWithClock,
+    IsolatedHomePolls,
+    IsolatedTrivia,
+    ThrowOnReadBlob,
+    EmptyQuotes,
+    SequentialTrivia,
+    FixedUtc20260713,
+    FixedUtc20260712,
+    FixedUtc20260827,
+    TimelineDeepOffPage,
+    UnpublishedTimelineEvent,
+    NewsDecadeFilter2000s,
+    NewsOnly2026,
+    NewsYearBeatsDecade,
+    NewsYears2006To2026,
+    IsolatedNewsDiscussion,
+    OfficialQueenOnlineLinks,
+    HiddenUnavailableLinks,
+    DeadOnlyLinks,
+    BareLegacyUrlLinks,
+    MalformedMailtoLinks,
+    EmptyArticles,
+    OverlayImageArticle,
+    SourceLinkArticles,
+    UnsafeHtmlArticle,
+    DateOrderedArticles,
+    HtmlSummaryBiography,
+    CountingBiography,
+    UnsafeHtmlBiography,
+    EmptyBiography,
+    PhotosWithoutFreddieCategory,
+    EmptyFreddieTributes,
     AppleOAuth,
     MutableLegacyLookup,
     PhotoUploadQuota1,
@@ -872,6 +1548,20 @@ internal sealed class HostServiceContext
 
     public MutableCommunityArticleRepository? CommunityArticles { get; set; }
 
+    public SharedHomePollStore? HomePolls { get; set; }
+
+    public SharedTriviaStore? Trivia { get; set; }
+
+    public SequentialTriviaRepository? SequentialTrivia { get; set; }
+
+    public MutableTimeProvider? Clock { get; set; }
+
+    public SeedableNewsRepository? SeedableNews { get; set; }
+
+    public SeedableDiscussionLookup? SeedableDiscussion { get; set; }
+
+    public CountingBiographyRepository? CountingBiography { get; set; }
+
     public void Reset()
     {
         BlobBackend.Clear();
@@ -884,6 +1574,13 @@ internal sealed class HostServiceContext
         EditorBlob?.Reset();
         MemberActivity?.Reset();
         CommunityArticles?.Reset();
+        HomePolls?.Clear();
+        Trivia?.Clear();
+        SequentialTrivia?.Reset();
+        Clock?.Reset();
+        SeedableNews?.Reset();
+        SeedableDiscussion?.Reset();
+        CountingBiography?.Reset();
     }
 }
 
@@ -1248,4 +1945,212 @@ internal sealed class SqlFailingCommunityArticleRepository : IArticleRepository
     public Task<IReadOnlyList<PublishedArticleSubmission>> GetSitemapEntriesAsync(
         CancellationToken cancellationToken = default) =>
         throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
+}
+
+internal sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => utcNow;
+}
+
+internal sealed class MutableTimeProvider : TimeProvider
+{
+    private DateTimeOffset current = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    public override DateTimeOffset GetUtcNow() => current;
+
+    public void SetUtcNow(DateTimeOffset utcNow) => current = utcNow;
+
+    public void Advance(TimeSpan duration) => current += duration;
+
+    public void Reset() => current = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+}
+
+internal sealed class ThrowOnReadBlobService : IBlobUploadService
+{
+    public Task<BlobUploadResult> UploadAsync(
+        Stream content,
+        string originalFileName,
+        string containerName,
+        BlobUploadContext? context = null,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task DeleteAsync(string containerName, string blobName, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<BlobContent?> OpenReadAsync(
+        string containerName,
+        string blobName,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("List must not open audio blobs.");
+}
+
+internal sealed class SequentialTriviaRepository(params TriviaFactItem[] facts) : ITriviaRepository
+{
+    public int AllCallCount { get; private set; }
+
+    public int RandomCallCount { get; private set; }
+
+    public void Reset()
+    {
+        AllCallCount = 0;
+        RandomCallCount = 0;
+    }
+
+    public Task<IReadOnlyList<TriviaFactItem>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        AllCallCount++;
+        return Task.FromResult<IReadOnlyList<TriviaFactItem>>(facts);
+    }
+
+    public Task<TriviaFactItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(facts.SingleOrDefault(fact => fact.Id == id));
+
+    public Task<TriviaFactItem?> GetRandomPublishedAsync(CancellationToken cancellationToken = default)
+    {
+        RandomCallCount++;
+        return Task.FromResult<TriviaFactItem?>(null);
+    }
+
+    public Task<int> CreateAsync(AdminTriviaDraft draft, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task UpdateAsync(int id, AdminTriviaDraft draft, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task DeleteAsync(int id, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task SetPublishedAsync(int id, bool isPublished, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+}
+
+internal sealed class SeedableNewsRepository : INewsRepository
+{
+    private FixedNewsRepository inner = new([]);
+
+    public void Seed(params NewsItem[] items) => inner = new FixedNewsRepository(items);
+
+    public void Reset() => inner = new FixedNewsRepository([]);
+
+    public Task<IReadOnlyList<NewsItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
+        inner.GetLatestAsync(count, cancellationToken);
+
+    public Task<IReadOnlyList<NewsItem>> GetArchivePageAsync(
+        int page,
+        int pageSize,
+        NewsArchiveFilter filter = default,
+        CancellationToken cancellationToken = default) =>
+        inner.GetArchivePageAsync(page, pageSize, filter, cancellationToken);
+
+    public Task<int> GetPublishedCountAsync(
+        NewsArchiveFilter filter = default,
+        CancellationToken cancellationToken = default) =>
+        inner.GetPublishedCountAsync(filter, cancellationToken);
+
+    public Task<NewsArchiveYearRange> GetArchiveYearRangeAsync(CancellationToken cancellationToken = default) =>
+        inner.GetArchiveYearRangeAsync(cancellationToken);
+
+    public Task<NewsItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        inner.GetByIdAsync(id, cancellationToken);
+
+    public Task<IReadOnlyList<NewsItem>> GetByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken = default) =>
+        inner.GetByIdsAsync(ids, cancellationToken);
+
+    public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(
+        CancellationToken cancellationToken = default) =>
+        inner.GetPublishedSitemapEntriesAsync(cancellationToken);
+
+    public Task<NewsSearchPage> SearchAsync(
+        string query,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default) =>
+        inner.SearchAsync(query, page, pageSize, cancellationToken);
+}
+
+internal sealed class SeedableDiscussionLookup : INewsForumDiscussionLookup
+{
+    private int? topicId;
+    private int replyCount;
+    private IReadOnlyList<NewsDiscussionPreview> preview = [];
+
+    public void Seed(int? seededTopicId, int seededReplyCount, IReadOnlyList<NewsDiscussionPreview> seededPreview)
+    {
+        topicId = seededTopicId;
+        replyCount = seededReplyCount;
+        preview = seededPreview;
+    }
+
+    public void Reset()
+    {
+        topicId = null;
+        replyCount = 0;
+        preview = [];
+    }
+
+    public Task<IReadOnlyDictionary<int, int>> GetReplyCountsAsync(
+        IReadOnlyList<int> topicIds,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyDictionary<int, int> counts = topicId is int id && topicIds.Contains(id)
+            ? new Dictionary<int, int> { [id] = replyCount }
+            : new Dictionary<int, int>();
+        return Task.FromResult(counts);
+    }
+
+    public Task<(int ReplyCount, IReadOnlyList<NewsDiscussionPreview> Preview)> GetDiscussionAsync(
+        int requestedTopicId,
+        int previewCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (topicId != requestedTopicId)
+        {
+            return Task.FromResult<(int, IReadOnlyList<NewsDiscussionPreview>)>((0, []));
+        }
+
+        return Task.FromResult((replyCount, preview));
+    }
+}
+
+internal sealed class CountingBiographyRepository(IReadOnlyList<BiographyChapterItem> chapters) : IBiographyRepository
+{
+    public int ListCallCount { get; private set; }
+
+    public int DetailCallCount { get; private set; }
+
+    public int AdjacentCallCount { get; private set; }
+
+    public void Reset()
+    {
+        ListCallCount = 0;
+        DetailCallCount = 0;
+        AdjacentCallCount = 0;
+    }
+
+    public Task<IReadOnlyList<BiographyChapterItem>> GetChaptersAsync(CancellationToken cancellationToken = default)
+    {
+        ListCallCount++;
+        return Task.FromResult(chapters);
+    }
+
+    public Task<BiographyChapterItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        DetailCallCount++;
+        return Task.FromResult(chapters.SingleOrDefault(chapter => chapter.Id == id));
+    }
+
+    public Task<BiographyChapterNav> GetAdjacentChaptersAsync(int id, CancellationToken cancellationToken = default)
+    {
+        AdjacentCallCount++;
+        return Task.FromResult(new BiographyChapterNav(null, null));
+    }
+
+    public Task<int> CreateAsync(AdminBiographyDraft draft, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task UpdateAsync(int id, AdminBiographyDraft draft, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }
