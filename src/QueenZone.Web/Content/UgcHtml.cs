@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using Ganss.Xss;
 using Microsoft.Extensions.Options;
+using QueenZone.Data;
 using QueenZone.Storage;
 
 namespace QueenZone.Web;
@@ -149,7 +150,7 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
         return false;
     }
 
-    private static bool LooksLikeHtml(string value) => HtmlTagRegex().IsMatch(value);
+    private static bool LooksLikeHtml(string value) => HtmlTags.Pattern().IsMatch(value);
 
     [ExcludeFromCodeCoverage(Justification = "HtmlSanitizer wiring; covered via Sanitize tests.")]
     private HtmlSanitizer CreateSanitizer(bool forDisplay)
@@ -294,7 +295,4 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
 
         return existing + " " + add;
     }
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.IgnoreCase)]
-    private static partial Regex HtmlTagRegex();
 }

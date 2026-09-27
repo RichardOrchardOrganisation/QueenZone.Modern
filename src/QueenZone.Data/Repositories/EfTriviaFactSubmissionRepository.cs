@@ -51,7 +51,7 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
             SubmitterMemberId = submission.SubmitterMemberId,
             Text = submission.Text.Trim(),
             Category = SubmissionInput.NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
-            Difficulty = NormalizeDifficulty(submission.Difficulty),
+            Difficulty = TriviaValidation.NormalizeDifficulty(submission.Difficulty, TriviaValidation.MaxDifficultyLength),
             SourceNote = SubmissionInput.NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
             Status = TriviaFactSubmissionStatus.Pending,
             SubmittedAt = DateTimeOffset.UtcNow,
@@ -200,12 +200,6 @@ public sealed class EfTriviaFactSubmissionRepository(QueenZoneDbContext dbContex
                 IsStillPending = row.Status == TriviaFactSubmissionStatus.Pending,
             })
             .ToDashboardCountsAsync(utcNow, aggregateInSql: false, cancellationToken);
-
-    private static string? NormalizeDifficulty(string? value)
-    {
-        var trimmed = SubmissionInput.NormalizeOptional(value, TriviaValidation.MaxDifficultyLength);
-        return trimmed?.ToLowerInvariant();
-    }
 
     internal IQueryable<TriviaFactSubmissionListItem> PendingQueueQuery(int skip, int take) =>
         PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);

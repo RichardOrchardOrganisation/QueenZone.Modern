@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using QueenZone.Data;
 
 namespace QueenZone.Web;
 
@@ -18,16 +19,13 @@ internal static partial class ForumTextCleaning
             return string.Empty;
         }
 
-        var plain = ForumHtmlTagRegex().Replace(value, string.Empty);
+        var plain = HtmlTags.Pattern().Replace(value, string.Empty);
         plain = WebUtility.HtmlDecode(plain);
         return ForumWhitespaceRegex().Replace(plain, " ").Trim();
     }
 
     internal static string? CleanForumTextOrNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : CleanForumText(value);
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.IgnoreCase)]
-    private static partial Regex ForumHtmlTagRegex();
 
     [GeneratedRegex("\\s+")]
     private static partial Regex ForumWhitespaceRegex();

@@ -90,7 +90,7 @@ public sealed class EfMemberPublicActivityRepository(
             {
                 Type = MemberPublicActivityType.ForumPost,
                 Title = row.ThreadTitle,
-                PublishedAt = ToOffset(row.PostedAt),
+                PublishedAt = LegacyDateTime.ToOffset(row.PostedAt),
                 ContentId = row.LegacyPostId,
                 ParentId = row.LegacyThreadTopicId,
                 AuthorId = row.AuthorId,
@@ -198,7 +198,7 @@ public sealed class EfMemberPublicActivityRepository(
             {
                 Type = MemberPublicActivityType.ForumPost,
                 Title = row.ThreadTitle,
-                PublishedAt = ToOffset(row.PostedAt),
+                PublishedAt = LegacyDateTime.ToOffset(row.PostedAt),
                 ContentId = row.LegacyPostId,
                 ParentId = row.LegacyThreadTopicId,
                 AuthorId = memberId,
@@ -231,14 +231,6 @@ public sealed class EfMemberPublicActivityRepository(
             row.Summary = bodies.GetValueOrDefault(row.ForumPostRowId!.Value);
         }
     }
-
-    /// <summary>
-    /// <c>PostedAt</c> is stored without an offset, so it is pinned to UTC explicitly rather than
-    /// via the implicit <see cref="DateTimeOffset"/> conversion, which would read an Unspecified
-    /// kind as local time and shift the timestamp.
-    /// </summary>
-    private static DateTimeOffset ToOffset(DateTime? value) =>
-        new(DateTime.SpecifyKind(value ?? DateTime.MinValue, DateTimeKind.Utc));
 
     /// <summary>
     /// Articles, promoted news and approved photos all store <c>datetimeoffset</c>, so EF Core

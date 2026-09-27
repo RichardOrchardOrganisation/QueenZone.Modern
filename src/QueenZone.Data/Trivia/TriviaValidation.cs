@@ -14,6 +14,26 @@ public static class TriviaValidation
 
     public static readonly IReadOnlyList<string> AllowedDifficulties = ["easy", "medium", "hard"];
 
+    /// <summary>Trims <paramref name="value"/>; blank or whitespace-only input becomes <see langword="null"/>.</summary>
+    public static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// Trim-and-lowercase rule for trivia difficulty. Web forms pass no limit so
+    /// <see cref="ValidateDraft"/> can still reject over-long input; the repositories pass
+    /// <see cref="MaxDifficultyLength"/> to truncate what they store.
+    /// </summary>
+    public static string? NormalizeDifficulty(string? value, int maxLength = int.MaxValue)
+    {
+        var trimmed = NormalizeOptional(value);
+        if (trimmed is null)
+        {
+            return null;
+        }
+
+        return (trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength]).ToLowerInvariant();
+    }
+
     public static IReadOnlyList<string> ValidateDraft(AdminTriviaDraft draft)
     {
         var errors = new List<string>();

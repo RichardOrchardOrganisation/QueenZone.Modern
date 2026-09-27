@@ -98,7 +98,7 @@ public sealed class EfForumArchiveAuthorRepository : IForumArchiveAuthorReposito
                 MemberPublicActivityType.ForumPost,
                 row.ThreadTitle,
                 row.BodyHtml,
-                ToOffset(row.PostedAt),
+                LegacyDateTime.ToOffset(row.PostedAt),
                 row.LegacyPostId,
                 row.LegacyThreadTopicId,
                 NewsSlug.Slugify(row.ThreadTitle),
@@ -107,9 +107,6 @@ public sealed class EfForumArchiveAuthorRepository : IForumArchiveAuthorReposito
 
         return new MemberPublicActivityPage(items, totalCount, page, pageSize);
     }
-
-    private static DateTimeOffset ToOffset(DateTime? value) =>
-        new(DateTime.SpecifyKind(value ?? DateTime.MinValue, DateTimeKind.Utc));
 
     internal sealed class ArchiveAuthorSummaryRow
     {

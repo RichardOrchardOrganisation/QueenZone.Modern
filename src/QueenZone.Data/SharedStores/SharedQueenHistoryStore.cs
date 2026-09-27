@@ -102,7 +102,7 @@ public sealed class SharedQueenHistoryStore
                 return false;
             }
 
-            EnsureRowVersion(events[index], expectedRowVersion);
+            QueenZoneConcurrency.EnsureRowVersion(events[index].RowVersion, expectedRowVersion);
             events[index] = events[index] with
             {
                 Title = draft.Title,
@@ -129,7 +129,7 @@ public sealed class SharedQueenHistoryStore
                 return false;
             }
 
-            EnsureRowVersion(existing, expectedRowVersion);
+            QueenZoneConcurrency.EnsureRowVersion(existing.RowVersion, expectedRowVersion);
             events.Remove(existing);
             return true;
         }
@@ -145,26 +145,13 @@ public sealed class SharedQueenHistoryStore
                 return false;
             }
 
-            EnsureRowVersion(events[index], expectedRowVersion);
+            QueenZoneConcurrency.EnsureRowVersion(events[index].RowVersion, expectedRowVersion);
             events[index] = events[index] with
             {
                 IsPublished = isPublished,
                 RowVersion = QueenZoneConcurrency.NewClientRowVersion(),
             };
             return true;
-        }
-    }
-
-    private static void EnsureRowVersion(QueenHistoryEvent existing, byte[]? expectedRowVersion)
-    {
-        if (expectedRowVersion is null)
-        {
-            return;
-        }
-
-        if (!QueenZoneConcurrency.RowVersionEquals(existing.RowVersion, expectedRowVersion))
-        {
-            throw new OptimisticConcurrencyException();
         }
     }
 }

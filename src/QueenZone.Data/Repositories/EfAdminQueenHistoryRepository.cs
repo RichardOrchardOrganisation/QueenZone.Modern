@@ -82,7 +82,7 @@ public sealed class EfAdminQueenHistoryRepository(QueenZoneDbContext dbContext) 
         CancellationToken cancellationToken = default)
     {
         var row = await GetTrackedAsync(id, cancellationToken);
-        EnsureRowVersion(row, expectedRowVersion);
+        QueenZoneConcurrency.EnsureRowVersion(row.RowVersion, expectedRowVersion);
         row.Title = draft.Title;
         row.Summary = draft.Summary;
         row.EventDate = draft.EventDate;
@@ -99,7 +99,7 @@ public sealed class EfAdminQueenHistoryRepository(QueenZoneDbContext dbContext) 
     public async Task DeleteAsync(int id, byte[]? expectedRowVersion = null, CancellationToken cancellationToken = default)
     {
         var row = await GetTrackedAsync(id, cancellationToken);
-        EnsureRowVersion(row, expectedRowVersion);
+        QueenZoneConcurrency.EnsureRowVersion(row.RowVersion, expectedRowVersion);
         dbContext.QueenHistoryEvents.Remove(row);
         await QueenZoneConcurrency.SaveChangesAsync(dbContext, cancellationToken);
     }
@@ -111,7 +111,7 @@ public sealed class EfAdminQueenHistoryRepository(QueenZoneDbContext dbContext) 
         CancellationToken cancellationToken = default)
     {
         var row = await GetTrackedAsync(id, cancellationToken);
-        EnsureRowVersion(row, expectedRowVersion);
+        QueenZoneConcurrency.EnsureRowVersion(row.RowVersion, expectedRowVersion);
         row.IsPublished = isPublished;
         row.UpdatedAt = DateTime.UtcNow;
         AssignClientRowVersion(row);
@@ -135,19 +135,6 @@ public sealed class EfAdminQueenHistoryRepository(QueenZoneDbContext dbContext) 
         if (!dbContext.Database.IsSqlServer())
         {
             entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
-        }
-    }
-
-    private static void EnsureRowVersion(QueenHistoryEventEntity entity, byte[]? expectedRowVersion)
-    {
-        if (expectedRowVersion is null)
-        {
-            return;
-        }
-
-        if (!QueenZoneConcurrency.RowVersionEquals(entity.RowVersion, expectedRowVersion))
-        {
-            throw new OptimisticConcurrencyException();
         }
     }
 

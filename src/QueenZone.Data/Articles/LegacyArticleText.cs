@@ -12,7 +12,7 @@ public static partial class LegacyArticleText
             return string.Empty;
         }
 
-        var plain = HtmlTagRegex().Replace(body, " ");
+        var plain = HtmlTags.Pattern().Replace(body, " ");
         plain = WebUtility.HtmlDecode(plain);
         plain = WhitespaceRegex().Replace(plain, " ").Trim();
         if (plain.Length <= maxLength)
@@ -22,9 +22,6 @@ public static partial class LegacyArticleText
 
         return plain[..maxLength].TrimEnd() + "…";
     }
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.IgnoreCase)]
-    private static partial Regex HtmlTagRegex();
 
     [GeneratedRegex("\\s+")]
     private static partial Regex WhitespaceRegex();

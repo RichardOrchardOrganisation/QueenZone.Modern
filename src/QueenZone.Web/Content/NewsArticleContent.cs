@@ -48,13 +48,13 @@ public static partial class NewsArticleContent
             return string.Empty;
         }
 
-        var withoutTags = HtmlTagRegex().Replace(body, " ");
+        var withoutTags = HtmlTags.Pattern().Replace(body, " ");
         var decoded = WebUtility.HtmlDecode(withoutTags);
         return WhitespaceRegex().Replace(decoded, " ").Trim();
     }
 
     private static bool LooksLikeHtml(string value) =>
-        HtmlTagRegex().IsMatch(value);
+        HtmlTags.Pattern().IsMatch(value);
 
     private static string AutoLinkUrls(string plainText)
     {
@@ -159,9 +159,6 @@ public static partial class NewsArticleContent
 
         return sanitizer;
     }
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.IgnoreCase)]
-    private static partial Regex HtmlTagRegex();
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
