@@ -437,11 +437,55 @@ function Assert-SelfTestEqual {
     }
 }
 
+function Write-SelfTestClassFile {
+    param(
+        [string] $Root,
+        [string] $ClassName,
+        [string] $Source
+    )
+
+    Set-Content -LiteralPath (Join-Path $Root "$ClassName.cs") -Value $Source
+}
+
+function Write-EfWafSelfTestClass {
+    param(
+        [string] $Root,
+        [string] $ClassName
+    )
+
+    Write-SelfTestClassFile -Root $Root -ClassName $ClassName -Source @"
+public sealed class $ClassName : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
+{
+    [Fact] public void One() {}
+    [Fact] public void Two() {}
+}
+"@
+}
+
+function Write-SharedProductionSelfTestClass {
+    param(
+        [string] $Root,
+        [string] $ClassName,
+        [string] $CollectionExpression
+    )
+
+    Write-SelfTestClassFile -Root $Root -ClassName $ClassName -Source @"
+[Collection($CollectionExpression)]
+public sealed class $ClassName
+{
+    public ${ClassName}(ProductionHostFixture production) {}
+
+    [Fact]
+    public void One() {}
+}
+"@
+}
+
 function Invoke-ShardFilterSelfTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("qz-shard-filter-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
     try {
-        Set-Content -LiteralPath (Join-Path $tempRoot "TinyUnitTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "TinyUnitTests" -Source @"
 public sealed class TinyUnitTests
 {
     [Fact]
@@ -449,7 +493,7 @@ public sealed class TinyUnitTests
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "HugeUnitTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "HugeUnitTests" -Source @"
 public sealed class HugeUnitTests
 {
     [Fact] public void A() {}
@@ -465,7 +509,7 @@ public sealed class HugeUnitTests
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "SmallWafTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "SmallWafTests" -Source @"
 public sealed class SmallWafTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     [Fact]
@@ -473,23 +517,10 @@ public sealed class SmallWafTests : IClassFixture<QueenZoneWebApplicationFactory
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "EfWafATests.cs") -Value @"
-public sealed class EfWafATests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
-{
-    [Fact] public void One() {}
-    [Fact] public void Two() {}
-}
-"@
+        Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafATests"
+        Write-EfWafSelfTestClass -Root $tempRoot -ClassName "EfWafBTests"
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "EfWafBTests.cs") -Value @"
-public sealed class EfWafBTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
-{
-    [Fact] public void One() {}
-    [Fact] public void Two() {}
-}
-"@
-
-        Set-Content -LiteralPath (Join-Path $tempRoot "ProdWafTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "ProdWafTests" -Source @"
 public sealed class ProdWafTests : IClassFixture<WebApplicationFactory<Program>>
 {
     public ProdWafTests()
@@ -507,29 +538,10 @@ public sealed class ProdWafTests : IClassFixture<WebApplicationFactory<Program>>
 }
 "@
 
-        Set-Content -LiteralPath (Join-Path $tempRoot "SharedProdWafATests.cs") -Value @"
-[Collection(ProductionHostCollection.Name)]
-public sealed class SharedProdWafATests
-{
-    public SharedProdWafATests(ProductionHostFixture production) {}
+        Write-SharedProductionSelfTestClass -Root $tempRoot -ClassName "SharedProdWafATests" -CollectionExpression "ProductionHostCollection.Name"
+        Write-SharedProductionSelfTestClass -Root $tempRoot -ClassName "SharedProdWafBTests" -CollectionExpression '"Production host"'
 
-    [Fact]
-    public void One() {}
-}
-"@
-
-        Set-Content -LiteralPath (Join-Path $tempRoot "SharedProdWafBTests.cs") -Value @"
-[Collection("Production host")]
-public sealed class SharedProdWafBTests
-{
-    public SharedProdWafBTests(ProductionHostFixture production) {}
-
-    [Fact]
-    public void One() {}
-}
-"@
-
-        Set-Content -LiteralPath (Join-Path $tempRoot "SqliteUnitTests.cs") -Value @"
+        Write-SelfTestClassFile -Root $tempRoot -ClassName "SqliteUnitTests" -Source @"
 public sealed class SqliteUnitTests
 {
     public SqliteUnitTests()
