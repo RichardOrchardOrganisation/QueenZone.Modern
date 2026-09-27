@@ -40,6 +40,21 @@ public sealed class HelpRequestRateLimiterTests
         Assert.False(limiter.IsAllowed(Guid.NewGuid(), "203.0.113.20"));
     }
 
+    [Fact]
+    public void Reset_ClearsIpAndMemberCounts()
+    {
+        var limiter = CreateLimiter(maxPerHour: 1, maxPerMemberPerMinute: 1);
+        var memberId = Guid.NewGuid();
+
+        Assert.True(limiter.IsAllowed(memberId, "203.0.113.30"));
+        Assert.False(limiter.IsAllowed(memberId, "203.0.113.30"));
+
+        limiter.Reset();
+
+        Assert.True(limiter.IsAllowed(memberId, "203.0.113.30"));
+        Assert.False(limiter.IsAllowed(memberId, "203.0.113.30"));
+    }
+
     private static HelpRequestRateLimiter CreateLimiter(int maxPerHour = 3, int maxPerMemberPerMinute = 20)
     {
         return new HelpRequestRateLimiter(

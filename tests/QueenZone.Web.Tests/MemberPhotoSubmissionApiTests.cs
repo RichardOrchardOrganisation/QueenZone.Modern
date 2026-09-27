@@ -3,10 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Web;
 using SixLabors.ImageSharp;
@@ -14,7 +11,9 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MemberPhotoSubmissionApiTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class MemberPhotoSubmissionApiTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -22,10 +21,14 @@ public sealed class MemberPhotoSubmissionApiTests : IClassFixture<QueenZoneWebAp
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public MemberPhotoSubmissionApiTests(QueenZoneWebApplicationFactory factory)
+    public MemberPhotoSubmissionApiTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -157,7 +160,7 @@ public sealed class MemberPhotoSubmissionApiTests : IClassFixture<QueenZoneWebAp
     [Fact]
     public async Task Submit_returns_too_many_requests_when_daily_quota_exceeded()
     {
-        using var quotaFactory = CreateQuotaFactory(maxUploadsPerDay: 1);
+        var quotaFactory = variants.Get(WebHostVariants.PhotoUploadQuota1);
         var memberId = Guid.NewGuid();
         using var client = CreateBearerClient(quotaFactory, memberId);
         await using var first = await CreatePngAsync();
@@ -181,12 +184,9 @@ public sealed class MemberPhotoSubmissionApiTests : IClassFixture<QueenZoneWebAp
     [Fact]
     public async Task Web_service_and_api_share_one_quota_bucket_for_the_same_member()
     {
-        var quota = CreateQuotaService(maxUploadsPerDay: 1);
-        using var quotaFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<MemberUploadQuotaService>();
-            services.AddSingleton(quota);
-        });
+        var quotaFactory = variants.Get(WebHostVariants.PhotoUploadQuota1);
+        var quota = quotaFactory.UploadQuota
+            ?? throw new InvalidOperationException("PhotoUploadQuota1 must register MemberUploadQuotaService.");
 
         var memberId = Guid.NewGuid();
         await using var webPhoto = await CreatePngAsync();
@@ -223,7 +223,7 @@ public sealed class MemberPhotoSubmissionApiTests : IClassFixture<QueenZoneWebAp
     [Fact]
     public async Task Submit_returns_too_many_requests_when_uploads_are_disabled()
     {
-        using var quotaFactory = CreateQuotaFactory(maxUploadsPerDay: 0);
+        var quotaFactory = variants.Get(WebHostVariants.PhotoUploadQuota0);
         using var client = CreateBearerClient(quotaFactory, Guid.NewGuid());
         await using var png = await CreatePngAsync();
 
@@ -259,24 +259,6 @@ public sealed class MemberPhotoSubmissionApiTests : IClassFixture<QueenZoneWebAp
     {
         Assert.False(MemberApiEndpoints.IsQuotaLimitError(message));
     }
-
-    private static QueenZoneWebApplicationFactory CreateQuotaFactory(int maxUploadsPerDay) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<MemberUploadQuotaService>();
-            services.AddSingleton(CreateQuotaService(maxUploadsPerDay));
-        });
-
-    private static MemberUploadQuotaService CreateQuotaService(int maxUploadsPerDay) =>
-        new(
-            new MemoryCache(new MemoryCacheOptions()),
-            TimeProvider.System,
-            Options.Create(new UploadQuotaOptions
-            {
-                Enabled = true,
-                MaxUploadsPerDay = maxUploadsPerDay,
-                MaxBytesPerDay = 100L * 1024 * 1024,
-            }));
 
     private static HttpClient CreateBearerClient(
         QueenZoneWebApplicationFactory source,

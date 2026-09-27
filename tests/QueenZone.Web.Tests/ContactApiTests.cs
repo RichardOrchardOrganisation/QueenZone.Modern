@@ -10,14 +10,25 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ContactApiTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public ContactApiTests(QueenZoneWebApplicationFactory factory)
+    public ContactApiTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Get_ContactForm_IsPublicAndMatchesWebsiteCopy()
@@ -142,10 +153,7 @@ public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task Post_AnonymousRateLimit_ReturnsProblemDetails()
     {
-        using var limited = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.PostConfigure<HelpRequestOptions>(options => options.MaxAnonymousPerIpPerHour = 1);
-        });
+        var limited = variants.Get(WebHostVariants.TestingHelpAnonymousRateLimit1);
         using var client = limited.CreateAnonymousClient();
         var stamp = await ReadFormStampAsync(client);
 
@@ -182,12 +190,12 @@ public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task Post_SignedInMemberJwt_OmitsContactFieldsAndStoresMemberId()
     {
-        using var isolated = QueenZoneWebApplicationFactory.WithServices(_ => { });
+        var isolated = factory;
         var members = isolated.Services.GetRequiredService<IMemberAccountRepository>();
         var member = await members.CreateAsync(new MemberAccount
         {
             Id = Guid.NewGuid(),
-            Email = "contact-member@example.com",
+            Email = $"{TestIds.For("contact-member")}@example.com",
             DisplayName = "Contact Member",
             CreatedAt = DateTime.UtcNow,
         });
@@ -220,7 +228,7 @@ public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFacto
         var stored = Assert.Single(list.Items, item => item.Subject == subject);
         Assert.Equal(member.Id, stored.MemberId);
         Assert.Equal("Contact Member", stored.Name);
-        Assert.Equal("contact-member@example.com", stored.Email);
+        Assert.Equal(member.Email, stored.Email);
     }
 
     [Theory]
@@ -228,14 +236,7 @@ public sealed class ContactApiTests : IClassFixture<QueenZoneWebApplicationFacto
     [InlineData(true)]
     public async Task Post_SignedInMember_IsRateLimitedForCookieAndBearer(bool useBearer)
     {
-        using var limited = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.PostConfigure<HelpRequestOptions>(options =>
-            {
-                options.MaxPerMemberPerMinute = 1;
-                options.MaxAnonymousPerIpPerHour = 10;
-            });
-        });
+        var limited = variants.Get(WebHostVariants.TestingHelpMemberRateLimit1);
         var member = await limited.Services.GetRequiredService<IMemberAccountRepository>()
             .CreateAsync(new MemberAccount
             {

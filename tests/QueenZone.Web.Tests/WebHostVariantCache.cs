@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +41,9 @@ public sealed class WebHostVariantCache : IAsyncDisposable
                     LazyThreadSafetyMode.ExecutionAndPublication));
         }
 
-        return lazy.Value;
+        var factory = lazy.Value;
+        _ = factory.Services;
+        return factory;
     }
 
     public async ValueTask DisposeAsync()
@@ -78,6 +79,22 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
 
     internal CountingArticlesRepository? CountingArticles => context.CountingArticles;
 
+    internal SharedQuizStore? QuizStore => context.QuizStore;
+
+    internal InMemoryQuizQuestionSubmissionRepository? QuizQuestionSubmissions => context.QuizQuestionSubmissions;
+
+    internal MemberUploadQuotaService? UploadQuota => context.UploadQuota;
+
+    internal ConfigurableNewsSuggestionRepository? ConfigurableNewsSuggestions => context.ConfigurableNewsSuggestions;
+
+    internal InMemoryFanPerformanceSubmissionRepository? FanPerformanceSubmissions => context.FanPerformanceSubmissions;
+
+    internal EditorStubBlobUploadService? EditorBlob => context.EditorBlob;
+
+    internal RecordingMemberPublicActivityRepository? MemberActivity => context.MemberActivity;
+
+    internal MutableCommunityArticleRepository? CommunityArticles => context.CommunityArticles;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(variant.Environment);
@@ -104,26 +121,12 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
         builder.ConfigureTestServices(services => WebHostVariants.Apply(variant.Services, services, context));
     }
 
-    public async Task ResetAsync()
+    public override async Task ResetAsync()
     {
+        // Start the host (via Services in the base reset) so context fakes exist, then
+        // clear mutable seed. Sitemap RSS stays cached on Testing hosts, so eviction lives
+        // on the base reset rather than Production-only.
+        await base.ResetAsync();
         context.Reset();
-        if (Services.GetService<IEditorialArticleRepository>() is InMemoryEditorialArticleRepository editorial)
-        {
-            editorial.Clear();
-        }
-
-        Services.GetService<SharedSearchIndexStore>()?.Clear();
-        if (!string.Equals(variant.Environment, "Production", StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        if (Services.GetService<IOutputCacheStore>() is not { } outputCache)
-        {
-            return;
-        }
-
-        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
-        await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
     }
 }

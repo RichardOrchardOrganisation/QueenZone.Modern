@@ -34,10 +34,12 @@ public sealed class ProductionHostFixture : IAsyncLifetime, IResettableHostFixtu
 
     public async Task ResetAsync()
     {
-        Articles.Reset();
+        // Accessing Services starts the host (and SearchIndexSeedHostedService) before
+        // eviction so later counter resets are not immediately dirtied by startup reads.
         var outputCache = factory.Services.GetRequiredService<IOutputCacheStore>();
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
+        Articles.Reset();
     }
 
     public Task InitializeAsync() => Task.CompletedTask;

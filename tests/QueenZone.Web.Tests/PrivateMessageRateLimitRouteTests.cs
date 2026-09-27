@@ -1,7 +1,5 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
@@ -13,26 +11,18 @@ namespace QueenZone.Web.Tests;
 /// Confirms rate-limited sends surface as an ordinary inline form error (same shape as a
 /// blocked send), not a special-cased response, per the "clear but non-revealing" requirement.
 /// </summary>
-public sealed class PrivateMessageRateLimitRouteTests
+public sealed class PrivateMessageRateLimitRouteTests : IClassFixture<WebHostVariantCache>
 {
-    private static WebApplicationFactory<Program> CreateFactory() =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.Configure<PrivateMessageRateLimitOptions>(opts =>
-                {
-                    opts.MaxMessagesPerWindow = 1;
-                    opts.NewAccountMaxMessagesPerWindow = 1;
-                });
-            });
-        });
+    private readonly VariantWebApplicationFactory factory;
+
+    public PrivateMessageRateLimitRouteTests(WebHostVariantCache variants)
+    {
+        factory = variants.Get(WebHostVariants.TestingPrivateMessageRateLimit1);
+    }
 
     [Fact]
     public async Task Compose_ShowsGenericRateLimitError_WhenVolumeLimitExceeded()
     {
-        await using var factory = CreateFactory();
         var (aliceClient, alice) = await CreateMemberAsync(factory, "pm-limit-alice@example.com", "Limit Alice");
         var (_, bob) = await CreateMemberAsync(factory, "pm-limit-bob@example.com", "Limit Bob");
 

@@ -1,23 +1,33 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class HelpRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
+public sealed class HelpRoutesTests :
+    IClassFixture<ExternalCookieWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly ExternalCookieWebApplicationFactory resettableFactory;
+    private readonly WebHostVariantCache variants;
 
-    public HelpRoutesTests(ExternalCookieWebApplicationFactory factory)
+    public HelpRoutesTests(
+        ExternalCookieWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        resettableFactory = factory;
+        this.variants = variants;
     }
+
+    public Task InitializeAsync() => resettableFactory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Get_Contact_IsPublicAndAsksForContactDetails()
@@ -188,17 +198,7 @@ public sealed class HelpRoutesTests : IClassFixture<ExternalCookieWebApplication
     [Fact]
     public async Task Post_SignedInMember_Receives429AfterMemberCap()
     {
-        using var limited = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.PostConfigure<HelpRequestOptions>(options =>
-            {
-                options.MaxPerMemberPerMinute = 1;
-                options.MaxAnonymousPerIpPerHour = 10;
-            });
-            services.AddAuthentication()
-                .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                    MemberAuthenticationSchemes.ExternalCookie, _ => { });
-        });
+        var limited = variants.Get(WebHostVariants.ExternalCookieHelpMemberRateLimit1);
         using var client = limited.CreateAnonymousClient(allowAutoRedirect: false);
         client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.ProviderHeader, "Google");
         client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.SubjectHeader, $"help-limit-{Guid.NewGuid():N}");

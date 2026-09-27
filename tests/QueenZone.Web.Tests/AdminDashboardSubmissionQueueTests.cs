@@ -1,9 +1,6 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -14,14 +11,20 @@ namespace QueenZone.Web.Tests;
 /// <summary>
 /// Tests for the submission queue tiles on the admin dashboard (issue #291).
 /// </summary>
-public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class AdminDashboardSubmissionQueueTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public AdminDashboardSubmissionQueueTests(QueenZoneWebApplicationFactory factory)
+    public AdminDashboardSubmissionQueueTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     // ── In-memory repo: photos ──────────────────────────────────────────────
@@ -300,19 +303,12 @@ public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<QueenZone
     public async Task AdminDashboard_ShowsFanPerformanceStaleCount_WhenOpenItemOlderThanSevenDays()
     {
         var member = SampleMember();
-        var repository = new InMemoryFanPerformanceSubmissionRepository(id => id == member.Id ? member : null);
+        var staleFactory = variants.Get(WebHostVariants.TestingStaleFanPerformanceSubmissions);
+        await staleFactory.ResetAsync();
+        var repository = staleFactory.FanPerformanceSubmissions
+            ?? throw new InvalidOperationException("Stale fan-performance variant must register the submission repository.");
         var stale = await repository.CreateAsync(SampleFanPerformanceSubmission(member.Id));
         repository.SetTimestamps(stale.Id, DateTimeOffset.UtcNow.AddDays(-8), null);
-
-        var staleFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IFanPerformanceSubmissionRepository>();
-                services.AddSingleton<IFanPerformanceSubmissionRepository>(repository);
-            });
-        });
 
         var client = staleFactory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Test-User-Email", AdminEmail);

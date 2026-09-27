@@ -1,10 +1,6 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Storage;
 using QueenZone.Web;
@@ -13,24 +9,22 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MemberAvatarEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class MemberAvatarEndpointsTests :
+    IClassFixture<InspectableBlobWebApplicationFactory>,
+    IAsyncLifetime
 {
     private readonly WebApplicationFactory<Program> factory;
-    private readonly InMemoryBlobStorageBackend backend = new();
+    private readonly InspectableBlobWebApplicationFactory resettableFactory;
 
-    public MemberAvatarEndpointsTests(WebApplicationFactory<Program> factory)
+    public MemberAvatarEndpointsTests(InspectableBlobWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService>(_ =>
-                    new AzureBlobUploadService(backend, Options.Create(new BlobUploadOptions())));
-            });
-        });
+        this.factory = factory;
+        resettableFactory = factory;
     }
+
+    public Task InitializeAsync() => resettableFactory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task GetAvatar_ReturnsNotFound_WhenMemberHasNoAvatar()

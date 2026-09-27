@@ -1,8 +1,6 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -10,13 +8,19 @@ using QueenZone.Web.Pages;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class FollowingRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public FollowingRoutesTests(QueenZoneWebApplicationFactory factory)
+    public FollowingRoutesTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -46,7 +50,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task Get_Following_ShowsNoActivityEmptyState_WhenFollowedMembersHaveNoPublicItems()
     {
-        using var host = WithActivity([]);
+        var host = await WithActivity([]);
         var (client, viewer) = await CreateMemberAsync(host, "follow-no-items@example.com", "No Items Viewer");
         var quiet = await CreateAccountAsync(host, "follow-quiet@example.com", "Quiet Member");
         await host.Services.GetRequiredService<IMemberFollowRepository>()
@@ -70,7 +74,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
             Item(MemberPublicActivityType.Article, "Bob article", bobId, "Feed Bob", DateTimeOffset.Parse("2026-08-03T11:00:00Z"), slug: "bob-article"),
             Item(MemberPublicActivityType.ForumPost, "Carol forum", carolId, "Feed Carol", DateTimeOffset.Parse("2026-08-03T13:00:00Z"), 203, 103, "carol-forum"),
         };
-        using var host = WithActivity(items);
+        var host = await WithActivity(items);
         var recorder = (RecordingMemberPublicActivityRepository)host.Services.GetRequiredService<IMemberPublicActivityRepository>();
         var (client, viewer) = await CreateMemberAsync(host, "feed-viewer@example.com", "Feed Viewer");
         await CreateAccountAsync(host, "feed-alice@example.com", "Feed Alice", aliceId);
@@ -107,7 +111,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
             Item(MemberPublicActivityType.ForumPost, "Alice stays", aliceId, "Change Alice", DateTimeOffset.UtcNow, 1, 1, "alice-stays"),
             Item(MemberPublicActivityType.ForumPost, "Bob arrives", bobId, "Change Bob", DateTimeOffset.UtcNow.AddMinutes(-1), 2, 2, "bob-arrives"),
         };
-        using var host = WithActivity(items);
+        var host = await WithActivity(items);
         var (client, viewer) = await CreateMemberAsync(host, "follow-change@example.com", "Change Viewer");
         await CreateAccountAsync(host, "follow-change-alice@example.com", "Change Alice", aliceId);
         await CreateAccountAsync(host, "follow-change-bob@example.com", "Change Bob", bobId);
@@ -139,7 +143,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
             Item(MemberPublicActivityType.ForumPost, "Blocked post", blockedId, "Blocked Member", DateTimeOffset.UtcNow, 1, 1, "blocked-post"),
             Item(MemberPublicActivityType.ForumPost, "Deleted post", deletedId, "Deleted Member", DateTimeOffset.UtcNow, 2, 2, "deleted-post"),
         };
-        using var host = WithActivity(items);
+        var host = await WithActivity(items);
         var recorder = (RecordingMemberPublicActivityRepository)host.Services.GetRequiredService<IMemberPublicActivityRepository>();
         var (client, viewer) = await CreateMemberAsync(host, "follow-filter@example.com", "Filter Viewer");
         await CreateAccountAsync(host, "follow-blocked@example.com", "Blocked Member", blockedId);
@@ -171,7 +175,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
             Item(MemberPublicActivityType.ForumPost, "Visible post", visibleId, "Visible Member", DateTimeOffset.UtcNow, 1, 1, "visible-post"),
             Item(MemberPublicActivityType.ForumPost, "Blocked leftover", blockedId, "Blocked Member", DateTimeOffset.UtcNow.AddMinutes(-1), 2, 2, "blocked-leftover"),
         };
-        using var host = WithActivity(items);
+        var host = await WithActivity(items);
         var (client, viewer) = await CreateMemberAsync(host, "follow-leftover@example.com", "Leftover Viewer");
         await CreateAccountAsync(host, "follow-visible@example.com", "Visible Member", visibleId);
         await CreateAccountAsync(host, "follow-leftover-blocked@example.com", "Blocked Member", blockedId);
@@ -202,7 +206,7 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
                 1000 + index,
                 $"topic-{index}"))
             .ToList();
-        using var host = WithActivity(items);
+        var host = await WithActivity(items);
         var (client, viewer) = await CreateMemberAsync(host, "follow-page@example.com", "Page Viewer");
         await CreateAccountAsync(host, "follow-page-author@example.com", "Page Author", authorId);
         await host.Services.GetRequiredService<IMemberFollowRepository>()
@@ -218,12 +222,15 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.DoesNotContain("Topic 1</a>", secondPage);
     }
 
-    private WebApplicationFactory<Program> WithActivity(IReadOnlyList<MemberPublicActivityItem> items) =>
-        factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.RemoveAll<IMemberPublicActivityRepository>();
-            services.AddSingleton<IMemberPublicActivityRepository>(new RecordingMemberPublicActivityRepository(items));
-        }));
+    private async Task<VariantWebApplicationFactory> WithActivity(IReadOnlyList<MemberPublicActivityItem> items)
+    {
+        var host = variants.Get(WebHostVariants.TestingRecordingMemberActivity);
+        await host.ResetAsync();
+        var recorder = host.MemberActivity
+            ?? throw new InvalidOperationException("TestingRecordingMemberActivity must register RecordingMemberPublicActivityRepository.");
+        recorder.Seed(items);
+        return host;
+    }
 
     private static MemberPublicActivityItem Item(
         string type,
@@ -276,40 +283,4 @@ public sealed class FollowingRoutesTests : IClassFixture<QueenZoneWebApplication
             CreatedAt = DateTime.UtcNow,
         });
 
-    private sealed class RecordingMemberPublicActivityRepository(IReadOnlyList<MemberPublicActivityItem> items)
-        : IMemberPublicActivityRepository
-    {
-        public int FeedPageCalls { get; private set; }
-
-        public int SinglePageCalls { get; private set; }
-
-        public IReadOnlyList<Guid> LastFeedAuthorIds { get; private set; } = [];
-
-        public Task<MemberPublicActivityPage> GetPageAsync(
-            Guid memberId,
-            int? linkedLegacyUserId,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken = default)
-        {
-            SinglePageCalls++;
-            throw new InvalidOperationException("Following feed must not N+1 GetPageAsync per follow.");
-        }
-
-        public Task<MemberPublicActivityPage> GetFeedPageAsync(
-            IReadOnlyCollection<Guid> memberIds,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken = default)
-        {
-            FeedPageCalls++;
-            LastFeedAuthorIds = memberIds.ToList();
-            var matching = items
-                .Where(item => item.AuthorId is Guid authorId && memberIds.Contains(authorId))
-                .OrderByDescending(item => item.PublishedAt)
-                .ToList();
-            var pageItems = matching.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-            return Task.FromResult(new MemberPublicActivityPage(pageItems, matching.Count, page, pageSize));
-        }
-    }
 }

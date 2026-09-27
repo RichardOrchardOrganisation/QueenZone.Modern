@@ -48,4 +48,14 @@ public sealed class SharedQuizStore
             writer(quizzes, attempts);
         }
     }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            quizzes.Clear();
+            attempts.Clear();
+            sprintRuns.Clear();
+        }
+    }
 }
