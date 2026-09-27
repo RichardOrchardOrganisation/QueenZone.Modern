@@ -20,8 +20,9 @@
   Path to the shrink-only allowlist.
 
 .PARAMETER BaseRef
-  Git ref whose allowlist is the maximum permitted set. Defaults to origin/main
-  when that blob exists.
+  Git ref whose allowlist is the maximum permitted set. Defaults to origin/main.
+  The ref must be available locally; a missing ref or missing baseline text
+  fails closed.
 
 .PARAMETER SelfTest
   Run fixture assertions, then exit.
@@ -161,12 +162,21 @@ function Get-HostConstructionHits {
     return $hits
 }
 
-function Get-BaselineAllowlistText {
+function Assert-BaseRefAvailable {
     param([string] $Ref)
 
     if ([string]::IsNullOrWhiteSpace($Ref)) {
-        return $null
+        throw "web-host-allowlist.txt baseline is missing: no -BaseRef was supplied. Fetch origin/main so the shrink-only ratchet can compare (git fetch origin main --depth=1)."
     }
+
+    git rev-parse --verify --quiet "${Ref}^{commit}" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw ("web-host-allowlist.txt baseline is missing: git ref '{0}' is not available locally. Fetch origin/main so the shrink-only ratchet can compare (git fetch origin main --depth=1)." -f $Ref)
+    }
+}
+
+function Get-BaselineAllowlistText {
+    param([string] $Ref)
 
     git rev-parse --verify --quiet "${Ref}:config/web-host-allowlist.txt" 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
@@ -179,11 +189,12 @@ function Get-BaselineAllowlistText {
 function Test-AllowlistDidNotGrow {
     param(
         [System.Collections.IDictionary] $Current,
-        [string] $BaselineText
+        [string] $BaselineText,
+        [string] $Ref = "origin/main"
     )
 
     if ([string]::IsNullOrWhiteSpace($BaselineText)) {
-        return
+        throw ("web-host-allowlist.txt baseline is missing for '{0}'. Fetch origin/main so the shrink-only ratchet can compare (git fetch origin main --depth=1)." -f $Ref)
     }
 
     $baselinePath = Join-Path ([System.IO.Path]::GetTempPath()) ("web-host-allowlist-baseline-{0}.txt" -f [guid]::NewGuid().ToString("N"))
@@ -194,6 +205,8 @@ function Test-AllowlistDidNotGrow {
         if ($added.Count -gt 0) {
             throw ("web-host-allowlist.txt can only shrink. New entries need architect or reviewer sign-off: {0}" -f ($added -join ", "))
         }
+
+        Write-Output ("web-host-allowlist.txt shrink-only check compared against {0} ({1} baseline classes, {2} current classes)." -f $Ref, $baseline.Count, $Current.Count)
     }
     finally {
         Remove-Item -LiteralPath $baselinePath -ErrorAction SilentlyContinue
@@ -265,6 +278,24 @@ BannedHostTests: leftover conversion
         }
         Assert-SelfTestEqual $grew $true "allowlist growth is rejected"
 
+        $missingBaseline = $false
+        try {
+            Test-AllowlistDidNotGrow -Current $allowlist -BaselineText $null
+        }
+        catch {
+            $missingBaseline = $_.Exception.Message -match "baseline is missing"
+        }
+        Assert-SelfTestEqual $missingBaseline $true "missing baseline is rejected"
+
+        $missingRef = $false
+        try {
+            Assert-BaseRefAvailable -Ref "origin/definitely-not-a-web-host-guard-ref"
+        }
+        catch {
+            $missingRef = $_.Exception.Message -match "baseline is missing"
+        }
+        Assert-SelfTestEqual $missingRef $true "missing base ref is rejected"
+
         $className = Get-OwningClassName -Text "public sealed class OuterTests { void A() { WithWebHostBuilder(); } }" -MatchIndex 40
         Assert-SelfTestEqual $className "OuterTests" "owning class from match"
     }
@@ -291,7 +322,16 @@ if (-not (Test-Path -LiteralPath $script:AllowlistPath)) {
 }
 
 $allowlist = Read-Allowlist -Path $script:AllowlistPath
-Test-AllowlistDidNotGrow -Current $allowlist -BaselineText (Get-BaselineAllowlistText -Ref $BaseRef)
+Assert-BaseRefAvailable -Ref $BaseRef
+$baseSha = (git rev-parse --verify --quiet $BaseRef)
+Write-Output ("web-host-allowlist.txt baseline ref {0} resolved to {1}." -f $BaseRef, $baseSha)
+$baselineText = Get-BaselineAllowlistText -Ref $BaseRef
+if ([string]::IsNullOrWhiteSpace($baselineText)) {
+    Write-Output ("web-host-allowlist.txt is not on {0} yet; shrink-only ratchet applies after this file merges to main." -f $BaseRef)
+}
+else {
+    Test-AllowlistDidNotGrow -Current $allowlist -BaselineText $baselineText -Ref $BaseRef
+}
 
 $hits = @(Get-HostConstructionHits -Root $script:TestsRoot)
 $violations = @($hits | Where-Object { -not $allowlist.Contains($_.Class) })
