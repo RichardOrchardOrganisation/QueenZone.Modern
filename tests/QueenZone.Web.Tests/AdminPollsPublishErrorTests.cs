@@ -11,15 +11,15 @@ public sealed class AdminPollsPublishErrorTests
     {
         var duplicate = new DbUpdateException(
             "fail",
-            SiteSearchSqlTimeoutTests.CreateSqlException(
+            SqlExceptionFactory.Create(
                 2601,
                 "Cannot insert duplicate key row in object 'dbo.HomePolls' with unique index 'UX_HomePolls_IsCurrent'."));
         Assert.True(AdminHomePollPublishError.IsPersistenceFailure(duplicate));
 
-        var uniqueKey = SiteSearchSqlTimeoutTests.CreateSqlException(2627, "Violation of UNIQUE KEY constraint");
+        var uniqueKey = SqlExceptionFactory.Create(2627, "Violation of UNIQUE KEY constraint");
         Assert.True(AdminHomePollPublishError.IsPersistenceFailure(uniqueKey));
 
-        var timeout = SiteSearchSqlTimeoutTests.CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
         Assert.True(AdminHomePollPublishError.IsPersistenceFailure(timeout));
@@ -27,6 +27,6 @@ public sealed class AdminPollsPublishErrorTests
 
         Assert.False(AdminHomePollPublishError.IsPersistenceFailure(new InvalidOperationException("nope")));
         Assert.False(AdminHomePollPublishError.IsPersistenceFailure(
-            SiteSearchSqlTimeoutTests.CreateSqlException(208, "Invalid object name.")));
+            SqlExceptionFactory.Create(208, "Invalid object name.")));
     }
 }

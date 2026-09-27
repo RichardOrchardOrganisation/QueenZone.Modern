@@ -14,25 +14,24 @@ public sealed class PageSeoTests : IClassFixture<PreviewPublicBaseUrlWebApplicat
     }
 
     [Theory]
-    [InlineData("/", "<title>QueenZone</title>", "The complete fan resource for Queen")]
-    [InlineData("/news", "<title>QueenZone news</title>", "The latest Queen news")]
-    [InlineData("/articles", "<title>QueenZone articles</title>", "In-depth Queen articles")]
-    [InlineData("/photography", "<title>Photography | QueenZone</title>", "Browse Queen photograph collections")]
-    [InlineData("/fan-performances", "<title>Fan Performances | QueenZone</title>", "Fan recordings of Queen songs")]
-    [InlineData("/discography", "<title>Discography | QueenZone</title>", "Every Queen studio album")]
-    [InlineData("/forum", "<title>Forum | QueenZone</title>", "Read-only Queenzone forum archive")]
-    [InlineData("/biography", "<title>QueenZone biography</title>", "The story of Queen")]
-    [InlineData("/timeline", "<title>Queen History Timeline", "Five decades of Queen history")]
-    [InlineData("/trivia", "<title>Queen Trivia | QueenZone</title>", "A random Queen trivia fact")]
-    public async Task PublicPage_HasExpectedTitleAndDescription(string path, string expectedTitleTag, string expectedDescriptionFragment)
+    [InlineData("/", "QueenZone", "The complete fan resource for Queen")]
+    [InlineData("/news", "QueenZone news", "The latest Queen news")]
+    [InlineData("/articles", "QueenZone articles", "In-depth Queen articles")]
+    [InlineData("/photography", "Photography | QueenZone", "Browse Queen photograph collections")]
+    [InlineData("/fan-performances", "Fan Performances | QueenZone", "Fan recordings of Queen songs")]
+    [InlineData("/discography", "Discography | QueenZone", "Every Queen studio album")]
+    [InlineData("/forum", "Forum | QueenZone", "Read-only Queenzone forum archive")]
+    [InlineData("/biography", "QueenZone biography", "The story of Queen")]
+    [InlineData("/timeline", "Queen History Timeline · Queenzone", "Five decades of Queen history")]
+    [InlineData("/trivia", "Queen Trivia | QueenZone", "A random Queen trivia fact")]
+    public async Task PublicPage_HasExpectedTitleAndDescription(string path, string expectedTitle, string expectedDescriptionFragment)
     {
         var client = factory.CreateClient();
 
         var body = await client.GetStringAsync(path);
 
-        Assert.Contains(expectedTitleTag, body);
-        Assert.Contains($"<meta name=\"description\" content=\"", body);
-        Assert.Contains(expectedDescriptionFragment, body);
+        TestHtmlAssertions.AssertPageTitle(body, expectedTitle);
+        Assert.Contains(expectedDescriptionFragment, TestHtmlAssertions.MetaName(body, "description"));
     }
 
     [Theory]
@@ -49,12 +48,12 @@ public sealed class PageSeoTests : IClassFixture<PreviewPublicBaseUrlWebApplicat
 
         var body = await client.GetStringAsync(path);
 
-        Assert.Contains("<meta property=\"og:site_name\" content=\"QueenZone\">", body);
-        Assert.Contains("<meta property=\"og:type\"", body);
-        Assert.Contains("<meta property=\"og:url\" content=\"https://preview.queenzone.test/", body);
-        Assert.Contains("<meta property=\"og:title\"", body);
-        Assert.Contains("<meta property=\"og:description\"", body);
-        Assert.Contains("<meta name=\"twitter:card\"", body);
+        TestHtmlAssertions.AssertMetaProperty(body, "og:site_name", "QueenZone");
+        Assert.NotEmpty(TestHtmlAssertions.MetaProperty(body, "og:type"));
+        Assert.StartsWith("https://preview.queenzone.test/", TestHtmlAssertions.MetaProperty(body, "og:url"), StringComparison.Ordinal);
+        Assert.NotEmpty(TestHtmlAssertions.MetaProperty(body, "og:title"));
+        Assert.NotEmpty(TestHtmlAssertions.MetaProperty(body, "og:description"));
+        Assert.NotEmpty(TestHtmlAssertions.MetaName(body, "twitter:card"));
     }
 
     [Fact]
@@ -64,8 +63,8 @@ public sealed class PageSeoTests : IClassFixture<PreviewPublicBaseUrlWebApplicat
 
         var body = await client.GetStringAsync("/photography/brian-may/101");
 
-        Assert.Contains("<meta property=\"og:image\"", body);
-        Assert.Contains("summary_large_image", body);
+        Assert.NotEmpty(TestHtmlAssertions.MetaProperty(body, "og:image"));
+        TestHtmlAssertions.AssertMetaName(body, "twitter:card", "summary_large_image");
     }
 
     [Fact]
@@ -75,7 +74,7 @@ public sealed class PageSeoTests : IClassFixture<PreviewPublicBaseUrlWebApplicat
 
         var body = await client.GetStringAsync("/photography/brian-may");
 
-        Assert.Contains("<meta property=\"og:image\"", body);
+        Assert.NotEmpty(TestHtmlAssertions.MetaProperty(body, "og:image"));
     }
 
     [Fact]
@@ -85,6 +84,6 @@ public sealed class PageSeoTests : IClassFixture<PreviewPublicBaseUrlWebApplicat
 
         var body = await client.GetStringAsync("/");
 
-        Assert.Contains("<meta property=\"og:url\" content=\"https://preview.queenzone.test/\">", body);
+        TestHtmlAssertions.AssertMetaProperty(body, "og:url", "https://preview.queenzone.test/");
     }
 }

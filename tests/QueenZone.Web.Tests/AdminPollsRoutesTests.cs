@@ -217,7 +217,7 @@ public sealed class AdminPollsRoutesTests
     private static DbUpdateException CreateUniqueConstraintException() =>
         new(
             "Cannot insert duplicate key row in object 'dbo.HomePolls' with unique index 'UX_HomePolls_IsCurrent'. The duplicate key value is (1).",
-            SiteSearchSqlTimeoutTests.CreateSqlException(
+            SqlExceptionFactory.Create(
                 2601,
                 "Cannot insert duplicate key row in object 'dbo.HomePolls' with unique index 'UX_HomePolls_IsCurrent'. The duplicate key value is (1)."));
 

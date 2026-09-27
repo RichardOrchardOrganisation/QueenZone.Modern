@@ -10,14 +10,14 @@ public sealed class DbUpdateExceptionExtensionsTests
     [InlineData(2627)]
     public void Sql_server_unique_error_numbers_are_unique_violations(int number)
     {
-        var sql = SiteSearchSqlTimeoutTests.CreateSqlException(number, "Violation");
+        var sql = SqlExceptionFactory.Create(number, "Violation");
         Assert.True(new DbUpdateException("conflict", sql).IsUniqueConstraintViolation());
     }
 
     [Fact]
     public void Other_sql_server_errors_are_not_unique_violations()
     {
-        var sql = SiteSearchSqlTimeoutTests.CreateSqlException(547, "The INSERT statement conflicted with the FOREIGN KEY constraint");
+        var sql = SqlExceptionFactory.Create(547, "The INSERT statement conflicted with the FOREIGN KEY constraint");
         Assert.False(new DbUpdateException("conflict", sql).IsUniqueConstraintViolation());
     }
 
@@ -33,7 +33,7 @@ public sealed class DbUpdateExceptionExtensionsTests
     {
         var nested = new InvalidOperationException(
             "wrapper",
-            SiteSearchSqlTimeoutTests.CreateSqlException(2627, "Violation of UNIQUE KEY constraint"));
+            SqlExceptionFactory.Create(2627, "Violation of UNIQUE KEY constraint"));
         Assert.True(new DbUpdateException("conflict", nested).IsUniqueConstraintViolation());
     }
 

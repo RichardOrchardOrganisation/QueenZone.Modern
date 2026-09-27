@@ -2,6 +2,8 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
+// The search SQL is a hand-written script that only runs on SQL Server, which these tests can't reach.
+// Its text is therefore the contract: each test slices one branch of the script and pins its shape.
 public sealed class SearchDocumentSearchSqlTests
 {
     [Fact]
@@ -213,25 +215,9 @@ public sealed class SearchDocumentSearchSqlTests
 
     private static string ReadRepoFile(string relativePath)
     {
-        var path = Path.Combine(FindRepoRoot(), relativePath);
+        var path = RepoPaths.Combine(relativePath);
         Assert.True(File.Exists(path), $"Expected {relativePath} at {path}");
         return File.ReadAllText(path);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "QueenZone.sln")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("Could not find QueenZone.sln above the test output directory.");
     }
 
     private static int CountOccurrences(string haystack, string needle)
