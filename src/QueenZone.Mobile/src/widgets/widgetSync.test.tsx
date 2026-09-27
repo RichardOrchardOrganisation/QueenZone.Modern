@@ -22,7 +22,7 @@ import {
   writeCachedWidgetProps,
   writeLastWidgetRefreshAt,
 } from './widgetCache';
-import { WIDGET_FACE_SLOT_MS, nextWidgetFaceSlotMs } from './widgetCopy';
+import { nextWidgetFaceSlotMs } from './widgetCopy';
 
 const mockUpdateSnapshot = jest.fn();
 const mockUpdateTimeline = jest.fn();
@@ -129,9 +129,9 @@ describe('syncHomeWidget', () => {
     await syncHomeWidget(content);
 
     expect(mockUpdateTimeline).toHaveBeenCalledWith([
-      { date: new Date(now), props: { ...widgetProps, faceSlot: Math.floor(now / WIDGET_FACE_SLOT_MS) } },
-      { date: new Date(nextWidgetFaceSlotMs(now)), props: { ...widgetProps, faceSlot: Math.floor(nextWidgetFaceSlotMs(now) / WIDGET_FACE_SLOT_MS) } },
-      { date: new Date(now + WIDGET_REFRESH_INTERVAL_MS), props: { ...widgetProps, faceSlot: Math.floor((now + WIDGET_REFRESH_INTERVAL_MS) / WIDGET_FACE_SLOT_MS) } },
+      { date: new Date(now), props: widgetProps },
+      { date: new Date(nextWidgetFaceSlotMs(now)), props: widgetProps },
+      { date: new Date(now + WIDGET_REFRESH_INTERVAL_MS), props: widgetProps },
     ]);
     expect(mockUpdateSnapshot).not.toHaveBeenCalled();
     expect(mockRequestWidgetUpdate).not.toHaveBeenCalled();
@@ -149,9 +149,9 @@ describe('syncHomeWidget', () => {
     await syncHomeWidget(content);
 
     expect(mockUpdateTimeline).toHaveBeenCalledWith([
-      { date: new Date(now), props: { ...widgetProps, faceSlot: Math.floor(now / WIDGET_FACE_SLOT_MS) } },
-      { date: new Date(nextWidgetFaceSlotMs(now)), props: { ...widgetProps, faceSlot: Math.floor(nextWidgetFaceSlotMs(now) / WIDGET_FACE_SLOT_MS) } },
-      { date: new Date(now + WIDGET_REFRESH_INTERVAL_MS + WIDGET_QUOTE_REFRESH_JITTER_MS / 2), props: { ...widgetProps, faceSlot: Math.floor((now + WIDGET_REFRESH_INTERVAL_MS + WIDGET_QUOTE_REFRESH_JITTER_MS / 2) / WIDGET_FACE_SLOT_MS) } },
+      { date: new Date(now), props: widgetProps },
+      { date: new Date(nextWidgetFaceSlotMs(now)), props: widgetProps },
+      { date: new Date(now + WIDGET_REFRESH_INTERVAL_MS + WIDGET_QUOTE_REFRESH_JITTER_MS / 2), props: widgetProps },
     ]);
     jest.spyOn(Date, 'now').mockRestore();
     jest.spyOn(Math, 'random').mockRestore();
@@ -254,7 +254,7 @@ describe('refreshHomeWidget', () => {
     expect(fetchQuote).toHaveBeenCalledTimes(1);
     expect(fetchTrivia).toHaveBeenCalledTimes(1);
     expect(mockUpdateTimeline).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ props: expect.objectContaining(widgetProps) })]),
+      expect.arrayContaining([expect.objectContaining({ props: widgetProps })]),
     );
   });
 

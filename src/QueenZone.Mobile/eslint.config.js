@@ -58,6 +58,13 @@ module.exports = defineConfig([
     },
   },
   {
+    files: ['src/widgets/OnThisDayWidget.ios.tsx'],
+    rules: {
+      // Expo serializes this JSC widget view, which selects a four-hour face from the clock (#1821).
+      'react-hooks/purity': 'off',
+    },
+  },
+  {
     files: ['src/screens/**/*.{ts,tsx}', 'src/ui/**/*.{ts,tsx}'],
     ignores: ['**/*.test.ts', '**/*.test.tsx'],
     rules: {

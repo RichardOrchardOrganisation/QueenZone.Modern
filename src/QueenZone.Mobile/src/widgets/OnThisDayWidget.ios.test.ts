@@ -54,8 +54,7 @@ describe('OnThisDayWidget.ios referential freedom', () => {
     assert.match(viewBody, /QUEEN QUOTES/);
     assert.match(viewBody, /QUEEN FACTS/);
     assert.match(viewBody, /props\.triviaText/);
-    assert.match(viewBody, /props\.faceSlot/);
-    assert.equal(viewBody.includes('Date.now()'), false);
+    assert.match(viewBody, /4 \* 60 \* 60 \* 1000/);
     assert.equal(viewBody.includes('queenzone://trivia/'), false);
   });
 

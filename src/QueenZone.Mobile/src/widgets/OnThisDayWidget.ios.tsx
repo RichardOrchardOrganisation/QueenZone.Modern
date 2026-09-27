@@ -29,7 +29,7 @@ import type { WidgetProps } from './widgetCopy';
  * JSC cannot import widgetCopy or read widgetFamily, so the small-ceiling
  * numbers (17 / 9 / 0.65 / 6 / 2) are inlined here. Native picks 17 vs 22.
  */
-export type OnThisDayWidgetProps = WidgetProps & { faceSlot?: number };
+export type OnThisDayWidgetProps = WidgetProps;
 
 function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
   'widget';
@@ -47,7 +47,7 @@ function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
   if (hasTrivia) {
     faces.push('trivia');
   }
-  const slot = props.faceSlot ?? 0;
+  const slot = Math.floor(Date.now() / (4 * 60 * 60 * 1000));
   const face = faces.length ? faces[slot % faces.length] : null;
   const showDay = face === 'day';
   const showQuote = face === 'quote';
