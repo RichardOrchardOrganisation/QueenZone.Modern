@@ -52,7 +52,8 @@ $script:InfrastructureFileNames = [System.Collections.Generic.HashSet[string]]::
         "WebHostVariants.cs",
         "WebHostVariantCache.cs",
         "InspectableBlobWebApplicationFactory.cs",
-        "AdminEfWebTestHarness.cs"
+        "AdminEfWebTestHarness.cs",
+        "ProductionHostFixture.cs"
     ),
     [StringComparer]::OrdinalIgnoreCase
 )

@@ -1,23 +1,20 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class StaticAssetCacheHeadersTests :
-    IClassFixture<ProductionWebApplicationFactory>,
-    IClassFixture<DevelopmentWebApplicationFactory>
+[Collection(ProductionHostCollection.Name)]
+public sealed class StaticAssetCacheHeadersTests : IClassFixture<DevelopmentWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> productionFactory;
     private readonly WebApplicationFactory<Program> developmentFactory;
 
     public StaticAssetCacheHeadersTests(
-        ProductionWebApplicationFactory productionFactory,
+        ProductionHostFixture production,
         DevelopmentWebApplicationFactory developmentFactory)
     {
-        this.productionFactory = productionFactory;
+        productionFactory = production.Factory;
         this.developmentFactory = developmentFactory;
     }
 

@@ -1,74 +1,24 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ResponseCompressionTests :
-    IClassFixture<ProductionWebApplicationFactory>,
-    IClassFixture<QueenZoneWebApplicationFactory>
+[Collection(ProductionHostCollection.Name)]
+public sealed class ResponseCompressionTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> productionFactory;
     private readonly WebApplicationFactory<Program> testingFactory;
 
     public ResponseCompressionTests(
-        ProductionWebApplicationFactory productionFactory,
+        ProductionHostFixture production,
         QueenZoneWebApplicationFactory testingFactory)
     {
-        this.productionFactory = productionFactory;
+        productionFactory = production.Factory;
         this.testingFactory = testingFactory;
     }
-
-    // Host settings + in-memory config: production hosts fail-closed without Entra, blob, and member OAuth.
-    internal static void ApplyProductionHostTestSettings(IWebHostBuilder builder)
-    {
-        // QueenZone host filtering stays inside the visible pipeline; WebApplicationFactory hits localhost.
-        builder.UseSetting("QueenZoneHostFiltering:AllowedHosts", "localhost;127.0.0.1");
-        builder.UseSetting("DataProtection:KeysPath", ProductionDataProtectionKeysPath);
-        builder.UseSetting("ConnectionStrings:QueenZoneLegacy", string.Empty);
-        builder.UseSetting("ConnectionStrings:BlobStorage", ProductionBlobConnectionString);
-        builder.UseSetting("AzureAd:Instance", "https://login.microsoftonline.com/");
-        builder.UseSetting("AzureAd:TenantId", "22222222-3333-4444-5555-666666666666");
-        builder.UseSetting("AzureAd:ClientId", "11111111-2222-3333-4444-555555555555");
-        builder.UseSetting("AzureAd:ClientSecret", "test-secret-not-used");
-        builder.UseSetting("AzureAd:CallbackPath", "/signin-oidc");
-        // Production-like hosts require a non-empty allowlist (from App Service in real deploys).
-        builder.UseSetting("Admin:AllowedEmails:0", "admin@test.local");
-        builder.UseSetting("Authentication:Google:ClientId", "test-google-client-id");
-        builder.UseSetting("Authentication:Google:ClientSecret", "test-google-client-secret");
-        builder.UseSetting("Analytics:MeasurementId", "G-V2W56BZ3KZ");
-        builder.UseSetting("MobileAuth:SigningKey", "testing-mobile-auth-signing-key-32b!");
-        builder.ConfigureAppConfiguration((_, config) =>
-        {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["QueenZoneHostFiltering:AllowedHosts"] = "localhost;127.0.0.1",
-                ["DataProtection:KeysPath"] = ProductionDataProtectionKeysPath,
-                ["ConnectionStrings:QueenZoneLegacy"] = string.Empty,
-                ["ConnectionStrings:BlobStorage"] = ProductionBlobConnectionString,
-                ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
-                ["AzureAd:TenantId"] = "22222222-3333-4444-5555-666666666666",
-                ["AzureAd:ClientId"] = "11111111-2222-3333-4444-555555555555",
-                ["AzureAd:ClientSecret"] = "test-secret-not-used",
-                ["AzureAd:CallbackPath"] = "/signin-oidc",
-                ["Admin:AllowedEmails:0"] = "admin@test.local",
-                ["Authentication:Google:ClientId"] = "test-google-client-id",
-                ["Authentication:Google:ClientSecret"] = "test-google-client-secret",
-                ["Analytics:MeasurementId"] = "G-V2W56BZ3KZ",
-                ["MobileAuth:SigningKey"] = "testing-mobile-auth-signing-key-32b!",
-            });
-        });
-    }
-
-    internal const string ProductionBlobConnectionString =
-        "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-
-    private static readonly string ProductionDataProtectionKeysPath =
-        Path.Combine(Path.GetTempPath(), "QueenZone.Web.Tests", "data-protection-keys");
 
     [Fact]
     public async Task HtmlResponse_IsBrotliCompressedInProduction()

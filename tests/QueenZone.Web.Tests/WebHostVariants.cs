@@ -115,6 +115,21 @@ public static class WebHostVariants
         NoSettings,
         HostServiceProfile.TrackingPromotedNews);
 
+    public static readonly WebHostVariant TestingCountingArticles = new(
+        nameof(TestingCountingArticles),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.CountingArticles);
+
+    public static readonly WebHostVariant ProductionWithoutMobileAuthSigningKey = new(
+        nameof(ProductionWithoutMobileAuthSigningKey),
+        "Production",
+        ImmutableSortedDictionary.CreateRange(
+        [
+            KeyValuePair.Create<string, string?>("MobileAuth:SigningKey", string.Empty),
+        ]),
+        HostServiceProfile.None);
+
     internal static readonly Guid MemberSubmittedNewsSubmitterId =
         Guid.Parse("6c8f2d11-4a7b-4e90-9c3a-1f5d8b2e7a44");
 
@@ -174,6 +189,12 @@ public static class WebHostVariants
                 hostContext.TrackingNews = tracking;
                 services.RemoveAll<INewsRepository>();
                 services.AddSingleton<INewsRepository>(tracking);
+                break;
+            case HostServiceProfile.CountingArticles:
+                var countingContext = RequireContext(context, profile);
+                countingContext.CountingArticles ??= new CountingArticlesRepository();
+                services.RemoveAll<IArticlesRepository>();
+                services.AddSingleton<IArticlesRepository>(countingContext.CountingArticles);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown host service profile.");
@@ -424,6 +445,7 @@ public enum HostServiceProfile
     DetailImageNews,
     ExternalCookieThrowingSearchIndex,
     TrackingPromotedNews,
+    CountingArticles,
 }
 
 public interface IResettableHostFixture
@@ -448,11 +470,14 @@ internal sealed class HostServiceContext
 
     public TrackingNewsRepository? TrackingNews { get; set; }
 
+    public CountingArticlesRepository? CountingArticles { get; set; }
+
     public void Reset()
     {
         BlobBackend.Clear();
         LegacyLookup.Reset();
         TrackingNews?.Reset();
+        CountingArticles?.Reset();
     }
 }
 
@@ -508,6 +533,54 @@ internal sealed class MutableLegacyMemberLookupRepository : ILegacyMemberLookupR
             .FirstOrDefault(item => item.UserId == userId);
         return Task.FromResult(match);
     }
+}
+
+public sealed class CountingArticlesRepository : IArticlesRepository
+{
+    private readonly ArticleItem article = new(
+        7801,
+        "Cached archive article",
+        "Output cache test article.",
+        "<p>Output cache test body.</p>",
+        new DateTime(2026, 7, 6, 0, 0, 0, DateTimeKind.Utc),
+        null,
+        "Testing",
+        true);
+
+    public int ArchivePageCallCount { get; private set; }
+
+    public int PublishedCountCallCount { get; private set; }
+
+    public void Reset()
+    {
+        ArchivePageCallCount = 0;
+        PublishedCountCallCount = 0;
+    }
+
+    public Task<IReadOnlyList<ArticleItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ArticleItem>>([article]);
+
+    public Task<IReadOnlyList<ArticleItem>> GetArchivePageAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ArchivePageCallCount++;
+        return Task.FromResult<IReadOnlyList<ArticleItem>>([article]);
+    }
+
+    public Task<int> GetPublishedCountAsync(CancellationToken cancellationToken = default)
+    {
+        PublishedCountCallCount++;
+        return Task.FromResult(1);
+    }
+
+    public Task<ArticleItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        Task.FromResult<ArticleItem?>(id == article.Id ? article : null);
+
+    public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<SitemapContentEntry>>(
+            [new SitemapContentEntry(article.Id, article.Title, article.PublishedAt)]);
 }
 
 internal sealed class TrackingNewsRepository(INewsRepository inner) : INewsRepository

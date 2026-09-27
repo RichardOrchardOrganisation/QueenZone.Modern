@@ -3,7 +3,7 @@
 # Adding an entry needs architect or reviewer sign-off. Later slices only remove rows.
 # Permanent private-host exceptions (stay after slice 4 unless the reason changes):
 #   AdminSearchIndexTests, HomePageRoutesTests startup/boot-config, mobile auth classes.
-# Remaining rows are unconverted classes from slices 2-4.
+# Remaining rows are unconverted classes from slices 3-4.
 AdminAntiforgeryRoutesTests: still builds a per-test host; convert in a later slice
 AdminBiographyRoutesTests: still builds a per-test host; convert in a later slice
 AdminDashboardEfRoutesTests: still builds a per-test host; convert in a later slice
@@ -59,7 +59,6 @@ MemberAvatarEndpointsTests: still builds a per-test host; convert in a later sli
 MemberPhotoSubmissionApiTests: still builds a per-test host; convert in a later slice
 MessagesApiTests: still builds a per-test host; convert in a later slice
 MobileAuthPasswordGrantTests: mobile auth host-per-test; convert remaining flows in a later slice
-MobileAuthProductionStartupTests: Production-environment host; slice 2 shared Production fixture
 MobileAuthRateLimitRouteTests: mobile auth host-per-test; convert remaining flows in a later slice
 MobileAuthRefreshFlowTests: mobile auth host-per-test; convert remaining flows in a later slice
 MobileOAuthPkceFlowTests: mobile auth host-per-test; convert remaining flows in a later slice
@@ -70,7 +69,6 @@ NotificationDispatchWritePathTests: still builds a per-test host; convert in a l
 PhotoSubmissionRoutesTests: still builds a per-test host; convert in a later slice
 PrivateMessageRateLimitRouteTests: still builds a per-test host; convert in a later slice
 PrivateMessageRoutesTests: still builds a per-test host; convert in a later slice
-PublicOutputCacheTests: Production-environment host; slice 2 shared Production fixture
 PublicRssFeedTests: still builds a per-test host; convert in a later slice
 QuizPagesRoutesTests: still builds a per-test host; convert in a later slice
 QuizQuestionSubmissionRoutesTests: still builds a per-test host; convert in a later slice
