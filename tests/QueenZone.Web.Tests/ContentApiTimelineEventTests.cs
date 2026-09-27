@@ -1,13 +1,12 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContentApiTimelineEventTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ContentApiTimelineEventTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -15,10 +14,12 @@ public sealed class ContentApiTimelineEventTests : IClassFixture<QueenZoneWebApp
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public ContentApiTimelineEventTests(QueenZoneWebApplicationFactory factory)
+    public ContentApiTimelineEventTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -34,10 +35,7 @@ public sealed class ContentApiTimelineEventTests : IClassFixture<QueenZoneWebApp
     [Fact]
     public async Task Timeline_event_detail_returns_a_published_event_that_is_off_the_first_page()
     {
-        var firstPage = Event(1, "First page event", new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        var deep = Event(9999, "Deep off-page event", new DateTime(1985, 7, 13, 0, 0, 0, DateTimeKind.Utc));
-        using var isolated = IsolatedEvents(firstPage, deep);
-        using var client = isolated.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.TimelineDeepOffPage).CreateAnonymousClient();
 
         using var page = await client.GetAsync($"{ContentApiEndpoints.RootPath}/timeline?page=1&pageSize=1");
         var list = await ReadJsonAsync<ApiPagedResponse<TimelineEventDto>>(page);
@@ -61,9 +59,7 @@ public sealed class ContentApiTimelineEventTests : IClassFixture<QueenZoneWebApp
     [Fact]
     public async Task Timeline_event_detail_returns_404_for_unpublished_or_missing()
     {
-        using var isolated = IsolatedEvents(
-            Event(13, "Draft event", new DateTime(1975, 10, 31, 0, 0, 0, DateTimeKind.Utc), isPublished: false));
-        using var client = isolated.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.UnpublishedTimelineEvent).CreateAnonymousClient();
 
         using var unpublished = await client.GetAsync($"{ContentApiEndpoints.RootPath}/timeline/13");
         Assert.Equal(HttpStatusCode.NotFound, unpublished.StatusCode);
@@ -72,31 +68,6 @@ public sealed class ContentApiTimelineEventTests : IClassFixture<QueenZoneWebApp
         using var missing = await client.GetAsync($"{ContentApiEndpoints.RootPath}/timeline/424242");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
-
-    private static QueenZoneWebApplicationFactory IsolatedEvents(params QueenHistoryEvent[] events) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IQueenHistoryRepository>();
-            services.AddSingleton<IQueenHistoryRepository>(new InMemoryQueenHistoryRepository(events));
-        });
-
-    private static QueenHistoryEvent Event(
-        int id,
-        string title,
-        DateTime eventDate,
-        bool isPublished = true) =>
-        new(
-            id,
-            title,
-            "Queen play Live Aid.",
-            eventDate,
-            QueenHistoryDatePrecision.ExactDate,
-            QueenHistoryEventCategory.Concert,
-            100,
-            QueenHistoryEventSourceType.Wikipedia,
-            $"event-{id}",
-            "https://en.wikipedia.org/wiki/Live_Aid",
-            isPublished);
 
     private static async Task<T?> ReadJsonAsync<T>(HttpResponseMessage response)
     {

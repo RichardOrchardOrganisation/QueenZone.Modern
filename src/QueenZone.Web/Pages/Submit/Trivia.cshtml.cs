@@ -34,7 +34,7 @@ public sealed class TriviaModel(ITriviaFactSubmissionRepository triviaFactSubmis
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (await GetCurrentMemberIdAsync() is null)
+        if (await HttpContext.AuthenticateMemberIdAsync() is null)
         {
             return Redirect("/account/login");
         }
@@ -45,7 +45,7 @@ public sealed class TriviaModel(ITriviaFactSubmissionRepository triviaFactSubmis
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -54,9 +54,9 @@ public sealed class TriviaModel(ITriviaFactSubmissionRepository triviaFactSubmis
         ViewData["Title"] = "Suggest a trivia fact";
 
         var text = (Text ?? string.Empty).Trim();
-        var category = NormalizeOptional(Category);
-        var difficulty = NormalizeDifficulty(Difficulty);
-        var sourceNote = NormalizeOptional(SourceNote);
+        var category = TriviaValidation.NormalizeOptional(Category);
+        var difficulty = TriviaValidation.NormalizeDifficulty(Difficulty);
+        var sourceNote = TriviaValidation.NormalizeOptional(SourceNote);
 
         foreach (var error in TriviaValidation.ValidateSuggestion(text, category, difficulty, sourceNote))
         {
@@ -73,26 +73,5 @@ public sealed class TriviaModel(ITriviaFactSubmissionRepository triviaFactSubmis
             cancellationToken);
 
         return Redirect($"/submit/trivia/confirmation/{created.Id:D}");
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
-    }
-
-    private static string? NormalizeOptional(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? NormalizeDifficulty(string? value)
-    {
-        var trimmed = NormalizeOptional(value);
-        return trimmed?.ToLowerInvariant();
     }
 }

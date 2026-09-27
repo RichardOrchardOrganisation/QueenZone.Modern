@@ -91,6 +91,7 @@ describe('PagedListScreen', () => {
     expect(list.props.initialNumToRender).toBe(10);
     expect(list.props.removeClippedSubviews).toBeUndefined();
     expect(list.props.getItemLayout).toBeUndefined();
+    expect(list.props.alwaysBounceVertical).toBe(true);
     expect(list.props.data).toEqual([{ id: 1, title: 'Live Aid' }]);
 
     const refreshControl = screen.UNSAFE_getByType(RefreshControl);

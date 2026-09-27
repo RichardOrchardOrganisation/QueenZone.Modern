@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
+using QueenZone.Data;
 
 namespace QueenZone.Web;
 
@@ -23,7 +24,7 @@ internal sealed class ApiV1OpenApiDocumentTransformer : IOpenApiDocumentTransfor
                 "{ error, error_description } objects. " +
                 "Collection endpoints paginate with page and pageSize query parameters " +
                 $"(default page {ApiPagination.DefaultPage}, pageSize {ApiPagination.DefaultPageSize}, " +
-                $"max {ApiPagination.MaxPageSize}) and return " +
+                $"max {ApiPagination.MaxPageSize}, except where an operation specifies different limits) and return " +
                 "{ items, page, pageSize, totalCount, totalPages }. " +
                 "Narrow site endpoints such as /api/uploads, RSS, and media streaming are not part of this document.",
         };
@@ -37,6 +38,27 @@ internal sealed class ApiV1OpenApiDocumentTransformer : IOpenApiDocumentTransfor
             Description = "Member access token from POST /api/v1/auth/token.",
         });
 
+        DescribePagination(document, "/api/v1/forum/topics/{id}/posts",
+            ForumRoutes.PostsPageSize, ForumRoutes.PostsPageSize);
+        DescribePagination(document, "/api/v1/content/photos/categories/{slug}/items",
+            PhotoRoutes.CategoryPageSize, PhotoRoutes.CategoryPageSize);
+        DescribePagination(document, "/api/v1/me/messages",
+            PrivateMessageLimits.InboxPageSize, PrivateMessageLimits.MaxInboxPageSize);
+        DescribePagination(document, "/api/v1/me/messages/archived",
+            PrivateMessageLimits.InboxPageSize, PrivateMessageLimits.MaxInboxPageSize);
+
         return Task.CompletedTask;
+    }
+
+    private static void DescribePagination(OpenApiDocument document, string path, int defaultPageSize, int maxPageSize)
+    {
+        if (document.Paths is not null
+            && document.Paths.TryGetValue(path, out var item)
+            && item.Operations is not null
+            && item.Operations.TryGetValue(HttpMethod.Get, out var operation))
+        {
+            operation.Description = $"pageSize defaults to {defaultPageSize} and is clamped to a maximum of {maxPageSize}. " +
+                "Values below 1 use the default; page defaults to 1.";
+        }
     }
 }

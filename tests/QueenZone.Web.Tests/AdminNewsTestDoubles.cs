@@ -2,6 +2,74 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
+internal sealed class AdminNewsMutationOverrides
+{
+    public Exception? CreateException { get; set; }
+
+    public Exception? DeleteException { get; set; }
+
+    public void Reset()
+    {
+        CreateException = null;
+        DeleteException = null;
+    }
+}
+
+internal sealed class GatedAdminNewsRepository(IAdminNewsRepository inner, AdminNewsMutationOverrides overrides)
+    : IAdminNewsRepository
+{
+    public Task<IReadOnlyList<AdminNewsArticle>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        inner.GetAllAsync(cancellationToken);
+
+    public Task<AdminNewsArticlePage> GetPageAsync(int page, int pageSize, CancellationToken cancellationToken = default) =>
+        inner.GetPageAsync(page, pageSize, cancellationToken);
+
+    public Task<AdminNewsArticle?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        inner.GetByIdAsync(id, cancellationToken);
+
+    public Task<int> CreateDraftAsync(AdminNewsDraft draft, string editorEmail, CancellationToken cancellationToken = default) =>
+        overrides.CreateException is { } createException
+            ? Task.FromException<int>(createException)
+            : inner.CreateDraftAsync(draft, editorEmail, cancellationToken);
+
+    public Task UpdateAsync(
+        int id,
+        AdminNewsDraft draft,
+        string editorEmail,
+        DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default) =>
+        inner.UpdateAsync(id, draft, editorEmail, expectedUpdatedAt, cancellationToken);
+
+    public Task PublishAsync(
+        int id,
+        string editorEmail,
+        DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default) =>
+        inner.PublishAsync(id, editorEmail, expectedUpdatedAt, cancellationToken);
+
+    public Task UnpublishAsync(
+        int id,
+        string editorEmail,
+        DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default) =>
+        inner.UnpublishAsync(id, editorEmail, expectedUpdatedAt, cancellationToken);
+
+    public Task DeleteAsync(
+        int id,
+        string editorEmail,
+        DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default) =>
+        overrides.DeleteException is { } deleteException
+            ? Task.FromException(deleteException)
+            : inner.DeleteAsync(id, editorEmail, expectedUpdatedAt, cancellationToken);
+
+    public Task<bool> IsSlugInUseAsync(string slug, int? excludeNewsId = null, CancellationToken cancellationToken = default) =>
+        inner.IsSlugInUseAsync(slug, excludeNewsId, cancellationToken);
+
+    public Task<bool> TrySetForumTopicIdAsync(int newsId, int topicId, CancellationToken cancellationToken = default) =>
+        inner.TrySetForumTopicIdAsync(newsId, topicId, cancellationToken);
+}
+
 internal sealed class FailingCreateAdminNewsRepository(InMemoryAdminNewsRepository inner, Exception createException) : IAdminNewsRepository
 {
     public Task<IReadOnlyList<AdminNewsArticle>> GetAllAsync(CancellationToken cancellationToken = default) =>
@@ -104,13 +172,21 @@ internal sealed class FailingDeleteAdminNewsRepository(InMemoryAdminNewsReposito
 
 internal sealed class ConfigurableNewsDiscoveryRepository(INewsDiscoveryRepository inner) : INewsDiscoveryRepository
 {
-    public Func<int, CancellationToken, Task<NewsCandidate?>>? GetCandidateByPromotedNewsIdHandler { get; init; }
+    public Func<int, CancellationToken, Task<NewsCandidate?>>? GetCandidateByPromotedNewsIdHandler { get; set; }
 
-    public Func<int, CancellationToken, Task>? ClearPromotedNewsLinksHandler { get; init; }
+    public Func<int, CancellationToken, Task>? ClearPromotedNewsLinksHandler { get; set; }
 
-    public Func<int, NewsCandidateStatusUpdate, CancellationToken, Task<bool>>? TryUpdateCandidateStatusHandler { get; init; }
+    public Func<int, NewsCandidateStatusUpdate, CancellationToken, Task<bool>>? TryUpdateCandidateStatusHandler { get; set; }
 
-    public Func<int, CancellationToken, Task<NewsAgentDraft?>>? GetDraftByCandidateIdHandler { get; init; }
+    public Func<int, CancellationToken, Task<NewsAgentDraft?>>? GetDraftByCandidateIdHandler { get; set; }
+
+    public void ResetHandlers()
+    {
+        GetCandidateByPromotedNewsIdHandler = null;
+        ClearPromotedNewsLinksHandler = null;
+        TryUpdateCandidateStatusHandler = null;
+        GetDraftByCandidateIdHandler = null;
+    }
 
     public Task<IReadOnlyList<NewsDiscoverySource>> GetSourcesAsync(bool enabledOnly = false, CancellationToken cancellationToken = default) =>
         inner.GetSourcesAsync(enabledOnly, cancellationToken);

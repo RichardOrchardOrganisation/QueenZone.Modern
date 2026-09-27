@@ -1,0 +1,128 @@
+{
+  "area": "forum",
+  "surface": "mobile",
+  "entries": [
+    {
+      "aliases": [
+        "forum tab",
+        "boards"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/forum/ForumScreen.tsx"
+      ],
+      "testIds": [
+        "forumScreen",
+        "forumNewThread",
+        "tabForum"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/07-forum.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/forum.md",
+      "id": "mobile.forum.index",
+      "name": "Forum index",
+      "screen": "ForumStack/ForumIndex",
+      "entry": "Tap the Forum tab",
+      "drive": {
+        "forum": "src/QueenZone.Mobile/maestro/flows/07-forum.yaml"
+      }
+    },
+    {
+      "aliases": [
+        "the music board",
+        "forum category"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/forum/CategoryScreen.tsx"
+      ],
+      "testIds": [
+        "forumCategoryScreen"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/forum.md",
+      "id": "mobile.forum.category",
+      "name": "Forum board",
+      "screen": "ForumStack/Category",
+      "entry": "Forum tab → board (e.g. The Music)"
+    },
+    {
+      "aliases": [
+        "forum topic",
+        "ranking thread"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/forum/ThreadScreen.tsx"
+      ],
+      "testIds": [
+        "forumThreadScreen",
+        "forumThreadBack",
+        "forumThreadReply",
+        "forumThreadAttachment"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/forum.md",
+      "id": "mobile.forum.thread",
+      "name": "Forum thread",
+      "screen": "ForumStack/Thread",
+      "entry": "Forum → board → thread"
+    },
+    {
+      "aliases": [
+        "forum report"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/forum/ForumReportScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.forum.report",
+      "name": "Report a post",
+      "screen": "ForumStack/ForumReport",
+      "entry": "Forum thread → report post"
+    },
+    {
+      "aliases": [
+        "attach",
+        "new thread",
+        "reply composer"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/forum/ComposerScreen.tsx"
+      ],
+      "testIds": [
+        "forumComposerTitle",
+        "forumComposerBody",
+        "forumComposerSubmit",
+        "forumComposerAttachFiles"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/10-forum-attach.yaml",
+        "src/QueenZone.Mobile/maestro/flows/14-forum-create-reply.yaml"
+      ],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "mobile.forum.composer",
+      "name": "Forum composer",
+      "screen": "ForumStack/Composer",
+      "entry": "Forum board → new thread, or thread → reply",
+      "drive": {
+        "attach": "src/QueenZone.Mobile/maestro/flows/10-forum-attach.yaml"
+      }
+    }
+  ]
+}

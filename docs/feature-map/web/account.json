@@ -1,0 +1,127 @@
+{
+  "area": "account",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Account/Settings.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.account.settings",
+      "name": "Account settings",
+      "page": "Pages/Account/Settings.cshtml",
+      "url": "/account/settings",
+      "entry": "Signed-in account menu → Settings"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Account/MySubmissions.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.account.submissions",
+      "name": "My submissions",
+      "page": "Pages/Account/MySubmissions.cshtml",
+      "url": "/account/my-submissions",
+      "entry": "Account menu → My submissions"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Account/Delete.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.account.delete",
+      "name": "Delete account",
+      "page": "Pages/Account/Delete.cshtml",
+      "url": "/account/delete",
+      "entry": "Account settings → delete account"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Account/DeletionRequested.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.account.deletionRequested",
+      "name": "Deletion requested",
+      "page": "Pages/Account/DeletionRequested.cshtml",
+      "url": "/account/deletion-requested",
+      "entry": "Delete account → requested"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Account/DeletionStatus.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.account.deletionStatus",
+      "name": "Deletion status",
+      "page": "Pages/Account/DeletionStatus.cshtml",
+      "url": "/account/deletion-status",
+      "entry": "Open /account/deletion-status"
+    },
+    {
+      "aliases": [
+        "public member page"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Members/Profile.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.account.profile",
+      "name": "Member profile",
+      "page": "Pages/Members/Profile.cshtml",
+      "url": "/members/{memberId}",
+      "entry": "Open /members/{id}"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/DataDeletion.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.account.dataDeletion",
+      "name": "Data deletion",
+      "page": "Pages/DataDeletion.cshtml",
+      "url": "/data-deletion",
+      "entry": "Open /data-deletion"
+    }
+  ]
+}

@@ -10,8 +10,8 @@ internal static class BundleCssCommand
     {
         if (args.Length < 2)
         {
-            Console.Error.WriteLine("bundle-css requires an output CSS file path and at least one input CSS file path.");
-            Console.Error.WriteLine("Usage: dotnet run --project src/QueenZone.Tools -- bundle-css <output.css> <input.css> [more inputs...]");
+            await Console.Error.WriteLineAsync("bundle-css requires an output CSS file path and at least one input CSS file path.");
+            await Console.Error.WriteLineAsync("Usage: dotnet run --project src/QueenZone.Tools -- bundle-css <output.css> <input.css> [more inputs...]");
             return 2;
         }
 
@@ -23,7 +23,7 @@ internal static class BundleCssCommand
         {
             foreach (var missingPath in missingPaths)
             {
-                Console.Error.WriteLine($"CSS file was not found: {missingPath}");
+                await Console.Error.WriteLineAsync($"CSS file was not found: {missingPath}");
             }
 
             return 1;

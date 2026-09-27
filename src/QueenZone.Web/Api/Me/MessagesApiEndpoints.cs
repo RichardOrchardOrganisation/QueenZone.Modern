@@ -36,17 +36,16 @@ public static class MessagesApiEndpoints
 
     public static void MapMessagesApiEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/me")
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Messages")
+        var group = app.MapApiV1Group("/api/v1/me", "Messages")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
+            .RequireRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)
             .DisableAntiforgery();
 
-        group.MapGet("/messages", GetInboxAsync)
-            .WithName("GetMemberInbox")
-            .WithSummary("Paged inbox conversations with unread counts matching /messages.")
-            .Produces<ApiPagedResponse<InboxConversationDto>>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapAuthorizedPagedList<InboxConversationDto>(
+            "/messages",
+            GetInboxAsync,
+            "GetMemberInbox",
+            "Paged inbox conversations with unread counts matching /messages.");
 
         group.MapGet("/messages/unread-count", GetUnreadCountAsync)
             .WithName("GetMemberUnreadConversationCount")
@@ -60,11 +59,11 @@ public static class MessagesApiEndpoints
             .Produces<MessageRecipientsDto>()
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
-        group.MapGet("/messages/archived", GetArchivedInboxAsync)
-            .WithName("GetMemberArchivedInbox")
-            .WithSummary("Paged archived conversations matching GET /messages/archived.")
-            .Produces<ApiPagedResponse<InboxConversationDto>>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapAuthorizedPagedList<InboxConversationDto>(
+            "/messages/archived",
+            GetArchivedInboxAsync,
+            "GetMemberArchivedInbox",
+            "Paged archived conversations matching GET /messages/archived.");
 
         group.MapPost("/messages", ComposeAsync)
             .WithName("ComposeMemberMessage")
@@ -100,26 +99,30 @@ public static class MessagesApiEndpoints
             .WithName("ArchiveMemberConversation")
             .WithSummary("Archive a conversation matching POST /messages/{id} (Archive handler).")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/unarchive", UnarchiveConversationAsync)
             .WithName("UnarchiveMemberConversation")
             .WithSummary("Move an archived conversation back to the inbox, matching POST /messages/archived (Unarchive handler).")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/block", BlockConversationParticipantAsync)
             .WithName("BlockMemberConversationParticipant")
             .WithSummary("Block the other participant in a conversation, matching POST /messages/{id} (Block handler).")
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/unblock", UnblockConversationParticipantAsync)
             .WithName("UnblockMemberConversationParticipant")
             .WithSummary("Unblock the other participant in a conversation, matching POST /messages/{id} (Unblock handler).")
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapPost("/messages/{conversationId:guid}/messages/{messageId:guid}/report", ReportMessageAsync)
             .WithName("ReportMemberMessage")
@@ -129,41 +132,24 @@ public static class MessagesApiEndpoints
             .Produces<ReportMessageDto>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
     }
 
-    internal static async Task<IResult> GetInboxAsync(
+    internal static Task<IResult> GetInboxAsync(
         HttpContext httpContext,
         ClaimsPrincipal user,
         PrivateMessageService privateMessageService,
         int? page,
         int? pageSize,
-        CancellationToken cancellationToken)
-    {
-        var memberId = RequireMemberId(user, out var unauthorized);
-        if (unauthorized is not null)
-        {
-            return unauthorized;
-        }
-
-        var request = ApiPagination.Normalize(
+        CancellationToken cancellationToken) =>
+        GetInboxPageAsync(
+            httpContext,
+            user,
             page,
             pageSize,
-            PrivateMessageLimits.InboxPageSize,
-            PrivateMessageLimits.MaxInboxPageSize);
-        var inbox = await privateMessageService.GetInboxAsync(
-            memberId,
-            request.Page,
-            request.PageSize,
+            privateMessageService.GetInboxAsync,
             cancellationToken);
-
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(ApiPagedResponse<InboxConversationDto>.Create(
-            MessagesApiMapper.ToInboxItems(inbox.Items),
-            inbox.Page,
-            inbox.PageSize,
-            inbox.TotalCount));
-    }
 
     internal static async Task<IResult> GetUnreadCountAsync(
         HttpContext httpContext,
@@ -243,12 +229,27 @@ public static class MessagesApiEndpoints
         return Results.Ok(MessagesApiMapper.ToRecipients(matches));
     }
 
-    internal static async Task<IResult> GetArchivedInboxAsync(
+    internal static Task<IResult> GetArchivedInboxAsync(
         HttpContext httpContext,
         ClaimsPrincipal user,
         PrivateMessageService privateMessageService,
         int? page,
         int? pageSize,
+        CancellationToken cancellationToken) =>
+        GetInboxPageAsync(
+            httpContext,
+            user,
+            page,
+            pageSize,
+            privateMessageService.GetArchivedInboxAsync,
+            cancellationToken);
+
+    private static async Task<IResult> GetInboxPageAsync(
+        HttpContext httpContext,
+        ClaimsPrincipal user,
+        int? page,
+        int? pageSize,
+        Func<Guid, int, int, CancellationToken, Task<PrivateInboxPage>> load,
         CancellationToken cancellationToken)
     {
         var memberId = RequireMemberId(user, out var unauthorized);
@@ -262,18 +263,13 @@ public static class MessagesApiEndpoints
             pageSize,
             PrivateMessageLimits.InboxPageSize,
             PrivateMessageLimits.MaxInboxPageSize);
-        var inbox = await privateMessageService.GetArchivedInboxAsync(
-            memberId,
-            request.Page,
-            request.PageSize,
-            cancellationToken);
-
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(ApiPagedResponse<InboxConversationDto>.Create(
+        var inbox = await load(memberId, request.Page, request.PageSize, cancellationToken);
+        return ApiV1EndpointHelpers.OkNoStorePaged(
+            httpContext,
             MessagesApiMapper.ToInboxItems(inbox.Items),
             inbox.Page,
             inbox.PageSize,
-            inbox.TotalCount));
+            inbox.TotalCount);
     }
 
     internal static async Task<IResult> ArchiveConversationAsync(

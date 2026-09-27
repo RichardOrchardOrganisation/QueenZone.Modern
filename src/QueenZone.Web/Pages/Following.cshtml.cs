@@ -37,7 +37,7 @@ public sealed class FollowingModel(
             return NotFound();
         }
 
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge();
@@ -111,17 +111,5 @@ public sealed class FollowingModel(
         return followedIds
             .Where(id => !blocked.Contains(id) && active.Contains(id))
             .ToList();
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var directId = ForumMember.GetMemberId(User);
-        if (directId is not null)
-        {
-            return directId;
-        }
-
-        var memberAuth = await HttpContext.AuthenticateMemberAsync();
-        return memberAuth.Succeeded ? ForumMember.GetMemberId(memberAuth.Principal) : null;
     }
 }

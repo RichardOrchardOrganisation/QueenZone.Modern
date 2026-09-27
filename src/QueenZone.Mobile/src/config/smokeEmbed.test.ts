@@ -97,13 +97,10 @@ describe('applyAndroidManifestCleartextTraffic', () => {
 });
 
 describe('applyAndroidSmokeGradleProperties', () => {
-  it('replaces Expo\'s default Gradle heap for Release smoke packaging', () => {
+  it('reuses the always-on Gradle JVM helper instead of owning a smoke-only heap bump', () => {
     const properties = [
-      { type: 'comment', value: 'Project-wide Gradle settings.' },
       { type: 'property', key: 'org.gradle.jvmargs', value: '-Xmx2048m -XX:MaxMetaspaceSize=512m' },
-      { type: 'property', key: 'android.useAndroidX', value: 'true' },
     ];
-
     const patched = smokeEmbed.applyAndroidSmokeGradleProperties(properties) as {
       type: string;
       key?: string;
@@ -114,7 +111,6 @@ describe('applyAndroidSmokeGradleProperties', () => {
     assert.equal(jvmArgs.length, 1);
     assert.equal(jvmArgs[0]?.value, smokeEmbed.ANDROID_GRADLE_JVM_ARGS);
     assert.match(jvmArgs[0]?.value ?? '', /-Xmx6g/);
-    assert.ok(patched.some((item) => item.key === 'android.useAndroidX'));
   });
 });
 

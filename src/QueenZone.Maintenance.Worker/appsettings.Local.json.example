@@ -1,0 +1,6 @@
+{
+  "ConnectionStrings": {
+    "QueenZoneLegacy": "",
+    "BlobStorage": ""
+  }
+}

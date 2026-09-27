@@ -1,12 +1,14 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContentApiQuoteTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ContentApiQuoteTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -14,11 +16,19 @@ public sealed class ContentApiQuoteTests : IClassFixture<QueenZoneWebApplication
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
+    private readonly VariantWebApplicationFactory isolatedQuotes;
 
-    public ContentApiQuoteTests(QueenZoneWebApplicationFactory factory)
+    public ContentApiQuoteTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
+        isolatedQuotes = variants.Get(WebHostVariants.IsolatedQuotes);
     }
+
+    public Task InitializeAsync() => isolatedQuotes.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Random_quote_requires_no_auth_and_returns_a_published_quote()
@@ -36,12 +46,7 @@ public sealed class ContentApiQuoteTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task Random_quote_returns_json_null_when_nothing_is_published()
     {
-        using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IQuoteRepository>();
-            services.AddSingleton<IQuoteRepository>(new InMemoryQuoteRepository([]));
-        });
-        using var client = isolated.CreateAnonymousClient();
+        using var client = variants.Get(WebHostVariants.EmptyQuotes).CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/random");
 
@@ -52,15 +57,16 @@ public sealed class ContentApiQuoteTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task Quote_detail_returns_published_quote_with_context()
     {
-        using var isolated = IsolatedQuotes(
-            new QuoteItem(11, "A kind of magic", "Freddie Mercury", DateTime.UtcNow, true, "Live Aid, 1985"));
-        using var client = isolated.CreateAnonymousClient();
+        var quotes = isolatedQuotes.Services.GetRequiredService<IQuoteRepository>();
+        var id = await quotes.CreateAsync(
+            new AdminQuoteDraft("A kind of magic", "Freddie Mercury", true, "Live Aid, 1985"));
+        using var client = isolatedQuotes.CreateAnonymousClient();
 
-        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/11");
+        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/{id}");
 
         var payload = await ReadRandomQuoteJsonAsync<QuoteDto>(response);
         Assert.NotNull(payload);
-        Assert.Equal(11, payload.Id);
+        Assert.Equal(id, payload.Id);
         Assert.Equal("A kind of magic", payload.Text);
         Assert.Equal("Freddie Mercury", payload.WhoSaid);
         Assert.Equal("Live Aid, 1985", payload.Context);
@@ -69,39 +75,34 @@ public sealed class ContentApiQuoteTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task Quote_detail_omits_blank_context()
     {
-        using var isolated = IsolatedQuotes(
-            new QuoteItem(12, "We will rock you", "Brian May", DateTime.UtcNow, true, "   "));
-        using var client = isolated.CreateAnonymousClient();
+        var quotes = isolatedQuotes.Services.GetRequiredService<IQuoteRepository>();
+        var id = await quotes.CreateAsync(
+            new AdminQuoteDraft("We will rock you", "Brian May", true, "   "));
+        using var client = isolatedQuotes.CreateAnonymousClient();
 
-        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/12");
+        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/{id}");
 
         var payload = await ReadRandomQuoteJsonAsync<QuoteDto>(response);
         Assert.NotNull(payload);
-        Assert.Equal(12, payload.Id);
+        Assert.Equal(id, payload.Id);
         Assert.Null(payload.Context);
     }
 
     [Fact]
     public async Task Quote_detail_returns_404_for_unpublished_or_missing()
     {
-        using var isolated = IsolatedQuotes(
-            new QuoteItem(13, "Draft line", "Roger Taylor", DateTime.UtcNow, false, "Studio notes"));
-        using var client = isolated.CreateAnonymousClient();
+        var quotes = isolatedQuotes.Services.GetRequiredService<IQuoteRepository>();
+        var unpublishedId = await quotes.CreateAsync(
+            new AdminQuoteDraft("Draft line", "Roger Taylor", false, "Studio notes"));
+        using var client = isolatedQuotes.CreateAnonymousClient();
 
-        using var unpublished = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/13");
+        using var unpublished = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/{unpublishedId}");
         Assert.Equal(HttpStatusCode.NotFound, unpublished.StatusCode);
         Assert.Equal("application/problem+json", unpublished.Content.Headers.ContentType?.MediaType);
 
         using var missing = await client.GetAsync($"{ContentApiEndpoints.RootPath}/quotes/424242");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
-
-    private static QueenZoneWebApplicationFactory IsolatedQuotes(params QuoteItem[] quotes) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IQuoteRepository>();
-            services.AddSingleton<IQuoteRepository>(new InMemoryQuoteRepository(quotes));
-        });
 
     private static async Task<T?> ReadRandomQuoteJsonAsync<T>(HttpResponseMessage response)
     {

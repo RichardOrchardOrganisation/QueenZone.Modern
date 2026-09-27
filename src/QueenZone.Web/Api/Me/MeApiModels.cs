@@ -48,10 +48,13 @@ public sealed record ClaimLegacyRequest(
     int? LegacyUserId,
     bool AdoptDisplayName = true);
 
-public sealed record DeletionRequestBody(string? Confirmation);
+public sealed record DeletionRequestBody(string? Confirmation, bool Immediate = false);
 
 public sealed record DeletionRequestedResponse(
     bool Requested,
-    DateTimeOffset ScheduledDeletionAt,
+    DateTimeOffset? ScheduledDeletionAt,
     string Title,
-    string Message);
+    string Message,
+    string? StatusReceipt = null);
+
+public sealed record DeletionProgressResponse(string Status);

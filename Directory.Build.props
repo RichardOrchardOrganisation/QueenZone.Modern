@@ -6,20 +6,4 @@
     <SixLaborsLicenseKey>$(SIXLABORS_LICENSE_KEY)</SixLaborsLicenseKey>
   </PropertyGroup>
 
-  <!--
-    NuGet audit suppressions for known advisories with no available upgrade path.
-    Review this list whenever HtmlSanitizer or EF Core SQLite release a new minor/patch version.
-  -->
-  <ItemGroup>
-    <!--
-      AngleSharp 0.17.1 — GHSA-pgww-w46g-26qg (moderate: potential DoS / memory corruption via crafted HTML).
-      HtmlSanitizer 9.0.892 (latest) depends on AngleSharp 0.17.1; no upgrade available until HtmlSanitizer
-      ships a version that targets AngleSharp 1.x. Adding a direct reference to AngleSharp 1.x would break
-      HtmlSanitizer at runtime due to the 0.x→1.x API break. Risk: DoS via large/crafted HTML input.
-      Mitigating controls: request body size limits (ASP.NET Core default 28 MB) and in-app rate limiting.
-      Owner: package-maintainer dependency — track HtmlSanitizer release notes for the AngleSharp 1.x update.
-    -->
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
-  </ItemGroup>
-
 </Project>

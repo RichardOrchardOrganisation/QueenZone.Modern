@@ -182,12 +182,18 @@ public sealed class EfTriviaFactSubmissionRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task RejectAsync_requires_a_reason()
+    public async Task RejectAsync_requires_a_reason_and_does_not_corrupt_status()
     {
         var created = await repository.CreateAsync(NewSubmission(Guid.NewGuid(), "Need reason", null));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             repository.RejectAsync(created.Id, "admin@test.local", "  ", null));
+        Assert.Equal(TriviaFactSubmissionStatus.Pending, (await repository.GetByIdAsync(created.Id))!.Status);
+
+        var rejected = await repository.RejectAsync(created.Id, "admin@test.local", "Needs a source", "internal");
+        Assert.Equal(TriviaFactSubmissionStatus.Rejected, rejected!.Status);
+        Assert.Equal("Needs a source", rejected.RejectionReason);
+        Assert.Equal("internal", rejected.ReviewNotes);
     }
 
     [Fact]

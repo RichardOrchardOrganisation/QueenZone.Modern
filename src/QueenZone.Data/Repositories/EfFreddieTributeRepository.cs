@@ -8,42 +8,21 @@ public sealed class EfFreddieTributeRepository : IFreddieTributeRepository
     private readonly QueenZoneDbContext dbContext;
     private readonly string pageSql;
     private readonly string countSql;
-    private readonly string randomSql;
+    private readonly string idBoundsSql;
+    private readonly string idSeekAtOrAfterSql;
+    private readonly string idSeekBeforeSql;
+    private readonly string byIdSql;
 
     [ExcludeFromCodeCoverage]
     public EfFreddieTributeRepository(QueenZoneDbContext dbContext)
         : this(
             dbContext,
-            """
-            SELECT
-                ID AS Id,
-                LTRIM(RTRIM(ISNULL(Name, 'Anonymous'))) AS Name,
-                LTRIM(RTRIM(ISNULL(Thought, ''))) AS Thought,
-                NULLIF(LTRIM(RTRIM(ISNULL(Country, ''))), '') AS Country,
-                LTRIM(RTRIM(ISNULL(Freddie_Date, ''))) AS DateText,
-                NULLIF(LTRIM(RTRIM(ISNULL(Freddie_Time, ''))), '') AS TimeText
-            FROM dbo.FREDDIE_T
-            WHERE DISPLAY = 1 AND NULLIF(LTRIM(RTRIM(ISNULL(Thought, ''))), '') IS NOT NULL
-            ORDER BY ID DESC
-            OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY
-            """,
-            """
-            SELECT COUNT(*) AS Value
-            FROM dbo.FREDDIE_T
-            WHERE DISPLAY = 1 AND NULLIF(LTRIM(RTRIM(ISNULL(Thought, ''))), '') IS NOT NULL
-            """,
-            """
-            SELECT TOP (1)
-                ID AS Id,
-                LTRIM(RTRIM(ISNULL(Name, 'Anonymous'))) AS Name,
-                LTRIM(RTRIM(ISNULL(Thought, ''))) AS Thought,
-                NULLIF(LTRIM(RTRIM(ISNULL(Country, ''))), '') AS Country,
-                LTRIM(RTRIM(ISNULL(Freddie_Date, ''))) AS DateText,
-                NULLIF(LTRIM(RTRIM(ISNULL(Freddie_Time, ''))), '') AS TimeText
-            FROM dbo.FREDDIE_T
-            WHERE DISPLAY = 1 AND NULLIF(LTRIM(RTRIM(ISNULL(Thought, ''))), '') IS NOT NULL
-            ORDER BY NEWID()
-            """)
+            FreddieTributeSql.PageSql,
+            FreddieTributeSql.CountSql,
+            FreddieTributeSql.IdBoundsSql,
+            FreddieTributeSql.IdSeekAtOrAfterSql,
+            FreddieTributeSql.IdSeekBeforeSql,
+            FreddieTributeSql.ByIdSql)
     {
     }
 
@@ -51,12 +30,18 @@ public sealed class EfFreddieTributeRepository : IFreddieTributeRepository
         QueenZoneDbContext dbContext,
         string pageSql,
         string countSql,
-        string randomSql)
+        string idBoundsSql,
+        string idSeekAtOrAfterSql,
+        string idSeekBeforeSql,
+        string byIdSql)
     {
         this.dbContext = dbContext;
         this.pageSql = pageSql;
         this.countSql = countSql;
-        this.randomSql = randomSql;
+        this.idBoundsSql = idBoundsSql;
+        this.idSeekAtOrAfterSql = idSeekAtOrAfterSql;
+        this.idSeekBeforeSql = idSeekBeforeSql;
+        this.byIdSql = byIdSql;
     }
 
     public async Task<FreddieTributePage> GetPageAsync(
@@ -81,12 +66,46 @@ public sealed class EfFreddieTributeRepository : IFreddieTributeRepository
 
     public async Task<FreddieTribute?> GetRandomAsync(CancellationToken cancellationToken = default)
     {
-        var rows = await dbContext.Database
-            .SqlQueryRaw<FreddieTributeRow>(randomSql)
-            .ToListAsync(cancellationToken);
+        var id = await PickRandomVisibleIdAsync(cancellationToken);
+        return id is int value ? await GetVisibleByIdAsync(value, cancellationToken) : null;
+    }
 
+    public async Task<int?> PickRandomVisibleIdAsync(CancellationToken cancellationToken = default)
+    {
+        var bounds = await dbContext.Database
+            .SqlQueryRaw<IdBoundsRow>(idBoundsSql)
+            .ToListAsync(cancellationToken);
+        var range = bounds.FirstOrDefault();
+        if (range?.MinId is not int minId || range.MaxId is not int maxId)
+        {
+            return null;
+        }
+
+        var target = IndexedIdRange.NextTarget(minId, maxId);
+        var atOrAfter = await SeekIdAsync(idSeekAtOrAfterSql, target, cancellationToken);
+        if (atOrAfter is int id)
+        {
+            return id;
+        }
+
+        return await SeekIdAsync(idSeekBeforeSql, target, cancellationToken);
+    }
+
+    public async Task<FreddieTribute?> GetVisibleByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.Database
+            .SqlQueryRaw<FreddieTributeRow>(byIdSql, id)
+            .ToListAsync(cancellationToken);
         var row = rows.FirstOrDefault();
         return row is null ? null : Map(row);
+    }
+
+    private async Task<int?> SeekIdAsync(string seekSql, int targetId, CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.Database
+            .SqlQueryRaw<IntValueRow>(seekSql, targetId)
+            .ToListAsync(cancellationToken);
+        return rows.FirstOrDefault() is { } row && row.Value > 0 ? row.Value : null;
     }
 
     private static FreddieTribute Map(FreddieTributeRow row) =>
@@ -116,6 +135,13 @@ public sealed class EfFreddieTributeRepository : IFreddieTributeRepository
     private sealed class IntValueRow
     {
         public int Value { get; set; }
+    }
+
+    private sealed class IdBoundsRow
+    {
+        public int? MinId { get; set; }
+
+        public int? MaxId { get; set; }
     }
 }
 

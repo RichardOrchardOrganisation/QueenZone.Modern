@@ -11,7 +11,7 @@ public sealed class NullGalleryPhotoBlobServiceTests
         await service.UploadAsync("queen", "photo.webp", new MemoryStream([1, 2, 3]), "image/webp");
         await service.UploadAsync("brian-may", "other.webp", new MemoryStream([4, 5, 6]), "image/webp");
 
-        var blobs = await service.ListBlobsAsync("queen");
+        var blobs = await service.ListBlobsAsync("queen").ToListAsync();
 
         var blob = Assert.Single(blobs);
         Assert.Equal("photo.webp", blob.BlobName);
@@ -23,7 +23,7 @@ public sealed class NullGalleryPhotoBlobServiceTests
     {
         var service = new NullGalleryPhotoBlobService();
 
-        var blobs = await service.ListBlobsAsync("does-not-exist");
+        var blobs = await service.ListBlobsAsync("does-not-exist").ToListAsync();
 
         Assert.Empty(blobs);
     }
@@ -36,7 +36,7 @@ public sealed class NullGalleryPhotoBlobServiceTests
 
         await service.DeleteAsync("queen", "photo.webp");
 
-        Assert.Empty(await service.ListBlobsAsync("queen"));
+        Assert.Empty(await service.ListBlobsAsync("queen").ToListAsync());
     }
 
     private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider

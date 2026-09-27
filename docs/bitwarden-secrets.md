@@ -104,6 +104,8 @@ b6a94e02-3243-411f-8e32-b4af00ce2522 > MOBILE_AUTH_SIGNING_KEY
 
 ```yaml
 b6a94e02-3243-411f-8e32-b4af00ce2522 > MOBILE_AUTH_SIGNING_KEY
+a4e62bc3-f5f8-47b5-be33-b4ce00f089c6 > GMAIL_APP_PASSWORD
+59537bd5-40f7-497a-87d1-b4ce00f141e5 > GMAIL_APP_USERNAME
 ```
 
 `prod-data-read` mapping:
@@ -129,6 +131,24 @@ App Service setting automatically.
 to the same-named App Service setting before every web deployment, including rotations, and fails before
 deployment if the mapped value is missing or shorter than 32 characters.
 
+Outbound contact notifications and immediate account deletion confirmations use Gmail SMTP. Both
+`dev-deploy` and `prod-deploy` map the existing Bitwarden entries below through
+`BITWARDEN_APP_SERVICE_DEPLOY_SECRETS`. The deploy workflows reconcile them to the App Service
+settings `SmtpEmail__Username` and `SmtpEmail__AppPassword`; `SmtpEmail__FromAddress` is set
+to `support@queenzone.org`. The contact recipient is `HelpRequests__NotificationAddress`
+(defaulting to the same support address). The username authenticates the
+Gmail account and is deliberately separate from the verified send-as alias.
+
+```yaml
+a4e62bc3-f5f8-47b5-be33-b4ce00f089c6 > GMAIL_APP_PASSWORD
+59537bd5-40f7-497a-87d1-b4ce00f141e5 > GMAIL_APP_USERNAME
+```
+
+The app uses `smtp.gmail.com:587` with TLS. Keep the Gmail app password in Bitwarden only;
+rotate its value in place so the mapping UUID remains stable. A failed SMTP send is logged
+without an address or message body and does not undo an already stored contact request or
+account deletion. Verify delivery and the displayed From address after deployment.
+
 ### `BITWARDEN_IOS_RUNNER_SECRETS`
 
 Used only by `.github/workflows/ci.yml` (`mobile-ios-runner`). Store this mapping
@@ -137,6 +157,76 @@ as a repository variable after creating the Bitwarden secret:
 ```yaml
 <IOS_RUNNER_ADMIN_TOKEN_BITWARDEN_SECRET_ID> > IOS_RUNNER_ADMIN_TOKEN
 ```
+
+### `BITWARDEN_DEV_AUTH_E2E_SECRETS`
+
+Used by `.github/workflows/dev-member-auth-e2e.yml` (`member-auth` on `dev-deploy`) to fetch the
+synthetic curated-snapshot member password for the password `DeployedAuth` browser check
+(`https://dev.queenzone.org` only). See [`docs/architecture/testing-policy.md`](architecture/testing-policy.md)
+("Deployed dev member authentication").
+
+Store this mapping as a **repository** variable. The left-hand side is the Bitwarden secret ID
+for the existing `DEV_SNAPSHOT_MEMBER_PASSWORD` secret in the `Queenzone Development` project
+(the same secret the snapshot refresh maps through `BITWARDEN_DEV_SNAPSHOT_SECRETS`):
+
+```yaml
+<DEV_SNAPSHOT_MEMBER_PASSWORD_SECRET_UUID> > DEV_SNAPSHOT_MEMBER_PASSWORD
+```
+
+The workflow reads `steps.member-secret.outputs.DEV_SNAPSHOT_MEMBER_PASSWORD` into
+`DEV_AUTH_E2E_PASSWORD` for the test step only. Do not commit the password, echo it, or upload
+Playwright traces, screenshots, videos, or HAR files from that job — those can contain the
+password form. This mapping is DEV-only. There is no production password auth e2e.
+
+**Rotation:** update the `DEV_SNAPSHOT_MEMBER_PASSWORD` value in Bitwarden in place. Keep the
+secret UUID. Leave `BITWARDEN_DEV_AUTH_E2E_SECRETS` unchanged. After a snapshot refresh that
+writes a new synthetic member password, the Bitwarden value and the row in `queenzone-dev-db`
+must match; changing one without the other breaks the password job.
+
+### `BITWARDEN_DEV_AUTH_GOOGLE_E2E_SECRETS`
+
+Scaffolding for the planned DEV Google OAuth `DeployedAuth` check
+([#1614](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1614)).
+**Values are not live.** Richard will designate a dedicated Google account with **2FA disabled**.
+Do not create the Bitwarden secrets or the GitHub variable until that account exists. Do not
+start Playwright until Bitwarden holds those credentials. No production OAuth e2e.
+
+Intended Bitwarden secret **names** in the `Queenzone Development` project:
+
+| Bitwarden secret name | Workflow output / env name | Purpose |
+| --- | --- | --- |
+| `DEV_AUTH_GOOGLE_E2E_EMAIL` | `DEV_AUTH_GOOGLE_E2E_EMAIL` | Dedicated Google test account email |
+| `DEV_AUTH_GOOGLE_E2E_PASSWORD` | `DEV_AUTH_GOOGLE_E2E_PASSWORD` | That account's password |
+
+Intended GitHub **repository** variable `BITWARDEN_DEV_AUTH_GOOGLE_E2E_SECRETS` (UUID → name;
+placeholder IDs until ops fills real secret IDs):
+
+```yaml
+<EMAIL_SECRET_UUID> > DEV_AUTH_GOOGLE_E2E_EMAIL
+<PASSWORD_SECRET_UUID> > DEV_AUTH_GOOGLE_E2E_PASSWORD
+```
+
+**Account rules:** dedicated Google account only; 2FA off on that account; not a personal or
+daily account; no app passwords; no interactive 2FA. Do not automate against a personal Google
+account.
+
+**Job contract (for the later workflow, not implemented here):** fetch these secrets only
+inside a `dev-deploy` (or equivalent) gated job, the same way the password check uses
+`bitwarden/sm-action` + `BITWARDEN_DEV_AUTH_E2E_SECRETS`. Keep the Google job or filter
+separate from the password `DeployedAuth` path. If this variable or either mapped value is
+missing, **skip the Google job cleanly** so the password journey is unaffected. Target
+`https://dev.queenzone.org` only.
+
+**Hygiene:** never commit values; never echo; never upload traces, videos, screenshots, or HAR
+that can contain the Google password form. Same fixture style as `DeployedMemberAuthTests`
+(do not use `E2EPageTest` artifact upload paths).
+
+**Rotation:** when the dedicated Google password (or email) changes, update the Bitwarden
+secret **value in place**. Keep the secret UUID. Leave `BITWARDEN_DEV_AUTH_GOOGLE_E2E_SECRETS`
+unchanged. Verify by secret name and value length only.
+
+**Out of scope:** Microsoft / Discord / GitHub / Apple provider e2e; production OAuth e2e;
+expanding the password journey.
 
 ## APNs push credential
 
@@ -265,7 +355,7 @@ Bitwarden is verified; never add the JSON directly to GitHub Actions secrets or 
 ## Rotation and break-glass (App Service settings)
 
 [ADR 0008](decisions/0008-app-service-settings-ownership.md) keeps App Service application settings outside
-OpenTofu (Option A of [#618](https://github.com/richardorchard/QueenZone.Modern/issues/618)), so rotation and
+OpenTofu (Option A of [#618](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/618)), so rotation and
 break-glass for those settings stay entirely inside the Bitwarden/Azure/GitHub workflow described here — there is
 no OpenTofu apply/plan step to run or wait on.
 

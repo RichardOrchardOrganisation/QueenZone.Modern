@@ -19,15 +19,9 @@ public static class FanPerformanceSubmissionStatus
         Withdrawn,
     ];
 
-    public static bool IsKnown(string? status) =>
-        !string.IsNullOrWhiteSpace(status)
-        && All.Contains(status.Trim(), StringComparer.OrdinalIgnoreCase);
+    internal static readonly SubmissionStatusSet Statuses = new("fan-performance submission", All);
 
-    public static string Normalize(string status)
-    {
-        var match = All.FirstOrDefault(s =>
-            string.Equals(s, status.Trim(), StringComparison.OrdinalIgnoreCase));
-        return match
-            ?? throw new ArgumentException($"Unknown fan-performance submission status '{status}'.", nameof(status));
-    }
+    public static bool IsKnown(string? status) => Statuses.IsKnown(status);
+
+    public static string Normalize(string status) => Statuses.Normalize(status);
 }

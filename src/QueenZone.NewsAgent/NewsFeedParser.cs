@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml;
+using QueenZone.Data;
 
 namespace QueenZone.NewsAgent;
 
@@ -279,7 +280,7 @@ public static partial class NewsFeedParser
     }
 
     private static string StripHtml(string value) =>
-        HtmlTagRegex().Replace(value, " ").Trim();
+        HtmlTags.Pattern().Replace(value, " ").Trim();
 
     private static bool TryParseFeedDate(string value, out DateTime parsed)
     {
@@ -290,9 +291,6 @@ public static partial class NewsFeedParser
 
         return DateTime.TryParse(value, CultureInfo.GetCultureInfo("en-US"), DateTimeStyles.AssumeUniversal, out parsed);
     }
-
-    [GeneratedRegex("<[^>]+>", RegexOptions.CultureInvariant)]
-    private static partial Regex HtmlTagRegex();
 
     [GeneratedRegex("""href\s*=\s*["']([^"']+)["']""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HrefRegex();

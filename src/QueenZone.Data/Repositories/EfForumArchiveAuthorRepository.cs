@@ -57,17 +57,30 @@ public sealed class EfForumArchiveAuthorRepository : IForumArchiveAuthorReposito
         pageSize = Math.Clamp(pageSize, 1, 100);
         totalCount = Math.Max(totalCount, 0);
 
-        var query = dbContext.ModernForumPosts
+        // Page over the narrow author index before loading BodyHtml and joining threads.
+        // A prolific author's thousands of large posts must not be fetched just to sort
+        // and discard all but the requested page.
+        var pageIds = await dbContext.ModernForumPosts
             .AsNoTracking()
-            .Where(post => post.AuthorLegacyUserId == legacyUserId && !post.IsHidden && post.Thread != null);
-
-        var rows = await query
+            .Where(post => post.AuthorLegacyUserId == legacyUserId && !post.IsHidden)
             .OrderByDescending(post => post.PostedAt)
             .ThenByDescending(post => post.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(post => post.Id)
+            .ToListAsync(cancellationToken);
+
+        if (pageIds.Count == 0)
+        {
+            return new MemberPublicActivityPage([], totalCount, page, pageSize);
+        }
+
+        var rows = await dbContext.ModernForumPosts
+            .AsNoTracking()
+            .Where(post => pageIds.Contains(post.Id) && post.Thread != null)
             .Select(post => new
             {
+                post.Id,
                 post.LegacyPostId,
                 post.LegacyThreadTopicId,
                 ThreadTitle = post.Thread!.Title,
@@ -77,12 +90,15 @@ public sealed class EfForumArchiveAuthorRepository : IForumArchiveAuthorReposito
             })
             .ToListAsync(cancellationToken);
 
-        var items = rows
+        var rowsById = rows.ToDictionary(row => row.Id);
+        var items = pageIds
+            .Where(rowsById.ContainsKey)
+            .Select(id => rowsById[id])
             .Select(row => new MemberPublicActivityItem(
                 MemberPublicActivityType.ForumPost,
                 row.ThreadTitle,
                 row.BodyHtml,
-                ToOffset(row.PostedAt),
+                LegacyDateTime.ToOffset(row.PostedAt),
                 row.LegacyPostId,
                 row.LegacyThreadTopicId,
                 NewsSlug.Slugify(row.ThreadTitle),
@@ -91,9 +107,6 @@ public sealed class EfForumArchiveAuthorRepository : IForumArchiveAuthorReposito
 
         return new MemberPublicActivityPage(items, totalCount, page, pageSize);
     }
-
-    private static DateTimeOffset ToOffset(DateTime? value) =>
-        new(DateTime.SpecifyKind(value ?? DateTime.MinValue, DateTimeKind.Utc));
 
     internal sealed class ArchiveAuthorSummaryRow
     {

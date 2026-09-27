@@ -31,7 +31,6 @@ public sealed class IndexModel(AdminReviewerAccountService reviewerAccounts) : A
             Input.Email,
             Input.DisplayName,
             Input.Password,
-            EditorEmail,
             cancellationToken);
         if (!result.Succeeded)
         {

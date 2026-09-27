@@ -145,21 +145,6 @@ public sealed class EfHomePollRepositoryTests : IAsyncDisposable
         Assert.Equal(HomePollException.HasVotes, ex.Code);
     }
 
-    [Fact]
-    public void IsUniqueConstraintViolation_detects_sqlite_and_sql_server_messages()
-    {
-        var sqlite = new DbUpdateException(
-            "fail",
-            new Exception("UNIQUE constraint failed: HomePollVotes.PollId"));
-        var sqlServer = new DbUpdateException(
-            "fail",
-            new Exception("Cannot insert duplicate key row in object with unique index"));
-        Assert.True(EfHomePollRepository.IsUniqueConstraintViolation(sqlite));
-        Assert.True(EfHomePollRepository.IsUniqueConstraintViolation(sqlServer));
-        Assert.False(EfHomePollRepository.IsUniqueConstraintViolation(
-            new DbUpdateException("other", new Exception("timeout"))));
-    }
-
     public async ValueTask DisposeAsync()
     {
         await dbContext.DisposeAsync();

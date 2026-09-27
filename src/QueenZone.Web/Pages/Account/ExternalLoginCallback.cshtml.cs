@@ -6,7 +6,9 @@ using QueenZone.Web.Infrastructure;
 
 namespace QueenZone.Web.Pages.Account;
 
-public sealed class ExternalLoginCallbackModel(MemberAccountService memberAccountService) : PageModel
+public sealed class ExternalLoginCallbackModel(
+    MemberAccountService memberAccountService,
+    AppleAccountTokenService appleTokens) : PageModel
 {
     public async Task<IActionResult> OnGetAsync(string? returnUrl, CancellationToken cancellationToken)
     {
@@ -16,33 +18,86 @@ public sealed class ExternalLoginCallbackModel(MemberAccountService memberAccoun
             return Redirect("/account/login");
         }
 
-        var provider = externalResult.Principal.Identities.First().AuthenticationType
+        var principal = externalResult.Principal;
+        var provider = principal.Identities.First().AuthenticationType
             ?? throw new InvalidOperationException("External login is missing its provider scheme name.");
-        var providerKey = externalResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier)
+        var providerKey = principal.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("External login did not return a subject id.");
-        var email = externalResult.Principal.FindFirstValue(ClaimTypes.Email)
-            ?? throw new InvalidOperationException("External login did not return an email address.");
-        var displayName = externalResult.Principal.FindFirstValue(ClaimTypes.Name) ?? email;
+        var email = principal.FindFirstValue(ClaimTypes.Email);
+        var displayName = principal.FindFirstValue(ClaimTypes.Name) ?? email ?? provider;
+        var emailVerified = ExternalLoginEmail.IsVerified(provider, principal);
+        var appleRefreshToken = string.Equals(provider, MemberAuthenticationSchemes.Apple, StringComparison.OrdinalIgnoreCase)
+            ? externalResult.Properties?.GetTokenValue("refresh_token")
+            : null;
+        var protectedAppleToken = string.IsNullOrWhiteSpace(appleRefreshToken)
+            ? null
+            : appleTokens.Protect(appleRefreshToken);
+        var safeReturnUrl = LocalReturnUrl.Resolve(returnUrl);
 
-        var account = await memberAccountService.FindOrCreateFromExternalLoginAsync(
-            provider, providerKey, email, displayName, cancellationToken);
+        var resolution = await memberAccountService.FindOrCreateFromExternalLoginAsync(
+            provider,
+            providerKey,
+            email,
+            displayName,
+            emailVerified,
+            cancellationToken);
 
+        var pending = await ExternalLoginLinkCookie.ReadAsync(HttpContext);
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
 
-        if (account.IsSuspended)
+        if (pending is not null)
         {
-            return Redirect("/account/login?suspended=1");
+            return await ResumePendingLinkAsync(resolution, pending);
         }
 
-        var claims = new[]
+        switch (resolution.Status)
         {
-            new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()),
-            new Claim(ClaimTypes.Email, account.Email),
-            new Claim(ClaimTypes.Name, account.DisplayName),
-        };
-        var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie);
-        await HttpContext.SignInAsync(MemberAuthenticationSchemes.MembersCookie, new ClaimsPrincipal(identity));
+            case ExternalLoginStatus.SignedIn when resolution.Account is not null:
+                if (protectedAppleToken is not null)
+                {
+                    await appleTokens.SaveProtectedAsync(
+                        resolution.Account.Id, providerKey, protectedAppleToken, cancellationToken);
+                }
+                await MemberCookieSignIn.SignInAsync(HttpContext, resolution.Account);
+                return Redirect(safeReturnUrl);
+            case ExternalLoginStatus.LinkConfirmationRequired:
+                await ExternalLoginLinkCookie.SignInAsync(
+                    HttpContext,
+                    new PendingExternalLink(
+                        MemberAuthenticationSchemes.NormalizeExternalProvider(provider) ?? provider,
+                        providerKey,
+                        email ?? string.Empty,
+                        displayName,
+                        safeReturnUrl,
+                        MobileRequestId: null,
+                        ProtectedAppleRefreshToken: protectedAppleToken));
+                return Redirect(ExternalLoginLinkCookie.PagePath);
+            case ExternalLoginStatus.Suspended:
+                return Redirect("/account/login?suspended=1");
+            default:
+                return Redirect("/account/login?externalEmail=unverified");
+        }
+    }
 
-        return Redirect(LocalReturnUrl.Resolve(returnUrl));
+    private async Task<IActionResult> ResumePendingLinkAsync(
+        ExternalLoginResolution resolution,
+        PendingExternalLink pending)
+    {
+        var matched = resolution.Status == ExternalLoginStatus.SignedIn
+            && resolution.Account is not null
+            && ExternalLoginEmail.EmailsMatch(pending.Email, resolution.Account.Email);
+        if (matched && resolution.Account is not null)
+        {
+            await MemberCookieSignIn.SignInAsync(HttpContext, resolution.Account);
+            return Redirect(ExternalLoginLinkCookie.PagePath);
+        }
+
+        var error = resolution.Status switch
+        {
+            ExternalLoginStatus.Suspended => "suspended",
+            ExternalLoginStatus.UnverifiedEmail => "unverified",
+            _ => "provider",
+        };
+        return Redirect($"{ExternalLoginLinkCookie.PagePath}?linkError={error}");
     }
 }

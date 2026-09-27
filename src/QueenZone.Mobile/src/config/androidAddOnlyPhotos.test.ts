@@ -46,7 +46,7 @@ describe('add-only Photos plugin config', () => {
     assert.equal(mediaLibrary[1].photosPermission, false);
     assert.equal(
       mediaLibrary[1].savePhotosPermission,
-      'Allow QueenZone to save pictures to your photo library.',
+      'QueenZone adds a picture to your photo library when you tap Save, for example to keep a Queen gallery photo on your device.',
     );
     assert.deepEqual(mediaLibrary[1].granularPermissions, []);
     assert.notEqual(mediaLibrary[1].savePhotosPermission, imagePicker[1].photosPermission);

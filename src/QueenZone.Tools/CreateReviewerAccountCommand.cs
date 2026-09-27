@@ -69,16 +69,14 @@ internal static class CreateReviewerAccountCommand
         return 0;
     }
 
-    private static void WriteUsage(string errorMessage)
-    {
-        Console.Error.WriteLine(errorMessage);
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project src/QueenZone.Tools -- create-reviewer-account --email <email> --password <password> --display-name <name> --connection-string <connection-string>");
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("Connection string can also be supplied with ConnectionStrings__QueenZoneLegacy.");
-        Console.Error.WriteLine("Creates the member account if it does not exist, or resets its password (and un-suspends it) if it does.");
-    }
+    private static void WriteUsage(string errorMessage) =>
+        ToolArgs.WriteUsage(
+            errorMessage,
+            "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- create-reviewer-account --email <email> --password <password> --display-name <name> --connection-string <connection-string>",
+            "",
+            "Connection string can also be supplied with ConnectionStrings__QueenZoneLegacy.",
+            "Creates the member account if it does not exist, or resets its password (and un-suspends it) if it does.");
 }
 
 internal sealed class CreateReviewerAccountOptions

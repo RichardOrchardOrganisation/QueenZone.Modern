@@ -22,6 +22,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "Azure migration target capacity self-test failed."
 }
 
+& (Join-Path $PSScriptRoot "Test-OpenTofuPostApplySmoke.ps1") -SelfTest
+if ($LASTEXITCODE -ne 0) {
+    throw "OpenTofu post-apply smoke self-test failed."
+}
+
 & $tofu.Source fmt -check -recursive $infraPath
 if ($LASTEXITCODE -ne 0) {
     throw "OpenTofu formatting failed."

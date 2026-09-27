@@ -1,14 +1,9 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
-using QueenZone.Data.Entities;
 using QueenZone.Storage;
 using QueenZone.Web;
 using QueenZone.Web.Pages.Admin.Articles;
@@ -18,25 +13,28 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class ArticleSubmitRoutesTests :
+    IClassFixture<ExternalCookieWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
+    private readonly ExternalCookieWebApplicationFactory resettableFactory;
+    private readonly WebHostVariantCache variants;
 
-    public ArticleSubmitRoutesTests(WebApplicationFactory<Program> factory)
+    public ArticleSubmitRoutesTests(
+        ExternalCookieWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
+        resettableFactory = factory;
+        this.variants = variants;
     }
+
+    public Task InitializeAsync() => resettableFactory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task GetSubmitArticle_RedirectsAnonymousUser()
@@ -101,6 +99,9 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
         Assert.Contains("Author", body);
         Assert.Contains("Category", body);
         Assert.Contains("Tags", body);
+        Assert.Contains("for=\"article-image-file\"", body);
+        Assert.Contains("id=\"article-image-file\"", body);
+        Assert.Contains(">Article image</label>", body);
     }
 
     [Fact]
@@ -131,7 +132,7 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_can_save_cropped_image_on_legacy_editor_url()
     {
-        using var isolated = factory.WithWebHostBuilder(_ => { });
+        var isolated = factory;
         var admin = AdminHttpTestHelpers.CreateClient(isolated, AdminEmail);
         var formPath = "/admin/articles/editor?legacyId=101";
         var response = await PostEditorialImageAsync(
@@ -171,7 +172,7 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_can_save_cropped_image_on_create_and_guid_editor()
     {
-        using var isolated = factory.WithWebHostBuilder(_ => { });
+        var isolated = factory;
         var admin = AdminHttpTestHelpers.CreateClient(isolated, AdminEmail);
         var create = await PostEditorialImageAsync(
             admin,
@@ -241,7 +242,7 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_can_save_large_legacy_body_and_cropped_image_on_form_action()
     {
-        using var isolated = factory.WithWebHostBuilder(_ => { });
+        var isolated = factory;
         var admin = AdminHttpTestHelpers.CreateClient(isolated, AdminEmail);
         var largeBody = LargeLegacyBody();
         var fields = LegacyImageFields(largeBody);
@@ -278,7 +279,7 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_save_large_legacy_body_to_legacyId_query_is_not_400()
     {
-        using var isolated = factory.WithWebHostBuilder(_ => { });
+        var isolated = factory;
         var admin = AdminHttpTestHelpers.CreateClient(isolated, AdminEmail);
         var response = await PostEditorialImageAsync(
             admin,
@@ -415,7 +416,7 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_can_draft_and_publish_legacy_article_without_changing_its_id()
     {
-        using var isolated = factory.WithWebHostBuilder(_ => { });
+        var isolated = factory;
         var admin = AdminHttpTestHelpers.CreateClient(isolated, AdminEmail);
         var formPath = "/admin/articles/editor?legacyId=101";
         var response = await AdminHttpTestHelpers.PostArticleAsync(admin, formPath, "/admin/articles/editor", new()
@@ -470,7 +471,7 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_prepare_edit_and_publish_member_submission()
     {
-        using var isolated = factory.WithWebHostBuilder(_ => { });
+        var isolated = factory;
         var member = await CreateSignedInMemberClientAsync(
             email: "article-prepare@example.com",
             displayName: "Prepare Author",
@@ -528,7 +529,7 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_prepare_with_stale_antiforgery_token_redisplays_review_instead_of_400()
     {
-        using var isolated = factory.WithWebHostBuilder(_ => { });
+        var isolated = factory;
         var member = await CreateSignedInMemberClientAsync(
             email: "article-prepare-stale@example.com",
             displayName: "Stale Prepare Author",
@@ -772,15 +773,8 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
     [Fact]
     public async Task Admin_ApproveAndPublish_StillSucceeds_WhenSearchIndexFails()
     {
-        var failingFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<ISearchIndexService>();
-                services.AddSingleton<ISearchIndexService>(new ThrowingSearchIndexService());
-            });
-        });
+        var failingFactory = variants.Get(WebHostVariants.ExternalCookieThrowingSearchIndex);
+        await failingFactory.ResetAsync();
 
         var memberClient = await CreateSignedInMemberClientAsync(
             email: "article-search-failure@example.com",
@@ -814,25 +808,6 @@ public sealed partial class ArticleSubmitRoutesTests : IClassFixture<WebApplicat
         Assert.Equal(HttpStatusCode.Redirect, publishResponse.StatusCode);
         var repository = failingFactory.Services.GetRequiredService<IArticleSubmissionRepository>();
         Assert.Equal(ArticleSubmissionStatus.Published, (await repository.GetByIdAsync(publishId))!.Status);
-    }
-
-    private sealed class ThrowingSearchIndexService : ISearchIndexService
-    {
-        public Task UpsertAsync(SearchDocumentEntity document, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
-
-        public Task RemoveAsync(string sourceKey, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
-
-        public Task ReplaceContentTypeAsync(
-            string contentType,
-            IReadOnlyList<SearchDocumentEntity> documents,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
-
-        public Task<IReadOnlyDictionary<string, int>> GetContentTypeCountsAsync(
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
     }
 
     [Fact]

@@ -39,6 +39,23 @@ public sealed class HelpRequestServiceTests
     }
 
     [Fact]
+    public async Task SubmitAsync_EmailsSupportAfterStoringRequest()
+    {
+        var sender = new RecordingEmailSender();
+        var harness = CreateHarness(emailSender: sender);
+
+        var result = await harness.Service.SubmitAsync(
+            null, HelpRequestTopic.Technical, "Cannot open a forum topic",
+            "The topic page returns an error when I click the latest thread.",
+            "Alex Fan", "alex@example.com", null, harness.Service.IssueFormStamp(), "203.0.113.20");
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("support@queenzone.org", sender.To);
+        Assert.Equal("alex@example.com", sender.ReplyTo);
+        Assert.Contains("Cannot open a forum topic", sender.Body);
+    }
+
+    [Fact]
     public async Task SubmitAsync_UsesMemberSnapshotAndHidesGuestFields()
     {
         var harness = CreateHarness();
@@ -246,7 +263,8 @@ public sealed class HelpRequestServiceTests
     private static Harness CreateHarness(
         int dwellSeconds = 0,
         int maxPerEmail = 2,
-        int maxPerMember = 5)
+        int maxPerMember = 5,
+        IEmailSender? emailSender = null)
     {
         var repository = new InMemoryHelpRequestRepository();
         var members = new InMemoryMemberAccountRepository();
@@ -263,7 +281,7 @@ public sealed class HelpRequestServiceTests
             new MemoryCache(new MemoryCacheOptions()),
             timeProvider,
             options);
-        var service = new HelpRequestService(repository, members, stamp, limiter, timeProvider, options);
+        var service = new HelpRequestService(repository, members, stamp, limiter, timeProvider, options, emailSender);
         return new Harness(service, repository, members);
     }
 
@@ -271,4 +289,19 @@ public sealed class HelpRequestServiceTests
         HelpRequestService Service,
         InMemoryHelpRequestRepository Repository,
         InMemoryMemberAccountRepository Members);
+
+    private sealed class RecordingEmailSender : IEmailSender
+    {
+        public string? To { get; private set; }
+        public string? ReplyTo { get; private set; }
+        public string? Body { get; private set; }
+
+        public Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default)
+        {
+            To = email.ToAddress;
+            ReplyTo = email.ReplyToAddress;
+            Body = email.TextBody;
+            return Task.CompletedTask;
+        }
+    }
 }

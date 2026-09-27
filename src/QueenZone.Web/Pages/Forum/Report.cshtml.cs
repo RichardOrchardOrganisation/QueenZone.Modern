@@ -24,7 +24,7 @@ public sealed class ReportModel(ForumPostReportService reportService) : PageMode
 
     public async Task<IActionResult> OnGetAsync(int postId, CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge(MemberAuthenticationSchemes.MembersCookie);
@@ -47,7 +47,7 @@ public sealed class ReportModel(ForumPostReportService reportService) : PageMode
 
     public async Task<IActionResult> OnPostAsync(int postId, CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.GetSignedInMemberIdAsync();
         if (memberId is null)
         {
             return Challenge(MemberAuthenticationSchemes.MembersCookie);
@@ -83,15 +83,4 @@ public sealed class ReportModel(ForumPostReportService reportService) : PageMode
         Url.IsLocalUrl(ReturnUrl)
             ? ReturnUrl!
             : $"{ForumRoutes.GetTopicCanonicalPath(Post!.TopicId, Post.ThreadTitle)}#post-{postId}";
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var direct = ForumMember.GetMemberId(User);
-        if (direct is not null)
-        {
-            return direct;
-        }
-        var auth = await HttpContext.AuthenticateMemberAsync();
-        return auth.Succeeded ? ForumMember.GetMemberId(auth.Principal) : null;
-    }
 }

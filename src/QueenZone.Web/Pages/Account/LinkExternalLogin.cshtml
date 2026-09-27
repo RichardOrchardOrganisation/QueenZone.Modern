@@ -1,0 +1,59 @@
+@page "/account/link-external-login"
+@model LinkExternalLoginModel
+
+<partial name="_PageHero" model='@(("Members", "Confirm this sign-in", "Link a provider only after the existing QueenZone account signs in.", ""))' />
+
+<section class="qz-section">
+  <div class="qz-container qz-prose">
+    @if (Model.LinkError is not null)
+    {
+      <p class="qz-account-notice qz-account-notice--error">@Model.LinkError</p>
+    }
+    @if (Model.Error is not null)
+    {
+      <p class="qz-account-notice qz-account-notice--error">@Model.Error</p>
+    }
+    <p>
+      A @Model.Provider sign-in for <strong>@Model.Email</strong> matches an existing QueenZone account.
+      QueenZone will not link it until you sign in to that account with its password or a provider already linked to it.
+    </p>
+
+    @if (Model.IsSignedInAsTarget)
+    {
+      <form method="post" asp-page-handler="Confirm">
+        <button type="submit" class="qz-button">Link @Model.Provider to this account</button>
+      </form>
+    }
+    else if (Model.SignedInEmail is not null)
+    {
+      <p class="qz-account-notice">This browser is signed in as @Model.SignedInEmail. Sign in as @Model.Email to confirm the link.</p>
+    }
+
+    @if (Model.ConfirmationProviders.Count > 0)
+    {
+      <div class="qz-account-providers">
+        @foreach (var provider in Model.ConfirmationProviders)
+        {
+          <a class="qz-button" href="/account/external-login?provider=@Uri.EscapeDataString(provider)&amp;returnUrl=@Uri.EscapeDataString(ExternalLoginLinkCookie.PagePath)">
+            Continue with @provider
+          </a>
+        }
+      </div>
+    }
+
+    @if (Model.HasPassword)
+    {
+      <form method="post" asp-page-handler="Password" id="link-password-form">
+        <div class="qz-form-field">
+          <label for="password">Password for @Model.Email</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="qz-button qz-button--secondary">Confirm with password</button>
+      </form>
+    }
+
+    <form method="post" asp-page-handler="Cancel">
+      <button type="submit" class="qz-button qz-button--secondary">Cancel</button>
+    </form>
+  </div>
+</section>

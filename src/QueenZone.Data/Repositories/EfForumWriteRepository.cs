@@ -196,11 +196,11 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             row.BodyHtml,
             row.AuthorMemberId,
             row.AuthorDisplayName,
-            ToOffset(row.PostedAt),
-            row.EditedAt.HasValue ? ToOffset(row.EditedAt) : null,
+            LegacyDateTime.ToOffset(row.PostedAt),
+            row.EditedAt.HasValue ? LegacyDateTime.ToOffset(row.EditedAt) : null,
             row.EditCount,
             Math.Max(1, position),
-            ToOffset(row.UpdatedAt));
+            LegacyDateTime.ToOffset(row.UpdatedAt));
     }
 
     public async Task<ForumPostUpdateResult> UpdatePostAsync(
@@ -220,7 +220,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             return new ForumPostUpdateResult(ForumPostUpdateStatus.NotFound);
         }
 
-        var postedAt = ToOffset(post.PostedAt);
+        var postedAt = LegacyDateTime.ToOffset(post.PostedAt);
         var canEdit = ForumPostEditRules.CanEdit(
             post.AuthorMemberId,
             editorMemberId,
@@ -250,7 +250,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
         }
 
         if (expectedUpdatedAt is DateTimeOffset expected
-            && ToOffset(post.UpdatedAt) != expected)
+            && LegacyDateTime.ToOffset(post.UpdatedAt) != expected)
         {
             return new ForumPostUpdateResult(
                 ForumPostUpdateStatus.ConcurrencyConflict,
@@ -605,11 +605,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
 
     private static DateTime ToUtcDateTime(DateTimeOffset value) =>
         value.UtcDateTime;
-
-    private static DateTimeOffset ToOffset(DateTime? value) =>
-        value.HasValue
-            ? new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
-            : DateTimeOffset.MinValue;
 
     public async Task<int> EnsureCategoryAsync(
         string slug,

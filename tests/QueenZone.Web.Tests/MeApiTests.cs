@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -14,7 +13,9 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class MeApiTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,10 +24,14 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public MeApiTests(QueenZoneWebApplicationFactory factory)
+    public MeApiTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -179,18 +184,11 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     [Fact]
     public async Task LegacyLink_ClaimAndUnlink()
     {
-        const string email = "legacy-me@example.com";
+        const string email = WebHostVariants.LegacyClaimableEmail;
         var memberId = Guid.NewGuid();
-        using var specialized = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ILegacyMemberLookupRepository>();
-            services.AddSingleton<ILegacyMemberLookupRepository>(_ =>
-                new InMemoryLegacyMemberLookupRepository(
-                    new Dictionary<string, LegacyMemberMatch>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        [email] = new LegacyMemberMatch(42, "ClassicFan"),
-                    }));
-        });
+        var specialized = variants.Get(WebHostVariants.TestingLegacyClaimableEmail);
+        await specialized.ResetAsync();
+        specialized.LegacyLookup.Seed(email, [new LegacyMemberMatch(42, "ClassicFan")]);
 
         await SeedMemberAsync(specialized, memberId, "Modern Fan", email);
         using var client = CreateBearerClient(specialized, memberId, "Modern Fan", email);
@@ -244,6 +242,36 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Deletion_ImmediateRequest_PurgesAccountWithoutScheduledDate()
+    {
+        var memberId = Guid.NewGuid();
+        await SeedMemberAsync(memberId, "Immediate Fan", "immediate-delete@example.com");
+        using var client = CreateBearerClient(memberId, "Immediate Fan", "immediate-delete@example.com");
+
+        using var response = await client.PostAsJsonAsync(
+            $"{MeApiEndpoints.Path}/deletion-request",
+            new { confirmation = "DELETE", immediate = true });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<DeletionRequestedResponse>(JsonOptions);
+        Assert.True(payload!.Requested);
+        Assert.Null(payload.ScheduledDeletionAt);
+        Assert.Equal(AccountDeletionCopy.ImmediateTitle, payload.Title);
+        Assert.False(string.IsNullOrWhiteSpace(payload.StatusReceipt));
+        using var status = await client.GetAsync(
+            "/api/v1/account-deletion-status?receipt=" + Uri.EscapeDataString(payload.StatusReceipt));
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        var progress = await status.Content.ReadFromJsonAsync<DeletionProgressResponse>(JsonOptions);
+        Assert.Equal("complete", progress!.Status);
+        using var invalidReceipt = await client.GetAsync("/api/v1/account-deletion-status?receipt=invalid");
+        Assert.Equal(HttpStatusCode.NotFound, invalidReceipt.StatusCode);
+        var stored = await FindMemberAsync(memberId);
+        Assert.NotNull(stored.PersonalDataPurgedAt);
+        Assert.True(stored.IsSuspended);
+        Assert.Equal(MemberAccountDeletionPolicy.CreateDeletedEmail(memberId), stored.Email);
+    }
+
+    [Fact]
     public async Task Deletion_Cancel_RestoresProfile()
     {
         var memberId = Guid.NewGuid();
@@ -255,7 +283,12 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
             new { confirmation = "DELETE" });
         Assert.Equal(HttpStatusCode.OK, requested.StatusCode);
 
-        using var cancelled = await client.PostAsync($"{MeApiEndpoints.Path}/deletion-request/cancel", null);
+        using var stale = await client.PostAsync($"{MeApiEndpoints.Path}/deletion-request/cancel", null);
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+
+        await WaitUntilClockMovesAsync();
+        using var fresh = CreateBearerClient(memberId, "Stay Fan", "cancel-me@example.com");
+        using var cancelled = await fresh.PostAsync($"{MeApiEndpoints.Path}/deletion-request/cancel", null);
         Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
         var profile = await cancelled.Content.ReadFromJsonAsync<MemberProfileDto>(JsonOptions);
         Assert.Equal("Stay Fan", profile!.DisplayName);
@@ -278,21 +311,7 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     [Fact]
     public async Task Get_AuthProviders_ListsConfiguredProviders()
     {
-        using var specialized = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Authentication:Google:ClientId", "google-test-client");
-            builder.UseSetting("Authentication:Google:ClientSecret", "google-test-secret");
-            builder.UseSetting("Authentication:Microsoft:ClientId", "ms-test-client");
-            builder.UseSetting("Authentication:Microsoft:ClientSecret", "ms-test-secret");
-            builder.UseSetting("Authentication:Discord:ClientId", "discord-test-client");
-            builder.UseSetting("Authentication:Discord:ClientSecret", "discord-test-secret");
-            builder.UseSetting("Authentication:GitHub:ClientId", "github-test-client");
-            builder.UseSetting("Authentication:GitHub:ClientSecret", "github-test-secret");
-            builder.UseSetting("Authentication:Apple:ClientId", "apple-test-client");
-            builder.UseSetting("Authentication:Apple:TeamId", "TEAMID");
-            builder.UseSetting("Authentication:Apple:KeyId", "KEYID");
-            builder.UseSetting("Authentication:Apple:PrivateKey", "test-apple-private-key");
-        });
+        var specialized = variants.Get(WebHostVariants.TestingAllMobileOAuthProviders);
         using var client = specialized.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -333,6 +352,15 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
         Assert.Contains("Deleted member", body, StringComparison.Ordinal);
         Assert.Contains("30-day", body, StringComparison.Ordinal);
         Assert.Contains(AccountDeletionCopy.RequestedTitle, body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task WaitUntilClockMovesAsync()
+    {
+        var start = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        while (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() <= start)
+        {
+            await Task.Delay(1);
+        }
     }
 
     private HttpClient CreateBearerClient(Guid memberId, string displayName, string email) =>

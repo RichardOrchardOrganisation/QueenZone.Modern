@@ -1,30 +1,20 @@
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class HomeOnThisDayTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HomeOnThisDayTests : IClassFixture<WebHostVariantCache>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public HomeOnThisDayTests(WebApplicationFactory<Program> factory)
+    public HomeOnThisDayTests(WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.variants = variants;
     }
 
     [Fact]
     public async Task HomePageRendersOnThisDayMatchesForFixedDate()
     {
-        var client = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<TimeProvider>(new FixedTimeProvider(new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero)));
-            });
-        }).CreateClient();
+        var client = variants.Get(WebHostVariants.FixedUtc20260713).CreateClient();
 
         var body = await client.GetStringAsync("/");
 
@@ -38,22 +28,11 @@ public sealed class HomeOnThisDayTests : IClassFixture<WebApplicationFactory<Pro
     [Fact]
     public async Task HomePageFallsBackToNearbyDatesWhenNoExactMatchExists()
     {
-        var client = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                services.AddSingleton<TimeProvider>(new FixedTimeProvider(new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero)));
-            });
-        }).CreateClient();
+        var client = variants.Get(WebHostVariants.FixedUtc20260712).CreateClient();
 
         var body = await client.GetStringAsync("/");
 
         Assert.Contains("nearby dates from the archive", body);
         Assert.Contains("Queen&#x27;s Live Aid performance", body);
-    }
-
-    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

@@ -4,23 +4,32 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ContentApiHomePollTests
+public sealed class ContentApiHomePollTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
     };
 
+    private readonly VariantWebApplicationFactory factory;
+
+    public ContentApiHomePollTests(WebHostVariantCache variants)
+    {
+        factory = variants.Get(WebHostVariants.IsolatedHomePolls);
+    }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     [Fact]
     public async Task Get_returns_json_null_when_no_current_poll()
     {
-        using var isolated = IsolatedHomePolls();
-        using var client = isolated.CreateAnonymousClient();
+        using var client = factory.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/home-poll");
 
@@ -32,9 +41,8 @@ public sealed class ContentApiHomePollTests
     [Fact]
     public async Task Guest_can_read_results_and_cannot_vote()
     {
-        using var isolated = IsolatedHomePolls();
-        var optionId = await PublishPollAsync(isolated, "Best album?", ["Opera", "News"]);
-        using var anonymous = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        var optionId = await PublishPollAsync(factory, "Best album?", ["Opera", "News"]);
+        using var anonymous = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
         using var get = await anonymous.GetAsync($"{ContentApiEndpoints.RootPath}/home-poll");
         var poll = await get.Content.ReadFromJsonAsync<HomePollDto>(JsonOptions);
@@ -52,7 +60,7 @@ public sealed class ContentApiHomePollTests
         Assert.Equal(HttpStatusCode.Unauthorized, vote.StatusCode);
         Assert.Equal("application/problem+json", vote.Content.Headers.ContentType?.MediaType);
 
-        using var cookieOnly = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        using var cookieOnly = factory.CreateAnonymousClient(allowAutoRedirect: false);
         cookieOnly.DefaultRequestHeaders.Add(TestMemberAuthHandler.MemberIdHeader, Guid.NewGuid().ToString());
         cookieOnly.DefaultRequestHeaders.Add(TestMemberAuthHandler.DisplayNameHeader, "Cookie Fan");
         using var cookieVote = await cookieOnly.PostAsJsonAsync(
@@ -64,10 +72,9 @@ public sealed class ContentApiHomePollTests
     [Fact]
     public async Task Member_votes_once_then_second_ballot_is_rejected()
     {
-        using var isolated = IsolatedHomePolls();
-        var optionId = await PublishPollAsync(isolated, "Q?", ["A", "B"]);
+        var optionId = await PublishPollAsync(factory, "Q?", ["A", "B"]);
         var memberId = Guid.NewGuid();
-        using var client = CreateBearerClient(isolated, memberId, "Poll Voter");
+        using var client = CreateBearerClient(factory, memberId, "Poll Voter");
 
         using var before = await client.GetAsync($"{ContentApiEndpoints.RootPath}/home-poll");
         var open = await before.Content.ReadFromJsonAsync<HomePollDto>(JsonOptions);
@@ -99,14 +106,13 @@ public sealed class ContentApiHomePollTests
     [Fact]
     public async Task Closed_poll_rejects_votes_and_unpublished_is_hidden()
     {
-        using var isolated = IsolatedHomePolls();
-        var optionId = await PublishPollAsync(isolated, "Close me?", ["Yes", "No"]);
-        using var scope = isolated.Services.CreateScope();
+        var optionId = await PublishPollAsync(factory, "Close me?", ["Yes", "No"]);
+        using var scope = factory.Services.CreateScope();
         var polls = scope.ServiceProvider.GetRequiredService<IHomePollRepository>();
         var current = await polls.GetCurrentAsync(null);
         await polls.CloseAsync(current!.PollId);
 
-        using var voter = CreateBearerClient(isolated, Guid.NewGuid(), "Late Voter");
+        using var voter = CreateBearerClient(factory, Guid.NewGuid(), "Late Voter");
         using var late = await voter.PostAsJsonAsync(
             $"{ContentApiEndpoints.RootPath}/home-poll/votes",
             new { optionId });
@@ -126,9 +132,8 @@ public sealed class ContentApiHomePollTests
     [Fact]
     public async Task Website_index_and_api_expose_the_same_current_poll()
     {
-        using var isolated = IsolatedHomePolls();
-        await PublishPollAsync(isolated, "Same contract?", ["Web", "Mobile"]);
-        using var client = isolated.CreateAnonymousClient();
+        await PublishPollAsync(factory, "Same contract?", ["Web", "Mobile"]);
+        using var client = factory.CreateAnonymousClient();
 
         using var api = await client.GetAsync($"{ContentApiEndpoints.RootPath}/home-poll");
         var poll = await api.Content.ReadFromJsonAsync<HomePollDto>(JsonOptions);
@@ -145,49 +150,35 @@ public sealed class ContentApiHomePollTests
     [Fact]
     public async Task Suspended_member_cannot_vote()
     {
-        using var isolated = IsolatedHomePolls();
-        var optionId = await PublishPollAsync(isolated, "Q?", ["A", "B"]);
+        var optionId = await PublishPollAsync(factory, "Q?", ["A", "B"]);
         var memberId = Guid.NewGuid();
-        using (var scope = isolated.Services.CreateScope())
+        using (var scope = factory.Services.CreateScope())
         {
             var members = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
             await members.CreateAsync(new QueenZone.Data.Entities.MemberAccount
             {
                 Id = memberId,
-                Email = "suspended@example.test",
+                Email = $"{TestIds.For("suspended")}@example.test",
                 DisplayName = "Suspended",
                 CreatedAt = DateTime.UtcNow,
                 IsSuspended = true,
             });
         }
 
-        using var client = CreateBearerClient(isolated, memberId, "Suspended");
+        using var client = CreateBearerClient(factory, memberId, "Suspended");
         using var vote = await client.PostAsJsonAsync(
             $"{ContentApiEndpoints.RootPath}/home-poll/votes",
             new { optionId });
-        Assert.Equal(HttpStatusCode.Forbidden, vote.StatusCode);
-        var problem = await vote.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(ForumPollVoteException.Forbidden, problem.GetProperty("code").GetString());
-    }
-
-    private static QueenZoneWebApplicationFactory IsolatedHomePolls()
-    {
-        var store = new SharedHomePollStore();
-        return QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<SharedHomePollStore>();
-            services.RemoveAll<IHomePollRepository>();
-            services.AddSingleton(store);
-            services.AddSingleton<IHomePollRepository>(_ => new InMemoryHomePollRepository(store));
-        });
+        Assert.Equal(HttpStatusCode.Unauthorized, vote.StatusCode);
+        Assert.Equal("application/problem+json", vote.Content.Headers.ContentType?.MediaType);
     }
 
     private static async Task<Guid> PublishPollAsync(
-        QueenZoneWebApplicationFactory factory,
+        QueenZoneWebApplicationFactory host,
         string question,
         IReadOnlyList<string> options)
     {
-        using var scope = factory.Services.CreateScope();
+        using var scope = host.Services.CreateScope();
         var polls = scope.ServiceProvider.GetRequiredService<IHomePollRepository>();
         var id = await polls.CreateAsync(new AdminHomePollDraft(question, options), Guid.NewGuid());
         await polls.PublishAsync(id);
@@ -196,14 +187,15 @@ public sealed class ContentApiHomePollTests
     }
 
     private static HttpClient CreateBearerClient(
-        QueenZoneWebApplicationFactory factory,
+        QueenZoneWebApplicationFactory host,
         Guid memberId,
         string displayName)
     {
-        using var scope = factory.Services.CreateScope();
+        MemberBearerAccounts.Ensure(host.Services, memberId, $"{memberId:N}@example.test", displayName);
+        using var scope = host.Services.CreateScope();
         var issuer = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>();
         var token = issuer.IssueAccessToken(memberId, $"{memberId:N}@example.test", displayName);
-        var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
+        var client = host.CreateAnonymousClient(allowAutoRedirect: false);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }

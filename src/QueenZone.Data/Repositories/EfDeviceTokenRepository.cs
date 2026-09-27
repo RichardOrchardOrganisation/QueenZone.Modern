@@ -31,7 +31,7 @@ public sealed class EfDeviceTokenRepository(QueenZoneDbContext dbContext) : IDev
                 await dbContext.SaveChangesAsync(cancellationToken);
                 return token;
             }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && attempt < MaxUniqueConflictRetries)
+            catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation() && attempt < MaxUniqueConflictRetries)
             {
                 // A concurrent register (or a case-insensitive unique hit the find missed)
                 // inserted first. Detach the failed INSERT and update that row.
@@ -81,25 +81,5 @@ public sealed class EfDeviceTokenRepository(QueenZoneDbContext dbContext) : IDev
         var normalized = deviceId.ToLowerInvariant();
         return dbContext.DeviceTokens
             .SingleOrDefaultAsync(row => row.DeviceId.ToLower() == normalized, cancellationToken);
-    }
-
-    internal static bool IsUniqueConstraintViolation(DbUpdateException exception)
-    {
-        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
-        {
-            if (inner is SqlException sql && sql.Number is 2601 or 2627)
-            {
-                return true;
-            }
-
-            if (inner.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase)
-                || inner.Message.Contains("unique index", StringComparison.OrdinalIgnoreCase)
-                || inner.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

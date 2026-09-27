@@ -161,4 +161,14 @@ public sealed class SharedNewsAgentRunRequestStore
             now,
             claimed ? now : existing?.LastClaimedAtUtc);
     }
+
+    internal void Clear()
+    {
+        lock (gate)
+        {
+            requests.Clear();
+            heartbeats.Clear();
+            nextId = 1;
+        }
+    }
 }

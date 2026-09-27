@@ -1,6 +1,6 @@
 # OpenTofu CI, drift detection, and operational runbooks
 
-Issue: [#625](https://github.com/richardorchard/QueenZone.Modern/issues/625), step 8 of epic [#615](https://github.com/richardorchard/QueenZone.Modern/issues/615).
+Issue: [#625](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/625), step 8 of epic [#615](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/615).
 
 This is the CI-facing companion to
 [`opentofu-contributor-runbook.md`](opentofu-contributor-runbook.md) (local
@@ -138,8 +138,8 @@ configuration" means differs by resource class:
 after every apply: the general route suite (`Smoke-LiveSite.ps1`), a direct
 Azure origin check (`GET /health` on `queenzone-prod.azurewebsites.net` must
 return 403), `/health/ready` reachability, the `cdn2.queenzone.org/songfiles/*`
-→ 404 contract, and a Cloudflare-proxy reachability check on
-`cdn.queenzone.org`. Application Insights freshness is checked best-effort
+and `cdn2.queenzone.org/attachments/*` → 404 contracts, and a Cloudflare-proxy
+reachability check on `cdn.queenzone.org`. Application Insights freshness is checked best-effort
 and never blocks the workflow.
 
 A failure in this job does not undo the apply (see Rollback guidance above);
@@ -160,7 +160,7 @@ auto-suppress the alert.
 
 ## Disaster recovery
 
-Issue [#596](https://github.com/richardorchard/QueenZone.Modern/issues/596)
+Issue [#596](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/596)
 (production disaster-recovery / restore runbook, RPO/RTO) is **open and
 undecided** as of this writing — there is no finished DR document to link to
 yet. What exists today: OpenTofu's own state backup/restore and lock

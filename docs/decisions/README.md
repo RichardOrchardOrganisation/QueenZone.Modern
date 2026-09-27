@@ -27,3 +27,4 @@ next free number.
 | [0020](0020-production-region-canadaeast.md) | Production Azure region — `canadaeast` | Accepted |
 | [0021](0021-legacy-database-is-production.md) | The legacy database is the production database | Accepted |
 | [0022](0022-nightly-legacy-db-sync-strategy.md) | Nightly legacy DB sync strategy | Accepted |
+| [0023](0023-sonarqube-cloud-automatic-analysis.md) | Stay on SonarQube Cloud Automatic Analysis | Accepted |

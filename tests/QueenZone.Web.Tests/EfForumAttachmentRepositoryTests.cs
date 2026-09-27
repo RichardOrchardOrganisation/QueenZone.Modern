@@ -172,7 +172,9 @@ public sealed class EfForumAttachmentRepositoryTests : IAsyncDisposable
     [Fact]
     public async Task IncrementDownloadCountAsync_NoOpsWhenMissing()
     {
-        await attachmentRepository.IncrementDownloadCountAsync(Guid.NewGuid());
+        var exception = await Record.ExceptionAsync(() => attachmentRepository.IncrementDownloadCountAsync(Guid.NewGuid()));
+
+        Assert.Null(exception);
     }
 
     [Fact]

@@ -23,28 +23,7 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
 
         lock (sync)
         {
-            var entity = new PhotoSubmissionEntity
-            {
-                Id = submission.Id is { } preferredId && preferredId != Guid.Empty
-                    ? preferredId
-                    : Guid.NewGuid(),
-                SubmitterMemberId = submission.SubmitterMemberId,
-                Title = submission.Title.Trim(),
-                Description = NormalizeOptional(submission.Description, 1000),
-                SuggestedCategory = NormalizeOptional(submission.SuggestedCategory, 100),
-                ApproximateYear = submission.ApproximateYear,
-                ApproximateDate = submission.ApproximateDate,
-                BlobPath = submission.BlobPath.Trim(),
-                WebOptimizedBlobPath = submission.WebOptimizedBlobPath.Trim(),
-                ThumbnailBlobPath = submission.ThumbnailBlobPath.Trim(),
-                OriginalFileName = submission.OriginalFileName.Trim(),
-                FileSizeBytes = submission.FileSizeBytes,
-                MimeType = submission.MimeType.Trim(),
-                ImageWidthPx = submission.ImageWidthPx,
-                ImageHeightPx = submission.ImageHeightPx,
-                Status = PhotoSubmissionStatus.Pending,
-                SubmittedAt = DateTimeOffset.UtcNow,
-            };
+            var entity = PhotoSubmissionRecords.NewEntity(submission);
 
             submissions.Add(entity);
             auditLogs.Add(new PhotoSubmissionAuditLogEntity
@@ -150,38 +129,8 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                 return Task.FromResult<PhotoSubmission?>(null);
             }
 
-            if (!PhotoSubmissionWorkflow.TryValidateStatusChange(entity.Status, status, out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
-
-            var next = PhotoSubmissionStatus.Normalize(status);
-            entity.Status = next;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
-
-            if (next == PhotoSubmissionStatus.Rejected)
-            {
-                entity.RejectionReason = NormalizeOptional(rejectionReason, 500)
-                    ?? throw new InvalidOperationException("A rejection reason is required.");
-            }
-            else if (!string.IsNullOrWhiteSpace(rejectionReason))
-            {
-                entity.RejectionReason = NormalizeOptional(rejectionReason, 500);
-            }
-
-            if (next == PhotoSubmissionStatus.Approved)
-            {
-                var category = NormalizeOptional(approvedCategory, 100)
-                    ?? NormalizeOptional(entity.SuggestedCategory, 100);
-                entity.ApprovedCategory = category
-                    ?? throw new InvalidOperationException("An approved gallery category is required.");
-            }
-            else if (!string.IsNullOrWhiteSpace(approvedCategory))
-            {
-                entity.ApprovedCategory = NormalizeOptional(approvedCategory, 100);
-            }
+            var next = PhotoSubmissionRecords.ApplyStatusChange(
+                entity, status, reviewerEmail, reviewNotes, rejectionReason, approvedCategory);
 
             auditLogs.Add(new PhotoSubmissionAuditLogEntity
             {
@@ -228,12 +177,12 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
             }
 
             entity.Status = PhotoSubmissionStatus.Approved;
-            entity.ApprovedCategory = NormalizeOptional(approvedCategory, 100)
+            entity.ApprovedCategory = SubmissionInput.NormalizeOptional(approvedCategory, 100)
                 ?? throw new InvalidOperationException("An approved gallery category is required.");
             entity.PromotedPicId = promotedPicId;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             auditLogs.Add(new PhotoSubmissionAuditLogEntity
             {
@@ -341,16 +290,5 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
             entity.PromotedPicId,
             member?.DisplayName,
             member?.Email);
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 }

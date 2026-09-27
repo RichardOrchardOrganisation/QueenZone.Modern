@@ -10,4 +10,10 @@ public sealed class InMemoryFreddieTributeRepository(SharedFreddieTributeStore s
 
     public Task<FreddieTribute?> GetRandomAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(store.GetRandomPublicTribute());
+
+    public Task<int?> PickRandomVisibleIdAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.PickRandomVisibleId());
+
+    public Task<FreddieTribute?> GetVisibleByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.GetVisibleById(id));
 }

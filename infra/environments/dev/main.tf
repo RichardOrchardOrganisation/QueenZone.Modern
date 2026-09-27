@@ -47,8 +47,9 @@ module "azure_data" {
   # Keep dev's existing 26-container inventory stable. The three additional
   # live source containers are production migration scope only.
   containers = {
-    "album-or-single-covers"  = "Blob"
-    "attachments"             = "Blob"
+    "album-or-single-covers" = "Blob"
+    # Private since #1687; served only through the member-gated app proxy. See #1833.
+    "attachments"             = "None"
     "avatars"                 = "Blob"
     "brian-may"               = "Blob"
     "css"                     = "Container"

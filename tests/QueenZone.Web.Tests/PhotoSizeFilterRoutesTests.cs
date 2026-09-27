@@ -5,13 +5,13 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PhotoSizeFilterRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PhotoSizeFilterRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public PhotoSizeFilterRoutesTests(WebApplicationFactory<Program> factory)
+    public PhotoSizeFilterRoutesTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]
@@ -52,6 +52,18 @@ public sealed class PhotoSizeFilterRoutesTests : IClassFixture<WebApplicationFac
         // 201 is 2560x1440 desktop; other Queen desktop candidates limited.
         Assert.Contains("Back to Queen", body, StringComparison.Ordinal);
         Assert.Contains("size=desktop", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Detail_WhenSizeFilterExcludesPhoto_UsesUnfilteredNeighborsOnce()
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var response = await client.GetAsync("/photography/brian-may/103?size=desktop");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Red Special close-up", body, StringComparison.Ordinal);
+        Assert.Contains("href=\"/photography/brian-may/102\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("size=desktop", body, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -6,6 +6,7 @@ namespace QueenZone.Web;
 
 public sealed partial class PrivateMessageService(
     IPrivateMessageRepository privateMessageRepository,
+    IPrivateMessageModerationRepository privateMessageModerationRepository,
     IMemberAccountRepository memberAccountRepository,
     IMemberFollowRepository memberFollowRepository,
     PrivateMessageRateLimiter privateMessageRateLimiter,
@@ -13,6 +14,13 @@ public sealed partial class PrivateMessageService(
     ILogger<PrivateMessageService> logger,
     TimeProvider timeProvider)
 {
+    public const string BodyRequiredMessage = "Message body is required.";
+
+    public const string CannotMessageYourselfMessage = "You cannot message yourself.";
+
+    public static string BodyTooLongMessage =>
+        $"Message body must be {PrivateMessageLimits.MaxBodyLength} characters or fewer.";
+
     public const string UnableToSendMessage = "Unable to send message.";
 
     public const string RateLimitedMessage =
@@ -99,7 +107,7 @@ public sealed partial class PrivateMessageService(
     {
         if (senderMemberId == recipientMemberId)
         {
-            return new PrivateMessageSendResult(false, null, "You cannot message yourself.");
+            return new PrivateMessageSendResult(false, null, CannotMessageYourselfMessage);
         }
 
         var sender = await memberAccountRepository.FindByIdAsync(senderMemberId, cancellationToken);
@@ -114,7 +122,7 @@ public sealed partial class PrivateMessageService(
             return new PrivateMessageSendResult(false, null, "Recipient was not found.");
         }
 
-        if (await privateMessageRepository.IsMessagingBlockedAsync(
+        if (await privateMessageModerationRepository.IsMessagingBlockedAsync(
                 senderMemberId,
                 recipientMemberId,
                 cancellationToken))
@@ -142,10 +150,15 @@ public sealed partial class PrivateMessageService(
             return new PrivateMessageSendResult(false, null, RateLimitedMessage);
         }
 
+        if (RejectInvalidBody(body, out var composeBody) is { } invalidCompose)
+        {
+            return invalidCompose;
+        }
+
         var result = await privateMessageRepository.SendNewOrExistingAsync(
             senderMemberId,
             recipientMemberId,
-            body ?? string.Empty,
+            composeBody,
             timeProvider.GetUtcNow(),
             cancellationToken);
         if (result.Succeeded && result.ConversationId is Guid conversationId)
@@ -192,7 +205,7 @@ public sealed partial class PrivateMessageService(
         {
             var otherParticipant = await memberAccountRepository.FindByIdAsync(other, cancellationToken);
             if (otherParticipant?.DeletionRequestedAt is not null
-                || await privateMessageRepository.IsMessagingBlockedAsync(
+                || await privateMessageModerationRepository.IsMessagingBlockedAsync(
                     senderMemberId,
                     other,
                     cancellationToken))
@@ -211,10 +224,15 @@ public sealed partial class PrivateMessageService(
             return new PrivateMessageSendResult(false, null, RateLimitedMessage);
         }
 
+        if (RejectInvalidBody(body, out var replyBody) is { } invalidReply)
+        {
+            return invalidReply;
+        }
+
         var result = await privateMessageRepository.ReplyAsync(
             conversationId,
             senderMemberId,
-            body ?? string.Empty,
+            replyBody,
             timeProvider.GetUtcNow(),
             cancellationToken);
         if (result.Succeeded && otherParticipantId is Guid recipientId)
@@ -227,6 +245,22 @@ public sealed partial class PrivateMessageService(
         }
 
         return result;
+    }
+
+    private static PrivateMessageSendResult? RejectInvalidBody(string? body, out string normalized)
+    {
+        normalized = string.IsNullOrWhiteSpace(body) ? string.Empty : body.Trim();
+        if (normalized.Length == 0)
+        {
+            return new PrivateMessageSendResult(false, null, BodyRequiredMessage);
+        }
+
+        if (normalized.Length > PrivateMessageLimits.MaxBodyLength)
+        {
+            return new PrivateMessageSendResult(false, null, BodyTooLongMessage);
+        }
+
+        return null;
     }
 
     private async Task TryNotifyPrivateMessageAsync(
@@ -295,7 +329,7 @@ public sealed partial class PrivateMessageService(
             return new PrivateMessageBlockResult(false, "Member was not found.");
         }
 
-        await privateMessageRepository.BlockAsync(
+        await privateMessageModerationRepository.BlockAsync(
             blockerMemberId,
             blockedMemberId,
             timeProvider.GetUtcNow(),
@@ -311,19 +345,19 @@ public sealed partial class PrivateMessageService(
         Guid blockerMemberId,
         Guid blockedMemberId,
         CancellationToken cancellationToken = default) =>
-        privateMessageRepository.UnblockAsync(blockerMemberId, blockedMemberId, cancellationToken);
+        privateMessageModerationRepository.UnblockAsync(blockerMemberId, blockedMemberId, cancellationToken);
 
     public Task<bool> HasBlockedAsync(
         Guid blockerMemberId,
         Guid blockedMemberId,
         CancellationToken cancellationToken = default) =>
-        privateMessageRepository.IsBlockedAsync(blockerMemberId, blockedMemberId, cancellationToken);
+        privateMessageModerationRepository.IsBlockedAsync(blockerMemberId, blockedMemberId, cancellationToken);
 
     public Task<IReadOnlySet<Guid>> ListBlockedMemberIdsAsync(
         Guid blockerMemberId,
         IReadOnlyCollection<Guid> candidateMemberIds,
         CancellationToken cancellationToken = default) =>
-        privateMessageRepository.ListBlockedMemberIdsAsync(
+        privateMessageModerationRepository.ListBlockedMemberIdsAsync(
             blockerMemberId,
             candidateMemberIds,
             cancellationToken);
@@ -332,7 +366,7 @@ public sealed partial class PrivateMessageService(
         Guid memberA,
         Guid memberB,
         CancellationToken cancellationToken = default) =>
-        privateMessageRepository.IsMessagingBlockedAsync(memberA, memberB, cancellationToken);
+        privateMessageModerationRepository.IsMessagingBlockedAsync(memberA, memberB, cancellationToken);
 
     public Task<IReadOnlyList<MemberRecipientMatch>> SearchRecipientsAsync(
         Guid currentMemberId,
@@ -365,7 +399,7 @@ public sealed partial class PrivateMessageService(
             return false;
         }
 
-        if (await privateMessageRepository.IsMessagingBlockedAsync(
+        if (await privateMessageModerationRepository.IsMessagingBlockedAsync(
                 currentMemberId!.Value,
                 targetMemberId.Value,
                 cancellationToken))
@@ -415,7 +449,7 @@ public sealed partial class PrivateMessageService(
             return new PrivateMessageReportResult(false, null, PrivateMessageReportText.ReasonTooLong);
         }
 
-        return await privateMessageRepository.CreateReportAsync(
+        return await privateMessageModerationRepository.CreateReportAsync(
             reporterMemberId,
             conversationId,
             messageId,

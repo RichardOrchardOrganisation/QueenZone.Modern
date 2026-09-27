@@ -1,7 +1,7 @@
 # Selective legacy→modern table migration evaluation
 
-Issue: <https://github.com/richardorchard/QueenZone.Modern/issues/334>  
-Epic: <https://github.com/richardorchard/QueenZone.Modern/issues/312> (P2 architecture)  
+Issue: <https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/334>  
+Epic: <https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/312> (P2 architecture)  
 Date: 2026-07-27  
 Method: **evaluation only** — candidates listed with measured cost; no schema migration in this PR.
 

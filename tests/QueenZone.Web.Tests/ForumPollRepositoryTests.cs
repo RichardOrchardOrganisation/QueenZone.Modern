@@ -64,6 +64,28 @@ public sealed class ForumPollRepositoryTests
     }
 
     [Fact]
+    public async Task GetPollWithResultsAsync_AdminWithoutMember_CanClose()
+    {
+        var (repo, _, _) = await CreatePollAsync(isMulti: false);
+        var results = await repo.GetPollWithResultsAsync(1001, viewerMemberId: null, viewerIsAdmin: true);
+        Assert.NotNull(results);
+        Assert.True(results!.CanViewerClose);
+
+        var stranger = await repo.GetPollWithResultsAsync(1001, Guid.NewGuid(), viewerIsAdmin: false);
+        Assert.False(stranger!.CanViewerClose);
+    }
+
+    [Fact]
+    public async Task ClosePollAsync_AdminWithoutMember_ClosesPoll()
+    {
+        var (repo, pollId, _) = await CreatePollAsync(isMulti: false);
+        await repo.ClosePollAsync(pollId, Guid.Empty, isAdmin: true);
+        var results = await repo.GetPollWithResultsAsync(1001, null, viewerIsAdmin: true);
+        Assert.True(results!.IsClosed);
+        Assert.False(results.CanViewerClose);
+    }
+
+    [Fact]
     public async Task ClosePollAsync_AllowsAuthor()
     {
         var author = Guid.NewGuid();

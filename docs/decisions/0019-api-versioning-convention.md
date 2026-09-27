@@ -16,8 +16,8 @@ client. QueenZone.Mobile installs lag App Store / Play review, and many members
 do not auto-update. A server-only cutover that retires `/api/v1` the same week
 `/api/v2` ships would strand those builds.
 
-[Issue #1270](https://github.com/richardorchard/QueenZone.Modern/issues/1270)
-(epic [#1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264)
+[Issue #1270](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1270)
+(epic [#1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264)
 Phase 6) asks for that convention in writing. This ADR complements 0010; it
 does not replace the JSON/error/pagination rules there.
 
@@ -94,5 +94,5 @@ Tradeoffs:
 - [ADR 0010](0010-versioned-json-api-conventions.md) — `/api/v1` JSON conventions
 - [`docs/architecture/json-api-v1.md`](../architecture/json-api-v1.md) — living v1 contract
 - [`src/QueenZone.Web/Api/ApiV1.cs`](../../src/QueenZone.Web/Api/ApiV1.cs) — committed prefix
-- [#1270](https://github.com/richardorchard/QueenZone.Modern/issues/1270) — this convention
-- [#1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) — parent epic
+- [#1270](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1270) — this convention
+- [#1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264) — parent epic

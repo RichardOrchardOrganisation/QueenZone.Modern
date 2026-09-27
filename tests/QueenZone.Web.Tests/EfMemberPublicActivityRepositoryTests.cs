@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 
@@ -11,6 +13,7 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
 
     private readonly SqliteConnection connection;
     private readonly QueenZoneDbContext dbContext;
+    private readonly List<RecordedCommand> commands = [];
     private readonly Guid memberId = Guid.NewGuid();
 
     public EfMemberPublicActivityRepositoryTests()
@@ -19,6 +22,7 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         connection.Open();
         dbContext = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlite(connection)
+            .AddInterceptors(new RecordingReaderInterceptor(commands))
             .Options);
         dbContext.Database.EnsureCreated();
         dbContext.Database.ExecuteSqlRaw("""
@@ -218,6 +222,43 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         Assert.Equal("Topic 0", first.Items[0].Title);
         Assert.DoesNotContain(first.Items, item => item.Title == "Topic 20");
         Assert.Equal(["Topic 20"], second.Items.Select(item => item.Title).ToArray());
+        Assert.Equal("Topic 20", second.Items[0].Summary);
+    }
+
+    [Fact]
+    public async Task GetPageAsync_DeepPage_LoadsBodiesOnlyForReturnedModernPosts()
+    {
+        SeedMember(memberId, "Prolific");
+        var newest = DateTimeOffset.Parse("2026-08-03T08:00:00Z").UtcDateTime;
+        for (var index = 0; index < 10; index++)
+        {
+            SeedForumPost(
+                memberId,
+                "Prolific",
+                index + 1,
+                200 + index,
+                300 + index,
+                $"Topic {index}",
+                newest.AddMinutes(-index),
+                $"Body marker {index}");
+        }
+
+        await dbContext.SaveChangesAsync();
+        commands.Clear();
+
+        var result = await CreateRepository().GetPageAsync(memberId, linkedLegacyUserId: null, 5, 2);
+
+        Assert.Equal(["Topic 8", "Topic 9"], result.Items.Select(item => item.Title).ToArray());
+        Assert.Equal(
+            new string?[] { "Body marker 8", "Body marker 9" },
+            result.Items.Select(item => item.Summary).ToArray());
+
+        var bodyQueries = commands
+            .Where(command => command.Sql.Contains("BodyHtml", StringComparison.Ordinal))
+            .ToList();
+        var bodyQuery = Assert.Single(bodyQueries);
+        Assert.Contains("Id", bodyQuery.Sql, StringComparison.Ordinal);
+        Assert.Equal(["9", "10"], bodyQuery.Parameters);
     }
 
     [Fact]
@@ -364,7 +405,8 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         int topicId,
         int postId,
         string title,
-        DateTime postedAt)
+        DateTime postedAt,
+        string? body = null)
     {
         dbContext.ModernForumThreads.Add(new ModernForumThreadEntity
         {
@@ -383,7 +425,7 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
             LegacyForumId = 1,
             AuthorMemberId = authorId,
             AuthorDisplayName = authorName,
-            BodyHtml = title,
+            BodyHtml = body ?? title,
             PostedAt = postedAt,
         });
     }
@@ -492,5 +534,24 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
     {
         await dbContext.DisposeAsync();
         await connection.DisposeAsync();
+    }
+
+    private sealed record RecordedCommand(string Sql, IReadOnlyList<string> Parameters);
+
+    private sealed class RecordingReaderInterceptor(List<RecordedCommand> commands) : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            commands.Add(new RecordedCommand(
+                command.CommandText,
+                command.Parameters.Cast<DbParameter>()
+                    .Select(parameter => Convert.ToString(parameter.Value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty)
+                    .ToList()));
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 }

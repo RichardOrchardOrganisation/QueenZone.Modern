@@ -1,19 +1,29 @@
-using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class NewsArticleDiscussionPreviewTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class NewsArticleDiscussionPreviewTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private const int SeedTopicId = 1002;
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory discussionHost;
 
-    public NewsArticleDiscussionPreviewTests(QueenZoneWebApplicationFactory factory)
+    public NewsArticleDiscussionPreviewTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        discussionHost = variants.Get(WebHostVariants.IsolatedNewsDiscussion);
     }
+
+    public Task InitializeAsync() => discussionHost.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Detail_WithReplies_RendersPreviewAndJoinInvite()
@@ -110,10 +120,10 @@ public sealed class NewsArticleDiscussionPreviewTests : IClassFixture<QueenZoneW
     public async Task HomeAndNewsList_DoNotRenderDiscussionInvite()
     {
         var item = Article(6105, "List teaser must stay off", topicId: SeedTopicId);
-        using var host = CreateHost(item, replyCount: 2, [
+        SeedDiscussion(item, replyCount: 2, [
             new NewsDiscussionPreview("List", DateTime.UtcNow, "Must not appear on cards"),
         ]);
-        using var client = host.CreateAnonymousClient();
+        using var client = discussionHost.CreateAnonymousClient();
 
         var home = await client.GetStringAsync("/");
         var list = await client.GetStringAsync("/news");
@@ -128,26 +138,24 @@ public sealed class NewsArticleDiscussionPreviewTests : IClassFixture<QueenZoneW
         Assert.DoesNotContain("Must not appear on cards", list);
     }
 
-    private static async Task<string> GetDetailHtmlAsync(
+    private async Task<string> GetDetailHtmlAsync(
         NewsItem item,
         int replyCount,
         IReadOnlyList<NewsDiscussionPreview> preview)
     {
-        using var host = CreateHost(item, replyCount, preview);
-        using var client = host.CreateAnonymousClient();
+        SeedDiscussion(item, replyCount, preview);
+        using var client = discussionHost.CreateAnonymousClient();
         return await client.GetStringAsync(NewsRoutes.GetNewsDetailPath(item));
     }
 
-    private static QueenZoneWebApplicationFactory CreateHost(
+    private void SeedDiscussion(
         NewsItem item,
         int replyCount,
-        IReadOnlyList<NewsDiscussionPreview> preview) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.AddSingleton<INewsRepository>(new FixedNewsRepository([item]));
-            services.AddSingleton<INewsForumDiscussionLookup>(
-                new FixedDiscussionLookup(item.ForumTopicId, replyCount, preview));
-        });
+        IReadOnlyList<NewsDiscussionPreview> preview)
+    {
+        discussionHost.SeedableNews!.Seed(item);
+        discussionHost.SeedableDiscussion!.Seed(item.ForumTopicId, replyCount, preview);
+    }
 
     private static NewsItem Article(int id, string title, int? topicId) =>
         new(
@@ -170,34 +178,5 @@ public sealed class NewsArticleDiscussionPreviewTests : IClassFixture<QueenZoneW
         hrefStart += "href=\"".Length;
         var hrefEnd = html.IndexOf('"', hrefStart);
         return html[hrefStart..hrefEnd];
-    }
-
-    private sealed class FixedDiscussionLookup(
-        int? topicId,
-        int replyCount,
-        IReadOnlyList<NewsDiscussionPreview> preview) : INewsForumDiscussionLookup
-    {
-        public Task<IReadOnlyDictionary<int, int>> GetReplyCountsAsync(
-            IReadOnlyList<int> topicIds,
-            CancellationToken cancellationToken = default)
-        {
-            IReadOnlyDictionary<int, int> counts = topicId is int id && topicIds.Contains(id)
-                ? new Dictionary<int, int> { [id] = replyCount }
-                : new Dictionary<int, int>();
-            return Task.FromResult(counts);
-        }
-
-        public Task<(int ReplyCount, IReadOnlyList<NewsDiscussionPreview> Preview)> GetDiscussionAsync(
-            int requestedTopicId,
-            int previewCount,
-            CancellationToken cancellationToken = default)
-        {
-            if (topicId != requestedTopicId)
-            {
-                return Task.FromResult<(int, IReadOnlyList<NewsDiscussionPreview>)>((0, []));
-            }
-
-            return Task.FromResult((replyCount, preview));
-        }
     }
 }

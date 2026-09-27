@@ -465,7 +465,7 @@ function SettingsForm({ navigation }: Pick<Props, 'navigation'>) {
           </Text>
         ) : (
           <Text style={[type.body, { color: c.textSecondary }]}>
-            Schedule deletion of your sign-in details, avatar, and account data after a 30-day cooling-off period.
+            Delete your account, sign-in details, avatar, and modern contributions.
           </Text>
         )}
         <Button

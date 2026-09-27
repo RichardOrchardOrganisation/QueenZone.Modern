@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/queenzone-design-system-6c12e8ec-2c2c-448b-858b-dbeb24fd8c3c/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/queenzone-design-system-6c12e8ec-2c2c-448b-858b-dbeb24fd8c3c/tokens/colors.css">
+<link rel="stylesheet" href="_ds/queenzone-design-system-6c12e8ec-2c2c-448b-858b-dbeb24fd8c3c/tokens/typography.css">
+<link rel="stylesheet" href="_ds/queenzone-design-system-6c12e8ec-2c2c-448b-858b-dbeb24fd8c3c/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/queenzone-design-system-6c12e8ec-2c2c-448b-858b-dbeb24fd8c3c/tokens/base.css">
+<link rel="stylesheet" href="_ds/queenzone-design-system-6c12e8ec-2c2c-448b-858b-dbeb24fd8c3c/styles.css">
+<script src="_ds/queenzone-design-system-6c12e8ec-2c2c-448b-858b-dbeb24fd8c3c/_ds_bundle.js"></script>
+<style>
+  body { background: #E4E2DD; margin: 0; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { color: var(--link-hover); }
+  * { box-sizing: border-box; }
+</style>
+</helmet>
+
+<section style="display:flex;flex-direction:column;gap:110px;padding:80px 96px 140px;background:#E4E2DD;font-family:var(--font-body)">
+
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:760px">
+    <div style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-purple)">Queenzone · Product design</div>
+    <h1 style="font:400 56px/1.05 var(--font-display);letter-spacing:-0.015em;color:var(--qz-charcoal);margin:0">The Friday Ten — quiz &amp; standings</h1>
+    <p style="font:400 17px/1.6 var(--font-body);color:var(--qz-grey-600);margin:0;text-wrap:pretty">A weekly ten-question challenge and its leaderboard, drawn from the archive. Twenty seconds a question, verdict revealed immediately, points weighted by speed. Three surfaces below: desktop web, mobile web, and the native app. Answer options are live — pick one on any screen.</p>
+  </div>
+
+  <!-- ══════════ DESKTOP WEB ══════════ -->
+  <div style="display:flex;flex-direction:column;gap:40px">
+    <div style="display:flex;align-items:baseline;gap:20px;border-bottom:1px solid var(--qz-grey-300);padding-bottom:14px">
+      <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-grey-500)">Platform I</span>
+      <span style="font:500 22px/1 var(--font-display);letter-spacing:0.02em;color:var(--qz-charcoal)">Desktop web — 1280px</span>
+    </div>
+
+    <!-- D1 · Quiz landing -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">01 · Quiz landing</div>
+      <div data-screen-label="Web 01 — Landing" style="width:1280px;background:var(--qz-white);border:1px solid var(--qz-grey-300);box-shadow:0 24px 60px rgba(0,0,0,0.10)">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 48px;border-bottom:1px solid var(--hairline)">
+          <div style="display:flex;align-items:center;gap:14px">
+            <img src="assets/crest-black.png" alt="" style="height:30px;width:auto;opacity:0.9">
+            <span style="font-family:var(--font-titling);font-size:13px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:var(--qz-charcoal)">Queenzone</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:30px;font:500 12px/1 var(--font-body);letter-spacing:0.08em;text-transform:uppercase;color:var(--qz-grey-600)">
+            <span>News</span><span>Stories</span><span>Photography</span><span>Timeline</span>
+            <span style="color:var(--qz-blue);border-bottom:2px solid var(--qz-blue);padding-bottom:5px">Quiz</span>
+            <span>Forums</span>
+          </div>
+        </div>
+
+        <div style="position:relative;background:var(--qz-black);overflow:hidden">
+          <img src="assets/img-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1);opacity:0.34">
+          <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(17,17,17,0.96) 0%,rgba(17,17,17,0.82) 45%,rgba(17,17,17,0.35) 100%)"></div>
+          <img src="assets/crest-white.png" alt="" style="position:absolute;right:64px;top:50%;transform:translateY(-50%);height:300px;opacity:0.06">
+          <div style="position:relative;padding:76px 48px 68px;max-width:760px;display:flex;flex-direction:column;gap:22px">
+            <div style="display:flex;align-items:center;gap:14px">
+              <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Badge" tone="special" variant="outline" hint-size="120px,22px">Week 34</x-import>
+              <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">The Friday Ten</span>
+            </div>
+            <h2 style="font:400 68px/1.02 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">Twenty-one minutes at Wembley</h2>
+            <p style="font:400 19px/1.6 var(--font-body);color:rgba(255,255,255,0.72);margin:0;max-width:560px;text-wrap:pretty">Ten questions on Live Aid, 13 July 1985 — the set, the crowd, the aftermath. Twenty seconds each.</p>
+            <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.5)">10 questions · 20 seconds each · 4,182 played · closes Sunday 23.59</div>
+            <div style="display:flex;gap:14px;padding-top:10px">
+              <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="cta" size="lg" hint-size="180px,52px">Begin the quiz</x-import>
+              <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="secondary" size="lg" style="{{ ghostOnDark }}" hint-size="180px,52px">View standings</x-import>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:64px 48px 72px;background:var(--qz-warm-white)">
+          <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.SectionHeader" eyebrow="Test yourself" title="Evergreen quizzes" hint-size="100%,72px"></x-import>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px;padding-top:32px">
+            <a href="#" style="display:flex;flex-direction:column;gap:0;text-decoration:none">
+              <div style="aspect-ratio:3/2;overflow:hidden;border-radius:var(--radius-md);background:var(--qz-grey-200)"><img src="assets/img-studio.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+              <div style="padding-top:16px;display:flex;flex-direction:column;gap:8px">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--accent-archive)">Albums</span>
+                <span style="font:500 24px/1.2 var(--font-display);color:var(--qz-charcoal)">Fifteen studio records</span>
+                <span style="font:400 14px/1.5 var(--font-body);color:var(--qz-grey-600)">Sleeves, sessions and running orders. 24 questions.</span>
+                <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500);padding-top:4px">Your best · 19/24</span>
+              </div>
+            </a>
+            <a href="#" style="display:flex;flex-direction:column;gap:0;text-decoration:none">
+              <div style="aspect-ratio:3/2;overflow:hidden;border-radius:var(--radius-md);background:var(--qz-grey-200)"><img src="assets/img-portrait.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+              <div style="padding-top:16px;display:flex;flex-direction:column;gap:8px">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--accent-archive)">Lyrics</span>
+                <span style="font:500 24px/1.2 var(--font-display);color:var(--qz-charcoal)">Words and writers</span>
+                <span style="font:400 14px/1.5 var(--font-body);color:var(--qz-grey-600)">Who wrote what, and what it says. 30 questions.</span>
+                <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500);padding-top:4px">Not yet attempted</span>
+              </div>
+            </a>
+            <a href="#" style="display:flex;flex-direction:column;gap:0;text-decoration:none">
+              <div style="aspect-ratio:3/2;overflow:hidden;border-radius:var(--radius-md);background:var(--qz-grey-200)"><img src="assets/img-crowd.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+              <div style="padding-top:16px;display:flex;flex-direction:column;gap:8px">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--accent-archive)">Live shows</span>
+                <span style="font:500 24px/1.2 var(--font-display);color:var(--qz-charcoal)">On the road, 1970–1986</span>
+                <span style="font:400 14px/1.5 var(--font-body);color:var(--qz-grey-600)">Venues, set lists and tour dates. 28 questions.</span>
+                <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500);padding-top:4px">Your best · 22/28</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D2 · Question -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">02 · Question &amp; instant verdict — interactive</div>
+      <div data-screen-label="Web 02 — Question" style="width:1280px;background:var(--qz-black);border:1px solid var(--qz-black);box-shadow:0 24px 60px rgba(0,0,0,0.18);position:relative;overflow:hidden">
+        <img src="assets/crest-white.png" alt="" style="position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);height:520px;opacity:0.05;pointer-events:none">
+
+        <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:16px 48px;border-bottom:1px solid var(--border-on-dark)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <img src="assets/crest-white.png" alt="" style="height:24px;opacity:0.85">
+            <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:rgba(255,255,255,0.6)">The Friday Ten · Week 34</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:28px">
+            <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.5)">Question 04 / 10</span>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 14px;border:1px solid var(--qz-gold);border-radius:var(--radius-xs)">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.55)">Time</span>
+              <span style="font:500 20px/1 var(--font-display);color:var(--qz-gold);font-variant-numeric:tabular-nums">{{ web.clock }}</span>
+            </div>
+            <span style="font:400 14px/1 var(--font-body);color:rgba(255,255,255,0.45)">Exit quiz</span>
+          </div>
+        </div>
+        <div style="height:2px;background:rgba(255,255,255,0.10)"><div style="height:2px;width:35%;background:var(--qz-gold)"></div></div>
+
+        <div style="position:relative;display:grid;grid-template-columns:460px 1fr;gap:56px;padding:56px 48px 60px">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="aspect-ratio:4/5;overflow:hidden;border-radius:var(--radius-md);background:#1a1a1a"><img src="assets/img-stage.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05)"></div>
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4)">Wembley Stadium · 13 July 1985 · Queenzone archive</span>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:32px;padding-top:8px">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">Question four · Live Aid</span>
+              <h2 style="font:400 46px/1.1 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0;max-width:620px;text-wrap:pretty">How long was Queen's set at Live Aid?</h2>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:12px;max-width:660px">
+              <button onClick="{{ pw0 }}" style="position:relative;display:flex;align-items:center;gap:20px;width:100%;padding:20px 22px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left;transition:background 180ms cubic-bezier(0.22,0.61,0.36,1)" style-hover="background:rgba(255,255,255,0.10)">
+                <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.18em;color:rgba(255,255,255,0.45);width:18px">A</span>
+                <span style="flex:1;font:400 19px/1.3 var(--font-body);color:var(--qz-white)">17 minutes</span>
+                <span style="{{ web.m0 }}">{{ web.t0 }}</span>
+                <span style="{{ web.r0 }}"></span>
+              </button>
+              <button onClick="{{ pw1 }}" style="position:relative;display:flex;align-items:center;gap:20px;width:100%;padding:20px 22px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left;transition:background 180ms cubic-bezier(0.22,0.61,0.36,1)" style-hover="background:rgba(255,255,255,0.10)">
+                <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.18em;color:rgba(255,255,255,0.45);width:18px">B</span>
+                <span style="flex:1;font:400 19px/1.3 var(--font-body);color:var(--qz-white)">21 minutes</span>
+                <span style="{{ web.m1 }}">{{ web.t1 }}</span>
+                <span style="{{ web.r1 }}"></span>
+              </button>
+              <button onClick="{{ pw2 }}" style="position:relative;display:flex;align-items:center;gap:20px;width:100%;padding:20px 22px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left;transition:background 180ms cubic-bezier(0.22,0.61,0.36,1)" style-hover="background:rgba(255,255,255,0.10)">
+                <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.18em;color:rgba(255,255,255,0.45);width:18px">C</span>
+                <span style="flex:1;font:400 19px/1.3 var(--font-body);color:var(--qz-white)">25 minutes</span>
+                <span style="{{ web.m2 }}">{{ web.t2 }}</span>
+                <span style="{{ web.r2 }}"></span>
+              </button>
+              <button onClick="{{ pw3 }}" style="position:relative;display:flex;align-items:center;gap:20px;width:100%;padding:20px 22px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left;transition:background 180ms cubic-bezier(0.22,0.61,0.36,1)" style-hover="background:rgba(255,255,255,0.10)">
+                <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.18em;color:rgba(255,255,255,0.45);width:18px">D</span>
+                <span style="flex:1;font:400 19px/1.3 var(--font-body);color:var(--qz-white)">30 minutes</span>
+                <span style="{{ web.m3 }}">{{ web.t3 }}</span>
+                <span style="{{ web.r3 }}"></span>
+              </button>
+            </div>
+
+            <div style="{{ web.hint }}">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.35)">Answer to reveal the verdict · faster answers score more</span>
+            </div>
+
+            <div style="{{ web.panel }}">
+              <div style="display:flex;flex-direction:column;gap:14px;max-width:660px;padding:24px 26px;border:1px solid var(--border-on-dark);border-left:2px solid var(--qz-gold);background:rgba(255,255,255,0.03);border-radius:var(--radius-sm)">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:20px">
+                  <span style="{{ web.verdictStyle }}">{{ web.verdict }}</span>
+                  <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.5)">{{ web.pts }} points · 6.2s</span>
+                </div>
+                <p style="font:400 16px/1.65 var(--font-body);color:rgba(255,255,255,0.7);margin:0;text-wrap:pretty">Queen took the Wembley stage at 6.41pm and played for roughly twenty-one minutes — six songs, no encore. It is routinely named the finest live performance in rock.</p>
+                <div style="display:flex;align-items:center;gap:20px;padding-top:4px">
+                  <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="cta" size="md" hint-size="180px,44px">Next question</x-import>
+                  <a href="#" style="font:400 14px/1 var(--font-body);color:rgba(255,255,255,0.55);border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:2px">Read the full account</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D3 · Results -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">03 · Results &amp; breakdown</div>
+      <div data-screen-label="Web 03 — Results" style="width:1280px;background:var(--qz-white);border:1px solid var(--qz-grey-300);box-shadow:0 24px 60px rgba(0,0,0,0.10)">
+        <div style="position:relative;background:var(--qz-black);overflow:hidden;padding:64px 48px 56px">
+          <img src="assets/crest-white.png" alt="" style="position:absolute;right:56px;top:50%;transform:translateY(-50%);height:260px;opacity:0.07">
+          <div style="position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:48px">
+            <div style="display:flex;flex-direction:column;gap:18px">
+              <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">The Friday Ten · Week 34 · Complete</span>
+              <h2 style="font:400 56px/1.05 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">Eight from ten</h2>
+              <p style="font:400 18px/1.6 var(--font-body);color:rgba(255,255,255,0.66);margin:0;max-width:480px">Better than 91% of players this week. Two more and you would have taken the podium.</p>
+            </div>
+            <div style="display:flex;gap:56px;padding-bottom:6px">
+              <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Points</span><span style="font:400 44px/1 var(--font-display);color:var(--qz-white);font-variant-numeric:tabular-nums">1,420</span></div>
+              <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Avg. time</span><span style="font:400 44px/1 var(--font-display);color:var(--qz-white);font-variant-numeric:tabular-nums">7.4s</span></div>
+              <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Rank</span><span style="font:400 44px/1 var(--font-display);color:var(--qz-gold);font-variant-numeric:tabular-nums">37</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:56px 48px 64px">
+          <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.SectionHeader" eyebrow="Your paper" title="Question by question" hint-size="100%,72px"></x-import>
+          <div style="display:flex;flex-direction:column;padding-top:8px">
+            <sc-for list="{{ breakdown }}" as="row" hint-placeholder-count="10">
+              <div style="display:grid;grid-template-columns:44px 1fr 220px 90px 80px;align-items:center;gap:20px;padding:18px 0;border-bottom:1px solid var(--hairline)">
+                <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.14em;color:var(--qz-grey-400)">{{ row.n }}</span>
+                <span style="font:400 17px/1.4 var(--font-body);color:var(--qz-charcoal)">{{ row.q }}</span>
+                <span style="font:400 15px/1.4 var(--font-body);color:var(--qz-grey-600)">{{ row.a }}</span>
+                <span style="{{ row.markStyle }}">{{ row.mark }}</span>
+                <span style="font:400 15px/1.4 var(--font-body);color:var(--qz-grey-500);text-align:right;font-variant-numeric:tabular-nums">{{ row.pts }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;padding-top:36px">
+            <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="primary" size="lg" hint-size="200px,52px">View the standings</x-import>
+            <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="secondary" size="lg" hint-size="160px,52px">Share result</x-import>
+            <span style="font:400 15px/1.5 var(--font-body);color:var(--qz-grey-500);margin-left:auto">Next quiz opens Friday, 4 September at 08.00 BST.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D4 · Leaderboard -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">04 · Leaderboard — tabs are interactive</div>
+      <div data-screen-label="Web 04 — Leaderboard" style="width:1280px;background:var(--qz-white);border:1px solid var(--qz-grey-300);box-shadow:0 24px 60px rgba(0,0,0,0.10)">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 48px;border-bottom:1px solid var(--hairline)">
+          <div style="display:flex;align-items:center;gap:14px">
+            <img src="assets/crest-black.png" alt="" style="height:30px;width:auto;opacity:0.9">
+            <span style="font-family:var(--font-titling);font-size:13px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:var(--qz-charcoal)">Queenzone</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:30px;font:500 12px/1 var(--font-body);letter-spacing:0.08em;text-transform:uppercase;color:var(--qz-grey-600)">
+            <span>News</span><span>Stories</span><span>Photography</span><span>Timeline</span>
+            <span style="color:var(--qz-blue);border-bottom:2px solid var(--qz-blue);padding-bottom:5px">Quiz</span>
+            <span>Forums</span>
+          </div>
+        </div>
+
+        <div style="position:relative;background:var(--qz-black);overflow:hidden;padding:56px 48px 52px">
+          <img src="assets/crest-white.png" alt="" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:340px;opacity:0.05">
+          <div style="position:relative;display:flex;flex-direction:column;gap:36px">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:40px">
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">Standings</span>
+                <h2 style="font:400 44px/1.05 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">{{ boardTitle }}</h2>
+              </div>
+              <div style="display:flex;gap:10px">
+                <button onClick="{{ tabWeek }}" style="{{ tabW }}">This week</button>
+                <button onClick="{{ tabAll }}" style="{{ tabA }}">All time</button>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px">
+              <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+                <div style="{{ p.box }}">
+                  <span style="font:400 56px/1 var(--font-display);color:var(--qz-gold);font-variant-numeric:tabular-nums">{{ p.rank }}</span>
+                  <div style="display:flex;align-items:center;gap:14px">
+                    <div style="{{ p.avatar }}">{{ p.init }}</div>
+                    <div style="display:flex;flex-direction:column;gap:4px">
+                      <span style="font:500 20px/1.1 var(--font-display);color:var(--qz-white)">{{ p.name }}</span>
+                      <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45)">{{ p.since }}</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:baseline;gap:10px">
+                    <span style="font:400 30px/1 var(--font-display);color:var(--qz-white);font-variant-numeric:tabular-nums">{{ p.pts }}</span>
+                    <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45)">{{ p.detail }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:8px 48px 20px;background:var(--qz-warm-white)">
+          <div style="display:grid;grid-template-columns:64px 1fr 180px 130px 110px;align-items:center;gap:20px;padding:20px 0 12px">
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Rank</span>
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Member</span>
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">{{ colLabel }}</span>
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500);text-align:right">Avg. time</span>
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500);text-align:right">Points</span>
+          </div>
+          <sc-for list="{{ board }}" as="r" hint-placeholder-count="9">
+            <div style="{{ r.row }}">
+              <span style="{{ r.rankStyle }}">{{ r.rank }}</span>
+              <div style="display:flex;align-items:center;gap:14px">
+                <div style="{{ r.avatar }}">{{ r.init }}</div>
+                <div style="display:flex;flex-direction:column;gap:3px">
+                  <span style="font:500 17px/1.2 var(--font-body);color:var(--qz-charcoal)">{{ r.name }}</span>
+                  <span style="font-family:var(--font-titling);font-size:9.5px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--qz-grey-500)">{{ r.since }}</span>
+                </div>
+              </div>
+              <span style="font:400 15px/1.4 var(--font-body);color:var(--qz-grey-600)">{{ r.score }}</span>
+              <span style="font:400 15px/1.4 var(--font-body);color:var(--qz-grey-600);text-align:right;font-variant-numeric:tabular-nums">{{ r.time }}</span>
+              <span style="font:500 17px/1.4 var(--font-body);color:var(--qz-charcoal);text-align:right;font-variant-numeric:tabular-nums">{{ r.pts }}</span>
+            </div>
+          </sc-for>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:26px 0 34px">
+            <span style="font:400 15px/1.5 var(--font-body);color:var(--qz-grey-500)">{{ boardFoot }}</span>
+            <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="secondary" size="sm" hint-size="150px,36px">Show full table</x-import>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ MOBILE WEB ══════════ -->
+  <div style="display:flex;flex-direction:column;gap:40px">
+    <div style="display:flex;align-items:baseline;gap:20px;border-bottom:1px solid var(--qz-grey-300);padding-bottom:14px">
+      <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-grey-500)">Platform II</span>
+      <span style="font:500 22px/1 var(--font-display);letter-spacing:0.02em;color:var(--qz-charcoal)">Mobile web — 390px, the primary surface</span>
+    </div>
+
+    <div style="display:flex;gap:48px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Landing</div>
+        <div data-screen-label="Mobile 01 — Landing" style="width:390px;height:844px;overflow:hidden;background:var(--qz-white);border:1px solid var(--qz-grey-300);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.12)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--hairline)">
+            <img src="assets/crest-black.png" alt="" style="height:24px;opacity:0.9">
+            <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.24em;text-transform:uppercase;color:var(--qz-charcoal)">Queenzone</span>
+            <span style="font:400 22px/1 var(--font-body);color:var(--qz-grey-500)">≡</span>
+          </div>
+          <div style="position:relative;background:var(--qz-black);overflow:hidden;padding:36px 20px 34px">
+            <img src="assets/img-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1);opacity:0.3">
+            <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(17,17,17,0.7) 0%,rgba(17,17,17,0.95) 100%)"></div>
+            <div style="position:relative;display:flex;flex-direction:column;gap:16px">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">The Friday Ten · Week 34</span>
+              <h2 style="font:400 36px/1.06 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">Twenty-one minutes at Wembley</h2>
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.5)">10 questions · 20s each · 4,182 played</span>
+              <div style="padding-top:6px"><x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="cta" size="lg" full-width="{{ true }}" hint-size="100%,52px">Begin the quiz</x-import></div>
+            </div>
+          </div>
+          <div style="padding:26px 20px 20px;background:var(--qz-warm-white)">
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent-archive)">Test yourself</span>
+            <h3 style="font:400 27px/1.15 var(--font-display);color:var(--qz-charcoal);margin:8px 0 20px">Evergreen quizzes</h3>
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <a href="#" style="display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:center;text-decoration:none">
+                <div style="aspect-ratio:1/1;overflow:hidden;border-radius:var(--radius-md)"><img src="assets/img-studio.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <span style="font:500 20px/1.15 var(--font-display);color:var(--qz-charcoal)">Fifteen studio records</span>
+                  <span style="font-family:var(--font-titling);font-size:9.5px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--qz-grey-500)">24 questions · best 19</span>
+                </div>
+              </a>
+              <a href="#" style="display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:center;text-decoration:none">
+                <div style="aspect-ratio:1/1;overflow:hidden;border-radius:var(--radius-md)"><img src="assets/img-portrait.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <span style="font:500 20px/1.15 var(--font-display);color:var(--qz-charcoal)">Words and writers</span>
+                  <span style="font-family:var(--font-titling);font-size:9.5px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--qz-grey-500)">30 questions · not attempted</span>
+                </div>
+              </a>
+              <a href="#" style="display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:center;text-decoration:none">
+                <div style="aspect-ratio:1/1;overflow:hidden;border-radius:var(--radius-md)"><img src="assets/img-crowd.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <span style="font:500 20px/1.15 var(--font-display);color:var(--qz-charcoal)">On the road, 1970–1986</span>
+                  <span style="font-family:var(--font-titling);font-size:9.5px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--qz-grey-500)">28 questions · best 22</span>
+                </div>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Question — interactive</div>
+        <div data-screen-label="Mobile 02 — Question" style="position:relative;width:390px;height:844px;overflow:hidden;background:var(--qz-black);border:1px solid var(--qz-black);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.18)">
+          <img src="assets/crest-white.png" alt="" style="position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);height:360px;opacity:0.05;pointer-events:none">
+          <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border-on-dark)">
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.55)">04 / 10</span>
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4)">The Friday Ten</span>
+            <span style="font:500 19px/1 var(--font-display);color:var(--qz-gold);font-variant-numeric:tabular-nums">{{ mob.clock }}</span>
+          </div>
+          <div style="height:2px;background:rgba(255,255,255,0.10)"><div style="height:2px;width:35%;background:var(--qz-gold)"></div></div>
+
+          <div style="position:relative;padding:22px 20px 20px;display:flex;flex-direction:column;gap:18px">
+            <div style="height:168px;overflow:hidden;border-radius:var(--radius-md)"><img src="assets/img-stage.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">Question four · Live Aid</span>
+              <h2 style="font:400 30px/1.12 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0;text-wrap:pretty">How long was Queen's set at Live Aid?</h2>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <button onClick="{{ pm0 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">A</span>
+                <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">17 minutes</span>
+                <span style="{{ mob.m0 }}">{{ mob.t0 }}</span>
+                <span style="{{ mob.r0 }}"></span>
+              </button>
+              <button onClick="{{ pm1 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">B</span>
+                <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">21 minutes</span>
+                <span style="{{ mob.m1 }}">{{ mob.t1 }}</span>
+                <span style="{{ mob.r1 }}"></span>
+              </button>
+              <button onClick="{{ pm2 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">C</span>
+                <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">25 minutes</span>
+                <span style="{{ mob.m2 }}">{{ mob.t2 }}</span>
+                <span style="{{ mob.r2 }}"></span>
+              </button>
+              <button onClick="{{ pm3 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">D</span>
+                <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">30 minutes</span>
+                <span style="{{ mob.m3 }}">{{ mob.t3 }}</span>
+                <span style="{{ mob.r3 }}"></span>
+              </button>
+            </div>
+          </div>
+
+          <div style="{{ mob.sheet }}">
+            <div style="display:flex;flex-direction:column;gap:12px;padding:22px 20px 26px;background:#171717;border-top:2px solid var(--qz-gold)">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <span style="{{ mob.verdictStyle }}">{{ mob.verdict }}</span>
+                <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.5)">{{ mob.pts }} points · 6.2s</span>
+              </div>
+              <p style="font:400 15px/1.6 var(--font-body);color:rgba(255,255,255,0.7);margin:0;text-wrap:pretty">Queen took the Wembley stage at 6.41pm and played for roughly twenty-one minutes — six songs, no encore.</p>
+              <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="cta" size="lg" full-width="{{ true }}" hint-size="100%,52px">Next question</x-import>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Results</div>
+        <div data-screen-label="Mobile 03 — Results" style="width:390px;height:844px;overflow:hidden;background:var(--qz-white);border:1px solid var(--qz-grey-300);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.12);display:flex;flex-direction:column">
+          <div style="position:relative;background:var(--qz-black);overflow:hidden;padding:26px 20px 22px;flex-shrink:0">
+            <img src="assets/crest-white.png" alt="" style="position:absolute;right:-40px;top:50%;transform:translateY(-50%);height:180px;opacity:0.07">
+            <div style="position:relative;display:flex;flex-direction:column;gap:10px">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">Week 34 · Complete</span>
+              <h2 style="font:400 32px/1.02 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">Eight from ten</h2>
+              <div style="display:flex;gap:24px;border-top:1px solid var(--border-on-dark);margin-top:2px;padding-top:12px">
+                <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Points</span><span style="font:400 22px/1 var(--font-display);color:var(--qz-white)">1,420</span></div>
+                <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Avg.</span><span style="font:400 22px/1 var(--font-display);color:var(--qz-white)">7.4s</span></div>
+                <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Rank</span><span style="font:400 22px/1 var(--font-display);color:var(--qz-gold)">37</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:16px 20px 0;flex:1;overflow:auto">
+            <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent-archive)">Your paper</span>
+            <div style="display:flex;flex-direction:column;padding-top:6px">
+              <sc-for list="{{ breakdownShort }}" as="row" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:28px 1fr 74px;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--hairline)">
+                  <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.12em;color:var(--qz-grey-400)">{{ row.n }}</span>
+                  <span style="font:400 14px/1.3 var(--font-body);color:var(--qz-charcoal)">{{ row.q }}</span>
+                  <span style="{{ row.markStyleSm }}">{{ row.mark }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="padding:14px 20px 18px;display:flex;flex-direction:column;gap:8px;flex-shrink:0;border-top:1px solid var(--hairline)">
+            <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="primary" size="lg" full-width="{{ true }}" hint-size="100%,52px">View the standings</x-import>
+            <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="secondary" size="lg" full-width="{{ true }}" hint-size="100%,52px">Share result</x-import>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Leaderboard</div>
+        <div data-screen-label="Mobile 04 — Leaderboard" style="width:390px;height:844px;overflow:hidden;background:var(--qz-white);border:1px solid var(--qz-grey-300);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.12)">
+          <div style="position:relative;background:var(--qz-black);overflow:hidden;padding:28px 20px 22px">
+            <img src="assets/crest-white.png" alt="" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:200px;opacity:0.06">
+            <div style="position:relative;display:flex;flex-direction:column;gap:14px">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">Standings</span>
+              <h2 style="font:400 32px/1.05 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">{{ boardTitle }}</h2>
+              <div style="display:flex;gap:8px;padding-top:4px">
+                <button onClick="{{ tabWeek }}" style="{{ tabWm }}">This week</button>
+                <button onClick="{{ tabAll }}" style="{{ tabAm }}">All time</button>
+              </div>
+            </div>
+          </div>
+          <div style="padding:4px 20px 0">
+            <sc-for list="{{ boardMobile }}" as="r" hint-placeholder-count="8">
+              <div style="{{ r.rowM }}">
+                <span style="{{ r.rankStyle }}">{{ r.rank }}</span>
+                <div style="{{ r.avatar }}">{{ r.init }}</div>
+                <div style="display:flex;flex-direction:column;gap:2px;flex:1">
+                  <span style="font:500 16px/1.2 var(--font-body);color:var(--qz-charcoal)">{{ r.name }}</span>
+                  <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--qz-grey-500)">{{ r.score }} · {{ r.time }}</span>
+                </div>
+                <span style="font:500 16px/1.2 var(--font-body);color:var(--qz-charcoal);font-variant-numeric:tabular-nums">{{ r.pts }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ NATIVE APP ══════════ -->
+  <div style="display:flex;flex-direction:column;gap:40px">
+    <div style="display:flex;align-items:baseline;gap:20px;border-bottom:1px solid var(--qz-grey-300);padding-bottom:14px">
+      <span style="font-family:var(--font-titling);font-size:12px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-grey-500)">Platform III</span>
+      <span style="font:500 22px/1 var(--font-display);letter-spacing:0.02em;color:var(--qz-charcoal)">Native app — streaks, badges, offline play</span>
+    </div>
+
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Today</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" width="{{ 402 }}" height="{{ 874 }}" hint-size="402px,874px">
+          <div data-screen-label="App 01 — Today" style="min-height:100%;background:var(--qz-black);padding:64px 20px 96px;display:flex;flex-direction:column;gap:26px;position:relative">
+            <img src="assets/crest-white.png" alt="" style="position:absolute;right:-60px;top:120px;height:280px;opacity:0.05">
+            <div style="position:relative;display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;align-items:center;gap:10px">
+                <img src="assets/crest-white.png" alt="" style="height:22px;opacity:0.9">
+                <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.24em;text-transform:uppercase;color:var(--qz-white)">Queenzone</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;padding:5px 11px;border:1px solid var(--qz-gold);border-radius:999px">
+                <span style="font-family:var(--font-titling);font-size:9.5px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--qz-gold)">Streak 14</span>
+              </div>
+            </div>
+
+            <div style="position:relative;display:flex;flex-direction:column;gap:12px;padding-top:6px">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Friday 28 August</span>
+              <h2 style="font:400 40px/1.04 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">Good evening, brightonrock</h2>
+            </div>
+
+            <div style="position:relative;border:1px solid var(--border-on-dark);border-radius:var(--radius-md);overflow:hidden">
+              <div style="height:150px;overflow:hidden;position:relative">
+                <img src="assets/img-stage.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)">
+                <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(17,17,17,0.15),rgba(17,17,17,0.9))"></div>
+                <span style="position:absolute;left:16px;bottom:14px;font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-gold)">The Friday Ten · Week 34</span>
+              </div>
+              <div style="padding:18px 16px 20px;display:flex;flex-direction:column;gap:14px">
+                <span style="font:400 27px/1.12 var(--font-display);color:var(--qz-white)">Twenty-one minutes at Wembley</span>
+                <span style="font-family:var(--font-titling);font-size:9.5px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.45)">10 questions · downloaded for offline play</span>
+                <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="cta" size="lg" full-width="{{ true }}" hint-size="100%,52px">Begin</x-import>
+              </div>
+            </div>
+
+            <div style="position:relative;display:flex;flex-direction:column;gap:14px">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:rgba(255,255,255,0.45)">Your badges</span>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border:1px solid var(--qz-gold);border-radius:var(--radius-sm)">
+                  <span style="font:400 22px/1 var(--font-display);color:var(--qz-gold)">XIV</span>
+                  <span style="font-family:var(--font-titling);font-size:8px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.55);text-align:center">Fortnight</span>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border:1px solid var(--border-on-dark);border-radius:var(--radius-sm)">
+                  <span style="font:400 22px/1 var(--font-display);color:rgba(255,255,255,0.8)">X</span>
+                  <span style="font-family:var(--font-titling);font-size:8px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.45);text-align:center">Full marks</span>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border:1px solid var(--border-on-dark);border-radius:var(--radius-sm)">
+                  <span style="font:400 22px/1 var(--font-display);color:rgba(255,255,255,0.8)">V</span>
+                  <span style="font-family:var(--font-titling);font-size:8px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.45);text-align:center">Top fifty</span>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border:1px dashed rgba(255,255,255,0.16);border-radius:var(--radius-sm)">
+                  <span style="font:400 22px/1 var(--font-display);color:rgba(255,255,255,0.25)">—</span>
+                  <span style="font-family:var(--font-titling);font-size:8px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.25);text-align:center">Locked</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-around;padding:14px 0 30px;border-top:1px solid var(--border-on-dark);background:rgba(17,17,17,0.92)">
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--qz-gold)">Today</span>
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.4)">Archive</span>
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.4)">Standings</span>
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.4)">You</span>
+            </div>
+          </div>
+        </x-import>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Question — interactive</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" width="{{ 402 }}" height="{{ 874 }}" hint-size="402px,874px">
+          <div data-screen-label="App 02 — Question" style="min-height:100%;background:var(--qz-black);padding:58px 0 0;display:flex;flex-direction:column;position:relative">
+            <img src="assets/crest-white.png" alt="" style="position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);height:340px;opacity:0.05;pointer-events:none">
+            <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:8px 20px 12px">
+              <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.5)">04 / 10</span>
+              <span style="font-family:var(--font-titling);font-size:9.5px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.35)">Offline · saved</span>
+              <span style="font:500 19px/1 var(--font-display);color:var(--qz-gold);font-variant-numeric:tabular-nums">{{ app.clock }}</span>
+            </div>
+            <div style="height:2px;background:rgba(255,255,255,0.10)"><div style="height:2px;width:35%;background:var(--qz-gold)"></div></div>
+
+            <div style="position:relative;padding:20px;display:flex;flex-direction:column;gap:18px">
+              <div style="height:160px;overflow:hidden;border-radius:var(--radius-md)"><img src="assets/img-crowd.jpg" alt="" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1)"></div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">Question four · Live Aid</span>
+                <h2 style="font:400 30px/1.12 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0;text-wrap:pretty">How long was Queen's set at Live Aid?</h2>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <button onClick="{{ pa0 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                  <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">A</span>
+                  <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">17 minutes</span>
+                  <span style="{{ app.m0 }}">{{ app.t0 }}</span>
+                  <span style="{{ app.r0 }}"></span>
+                </button>
+                <button onClick="{{ pa1 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                  <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">B</span>
+                  <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">21 minutes</span>
+                  <span style="{{ app.m1 }}">{{ app.t1 }}</span>
+                  <span style="{{ app.r1 }}"></span>
+                </button>
+                <button onClick="{{ pa2 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                  <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">C</span>
+                  <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">25 minutes</span>
+                  <span style="{{ app.m2 }}">{{ app.t2 }}</span>
+                  <span style="{{ app.r2 }}"></span>
+                </button>
+                <button onClick="{{ pa3 }}" style="position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:14px 16px;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.16);border-radius:var(--radius-sm);cursor:pointer;text-align:left">
+                  <span style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.16em;color:rgba(255,255,255,0.45);width:14px">D</span>
+                  <span style="flex:1;font:400 17px/1.3 var(--font-body);color:var(--qz-white)">30 minutes</span>
+                  <span style="{{ app.m3 }}">{{ app.t3 }}</span>
+                  <span style="{{ app.r3 }}"></span>
+                </button>
+              </div>
+            </div>
+
+            <div style="{{ app.sheet }}">
+              <div style="display:flex;flex-direction:column;gap:12px;padding:22px 20px 40px;background:#171717;border-top:2px solid var(--qz-gold);border-radius:20px 20px 0 0">
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                  <span style="{{ app.verdictStyle }}">{{ app.verdict }}</span>
+                  <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.5)">{{ app.pts }} points · streak 14</span>
+                </div>
+                <p style="font:400 15px/1.6 var(--font-body);color:rgba(255,255,255,0.7);margin:0;text-wrap:pretty">Queen took the Wembley stage at 6.41pm and played for roughly twenty-one minutes — six songs, no encore.</p>
+                <x-import component-from-global-scope="QueenzoneDesignSystem_6c12e8.Button" variant="cta" size="lg" full-width="{{ true }}" hint-size="100%,52px">Next question</x-import>
+              </div>
+            </div>
+          </div>
+        </x-import>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:var(--font-titling);font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--qz-grey-500)">Standings</div>
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" width="{{ 402 }}" height="{{ 874 }}" hint-size="402px,874px">
+          <div data-screen-label="App 03 — Standings" style="min-height:100%;background:var(--qz-white);padding:52px 0 0;display:flex;flex-direction:column;position:relative">
+            <div style="position:relative;background:var(--qz-black);overflow:hidden;padding:24px 20px 20px">
+              <img src="assets/crest-white.png" alt="" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);height:190px;opacity:0.06">
+              <div style="position:relative;display:flex;flex-direction:column;gap:12px">
+                <span style="font-family:var(--font-titling);font-size:10px;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--qz-gold)">Standings</span>
+                <h2 style="font:400 30px/1.05 var(--font-display);letter-spacing:-0.015em;color:var(--qz-white);margin:0">{{ boardTitle }}</h2>
+                <div style="display:flex;gap:8px;padding-top:4px">
+                  <button onClick="{{ tabWeek }}" style="{{ tabWm }}">This week</button>
+                  <button onClick="{{ tabAll }}" style="{{ tabAm }}">All time</button>
+                </div>
+              </div>
+            </div>
+            <div style="padding:4px 20px 0">
+              <sc-for list="{{ boardApp }}" as="r" hint-placeholder-count="7">
+                <div style="{{ r.rowM }}">
+                  <span style="{{ r.rankStyle }}">{{ r.rank }}</span>
+                  <div style="{{ r.avatar }}">{{ r.init }}</div>
+                  <div style="display:flex;flex-direction:column;gap:2px;flex:1">
+                    <span style="font:500 16px/1.2 var(--font-body);color:var(--qz-charcoal)">{{ r.name }}</span>
+                    <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--qz-grey-500)">{{ r.score }} · {{ r.time }}</span>
+                  </div>
+                  <span style="font:500 16px/1.2 var(--font-body);color:var(--qz-charcoal);font-variant-numeric:tabular-nums">{{ r.pts }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-around;padding:14px 0 30px;border-top:1px solid var(--hairline);background:var(--qz-white)">
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--qz-grey-500)">Today</span>
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--qz-grey-500)">Archive</span>
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--qz-blue)">Standings</span>
+              <span style="font-family:var(--font-titling);font-size:9px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--qz-grey-500)">You</span>
+            </div>
+          </div>
+        </x-import>
+      </div>
+
+    </div>
+  </div>
+
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1600,&quot;height&quot;:1200}}">
+const CORRECT = 1;
+const EASE = 'cubic-bezier(0.22,0.61,0.36,1)';
+
+const WEEK = [
+  { rank: '1', init: 'RT', name: 'rhyethompson', since: 'Member since 2004', score: '10 / 10', time: '4.1s', pts: '1,940' },
+  { rank: '2', init: 'SP', name: 'seaside_rendezvous', since: 'Member since 2001', score: '10 / 10', time: '4.8s', pts: '1,880' },
+  { rank: '3', init: 'MT', name: 'MillionaireWaltz', since: 'Member since 2006', score: '10 / 10', time: '5.6s', pts: '1,810' },
+  { rank: '4', init: 'KH', name: 'kensington_h', since: 'Member since 1999', score: '10 / 10', time: '6.9s', pts: '1,742' },
+  { rank: '5', init: 'DL', name: 'delilah_78', since: 'Member since 2008', score: '9 / 10', time: '5.2s', pts: '1,698' },
+  { rank: '6', init: 'TF', name: 'trident_files', since: 'Member since 2003', score: '9 / 10', time: '6.0s', pts: '1,650' },
+  { rank: '7', init: 'NP', name: 'nevermore_p', since: 'Member since 2010', score: '9 / 10', time: '7.7s', pts: '1,601' },
+  { rank: '8', init: 'AC', name: 'astrophysicist', since: 'Member since 2005', score: '9 / 10', time: '8.4s', pts: '1,572' },
+  { rank: '37', init: 'BR', name: 'brightonrock — you', since: 'Member since 2002', score: '8 / 10', time: '7.4s', pts: '1,420', you: true }
+];
+
+const ALLTIME = [
+  { rank: '1', init: 'KH', name: 'kensington_h', since: '212 quizzes played', score: '94% correct', time: '6.4s', pts: '318,940' },
+  { rank: '2', init: 'RT', name: 'rhyethompson', since: '206 quizzes played', score: '93% correct', time: '5.1s', pts: '306,120' },
+  { rank: '3', init: 'TF', name: 'trident_files', since: '198 quizzes played', score: '91% correct', time: '6.8s', pts: '288,455' },
+  { rank: '4', init: 'SP', name: 'seaside_rendezvous', since: '181 quizzes played', score: '92% correct', time: '5.4s', pts: '271,300' },
+  { rank: '5', init: 'AC', name: 'astrophysicist', since: '177 quizzes played', score: '89% correct', time: '7.9s', pts: '254,860' },
+  { rank: '6', init: 'MT', name: 'MillionaireWaltz', since: '160 quizzes played', score: '90% correct', time: '6.2s', pts: '241,077' },
+  { rank: '7', init: 'DL', name: 'delilah_78', since: '154 quizzes played', score: '88% correct', time: '7.1s', pts: '228,410' },
+  { rank: '8', init: 'NP', name: 'nevermore_p', since: '149 quizzes played', score: '87% correct', time: '8.2s', pts: '214,690' },
+  { rank: '19', init: 'BR', name: 'brightonrock — you', since: '96 quizzes played', score: '86% correct', time: '7.6s', pts: '138,204', you: true }
+];
+
+const PAPER = [
+  { n: '01', q: 'Which Queen album opens with "Tie Your Mother Down"?', a: 'A Day at the Races', ok: true, pts: '+170' },
+  { n: '02', q: 'Who wrote "Another One Bites the Dust"?', a: 'John Deacon', ok: true, pts: '+185' },
+  { n: '03', q: 'Where did Queen play their final concert with Freddie Mercury?', a: 'Knebworth Park', ok: true, pts: '+160' },
+  { n: '04', q: "How long was Queen's set at Live Aid?", a: '21 minutes', ok: true, pts: '+180' },
+  { n: '05', q: 'How many weeks did "Bohemian Rhapsody" hold UK No.1 in 1975–76?', a: 'Seven weeks', ok: false, pts: '0' },
+  { n: '06', q: 'Which single gave Queen their first UK Top 10?', a: 'Seven Seas of Rhye', ok: true, pts: '+155' },
+  { n: '07', q: 'Identify the venue in this 1977 photograph.', a: 'Madison Square Garden', ok: true, pts: '+140' },
+  { n: '08', q: 'Which album cover features the crest in full colour?', a: 'A Night at the Opera', ok: false, pts: '0' },
+  { n: '09', q: 'Complete the lyric heard in this clip.', a: '"…nothing really matters"', ok: true, pts: '+150' },
+  { n: '10', q: 'Which band member designed the Queen crest?', a: 'Freddie Mercury', ok: true, pts: '+130' }
+];
+
+class Component extends DCLogic {
+  state = { web: null, mob: null, app: null, tab: 'week' };
+
+  lane(sel, key) {
+    const o = { clock: sel === null ? '14' : '08' };
+    ['17 minutes', '21 minutes', '25 minutes', '30 minutes'].forEach((_, i) => {
+      let border = '1px solid transparent', bg = 'transparent', mark = '', mc = 'transparent';
+      if (sel !== null) {
+        if (i === CORRECT) { border = '2px solid var(--qz-gold)'; bg = 'rgba(184,154,74,0.13)'; mark = 'Correct'; mc = 'var(--qz-gold)'; }
+        else if (i === sel) { border = '2px solid var(--qz-burgundy)'; bg = 'rgba(107,31,51,0.28)'; mark = 'Your answer'; mc = '#C98B9B'; }
+      }
+      o['r' + i] = { position: 'absolute', inset: 0, border, background: bg, borderRadius: 'var(--radius-sm)', pointerEvents: 'none', transition: 'all 320ms ' + EASE };
+      o['m' + i] = { fontFamily: 'var(--font-titling)', fontSize: '9.5px', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: mc, whiteSpace: 'nowrap' };
+      o['t' + i] = mark;
+    });
+    const answered = sel !== null;
+    o.panel = { display: answered ? 'block' : 'none' };
+    o.hint = { display: answered ? 'none' : 'block' };
+    o.sheet = { display: answered ? 'block' : 'none', position: 'absolute', left: 0, right: 0, bottom: 0 };
+    o.verdict = sel === CORRECT ? 'Correct' : 'Not quite';
+    o.verdictStyle = { font: '400 26px/1 var(--font-display)', letterSpacing: '-0.01em', color: sel === CORRECT ? 'var(--qz-gold)' : '#C98B9B' };
+    o.pts = sel === CORRECT ? '+180' : '+0';
+    return o;
+  }
+
+  pick(lane, i) { return () => this.setState({ [lane]: this.state[lane] === i ? null : i }); }
+
+  rows(list, limit) {
+    return list.slice(0, limit).map((r, idx) => {
+      const top3 = idx < 3;
+      return Object.assign({}, r, {
+        row: { display: 'grid', gridTemplateColumns: '64px 1fr 180px 130px 110px', alignItems: 'center', gap: '20px', padding: '16px 0', borderBottom: '1px solid var(--hairline)', background: r.you ? 'var(--qz-blue-tint)' : 'transparent', boxShadow: r.you ? 'inset 3px 0 0 var(--qz-blue)' : 'none', paddingLeft: r.you ? '14px' : '0' },
+        rowM: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: '1px solid var(--hairline)', background: r.you ? 'var(--qz-blue-tint)' : 'transparent', boxShadow: r.you ? 'inset 3px 0 0 var(--qz-blue)' : 'none', paddingLeft: r.you ? '10px' : '0' },
+        rankStyle: { font: '400 24px/1 var(--font-display)', fontVariantNumeric: 'tabular-nums', color: top3 ? 'var(--qz-gold)' : 'var(--qz-grey-400)', minWidth: '32px' },
+        avatar: { width: '38px', height: '38px', flexShrink: 0, borderRadius: '50%', background: 'var(--qz-grey-100)', border: '1px solid ' + (top3 ? 'var(--qz-gold)' : 'var(--border-default)'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-titling)', fontSize: '11px', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--qz-grey-600)' }
+      });
+    });
+  }
+
+  tabStyle(on, small) {
+    return {
+      padding: small ? '7px 14px' : '9px 20px',
+      fontFamily: 'var(--font-titling)', fontSize: small ? '9.5px' : '10.5px', fontWeight: 600,
+      letterSpacing: '0.18em', textTransform: 'uppercase',
+      color: on ? 'var(--qz-black)' : 'rgba(255,255,255,0.65)',
+      background: on ? 'var(--qz-white)' : 'transparent',
+      border: '1px solid ' + (on ? 'var(--qz-white)' : 'var(--border-on-dark)'),
+      borderRadius: '999px', cursor: 'pointer', transition: 'all 180ms ' + EASE
+    };
+  }
+
+  renderVals() {
+    const week = this.state.tab === 'week';
+    const list = week ? WEEK : ALLTIME;
+    const v = {
+      web: this.lane(this.state.web),
+      mob: this.lane(this.state.mob),
+      app: this.lane(this.state.app),
+      ghostOnDark: { color: 'var(--qz-white)', borderColor: 'rgba(255,255,255,0.4)' },
+      boardTitle: week ? 'The Friday Ten · Week 34' : 'All-time points',
+      colLabel: week ? 'Score' : 'Accuracy',
+      boardFoot: week ? 'Ranking 4,182 members. Standings close Sunday at 23.59 BST.' : 'Ranking 21,640 members across 212 quizzes since 2019.',
+      podium: list.slice(0, 3).map((p, i) => Object.assign({}, p, {
+        detail: week ? 'points' : 'points',
+        box: { display: 'flex', flexDirection: 'column', gap: '18px', padding: '24px 22px', border: '1px solid ' + (i === 0 ? 'var(--qz-gold)' : 'var(--border-on-dark)'), borderRadius: 'var(--radius-md)', background: i === 0 ? 'rgba(184,154,74,0.07)' : 'rgba(255,255,255,0.03)' },
+        avatar: { width: '44px', height: '44px', flexShrink: 0, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-titling)', fontSize: '12px', fontWeight: 600, color: 'rgba(255,255,255,0.85)' }
+      })),
+      board: this.rows(list, 9),
+      boardMobile: this.rows(list, 9),
+      boardApp: this.rows(list, 7),
+      breakdown: PAPER.map(r => Object.assign({}, r, {
+        mark: r.ok ? 'Correct' : 'Incorrect',
+        markStyle: { fontFamily: 'var(--font-titling)', fontSize: '10px', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: r.ok ? 'var(--qz-gold-deep)' : 'var(--qz-burgundy)' },
+        markStyleSm: { fontFamily: 'var(--font-titling)', fontSize: '9px', fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: r.ok ? 'var(--qz-gold-deep)' : 'var(--qz-burgundy)', textAlign: 'right' }
+      })),
+      tabW: this.tabStyle(week, false),
+      tabA: this.tabStyle(!week, false),
+      tabWm: this.tabStyle(week, true),
+      tabAm: this.tabStyle(!week, true),
+      tabWeek: () => this.setState({ tab: 'week' }),
+      tabAll: () => this.setState({ tab: 'all' })
+    };
+    v.breakdownShort = v.breakdown.slice(0, 4);
+    [0, 1, 2, 3].forEach(i => {
+      v['pw' + i] = this.pick('web', i);
+      v['pm' + i] = this.pick('mob', i);
+      v['pa' + i] = this.pick('app', i);
+    });
+    return v;
+  }
+}
+
+</script>
+</body>
+</html>

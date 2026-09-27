@@ -3,6 +3,7 @@ namespace QueenZone.Data;
 public sealed class SharedFreddieTributeStore(IEnumerable<FreddieTribute> seedTributes)
 {
     private readonly object gate = new();
+    private readonly FreddieTribute[] seed = [.. seedTributes];
     private readonly List<TributeState> tributes = seedTributes
         .Select(tribute => new TributeState(tribute, true))
         .ToList();
@@ -22,8 +23,28 @@ public sealed class SharedFreddieTributeStore(IEnumerable<FreddieTribute> seedTr
 
     public FreddieTribute? GetRandomPublicTribute()
     {
+        var id = PickRandomVisibleId();
+        return id is int value ? GetVisibleById(value) : null;
+    }
+
+    public int? PickRandomVisibleId()
+    {
         var items = GetVisibleTributes();
-        return items.Count == 0 ? null : items[Random.Shared.Next(items.Count)];
+        return items.Count == 0 ? null : items[Random.Shared.Next(items.Count)].Id;
+    }
+
+    public FreddieTribute? GetVisibleById(int id)
+    {
+        lock (gate)
+        {
+            var state = tributes.FirstOrDefault(item => item.Tribute.Id == id && item.IsVisible);
+            if (state is null || string.IsNullOrWhiteSpace(state.Tribute.Thought))
+            {
+                return null;
+            }
+
+            return state.Tribute;
+        }
     }
 
     public AdminFreddieTributePage GetAdminPage(
@@ -87,6 +108,15 @@ public sealed class SharedFreddieTributeStore(IEnumerable<FreddieTribute> seedTr
 
             tributes.RemoveAt(index);
             return true;
+        }
+    }
+
+    internal void Reset()
+    {
+        lock (gate)
+        {
+            tributes.Clear();
+            tributes.AddRange(seed.Select(tribute => new TributeState(tribute, true)));
         }
     }
 

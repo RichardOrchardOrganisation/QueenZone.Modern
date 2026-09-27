@@ -105,4 +105,13 @@ public sealed class SharedTriviaStore
             return true;
         }
     }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            facts.Clear();
+            nextId = 1;
+        }
+    }
 }

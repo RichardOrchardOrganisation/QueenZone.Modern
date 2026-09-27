@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using QueenZone.Data;
 using QueenZone.Storage;
 
 namespace QueenZone.Web;

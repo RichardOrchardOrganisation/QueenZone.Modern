@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class WellKnownStaticFileTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class WellKnownStaticFileTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public WellKnownStaticFileTests(WebApplicationFactory<Program> factory)
+    public WellKnownStaticFileTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Fact]

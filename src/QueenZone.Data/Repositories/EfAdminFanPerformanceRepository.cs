@@ -52,6 +52,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
                 URL AS AudioFileName,
                 thesize AS FileSizeText,
                 DATE_ADDED AS DateAdded,
+                DurationSeconds,
                 CAST(CASE WHEN DISPLAY = 1 THEN 1 ELSE 0 END AS bit) AS IsVisible
             FROM dbo.Q_STAGE_T
             {where}
@@ -85,6 +86,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
                 URL AS AudioFileName,
                 thesize AS FileSizeText,
                 DATE_ADDED AS DateAdded,
+                DurationSeconds,
                 CAST(CASE WHEN DISPLAY = 1 THEN 1 ELSE 0 END AS bit) AS IsVisible
             FROM dbo.Q_STAGE_T
             WHERE Q_STAGE_ID = @Id
@@ -110,11 +112,11 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
         const string sql = """
             INSERT INTO dbo.Q_STAGE_T
             (
-                TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED, DISPLAY
+                TITLE, PERFORMED_BY, DESCRIPTION, URL, thesize, DATE_ADDED, DISPLAY, DurationSeconds
             )
             VALUES
             (
-                @Title, @PerformedBy, @Description, @Url, @TheSize, @DateAdded, @Display
+                @Title, @PerformedBy, @Description, @Url, @TheSize, @DateAdded, @Display, @DurationSeconds
             );
             SELECT CAST(SCOPE_IDENTITY() AS int);
             """;
@@ -133,6 +135,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
                 command.Parameters.Add(EfSql.Input("@TheSize", request.FileSizeBytes.ToString()));
                 command.Parameters.Add(EfSql.Input("@DateAdded", request.DateAdded));
                 command.Parameters.Add(EfSql.Input("@Display", request.IsVisible ? 1 : 0));
+                command.Parameters.Add(EfSql.Input("@DurationSeconds", request.DurationSeconds is int seconds ? seconds : DBNull.Value));
             },
             cancellationToken: cancellationToken);
     }
@@ -238,6 +241,16 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
         QueenZoneConcurrency.EnsureUpdated(affected, exists, $"Fan performance {id} was not found.");
     }
 
+    public async Task DeleteAsync(int id, string editorEmail, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(editorEmail);
+        await EfSql.ExecuteNonQuerySqlAsync(
+            dbContext,
+            "DELETE FROM dbo.Q_STAGE_T WHERE Q_STAGE_ID = @Id",
+            command => command.Parameters.Add(EfSql.Input("@Id", id)),
+            cancellationToken: cancellationToken);
+    }
+
     private static void AddFilterParameters(SqlCommand command, AdminFanPerformanceListFilter filter)
     {
         if (filter.IsVisible is bool isVisible)
@@ -260,7 +273,8 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
             row.AudioFileName?.Trim() ?? string.Empty,
             ParseFileSize(row.FileSizeText),
             row.DateAdded,
-            row.IsVisible);
+            row.IsVisible,
+            row.DurationSeconds);
 
     private static long ParseFileSize(string? thesize) =>
         long.TryParse(thesize, out var parsed) ? parsed : 0;
@@ -282,5 +296,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
         public DateTime DateAdded { get; set; }
 
         public bool IsVisible { get; set; }
+
+        public int? DurationSeconds { get; set; }
     }
 }

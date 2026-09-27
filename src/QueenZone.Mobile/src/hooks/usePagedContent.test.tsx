@@ -65,7 +65,10 @@ describe('usePagedContent', () => {
     await act(async () => {
       result.current.refresh();
     });
+    expect(result.current.refreshing).toBe(true);
     await waitFor(() => expect(result.current.items).toEqual(['z']));
+    expect(result.current.refreshing).toBe(true);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
     expect(fetcher).toHaveBeenLastCalledWith(1, expect.any(AbortSignal), 'refresh');
   });
 
@@ -120,7 +123,8 @@ describe('usePagedContent', () => {
     refreshed.resolve(pagedResponse(['fresh'], 1, 1));
     await waitFor(() => expect(result.current.items).toEqual(['fresh']));
     expect(result.current.loading).toBe(false);
-    expect(result.current.refreshing).toBe(false);
+    expect(result.current.refreshing).toBe(true);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
 
     initial.resolve(pagedResponse(['stale'], 1, 1));
     await flush();
@@ -156,7 +160,7 @@ describe('usePagedContent', () => {
     expect(result.current.items).toEqual(['fresh']);
     expect(result.current.items).not.toContain('stale-page-2');
     expect(result.current.loadingMore).toBe(false);
-    expect(result.current.refreshing).toBe(false);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
   });
 
   it('cancels an in-flight refresh when another refresh starts', async () => {
@@ -185,7 +189,7 @@ describe('usePagedContent', () => {
     await waitFor(() => expect(result.current.items).toEqual(['newer']));
     await flush();
     expect(result.current.items).toEqual(['newer']);
-    expect(result.current.refreshing).toBe(false);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
   });
 
   it('resets and refetches when resetKey changes, ignoring aborted in-flight results', async () => {
@@ -233,7 +237,7 @@ describe('usePagedContent', () => {
     await waitFor(() => expect(result.current.items).toEqual(['reset']));
     await flush();
     expect(result.current.items).not.toContain('stale-refresh');
-    expect(result.current.refreshing).toBe(false);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
     expect(result.current.loading).toBe(false);
   });
 
@@ -283,7 +287,7 @@ describe('usePagedContent', () => {
     initial.reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
     await waitFor(() => expect(result.current.error).toBe('The server had a problem. Try again shortly.'));
     expect(result.current.loading).toBe(false);
-    expect(result.current.refreshing).toBe(false);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
   });
 
   it('settles refresh on a non-ApiError and load-more on a failed next page', async () => {
@@ -297,7 +301,7 @@ describe('usePagedContent', () => {
       result.current.refresh();
     });
     await waitFor(() => expect(result.current.error).toBe('Something went wrong.'));
-    expect(result.current.refreshing).toBe(false);
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
     expect(result.current.loading).toBe(false);
 
     fetcher.mockResolvedValueOnce(pagedResponse(['a'], 1, 2));

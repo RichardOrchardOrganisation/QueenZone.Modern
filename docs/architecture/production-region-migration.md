@@ -1,7 +1,7 @@
 # Production region migration
 
-Issue: [#1272](https://github.com/richardorchard/QueenZone.Modern/issues/1272),
-Phase 7 of [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264).
+Issue: [#1272](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1272),
+Phase 7 of [epic #1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264).
 
 ## Current status: 14 September 2026
 

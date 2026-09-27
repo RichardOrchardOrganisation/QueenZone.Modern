@@ -1,14 +1,20 @@
 appId: org.queenzone.mobile
 ---
 # iOS shows "Open in QueenZone?" asynchronously after simctl openurl of
-# queenzone:// on a fresh install (#1281). An optional tap retains Maestro's
-# normal selector wait without failing once the scheme is already trusted.
-# The alert title is not consistently exposed to XCTest, but the exact Open
-# button is.
+# queenzone:// on a fresh install (#1281). The alert is not up at openLink
+# return (#1455 journeys): wait for the exact Open button, then tap it.
+# optional keeps the wait from failing once the scheme is already trusted.
+# The alert title is not consistently exposed to XCTest; the Open button is.
 - runFlow:
     when:
       platform: iOS
     commands:
+      - extendedWaitUntil:
+          visible:
+            text: '^Open$'
+          timeout: 15000
+          optional: true
       - tapOn:
           text: '^Open$'
           optional: true
+          retryTapIfNoChange: true

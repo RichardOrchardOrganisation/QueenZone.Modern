@@ -6,10 +6,10 @@ Accepted.
 
 ## Context
 
-[Epic #756](https://github.com/richardorchard/QueenZone.Modern/issues/756) needs the backend to actually deliver push notifications for forum replies, private messages, and news to iOS and Android devices ([#757](https://github.com/richardorchard/QueenZone.Modern/issues/757)–[#760](https://github.com/richardorchard/QueenZone.Modern/issues/760)). Two decisions were left open by those stories:
+[Epic #756](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/756) needs the backend to actually deliver push notifications for forum replies, private messages, and news to iOS and Android devices ([#757](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/757)–[#760](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/760)). Two decisions were left open by those stories:
 
 1. **Transport** — how the backend gets a message to a device: through Apple's and Google's push services directly, or through a third-party relay.
-2. **Dispatch mechanism** — how sending is wired into the existing forum-post, message-send, and news-publish write paths ([#759](https://github.com/richardorchard/QueenZone.Modern/issues/759)) without a queue or worker infrastructure this project doesn't otherwise have.
+2. **Dispatch mechanism** — how sending is wired into the existing forum-post, message-send, and news-publish write paths ([#759](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/759)) without a queue or worker infrastructure this project doesn't otherwise have.
 
 Constraints already set elsewhere in the repo:
 
@@ -27,7 +27,7 @@ The backend calls Apple's and Google's push endpoints directly. It does not send
 
 - **APNs** — Apple's HTTP/2 provider API (`api.sandbox.push.apple.com` for locally installed builds signed with a development provisioning profile; `api.push.apple.com` for distribution builds, including TestFlight and the App Store), authenticated with a token-based APNs Auth Key: an ES256 JWT signed with a `.p8` private key, `kid` = Key ID, `iss` = Team ID. APNs device tokens are environment-specific, so a sandbox token cannot be sent through the production endpoint or vice versa. Apple allows reusing one signed token for up to roughly an hour, so the provider does not need to sign a fresh JWT per notification. See Apple's [`aps-environment` entitlement documentation](https://developer.apple.com/documentation/bundleresources/entitlements/aps-environment).
 - **FCM** — Google's HTTP v1 API (`https://fcm.googleapis.com/v1/projects/{project-id}/messages:send`), authenticated with an OAuth2 access token minted from a Firebase service-account JSON.
-- Generating and storing these credentials is its own explicit step per platform, tracked separately from this ADR: the APNs Auth Key (distinct from the code-signing credential already wired up for TestFlight in [#808](https://github.com/richardorchard/QueenZone.Modern/issues/808)), and the Firebase project + service account for FCM. Both follow the existing Bitwarden → App Service settings convention:
+- Generating and storing these credentials is its own explicit step per platform, tracked separately from this ADR: the APNs Auth Key (distinct from the code-signing credential already wired up for TestFlight in [#808](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/808)), and the Firebase project + service account for FCM. Both follow the existing Bitwarden → App Service settings convention:
   - `PushNotifications__Apns__TeamId`, `PushNotifications__Apns__KeyId`, `PushNotifications__Apns__PrivateKeyPem`, `PushNotifications__Apns__Environment` (`sandbox` / `production`)
   - `PushNotifications__Fcm__ServiceAccountJson`, `PushNotifications__Fcm__ProjectId`
 - Rationale: ADR 0011 already ruled out EAS-hosted credential management for this solo-maintained project. Going direct keeps the new dependency surface to outbound HTTPS calls and two sets of self-owned credentials — nothing hosted by a third party sits between this app and Apple/Google, and nothing here requires an EAS project to exist.
@@ -69,10 +69,10 @@ Tradeoffs:
 
 ## Related
 
-- [#756](https://github.com/richardorchard/QueenZone.Modern/issues/756) — Epic: Push notifications
-- [#757](https://github.com/richardorchard/QueenZone.Modern/issues/757) — Device token registration and per-member storage
-- [#759](https://github.com/richardorchard/QueenZone.Modern/issues/759) — Hook notification dispatch into existing write paths
-- [#760](https://github.com/richardorchard/QueenZone.Modern/issues/760) — Monitor and log push notification delivery failures
+- [#756](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/756) — Epic: Push notifications
+- [#757](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/757) — Device token registration and per-member storage
+- [#759](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/759) — Hook notification dispatch into existing write paths
+- [#760](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/760) — Monitor and log push notification delivery failures
 - [ADR 0008](0008-app-service-settings-ownership.md) — credential storage convention
 - [ADR 0011](0011-mobile-project-location-and-build-tooling.md) — EAS rejection
 - [`hosting-scale-and-cache.md`](../architecture/hosting-scale-and-cache.md) — single-instance constraint

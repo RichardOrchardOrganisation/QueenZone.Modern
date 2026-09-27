@@ -6,11 +6,11 @@ Accepted.
 
 ## Context
 
-Published QueenZone news articles need a public discussion without inventing a second comments system. The forum already has topics, replies, Watch, and `forumReply` push ([#735](https://github.com/richardorchard/QueenZone.Modern/issues/735) / [#759](https://github.com/richardorchard/QueenZone.Modern/issues/759)). [ADR 0004](0004-legacy-schema-is-import-source.md) keeps news on legacy `NEWS_T` and does not project it onto modern tables.
+Published QueenZone news articles need a public discussion without inventing a second comments system. The forum already has topics, replies, Watch, and `forumReply` push ([#735](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/735) / [#759](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/759)). [ADR 0004](0004-legacy-schema-is-import-source.md) keeps news on legacy `NEWS_T` and does not project it onto modern tables.
 
 [ADR 0005](0005-admin-news-publishing.md) already writes `NEWS_T` on publish. News push uses the same unpublished → published `firstPublish` gate and is fail-open: the article stays up if dispatch throws.
 
-Open questions from [#1036](https://github.com/richardorchard/QueenZone.Modern/issues/1036) were: which board, which author, how to persist the article ↔ topic link, what detail/list fields to expose, and whether a failed topic create should fail publish.
+Open questions from [#1036](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1036) were: which board, which author, how to persist the article ↔ topic link, what detail/list fields to expose, and whether a failed topic create should fail publish.
 
 ## Decision
 
@@ -58,9 +58,9 @@ Tradeoffs:
 
 ## Related
 
-- [#1035](https://github.com/richardorchard/QueenZone.Modern/issues/1035) — Epic: Open a News-forum topic for every published article
-- [#1036](https://github.com/richardorchard/QueenZone.Modern/issues/1036) — Create a News-forum topic on first article publish and store the link
-- [#1037](https://github.com/richardorchard/QueenZone.Modern/issues/1037) / [#1038](https://github.com/richardorchard/QueenZone.Modern/issues/1038) — Website / mobile discussion UI
+- [#1035](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1035) — Epic: Open a News-forum topic for every published article
+- [#1036](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1036) — Create a News-forum topic on first article publish and store the link
+- [#1037](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1037) / [#1038](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1038) — Website / mobile discussion UI
 - [ADR 0004](0004-legacy-schema-is-import-source.md) — do not project news
 - [ADR 0005](0005-admin-news-publishing.md) — admin news publishing
 - [ADR 0014](0014-push-notification-transport-and-dispatch.md) — fail-open push dispatch

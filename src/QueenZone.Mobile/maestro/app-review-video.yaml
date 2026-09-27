@@ -1,0 +1,250 @@
+appId: org.queenzone.mobile
+name: App Review walkthrough rehearsal
+---
+# Canonical screenplay for the App Review recording. Maestro currently runs
+# this on an iOS Simulator only; repeat the same sequence when recording the
+# signed TestFlight build on a physical iPhone.
+- stopApp
+- startRecording:
+    path: app-review-walkthrough
+    label: Record App Review walkthrough
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- extendedWaitUntil:
+    visible:
+      id: home-screen
+    timeout: 45000
+
+# Public archive flow.
+- tapOn:
+    id: tab-news
+- extendedWaitUntil:
+    visible:
+      id: news-screen
+    timeout: 20000
+- tapOn:
+    id: tab-photos
+- extendedWaitUntil:
+    visible:
+      id: photos-screen
+    timeout: 20000
+- tapOn:
+    id: tab-archive
+- extendedWaitUntil:
+    visible:
+      id: archive-hub-screen
+    timeout: 20000
+# Show the Quiz Sprint introduced in the newer review build. The leaderboard
+# is quick to capture; a live timed round would stall the rest of this video.
+- scrollUntilVisible:
+    element: Quiz Sprint
+    direction: DOWN
+    timeout: 20000
+- tapOn: Quiz Sprint
+- extendedWaitUntil:
+    visible:
+      id: quiz-sprint-screen
+    timeout: 20000
+- assertVisible:
+    id: quiz-sprint-begin
+- tapOn: View the leaderboard
+- extendedWaitUntil:
+    visible:
+      id: quiz-sprint-leaderboard-screen
+    timeout: 20000
+- tapOn:
+    id: tab-forum
+- extendedWaitUntil:
+    visible:
+      id: forum-screen
+    timeout: 20000
+
+# Dedicated password reviewer account. Values are injected from Bitwarden by
+# scripts/record-app-review-video.sh and must never be committed.
+# Enter through a member-only action. Production SecureStore can remain in its
+# restoring state on Simulator even after clearKeychain; the physical build is
+# unaffected, and this route displays the same root sign-in flow deterministically.
+- tapOn:
+    id: forum-new-thread
+- extendedWaitUntil:
+    visible: Sign in
+    timeout: 20000
+- tapOn:
+    id: sign-in-other-ways
+- scrollUntilVisible:
+    element:
+      id: sign-in-email
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: sign-in-email
+- inputText: ${REVIEWER_EMAIL}
+- pressKey: Enter
+- inputText: ${REVIEWER_PASSWORD}
+- pressKey: Enter
+- runFlow:
+    when:
+      visible: Not now
+    commands:
+      - tapOn: Not now
+- runFlow:
+    when:
+      visible: Never
+    commands:
+      - tapOn: Never
+- extendedWaitUntil:
+    visible:
+      id: forum-composer-title
+    timeout: 30000
+# Composer is an iOS sheet; dismiss it without creating a topic.
+- swipe:
+    start: 50%,20%
+    end: 50%,90%
+    duration: 500
+# The protected return-to sheet is presented above the root sign-in modal.
+# Close the now-completed modal after dismissing the sheet.
+- tapOn:
+    id: sign-in-close
+- extendedWaitUntil:
+    visible:
+      id: forum-screen
+    timeout: 20000
+- tapOn:
+    id: tab-home
+- tapOn:
+    id: home-profile
+- extendedWaitUntil:
+    visible:
+      id: profile-signed-in
+    timeout: 30000
+
+# The secondary reviewer account has a seeded, clearly labelled conversation.
+# Open the reporting and blocking controls, but cancel before either mutation.
+- tapOn:
+    id: profile-messages
+- extendedWaitUntil:
+    visible:
+      id: inbox-screen
+    timeout: 30000
+- tapOn:
+    text: '^QueenZone Review Partner.*'
+- extendedWaitUntil:
+    visible:
+      id: conversation-screen
+    timeout: 30000
+- scrollUntilVisible:
+    element: Report message
+    direction: DOWN
+    timeout: 20000
+- tapOn: Report message
+- assertVisible: Submit report
+- tapOn: Cancel
+- tapOn: More options
+- assertVisible: Block member
+- tapOn: Block member
+- assertVisible: '^Block$'
+- tapOn: Cancel
+- tapOn:
+    text: '^Messages$'
+- extendedWaitUntil:
+    visible:
+      id: inbox-screen
+    timeout: 20000
+- tapOn:
+    text: '^Profile$'
+- extendedWaitUntil:
+    visible:
+      id: profile-signed-in
+    timeout: 20000
+- tapOn:
+    id: profile-back
+- extendedWaitUntil:
+    visible:
+      id: home-screen
+    timeout: 20000
+
+# The forum test topic contains a seeded reply from the secondary reviewer.
+# Show both moderation choices without submitting a report or blocking anyone.
+- tapOn:
+    id: tab-forum
+- extendedWaitUntil:
+    visible:
+      id: forum-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: forum-board-7
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: forum-board-7
+- extendedWaitUntil:
+    visible:
+      id: forum-category-screen
+    timeout: 20000
+- tapOn:
+    id: forum-thread-1175833016
+- extendedWaitUntil:
+    visible:
+      id: forum-thread-screen
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Actions for QueenZone Review Partner's post"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Actions for QueenZone Review Partner's post"
+- assertVisible: Report post
+- assertVisible: Block member
+- tapOn: Report post
+- scrollUntilVisible:
+    element: Submit report
+    direction: DOWN
+    timeout: 20000
+- assertVisible: Submit report
+# Report is presented as an iOS modal. Dismiss without submitting.
+- swipe:
+    start: 50%,10%
+    end: 50%,90%
+    duration: 500
+- scrollUntilVisible:
+    element: "Actions for QueenZone Review Partner's post"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Actions for QueenZone Review Partner's post"
+- tapOn: Block member
+- assertVisible: Block member?
+- tapOn: Cancel
+- tapOn:
+    id: forum-thread-back
+- extendedWaitUntil:
+    visible:
+      id: forum-category-screen
+    timeout: 20000
+# Reselecting Forum always returns the stack to its root.
+- tapOn:
+    id: tab-forum
+- extendedWaitUntil:
+    visible:
+      id: forum-screen
+    timeout: 20000
+
+# Finish on the complete account-deletion disclosure. Do not type DELETE and
+# do not press the scheduling button during review capture.
+- tapOn:
+    id: tab-home
+- tapOn:
+    id: home-profile
+- extendedWaitUntil:
+    visible:
+      id: profile-signed-in
+    timeout: 20000
+- tapOn: Account settings
+- scrollUntilVisible:
+    element: Delete my account
+    direction: DOWN
+    timeout: 30000
+- tapOn: Delete my account
+- assertVisible: What happens
+- assertVisible: Schedule account deletion
+- stopRecording

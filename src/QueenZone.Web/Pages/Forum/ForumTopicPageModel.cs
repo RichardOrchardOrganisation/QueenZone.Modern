@@ -98,9 +98,7 @@ public abstract class ForumTopicPageModel : PageModel
 
         MemberAuth = await ResolveMemberAuthAsync();
         var memberId = ForumMember.GetMemberId(MemberAuth?.Principal);
-        var isAdmin = ForumPollEndpoints.IsAdmin(User, adminOptions)
-            || (MemberAuth?.Principal is not null
-                && ForumPollEndpoints.IsAdmin(MemberAuth.Principal, adminOptions));
+        var isAdmin = await ForumAdminAccess.IsAdminAsync(HttpContext, adminOptions);
         IsAdmin = isAdmin;
         var utcNow = timeProvider.GetUtcNow();
         CanWatch = memberId is not null;

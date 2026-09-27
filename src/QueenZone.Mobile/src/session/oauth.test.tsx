@@ -68,6 +68,8 @@ describe('signInWithProvider', () => {
     const tokens = await signInWithProvider('http://qz.test', 'Google');
     expect(tokens).toEqual({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/v1/auth/token');
+    const authorizeUrl = String(openAuth.mock.calls[0]?.[0]);
+    expect(new URL(authorizeUrl).searchParams.get('code_challenge')).toBe('abc-def_ghi');
   });
 
   it('maps cancel, missing code, state mismatch, and provider errors', async () => {

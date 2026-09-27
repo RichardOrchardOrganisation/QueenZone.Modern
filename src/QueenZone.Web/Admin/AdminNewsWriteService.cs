@@ -78,7 +78,7 @@ public sealed class AdminNewsWriteService(
         var promotionStage = "creating the admin draft";
         try
         {
-            return await SqlBackedWriteTransaction.ExecuteAsync(
+            return await QueenZoneDbTransactions.ExecuteAsync(
                 serviceProvider,
                 ct => PromoteDiscoveryCoreAsync(
                     candidate,

@@ -5,12 +5,19 @@ param(
     [string]$StateStorageAccount = "queenzonetfstate",
     [string]$StateContainer = "tfstate",
     [string]$WorkloadResourceGroup = "Queenzone-RG",
-    [string]$GitHubRepository = "richardorchard/QueenZone.Modern",
+    [string]$GitHubRepository = "RichardOrchardOrganisation/QueenZone.Modern",
+    [string]$OidcOwnerId = "333232587",
+    [string]$OidcRepositoryId = "1265145026",
+    [string]$PlanFederatedCredentialName = "github-org-opentofu-plan",
+    [string]$ApplyFederatedCredentialName = "github-org-opentofu-apply",
     [string]$BackendConfig = (Join-Path $PSScriptRoot "../backend/production.backend.hcl")
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+. (Join-Path $PSScriptRoot "Resolve-GitHubOidcRepositorySegment.ps1")
+$OidcRepositorySegment = Resolve-GitHubOidcRepositorySegment -GitHubRepository $GitHubRepository -OidcOwnerId $OidcOwnerId -OidcRepositoryId $OidcRepositoryId
 
 function Invoke-AzJson {
     param([Parameter(Mandatory)][string[]]$Arguments)
@@ -50,11 +57,12 @@ function Assert-WorkloadIdentity {
     $application = $applications[0]
     $servicePrincipal = Invoke-AzJson @("ad", "sp", "show", "--id", $application.appId)
     $credentials = @(Invoke-AzJson @("ad", "app", "federated-credential", "list", "--id", $application.id))
-    $expectedSubject = "repo:$GitHubRepository`:environment:$EnvironmentName"
+    $expectedSubject = "repo:$OidcRepositorySegment`:environment:$EnvironmentName"
     if (-not ($credentials | Where-Object {
                 $_.name -eq $FederatedCredentialName -and
                 $_.issuer -eq "https://token.actions.githubusercontent.com" -and
-                $_.subject -eq $expectedSubject
+                $_.subject -eq $expectedSubject -and
+                @($_.audiences).Count -eq 1 -and $_.audiences[0] -eq "api://AzureADTokenExchange"
             })) {
         throw "The expected GitHub OIDC credential is missing from '$DisplayName'."
     }
@@ -112,7 +120,7 @@ if (-not ($locks | Where-Object { $_.name -eq "protect-opentofu-state" -and $_.l
 $workloadScope = "/subscriptions/$SubscriptionId/resourceGroups/$WorkloadResourceGroup"
 Assert-WorkloadIdentity `
     -DisplayName "QueenZone OpenTofu Plan" `
-    -FederatedCredentialName "github-opentofu-plan" `
+    -FederatedCredentialName $PlanFederatedCredentialName `
     -EnvironmentName "opentofu-plan" `
     -ExpectedRoles @{
         "Storage Blob Data Contributor"                       = $containerId
@@ -121,7 +129,7 @@ Assert-WorkloadIdentity `
     }
 Assert-WorkloadIdentity `
     -DisplayName "QueenZone OpenTofu Apply" `
-    -FederatedCredentialName "github-opentofu-apply" `
+    -FederatedCredentialName $ApplyFederatedCredentialName `
     -EnvironmentName "opentofu-apply" `
     -ExpectedRoles @{
         "Storage Blob Data Contributor" = $containerId

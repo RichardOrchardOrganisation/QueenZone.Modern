@@ -13,7 +13,6 @@ public sealed class TopicModel : ForumTopicPageModel
     private readonly IForumRepository forumRepository;
     private readonly IForumPollRepository forumPollRepository;
     private readonly ForumPostWriteService forumPostWrite;
-    private readonly AdminOptions adminOptions;
 
     public TopicModel(
         IForumRepository forumRepository,
@@ -31,7 +30,6 @@ public sealed class TopicModel : ForumTopicPageModel
         this.forumRepository = forumRepository;
         this.forumPollRepository = forumPollRepository;
         this.forumPostWrite = forumPostWrite;
-        this.adminOptions = adminOptions.Value;
     }
 
     [BindProperty]
@@ -134,8 +132,8 @@ public sealed class TopicModel : ForumTopicPageModel
 
         MemberAuth ??= await ResolveMemberAuthAsync();
         var memberId = ForumMember.GetMemberId(MemberAuth?.Principal);
-        var isAdmin = MemberAuth?.Principal is not null
-            && ForumPollEndpoints.IsAdmin(MemberAuth.Principal, adminOptions);
+        // Same admin-scheme check as hide/edit. An Entra session has no member principal.
+        var isAdmin = IsAdmin;
         Poll = await forumPollRepository.GetPollWithResultsAsync(
             topicId,
             memberId,

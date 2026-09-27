@@ -9,7 +9,7 @@ using QueenZone.Data;
 namespace QueenZone.Web.Pages.FanPerformances;
 
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
-[EnableRateLimiting(QueenZoneRateLimitPolicies.MemberWrite)]
+[EnableRateLimiting(QueenZoneRateLimitPolicies.AuthenticatedWrite)]
 public sealed class ReportModel(
     IFanPerformanceRepository fanPerformanceRepository,
     FanPerformanceReportService fanPerformanceReportService) : PageModel
@@ -29,7 +29,7 @@ public sealed class ReportModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (await GetCurrentMemberIdAsync() is null)
+        if (await HttpContext.AuthenticateMemberIdAsync() is null)
         {
             return Redirect(FanPerformanceRoutes.GetLoginPath(FanPerformanceRoutes.GetReportPath(Id)));
         }
@@ -46,7 +46,7 @@ public sealed class ReportModel(
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect(FanPerformanceRoutes.GetLoginPath(FanPerformanceRoutes.GetReportPath(Id)));
@@ -79,17 +79,5 @@ public sealed class ReportModel(
             ? "You have already reported this performance. The admin team still has your open report."
             : "Thanks. The admin team will review this performance.";
         return Page();
-    }
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
     }
 }

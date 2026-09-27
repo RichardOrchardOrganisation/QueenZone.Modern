@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { FlatList } from 'react-native';
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
-import { fetchOnThisDay, fetchTimelinePage } from '../../api';
+import { fetchTimelineAnchor, fetchTimelinePage } from '../../api';
 import type { TimelineEvent } from '../../api/types';
 import { pagedResponse } from '../../test/fixtures';
 import { fakeNavigation, flushVirtualizedList, renderWithProviders } from '../../test/render';
@@ -12,13 +12,13 @@ jest.mock('../../api', () => {
   const actual = jest.requireActual('../../api');
   return {
     ...actual,
-    fetchOnThisDay: jest.fn(),
+    fetchTimelineAnchor: jest.fn(),
     fetchTimelinePage: jest.fn(),
   };
 });
 
 const fetchTimeline = fetchTimelinePage as jest.MockedFunction<typeof fetchTimelinePage>;
-const fetchDay = fetchOnThisDay as jest.MockedFunction<typeof fetchOnThisDay>;
+const fetchAnchor = fetchTimelineAnchor as jest.MockedFunction<typeof fetchTimelineAnchor>;
 
 function eventFixture(overrides: Partial<TimelineEvent> = {}): TimelineEvent {
   return {
@@ -37,8 +37,8 @@ function eventFixture(overrides: Partial<TimelineEvent> = {}): TimelineEvent {
 describe('TimelineScreen', () => {
   beforeEach(() => {
     fetchTimeline.mockReset();
-    fetchDay.mockReset();
-    fetchDay.mockResolvedValue(null);
+    fetchAnchor.mockReset();
+    fetchAnchor.mockResolvedValue(pagedResponse([eventFixture()], 1, 1));
     fetchTimeline.mockResolvedValue(
       pagedResponse([eventFixture(), eventFixture({ id: 10, title: 'Another' })], 1, 1),
     );
@@ -73,13 +73,9 @@ describe('TimelineScreen', () => {
     );
   });
 
-  it('pages until the focused event appears, then expands that row', async () => {
-    fetchTimeline.mockImplementation(async (query = {}) => {
-      if ((query.page ?? 1) === 1) {
-        return pagedResponse([eventFixture({ id: 10, title: 'Another' })], 1, 2);
-      }
-      return pagedResponse([eventFixture()], 2, 2);
-    });
+  it('requests one anchor for a focused event on a later page', async () => {
+    fetchTimeline.mockResolvedValue(pagedResponse([eventFixture({ id: 10, title: 'Another' })], 1, 20));
+    fetchAnchor.mockResolvedValue(pagedResponse([eventFixture()], 20, 20));
 
     renderWithProviders(
       <TimelineScreen
@@ -89,7 +85,9 @@ describe('TimelineScreen', () => {
       { navigation: false },
     );
 
-    await waitFor(() => expect(fetchTimeline).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetchAnchor).toHaveBeenCalledTimes(1));
+    expect(fetchAnchor).toHaveBeenCalledWith(12);
+    expect(fetchTimeline).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid' })).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Live Aid' }).props.accessibilityState).toEqual({
       expanded: true,
@@ -148,9 +146,9 @@ describe('TimelineScreen', () => {
     );
   });
 
-  it('includes the on-this-day event when focusId is missing from the loaded page', async () => {
+  it('includes the anchor event when focusId is missing from the loaded page', async () => {
     fetchTimeline.mockResolvedValue(pagedResponse([eventFixture({ id: 10, title: 'Another' })], 1, 1));
-    fetchDay.mockResolvedValue(eventFixture());
+    fetchAnchor.mockResolvedValue(pagedResponse([eventFixture()], 2, 2));
 
     renderWithProviders(
       <TimelineScreen
@@ -174,6 +172,7 @@ describe('TimelineScreen', () => {
 
   it('leaves the list unexpanded when the focused event is never found', async () => {
     fetchTimeline.mockResolvedValue(pagedResponse([eventFixture({ id: 10, title: 'Another' })], 1, 1));
+    fetchAnchor.mockRejectedValue(new Error('Missing event'));
 
     renderWithProviders(
       <TimelineScreen

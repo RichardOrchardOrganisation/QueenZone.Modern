@@ -143,7 +143,7 @@ public sealed class NewsArticleImageService(
                 return new ApplyResult(draft, quotaError ?? "Daily upload limit reached.");
             }
 
-            var context = BuildUploadContext(user);
+            var context = ImageUploadContextFactory.Create(user);
             string? uploadedFull = null;
             string? uploadedThumb = null;
             try
@@ -155,7 +155,7 @@ public sealed class NewsArticleImageService(
                     processed.FullImage,
                     "article.webp",
                     BlobUploadContainers.Articles,
-                    CloneContext(context, fullName),
+                    ImageUploadContextFactory.WithPreferredBlobName(context, fullName),
                     cancellationToken);
                 uploadedFull = fullResult.BlobName;
                 uploadedThumb = UgcProxyPaths.ToThumbBlobName(uploadedFull);
@@ -165,7 +165,7 @@ public sealed class NewsArticleImageService(
                     processed.Thumbnail,
                     "article-thumb.webp",
                     BlobUploadContainers.Articles,
-                    CloneContext(context, uploadedThumb),
+                    ImageUploadContextFactory.WithPreferredBlobName(context, uploadedThumb),
                     cancellationToken);
 
                 // Persist the new key first (caller writes the draft), then delete the old blobs.
@@ -253,26 +253,6 @@ public sealed class NewsArticleImageService(
         }
     }
 
-    private static BlobUploadContext BuildUploadContext(ClaimsPrincipal user)
-    {
-        var email = user.FindFirstValue(ClaimTypes.Email)
-            ?? user.FindFirstValue("preferred_username")
-            ?? user.Identity?.Name;
-
-        Guid? memberAccountId = null;
-        var memberIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (Guid.TryParse(memberIdValue, out var parsed) && parsed != Guid.Empty)
-        {
-            memberAccountId = parsed;
-        }
-
-        return new BlobUploadContext
-        {
-            ActorEmail = email,
-            MemberAccountId = memberAccountId,
-        };
-    }
-
     private static string BuildBlobName(BlobUploadContext context)
     {
         var generated = BlobNameGenerator.Create("article.webp", context);
@@ -284,12 +264,4 @@ public sealed class NewsArticleImageService(
         return generated;
     }
 
-    private static BlobUploadContext CloneContext(BlobUploadContext source, string preferredBlobName) =>
-        new()
-        {
-            MemberAccountId = source.MemberAccountId,
-            MemberId = source.MemberId,
-            ActorEmail = source.ActorEmail,
-            PreferredBlobName = preferredBlobName,
-        };
 }

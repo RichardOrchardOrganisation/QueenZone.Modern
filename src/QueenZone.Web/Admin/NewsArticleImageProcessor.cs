@@ -62,88 +62,46 @@ public static class NewsArticleImageProcessor
         bool requireRequestedCrop,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(source);
         if (maxBytes <= 0)
         {
             maxBytes = MaxUploadBytes;
         }
 
-        await using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, cancellationToken);
-        if (buffer.Length <= 0)
-        {
-            throw new InvalidOperationException("An article image is required.");
-        }
-
-        if (buffer.Length > maxBytes)
-        {
-            throw new InvalidOperationException(
-                $"Article image must be {maxBytes} bytes or smaller.");
-        }
-
-        buffer.Position = 0;
-        var headerLength = (int)Math.Min(64, buffer.Length);
-        var header = new byte[headerLength];
-        var read = await buffer.ReadAsync(header.AsMemory(0, headerLength), cancellationToken);
-        buffer.Position = 0;
-
-        var sniffed = BlobContentSniffer.TryDetectContentType(header.AsSpan(0, read));
-        if (sniffed is null || !AllowedContentTypes.Contains(NormalizeJpeg(sniffed)))
-        {
-            throw new InvalidOperationException("Article image must be a JPEG, PNG, or WebP file.");
-        }
-
-        var extension = Path.GetExtension(originalFileName);
-        if (!string.IsNullOrWhiteSpace(extension))
-        {
-            var fromExt = BlobContentSniffer.GuessContentTypeFromExtension(extension);
-            if (fromExt is not null)
+        return await ImageUploadPipeline.ProcessAsync(
+            source,
+            originalFileName,
+            maxBytes,
+            new ImageUploadPipeline.Policy(
+                contentType => AllowedContentTypes.Contains(NormalizeJpeg(contentType)),
+                RequireAllowedExtension: true,
+                "An article image is required.",
+                $"Article image must be {maxBytes} bytes or smaller.",
+                "Article image must be a JPEG, PNG, or WebP file.",
+                "Article image could not be read."),
+            async (image, _, _, token) =>
             {
-                var normalizedExt = NormalizeJpeg(fromExt);
-                if (!AllowedContentTypes.Contains(normalizedExt))
+                var rect = ResolveCrop(image.Width, image.Height, crop, requireRequestedCrop);
+                if (rect.Width < MinCropWidth || rect.Height < MinCropHeight)
                 {
-                    throw new InvalidOperationException("Article image must be a JPEG, PNG, or WebP file.");
+                    throw new InvalidOperationException(
+                        $"Article image is too small. Use at least {MinCropWidth}×{MinCropHeight} pixels.");
                 }
 
-                if (!string.Equals(normalizedExt, NormalizeJpeg(sniffed), StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException("File extension does not match the image content.");
-                }
-            }
-        }
+                using var cropped = image.Clone(ctx => ctx.Crop(rect));
+                await using var fullEncoded = await PhotoWebpDerivatives.CreateMaxSideAsync(
+                    cropped,
+                    UgcProxyPaths.FullMaxLongestSide,
+                    cancellationToken: token);
+                await using var thumbEncoded = await PhotoWebpDerivatives.CreateMaxSideAsync(
+                    cropped,
+                    UgcProxyPaths.ThumbMaxLongestSide,
+                    cancellationToken: token);
 
-        try
-        {
-            using var image = await Image.LoadAsync(buffer, cancellationToken);
-            var rect = ResolveCrop(image.Width, image.Height, crop, requireRequestedCrop);
-            if (rect.Width < MinCropWidth || rect.Height < MinCropHeight)
-            {
-                throw new InvalidOperationException(
-                    $"Article image is too small. Use at least {MinCropWidth}×{MinCropHeight} pixels.");
-            }
-
-            using var cropped = image.Clone(ctx => ctx.Crop(rect));
-            await using var fullEncoded = await PhotoWebpDerivatives.CreateMaxSideAsync(
-                cropped,
-                UgcProxyPaths.FullMaxLongestSide,
-                cancellationToken: cancellationToken);
-            await using var thumbEncoded = await PhotoWebpDerivatives.CreateMaxSideAsync(
-                cropped,
-                UgcProxyPaths.ThumbMaxLongestSide,
-                cancellationToken: cancellationToken);
-
-            var full = CopyToMemoryStream(fullEncoded.Stream);
-            var thumb = CopyToMemoryStream(thumbEncoded.Stream);
-            return new ProcessedArticleImage(full, thumb);
-        }
-        catch (UnknownImageFormatException)
-        {
-            throw new InvalidOperationException("Article image must be a JPEG, PNG, or WebP file.");
-        }
-        catch (InvalidImageContentException)
-        {
-            throw new InvalidOperationException("Article image could not be read.");
-        }
+                var full = CopyToMemoryStream(fullEncoded.Stream);
+                var thumb = CopyToMemoryStream(thumbEncoded.Stream);
+                return new ProcessedArticleImage(full, thumb);
+            },
+            cancellationToken);
     }
 
     internal static Rectangle ResolveCrop(

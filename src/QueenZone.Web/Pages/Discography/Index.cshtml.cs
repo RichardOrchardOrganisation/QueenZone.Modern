@@ -3,7 +3,7 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Discography;
 
-public sealed class IndexModel(IDiscographyRepository discographyRepository) : PageModel
+public sealed class IndexModel(PublicQueryCacheService publicQueryCache) : PageModel
 {
     public IReadOnlyList<AlbumSummary> Albums { get; private set; } = [];
 
@@ -11,7 +11,7 @@ public sealed class IndexModel(IDiscographyRepository discographyRepository) : P
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        Albums = await discographyRepository.GetAlbumsAsync(cancellationToken);
+        Albums = await publicQueryCache.GetDiscographyAlbumsAsync(cancellationToken);
         ViewData["Title"] = "Discography | QueenZone";
         ViewData["Description"] = "Every Queen studio album and release – the complete Queenzone discography.";
         ViewData["CanonicalPath"] = DiscographyRoutes.GetIndexPath();

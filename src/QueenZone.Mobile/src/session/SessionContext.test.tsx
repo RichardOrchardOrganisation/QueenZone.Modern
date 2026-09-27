@@ -1020,13 +1020,11 @@ describe('SessionProvider actions context stability', () => {
     const user = userEvent.setup();
     const now = 1_700_000_000_000;
     const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
-    const actionsSeen: SessionActions[] = [];
-    let actionsOnlyRenders = 0;
+    const recordActionsRender = jest.fn<void, [SessionActions]>();
 
     function ActionsOnlyChild() {
       const actions = useSessionActions();
-      actionsOnlyRenders += 1;
-      actionsSeen.push(actions);
+      recordActionsRender(actions);
       return <Text>actions-only</Text>;
     }
 
@@ -1054,8 +1052,8 @@ describe('SessionProvider actions context stability', () => {
       await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
       expect(screen.getByText('anonymous')).toBeOnTheScreen();
       expect(screen.getByText('actions-only')).toBeOnTheScreen();
-      const rendersAfterToken = actionsOnlyRenders;
-      const actionsAfterToken = actionsSeen[actionsSeen.length - 1];
+      const rendersAfterToken = recordActionsRender.mock.calls.length;
+      const actionsAfterToken = recordActionsRender.mock.lastCall?.[0];
       expect(rendersAfterToken).toBeGreaterThan(0);
       expect(actionsAfterToken).toBeDefined();
 
@@ -1064,8 +1062,8 @@ describe('SessionProvider actions context stability', () => {
         resolveProfile(memberProfilePayload());
       });
       await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-      expect(actionsOnlyRenders).toBe(rendersAfterToken);
-      expect(actionsSeen[actionsSeen.length - 1]).toBe(actionsAfterToken);
+      expect(recordActionsRender).toHaveBeenCalledTimes(rendersAfterToken);
+      expect(recordActionsRender.mock.lastCall?.[0]).toBe(actionsAfterToken);
 
       refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'access-token' }));
       dateNow.mockReturnValue(now + 120_000);
@@ -1073,8 +1071,8 @@ describe('SessionProvider actions context stability', () => {
       await waitFor(() => expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token'));
       expect(screen.getByText('signed-in')).toBeOnTheScreen();
       expect(screen.getByText('access-token')).toBeOnTheScreen();
-      expect(actionsOnlyRenders).toBe(rendersAfterToken);
-      expect(actionsSeen[actionsSeen.length - 1]).toBe(actionsAfterToken);
+      expect(recordActionsRender).toHaveBeenCalledTimes(rendersAfterToken);
+      expect(recordActionsRender.mock.lastCall?.[0]).toBe(actionsAfterToken);
     } finally {
       dateNow.mockRestore();
     }

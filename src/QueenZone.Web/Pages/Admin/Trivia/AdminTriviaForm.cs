@@ -24,16 +24,7 @@ public sealed class AdminTriviaForm
         new(
             (Text ?? string.Empty).Trim(),
             IsPublished,
-            NormalizeOptional(Category),
-            NormalizeDifficulty(Difficulty),
-            NormalizeOptional(Source));
-
-    private static string? NormalizeOptional(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? NormalizeDifficulty(string? value)
-    {
-        var trimmed = NormalizeOptional(value);
-        return trimmed?.ToLowerInvariant();
-    }
+            TriviaValidation.NormalizeOptional(Category),
+            TriviaValidation.NormalizeDifficulty(Difficulty),
+            TriviaValidation.NormalizeOptional(Source));
 }

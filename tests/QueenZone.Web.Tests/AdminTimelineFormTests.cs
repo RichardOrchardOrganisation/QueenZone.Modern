@@ -103,11 +103,15 @@ public sealed class AdminTimelineFormTests
     [Fact]
     public void NewModel_defaults_empty_title_today_utc_exact_other_importance_50_published()
     {
+        var dayBefore = DateTime.UtcNow.Date;
         var draft = new NewModel().Form.Draft;
+        var dayAfter = DateTime.UtcNow.Date;
 
         Assert.Equal(string.Empty, draft.Title);
         Assert.Equal(string.Empty, draft.Summary);
-        Assert.Equal(DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc), draft.EventDate);
+        Assert.Equal(DateTimeKind.Utc, draft.EventDate.Kind);
+        Assert.Equal(draft.EventDate.Date, draft.EventDate);
+        Assert.InRange(draft.EventDate, dayBefore, dayAfter);
         Assert.Equal(QueenHistoryDatePrecision.ExactDate, draft.DatePrecision);
         Assert.Equal(QueenHistoryEventCategory.Other, draft.Category);
         Assert.Equal(50, draft.Importance);

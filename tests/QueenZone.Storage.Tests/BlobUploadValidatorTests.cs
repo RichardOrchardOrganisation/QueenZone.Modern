@@ -189,6 +189,84 @@ public sealed class BlobUploadValidatorTests
     }
 
     [Fact]
+    public void Rejects_pdf_and_text_without_a_matching_signature()
+    {
+        var htmlPdf = Assert.Throws<BlobUploadException>(() =>
+            validator.ResolveAndValidateContentType(
+                "notes.pdf",
+                "<html>not a pdf</html>"u8.ToArray(),
+                BlobUploadContainers.Forum));
+        Assert.Contains("does not match extension", htmlPdf.Message);
+
+        var binaryPdf = Assert.Throws<BlobUploadException>(() =>
+            validator.ResolveAndValidateContentType(
+                "notes.pdf",
+                [0x00, 0x01, 0x02, 0x03],
+                BlobUploadContainers.Forum));
+        Assert.Contains("not recognized", binaryPdf.Message, StringComparison.OrdinalIgnoreCase);
+
+        var binaryText = Assert.Throws<BlobUploadException>(() =>
+            validator.ResolveAndValidateContentType(
+                "notes.txt",
+                [0x68, 0x69, 0x00, 0x21],
+                BlobUploadContainers.Forum));
+        Assert.Contains("not recognized", binaryText.Message, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(
+            "text/plain",
+            validator.ResolveAndValidateContentType(
+                "notes.txt",
+                "hello forum"u8.ToArray(),
+                BlobUploadContainers.Forum));
+    }
+
+    [Fact]
+    public void Accepts_zip_and_office_packages_only_when_the_signature_matches()
+    {
+        Assert.Equal(
+            "application/zip",
+            validator.ResolveAndValidateContentType(
+                "bundle.zip",
+                [0x50, 0x4B, 0x03, 0x04],
+                BlobUploadContainers.Forum));
+
+        var fakeZip = Assert.Throws<BlobUploadException>(() =>
+            validator.ResolveAndValidateContentType(
+                "bundle.zip",
+                "<html></html>"u8.ToArray(),
+                BlobUploadContainers.Forum));
+        Assert.Contains("does not match extension", fakeZip.Message);
+
+        Assert.Equal(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            validator.ResolveAndValidateContentType(
+                "notes.docx",
+                [0x50, 0x4B, 0x03, 0x04],
+                BlobUploadContainers.Forum));
+        Assert.Equal(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            validator.ResolveAndValidateContentType(
+                "sheet.xlsx",
+                [0x50, 0x4B, 0x03, 0x04],
+                BlobUploadContainers.Forum));
+
+        var ole = new byte[] { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 };
+        Assert.Equal(
+            "application/msword",
+            validator.ResolveAndValidateContentType("legacy.doc", ole, BlobUploadContainers.Forum));
+        Assert.Equal(
+            "application/vnd.ms-excel",
+            validator.ResolveAndValidateContentType("legacy.xls", ole, BlobUploadContainers.Forum));
+
+        var fakeDoc = Assert.Throws<BlobUploadException>(() =>
+            validator.ResolveAndValidateContentType(
+                "legacy.doc",
+                "<html>not a document</html>"u8.ToArray(),
+                BlobUploadContainers.Forum));
+        Assert.Contains("does not match extension", fakeDoc.Message);
+    }
+
+    [Fact]
     public void Audio_mpeg_and_mp3_aliases_agree()
     {
         Assert.True(BlobUploadValidator.ContentTypesAgree("audio/mpeg", "audio/mp3"));

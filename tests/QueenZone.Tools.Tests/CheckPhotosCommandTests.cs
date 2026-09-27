@@ -178,4 +178,21 @@ public sealed class CheckPhotosCommandTests
         Assert.Equal(2, photos.Count);
         Assert.All(photos, photo => Assert.Equal("queen", photo.CategorySlug, StringComparer.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public async Task LoadPhotosAsync_FiltersByCategoryIdWithoutLimit()
+    {
+        var repository = new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories()));
+        var options = CheckPhotosOptions.Parse(
+        [
+            "--connection-string", "Server=.;Database=test;",
+            "--category-id", "9",
+        ]);
+        Assert.True(options.IsValid);
+
+        var photos = await CheckPhotosCommand.LoadPhotosAsync(options, repository);
+
+        Assert.Equal(3, photos.Count);
+        Assert.All(photos, photo => Assert.Equal(9, photo.CatId));
+    }
 }

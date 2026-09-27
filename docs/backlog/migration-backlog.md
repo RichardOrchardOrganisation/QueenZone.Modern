@@ -6,8 +6,8 @@ Living index of migration work. **Prefer open GitHub epics and issues for active
 
 | Track | Link | Notes |
 | --- | --- | --- |
-| Architecture / performance (2026-07-23) | [#312](https://github.com/richardorchard/QueenZone.Modern/issues/312) | Earlier review; many Phase A–E children done |
-| Architecture / performance (2026-07) | [#391](https://github.com/richardorchard/QueenZone.Modern/issues/391) | Latest review; P0–P3 children |
+| Architecture / performance (2026-07-23) | [#312](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/312) | Earlier review; many Phase A–E children done |
+| Architecture / performance (2026-07) | [#391](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/391) | Latest review; P0–P3 children |
 | Data access (EF Core + SQL/procs) | [ADR 0006](../decisions/0006-hybrid-ef-core-admin-writes.md) | Dapper package removed; EF is the client library |
 | Hosting scale & cache | [`hosting-scale-and-cache.md`](../architecture/hosting-scale-and-cache.md) | Single B1; no Redis |
 | Public query cache | [`public-query-cache.md`](../architecture/public-query-cache.md) | TTLs + invalidation matrix |
@@ -51,11 +51,11 @@ Acceptance criteria:
 #### Pictures / media ops
 
 - Ongoing Blob / CDN path hygiene (see `AGENTS.md` media serving table).
-- Admin photography gallery management tracked in [#349](https://github.com/richardorchard/QueenZone.Modern/issues/349) where still open.
+- Admin photography gallery management tracked in [#349](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/349) where still open.
 
 ### Architecture children still open under #391
 
-Filter: [label `architecture-review-2026-07`](https://github.com/richardorchard/QueenZone.Modern/issues?q=label%3Aarchitecture-review-2026-07). P0/P1 and P3 doc/test children are largely closed; remaining open themes are mainly **P2 structure** (verify on GitHub before starting):
+Filter: [label `architecture-review-2026-07`](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues?q=label%3Aarchitecture-review-2026-07). P0/P1 and P3 doc/test children are largely closed; remaining open themes are mainly **P2 structure** (verify on GitHub before starting):
 
 - Folderize Data/Web, extract NewsAgent.Tests, shared test factory, discovery twin shrink, test-double naming, SQL docs source of truth.
 
@@ -106,7 +106,7 @@ The following early backlog epics are **done**. Kept here so historical acceptan
 | --- | --- |
 | Picture categories/detail + Blob URLs | Public photography pages + CDN hosts |
 | Path audit / migration | Historical import/Blob work landed; ops hygiene continues |
-| Admin gallery management | See [#349](https://github.com/richardorchard/QueenZone.Modern/issues/349) |
+| Admin gallery management | See [#349](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/349) |
 
 ### Epic: Forum archive — **done** (and expanded)
 

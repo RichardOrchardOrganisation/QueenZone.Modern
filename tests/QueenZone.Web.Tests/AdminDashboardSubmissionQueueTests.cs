@@ -1,9 +1,6 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -14,14 +11,20 @@ namespace QueenZone.Web.Tests;
 /// <summary>
 /// Tests for the submission queue tiles on the admin dashboard (issue #291).
 /// </summary>
-public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class AdminDashboardSubmissionQueueTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public AdminDashboardSubmissionQueueTests(WebApplicationFactory<Program> factory)
+    public AdminDashboardSubmissionQueueTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
+        this.variants = variants;
     }
 
     // ── In-memory repo: photos ──────────────────────────────────────────────
@@ -270,11 +273,29 @@ public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplic
         Assert.Contains("Photos", body);
         Assert.Contains("News suggestions", body);
         Assert.Contains("Articles", body);
+        Assert.Contains("Trivia suggestions", body);
+        Assert.Contains("Quiz question suggestions", body);
         Assert.Contains("/admin/photo-submissions", body);
         Assert.Contains("/admin/news-suggestions", body);
         Assert.Contains("/admin/articles", body);
+        Assert.Contains("/admin/trivia-submissions", body);
+        Assert.Contains("/admin/quiz-question-submissions", body);
         Assert.Contains("Fan performances", body);
         Assert.Contains("/admin/fan-performance-submissions", body);
+        Assert.Equal(
+            [
+                "Help requests",
+                "Reported messages",
+                "Reported forum posts",
+                "Fan performance reports",
+                "Photos",
+                "News suggestions",
+                "Articles",
+                "Trivia suggestions",
+                "Quiz question suggestions",
+                "Fan performances",
+            ],
+            ExtractQueueTileLabels(body));
         Assert.DoesNotContain("stale", body, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -282,19 +303,12 @@ public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplic
     public async Task AdminDashboard_ShowsFanPerformanceStaleCount_WhenOpenItemOlderThanSevenDays()
     {
         var member = SampleMember();
-        var repository = new InMemoryFanPerformanceSubmissionRepository(id => id == member.Id ? member : null);
+        var staleFactory = variants.Get(WebHostVariants.TestingStaleFanPerformanceSubmissions);
+        await staleFactory.ResetAsync();
+        var repository = staleFactory.FanPerformanceSubmissions
+            ?? throw new InvalidOperationException("Stale fan-performance variant must register the submission repository.");
         var stale = await repository.CreateAsync(SampleFanPerformanceSubmission(member.Id));
         repository.SetTimestamps(stale.Id, DateTimeOffset.UtcNow.AddDays(-8), null);
-
-        var staleFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IFanPerformanceSubmissionRepository>();
-                services.AddSingleton<IFanPerformanceSubmissionRepository>(repository);
-            });
-        });
 
         var client = staleFactory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Test-User-Email", AdminEmail);
@@ -320,6 +334,12 @@ public sealed class AdminDashboardSubmissionQueueTests : IClassFixture<WebApplic
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private static IReadOnlyList<string> ExtractQueueTileLabels(string html) =>
+        System.Text.RegularExpressions.Regex
+            .Matches(html, """class="admin-dashboard__queue-tile-label">([^<]+)</span>""")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
 
     private static MemberAccount SampleMember() =>
         new()

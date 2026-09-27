@@ -1,45 +1,24 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
-using QueenZone.Storage;
 using QueenZone.Web;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class AccountSettingsPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class AccountSettingsPageTests : IClassFixture<InspectableBlobWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
-    private readonly InMemoryBlobStorageBackend blobBackend = new();
+    private readonly InspectableBlobWebApplicationFactory inspectableFactory;
 
-    public AccountSettingsPageTests(WebApplicationFactory<Program> factory)
+    public AccountSettingsPageTests(InspectableBlobWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-
-                // Swap in a backend this test can inspect directly (default Testing composition
-                // also uses an in-memory-backed AzureBlobUploadService, but not this instance).
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService>(_ =>
-                    new AzureBlobUploadService(blobBackend, Options.Create(new BlobUploadOptions())));
-            });
-        });
+        inspectableFactory = factory;
+        this.factory = factory;
     }
 
     [Fact]
@@ -317,8 +296,8 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<WebApplicat
                 AllowAutoRedirect = false,
             });
         var page = await client.GetStringAsync("/account/delete");
-        Assert.Contains("30-day cooling-off period", page);
-        Assert.Contains("sign back in and cancel deletion", page);
+        Assert.Contains("Delete my account now", page);
+        Assert.Contains("Deletion cannot be undone", page);
 
         var response = await client.PostAsync(
             "/account/delete",
@@ -372,6 +351,37 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<WebApplicat
         Assert.Equal("Delete Valid", restored.DisplayName);
         Assert.Null(restored.DeletionRecoveryDisplayName);
         Assert.Equal(HttpStatusCode.OK, (await signedInAgain.GetAsync($"/members/{restored.Id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAccount_Immediate_ProvidesStatusReceiptAfterSignOut()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            "delete-immediate-page@example.com",
+            displayName: "Immediate Page",
+            subject: "google-delete-immediate-page",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+        var page = await client.GetStringAsync("/account/delete");
+
+        using var response = await client.PostAsync(
+            "/account/delete",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(page),
+                ["Confirmation"] = "DELETE",
+                ["Immediate"] = "true",
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.StartsWith("/account/deletion-status?receipt=", response.Headers.Location!.OriginalString);
+        using var status = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        Assert.Contains("Account deletion complete", await status.Content.ReadAsStringAsync());
+        Assert.Equal("no-store", status.Headers.CacheControl?.ToString());
     }
 
     [Fact]
@@ -762,22 +772,8 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<WebApplicat
         IReadOnlyList<LegacyMemberMatch> matches,
         WebApplicationFactoryClientOptions? options = null)
     {
-        var specialized = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<ILegacyMemberLookupRepository>();
-                services.AddSingleton<ILegacyMemberLookupRepository>(_ =>
-                    new InMemoryLegacyMemberLookupRepository(
-                        new Dictionary<string, IReadOnlyList<LegacyMemberMatch>>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            [email] = matches,
-                        }));
-            });
-        });
-
-        return await CreateSignedInMemberClientAsync(specialized, email, displayName, subject, options);
+        inspectableFactory.LegacyLookup.Seed(email, matches);
+        return await CreateSignedInMemberClientAsync(factory, email, displayName, subject, options);
     }
 
     private static async Task<HttpClient> CreateSignedInMemberClientAsync(

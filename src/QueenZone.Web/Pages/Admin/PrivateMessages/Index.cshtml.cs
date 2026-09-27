@@ -2,7 +2,7 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Admin.PrivateMessages;
 
-public sealed class IndexModel(IPrivateMessageRepository privateMessageRepository) : AdminPrivateMessageReportsPageModel
+public sealed class IndexModel(IPrivateMessageModerationRepository privateMessageRepository) : AdminPrivateMessageReportsPageModel
 {
     public PrivateMessageReportListPage List { get; private set; } =
         new([], 0, PrivateMessageReportStatus.Open);

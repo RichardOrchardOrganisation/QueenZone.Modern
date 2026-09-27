@@ -1,5 +1,7 @@
 /** Mobile OAuth2 PKCE helpers. Native browser hop lives in `session/oauth.ts`. */
 
+import { trimTrailingChar } from '../text/trimRuns.ts';
+
 export const mobileClientId = 'queenzone-mobile';
 
 export const mobileRedirectUri = 'queenzone://auth/callback';
@@ -139,7 +141,7 @@ export function tokenFormBody(input: Record<string, string>): string {
 }
 
 function origin(apiBaseUrl: string): string {
-  return apiBaseUrl.replace(/\/+$/, '');
+  return trimTrailingChar(apiBaseUrl, '/');
 }
 
 function tryParseUrl(url: string): URL | null {

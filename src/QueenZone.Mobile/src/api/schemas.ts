@@ -137,6 +137,9 @@ export const photoListItemSchema = z.object({
 export const photoNavSchema = z.object({
   picId: z.number().int(),
   detailPath: z.string().min(1),
+  imageUrl: z.string().min(1).optional().nullable(),
+  pictureWidth: z.number().int().optional().nullable(),
+  pictureHeight: z.number().int().optional().nullable(),
 });
 
 export const photoDetailSchema = z.object({

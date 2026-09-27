@@ -91,6 +91,9 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddOptions<HelpRequestOptions>()
             .Bind(configuration.GetSection(HelpRequestOptions.SectionName));
 
+        services.AddOptions<SmtpEmailOptions>()
+            .Bind(configuration.GetSection(SmtpEmailOptions.SectionName));
+
         services.AddOptions<PrivateMessageRateLimitOptions>()
             .Bind(configuration.GetSection(PrivateMessageRateLimitOptions.SectionName));
 
@@ -98,6 +101,11 @@ public static class QueenZoneWebServiceCollectionExtensions
             .Bind(configuration.GetSection(MobileAuthOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<MobileAuthOptions>, MobileAuthOptionsValidator>();
+
+        services.AddOptions<PasswordSignInLockoutOptions>()
+            .Bind(configuration.GetSection(PasswordSignInLockoutOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<PasswordSignInLockoutOptions>, PasswordSignInLockoutOptionsValidator>();
 
         services.AddOptions<GalleryOrphanSweepOptions>()
             .Bind(configuration.GetSection(GalleryOrphanSweepOptions.SectionName))
@@ -122,12 +130,44 @@ public static class QueenZoneWebServiceCollectionExtensions
             .Bind(configuration.GetSection(AuthRateLimitingOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AuthRateLimitingOptions>, AuthRateLimitingOptionsValidator>();
+        services.AddOptions<MutationRateLimitingOptions>()
+            .Bind(configuration.GetSection(MutationRateLimitingOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            IValidateOptions<MutationRateLimitingOptions>,
+            MutationRateLimitingOptionsValidator>();
         services.AddSingleton<MobileAuthAccountRateLimiter>();
 
         services.AddRateLimiter(limiter =>
         {
             limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             limiter.OnRejected = AuthRateLimitRejection.WriteAsync;
+
+            // ASP.NET Core composes the global limiter with an endpoint policy.
+            // Return a no-op partition for every route except an endpoint that has
+            // explicitly opted into AuthenticatedWrite. This provides a coarse
+            // cross-account IP safety net while the named endpoint policy remains
+            // member-partitioned for fairness.
+            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AuthenticatedIpSafetyNet(context, opts);
+            });
+
+            limiter.AddPolicy(QueenZoneRateLimitPolicies.AnonymousWrite, context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AnonymousWrite(context, opts);
+            });
+
+            limiter.AddPolicy(QueenZoneRateLimitPolicies.AuthenticatedWrite, context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AuthenticatedWrite(context, opts);
+            });
 
             limiter.AddPolicy(FanPerformanceRateLimitingOptions.AudioPolicy, context =>
             {
@@ -235,7 +275,7 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .With(context => PublicOutputCachePolicies.IsCacheablePublicHtmlRequest(context.HttpContext))
                 .Expire(PublicOutputCachePolicies.HtmlDuration)
                 .SetVaryByRouteValue("*")
-                .SetVaryByQuery("*")
+                .SetVaryByQuery(PublicOutputCachePolicies.PublicHtmlQueryKeys)
                 .Tag(PublicOutputCachePolicies.PublicHtmlTag));
         });
         services.AddScoped<PublicQueryCacheService>();
@@ -256,10 +296,12 @@ public static class QueenZoneWebServiceCollectionExtensions
     public static IServiceCollection AddQueenZoneWebAppServices(this IServiceCollection services)
     {
         services.AddScoped<MemberAccountService>();
-        services.AddHostedService<MemberAccountDeletionHostedService>();
+        services.AddScoped<AppleAccountTokenService>();
+        services.AddScoped<MemberDeletionReceiptService>();
+        services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
+            client.Timeout = TimeSpan.FromSeconds(15));
         services.AddScoped<PrivateMessageRateLimiter>();
         services.AddScoped<PrivateMessageService>();
-        services.AddHostedService<PrivateMessageReportPurgeHostedService>();
         services.AddScoped<MemberFollowService>();
         services.AddScoped<TopicWatchService>();
         services.AddScoped<PhotoSubmissionService>();
@@ -271,12 +313,12 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<PhotoSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPurgeService>();
-        services.AddHostedService<FanPerformanceSubmissionPurgeHostedService>();
         services.AddScoped<GalleryOrphanSweepService>();
-        services.AddHostedService<GalleryOrphanSweepHostedService>();
         services.AddScoped<NewsSuggestionService>();
         services.AddSingleton<HelpRequestFormStamp>();
         services.AddSingleton<HelpRequestRateLimiter>();
+        services.AddSingleton<ISmtpTransport, GmailSmtpTransport>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<HelpRequestService>();
         services.AddScoped<PublicWarmupService>();
         services.AddScoped<UgcHtml>();
@@ -289,6 +331,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<ForumPostWriteService>();
         services.AddScoped<ForumPostReportService>();
         services.AddScoped<HomePollVoteService>();
+        services.AddScoped<QuizSprintService>();
         services.AddSingleton<IFcmAccessTokenProvider, GoogleFcmAccessTokenProvider>();
         services.AddHttpClient(DirectPushTransport.ApnsClientName, client =>
         {
@@ -348,6 +391,7 @@ public static class QueenZoneWebServiceCollectionExtensions
             services.AddQueenZoneInMemoryData();
             services.AddHostedService<Search.SearchIndexSeedHostedService>();
             services.AddHostedService<SampleGalleryImageSeedHostedService>();
+            services.AddHostedService<SampleLegacyForumAttachmentSeedHostedService>();
             return services;
         }
 
@@ -364,6 +408,13 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .Get<ForumDataOptions>() ?? new ForumDataOptions();
 
             services.AddQueenZoneLegacyData(legacyConnectionString, forumDataOptions);
+            if (environment.IsEnvironment(QueenZoneEnvironments.E2E))
+            {
+                // Sync/skip_sync copies production Azure SQL, which may not yet have
+                // modern tables such as QuizSprintRuns. Apply pending EF migrations to
+                // the disposable Express mirror before the RealData host serves GET /.
+                services.AddHostedService<E2EMirrorMigrationHostedService>();
+            }
         }
         else
         {
@@ -385,6 +436,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddQueenZoneRateLimiting(configuration);
         services.AddQueenZoneSitemaps();
         services.AddQueenZoneWebAppServices();
+        services.AddQueenZoneMaintenanceHostedServices(configuration);
 
         if (ResponseCompressionBootstrap.IsEnabled(environment))
         {

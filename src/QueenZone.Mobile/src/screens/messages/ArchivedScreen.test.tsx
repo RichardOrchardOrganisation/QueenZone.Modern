@@ -1,7 +1,7 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { fetchArchivedInbox, unarchiveConversation } from '../../api/messages';
 import { ApiError } from '../../api/client';
-import { pagedResponse } from '../../test/fixtures';
+import { inboxConversationFixture, pagedResponse } from '../../test/fixtures';
 import { createMockSession } from '../../test/mockSession';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
 import { ArchivedScreen } from './ArchivedScreen';
@@ -16,6 +16,21 @@ jest.mock('../../api/messages', () => ({
   fetchArchivedInbox: jest.fn(),
   unarchiveConversation: jest.fn(),
 }));
+
+let mockLastFocusEffect: (() => void | (() => void)) | null = null;
+
+jest.mock('@react-navigation/native', () => {
+  const actual = jest.requireActual('@react-navigation/native');
+  const { useEffect } = jest.requireActual('react');
+  return {
+    ...actual,
+    // Runs like a single focus on mount, and keeps the effect so a test can refocus the screen.
+    useFocusEffect: (effect: () => void | (() => void)) => {
+      mockLastFocusEffect = effect;
+      useEffect(effect, [effect]);
+    },
+  };
+});
 
 const fetchArchivedInboxMock = fetchArchivedInbox as jest.MockedFunction<typeof fetchArchivedInbox>;
 const unarchiveConversationMock = unarchiveConversation as jest.MockedFunction<typeof unarchiveConversation>;
@@ -38,6 +53,21 @@ describe('ArchivedScreen', () => {
     renderArchived();
     expect(screen.getByText('Archived messages')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
+  });
+
+  it('refreshes the list when the screen is focused again', async () => {
+    mockSession.isSignedIn = true;
+    mockSession.accessToken = 'tok';
+    fetchArchivedInboxMock.mockResolvedValue(pagedResponse([inboxConversationFixture()], 1, 1));
+    renderArchived();
+    await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
+    expect(fetchArchivedInboxMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      mockLastFocusEffect?.();
+    });
+
+    await waitFor(() => expect(fetchArchivedInboxMock).toHaveBeenCalledTimes(2));
   });
 
   it('shows an empty state', async () => {

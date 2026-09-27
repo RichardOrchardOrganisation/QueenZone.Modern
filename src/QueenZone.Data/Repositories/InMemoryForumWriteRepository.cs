@@ -380,6 +380,16 @@ public sealed class InMemoryForumWriteRepository : IForumWriteRepository
         }
     }
 
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            threads.Clear();
+            posts.Clear();
+            createdCategories.Clear();
+        }
+    }
+
     public IReadOnlyList<ForumWriteThread> GetCreatedThreads()
     {
         lock (sync)

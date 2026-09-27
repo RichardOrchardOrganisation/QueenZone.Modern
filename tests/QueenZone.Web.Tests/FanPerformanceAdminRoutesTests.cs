@@ -1,13 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Routing;
 using QueenZone.Storage;
@@ -16,30 +11,23 @@ using QueenZone.Web.Pages.Admin.FanPerformanceSubmissions;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class FanPerformanceAdminRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class FanPerformanceAdminRoutesTests :
+    IClassFixture<InspectableBlobWebApplicationFactory>,
+    IAsyncLifetime
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
-    private readonly InMemoryBlobStorageBackend blobBackend = new();
+    private readonly InspectableBlobWebApplicationFactory resettableFactory;
 
-    public FanPerformanceAdminRoutesTests(WebApplicationFactory<Program> factory)
+    public FanPerformanceAdminRoutesTests(InspectableBlobWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService>(_ =>
-                    new AzureBlobUploadService(blobBackend, Options.Create(new BlobUploadOptions())));
-            });
-        });
+        this.factory = factory;
+        resettableFactory = factory;
     }
+
+    public Task InitializeAsync() => resettableFactory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Get_AdminQueue_RequiresAdminAuthentication()

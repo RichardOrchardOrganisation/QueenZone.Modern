@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
@@ -9,12 +10,23 @@ public sealed class EfQueenHistoryRepository(QueenZoneDbContext dbContext) : IQu
         int count,
         CancellationToken cancellationToken = default)
     {
-        var events = await GetPublishedExactEventsAsync(cancellationToken);
-        var matches = events.Where(item =>
-            item.EventDate.Month == date.Month &&
-            item.EventDate.Day == date.Day);
+        var events = await BuildOnThisDayQuery(date)
+            .Select(item => new QueenHistoryEvent(
+                item.Id, item.Title, item.Summary, item.EventDate, item.DatePrecision,
+                item.Category, item.Importance, item.SourceType, item.SourceKey,
+                item.SourceUrl, item.IsPublished))
+            .ToListAsync(cancellationToken);
 
-        return QueenHistoryEventOrdering.ForHomepage(matches, count);
+        return QueenHistoryEventOrdering.ForHomepage(events, count);
+    }
+
+    internal IQueryable<QueenHistoryEventEntity> BuildOnThisDayQuery(DateOnly date)
+    {
+        var monthDay = date.Month * 100 + date.Day;
+        return dbContext.QueenHistoryEvents.AsNoTracking()
+            .Where(item => item.IsPublished
+                && item.DatePrecision == QueenHistoryDatePrecision.ExactDate
+                && item.EventMonthDay == monthDay);
     }
 
     public async Task<IReadOnlyList<QueenHistoryEvent>> GetAroundThisDayAsync(

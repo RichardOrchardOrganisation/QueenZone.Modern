@@ -1,6 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode, useMemo } from 'react';
 import {
-  Linking,
   Text,
   useWindowDimensions,
   type GestureResponderEvent,
@@ -8,12 +7,13 @@ import {
 import RenderHTML, {
   defaultSystemFonts,
   type MixedStyleRecord,
-} from 'react-native-render-html';
+} from '@native-html/render';
 import { toPlainText } from '../api/text';
 import { getAppConfig } from '../config';
 import { fonts, space, type, useTheme } from '../theme';
 import { prepareNewsHtml } from './html/prepareNewsHtml';
 import { isHttpUrl } from './html/resolveContentUrl';
+import { openExternalUrl } from './openExternalUrl';
 
 type Props = {
   html: string;
@@ -126,7 +126,7 @@ export function RichHtmlBody({ html, horizontalInset = 26 }: Props) {
       a: {
         onPress: (_event: GestureResponderEvent, href: string) => {
           if (isHttpUrl(href)) {
-            void Linking.openURL(href);
+            void openExternalUrl(href);
           }
         },
       },
