@@ -330,9 +330,20 @@ jobs:
     needs: apply-production
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: opentofu-plan
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Azure login for private-container check
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
 
       - name: Post-apply checks
         shell: pwsh
@@ -343,7 +354,29 @@ jobs:
     if: inputs.root != 'production'
     needs: apply-dev
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    environment: opentofu-plan
+    permissions:
+      id-token: write
+      contents: read
     steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Azure login for private-container check
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
       - name: Verify dev custom-domain HTTPS endpoint
         run: curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 https://dev.queenzone.org/ --output /dev/null
+
+      - name: Assert required-private queenzonedev containers are None
+        shell: pwsh
+        run: >
+          ./scripts/Test-OpenTofuPostApplySmoke.ps1
+          -PrivateContainersOnly
+          -StorageAccountName queenzonedev
+          -ResourceGroup Queenzone-Dev-RG

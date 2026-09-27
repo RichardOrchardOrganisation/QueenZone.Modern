@@ -1,0 +1,69 @@
+name: Dev attachment evidence (#1833)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dev-deploy-attachment-evidence
+  cancel-in-progress: false
+
+jobs:
+  evidence:
+    name: Count stored URLs and probe app-path links
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: dev-deploy
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Self-test evidence script
+        shell: pwsh
+        run: ./scripts/Get-DevAttachmentEvidence.ps1 -SelfTest
+
+      - name: Azure login
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Read queenzone-devbox SQL setting
+        id: snapshot
+        shell: bash
+        run: |
+          settings="$(az webapp config appsettings list --name queenzone-devbox --resource-group Queenzone-Dev-RG -o json)"
+          ready="$(jq -r '[.[] | select(.name == "DevSnapshot__Ready") | .value][0] // ""' <<< "$settings")"
+          connection="$(jq -r '[.[] | select(.name == "ConnectionStrings__QueenZoneLegacy") | .value][0] // ""' <<< "$settings")"
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          echo "DevSnapshot__Ready=$ready" >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$connection" ]; then
+            echo "Dev SQL connection setting is empty. Signed-out HTTP probes will still run." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "ConnectionStrings__QueenZoneLegacy<<EOF"
+            echo "$connection"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Fetch the synthetic member password
+        if: steps.snapshot.outputs.ready == 'true'
+        id: member-secret
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
+          secrets: ${{ vars.BITWARDEN_DEV_AUTH_E2E_SECRETS }}
+
+      - name: Run queenzonedev attachment evidence
+        shell: pwsh
+        env:
+          DEV_SNAPSHOT_MEMBER_PASSWORD: ${{ steps.member-secret.outputs.DEV_SNAPSHOT_MEMBER_PASSWORD }}
+        run: |
+          ./scripts/Get-DevAttachmentEvidence.ps1 -BaseUrl https://dev.queenzone.org
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'Read-only #1833 queenzonedev attachment evidence finished. No SQL or storage writes.' >> $env:GITHUB_STEP_SUMMARY
