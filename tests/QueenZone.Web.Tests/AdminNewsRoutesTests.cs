@@ -14,15 +14,24 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace QueenZone.Web.Tests;
 
 [Collection(AdminNewsDeleteErrorCollection.Name)]
-public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class AdminNewsRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private const string AdminEmail = AdminHttpTestHelpers.AdminEmail;
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory isolated;
 
-    public AdminNewsRoutesTests(QueenZoneWebApplicationFactory factory)
+    public AdminNewsRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        isolated = variants.Get(WebHostVariants.IsolatedAdminNews);
     }
+
+    public Task InitializeAsync() => isolated.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AnonymousUserCannotAccessAdminRoutes()
@@ -96,7 +105,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         var publishResponse = await PostActionAsync(client, $"/admin/news/{articleId}/publish");
         Assert.Equal(HttpStatusCode.Redirect, publishResponse.StatusCode);
 
-        var publishedArticle = store.GetArticle(articleId);
+        var publishedArticle = IsolatedNews.GetArticle(articleId);
         Assert.NotNull(publishedArticle);
         Assert.True(publishedArticle.IsPublished);
         Assert.InRange(publishedArticle.PublishedAt.Date, beforePublishDate, DateTime.UtcNow.Date);
@@ -440,21 +449,10 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
                 DateTime.UtcNow,
                 AdminEmail)
         ]);
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryInner = new InMemoryNewsDiscoveryRepository(discoveryStore);
         using var _ = AdminNewsDeleteError.UseForeignKeyViolationClassifier(_ => true);
-        var client = CreateClient(
-            AdminEmail,
-            store,
-            services =>
-            {
-                services.RemoveAll<IAdminNewsRepository>();
-                services.AddSingleton<IAdminNewsRepository>(_ =>
-                    new FailingDeleteAdminNewsRepository(
-                        new InMemoryAdminNewsRepository(store),
-                        new DbUpdateException("FK violation", new InvalidOperationException("blocked"))));
-            },
-            discoveryInner);
+        isolated.AdminNewsMutations!.DeleteException =
+            new DbUpdateException("FK violation", new InvalidOperationException("blocked"));
+        var client = CreateClient(AdminEmail, store);
 
         var deleteResponse = await PostActionAsync(client, "/admin/news/3101/delete");
         Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
@@ -483,20 +481,9 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
                 DateTime.UtcNow,
                 AdminEmail)
         ]);
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryInner = new InMemoryNewsDiscoveryRepository(discoveryStore);
-        var client = CreateClient(
-            AdminEmail,
-            store,
-            services =>
-            {
-                services.RemoveAll<IAdminNewsRepository>();
-                services.AddSingleton<IAdminNewsRepository>(_ =>
-                    new FailingDeleteAdminNewsRepository(
-                        new InMemoryAdminNewsRepository(store),
-                        new InvalidOperationException("News article 3102 was not found.")));
-            },
-            discoveryInner);
+        isolated.AdminNewsMutations!.DeleteException =
+            new InvalidOperationException("News article 3102 was not found.");
+        var client = CreateClient(AdminEmail, store);
 
         var deleteResponse = await PostActionAsync(client, "/admin/news/3102/delete");
         Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
@@ -524,17 +511,9 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
                 DateTime.UtcNow,
                 AdminEmail)
         ]);
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryInner = new InMemoryNewsDiscoveryRepository(discoveryStore);
-        var client = CreateClient(
-            AdminEmail,
-            store,
-            _ => { },
-            new ConfigurableNewsDiscoveryRepository(discoveryInner)
-            {
-                ClearPromotedNewsLinksHandler = (_, _) =>
-                    throw new InvalidOperationException("Discovery tables unavailable.")
-            });
+        isolated.ConfigurableDiscovery!.ClearPromotedNewsLinksHandler = (_, _) =>
+            throw new InvalidOperationException("Discovery tables unavailable.");
+        var client = CreateClient(AdminEmail, store);
 
         var deleteResponse = await PostActionAsync(client, "/admin/news/3103/delete");
         Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);
@@ -561,17 +540,9 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
                 DateTime.UtcNow,
                 AdminEmail)
         ]);
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryInner = new InMemoryNewsDiscoveryRepository(discoveryStore);
-        var client = CreateClient(
-            AdminEmail,
-            store,
-            _ => { },
-            new ConfigurableNewsDiscoveryRepository(discoveryInner)
-            {
-                GetCandidateByPromotedNewsIdHandler = (_, _) =>
-                    throw new InvalidOperationException("Discovery lookup failed.")
-            });
+        isolated.ConfigurableDiscovery!.GetCandidateByPromotedNewsIdHandler = (_, _) =>
+            throw new InvalidOperationException("Discovery lookup failed.");
+        var client = CreateClient(AdminEmail, store);
 
         var response = await client.GetAsync("/admin/news/4101/edit");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -600,17 +571,9 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
                 DateTime.UtcNow,
                 AdminEmail)
         ]);
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryInner = new InMemoryNewsDiscoveryRepository(discoveryStore);
-        var client = CreateClient(
-            AdminEmail,
-            store,
-            _ => { },
-            new ConfigurableNewsDiscoveryRepository(discoveryInner)
-            {
-                GetCandidateByPromotedNewsIdHandler = (_, _) =>
-                    throw new InvalidOperationException("Discovery lookup failed.")
-            });
+        isolated.ConfigurableDiscovery!.GetCandidateByPromotedNewsIdHandler = (_, _) =>
+            throw new InvalidOperationException("Discovery lookup failed.");
+        var client = CreateClient(AdminEmail, store);
 
         var response = await PostArticleAsync(
             client,
@@ -650,17 +613,9 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
                 DateTime.UtcNow,
                 AdminEmail)
         ]);
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryInner = new InMemoryNewsDiscoveryRepository(discoveryStore);
-        var client = CreateClient(
-            AdminEmail,
-            store,
-            _ => { },
-            new ConfigurableNewsDiscoveryRepository(discoveryInner)
-            {
-                GetCandidateByPromotedNewsIdHandler = (_, _) =>
-                    throw new InvalidOperationException("Discovery lookup failed.")
-            });
+        isolated.ConfigurableDiscovery!.GetCandidateByPromotedNewsIdHandler = (_, _) =>
+            throw new InvalidOperationException("Discovery lookup failed.");
+        var client = CreateClient(AdminEmail, store);
 
         var response = await client.GetAsync("/admin/news/4102/preview");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -941,7 +896,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
 
         Assert.Equal(HttpStatusCode.Redirect, createResponse.StatusCode);
         var articleId = AdminHttpTestHelpers.ParseNewsIdFromEditRedirect(createResponse);
-        var article = store.GetArticle(articleId);
+        var article = IsolatedNews.GetArticle(articleId);
         Assert.NotNull(article);
         Assert.False(string.IsNullOrWhiteSpace(article.ImageBlobKey));
         Assert.False(NewsArticleImage.IsGalleryReference(article.ImageBlobKey));
@@ -988,7 +943,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Apply a 3:2 crop", body);
-        Assert.Empty(store.GetAllArticles());
+        Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
     [Fact]
@@ -1013,7 +968,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("That gallery photo was not found.", body);
-        Assert.Empty(store.GetAllArticles());
+        Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
     [Fact]
@@ -1040,7 +995,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
             "image/png");
 
         var articleId = AdminHttpTestHelpers.ParseNewsIdFromEditRedirect(createResponse);
-        var previous = store.GetArticle(articleId)!.ImageBlobKey!;
+        var previous = IsolatedNews.GetArticle(articleId)!.ImageBlobKey!;
         var blobs = appFactory.Services.GetRequiredService<IBlobUploadService>();
         Assert.NotNull(await blobs.OpenReadAsync(BlobUploadContainers.Articles, previous));
 
@@ -1063,7 +1018,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
             });
 
         Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
-        var updated = store.GetArticle(articleId);
+        var updated = IsolatedNews.GetArticle(articleId);
         Assert.NotNull(updated);
         Assert.False(NewsArticleImage.IsGalleryReference(updated.ImageBlobKey));
         Assert.Null(updated.ImageGalleryPicId);
@@ -1103,7 +1058,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("selected crop is invalid", body);
-        Assert.Empty(store.GetAllArticles());
+        Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
     [Fact]
@@ -1132,7 +1087,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("selected crop is too small", body);
-        Assert.Empty(store.GetAllArticles());
+        Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
     [Fact]
@@ -1172,7 +1127,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
             });
 
         Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
-        var updated = store.GetArticle(4402);
+        var updated = IsolatedNews.GetArticle(4402);
         Assert.NotNull(updated);
         Assert.Equal("gallery:101", updated.ImageBlobKey);
         Assert.Equal(101, updated.ImageGalleryPicId);
@@ -1232,7 +1187,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
 
         Assert.Equal(HttpStatusCode.Redirect, createResponse.StatusCode);
         var articleId = AdminHttpTestHelpers.ParseNewsIdFromEditRedirect(createResponse);
-        var article = store.GetArticle(articleId);
+        var article = IsolatedNews.GetArticle(articleId);
         Assert.NotNull(article);
         Assert.False(string.IsNullOrWhiteSpace(article.ImageBlobKey));
         Assert.False(NewsArticleImage.IsGalleryReference(article.ImageBlobKey));
@@ -1280,7 +1235,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("JPEG, PNG, or WebP", body);
-        Assert.Empty(store.GetAllArticles());
+        Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
     [Fact]
@@ -1311,7 +1266,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("bytes or smaller", body);
-        Assert.Empty(store.GetAllArticles());
+        Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
     [Fact]
@@ -1346,7 +1301,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("selected crop is too small", body);
-        Assert.Empty(store.GetAllArticles());
+        Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
     [Fact]
@@ -1373,7 +1328,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
             "image/png");
 
         var articleId = AdminHttpTestHelpers.ParseNewsIdFromEditRedirect(createResponse);
-        var previous = store.GetArticle(articleId)!.ImageBlobKey!;
+        var previous = IsolatedNews.GetArticle(articleId)!.ImageBlobKey!;
         var blobs = appFactory.Services.GetRequiredService<IBlobUploadService>();
         Assert.NotNull(await blobs.OpenReadAsync(BlobUploadContainers.Articles, previous));
 
@@ -1395,7 +1350,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
             "image/png");
 
         Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
-        var updated = store.GetArticle(articleId);
+        var updated = IsolatedNews.GetArticle(articleId);
         Assert.NotNull(updated);
         Assert.NotEqual(previous, updated.ImageBlobKey);
         Assert.Null(await blobs.OpenReadAsync(BlobUploadContainers.Articles, previous));
@@ -1447,7 +1402,7 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
             "image/png");
 
         Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
-        var updated = store.GetArticle(4401);
+        var updated = IsolatedNews.GetArticle(4401);
         Assert.NotNull(updated);
         Assert.False(NewsArticleImage.IsGalleryReference(updated.ImageBlobKey));
         Assert.Null(updated.ImageGalleryPicId);
@@ -1630,35 +1585,13 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Assert.Contains(publishAudit, entry => entry.ActorEmail == AdminEmail);
     }
 
-    private WebApplicationFactory<Program> CreateFactory(
-        SharedNewsStore store,
-        Action<IServiceCollection>? configureServices = null,
-        INewsDiscoveryRepository? discoveryRepository = null) =>
-        factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<SharedNewsStore>();
-                services.RemoveAll<INewsRepository>();
-                services.RemoveAll<IAdminNewsRepository>();
-                services.RemoveAll<INewsAuditRepository>();
-                services.RemoveAll<INewsDiscoveryRepository>();
-                services.RemoveAll<SharedNewsDiscoveryStore>();
-                services.AddSingleton(store);
-                services.AddSingleton<INewsRepository>(_ => new QueenZone.Data.InMemoryNewsRepository(store));
-                services.AddSingleton<IAdminNewsRepository>(_ => new InMemoryAdminNewsRepository(store));
-                services.AddSingleton<INewsAuditRepository>(_ => new InMemoryNewsAuditRepository(store));
-                if (discoveryRepository is not null)
-                {
-                    services.AddSingleton(discoveryRepository);
-                }
-                else
-                {
-                    services.AddSingleton<SharedNewsDiscoveryStore>();
-                    services.AddSingleton<INewsDiscoveryRepository, InMemoryNewsDiscoveryRepository>();
-                }
+    private SharedNewsStore IsolatedNews => isolated.AdminNews!;
 
-                configureServices?.Invoke(services);
-            }));
+    private WebApplicationFactory<Program> CreateFactory(SharedNewsStore store)
+    {
+        IsolatedNews.Seed(store.GetAllArticles());
+        return isolated;
+    }
 
     private HttpClient CreateClient(
         string? email = null,
@@ -1666,15 +1599,14 @@ public sealed class AdminNewsRoutesTests : IClassFixture<QueenZoneWebApplication
         Action<IServiceCollection>? configureServices = null,
         INewsDiscoveryRepository? discoveryRepository = null)
     {
-        var appFactory = store is null ? factory : CreateFactory(store, configureServices, discoveryRepository);
+        _ = configureServices;
+        _ = discoveryRepository;
+        var appFactory = store is null ? factory : CreateFactory(store);
         return CreateClientFromFactory(appFactory, email);
     }
 
     private HttpClient CreateClient(string? email, SharedNewsStore store) =>
         CreateClient(email, store, null, null);
-
-    private WebApplicationFactory<Program> CreateFactory(SharedNewsStore store) =>
-        CreateFactory(store, null, null);
 
     private static HttpClient CreateClientFromFactory(WebApplicationFactory<Program> appFactory, string? email) =>
         AdminHttpTestHelpers.CreateClient(appFactory, email);

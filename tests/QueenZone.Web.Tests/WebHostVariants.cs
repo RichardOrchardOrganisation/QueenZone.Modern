@@ -17,7 +17,7 @@ namespace QueenZone.Web.Tests;
 /// Declared host variants for Web.Tests. Every configuration a class fixture may cache
 /// is a <see cref="static"/> field here — tests do not pass service lambdas as keys.
 /// </summary>
-public static class WebHostVariants
+public static partial class WebHostVariants
 {
     private static readonly ImmutableSortedDictionary<string, string?> NoSettings =
         ImmutableSortedDictionary<string, string?>.Empty;
@@ -340,6 +340,87 @@ public static class WebHostVariants
         "Testing",
         NoSettings,
         HostServiceProfile.EmptyFreddieTributes);
+
+    public static readonly WebHostVariant IsolatedQuotes = new(
+        nameof(IsolatedQuotes),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedQuotes);
+
+    public static readonly WebHostVariant IsolatedFanPerformanceSubmissions = new(
+        nameof(IsolatedFanPerformanceSubmissions),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedFanPerformanceSubmissions);
+
+    public static readonly WebHostVariant IsolatedAdminNews = new(
+        nameof(IsolatedAdminNews),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedAdminNews);
+
+    public static readonly WebHostVariant IsolatedAdminNewsDiscovery = new(
+        nameof(IsolatedAdminNewsDiscovery),
+        "Testing",
+        ImmutableSortedDictionary.CreateRange(
+        [
+            KeyValuePair.Create<string, string?>("OpenRouter:ApiKey", "test-key"),
+        ]),
+        HostServiceProfile.IsolatedAdminNewsDiscovery);
+
+    public static readonly WebHostVariant IsolatedAdminBiography = new(
+        nameof(IsolatedAdminBiography),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedAdminBiography);
+
+    public static readonly WebHostVariant IsolatedAdminTimeline = new(
+        nameof(IsolatedAdminTimeline),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedAdminTimeline);
+
+    public static readonly WebHostVariant IsolatedAdminFreddieTributes = new(
+        nameof(IsolatedAdminFreddieTributes),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedAdminFreddieTributes);
+
+    public static readonly WebHostVariant IsolatedAdminGuidance = new(
+        nameof(IsolatedAdminGuidance),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedAdminGuidance);
+
+    public static readonly WebHostVariant IsolatedHomePollsThrowingPublish = new(
+        nameof(IsolatedHomePollsThrowingPublish),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.IsolatedHomePollsThrowingPublish);
+
+    public static readonly WebHostVariant GaTrafficAvailable = new(
+        nameof(GaTrafficAvailable),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.GaTrafficAvailable);
+
+    public static readonly WebHostVariant GaTrafficUnavailable = new(
+        nameof(GaTrafficUnavailable),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.GaTrafficUnavailable);
+
+    public static readonly WebHostVariant ExternalCookieTimeoutHideForum = new(
+        nameof(ExternalCookieTimeoutHideForum),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.ExternalCookieTimeoutHideForum);
+
+    public static readonly WebHostVariant ExternalCookieThrowingRevokeMobileAuth = new(
+        nameof(ExternalCookieThrowingRevokeMobileAuth),
+        "Testing",
+        NoSettings,
+        HostServiceProfile.ExternalCookieThrowingRevokeMobileAuth);
 
     private static readonly ImmutableSortedDictionary<string, string?> AppleOAuthSettings =
         ImmutableSortedDictionary.CreateRange(
@@ -714,6 +795,49 @@ public static class WebHostVariants
             case HostServiceProfile.EmptyFreddieTributes:
                 ReplaceFreddieTributes(services, []);
                 break;
+            case HostServiceProfile.IsolatedQuotes:
+                AddIsolatedQuotes(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedFanPerformanceSubmissions:
+                AddStaleFanPerformanceSubmissions(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedAdminNews:
+                AddIsolatedAdminNews(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedAdminNewsDiscovery:
+                AddIsolatedAdminNewsDiscovery(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedAdminBiography:
+                AddIsolatedAdminBiography(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedAdminTimeline:
+                AddIsolatedAdminTimeline(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedAdminFreddieTributes:
+                AddIsolatedAdminFreddieTributes(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedAdminGuidance:
+                AddIsolatedAdminGuidance(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.IsolatedHomePollsThrowingPublish:
+                AddIsolatedHomePollsThrowingPublish(services, RequireContext(context, profile));
+                break;
+            case HostServiceProfile.GaTrafficAvailable:
+                AddGoogleAnalyticsTraffic(services, GaTrafficAvailableSnapshot());
+                break;
+            case HostServiceProfile.GaTrafficUnavailable:
+                AddGoogleAnalyticsTraffic(
+                    services,
+                    GoogleAnalyticsTrafficSnapshot.Unavailable("Google Analytics traffic is unavailable."));
+                break;
+            case HostServiceProfile.ExternalCookieTimeoutHideForum:
+                AddExternalCookie(services);
+                AddTimeoutHideForum(services);
+                break;
+            case HostServiceProfile.ExternalCookieThrowingRevokeMobileAuth:
+                AddExternalCookie(services);
+                AddThrowingRevokeMobileAuth(services);
+                break;
             case HostServiceProfile.AppleOAuth:
                 AddAppleOAuth(services);
                 break;
@@ -1015,9 +1139,17 @@ public static class WebHostVariants
 
     private static void AddStaleFanPerformanceSubmissions(IServiceCollection services, HostServiceContext context)
     {
-        context.FanPerformanceSubmissions ??= new InMemoryFanPerformanceSubmissionRepository();
+        // Assign the context fake during Apply so Get()/ResetAsync expose it before any
+        // IFanPerformanceSubmissionRepository resolve. Isolated credit names still need
+        // IMemberAccountRepository, which is only available after the host is built.
+        context.FanPerformanceSubmissions ??= new InMemoryFanPerformanceSubmissionRepository(id =>
+            context.FanPerformanceMembers?.FindByIdAsync(id).GetAwaiter().GetResult());
         services.RemoveAll<IFanPerformanceSubmissionRepository>();
-        services.AddSingleton<IFanPerformanceSubmissionRepository>(context.FanPerformanceSubmissions);
+        services.AddSingleton<IFanPerformanceSubmissionRepository>(sp =>
+        {
+            context.FanPerformanceMembers ??= sp.GetRequiredService<IMemberAccountRepository>();
+            return context.FanPerformanceSubmissions;
+        });
     }
 
     private static void AddStubEditorBlob(IServiceCollection services, HostServiceContext context)
@@ -1495,6 +1627,19 @@ public enum HostServiceProfile
     EmptyBiography,
     PhotosWithoutFreddieCategory,
     EmptyFreddieTributes,
+    IsolatedQuotes,
+    IsolatedFanPerformanceSubmissions,
+    IsolatedAdminNews,
+    IsolatedAdminNewsDiscovery,
+    IsolatedAdminBiography,
+    IsolatedAdminTimeline,
+    IsolatedAdminFreddieTributes,
+    IsolatedAdminGuidance,
+    IsolatedHomePollsThrowingPublish,
+    GaTrafficAvailable,
+    GaTrafficUnavailable,
+    ExternalCookieTimeoutHideForum,
+    ExternalCookieThrowingRevokeMobileAuth,
     AppleOAuth,
     MutableLegacyLookup,
     PhotoUploadQuota1,
@@ -1544,6 +1689,8 @@ internal sealed class HostServiceContext
 
     public InMemoryFanPerformanceSubmissionRepository? FanPerformanceSubmissions { get; set; }
 
+    public IMemberAccountRepository? FanPerformanceMembers { get; set; }
+
     public EditorStubBlobUploadService? EditorBlob { get; set; }
 
     public RecordingMemberPublicActivityRepository? MemberActivity { get; set; }
@@ -1564,6 +1711,28 @@ internal sealed class HostServiceContext
 
     public CountingBiographyRepository? CountingBiography { get; set; }
 
+    public SharedQuoteStore? Quotes { get; set; }
+
+    public SharedNewsStore? AdminNews { get; set; }
+
+    public SharedNewsDiscoveryStore? AdminDiscovery { get; set; }
+
+    public AdminNewsMutationOverrides? AdminNewsMutations { get; set; }
+
+    public ConfigurableNewsDiscoveryRepository? ConfigurableDiscovery { get; set; }
+
+    public ConfigurableNewsAiClient? NewsAi { get; set; }
+
+    public SharedNewsAgentRunRequestStore? NewsAgentRunRequests { get; set; }
+
+    public SharedBiographyStore? AdminBiography { get; set; }
+
+    public SharedQueenHistoryStore? AdminTimeline { get; set; }
+
+    public SharedFreddieTributeStore? AdminFreddieTributes { get; set; }
+
+    public SharedNewsAgentGuidanceStore? AdminGuidance { get; set; }
+
     public void Reset()
     {
         BlobBackend.Clear();
@@ -1583,6 +1752,17 @@ internal sealed class HostServiceContext
         SeedableNews?.Reset();
         SeedableDiscussion?.Reset();
         CountingBiography?.Reset();
+        Quotes?.Clear();
+        AdminNews?.Clear();
+        AdminDiscovery?.Clear();
+        AdminNewsMutations?.Reset();
+        ConfigurableDiscovery?.ResetHandlers();
+        NewsAi?.Reset();
+        NewsAgentRunRequests?.Clear();
+        AdminBiography?.Clear();
+        AdminTimeline?.Clear();
+        AdminFreddieTributes?.Reset();
+        AdminGuidance?.Clear();
     }
 }
 

@@ -13,16 +13,23 @@ namespace QueenZone.Web.Tests;
 
 public sealed class ContentApiFanPerformancesTests :
     IClassFixture<QueenZoneWebApplicationFactory>,
-    IClassFixture<WebHostVariantCache>
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly QueenZoneWebApplicationFactory factory;
     private readonly WebHostVariantCache variants;
+    private readonly VariantWebApplicationFactory isolatedSubmissions;
 
     public ContentApiFanPerformancesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
         this.variants = variants;
+        isolatedSubmissions = variants.Get(WebHostVariants.IsolatedFanPerformanceSubmissions);
     }
+
+    public Task InitializeAsync() => isolatedSubmissions.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task FanPerformances_list_requires_no_auth_and_includes_duration()
@@ -106,7 +113,7 @@ public sealed class ContentApiFanPerformancesTests :
     [Fact]
     public async Task FanPerformance_list_and_detail_include_contributor_credit_when_approved_submission_exists()
     {
-        var member = await factory.Services.GetRequiredService<IMemberAccountRepository>()
+        var member = await isolatedSubmissions.Services.GetRequiredService<IMemberAccountRepository>()
             .CreateAsync(new MemberAccount
             {
                 Id = Guid.NewGuid(),
@@ -114,7 +121,7 @@ public sealed class ContentApiFanPerformancesTests :
                 DisplayName = "Credit Fan",
                 CreatedAt = DateTime.UtcNow,
             });
-        var submissions = factory.Services.GetRequiredService<IFanPerformanceSubmissionRepository>();
+        var submissions = isolatedSubmissions.Services.GetRequiredService<IFanPerformanceSubmissionRepository>();
         var created = await submissions.CreateAsync(new NewFanPerformanceSubmission(
             member.Id,
             "Credit cover",
@@ -130,7 +137,7 @@ public sealed class ContentApiFanPerformancesTests :
             FanPerformanceSubmissionRights.DeclarationVersion));
         await submissions.PromoteAsync(created.Id, 187, "admin@test.local", null);
 
-        using var client = factory.CreateAnonymousClient();
+        using var client = isolatedSubmissions.CreateAnonymousClient();
         using var listResponse = await client.GetAsync($"{ContentApiEndpoints.RootPath}/fan-performances");
         var list = await listResponse.Content.ReadFromJsonAsync<ApiPagedResponse<FanPerformanceDto>>();
         var credited = Assert.Single(list!.Items, item => item.Id == 187);

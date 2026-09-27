@@ -1,18 +1,25 @@
 using System.Net;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class AdminTimelineRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory writes;
 
-    public AdminTimelineRoutesTests(QueenZoneWebApplicationFactory factory)
+    public AdminTimelineRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        writes = variants.Get(WebHostVariants.IsolatedAdminTimeline);
     }
+
+    public Task InitializeAsync() => writes.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AnonymousUserCannotAccessAdminTimeline()
@@ -77,8 +84,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostCreate_shows_title_on_admin_list_and_public_timeline()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var title = $"WAF create {Guid.NewGuid():N}";
 
         var create = await PostCreateAsync(client, title, isPublished: true);
@@ -97,8 +104,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostCreate_checked_publish_box_stays_published()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var title = $"WAF published checkbox {Guid.NewGuid():N}";
         var formPage = await client.GetStringAsync("/admin/timeline/new");
         var fields = new List<KeyValuePair<string, string>>
@@ -123,7 +130,7 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostCreate_validation_error_redisplays_the_form()
     {
-        var client = CreateWriteClient(new SharedQueenHistoryStore());
+        var client = CreateWriteClient();
         var formPage = await client.GetStringAsync("/admin/timeline/new");
         var fields = new Dictionary<string, string>
         {
@@ -149,8 +156,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostEdit_updates_title_on_the_admin_form_and_public_timeline()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var original = $"WAF edit source {Guid.NewGuid():N}";
         var updated = $"WAF edit saved {Guid.NewGuid():N}";
 
@@ -185,8 +192,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostEdit_stale_row_version_reloads_current_values()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var original = $"WAF conflict source {Guid.NewGuid():N}";
         var create = await PostCreateAsync(client, original, isPublished: true);
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
@@ -231,8 +238,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostDelete_removes_created_event()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var title = $"WAF delete {Guid.NewGuid():N}";
         var create = await PostCreateAsync(client, title, isPublished: true);
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
@@ -250,8 +257,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostTogglePublish_hides_event_from_public_timeline()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var title = $"WAF unpublish {Guid.NewGuid():N}";
 
         var create = await PostCreateAsync(client, title, isPublished: true);
@@ -279,8 +286,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostDelete_preservesFiltersAndPageNumberOnRedirect()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var title = $"WAF delete filtered {Guid.NewGuid():N}";
         var create = await PostCreateAsync(client, title, isPublished: true);
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
@@ -307,8 +314,8 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
     [Fact]
     public async Task PostTogglePublish_preservesFiltersAndPageNumberOnRedirect()
     {
-        var store = new SharedQueenHistoryStore();
-        var client = CreateWriteClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
         var title = $"WAF toggle filtered {Guid.NewGuid():N}";
         var create = await PostCreateAsync(client, title, isPublished: true);
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
@@ -333,21 +340,10 @@ public sealed class AdminTimelineRoutesTests : IClassFixture<QueenZoneWebApplica
             toggle.Headers.Location?.OriginalString);
     }
 
-    private HttpClient CreateWriteClient(SharedQueenHistoryStore store)
-    {
-        var appFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<SharedQueenHistoryStore>();
-                services.RemoveAll<IQueenHistoryRepository>();
-                services.RemoveAll<IAdminQueenHistoryRepository>();
-                services.AddSingleton(store);
-                services.AddSingleton<IQueenHistoryRepository>(_ => new InMemoryQueenHistoryRepository(store));
-                services.AddSingleton<IAdminQueenHistoryRepository>(_ => new InMemoryAdminQueenHistoryRepository(store));
-            }));
+    private SharedQueenHistoryStore WriteStore => writes.AdminTimeline!;
 
-        return AdminHttpTestHelpers.CreateClient(appFactory, AdminHttpTestHelpers.AdminEmail);
-    }
+    private HttpClient CreateWriteClient() =>
+        AdminHttpTestHelpers.CreateClient(writes, AdminHttpTestHelpers.AdminEmail);
 
     private static async Task<HttpResponseMessage> PostCreateAsync(HttpClient client, string title, bool isPublished)
     {

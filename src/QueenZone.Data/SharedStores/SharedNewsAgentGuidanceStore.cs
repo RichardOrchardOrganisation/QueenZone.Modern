@@ -169,4 +169,13 @@ public sealed class SharedNewsAgentGuidanceStore
             PublishedByEmail = entity.PublishedByEmail,
             RowVersion = [.. entity.RowVersion]
         };
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            revisions.Clear();
+            nextId = 1;
+        }
+    }
 }

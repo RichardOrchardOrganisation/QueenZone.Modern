@@ -212,6 +212,29 @@ public sealed class SharedNewsStore
         }
     }
 
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            articles.Clear();
+            auditEntries.Clear();
+            nextAuditId = 1;
+            nextNewsId = 10_000;
+        }
+    }
+
+    internal void Seed(IEnumerable<AdminNewsArticle> seedArticles)
+    {
+        lock (sync)
+        {
+            articles.Clear();
+            articles.AddRange(seedArticles);
+            nextNewsId = articles.Count == 0 ? 10_000 : articles.Max(article => article.Id) + 1;
+            auditEntries.Clear();
+            nextAuditId = 1;
+        }
+    }
+
     private static NewsItem ToNewsItem(AdminNewsArticle article) =>
         new(
             article.Id,

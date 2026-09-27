@@ -4,23 +4,7 @@
 # Permanent private-host exceptions (stay after slice 4 unless the reason changes):
 #   AdminSearchIndexTests, HomePageRoutesTests startup/boot-config, mobile auth classes.
 # Remaining rows are unconverted classes from slices 3-4.
-AdminAntiforgeryRoutesTests: still builds a per-test host; convert in a later slice
-AdminBiographyRoutesTests: still builds a per-test host; convert in a later slice
-AdminDashboardEfRoutesTests: still builds a per-test host; convert in a later slice
-AdminDashboardGoogleAnalyticsTrafficTests: still builds a per-test host; convert in a later slice
-AdminFreddieTributeRoutesTests: still builds a per-test host; convert in a later slice
-AdminMembersRoutesTests: still builds a per-test host; convert in a later slice
-AdminNewsAgentGuidanceRoutesTests: still builds a per-test host; convert in a later slice
-AdminNewsCacheInvalidationTests: still builds a per-test host; convert in a later slice
-AdminNewsDiscoveryEfRoutesTests: still builds a per-test host; convert in a later slice
-AdminNewsDiscoveryRoutesTests: still builds a per-test host; convert in a later slice
-AdminNewsEfRoutesTests: still builds a per-test host; convert in a later slice
-AdminNewsRoutesTests: still builds a per-test host; convert in a later slice
-AdminPollsRoutesTests: still builds a per-test host; convert in a later slice
-AdminQuizzesRoutesTests: still builds a per-test host; convert in a later slice
 AdminSearchIndexTests: owns the in-process job singleton
-AdminTimelineRoutesTests: still builds a per-test host; convert in a later slice
-AdminTriviaRoutesTests: still builds a per-test host; convert in a later slice
 ArchiveAuthorPageTests: still builds a per-test host; convert in a later slice
 ForumApiAttachmentDownloadTests: still builds a per-test host; convert in a later slice
 ForumApiWriteTests: still builds a per-test host; convert in a later slice

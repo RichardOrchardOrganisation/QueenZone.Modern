@@ -154,4 +154,13 @@ public sealed class SharedQueenHistoryStore
             return true;
         }
     }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            events.Clear();
+            nextId = 1;
+        }
+    }
 }
