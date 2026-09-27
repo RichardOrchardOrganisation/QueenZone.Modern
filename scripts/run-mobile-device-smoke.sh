@@ -816,11 +816,32 @@ elif [[ "$suite" = "release" ]]; then
   flow="src/QueenZone.Mobile/maestro/release.yaml"
   echo "Running the P0 Maestro release suite (#1411)."
 elif [[ "$suite" = "proof" ]]; then
-  mapfile -t proof_flows < <(node "$root/scripts/check-feature-map.mjs" --flows "$feature")
+  proof_flow_list="$(node "$root/scripts/check-feature-map.mjs" --flows "$feature")"
+  while IFS= read -r proof_flow; do
+    if [[ -n "$proof_flow" ]]; then
+      proof_flows+=("$proof_flow")
+    fi
+  done <<< "$proof_flow_list"
   if [[ "${#proof_flows[@]}" -eq 0 ]]; then
     echo "Feature '$feature' has no Maestro flows in the feature map." >&2
     exit 1
   fi
+  # A feature-map flow normally runs inside smoke.yaml, after 01-launch.
+  # Proof runs it alone, so give it the same initial app state on both hosts.
+  flow="$results_dir/proof.yaml"
+  maestro_relative_dir="$(node -e 'const path = require("node:path"); console.log(path.relative(path.resolve(process.argv[1]), path.resolve(process.argv[2])).replaceAll(path.sep, "/"))' "$results_dir" "$root/src/QueenZone.Mobile/maestro")"
+  {
+    printf 'appId: org.queenzone.mobile\n---\n'
+    printf '%s\n' "- runFlow: ${maestro_relative_dir}/flows/01-launch.yaml"
+    for proof_flow in "${proof_flows[@]}"; do
+      case "$proof_flow" in
+        src/QueenZone.Mobile/maestro/flows/*.yaml) ;;
+        *) echo "Unexpected Maestro proof flow: $proof_flow" >&2; exit 1 ;;
+      esac
+      [[ -f "$proof_flow" ]] || { echo "Missing Maestro proof flow: $proof_flow" >&2; exit 1; }
+      printf '%s\n' "- runFlow: ${maestro_relative_dir}/flows/${proof_flow##*/}"
+    done
+  } > "$flow"
   echo "Running feature-map proof for $feature."
 fi
 
@@ -829,11 +850,7 @@ maestro_args=()
 if [[ -n "${MAESTRO_TARGET_DEVICE:-}" ]]; then
   maestro_args+=(--device "$MAESTRO_TARGET_DEVICE")
 fi
-if [[ "$suite" = "proof" ]]; then
-  maestro_args+=(test "${proof_flows[@]}")
-else
-  maestro_args+=(test "$flow")
-fi
+maestro_args+=(test "$flow")
 maestro_args+=(
   --format junit
   --output "$results_dir/junit.xml"
