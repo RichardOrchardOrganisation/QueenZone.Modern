@@ -10,7 +10,7 @@ public sealed class SiteSearchSqlTimeoutTests
     [Fact]
     public void IsCommandTimeout_detects_number_minus_two()
     {
-        var timeout = CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
 
@@ -21,7 +21,7 @@ public sealed class SiteSearchSqlTimeoutTests
     [Fact]
     public void IsCommandTimeout_detects_execution_timeout_message()
     {
-        var timeout = CreateSqlException(0, "Execution Timeout Expired");
+        var timeout = SqlExceptionFactory.Create(0, "Execution Timeout Expired");
 
         Assert.True(SiteSearchSqlTimeout.IsCommandTimeout(timeout));
     }
@@ -29,7 +29,7 @@ public sealed class SiteSearchSqlTimeoutTests
     [Fact]
     public void IsCommandTimeout_ignores_other_sql_errors()
     {
-        var missingObject = CreateSqlException(208, "Invalid object name.");
+        var missingObject = SqlExceptionFactory.Create(208, "Invalid object name.");
 
         Assert.False(SiteSearchSqlTimeout.IsCommandTimeout(missingObject));
         Assert.False(SiteSearchSqlTimeout.IsCommandTimeout(new InvalidOperationException("nope")));
@@ -48,7 +48,7 @@ public sealed class SiteSearchSqlTimeoutTests
     public async Task ExecuteAsync_logs_warning_with_query_and_duration_then_throws()
     {
         var logger = new CollectingLogger<EfSiteSearchService>();
-        var timeout = CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
 
@@ -91,7 +91,7 @@ public sealed class SiteSearchSqlTimeoutTests
     public async Task ExecuteAsync_does_not_swallow_non_timeout_failures()
     {
         var logger = new CollectingLogger<EfSiteSearchService>();
-        var sql = CreateSqlException(208, "Invalid object name.");
+        var sql = SqlExceptionFactory.Create(208, "Invalid object name.");
 
         var thrown = await Assert.ThrowsAsync<SqlException>(() =>
             SiteSearchSqlTimeout.ExecuteAsync<SiteSearchPage>(
@@ -102,87 +102,5 @@ public sealed class SiteSearchSqlTimeoutTests
 
         Assert.Same(sql, thrown);
         Assert.Empty(logger.Entries);
-    }
-
-    internal static SqlException CreateSqlException(int number, string message)
-    {
-        var sqlClient = typeof(SqlException).Assembly;
-        var errorCollectionType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlErrorCollection")
-            ?? throw new InvalidOperationException("SqlErrorCollection type not found.");
-        var errorType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlError")
-            ?? throw new InvalidOperationException("SqlError type not found.");
-
-        var collection = Activator.CreateInstance(errorCollectionType, nonPublic: true)
-            ?? throw new InvalidOperationException("Unable to create SqlErrorCollection.");
-
-        var errorCtor = errorType.GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
-            .OrderByDescending(c => c.GetParameters().Length)
-            .First();
-        var errorArgs = errorCtor.GetParameters().Select(p =>
-        {
-            if (p.Name is "infoNumber" or "number")
-            {
-                return number;
-            }
-
-            if (p.ParameterType == typeof(int))
-            {
-                return 0;
-            }
-
-            if (p.ParameterType == typeof(byte))
-            {
-                return (byte)16;
-            }
-
-            if (p.ParameterType == typeof(string))
-            {
-                return p.Name is "errorMessage" or "message" ? message : "server";
-            }
-
-            if (p.ParameterType == typeof(uint))
-            {
-                return 0u;
-            }
-
-            if (typeof(Exception).IsAssignableFrom(p.ParameterType))
-            {
-                return null!;
-            }
-
-            return p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType)! : null!;
-        }).ToArray();
-        var error = errorCtor.Invoke(errorArgs);
-
-        errorCollectionType
-            .GetMethod("Add", BindingFlags.NonPublic | BindingFlags.Instance)!
-            .Invoke(collection, [error]);
-
-        var createException = typeof(SqlException)
-            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
-            .Where(m => m.Name == "CreateException")
-            .OrderBy(m => m.GetParameters().Length)
-            .First();
-        var createArgs = createException.GetParameters().Select(p =>
-        {
-            if (p.ParameterType == errorCollectionType)
-            {
-                return collection;
-            }
-
-            if (p.ParameterType == typeof(string))
-            {
-                return "12.0.0";
-            }
-
-            if (p.ParameterType == typeof(Guid))
-            {
-                return Guid.Empty;
-            }
-
-            return null!;
-        }).ToArray();
-
-        return (SqlException)createException.Invoke(null, createArgs)!;
     }
 }

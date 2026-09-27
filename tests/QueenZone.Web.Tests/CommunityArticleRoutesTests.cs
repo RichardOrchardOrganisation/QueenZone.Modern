@@ -394,101 +394,21 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<QueenZoneWebAppl
     private sealed class SqlFailingArticleRepo : IArticleRepository
     {
         public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
+            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
 
         public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
             int page, int pageSize, string? tag = null, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
+            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
 
         public Task<PublishedArticleSubmission?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
+            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
 
         public Task<(PublishedArticleSubmission? Previous, PublishedArticleSubmission? Next)> GetAdjacentAsync(
             DateTimeOffset publishedAt, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
+            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
 
         public Task<IReadOnlyList<PublishedArticleSubmission>> GetSitemapEntriesAsync(CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create();
-    }
-
-    private static class SqlExceptionFactory
-    {
-        public static Microsoft.Data.SqlClient.SqlException Create()
-        {
-            var sqlClient = typeof(Microsoft.Data.SqlClient.SqlException).Assembly;
-            var errorCollectionType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlErrorCollection")
-                ?? throw new InvalidOperationException("SqlErrorCollection type not found.");
-            var errorType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlError")
-                ?? throw new InvalidOperationException("SqlError type not found.");
-
-            var collection = Activator.CreateInstance(errorCollectionType, nonPublic: true)
-                ?? throw new InvalidOperationException("Unable to create SqlErrorCollection.");
-
-            var errorCtor = errorType.GetConstructors(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .OrderByDescending(c => c.GetParameters().Length)
-                .First();
-            var errorArgs = errorCtor.GetParameters().Select(p =>
-            {
-                if (p.ParameterType == typeof(int))
-                {
-                    return (object)208;
-                }
-
-                if (p.ParameterType == typeof(byte))
-                {
-                    return (byte)16;
-                }
-
-                if (p.ParameterType == typeof(string))
-                {
-                    return "Invalid object name 'ArticleSubmissions'.";
-                }
-
-                if (p.ParameterType == typeof(uint))
-                {
-                    return 0u;
-                }
-
-                if (typeof(Exception).IsAssignableFrom(p.ParameterType))
-                {
-                    return null!;
-                }
-
-                return p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType)! : null!;
-            }).ToArray();
-            var error = errorCtor.Invoke(errorArgs);
-
-            errorCollectionType
-                .GetMethod("Add", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(collection, [error]);
-
-            var createException = typeof(Microsoft.Data.SqlClient.SqlException)
-                .GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-                .Where(m => m.Name == "CreateException")
-                .OrderBy(m => m.GetParameters().Length)
-                .First();
-            var createArgs = createException.GetParameters().Select(p =>
-            {
-                if (p.ParameterType == errorCollectionType)
-                {
-                    return collection;
-                }
-
-                if (p.ParameterType == typeof(string))
-                {
-                    return "12.0.0";
-                }
-
-                if (p.ParameterType == typeof(Guid))
-                {
-                    return Guid.Empty;
-                }
-
-                return null!;
-            }).ToArray();
-
-            return (Microsoft.Data.SqlClient.SqlException)createException.Invoke(null, createArgs)!;
-        }
+            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
     }
 
     // Stub IArticleSubmissionRepository — only GetPublishedAsync is used by InMemoryArticleRepository

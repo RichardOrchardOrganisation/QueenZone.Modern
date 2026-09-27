@@ -310,104 +310,21 @@ public sealed class NewsSuggestionServiceTests
     {
         var matching = new DbUpdateException(
             "conflict",
-            CreateSqlException(2601, $"duplicate key on {EfNewsSuggestionRepository.ActiveUrlHashIndexName}"));
+            SqlExceptionFactory.Create(2601, $"duplicate key on {EfNewsSuggestionRepository.ActiveUrlHashIndexName}"));
         Assert.True(EfNewsSuggestionRepository.IsActiveUrlHashUniqueViolation(matching));
 
         var otherIndex = new DbUpdateException(
             "conflict",
-            CreateSqlException(2627, "duplicate key on IX_SomethingElse"));
+            SqlExceptionFactory.Create(2627, "duplicate key on IX_SomethingElse"));
         Assert.False(EfNewsSuggestionRepository.IsActiveUrlHashUniqueViolation(otherIndex));
 
         var namedButWrongNumber = new DbUpdateException(
             $"conflict on {EfNewsSuggestionRepository.ActiveUrlHashIndexName}",
-            CreateSqlException(208, "Invalid object name."));
+            SqlExceptionFactory.Create(208, "Invalid object name."));
         Assert.False(EfNewsSuggestionRepository.IsActiveUrlHashUniqueViolation(namedButWrongNumber));
 
         var generic = new DbUpdateException("save failed", new InvalidOperationException("nope"));
         Assert.False(EfNewsSuggestionRepository.IsActiveUrlHashUniqueViolation(generic));
-    }
-
-    private static SqlException CreateSqlException(int number, string message)
-    {
-        var sqlClient = typeof(SqlException).Assembly;
-        var errorCollectionType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlErrorCollection")
-            ?? throw new InvalidOperationException("SqlErrorCollection type not found.");
-        var errorType = sqlClient.GetType("Microsoft.Data.SqlClient.SqlError")
-            ?? throw new InvalidOperationException("SqlError type not found.");
-
-        var collection = Activator.CreateInstance(errorCollectionType, nonPublic: true)
-            ?? throw new InvalidOperationException("Unable to create SqlErrorCollection.");
-
-        var errorCtor = errorType.GetConstructors(
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .OrderByDescending(c => c.GetParameters().Length)
-            .First();
-        var errorArgs = errorCtor.GetParameters().Select(p =>
-        {
-            if (p.Name is "infoNumber" or "number")
-            {
-                return number;
-            }
-
-            if (p.ParameterType == typeof(int))
-            {
-                return 0;
-            }
-
-            if (p.ParameterType == typeof(byte))
-            {
-                return (byte)16;
-            }
-
-            if (p.ParameterType == typeof(string))
-            {
-                return p.Name is "errorMessage" or "message" ? message : "server";
-            }
-
-            if (p.ParameterType == typeof(uint))
-            {
-                return 0u;
-            }
-
-            if (typeof(Exception).IsAssignableFrom(p.ParameterType))
-            {
-                return null!;
-            }
-
-            return p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType)! : null!;
-        }).ToArray();
-        var error = errorCtor.Invoke(errorArgs);
-
-        errorCollectionType
-            .GetMethod("Add", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .Invoke(collection, [error]);
-
-        var createException = typeof(SqlException)
-            .GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-            .Where(m => m.Name == "CreateException")
-            .OrderBy(m => m.GetParameters().Length)
-            .First();
-        var createArgs = createException.GetParameters().Select(p =>
-        {
-            if (p.ParameterType == errorCollectionType)
-            {
-                return collection;
-            }
-
-            if (p.ParameterType == typeof(string))
-            {
-                return "12.0.0";
-            }
-
-            if (p.ParameterType == typeof(Guid))
-            {
-                return Guid.Empty;
-            }
-
-            return null!;
-        }).ToArray();
-
-        return (SqlException)createException.Invoke(null, createArgs)!;
     }
 
     private sealed class DuplicateThrowingNewsSuggestionRepository : INewsSuggestionRepository

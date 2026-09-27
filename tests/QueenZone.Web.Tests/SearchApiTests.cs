@@ -253,7 +253,7 @@ public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactor
     {
         var logger = new CollectingLogger<object>();
         var loggerFactory = new CollectingLoggerFactory(logger);
-        var timeout = SiteSearchSqlTimeoutTests.CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
 

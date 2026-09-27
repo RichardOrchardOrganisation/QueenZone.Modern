@@ -38,6 +38,7 @@
     <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
 
     <!-- tests -->
+    <PackageVersion Include="AngleSharp" Version="1.7.2" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="Deque.AxeCore.Playwright" Version="4.12.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />

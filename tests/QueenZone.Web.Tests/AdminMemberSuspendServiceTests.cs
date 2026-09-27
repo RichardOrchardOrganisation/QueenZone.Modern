@@ -61,7 +61,7 @@ public sealed class AdminMemberSuspendServiceTests
     {
         var members = new InMemoryMemberAccountRepository();
         var account = await SeedMemberAsync(members);
-        var timeout = SiteSearchSqlTimeoutTests.CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
         var forum = new RecordingForumWriteRepository { HideException = timeout };
