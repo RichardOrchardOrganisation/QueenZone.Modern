@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore.Query;
 namespace QueenZone.Data;
 
 /// <summary>
-/// Newest-first paging shared by the EF submission repositories: page-number clamping, the
-/// <c>SubmittedAt DESC, Id ASC</c> order, and the SQLite / SQL Server split.
+/// Page-number clamping shared by EF and in-memory submission repositories, plus the
+/// <c>SubmittedAt DESC, Id ASC</c> order and SQLite / SQL Server split for EF queries.
 /// </summary>
 /// <remarks>
 /// The EF Core SQLite provider cannot <c>ORDER BY</c> a <see cref="DateTimeOffset"/>, so on SQLite

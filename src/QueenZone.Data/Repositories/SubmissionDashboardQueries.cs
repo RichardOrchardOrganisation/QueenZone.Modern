@@ -20,6 +20,48 @@ internal static class SubmissionDashboardQueries
 {
     private const string UnknownMember = "Unknown member";
 
+    internal static SubmissionTypeCounts CountRows(
+        IEnumerable<SubmissionCountRow> rows,
+        DateTimeOffset utcNow)
+    {
+        var monthAgo = utcNow.AddDays(-30);
+        var today = utcNow.UtcDateTime.Date;
+        var weekAgo = today.AddDays(-6);
+
+        var materialised = rows.ToList();
+        var pending = materialised.Count(row => row.IsOpen);
+        var submitted = materialised.Where(row => row.SubmittedAt.HasValue).ToList();
+        var receivedToday = submitted.Count(row => row.SubmittedAt!.Value.UtcDateTime.Date >= today);
+        var receivedThisWeek = submitted.Count(row => row.SubmittedAt!.Value.UtcDateTime.Date >= weekAgo);
+        var last30 = submitted.Where(row => row.SubmittedAt!.Value >= monthAgo).ToList();
+
+        return new SubmissionTypeCounts(
+            pending,
+            receivedToday,
+            receivedThisWeek,
+            last30.Count(row => row.IsApproved),
+            last30.Count(row => row.IsRejected),
+            last30.Count(row => row.IsStillPending));
+    }
+
+    internal static IReadOnlyList<SubmissionContributor> TopContributors(
+        IEnumerable<SubmissionContributorRow> rows,
+        DateTimeOffset monthStart,
+        int maxCount,
+        Func<Guid, string?>? resolveDisplayName = null) =>
+        rows
+            .Where(row => row.SubmittedAt.HasValue && row.SubmittedAt.Value >= monthStart)
+            .GroupBy(row => row.MemberId)
+            .Select(g => new SubmissionContributor(
+                g.Key,
+                (resolveDisplayName is null
+                    ? g.FirstOrDefault(row => !string.IsNullOrWhiteSpace(row.DisplayName))?.DisplayName
+                    : resolveDisplayName(g.Key)) ?? UnknownMember,
+                g.Count()))
+            .OrderByDescending(contributor => contributor.Count)
+            .Take(maxCount)
+            .ToList();
+
     internal static bool IsSqliteProvider(this DatabaseFacade database) =>
         string.Equals(
             database.ProviderName,
@@ -50,25 +92,8 @@ internal static class SubmissionDashboardQueries
         DateTimeOffset utcNow,
         CancellationToken cancellationToken)
     {
-        var monthAgo = utcNow.AddDays(-30);
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-
         var materialised = await rows.ToListAsync(cancellationToken);
-
-        var pending = materialised.Count(row => row.IsOpen);
-
-        var submitted = materialised.Where(row => row.SubmittedAt.HasValue).ToList();
-        var receivedToday = submitted.Count(row => row.SubmittedAt!.Value.UtcDateTime.Date >= today);
-        var receivedThisWeek = submitted.Count(row => row.SubmittedAt!.Value.UtcDateTime.Date >= weekAgo);
-
-        var last30 = submitted.Where(row => row.SubmittedAt!.Value >= monthAgo).ToList();
-        var approvedLast30 = last30.Count(row => row.IsApproved);
-        var rejectedLast30 = last30.Count(row => row.IsRejected);
-        var pendingLast30 = last30.Count(row => row.IsStillPending);
-
-        return new SubmissionTypeCounts(
-            pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30);
+        return CountRows(materialised, utcNow);
     }
 
     private static async Task<SubmissionTypeCounts> CountViaSqlAggregateAsync(
@@ -101,17 +126,7 @@ internal static class SubmissionDashboardQueries
         CancellationToken cancellationToken)
     {
         var materialised = await rows.ToListAsync(cancellationToken);
-
-        return materialised
-            .Where(row => row.SubmittedAt.HasValue && row.SubmittedAt.Value >= monthStart)
-            .GroupBy(row => row.MemberId)
-            .Select(g => new SubmissionContributor(
-                g.Key,
-                g.FirstOrDefault(row => !string.IsNullOrWhiteSpace(row.DisplayName))?.DisplayName ?? UnknownMember,
-                g.Count()))
-            .OrderByDescending(contributor => contributor.Count)
-            .Take(maxCount)
-            .ToList();
+        return TopContributors(materialised, monthStart, maxCount);
     }
 
     private static async Task<IReadOnlyList<SubmissionContributor>> TopContributorsViaSqlAggregateAsync(

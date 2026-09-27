@@ -45,8 +45,7 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -56,8 +55,8 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                         or PhotoSubmissionStatus.UnderReview
                         or PhotoSubmissionStatus.NeedsInfo)
                 .OrderByDescending(row => row.SubmittedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(row =>
                 {
                     var member = resolveMember?.Invoke(row.SubmitterMemberId);
@@ -92,8 +91,7 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -103,8 +101,8 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                 .ToList();
 
             IReadOnlyList<PhotoSubmission> items = owned
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(Map)
                 .ToList();
 
@@ -202,30 +200,17 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default)
     {
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-        var monthAgo = utcNow.AddDays(-30);
-
         lock (sync)
         {
-            var pending = submissions.Count(r =>
-                r.Status is PhotoSubmissionStatus.Pending
-                    or PhotoSubmissionStatus.UnderReview
-                    or PhotoSubmissionStatus.NeedsInfo);
-
-            var receivedToday = submissions.Count(r => r.SubmittedAt.UtcDateTime.Date >= today);
-            var receivedThisWeek = submissions.Count(r => r.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-            var last30 = submissions.Where(r => r.SubmittedAt >= monthAgo).ToList();
-            var approvedLast30 = last30.Count(r => r.Status == PhotoSubmissionStatus.Approved);
-            var rejectedLast30 = last30.Count(r => r.Status == PhotoSubmissionStatus.Rejected);
-            var pendingLast30 = last30.Count(r =>
-                r.Status is PhotoSubmissionStatus.Pending
-                    or PhotoSubmissionStatus.UnderReview
-                    or PhotoSubmissionStatus.NeedsInfo);
-
-            return Task.FromResult(new SubmissionTypeCounts(
-                pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30));
+            var rows = submissions.Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status is PhotoSubmissionStatus.Pending or PhotoSubmissionStatus.UnderReview or PhotoSubmissionStatus.NeedsInfo,
+                IsApproved = row.Status == PhotoSubmissionStatus.Approved,
+                IsRejected = row.Status == PhotoSubmissionStatus.Rejected,
+                IsStillPending = row.Status is PhotoSubmissionStatus.Pending or PhotoSubmissionStatus.UnderReview or PhotoSubmissionStatus.NeedsInfo,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.CountRows(rows, utcNow));
         }
     }
 
@@ -236,19 +221,12 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
     {
         lock (sync)
         {
-            IReadOnlyList<SubmissionContributor> result = submissions
-                .Where(r => r.SubmittedAt >= monthStart)
-                .GroupBy(r => r.SubmitterMemberId)
-                .Select(g =>
-                {
-                    var member = resolveMember?.Invoke(g.Key);
-                    return new SubmissionContributor(g.Key, member?.DisplayName ?? "Unknown member", g.Count());
-                })
-                .OrderByDescending(c => c.Count)
-                .Take(maxCount)
-                .ToList();
-
-            return Task.FromResult(result);
+            var rows = submissions.Select(row => new SubmissionContributorRow
+            {
+                MemberId = row.SubmitterMemberId,
+                SubmittedAt = row.SubmittedAt,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.TopContributors(rows, monthStart, maxCount, id => resolveMember?.Invoke(id)?.DisplayName));
         }
     }
 

@@ -55,16 +55,15 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
             IReadOnlyList<QuizQuestionSubmissionListItem> result = submissions
                 .Where(row => row.Status == QuizQuestionSubmissionStatus.Pending)
                 .OrderByDescending(row => row.SubmittedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(ToListItem)
                 .ToList();
 
@@ -102,8 +101,7 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -113,8 +111,8 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
                 .ToList();
 
             IReadOnlyList<QuizQuestionSubmission> items = owned
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(Map)
                 .ToList();
 
@@ -259,23 +257,17 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default)
     {
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-        var monthAgo = utcNow.AddDays(-30);
-
         lock (sync)
         {
-            var pending = submissions.Count(row => row.Status == QuizQuestionSubmissionStatus.Pending);
-            var receivedToday = submissions.Count(row => row.SubmittedAt.UtcDateTime.Date >= today);
-            var receivedThisWeek = submissions.Count(row => row.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-            var last30 = submissions.Where(row => row.SubmittedAt >= monthAgo).ToList();
-            var approvedLast30 = last30.Count(row => row.Status == QuizQuestionSubmissionStatus.Approved);
-            var rejectedLast30 = last30.Count(row => row.Status == QuizQuestionSubmissionStatus.Rejected);
-            var pendingLast30 = last30.Count(row => row.Status == QuizQuestionSubmissionStatus.Pending);
-
-            return Task.FromResult(new SubmissionTypeCounts(
-                pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30));
+            var rows = submissions.Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == QuizQuestionSubmissionStatus.Pending,
+                IsApproved = row.Status == QuizQuestionSubmissionStatus.Approved,
+                IsRejected = row.Status == QuizQuestionSubmissionStatus.Rejected,
+                IsStillPending = row.Status == QuizQuestionSubmissionStatus.Pending,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.CountRows(rows, utcNow));
         }
     }
 
