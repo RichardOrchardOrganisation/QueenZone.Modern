@@ -53,20 +53,29 @@ truth.
 
 [`.sonarcloud.properties`](../../.sonarcloud.properties) at the repo
 root is the Automatic Analysis scope file. It excludes `design/**`
-(unshipped prototypes) and `docs/backlog/**` (offline quiz generator),
-and marks the real test layouts as tests:
+(unshipped prototypes) and `docs/backlog/**` (offline quiz generator).
+The .NET scanner computes its own initial source and test sets, so
+`sonar.sources` and `sonar.tests` are unsupported. The test inclusions
+describe the real test layouts:
 
 - `tests/**` — .NET test projects (`QueenZone.*.Tests`, `QueenZone.Web.E2E`)
 - `src/QueenZone.Mobile/**/*.test.ts(x)` — colocated mobile unit tests
 - `src/QueenZone.Mobile/src/test/**` and `jest.setup.ts` — fixtures and harness
 - `src/QueenZone.Mobile/**/__tests__/**` — standard Jest tree if one appears
 
-Automatic Analysis defaults `sonar.sources` to `.`. The same test globs
-are therefore also listed on `sonar.exclusions`, so they leave the
-source set before `sonar.tests` / `sonar.test.inclusions` claim them.
-A path in both sets fails the first full `main` scan with "File can't
-be indexed twice". Product files under `src/QueenZone.Mobile/` stay in
-sources; only the test globs above are tests.
+The same test globs are also listed on `sonar.exclusions` so they do not
+enter the source set. A path in both sets fails analysis with "File
+can't be indexed twice". SonarCloud's indexed components currently
+classify .NET and mobile test files as tests (`UTS`) and mobile product
+files as sources (`FIL`).
+
+Automatic Analysis cannot install the Expo package, so it cannot resolve
+`expo/tsconfig.base` from the mobile typecheck configs. The standalone
+`src/QueenZone.Mobile/tsconfig.sonar.json` copies the Expo compiler
+options for Sonar's TypeScript analysis. Compare it with the installed
+Expo base when updating Expo. The normal mobile configs remain
+the typecheck source of truth. Python analysis declares supported Python
+3 versions in `.sonarcloud.properties`.
 
 The project's Analysis Scope settings in the Sonar UI are empty. Do not
 set the same exclusions or test paths there. This file is the single
