@@ -322,9 +322,8 @@ function ComposerForm({ navigation, route }: Props) {
     categoryId,
     mode,
     navigation,
-    profile?.memberId,
-    route.params?.isLocked,
-    route.params?.threadId,
+    profile,
+    route.params,
     title,
   ]);
 
