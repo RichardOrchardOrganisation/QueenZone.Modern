@@ -1,25 +1,34 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class NewsSuggestionRoutesTests : IClassFixture<ExternalCookieWebApplicationFactory>
+public sealed partial class NewsSuggestionRoutesTests :
+    IClassFixture<ExternalCookieWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private const string AdminEmail = "admin@test.local";
     private readonly WebApplicationFactory<Program> factory;
+    private readonly ExternalCookieWebApplicationFactory resettableFactory;
+    private readonly WebHostVariantCache variants;
 
-    public NewsSuggestionRoutesTests(ExternalCookieWebApplicationFactory factory)
+    public NewsSuggestionRoutesTests(
+        ExternalCookieWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        resettableFactory = factory;
+        this.variants = variants;
     }
+
+    public Task InitializeAsync() => resettableFactory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Get_SubmitNews_RedirectsUnauthenticatedUsersToLogin()
@@ -222,21 +231,9 @@ public sealed partial class NewsSuggestionRoutesTests : IClassFixture<ExternalCo
     [Fact]
     public async Task AdminPromote_ShowsErrorAndKeepsSuggestionPending_WhenDraftCreateFails()
     {
-        var uniqueSuffix = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
-        var store = new SharedNewsStore();
-        var failingFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<SharedNewsStore>();
-                services.RemoveAll<IAdminNewsRepository>();
-                services.AddSingleton(store);
-                services.AddSingleton<IAdminNewsRepository>(_ =>
-                    new FailingCreateAdminNewsRepository(
-                        new InMemoryAdminNewsRepository(store),
-                        new InvalidOperationException("Simulated suggestion promote create failure.")));
-            });
-        });
+        var uniqueSuffix = TestIds.For("suggestion-create-fails");
+        var failingFactory = variants.Get(WebHostVariants.ExternalCookieFailingNewsSuggestionPromoteCreate);
+        await failingFactory.ResetAsync();
         var memberClient = await CreateSignedInMemberClientAsync(
             failingFactory,
             email: "news-suggestion-create-fails@example.com",
@@ -273,20 +270,11 @@ public sealed partial class NewsSuggestionRoutesTests : IClassFixture<ExternalCo
     [Fact]
     public async Task AdminPromote_ShowsErrorAndKeepsSuggestionPending_WhenSuggestionUpdateFails()
     {
-        var uniqueSuffix = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
-        var inner = new InMemoryNewsSuggestionRepository();
-        var failingRepository = new ConfigurableNewsSuggestionRepository(inner)
-        {
-            PromoteHandler = (_, _, _, _, _) => Task.FromResult<NewsSuggestion?>(null)
-        };
-        var failingFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<INewsSuggestionRepository>();
-                services.AddSingleton<INewsSuggestionRepository>(failingRepository);
-            });
-        });
+        var uniqueSuffix = TestIds.For("suggestion-update-fails");
+        var failingFactory = variants.Get(WebHostVariants.ExternalCookieNewsSuggestionPromoteReturnsNull);
+        await failingFactory.ResetAsync();
+        var failingRepository = failingFactory.ConfigurableNewsSuggestions
+            ?? throw new InvalidOperationException("Promote-returns-null variant must register ConfigurableNewsSuggestionRepository.");
         var memberClient = await CreateSignedInMemberClientAsync(
             failingFactory,
             email: "news-suggestion-update-fails@example.com",
@@ -322,20 +310,11 @@ public sealed partial class NewsSuggestionRoutesTests : IClassFixture<ExternalCo
     [Fact]
     public async Task AdminPromote_ShowsConflictMessage_WhenConcurrencyExceptionIsThrown()
     {
-        var uniqueSuffix = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
-        var inner = new InMemoryNewsSuggestionRepository();
-        var failingRepository = new ConfigurableNewsSuggestionRepository(inner)
-        {
-            PromoteHandler = (_, _, _, _, _) => throw new OptimisticConcurrencyException(),
-        };
-        var failingFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<INewsSuggestionRepository>();
-                services.AddSingleton<INewsSuggestionRepository>(failingRepository);
-            });
-        });
+        var uniqueSuffix = TestIds.For("suggestion-concurrency");
+        var failingFactory = variants.Get(WebHostVariants.ExternalCookieNewsSuggestionPromoteConcurrency);
+        await failingFactory.ResetAsync();
+        var failingRepository = failingFactory.ConfigurableNewsSuggestions
+            ?? throw new InvalidOperationException("Promote-concurrency variant must register ConfigurableNewsSuggestionRepository.");
         var memberClient = await CreateSignedInMemberClientAsync(
             failingFactory,
             email: "news-suggestion-concurrency@example.com",

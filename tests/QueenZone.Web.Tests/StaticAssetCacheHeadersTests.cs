@@ -5,8 +5,11 @@ using QueenZone.Web;
 namespace QueenZone.Web.Tests;
 
 [Collection(ProductionHostCollection.Name)]
-public sealed class StaticAssetCacheHeadersTests : IClassFixture<DevelopmentWebApplicationFactory>
+public sealed class StaticAssetCacheHeadersTests :
+    IClassFixture<DevelopmentWebApplicationFactory>,
+    IAsyncLifetime
 {
+    private readonly ProductionHostFixture production;
     private readonly WebApplicationFactory<Program> productionFactory;
     private readonly WebApplicationFactory<Program> developmentFactory;
 
@@ -14,9 +17,14 @@ public sealed class StaticAssetCacheHeadersTests : IClassFixture<DevelopmentWebA
         ProductionHostFixture production,
         DevelopmentWebApplicationFactory developmentFactory)
     {
+        this.production = production;
         productionFactory = production.Factory;
         this.developmentFactory = developmentFactory;
     }
+
+    public Task InitializeAsync() => production.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task VersionedCss_HasLongLivedImmutableCacheControlInProduction()

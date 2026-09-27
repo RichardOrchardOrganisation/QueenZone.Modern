@@ -1,17 +1,28 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class QuizQuestionSubmissionRoutesTests
+public sealed partial class QuizQuestionSubmissionRoutesTests :
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
+    private readonly VariantWebApplicationFactory factory;
+
+    public QuizQuestionSubmissionRoutesTests(WebHostVariantCache variants)
+    {
+        factory = variants.Get(WebHostVariants.IsolatedQuizzes);
+    }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
     [Fact]
     public async Task Anonymous_visitor_is_redirected_to_login_for_the_submission_form()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
         var response = await client.GetAsync("/submit/quiz-question");
@@ -23,7 +34,7 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
     [Fact]
     public async Task Member_can_submit_a_question_and_see_the_confirmation()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var member = MemberClient(isolated, "Question Fan");
 
         var formPage = await member.GetStringAsync("/submit/quiz-question");
@@ -58,7 +69,7 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
     [Fact]
     public async Task Submitting_with_no_correct_option_marked_shows_a_validation_error()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var member = MemberClient(isolated, "Bad Submitter");
 
         var formPage = await member.GetStringAsync("/submit/quiz-question");
@@ -82,7 +93,7 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
     [Fact]
     public async Task AnonymousUserCannotAccessTheAdminQueue()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
         var response = await client.GetAsync("/admin/quiz-question-submissions");
@@ -93,7 +104,7 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
     [Fact]
     public async Task Admin_can_approve_with_edits_reject_with_reason_and_the_question_bank_reflects_it()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         var submissionId = await SubmitQuestionAsync(isolated, "Original wording?");
         var toRejectId = await SubmitQuestionAsync(isolated, "Reject this one?");
 
@@ -147,7 +158,7 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
     [Fact]
     public async Task MySubmissions_QuizTab_ShowsRejectionReason_AndHidesReviewNotes()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         using var member = MemberClient(isolated, "History Fan");
         var formPage = await member.GetStringAsync("/submit/quiz-question");
         var token = AdminHttpTestHelpers.ExtractAntiforgeryToken(formPage);
@@ -192,7 +203,7 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
     [Fact]
     public async Task Admin_can_add_an_approved_question_from_the_bank_into_an_existing_quiz()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         var submissionId = await SubmitQuestionAsync(isolated, "Bank question?");
 
         using var admin = isolated.CreateAdminClient();
@@ -233,7 +244,7 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
     [Fact]
     public async Task Question_bank_add_is_blocked_once_the_quiz_has_results()
     {
-        using var isolated = IsolatedQuizzes();
+        var isolated = factory;
         var submissionId = await SubmitQuestionAsync(isolated, "Locked bank question?");
 
         using var admin = isolated.CreateAdminClient();
@@ -268,22 +279,6 @@ public sealed partial class QuizQuestionSubmissionRoutesTests
         Assert.Contains("cannot accept new questions", afterAttempt, StringComparison.Ordinal);
         var quiz = await quizzes.GetByIdAsync(quizId);
         Assert.Single(quiz!.Questions);
-    }
-
-    private static QueenZoneWebApplicationFactory IsolatedQuizzes()
-    {
-        var quizStore = new SharedQuizStore();
-        var submissionStore = new InMemoryQuizQuestionSubmissionRepository();
-        return QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<SharedQuizStore>();
-            services.RemoveAll<IQuizRepository>();
-            services.AddSingleton(quizStore);
-            services.AddSingleton<IQuizRepository>(_ => new InMemoryQuizRepository(quizStore));
-
-            services.RemoveAll<IQuizQuestionSubmissionRepository>();
-            services.AddSingleton<IQuizQuestionSubmissionRepository>(submissionStore);
-        });
     }
 
     private static HttpClient MemberClient(QueenZoneWebApplicationFactory factory, string displayName)

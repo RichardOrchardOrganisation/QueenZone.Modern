@@ -352,6 +352,16 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
         }
     }
 
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            submissions.Clear();
+            auditLogs.Clear();
+            nextAuditId = 1;
+        }
+    }
+
     /// <summary>Test helper: backdate submitted/reviewed timestamps for purge eligibility.</summary>
     public void SetTimestamps(Guid id, DateTimeOffset submittedAt, DateTimeOffset? reviewedAt)
     {

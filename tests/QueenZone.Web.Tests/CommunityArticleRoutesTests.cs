@@ -1,18 +1,16 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class CommunityArticleRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCache>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public CommunityArticleRoutesTests(QueenZoneWebApplicationFactory factory)
+    public CommunityArticleRoutesTests(WebHostVariantCache variants)
     {
-        this.factory = factory;
+        this.variants = variants;
     }
 
     // -------------------------------------------------------------------------
@@ -338,7 +336,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<QueenZoneWebAppl
     [Fact]
     public async Task Get_Articles_WhenCommunityRepoThrowsSqlException_StillReturnsArchive()
     {
-        var client = WithArticleRepository(new SqlFailingArticleRepo()).CreateClient();
+        var client = variants.Get(WebHostVariants.TestingSqlFailingCommunityArticles).CreateClient();
 
         var response = await client.GetAsync("/articles");
 
@@ -351,7 +349,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<QueenZoneWebAppl
     [Fact]
     public async Task Get_ArticlesFeed_WhenCommunityRepoThrowsSqlException_StillReturnsArchiveRss()
     {
-        var client = WithArticleRepository(new SqlFailingArticleRepo()).CreateClient();
+        var client = variants.Get(WebHostVariants.TestingSqlFailingCommunityArticles).CreateClient();
 
         var response = await client.GetAsync("/articles/feed.rss");
 
@@ -367,12 +365,14 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<QueenZoneWebAppl
     // Helpers
     // -------------------------------------------------------------------------
 
-    private WebApplicationFactory<Program> WithRepo(IEnumerable<PublishedArticleSubmission> seed) =>
-        WithArticleRepository(new StubArticleRepo(seed));
-
-    private WebApplicationFactory<Program> WithArticleRepository(IArticleRepository repository) =>
-        factory.WithWebHostBuilder(b => b.ConfigureServices(s =>
-            s.AddSingleton<IArticleRepository>(repository)));
+    private WebApplicationFactory<Program> WithRepo(IEnumerable<PublishedArticleSubmission> seed)
+    {
+        var host = variants.Get(WebHostVariants.TestingMutableCommunityArticles);
+        var repository = host.CommunityArticles
+            ?? throw new InvalidOperationException("TestingMutableCommunityArticles must register MutableCommunityArticleRepository.");
+        repository.Seed(seed);
+        return host;
+    }
 
     private static PublishedArticleSubmission Published(
         string slug, string title, DateTimeOffset publishedAt,
@@ -390,26 +390,6 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<QueenZoneWebAppl
             "Test Author",
             100,
             authorMemberId);
-
-    private sealed class SqlFailingArticleRepo : IArticleRepository
-    {
-        public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
-
-        public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
-            int page, int pageSize, string? tag = null, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
-
-        public Task<PublishedArticleSubmission?> GetBySlugAsync(string slug, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
-
-        public Task<(PublishedArticleSubmission? Previous, PublishedArticleSubmission? Next)> GetAdjacentAsync(
-            DateTimeOffset publishedAt, CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
-
-        public Task<IReadOnlyList<PublishedArticleSubmission>> GetSitemapEntriesAsync(CancellationToken ct = default) =>
-            throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
-    }
 
     // Stub IArticleSubmissionRepository — only GetPublishedAsync is used by InMemoryArticleRepository
     private sealed class StubSubmissionRepo(IEnumerable<PublishedArticleSubmission> published) : IArticleSubmissionRepository

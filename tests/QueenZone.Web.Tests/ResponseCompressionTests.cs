@@ -7,8 +7,11 @@ using QueenZone.Web;
 namespace QueenZone.Web.Tests;
 
 [Collection(ProductionHostCollection.Name)]
-public sealed class ResponseCompressionTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ResponseCompressionTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IAsyncLifetime
 {
+    private readonly ProductionHostFixture production;
     private readonly WebApplicationFactory<Program> productionFactory;
     private readonly WebApplicationFactory<Program> testingFactory;
 
@@ -16,9 +19,14 @@ public sealed class ResponseCompressionTests : IClassFixture<QueenZoneWebApplica
         ProductionHostFixture production,
         QueenZoneWebApplicationFactory testingFactory)
     {
+        this.production = production;
         productionFactory = production.Factory;
         this.testingFactory = testingFactory;
     }
+
+    public Task InitializeAsync() => production.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task HtmlResponse_IsBrotliCompressedInProduction()

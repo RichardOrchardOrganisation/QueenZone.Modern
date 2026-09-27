@@ -78,6 +78,22 @@ public class VariantWebApplicationFactory : QueenZoneWebApplicationFactory, IRes
 
     internal CountingArticlesRepository? CountingArticles => context.CountingArticles;
 
+    internal SharedQuizStore? QuizStore => context.QuizStore;
+
+    internal InMemoryQuizQuestionSubmissionRepository? QuizQuestionSubmissions => context.QuizQuestionSubmissions;
+
+    internal MemberUploadQuotaService? UploadQuota => context.UploadQuota;
+
+    internal ConfigurableNewsSuggestionRepository? ConfigurableNewsSuggestions => context.ConfigurableNewsSuggestions;
+
+    internal InMemoryFanPerformanceSubmissionRepository? FanPerformanceSubmissions => context.FanPerformanceSubmissions;
+
+    internal EditorStubBlobUploadService? EditorBlob => context.EditorBlob;
+
+    internal RecordingMemberPublicActivityRepository? MemberActivity => context.MemberActivity;
+
+    internal MutableCommunityArticleRepository? CommunityArticles => context.CommunityArticles;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(variant.Environment);

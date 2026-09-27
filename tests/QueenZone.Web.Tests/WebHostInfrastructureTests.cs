@@ -294,4 +294,73 @@ public sealed class WebHostInfrastructureTests
             () => WebHostVariants.Apply(HostServiceProfile.ExternalCookieInspectableBlob, services, null));
         Assert.Contains("requires a fixture context", ex.Message);
     }
+
+    [Fact]
+    public async Task IsolatedQuizzes_reset_clears_quiz_and_submission_stores()
+    {
+        await using var cache = new WebHostVariantCache();
+        var host = cache.Get(WebHostVariants.IsolatedQuizzes);
+        using var client = host.CreateAnonymousClient();
+        var quizzes = host.Services.GetRequiredService<IQuizRepository>();
+        var submissions = host.Services.GetRequiredService<IQuizQuestionSubmissionRepository>();
+
+        await quizzes.CreateAsync(
+            new AdminQuizDraft(
+                "Reset probe",
+                null,
+                [new QuizQuestionDraft("Q?", 1, [new QuizOptionDraft("A", true), new QuizOptionDraft("B", false)])]),
+            Guid.NewGuid());
+        await submissions.CreateAsync(new NewQuizQuestionSubmission(
+            Guid.NewGuid(),
+            "Reset submission?",
+            [new QuizQuestionSubmissionOptionDraft("A", true), new QuizQuestionSubmissionOptionDraft("B", false)],
+            null));
+
+        Assert.NotEmpty(await quizzes.GetAllAsync());
+        Assert.NotEmpty(await submissions.GetPendingAsync(1, 10));
+
+        await host.ResetAsync();
+
+        Assert.Empty(await quizzes.GetAllAsync());
+        Assert.Empty(await submissions.GetPendingAsync(1, 10));
+    }
+
+    [Fact]
+    public void Recording_activity_and_community_articles_seed_and_reset()
+    {
+        var activity = new RecordingMemberPublicActivityRepository();
+        var authorId = Guid.NewGuid();
+        activity.Seed(
+        [
+            new MemberPublicActivityItem(
+                MemberPublicActivityType.Article,
+                "Seeded",
+                "summary",
+                DateTimeOffset.UtcNow,
+                AuthorId: authorId,
+                AuthorDisplayName: "Author"),
+        ]);
+        Assert.Equal(0, activity.FeedPageCalls);
+
+        var community = new MutableCommunityArticleRepository();
+        community.Seed(
+        [
+            new PublishedArticleSubmission(
+                Guid.NewGuid(),
+                "Title",
+                "slug",
+                "excerpt",
+                "<p>Body</p>",
+                null,
+                null,
+                DateTimeOffset.UtcNow,
+                "Author",
+                1,
+                null),
+        ]);
+
+        activity.Reset();
+        community.Reset();
+        Assert.Equal(0, activity.FeedPageCalls);
+    }
 }

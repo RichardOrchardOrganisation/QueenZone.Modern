@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -14,7 +13,9 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class MeApiTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,10 +24,14 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly WebHostVariantCache variants;
 
-    public MeApiTests(QueenZoneWebApplicationFactory factory)
+    public MeApiTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -179,18 +184,11 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     [Fact]
     public async Task LegacyLink_ClaimAndUnlink()
     {
-        const string email = "legacy-me@example.com";
+        const string email = WebHostVariants.LegacyClaimableEmail;
         var memberId = Guid.NewGuid();
-        using var specialized = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ILegacyMemberLookupRepository>();
-            services.AddSingleton<ILegacyMemberLookupRepository>(_ =>
-                new InMemoryLegacyMemberLookupRepository(
-                    new Dictionary<string, LegacyMemberMatch>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        [email] = new LegacyMemberMatch(42, "ClassicFan"),
-                    }));
-        });
+        var specialized = variants.Get(WebHostVariants.TestingLegacyClaimableEmail);
+        await specialized.ResetAsync();
+        specialized.LegacyLookup.Seed(email, [new LegacyMemberMatch(42, "ClassicFan")]);
 
         await SeedMemberAsync(specialized, memberId, "Modern Fan", email);
         using var client = CreateBearerClient(specialized, memberId, "Modern Fan", email);
@@ -313,21 +311,7 @@ public sealed class MeApiTests : IClassFixture<QueenZoneWebApplicationFactory>
     [Fact]
     public async Task Get_AuthProviders_ListsConfiguredProviders()
     {
-        using var specialized = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Authentication:Google:ClientId", "google-test-client");
-            builder.UseSetting("Authentication:Google:ClientSecret", "google-test-secret");
-            builder.UseSetting("Authentication:Microsoft:ClientId", "ms-test-client");
-            builder.UseSetting("Authentication:Microsoft:ClientSecret", "ms-test-secret");
-            builder.UseSetting("Authentication:Discord:ClientId", "discord-test-client");
-            builder.UseSetting("Authentication:Discord:ClientSecret", "discord-test-secret");
-            builder.UseSetting("Authentication:GitHub:ClientId", "github-test-client");
-            builder.UseSetting("Authentication:GitHub:ClientSecret", "github-test-secret");
-            builder.UseSetting("Authentication:Apple:ClientId", "apple-test-client");
-            builder.UseSetting("Authentication:Apple:TeamId", "TEAMID");
-            builder.UseSetting("Authentication:Apple:KeyId", "KEYID");
-            builder.UseSetting("Authentication:Apple:PrivateKey", "test-apple-private-key");
-        });
+        var specialized = variants.Get(WebHostVariants.TestingAllMobileOAuthProviders);
         using var client = specialized.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,

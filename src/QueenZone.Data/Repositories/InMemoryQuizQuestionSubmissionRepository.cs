@@ -299,6 +299,16 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
             row.Status);
     }
 
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            submissions.Clear();
+            auditLogs.Clear();
+            nextAuditId = 1;
+        }
+    }
+
     private QuizQuestionSubmission Map(QuizQuestionSubmissionEntity entity)
     {
         var member = resolveMember?.Invoke(entity.SubmitterMemberId);

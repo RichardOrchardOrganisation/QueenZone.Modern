@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,13 +14,19 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class EditorImageUploadEndpointsTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class EditorImageUploadEndpointsTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly WebHostVariantCache variants;
 
-    public EditorImageUploadEndpointsTests(QueenZoneWebApplicationFactory factory)
+    public EditorImageUploadEndpointsTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
         this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -335,12 +340,10 @@ public sealed class EditorImageUploadEndpointsTests : IClassFixture<QueenZoneWeb
     [Fact]
     public async Task Http_route_returns_ok_when_authenticated_with_stub_storage()
     {
-        var stub = new StubBlobUploadService();
-        await using var custom = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services => services.AddSingleton<IBlobUploadService>(stub));
-        });
+        var custom = variants.Get(WebHostVariants.TestingStubEditorBlob);
+        await custom.ResetAsync();
+        var stub = custom.EditorBlob
+            ?? throw new InvalidOperationException("TestingStubEditorBlob must register EditorStubBlobUploadService.");
 
         var client = custom.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -364,12 +367,10 @@ public sealed class EditorImageUploadEndpointsTests : IClassFixture<QueenZoneWeb
     [Fact]
     public async Task Http_route_accepts_articles_container_with_antiforgery()
     {
-        var stub = new StubBlobUploadService();
-        await using var custom = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services => services.AddSingleton<IBlobUploadService>(stub));
-        });
+        var custom = variants.Get(WebHostVariants.TestingStubEditorBlob);
+        await custom.ResetAsync();
+        var stub = custom.EditorBlob
+            ?? throw new InvalidOperationException("TestingStubEditorBlob must register EditorStubBlobUploadService.");
 
         var client = custom.CreateClient(new WebApplicationFactoryClientOptions
         {
