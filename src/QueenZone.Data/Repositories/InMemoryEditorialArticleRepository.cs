@@ -31,4 +31,13 @@ public sealed class InMemoryEditorialArticleRepository(TimeProvider? timeProvide
         }
     }
     public Task<EditorialArticle?> SetStatusAsync(Guid id, string status, string editor, CancellationToken ct = default) { lock (gate) { if (!rows.TryGetValue(id, out var row)) return Task.FromResult<EditorialArticle?>(null); row = row with { Status = status, UpdatedAt = clock.GetUtcNow(), UpdatedBy = editor, PublishedImageBlobKey = status == EditorialArticleStatus.Published ? row.ImageBlobKey : row.PublishedImageBlobKey, HasPublishedVersion = status == EditorialArticleStatus.Published || row.HasPublishedVersion, WordCount = status == EditorialArticleStatus.Published ? EfArticleSubmissionRepository.EstimateWordCount(row.Body) : row.WordCount }; rows[id] = row; if (status == EditorialArticleStatus.Published) live[id] = row; return Task.FromResult<EditorialArticle?>(row); } }
+
+    internal void Clear()
+    {
+        lock (gate)
+        {
+            rows.Clear();
+            live.Clear();
+        }
+    }
 }

@@ -1,13 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Storage;
 using QueenZone.Web;
@@ -15,28 +10,15 @@ using QueenZone.Web.Pages.Submit;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class FanPerformanceSubmissionRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class FanPerformanceSubmissionRoutesTests : IClassFixture<InspectableBlobWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
-    private readonly InMemoryBlobStorageBackend blobBackend = new();
+    private readonly InMemoryBlobStorageBackend blobBackend;
 
-    public FanPerformanceSubmissionRoutesTests(WebApplicationFactory<Program> factory)
+    public FanPerformanceSubmissionRoutesTests(InspectableBlobWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService>(_ =>
-                    new AzureBlobUploadService(blobBackend, Options.Create(new BlobUploadOptions())));
-            });
-        });
+        this.factory = factory;
+        blobBackend = factory.BlobBackend;
     }
 
     [Fact]

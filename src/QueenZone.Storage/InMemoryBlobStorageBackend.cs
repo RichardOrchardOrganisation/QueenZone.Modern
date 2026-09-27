@@ -80,6 +80,8 @@ internal sealed class InMemoryBlobStorageBackend : IBlobStorageBackend
         return null;
     }
 
+    public void Clear() => store.Clear();
+
     internal static string ComputeETag(byte[] bytes)
     {
         var hash = SHA256.HashData(bytes);

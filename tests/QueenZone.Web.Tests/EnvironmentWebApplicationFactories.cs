@@ -1,9 +1,6 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
@@ -45,17 +42,11 @@ public sealed class PreviewPublicBaseUrlWebApplicationFactory : QueenZoneWebAppl
 /// Testing host that also registers the member external-cookie scheme with
 /// <see cref="ExternalCookieTestHandler"/>, for routes that challenge or read it.
 /// </summary>
-public sealed class ExternalCookieWebApplicationFactory : QueenZoneWebApplicationFactory
+public sealed class ExternalCookieWebApplicationFactory : VariantWebApplicationFactory
 {
-    protected override void ConfigureTestServices(IWebHostBuilder builder)
+    public ExternalCookieWebApplicationFactory()
+        : base(WebHostVariants.ExternalCookie)
     {
-        builder.ConfigureTestServices(services =>
-        {
-            services
-                .AddAuthentication()
-                .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                    MemberAuthenticationSchemes.ExternalCookie, _ => { });
-        });
     }
 }
 
