@@ -291,6 +291,39 @@ public sealed class ForumAttachmentUnitTests
     }
 
     [Fact]
+    public async Task ForumAttachmentMerge_ViaRepository_AddsOnlyMatchingModernAttachments()
+    {
+        var repo = new InMemoryForumAttachmentRepository();
+        await repo.AddAttachmentsAsync(10,
+        [
+            new NewForumAttachment("modern.pdf", "p/modern.pdf", "ugc-forum", 20, "application/pdf", DateTimeOffset.UtcNow),
+        ]);
+        var posts = new List<ForumPostItem>
+        {
+            new(10, "body", DateTime.UtcNow, "u", null, 0, null,
+                [new ForumPostAttachment("legacy.jpg", 10, "/legacy/10")]),
+            new(11, "other", DateTime.UtcNow, "u", null, 0, null),
+        };
+
+        var result = await ForumAttachmentMerge.MergeViaRepositoryAsync(repo, posts);
+
+        Assert.Equal(new[] { "legacy.jpg", "modern.pdf" }, result[0].Attachments!.Select(a => a.FileName));
+        Assert.Same(posts[1], result[1]);
+    }
+
+    [Fact]
+    public void ForumAttachmentMerge_LeavesPostAloneForMissingOrEmptyModernList()
+    {
+        var post = new ForumPostItem(10, "body", DateTime.UtcNow, "u", null, 0, null);
+        var posts = new List<ForumPostItem> { post };
+
+        Assert.Same(post, ForumAttachmentMerge.Merge(posts,
+            new Dictionary<int, IReadOnlyList<ForumPostAttachment>>())[0]);
+        Assert.Same(post, ForumAttachmentMerge.Merge(posts,
+            new Dictionary<int, IReadOnlyList<ForumPostAttachment>> { [10] = [] })[0]);
+    }
+
+    [Fact]
     public void GuessContentType_CoversCommonExtensions()
     {
         Assert.Equal("image/jpeg", ForumAttachmentValidator.GuessContentType("a.jpg"));

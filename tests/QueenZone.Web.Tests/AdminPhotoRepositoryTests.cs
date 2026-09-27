@@ -133,6 +133,36 @@ public sealed class InMemoryAdminPhotoRepositoryTests
 public sealed class AdminPhotoServiceTests
 {
     [Fact]
+    public async Task Create_RejectsMissingCategoryBeforeReadingFile()
+    {
+        var admin = new InMemoryAdminPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories()));
+        var service = new AdminPhotoService(admin, new NullGalleryPhotoBlobService(), NullLogger<AdminPhotoService>.Instance);
+        await using var imageStream = await CreateJpegAsync(80, 80);
+        var file = new FormFile(imageStream, 0, imageStream.Length, "file", "shot.jpg");
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(
+            file, 999999, "Missing category", null, 2024, DateTime.UtcNow, false, "admin@test.local"));
+
+        Assert.Equal("Category was not found.", error.Message);
+    }
+
+    [Fact]
+    public async Task MissingPhoto_RejectsReplaceDeleteAndRegeneration()
+    {
+        var admin = new InMemoryAdminPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories()));
+        var service = new AdminPhotoService(admin, new NullGalleryPhotoBlobService(), NullLogger<AdminPhotoService>.Instance);
+        await using var imageStream = await CreateJpegAsync(80, 80);
+        var file = new FormFile(imageStream, 0, imageStream.Length, "file", "shot.jpg");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ReplaceAsync(999999, file, "admin@test.local"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DeleteAsync(999999, "admin@test.local"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RegenerateThumbnailAsync(999999, "admin@test.local"));
+    }
+
+    [Fact]
     public async Task Create_UploadsOriginalAndThumb_ThenInsertsRow()
     {
         var store = new SharedPhotoStore(SamplePhotoData.CreateSeedCategories());
