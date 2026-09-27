@@ -138,6 +138,7 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | Probe surface | How nightly runs it |
 | --- | --- |
 | `EfAdminNewsRepositoryLegacyProbeTests` | Mac `legacy-read-probes` |
+| `EfNewsFullTextSearchLiveProbeTests` (`EfNewsRepository.SearchAsync` via SQL Server full-text procedure) | Mac `legacy-read-probes`, with `RUN_NEWS_FTS_PROBE=true` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
 | `EfAdminNewsRepositoryLegacyWriteProbeTests` | Windows `legacy-write-probes` via `Probe-AdminNewsLegacyWrites.ps1` |
 | `EfNewsSectionLiveProbeTests` `Admin_news_*` write Facts | Same script (rollback visibility + full lifecycle) |

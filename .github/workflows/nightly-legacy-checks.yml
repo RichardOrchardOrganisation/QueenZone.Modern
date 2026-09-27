@@ -198,10 +198,11 @@ jobs:
           fi
 
           export ConnectionStrings__QueenZoneLegacy="Server=${SQLEXPRESS_LAN_ADDRESS};Database=queenzone_legacy_sync;User Id=queenzone_probe;Password=${SQLEXPRESS_PROBE_PASSWORD};TrustServerCertificate=True"
+          export RUN_NEWS_FTS_PROBE=true
 
           dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj \
             --configuration Release \
-            --filter "FullyQualifiedName=QueenZone.Web.Tests.EfAdminNewsRepositoryLegacyProbeTests.Probe_legacy_admin_news_repository_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfNewsSectionLiveProbeTests.Public_news_probe_materializes_archive_detail_search_and_sitemap_when_connection_configured"
+            --filter "FullyQualifiedName=QueenZone.Web.Tests.EfAdminNewsRepositoryLegacyProbeTests.Probe_legacy_admin_news_repository_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfNewsSectionLiveProbeTests.Public_news_probe_materializes_archive_detail_search_and_sitemap_when_connection_configured|FullyQualifiedName~EfNewsFullTextSearchLiveProbeTests"
 
   apply-ef-migrations-mirror:
     name: Apply EF migrations to SQL Express mirror
