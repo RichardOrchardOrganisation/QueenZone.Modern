@@ -1,22 +1,24 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumWriteRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ForumWriteRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory lockedFactory;
 
-    public ForumWriteRoutesTests(QueenZoneWebApplicationFactory factory)
+    public ForumWriteRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        lockedFactory = variants.Get(WebHostVariants.TestingLockedForumTopic1002);
     }
 
     [Fact]
@@ -288,15 +290,6 @@ public sealed class ForumWriteRoutesTests : IClassFixture<QueenZoneWebApplicatio
     [Fact]
     public async Task LockedTopicPost_ReturnsForbidden()
     {
-        var lockedFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IForumWriteRepository>();
-                services.AddSingleton<IForumWriteRepository>(new LockedForumWriteRepository());
-            });
-        });
         var client = CreateMemberClient(lockedFactory, Guid.NewGuid());
         var page = await client.GetStringAsync("/forum/topic/1002/ranking-every-studio-album");
         var token = ExtractAntiforgeryToken(page);
@@ -349,55 +342,5 @@ public sealed class ForumWriteRoutesTests : IClassFixture<QueenZoneWebApplicatio
         var value = Regex.Match(input.Value, "value=\"(?<token>[^\"]+)\"", RegexOptions.IgnoreCase);
         Assert.True(value.Success, "Antiforgery token value was not found in the form.");
         return value.Groups["token"].Value;
-    }
-
-    private sealed class LockedForumWriteRepository : IForumWriteRepository
-    {
-        public Task<ForumThreadCreateResult> CreateThreadAsync(NewForumThread thread, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ForumThreadCreateResult(200_001, 2_000_001));
-
-        public Task<int> CreatePostAsync(NewForumPost post, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Locked.");
-
-        public Task<ForumEditablePost?> GetPostAsync(int postId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ForumEditablePost?>(null);
-
-        public Task<ForumPostUpdateResult> UpdatePostAsync(
-            int postId,
-            Guid editorMemberId,
-            string sanitisedBody,
-            bool isAdmin,
-            int editWindowMinutes,
-            DateTimeOffset? expectedUpdatedAt = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ForumPostUpdateResult(ForumPostUpdateStatus.Forbidden));
-
-        public Task<ForumWriteThread?> GetThreadAsync(int topicId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ForumWriteThread?>(new ForumWriteThread(
-                topicId,
-                1,
-                "Ranking every studio album",
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                1,
-                IsLocked: true));
-
-        public Task<int> CountPostsByMemberSinceAsync(Guid memberId, DateTimeOffset since, CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task<int> CountApprovedPostsByMemberAsync(Guid memberId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task HideAuthorForumContentAsync(Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task UnhideAuthorForumContentAsync(Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<int> EnsureCategoryAsync(
-            string slug,
-            string name,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(1);
     }
 }

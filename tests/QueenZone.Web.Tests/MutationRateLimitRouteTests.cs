@@ -9,13 +9,23 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class MutationRateLimitRouteTests
+public sealed partial class MutationRateLimitRouteTests : IClassFixture<WebHostVariantCache>
 {
+    private readonly VariantWebApplicationFactory anonymous1;
+    private readonly VariantWebApplicationFactory member1Ip10;
+    private readonly VariantWebApplicationFactory member10Ip1;
+
+    public MutationRateLimitRouteTests(WebHostVariantCache variants)
+    {
+        anonymous1 = variants.Get(WebHostVariants.TestingMutationRateLimitAnonymous1);
+        member1Ip10 = variants.Get(WebHostVariants.TestingMutationRateLimitMember1Ip10);
+        member10Ip1 = variants.Get(WebHostVariants.TestingMutationRateLimitMember10Ip1);
+    }
+
     [Fact]
     public async Task Anonymous_api_write_rejects_before_handler_and_safe_get_does_not_count()
     {
-        await using var factory = CreateFactory(anonymousLimit: 1);
-        using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = anonymous1.CreateAnonymousClient(allowAutoRedirect: false);
         client.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.10");
 
         using var form = await client.GetAsync(ContactApiEndpoints.Path);
@@ -32,11 +42,10 @@ public sealed partial class MutationRateLimitRouteTests
     [Fact]
     public async Task Authenticated_members_have_independent_allowances_behind_one_client_ip()
     {
-        await using var factory = CreateFactory(authenticatedLimit: 1, authenticatedIpLimit: 10);
-        var firstMember = await SeedMemberAsync(factory, "member-one@example.com", "Member One");
-        var secondMember = await SeedMemberAsync(factory, "member-two@example.com", "Member Two");
-        using var firstClient = CreateBearerClient(factory, firstMember);
-        using var secondClient = CreateBearerClient(factory, secondMember);
+        var firstMember = await SeedMemberAsync(member1Ip10, "member-one@example.com", "Member One");
+        var secondMember = await SeedMemberAsync(member1Ip10, "member-two@example.com", "Member Two");
+        using var firstClient = CreateBearerClient(member1Ip10, firstMember, "203.0.113.10");
+        using var secondClient = CreateBearerClient(member1Ip10, secondMember, "203.0.113.10");
 
         using var safeGet = await firstClient.GetAsync(MeApiEndpoints.Path);
         using var firstWrite = await firstClient.PatchAsJsonAsync(MeApiEndpoints.Path, new { });
@@ -52,11 +61,10 @@ public sealed partial class MutationRateLimitRouteTests
     [Fact]
     public async Task Authenticated_ip_safety_net_applies_across_accounts()
     {
-        await using var factory = CreateFactory(authenticatedLimit: 10, authenticatedIpLimit: 1);
-        var firstMember = await SeedMemberAsync(factory, "ip-one@example.com", "IP One");
-        var secondMember = await SeedMemberAsync(factory, "ip-two@example.com", "IP Two");
-        using var firstClient = CreateBearerClient(factory, firstMember);
-        using var secondClient = CreateBearerClient(factory, secondMember);
+        var firstMember = await SeedMemberAsync(member10Ip1, "ip-one@example.com", "IP One");
+        var secondMember = await SeedMemberAsync(member10Ip1, "ip-two@example.com", "IP Two");
+        using var firstClient = CreateBearerClient(member10Ip1, firstMember, "203.0.113.10");
+        using var secondClient = CreateBearerClient(member10Ip1, secondMember, "203.0.113.10");
 
         using var firstWrite = await firstClient.PatchAsJsonAsync(MeApiEndpoints.Path, new { });
         using var secondWrite = await secondClient.PatchAsJsonAsync(MeApiEndpoints.Path, new { });
@@ -68,13 +76,12 @@ public sealed partial class MutationRateLimitRouteTests
     [Fact]
     public async Task Website_and_mobile_writes_share_member_allowance()
     {
-        await using var factory = CreateFactory(authenticatedLimit: 1, authenticatedIpLimit: 10);
-        var member = await SeedMemberAsync(factory, "shared-route@example.com", "Shared Route Fan");
-        using var website = factory.CreateAnonymousClient(allowAutoRedirect: false);
+        var member = await SeedMemberAsync(member1Ip10, "shared-route@example.com", "Shared Route Fan");
+        using var website = member1Ip10.CreateAnonymousClient(allowAutoRedirect: false);
         website.DefaultRequestHeaders.Add(TestMemberAuthHandler.MemberIdHeader, member.Id.ToString());
         website.DefaultRequestHeaders.Add(TestMemberAuthHandler.DisplayNameHeader, member.DisplayName);
         website.DefaultRequestHeaders.Add(TestMemberAuthHandler.EmailHeader, member.Email);
-        website.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.10");
+        website.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.11");
 
         var page = await website.GetStringAsync("/account/settings");
         using var websiteWrite = await website.PostAsync(
@@ -85,14 +92,14 @@ public sealed partial class MutationRateLimitRouteTests
                 ["DisplayName"] = "Updated On Website",
             }));
 
-        using var mobile = CreateBearerClient(factory, member);
+        using var mobile = CreateBearerClient(member1Ip10, member, "203.0.113.11");
         using var mobileWrite = await mobile.PatchAsJsonAsync(
             MeApiEndpoints.Path,
             new { displayName = "Tried On Mobile" });
 
         Assert.Equal(HttpStatusCode.Redirect, websiteWrite.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, mobileWrite.StatusCode);
-        var stored = await factory.Services.GetRequiredService<IMemberAccountRepository>()
+        var stored = await member1Ip10.Services.GetRequiredService<IMemberAccountRepository>()
             .FindByIdAsync(member.Id);
         Assert.Equal("Updated On Website", stored!.DisplayName);
     }
@@ -100,9 +107,8 @@ public sealed partial class MutationRateLimitRouteTests
     [Fact]
     public async Task Rejected_upload_does_not_reach_multipart_body_binding()
     {
-        await using var factory = CreateFactory(authenticatedLimit: 1, authenticatedIpLimit: 10);
-        var member = await SeedMemberAsync(factory, "upload-limit@example.com", "Upload Limit Fan");
-        using var client = CreateBearerClient(factory, member);
+        var member = await SeedMemberAsync(member1Ip10, "upload-limit@example.com", "Upload Limit Fan");
+        using var client = CreateBearerClient(member1Ip10, member, "203.0.113.12");
 
         using var allowance = await client.PatchAsJsonAsync(MeApiEndpoints.Path, new { });
         using var malformedUpload = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/avatar")
@@ -115,27 +121,10 @@ public sealed partial class MutationRateLimitRouteTests
 
         Assert.Equal(HttpStatusCode.BadRequest, allowance.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
-        var stored = await factory.Services.GetRequiredService<IMemberAccountRepository>()
+        var stored = await member1Ip10.Services.GetRequiredService<IMemberAccountRepository>()
             .FindByIdAsync(member.Id);
         Assert.Null(stored!.AvatarUrl);
     }
-
-    private static QueenZoneWebApplicationFactory CreateFactory(
-        int anonymousLimit = 20,
-        int authenticatedLimit = 20,
-        int authenticatedIpLimit = 120) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.Configure<MutationRateLimitingOptions>(options =>
-            {
-                options.AnonymousPermitLimit = anonymousLimit;
-                options.AnonymousWindowMinutes = 60;
-                options.AuthenticatedMemberPermitLimit = authenticatedLimit;
-                options.AuthenticatedMemberWindowMinutes = 60;
-                options.AuthenticatedIpPermitLimit = authenticatedIpLimit;
-                options.AuthenticatedIpWindowMinutes = 60;
-            });
-        });
 
     private static async Task<MemberAccount> SeedMemberAsync(
         QueenZoneWebApplicationFactory factory,
@@ -154,14 +143,15 @@ public sealed partial class MutationRateLimitRouteTests
 
     private static HttpClient CreateBearerClient(
         QueenZoneWebApplicationFactory factory,
-        MemberAccount member)
+        MemberAccount member,
+        string forwardedFor)
     {
         using var scope = factory.Services.CreateScope();
         var token = scope.ServiceProvider.GetRequiredService<MobileAuthTokenIssuer>()
             .IssueAccessToken(member.Id, member.Email, member.DisplayName);
         var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        client.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.10");
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", forwardedFor);
         return client;
     }
 

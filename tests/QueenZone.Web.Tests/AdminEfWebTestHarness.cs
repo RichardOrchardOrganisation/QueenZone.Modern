@@ -112,7 +112,9 @@ public class AdminEfWebApplicationFactory : QueenZoneWebApplicationFactory
     {
         if (disposing)
         {
+            base.Dispose(disposing);
             connection.Dispose();
+            return;
         }
 
         base.Dispose(disposing);

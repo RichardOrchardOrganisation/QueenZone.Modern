@@ -5,14 +5,30 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class QuizSprintRunTests
+public sealed class QuizSprintRunTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private readonly VariantWebApplicationFactory isolated;
+    private readonly VariantWebApplicationFactory clocked;
+
+    public QuizSprintRunTests(WebHostVariantCache variants)
+    {
+        isolated = variants.Get(WebHostVariants.IsolatedQuizzes);
+        clocked = variants.Get(WebHostVariants.IsolatedQuizzesWithClock);
+    }
+
+    public async Task InitializeAsync()
+    {
+        await isolated.ResetAsync();
+        await clocked.ResetAsync();
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Ef_repository_persists_a_sprint_run()
@@ -199,7 +215,6 @@ public sealed class QuizSprintRunTests
     [Fact]
     public async Task Api_start_hides_the_answer_key_and_finish_scores_for_a_member()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishThreeQuestionsAsync(isolated);
         using var client = CreateBearerClient(isolated, Guid.NewGuid(), "Sprinter");
 
@@ -230,7 +245,6 @@ public sealed class QuizSprintRunTests
     [Fact]
     public async Task Api_finish_for_anonymous_callers_scores_but_does_not_record()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishThreeQuestionsAsync(isolated);
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
@@ -251,7 +265,6 @@ public sealed class QuizSprintRunTests
     [Fact]
     public async Task Guest_run_can_be_claimed_once_after_signing_in()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishThreeQuestionsAsync(isolated);
         using var guest = isolated.CreateAnonymousClient(allowAutoRedirect: false);
         var round = (await (await guest.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null))
@@ -286,16 +299,15 @@ public sealed class QuizSprintRunTests
     [Fact]
     public async Task Claim_requires_sign_in_and_rejects_bad_or_expired_tokens()
     {
-        var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
-        using var isolated = IsolatedQuizzes(clock);
-        await PublishThreeQuestionsAsync(isolated);
-        using var guest = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        clocked.Clock!.SetUtcNow(DateTimeOffset.UtcNow);
+        await PublishThreeQuestionsAsync(clocked);
+        using var guest = clocked.CreateAnonymousClient(allowAutoRedirect: false);
         var claimUrl = $"{ContentApiEndpoints.RootPath}/quizzes/sprint/claim";
 
         var anonymous = await guest.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto("x"));
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
 
-        using var member = CreateBearerClient(isolated, Guid.NewGuid(), "Member");
+        using var member = CreateBearerClient(clocked, Guid.NewGuid(), "Member");
         Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto("tampered"))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto(null))).StatusCode);
 
@@ -305,7 +317,7 @@ public sealed class QuizSprintRunTests
             $"{ContentApiEndpoints.RootPath}/quizzes/sprint/finish",
             new SprintFinishRequestDto(round.Ticket, CorrectAnswers(round))))
             .Content.ReadFromJsonAsync<SprintResultDto>(JsonOptions))!;
-        clock.Advance(TimeSpan.FromMinutes(61));
+        clocked.Clock.Advance(TimeSpan.FromMinutes(61));
 
         Assert.Equal(HttpStatusCode.Gone, (await member.PostAsJsonAsync(claimUrl, new SprintClaimRequestDto(finished.ClaimToken))).StatusCode);
     }
@@ -313,7 +325,6 @@ public sealed class QuizSprintRunTests
     [Fact]
     public async Task Signed_in_finish_returns_no_claim_token()
     {
-        using var isolated = IsolatedQuizzes();
         await PublishThreeQuestionsAsync(isolated);
         using var member = CreateBearerClient(isolated, Guid.NewGuid(), "Member");
         var round = (await (await member.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null))
@@ -331,7 +342,6 @@ public sealed class QuizSprintRunTests
     [Fact]
     public async Task Api_finish_rejects_a_bad_ticket_and_start_404s_without_questions()
     {
-        using var isolated = IsolatedQuizzes();
         using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
 
         var empty = await client.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null);
@@ -350,14 +360,13 @@ public sealed class QuizSprintRunTests
     [Fact]
     public async Task Api_finish_after_the_deadline_returns_gone()
     {
-        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 20, 0, 0, 0, TimeSpan.Zero));
-        using var isolated = IsolatedQuizzes(clock);
-        await PublishThreeQuestionsAsync(isolated);
-        using var client = isolated.CreateAnonymousClient(allowAutoRedirect: false);
+        clocked.Clock!.SetUtcNow(new DateTimeOffset(2026, 9, 20, 0, 0, 0, TimeSpan.Zero));
+        await PublishThreeQuestionsAsync(clocked);
+        using var client = clocked.CreateAnonymousClient(allowAutoRedirect: false);
         var round = (await (await client.PostAsync($"{ContentApiEndpoints.RootPath}/quizzes/sprint/start", null))
             .Content.ReadFromJsonAsync<SprintRoundDto>(JsonOptions))!;
 
-        clock.Advance(TimeSpan.FromSeconds(66));
+        clocked.Clock.Advance(TimeSpan.FromSeconds(66));
         var finish = await client.PostAsJsonAsync(
             $"{ContentApiEndpoints.RootPath}/quizzes/sprint/finish",
             new SprintFinishRequestDto(round.Ticket, []));
@@ -388,23 +397,6 @@ public sealed class QuizSprintRunTests
                     .ToList()),
             Guid.NewGuid());
         await quizzes.PublishAsync(id);
-    }
-
-    private static QueenZoneWebApplicationFactory IsolatedQuizzes(TimeProvider? clock = null)
-    {
-        var store = new SharedQuizStore();
-        return QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<SharedQuizStore>();
-            services.RemoveAll<IQuizRepository>();
-            services.AddSingleton(store);
-            services.AddSingleton<IQuizRepository>(_ => new InMemoryQuizRepository(store));
-            if (clock is not null)
-            {
-                services.RemoveAll<TimeProvider>();
-                services.AddSingleton(clock);
-            }
-        });
     }
 
     private static HttpClient CreateBearerClient(QueenZoneWebApplicationFactory factory, Guid memberId, string displayName)

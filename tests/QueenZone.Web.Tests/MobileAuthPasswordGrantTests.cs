@@ -11,12 +11,18 @@ namespace QueenZone.Web.Tests;
 /// Accounts are provisioned the same way as website password sign-in: out-of-band
 /// <see cref="MemberAccountService.RegisterAsync"/>, not a mobile registration UI.
 /// </summary>
-public sealed class MobileAuthPasswordGrantTests
+public sealed class MobileAuthPasswordGrantTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
+    private readonly QueenZoneWebApplicationFactory factory;
+
+    public MobileAuthPasswordGrantTests(QueenZoneWebApplicationFactory factory)
+    {
+        this.factory = factory;
+    }
+
     [Fact]
     public async Task PasswordGrant_IssuesSameTokenShape_AndOpensSession()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         await SeedAccountAsync(factory, "mobile-reviewer@example.com", "correct horse battery staple", "App Reviewer");
         using var client = factory.CreateAnonymousClient();
 
@@ -55,7 +61,6 @@ public sealed class MobileAuthPasswordGrantTests
     [Fact]
     public async Task PasswordGrant_WrongPassword_ReturnsGenericInvalidGrant()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         await SeedAccountAsync(factory, "mobile-wrong@example.com", "the-real-password-123", "Wrong Pass");
         using var client = factory.CreateAnonymousClient();
 
@@ -74,7 +79,6 @@ public sealed class MobileAuthPasswordGrantTests
     [Fact]
     public async Task PasswordGrant_UnknownEmail_ReturnsSameInvalidGrantAsWrongPassword()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         using var client = factory.CreateAnonymousClient();
 
         using var request = PasswordForm("nobody@example.com", "whatever");
@@ -90,7 +94,6 @@ public sealed class MobileAuthPasswordGrantTests
     [Fact]
     public async Task PasswordGrant_SuspendedAccount_ReturnsTheSameInvalidGrantAsAWrongPassword()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         var account = await SeedAccountAsync(
             factory,
             "mobile-suspended@example.com",
@@ -122,7 +125,6 @@ public sealed class MobileAuthPasswordGrantTests
     [Fact]
     public async Task PasswordGrant_WrongClientId_ReturnsInvalidGrant()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         await SeedAccountAsync(factory, "mobile-client@example.com", "correct horse battery staple", "Client Fan");
         using var client = factory.CreateAnonymousClient();
         using var request = new FormUrlEncodedContent(new Dictionary<string, string>

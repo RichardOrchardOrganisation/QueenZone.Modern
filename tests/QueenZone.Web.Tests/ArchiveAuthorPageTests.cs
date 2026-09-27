@@ -1,5 +1,4 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
@@ -7,13 +6,19 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ArchiveAuthorPageTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ArchiveAuthorPageTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory linkRedirect;
+    private readonly VariantWebApplicationFactory linkProfile;
 
-    public ArchiveAuthorPageTests(QueenZoneWebApplicationFactory factory)
+    public ArchiveAuthorPageTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        linkRedirect = variants.Get(WebHostVariants.TestingArchiveAuthorLinkRedirect);
+        linkProfile = variants.Get(WebHostVariants.TestingArchiveAuthorLinkProfile);
     }
 
     [Fact]
@@ -76,8 +81,7 @@ public sealed class ArchiveAuthorPageTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task ArchiveAuthorPage_LinkedLegacyUser_RedirectsToMemberProfile()
     {
-        using var linkedFactory = QueenZoneWebApplicationFactory.WithServices(_ => { });
-        using var scope = linkedFactory.Services.CreateScope();
+        using var scope = linkRedirect.Services.CreateScope();
         var memberAccountRepository = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
         var member = await memberAccountRepository.CreateAsync(new MemberAccount
         {
@@ -88,7 +92,7 @@ public sealed class ArchiveAuthorPageTests : IClassFixture<QueenZoneWebApplicati
         });
         await memberAccountRepository.LinkLegacyUserIdAsync(member.Id, 5001);
 
-        using var client = linkedFactory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = linkRedirect.CreateAnonymousClient(allowAutoRedirect: false);
 
         var response = await client.GetAsync("/forum/archive-authors/5001");
 
@@ -99,8 +103,7 @@ public sealed class ArchiveAuthorPageTests : IClassFixture<QueenZoneWebApplicati
     [Fact]
     public async Task MemberProfile_LinkedLegacyUser_ShowsArchivePosts()
     {
-        using var linkedFactory = QueenZoneWebApplicationFactory.WithServices(_ => { });
-        using var scope = linkedFactory.Services.CreateScope();
+        using var scope = linkProfile.Services.CreateScope();
         var memberAccountRepository = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
         var member = await memberAccountRepository.CreateAsync(new MemberAccount
         {
@@ -110,7 +113,7 @@ public sealed class ArchiveAuthorPageTests : IClassFixture<QueenZoneWebApplicati
             CreatedAt = DateTime.UtcNow,
         });
 
-        using var client = linkedFactory.CreateAnonymousClient();
+        using var client = linkProfile.CreateAnonymousClient();
         var unlinked = await client.GetStringAsync($"/members/{member.Id}");
         await memberAccountRepository.LinkLegacyUserIdAsync(member.Id, 5001);
         var linked = await client.GetStringAsync($"/members/{member.Id}");

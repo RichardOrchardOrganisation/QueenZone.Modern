@@ -5,14 +5,15 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class ForumApiWriteTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -20,10 +21,12 @@ public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFa
     };
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory lockedFactory;
 
-    public ForumApiWriteTests(QueenZoneWebApplicationFactory factory)
+    public ForumApiWriteTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        lockedFactory = variants.Get(WebHostVariants.TestingLockedForumTopic1002);
     }
 
     [Fact]
@@ -239,11 +242,6 @@ public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFa
     [Fact]
     public async Task Topic_detail_includes_isLocked_when_thread_is_locked()
     {
-        using var lockedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IForumWriteRepository>();
-            services.AddSingleton<IForumWriteRepository>(new LockedForumWriteRepository());
-        });
         using var client = lockedFactory.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{ForumApiEndpoints.RootPath}/topics/1002");
@@ -257,11 +255,6 @@ public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFa
     [Fact]
     public async Task Reply_returns_forbidden_when_topic_is_locked()
     {
-        using var lockedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IForumWriteRepository>();
-            services.AddSingleton<IForumWriteRepository>(new LockedForumWriteRepository());
-        });
         using var client = CreateBearerClient(lockedFactory, Guid.NewGuid());
 
         using var response = await client.PostAsJsonAsync(
@@ -527,62 +520,5 @@ public sealed class ForumApiWriteTests : IClassFixture<QueenZoneWebApplicationFa
             CreatedAt = DateTime.UtcNow,
             IsSuspended = isSuspended,
         });
-    }
-
-    private sealed class LockedForumWriteRepository : IForumWriteRepository
-    {
-        public Task<ForumThreadCreateResult> CreateThreadAsync(
-            NewForumThread thread,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ForumThreadCreateResult(200_001, 2_000_001));
-
-        public Task<int> CreatePostAsync(NewForumPost post, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Locked.");
-
-        public Task<ForumEditablePost?> GetPostAsync(int postId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ForumEditablePost?>(null);
-
-        public Task<ForumPostUpdateResult> UpdatePostAsync(
-            int postId,
-            Guid editorMemberId,
-            string sanitisedBody,
-            bool isAdmin,
-            int editWindowMinutes,
-            DateTimeOffset? expectedUpdatedAt = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ForumPostUpdateResult(ForumPostUpdateStatus.Forbidden));
-
-        public Task<ForumWriteThread?> GetThreadAsync(int topicId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ForumWriteThread?>(new ForumWriteThread(
-                topicId,
-                1,
-                "Ranking every studio album",
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                1,
-                IsLocked: true));
-
-        public Task<int> CountPostsByMemberSinceAsync(
-            Guid memberId,
-            DateTimeOffset since,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task<int> CountApprovedPostsByMemberAsync(
-            Guid memberId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task HideAuthorForumContentAsync(Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task UnhideAuthorForumContentAsync(Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<int> EnsureCategoryAsync(
-            string slug,
-            string name,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(1);
     }
 }

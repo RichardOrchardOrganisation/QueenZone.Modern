@@ -1,9 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -15,13 +13,17 @@ namespace QueenZone.Web.Tests;
 /// sync, rather than relying solely on the next scheduled batch reindex.
 /// </summary>
 [Collection(AdminNewsDeleteErrorCollection.Name)]
-public sealed class SearchIndexSyncTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class SearchIndexSyncTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory throwingIndex;
 
-    public SearchIndexSyncTests(QueenZoneWebApplicationFactory factory)
+    public SearchIndexSyncTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        throwingIndex = variants.Get(WebHostVariants.ThrowingSearchIndex);
     }
 
     [Fact]
@@ -123,16 +125,7 @@ public sealed class SearchIndexSyncTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task CreatingForumThread_StillSucceeds_WhenSearchIndexFails()
     {
-        var failingFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<ISearchIndexService>();
-                services.AddSingleton<ISearchIndexService>(new ThrowingSearchIndexService());
-            });
-        });
-        var client = CreateMemberClient(failingFactory, Guid.NewGuid());
+        var client = CreateMemberClient(throwingIndex, Guid.NewGuid());
 
         var topicPath = await PostNewThreadAsync(client, "Search sync forum failure title");
 
@@ -142,16 +135,7 @@ public sealed class SearchIndexSyncTests : IClassFixture<QueenZoneWebApplication
     [Fact]
     public async Task PublishingNewsArticle_StillSucceeds_WhenSearchIndexFails()
     {
-        var failingFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<ISearchIndexService>();
-                services.AddSingleton<ISearchIndexService>(new ThrowingSearchIndexService());
-            });
-        });
-        var client = AdminHttpTestHelpers.CreateClient(failingFactory, AdminHttpTestHelpers.AdminEmail);
+        var client = AdminHttpTestHelpers.CreateClient(throwingIndex, AdminHttpTestHelpers.AdminEmail);
 
         var createResponse = await AdminHttpTestHelpers.PostArticleAsync(
             client,
@@ -211,24 +195,5 @@ public sealed class SearchIndexSyncTests : IClassFixture<QueenZoneWebApplication
         var value = Regex.Match(input.Value, "value=\"(?<token>[^\"]+)\"", RegexOptions.IgnoreCase);
         Assert.True(value.Success, "Antiforgery token value was not found in the form.");
         return value.Groups["token"].Value;
-    }
-
-    private sealed class ThrowingSearchIndexService : ISearchIndexService
-    {
-        public Task UpsertAsync(SearchDocumentEntity document, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
-
-        public Task RemoveAsync(string sourceKey, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
-
-        public Task ReplaceContentTypeAsync(
-            string contentType,
-            IReadOnlyList<SearchDocumentEntity> documents,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
-
-        public Task<IReadOnlyDictionary<string, int>> GetContentTypeCountsAsync(
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated index failure.");
     }
 }

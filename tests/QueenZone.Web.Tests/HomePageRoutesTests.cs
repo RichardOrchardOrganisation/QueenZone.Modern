@@ -3,13 +3,22 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class HomePageRoutesTests
+public sealed class HomePageRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
+    private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory throwingSprint;
+
+    public HomePageRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
+    {
+        this.factory = factory;
+        throwingSprint = variants.Get(WebHostVariants.ThrowingSprintBoardQuiz);
+    }
+
     private static readonly Regex HomepageHeading = new(
         @"<h1\b[^>]*>\s*Twenty-five years of the Queen internet zone\s*</h1>",
         RegexOptions.CultureInvariant | RegexOptions.Singleline);
@@ -17,7 +26,6 @@ public sealed class HomePageRoutesTests
     [Fact]
     public async Task Home_returns_200_with_a_single_homepage_heading()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
 
         using var home = await client.GetAsync("/");
@@ -37,7 +45,6 @@ public sealed class HomePageRoutesTests
     [Fact]
     public void Home_and_quizzes_index_use_distinct_page_models()
     {
-        using var factory = new QueenZoneWebApplicationFactory();
         _ = factory.CreateAnonymousClient();
 
         var pages = factory.Services
@@ -67,12 +74,7 @@ public sealed class HomePageRoutesTests
     [Fact]
     public async Task Home_still_returns_200_when_the_sprint_board_fails()
     {
-        using var factory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IQuizRepository>();
-            services.AddSingleton<IQuizRepository, ThrowingSprintBoardQuizRepository>();
-        });
-        using var client = factory.CreateAnonymousClient();
+        using var client = throwingSprint.CreateAnonymousClient();
 
         using var response = await client.GetAsync("/");
         var html = await response.Content.ReadAsStringAsync();
@@ -82,87 +84,5 @@ public sealed class HomePageRoutesTests
         Assert.Matches(HomepageHeading, html);
         Assert.Contains("The sixty-second Queen quiz", html, StringComparison.Ordinal);
         Assert.Contains("No scores yet today.", html, StringComparison.Ordinal);
-    }
-
-    private sealed class ThrowingSprintBoardQuizRepository : IQuizRepository
-    {
-        public Task<QuizSprintBoardResult> GetSprintBoardAsync(
-            QuizSprintBoardScope scope,
-            Guid? viewerMemberId,
-            int top = 10,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Simulated QuizSprintRuns lookup failure.");
-
-        public Task<IReadOnlyList<QuizAdminItem>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Unsupported<IReadOnlyList<QuizAdminItem>>();
-
-        public Task<QuizAdminDetail?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Unsupported<QuizAdminDetail?>();
-
-        public Task<Guid> CreateAsync(
-            AdminQuizDraft draft,
-            Guid createdByMemberId,
-            CancellationToken cancellationToken = default) =>
-            Unsupported<Guid>();
-
-        public Task UpdateAsync(Guid id, AdminQuizDraft draft, CancellationToken cancellationToken = default) =>
-            Unsupported();
-
-        public Task PublishAsync(Guid id, CancellationToken cancellationToken = default) => Unsupported();
-
-        public Task UnpublishAsync(Guid id, CancellationToken cancellationToken = default) => Unsupported();
-
-        public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default) => Unsupported();
-
-        public Task RecordAttemptAsync(
-            Guid quizId,
-            Guid memberAccountId,
-            int score,
-            int correctCount,
-            int questionCount,
-            CancellationToken cancellationToken = default) =>
-            Unsupported();
-
-        public Task<IReadOnlyList<QuizListItem>> GetPublishedAsync(CancellationToken cancellationToken = default) =>
-            Unsupported<IReadOnlyList<QuizListItem>>();
-
-        public Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Unsupported<QuizPlayView?>();
-
-        public Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
-            CancellationToken cancellationToken = default) =>
-            Unsupported<IReadOnlyList<QuizSprintQuestion>>();
-
-        public Task<QuizSubmissionResult?> SubmitAsync(
-            Guid quizId,
-            Guid? memberAccountId,
-            IReadOnlyList<QuizAnswerSubmission> answers,
-            CancellationToken cancellationToken = default) =>
-            Unsupported<QuizSubmissionResult?>();
-
-        public Task<QuizLeaderboardResult> GetLeaderboardAsync(
-            QuizLeaderboardScope scope,
-            Guid? viewerMemberId,
-            int top = 10,
-            CancellationToken cancellationToken = default) =>
-            Unsupported<QuizLeaderboardResult>();
-
-        public Task RecordSprintRunAsync(
-            Guid memberAccountId,
-            QuizSprintScore score,
-            CancellationToken cancellationToken = default) =>
-            Unsupported();
-
-        public Task<bool> ClaimSprintRunAsync(
-            Guid runId,
-            Guid memberAccountId,
-            QuizSprintScore score,
-            DateTimeOffset completedAt,
-            CancellationToken cancellationToken = default) =>
-            Unsupported<bool>();
-
-        private static Task Unsupported() => Task.FromException(new NotSupportedException());
-
-        private static Task<T> Unsupported<T>() => Task.FromException<T>(new NotSupportedException());
     }
 }

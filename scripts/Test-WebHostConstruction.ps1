@@ -50,6 +50,8 @@ $script:InfrastructureFileNames = [System.Collections.Generic.HashSet[string]]::
         "QueenZoneWebApplicationFactory.cs",
         "EnvironmentWebApplicationFactories.cs",
         "WebHostVariants.cs",
+        "WebHostVariants.Admin.cs",
+        "WebHostVariants.Slice3d.cs",
         "WebHostVariantCache.cs",
         "InspectableBlobWebApplicationFactory.cs",
         "AdminEfWebTestHarness.cs",

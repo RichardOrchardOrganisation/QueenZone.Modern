@@ -16,7 +16,11 @@ public sealed class AdminPollsRoutesTests : IClassFixture<WebHostVariantCache>, 
         throwingPublish = variants.Get(WebHostVariants.IsolatedHomePollsThrowingPublish);
     }
 
-    public Task InitializeAsync() => factory.ResetAsync();
+    public async Task InitializeAsync()
+    {
+        await factory.ResetAsync();
+        await throwingPublish.ResetAsync();
+    }
 
     public Task DisposeAsync() => Task.CompletedTask;
 

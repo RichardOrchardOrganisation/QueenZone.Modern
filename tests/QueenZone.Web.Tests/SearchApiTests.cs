@@ -4,7 +4,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QueenZone.Data;
@@ -13,13 +12,17 @@ using QueenZone.Web.Pages;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class SearchApiTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory timeoutHost;
 
-    public SearchApiTests(QueenZoneWebApplicationFactory factory)
+    public SearchApiTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        timeoutHost = variants.Get(WebHostVariants.SiteSearchTimeout);
     }
 
     [Fact]
@@ -229,12 +232,7 @@ public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactor
     [Fact]
     public async Task Search_sql_timeout_returns_problem_details_504_not_empty_page()
     {
-        using var timeoutFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ISiteSearchService>();
-            services.AddSingleton<ISiteSearchService>(new TimeoutSiteSearchService());
-        });
-        using var client = timeoutFactory.CreateAnonymousClient();
+        using var client = timeoutHost.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{SearchApiEndpoints.Path}?q=Bohemian+Rhapsody");
 
