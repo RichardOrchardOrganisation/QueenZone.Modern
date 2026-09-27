@@ -41,6 +41,15 @@ test('parseFindings keeps malformed tags out of filings', () => {
   assert.equal(malformed.length, 1);
 });
 
+test('finding tags handle long malformed comments and flexible whitespace', () => {
+  const valid = '<!--\n qz-finding\t v=1  level=L2 rule=csharp.regex-timeout repeat=yes file=src/A.cs:1 verdict=blocking -->';
+  const text = `<!-- ${'x'.repeat(100_000)} -->\n${valid}`;
+  const { findings, malformed } = parseFindings(text);
+  assert.equal(findings.length, 1);
+  assert.equal(malformed.length, 0);
+  assert.equal(findings[0].rule, 'csharp.regex-timeout');
+});
+
 test('filer marker parses keys and rejects empty or spaced keys', () => {
   const marker = parseFilerMarker('hello\n<!-- qz-filer v=1 keys=review:csharp.regex-timeout,sonar:javascript:S1 source=review -->\n');
   assert.deepEqual(marker.keys, ['review:csharp.regex-timeout', 'sonar:javascript:S1']);
@@ -49,4 +58,5 @@ test('filer marker parses keys and rejects empty or spaced keys', () => {
   assert.equal(keysOverlap(['a', 'b'], ['b', 'c']), true);
   assert.equal(keysOverlap(['a'], ['c']), false);
   assert.equal(isFilerComment('update\n<!-- qz-filer v=1 -->\n'), true);
+  assert.equal(isFilerComment('<!-- qz-filer v=1 keys=foo -->'), false);
 });

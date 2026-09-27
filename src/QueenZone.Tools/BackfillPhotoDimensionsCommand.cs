@@ -68,14 +68,14 @@ internal static class BackfillPhotoDimensionsCommand
                 if (measured is null)
                 {
                     failed++;
-                    Console.Error.WriteLine($"  FAIL pic_id={row.PicId}: could not load/decode image");
+                    await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: could not load/decode image");
                     continue;
                 }
 
                 if (measured.Width <= 0 || measured.Height <= 0)
                 {
                     failed++;
-                    Console.Error.WriteLine($"  FAIL pic_id={row.PicId}: measured non-positive size");
+                    await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: measured non-positive size");
                     continue;
                 }
 
@@ -83,7 +83,7 @@ internal static class BackfillPhotoDimensionsCommand
                 if (measured.Width > short.MaxValue || measured.Height > short.MaxValue)
                 {
                     failed++;
-                    Console.Error.WriteLine(
+                    await Console.Error.WriteLineAsync(
                         $"  FAIL pic_id={row.PicId}: measured {measured.Width}x{measured.Height} exceeds smallint");
                     continue;
                 }
@@ -107,7 +107,7 @@ internal static class BackfillPhotoDimensionsCommand
             catch (Exception ex)
             {
                 failed++;
-                Console.Error.WriteLine($"  FAIL pic_id={row.PicId}: {ex.Message}");
+                await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: {ex.Message}");
             }
 
             if (options.DelayMs > 0)

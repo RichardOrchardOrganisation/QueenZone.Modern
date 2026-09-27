@@ -88,7 +88,11 @@ internal static class BackfillFanPerformanceDurationsCommand
                 succeeded++;
                 Console.WriteLine($"{row.Id}: {duration} seconds{(apply ? " saved" : " (dry run)")}");
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
             {
                 failed++;
                 await Console.Error.WriteLineAsync($"{row.Id}: {ex.GetType().Name}: {ex.Message}");

@@ -3,9 +3,28 @@
  * Tag contract: .cursor/agents/reviewer.md and #1802.
  */
 
-export const FINDING_RE = /<!--\s*qz-finding\s+v=1\s+([^>]*?)\s*-->/g;
-export const FILER_MARKER_RE = /<!--\s*qz-filer\s+v=1\s+([^>]*?)\s*-->/;
-export const FILER_COMMENT_RE = /<!--\s*qz-filer\s+v=1\s*-->/;
+function* tags(text, kind) {
+  const source = String(text || '');
+  let offset = 0;
+  while (offset < source.length) {
+    const start = source.indexOf('<!--', offset);
+    if (start === -1) {
+      return;
+    }
+    const end = source.indexOf('-->', start + 4);
+    if (end === -1) {
+      return;
+    }
+    const content = source.slice(start + 4, end);
+    if (!content.includes('>')) {
+      const [tagKind, version, ...fields] = content.trim().split(/\s+/);
+      if (tagKind === kind && version === 'v=1') {
+        yield { raw: source.slice(start, end + 3), fields: fields.join(' ') };
+      }
+    }
+    offset = end + 3;
+  }
+}
 
 const RULE_RE = /^[a-z0-9]+(\.[a-z0-9-]+)+$/;
 const LEVELS = new Set(['L1', 'L2', 'L3', 'L4', 'L5']);
@@ -42,11 +61,10 @@ export function isValidFinding(fields) {
 export function parseFindings(text, extra = {}) {
   const findings = [];
   const malformed = [];
-  const source = String(text || '');
-  for (const match of source.matchAll(FINDING_RE)) {
-    const fields = parseFields(match[1]);
+  for (const tag of tags(text, 'qz-finding')) {
+    const fields = parseFields(tag.fields);
     if (!isValidFinding(fields)) {
-      malformed.push({ raw: match[0], fields, ...extra });
+      malformed.push({ raw: tag.raw, fields, ...extra });
       continue;
     }
     findings.push({
@@ -59,11 +77,11 @@ export function parseFindings(text, extra = {}) {
 }
 
 export function parseFilerMarker(body) {
-  const match = String(body || '').match(FILER_MARKER_RE);
-  if (!match) {
+  const marker = tags(body, 'qz-filer').next().value;
+  if (!marker) {
     return null;
   }
-  const fields = parseFields(match[1]);
+  const fields = parseFields(marker.fields);
   const keys = String(fields.keys || '')
     .split(',')
     .map((key) => key.trim())
@@ -80,7 +98,12 @@ export function keysOverlap(left, right) {
 }
 
 export function isFilerComment(body) {
-  return FILER_COMMENT_RE.test(String(body || ''));
+  for (const tag of tags(body, 'qz-filer')) {
+    if (!tag.fields) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function levelRank(level) {

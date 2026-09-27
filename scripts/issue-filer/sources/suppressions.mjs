@@ -15,10 +15,10 @@ export function parseSuppressionDiff(patch, patterns, { config } = {}) {
       commit = commitMatch[1];
       continue;
     }
-    const dateMatch = line.match(/^Date:\s+(.+)$/);
-    if (dateMatch) {
-      const parsed = Date.parse(dateMatch[1]);
-      date = Number.isNaN(parsed) ? dateMatch[1] : new Date(parsed).toISOString();
+    if (line.startsWith('Date: ')) {
+      const dateText = line.slice('Date: '.length).trim();
+      const parsed = Date.parse(dateText);
+      date = Number.isNaN(parsed) ? dateText : new Date(parsed).toISOString();
       continue;
     }
     if (line.startsWith('diff --git a/')) {
