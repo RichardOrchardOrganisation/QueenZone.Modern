@@ -46,14 +46,15 @@ module.exports = defineConfig([
           ],
         },
       ],
-      // eslint-plugin-react-hooks@7 recommended also ships React Compiler rules. These six
-      // still have violations; each is switched back on by #1821. Do not add to this list.
-      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/preserve-manual-memoization': 'error',
+      // Reanimated shared values in ZoomableArchiveImage need a focused compiler-compatible rewrite (#1821).
       'react-hooks/immutability': 'off',
-      'react-hooks/globals': 'off',
+      'react-hooks/globals': 'error',
+      // Latest-value refs and gesture refs span the query hooks and screens (#1821).
       'react-hooks/refs': 'off',
+      // Existing effect-driven resets and loads need state-flow refactors (#1821).
       'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/purity': 'off',
+      'react-hooks/purity': 'error',
     },
   },
   {
