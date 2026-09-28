@@ -47,6 +47,30 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task EnsureCategoryAsync_SkipsSyntheticCategoryLegacyIds()
+    {
+        await SeedCategoryAsync();
+        dbContext.ModernForumCategories.Add(new ModernForumCategoryEntity
+        {
+            LegacyForumId = 2,
+            Name = "Synthetic archive grouping",
+            SortOrder = 2,
+            IsSynthetic = true,
+            ImportedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var categoryId = await repository.EnsureCategoryAsync(
+            NewsForumDiscussion.CategorySlug,
+            NewsForumDiscussion.CategoryName);
+
+        Assert.Equal(3, categoryId);
+        Assert.Equal(NewsForumDiscussion.CategoryName,
+            (await dbContext.ModernForumCategories.SingleAsync(category => category.LegacyForumId == categoryId)).Name);
+    }
+
+    [Fact]
     public async Task EnsureCategoryAsync_PrefersSlugMatch_ThenCreatesWhenNameDoesNotMatch()
     {
         await SeedCategoryAsync();

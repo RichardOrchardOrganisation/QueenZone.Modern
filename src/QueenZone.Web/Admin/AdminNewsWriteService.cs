@@ -24,23 +24,26 @@ public sealed class AdminNewsWriteService(
     {
         var firstPublish = !article.IsPublished;
         await adminNewsRepository.PublishAsync(article.Id, editorEmail, article.UpdatedAt, cancellationToken);
+        if (firstPublish || article.ForumTopicId is null)
+        {
+            try
+            {
+                await newsForumTopicService.EnsureTopicOnFirstPublishAsync(article, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(
+                    ex,
+                    "News forum topic create failed after news publish {NewsId} for category {Category}: {Error}",
+                    article.Id,
+                    NewsForumDiscussion.CategoryName,
+                    ex.Message);
+            }
+        }
+
         if (!firstPublish)
         {
             return;
-        }
-
-        try
-        {
-            await newsForumTopicService.EnsureTopicOnFirstPublishAsync(article, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(
-                ex,
-                "News forum topic create failed after news publish {NewsId} for category {Category}: {Error}",
-                article.Id,
-                NewsForumDiscussion.CategoryName,
-                ex.Message);
         }
 
         try
