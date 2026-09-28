@@ -619,7 +619,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
 
         var now = DateTime.UtcNow;
         var categories = await dbContext.ModernForumCategories
-            .Where(category => !category.IsSynthetic)
             .ToListAsync(cancellationToken);
         var nextLegacyId = categories.Select(category => category.LegacyForumId).DefaultIfEmpty(0).Max() + 1;
         if (nextLegacyId < 2)

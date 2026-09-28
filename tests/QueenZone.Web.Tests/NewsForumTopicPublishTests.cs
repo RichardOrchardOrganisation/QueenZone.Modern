@@ -74,6 +74,24 @@ public sealed class NewsForumTopicPublishTests : IClassFixture<QueenZoneWebAppli
     }
 
     [Fact]
+    public async Task Republish_RetriesMissingForumTopic()
+    {
+        using var scope = factory.Services.CreateScope();
+        var (write, admin, forumWrite, _) = Resolve(scope);
+        var draft = await CreateDraftAsync(admin, "Repair missing discussion article");
+        await admin.PublishAsync(draft.Id, "editor@test.local", draft.UpdatedAt);
+        var published = await admin.GetByIdAsync(draft.Id);
+        Assert.NotNull(published);
+        Assert.Null(published!.ForumTopicId);
+
+        await write.PublishAsync(published, "editor@test.local");
+
+        var repaired = await admin.GetByIdAsync(draft.Id);
+        Assert.NotNull(repaired!.ForumTopicId);
+        Assert.Single(forumWrite.GetCreatedThreads(), thread => thread.TopicId == repaired.ForumTopicId);
+    }
+
+    [Fact]
     public async Task EnsureTopic_WhenForumTopicIdAlreadySet_IsNoOp()
     {
         using var scope = factory.Services.CreateScope();
