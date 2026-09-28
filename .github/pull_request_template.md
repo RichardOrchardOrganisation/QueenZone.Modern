@@ -57,6 +57,9 @@ Issue:
      and GitHub will not auto-close from a code span.
      Correct: Relates to #1863
      Wrong: the same phrase inside backticks or a fenced code block.
+     N must be an issue, not a pull request. The check fails if any keyword
+     line (e.g. Relates to #N) references a PR. To mention a related PR,
+     write it without a link keyword, e.g. Related PR: #1788.
      Closes / Fixes / Resolves close the issue on merge.
      Part of / Relates to do not.
      Issue-less PRs: apply the `no-issue` label. Dependabot is exempt.
