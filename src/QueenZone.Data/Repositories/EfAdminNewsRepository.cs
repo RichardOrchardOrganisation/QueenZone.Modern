@@ -53,14 +53,10 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
 
         var totalCount = await GetAdminNewsTotalCountAsync(cancellationToken);
 
-        var pagingSuffix = IsSqliteDatabase()
-            ? " ORDER BY PublishedAt DESC, NewsId DESC LIMIT {1} OFFSET {0}"
-            : " ORDER BY PublishedAt DESC, NewsId DESC OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY";
-
 #pragma warning disable EF1003 // SQL is generated from fixed schema-detection branches, not user input.
         var rows = await dbContext.NewsRows
             .FromSqlRaw(
-                latestNewsSql + pagingSuffix,
+                latestNewsSql + " ORDER BY PublishedAt DESC, NewsId DESC OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY",
                 offset,
                 normalizedPageSize)
             .AsNoTracking()
@@ -257,9 +253,4 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
         return values.FirstOrDefault();
     }
 
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
 }
