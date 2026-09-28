@@ -172,7 +172,6 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
         sanitizer.AllowedAttributes.Add("src");
         sanitizer.AllowedAttributes.Add("alt");
         sanitizer.AllowedAttributes.Add("title");
-        sanitizer.AllowedAttributes.Add("class");
         sanitizer.AllowedAttributes.Add("loading");
 
         sanitizer.AllowedSchemes.Clear();
@@ -254,7 +253,7 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
             img.SetAttribute("alt", string.Empty);
         }
 
-        img.SetAttribute("class", MergeClass(img.GetAttribute("class"), "qz-ugc-img"));
+        img.SetAttribute("class", "qz-ugc-img");
         img.SetAttribute("loading", "lazy");
 
         // Skip wrapping if already inside a link.
@@ -280,19 +279,4 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
         anchor.AppendChild(img);
     }
 
-    private static string MergeClass(string? existing, string add)
-    {
-        if (string.IsNullOrWhiteSpace(existing))
-        {
-            return add;
-        }
-
-        if (existing.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Contains(add, StringComparer.Ordinal))
-        {
-            return existing;
-        }
-
-        return existing + " " + add;
-    }
 }

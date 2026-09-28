@@ -22,6 +22,17 @@ public sealed class UgcHtmlTests
     }
 
     [Fact]
+    public void Sanitize_strips_member_supplied_classes_before_storage()
+    {
+        var html = Create().Sanitize(
+            """<p class="qz-admin-bar evil">Text</p><span class="ql-ui">item</span><img class="qz-ugc-img qz-button" src="/ugc/forum/a/photo.webp">""");
+
+        Assert.DoesNotContain("class=", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<p>Text</p>", html);
+        Assert.Contains("/ugc/forum/a/photo.webp", html);
+    }
+
+    [Fact]
     public void Sanitize_keeps_allowed_markup_and_approved_images()
     {
         var input = """
@@ -84,6 +95,19 @@ public sealed class UgcHtmlTests
         Assert.Contains("src=\"/ugc/forum/editors/me/abc-thumb.webp\"", html);
         Assert.Contains("qz-ugc-img", html);
         Assert.DoesNotContain("evil", html);
+    }
+
+    [Fact]
+    public void FormatForDisplay_replaces_member_classes_with_image_display_class()
+    {
+        var html = Create(publicBaseUrl: null).FormatForDisplay(
+            """<p class="qz-admin-bar evil">Text</p><img class="qz-button qz-ugc-img" src="/ugc/forum/a/photo.webp">""");
+
+        Assert.DoesNotContain("qz-admin-bar", html);
+        Assert.DoesNotContain("qz-button", html);
+        Assert.DoesNotContain("evil", html);
+        Assert.Contains("class=\"qz-ugc-img\"", html);
+        Assert.Contains("class=\"qz-ugc-img-link\"", html);
     }
 
     [Fact]
