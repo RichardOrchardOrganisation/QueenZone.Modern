@@ -94,6 +94,7 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 - Whether real legacy database checks were run.
 - Any skipped checks or known follow-up work.
 - A `## Verification` section when the PR changes mobile screens/navigation/UI or web Pages/Views/wwwroot: feature-map ids, the `capture-proof` command, platform, result, and proof links (or `Not verified:` naming the remaining check). Cloud agents cannot run the Android emulator; write `NOT RUN` and dispatch `mobile-device-smoke.yml` with `suite: proof`. Opt out only with the `no-ui-verification` label plus `Verification-skip-reason:`. Expo web is not mobile proof.
+- An `Issue:` line: `Closes #N`, `Fixes #N`, `Resolves #N`, `Part of #N`, or `Relates to #N`. Always include it.
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 
@@ -103,7 +104,7 @@ Every merge to `main` goes through GitHub's merge queue with squash. After openi
 
 ### Linking issues so merge auto-closes them
 
-Fill in the template's `## Issues` section with a real GitHub closing keyword — `Closes #123`, `Fixes #123`, or `Resolves #123` — for every issue the PR fully resolves. GitHub only auto-closes an issue on merge when one of those keywords appears; a prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else in the PR body (including `## Summary`) does not trigger it and leaves the issue open after merge. Use `Relates to #123` for issues the PR only touches without resolving. The `pr-issue-link-check` CI job fails the PR if it references an issue number without a recognized closing or relating keyword, so use the correct keyword up front rather than fixing it after the check fails.
+Every PR description must include at least one line matching `Closes #N`, `Fixes #N`, `Resolves #N`, `Part of #N`, or `Relates to #N` (case-insensitive). Always include that line. The template's `Issue:` section lists those options. `Closes` / `Fixes` / `Resolves` close the issue on merge; `Part of` and `Relates to` do not. A prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else does not close the issue. Each N must be an existing issue in this repository, not a pull request. The `check-issue-link` job fails without that line, or if N is not an issue. Dependabot and the `no-issue` label are exempt; the check says which one applied. Editing the description re-runs the check.
 
 ## Grok and other non-Cursor agents
 

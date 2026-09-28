@@ -2,58 +2,37 @@ name: PR issue link check
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
 
 permissions:
-  pull-requests: read
   contents: read
+  pull-requests: read
+  issues: read
 
 jobs:
   check-issue-link:
     runs-on: ubuntu-latest
     steps:
-      - name: Flag resolution language that won't auto-close its issue
+      - name: Pass trivially in the merge queue
+        if: github.event_name == 'merge_group'
+        run: echo "Issue link already checked on the pull request; passing trivially in the merge queue."
+
+      - name: Checkout
+        if: github.event_name != 'merge_group'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check issue link
+        if: github.event_name != 'merge_group'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const pullRequest = context.payload.pull_request;
-            if (!pullRequest) {
-              core.info('No pull request payload; skipping issue link check.');
-              return;
-            }
-
-            const body = pullRequest.body || '';
-
-            // GitHub's own closing keywords: https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue
-            const closingKeywordPattern = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
-            const closedIssueNumbers = new Set();
-            for (const match of body.matchAll(closingKeywordPattern)) {
-              closedIssueNumbers.add(match[1]);
-            }
-
-            // Prose that reads like "this PR resolves #N" but uses a verb GitHub
-            // doesn't recognize, so merge silently leaves the issue open.
-            // "Closes"/"Fixes"/"Resolves" are excluded here since they're already
-            // handled (and permitted) above.
-            const impliedResolutionPattern =
-              /\b(?:implements?|addresses?|completes?|delivers?|finishes?)\b[^.\n]{0,40}?#(\d+)/gi;
-
-            const missingKeywordIssueNumbers = new Set();
-            for (const match of body.matchAll(impliedResolutionPattern)) {
-              if (!closedIssueNumbers.has(match[1])) {
-                missingKeywordIssueNumbers.add(match[1]);
-              }
-            }
-
-            if (missingKeywordIssueNumbers.size === 0) {
-              core.info('No unrecognized resolution language found.');
-              return;
-            }
-
-            const list = [...missingKeywordIssueNumbers].map((n) => `#${n}`).join(', ');
-            core.setFailed(
-              `PR body describes resolving ${list} (e.g. "Implements #N") without a GitHub ` +
-              `closing keyword, so merging this PR will NOT auto-close ${list}. ` +
-              `Add "Closes #N" / "Fixes #N" / "Resolves #N" to the Issues section if this PR ` +
-              `fully resolves the issue. See AGENTS.md > "Linking issues so merge auto-closes them".`
-            );
+            const { pathToFileURL } = require('node:url');
+            const path = require('node:path');
+            const href = pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, 'scripts/check-pr-issue-link.mjs')).href;
+            const { checkPullRequestIssueLink } = await import(href);
+            await checkPullRequestIssueLink({ github, context, core });
