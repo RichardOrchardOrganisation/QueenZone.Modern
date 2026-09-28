@@ -33,7 +33,10 @@ export function usePrefetchNeighbours(
     }
 
     prefetchedForRef.current = current;
-    void Image.prefetch(uris, 'memory-disk').catch(() => {});
+    void Image.prefetch(uris, 'memory-disk').catch(() => {
+      // Prefetch is optional; let the next image load try again instead of pinning a failed attempt.
+      prefetchedForRef.current = null;
+    });
   }, []);
 
   const neighbourKey = neighbourUris.filter((value) => typeof value === 'string' && value.length > 0).join('\0');

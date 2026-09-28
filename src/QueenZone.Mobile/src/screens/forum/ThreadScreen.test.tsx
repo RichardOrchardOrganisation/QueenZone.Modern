@@ -991,4 +991,19 @@ describe('ThreadScreen forum moderation', () => {
     fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
     expect(alert.mock.calls[0]?.[2]?.some((action) => action.text === 'Report post')).toBe(false);
   });
+
+  it('shows moderation status failure and retries it', async () => {
+    fetchModerationState
+      .mockRejectedValueOnce(new ApiError(500, 'Moderation unavailable'))
+      .mockResolvedValueOnce({ reportedPostIds: [42], blockedMemberIds: [] });
+    renderThread();
+
+    await waitFor(() =>
+      expect(screen.getByText('Could not load report and block status. Try again.')).toBeOnTheScreen(),
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(fetchModerationState).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText('Report submitted')).toBeOnTheScreen());
+    expect(screen.queryByText('Could not load report and block status. Try again.')).toBeNull();
+  });
 });

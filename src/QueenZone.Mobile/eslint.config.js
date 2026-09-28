@@ -2,6 +2,35 @@ const { defineConfig, globalIgnores } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 const globals = require('globals');
 
+const screenErrorRules = {
+  rules: {
+    'no-swallowed-promise-error': {
+      meta: {
+        type: 'problem',
+        messages: {
+          swallowed: 'Handle failed screen work with an error state or an explicit fallback (#1840).',
+        },
+      },
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (node.callee.type !== 'MemberExpression' || node.callee.property.name !== 'catch') return;
+            const handler = node.arguments[0];
+            if (handler?.type !== 'ArrowFunctionExpression') return;
+            const body = handler.body;
+            if (
+              (body.type === 'Identifier' && body.name === 'undefined') ||
+              (body.type === 'BlockStatement' && body.body.length === 0)
+            ) {
+              context.report({ node: handler, messageId: 'swallowed' });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 module.exports = defineConfig([
   globalIgnores([
     'ios/**',
@@ -84,6 +113,14 @@ module.exports = defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    files: ['src/screens/forum/**/*.{ts,tsx}', 'src/screens/photos/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.ts', '**/*.test.tsx'],
+    plugins: { 'screen-errors': screenErrorRules },
+    rules: {
+      'screen-errors/no-swallowed-promise-error': 'error',
     },
   },
 ]);
