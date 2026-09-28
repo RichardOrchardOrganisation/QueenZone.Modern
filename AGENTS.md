@@ -155,7 +155,7 @@ The codebase is agents' memory, so a workaround copied once becomes the pattern.
   - `react-hooks/exhaustive-deps` disables. Destructure the function you call (`const { refresh } = paged;`) and list it, or make helpers stable with `useCallback`. Reanimated shared values in `ZoomableArchiveImage` are the only kept case.
   - The six React Compiler rules still `off` in `src/QueenZone.Mobile/eslint.config.js` (#1821). Don't turn off more rules.
   - The mobile `react-native-reanimated` / `react-native-worklets` pins, the JS-thread pinch/double-tap in `ZoomableArchiveImage`, and the `image-size` override (#1782).
-- Before writing a small private helper (normalise, truncate, tag-strip, rowversion check, unique-violation check), search for a shared one: `SubmissionInput`, `DbUpdateExceptionExtensions`. Known duplicates still waiting to merge are listed in #1822; don't add another copy.
+- Before writing a small private helper (normalise, truncate, tag-strip, rowversion check, unique-violation check), search for a shared one: `SubmissionInput`, `TriviaValidation`, `HtmlTags`, `LegacyDateTime`, `QueenZoneConcurrency`, or `DbUpdateExceptionExtensions`. #1822 consolidated the known duplicates; don't add another copy.
 
 ## Testing Expectations
 

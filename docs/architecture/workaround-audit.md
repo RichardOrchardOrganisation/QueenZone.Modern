@@ -10,7 +10,7 @@ There are none of these: `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `HACK` / 
 
 ## Decisions
 
-**Remove now** means it was done in [#1823](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1823) (suppressions and pins) or [#1825](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1825) (duplicated helpers). **Remove with #N** means it stays until that issue lands. **Keep** means it stays, with the reason given, and the ratchet stops new copies.
+**Remove now** means it was done in [#1823](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1823) (suppressions and pins), [#1825](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1825) (submission helpers), or [#1843](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1843) (remaining duplicated helpers from #1822). **Remove with #N** means it stays until that issue lands. **Keep** means it stays, with the reason given, and the ratchet stops new copies.
 
 ### Removed now
 
@@ -24,6 +24,7 @@ There are none of these: `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `HACK` / 
 | `QueenZone.Data.csproj`, `Directory.Packages.props` | Direct `System.Security.Cryptography.Xml` pin | No package in the graph references it any more. |
 | Six `InMemory*Repository` classes and `EfHelpRequestRepository` | Private copies of `NormalizeOptional(value, maxLength)` | Identical to `SubmissionInput.NormalizeOptional` (#1788). |
 | `EfDeviceTokenRepository`, `EfHomePollRepository`, `EfPrivateMessageRepository` | Pass-through `IsUniqueConstraintViolation` wrappers | Callers use the `DbUpdateExceptionExtensions` extension directly. |
+| Article, forum, trivia, news-agent, and idempotency code ([#1822](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1822)) | Private `HtmlTagRegex`, `ToOffset`, `EnsureRowVersion`, trivia normalisation, and unique-violation helpers | [#1843](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1843) consolidated them into shared helpers while preserving the intentional row-version and null-handling differences. |
 
 ### Remove with a linked issue
 
