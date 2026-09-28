@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -14,7 +13,6 @@ public sealed class EfBiographyRepository : IBiographyRepository
     private readonly string listSql;
     private readonly Func<short, FormattableString> detailSql;
 
-    [ExcludeFromCodeCoverage]
     public EfBiographyRepository(QueenZoneDbContext dbContext)
         : this(
             dbContext,
@@ -75,7 +73,6 @@ public sealed class EfBiographyRepository : IBiographyRepository
         return new BiographyChapterNav(previous, next);
     }
 
-    [ExcludeFromCodeCoverage] // SQL Server legacy Q_BIO_T writes; covered via in-memory admin tests.
     public async Task<int> CreateAsync(AdminBiographyDraft draft, CancellationToken cancellationToken = default)
     {
         const string sql = """
@@ -91,7 +88,6 @@ public sealed class EfBiographyRepository : IBiographyRepository
             cancellationToken: cancellationToken);
     }
 
-    [ExcludeFromCodeCoverage] // SQL Server legacy Q_BIO_T writes; covered via in-memory admin tests.
     public async Task UpdateAsync(int id, AdminBiographyDraft draft, CancellationToken cancellationToken = default)
     {
         const string sql = """
