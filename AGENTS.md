@@ -94,6 +94,7 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 - Whether real legacy database checks were run.
 - Any skipped checks or known follow-up work.
 - A `## Verification` section when the PR changes mobile screens/navigation/UI or web Pages/Views/wwwroot: feature-map ids, the `capture-proof` command, platform, result, and proof links (or `Not verified:` naming the remaining check). Cloud agents cannot run the Android emulator; write `NOT RUN` and dispatch `mobile-device-smoke.yml` with `suite: proof`. Opt out only with the `no-ui-verification` label plus `Verification-skip-reason:`. Expo web is not mobile proof.
+- An Issue line as plain text (never inside backticks or a code block): Closes #N, Fixes #N, Resolves #N, Part of #N, or Relates to #N. Always include it. N must be an issue, not a pull request.
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 
@@ -103,7 +104,19 @@ Every merge to `main` goes through GitHub's merge queue with squash. After openi
 
 ### Linking issues so merge auto-closes them
 
-Fill in the template's `## Issues` section with a real GitHub closing keyword — `Closes #123`, `Fixes #123`, or `Resolves #123` — for every issue the PR fully resolves. GitHub only auto-closes an issue on merge when one of those keywords appears; a prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else in the PR body (including `## Summary`) does not trigger it and leaves the issue open after merge. Use `Relates to #123` for issues the PR only touches without resolving. The `pr-issue-link-check` CI job fails the PR if it references an issue number without a recognized closing or relating keyword, so use the correct keyword up front rather than fixing it after the check fails.
+Every PR description must include at least one **plain-text** line matching Closes #N, Fixes #N, Resolves #N, Part of #N, or Relates to #N (case-insensitive). Always include that line. Never wrap it in backticks or a fenced code block: `check-issue-link` strips those, and GitHub will not auto-close an issue from a code span.
+
+Correct:
+
+Relates to #1863
+
+Wrong: wrapping the same phrase in backticks or a fenced code block.
+
+N must be an existing issue, not a pull request. The check fails if any keyword line (for example Relates to #N) references a PR. To mention a related PR, write it without a link keyword:
+
+Related PR: #1788
+
+The template's Issue section lists those options. Closes / Fixes / Resolves close the issue on merge; Part of and Relates to do not. A prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else does not close the issue. Each N must be an existing issue in this repository, not a pull request. The `check-issue-link` job fails without that line, or if N is not an issue. Dependabot and the `no-issue` label are exempt; the check says which one applied. Editing the description re-runs the check.
 
 ## Grok and other non-Cursor agents
 
@@ -154,7 +167,7 @@ The codebase is agents' memory, so a workaround copied once becomes the pattern.
   - `react-hooks/exhaustive-deps` disables. Destructure the function you call (`const { refresh } = paged;`) and list it, or make helpers stable with `useCallback`. Reanimated shared values in `ZoomableArchiveImage` are the only kept case.
   - The six React Compiler rules still `off` in `src/QueenZone.Mobile/eslint.config.js` (#1821). Don't turn off more rules.
   - The mobile `react-native-reanimated` / `react-native-worklets` pins, the JS-thread pinch/double-tap in `ZoomableArchiveImage`, and the `image-size` override (#1782).
-- Before writing a small private helper (normalise, truncate, tag-strip, rowversion check, unique-violation check), search for a shared one: `SubmissionInput`, `DbUpdateExceptionExtensions`. Known duplicates still waiting to merge are listed in #1822; don't add another copy.
+- Before writing a small private helper (normalise, truncate, tag-strip, rowversion check, unique-violation check), search for a shared one: `SubmissionInput`, `TriviaValidation`, `HtmlTags`, `LegacyDateTime`, `QueenZoneConcurrency`, or `DbUpdateExceptionExtensions`. #1822 consolidated the known duplicates; don't add another copy.
 
 ## Testing Expectations
 
@@ -173,7 +186,7 @@ Use deterministic sample or fake data for normal unit and web integration tests.
 
 If a PR touches any file under `design/tokens/`, also run `pwsh ./scripts/Sync-DesignTokens.ps1` before committing (see UI Architecture above) — CI's "Design token sync check" gate fails otherwise.
 
-When changing EF `SqlQueryRaw` projections over legacy tables, check the real SQL Server column types or cast projections to the C# row model types explicitly. Many legacy IDs and counts are `smallint`, which SQL Server materializes as `System.Int16`; in-memory route tests will not catch `Int16`-to-`Int32` mapping failures. Prefer a deterministic SQL-shape test plus an opt-in read-only legacy DB probe for new public legacy read surfaces.
+When changing EF `SqlQueryRaw` projections over legacy tables, check the real SQL Server column types or cast projections to the C# row model types explicitly. Many legacy IDs and counts are `smallint`, which SQL Server materializes as `System.Int16`; in-memory route tests will not catch `Int16`-to-`Int32` mapping failures. Prefer a deterministic SQL-shape test plus an opt-in read-only legacy DB probe for new public legacy read surfaces. Do not add new `IsSqliteDatabase()` branches for production SQL; use the SQL Server test + mirror probe pair in `docs/architecture/testing-policy.md` (#1672).
 
 Legacy read probes and self-cleaning write probes run automatically every night via `.github/workflows/nightly-legacy-checks.yml`. They use a same-day SQL Express mirror synced from the live Azure SQL DB, never the live database. The read probes run on macOS over the LAN; write probes run locally on the Windows SQL Express host. This is continuous signal, not a PR gate. See `docs/architecture/testing-policy.md` ("Data Integration Tests").
 

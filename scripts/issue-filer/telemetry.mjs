@@ -3,21 +3,29 @@
  * correlation, and dedupe-key construction. The shared filer still owns
  * markers, caps, ignore, reopen, and comments.
  */
+import { isIP } from 'node:net';
+
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NUMERIC_RE = /^\d+$/;
 const METHOD_RE = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/i;
 const CORRELATE_WINDOW_MS = 10 * 60 * 1000;
-const SENTRY_QUERY = 'is:unresolved (is:new OR is:regressed)';
+// Issues search rejects OR/AND/parentheses (docs.sentry.io/concepts/search/
+// "Using OR and AND" — those operators are only for Explore, Dashboards, and
+// Monitors). Split new vs regressed and merge by id. lastSeen:-Nh is the
+// documented 2h lookback (docs.sentry.io/concepts/search/searchable-properties/issues/).
+const SENTRY_STATUS_FILTERS = ['is:unresolved is:new', 'is:unresolved is:regressed'];
 const DEFAULT_SENTRY_HOST = 'https://sentry.io';
 const DEFAULT_SENTRY_ORG = 'self-0tb';
 const DEFAULT_SENTRY_PROJECT = 'queenzone-mobile';
+const SENTRY_ISSUES_LIMIT = 25;
+const SENTRY_STATS_PERIOD = '24h';
 
 export const LOOKBACK_HOURS = 2;
 export const REDACT_MAX_LENGTH = 120;
 
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const NON_WHITESPACE_RE = /\S+/g;
 const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-const IPV6_RE = /\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{0,4}\b/g;
+const IPV6_CANDIDATE_RE = /[0-9A-Fa-f:]+/g;
 const JWT_RE = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
 const BEARER_RE = /\b(?:Bearer|token)\s+[A-Za-z0-9._\-+/=]{8,}/gi;
 const API_KEY_RE = /\b(?:sk|pk|ghp|gho|github_pat|AIza)[-_][A-Za-z0-9_-]{16,}\b/g;
@@ -27,9 +35,18 @@ const LONG_B64_RE = /\b[A-Za-z0-9+/]{32,}={1,2}(?![A-Za-z0-9+/=])/g;
 
 export function redact(text, { maxLength = REDACT_MAX_LENGTH } = {}) {
   let value = String(text ?? '');
-  value = value.replace(EMAIL_RE, '[email]');
+  value = value.replace(NON_WHITESPACE_RE, (candidate) => {
+    const at = candidate.indexOf('@');
+    if (at < 1) {
+      return candidate;
+    }
+    const domain = candidate.slice(at + 1);
+    return domain.split('.').slice(1).some((part) => /^[A-Za-z]{2,}/.test(part))
+      ? '[email]'
+      : candidate;
+  });
   value = value.replace(IPV4_RE, '[ip]');
-  value = value.replace(IPV6_RE, '[ip]');
+  value = value.replace(IPV6_CANDIDATE_RE, (candidate) => isIP(candidate) === 6 ? '[ip]' : candidate);
   value = value.replace(BEARER_RE, '[token]');
   value = value.replace(JWT_RE, '[token]');
   value = value.replace(CONN_PAIR_RE, (match) => `${match.split('=')[0].trim()}=[secret]`);
@@ -41,6 +58,82 @@ export function redact(text, { maxLength = REDACT_MAX_LENGTH } = {}) {
     return `${value.slice(0, Math.max(1, maxLength - 1))}…`;
   }
   return value;
+}
+
+export function sentrySearchQueries({ lookbackHours = LOOKBACK_HOURS } = {}) {
+  const hours = Number(lookbackHours);
+  const windowHours = Number.isFinite(hours) && hours > 0 ? hours : LOOKBACK_HOURS;
+  const lookback = `lastSeen:-${windowHours}h`;
+  return SENTRY_STATUS_FILTERS.map((filter) => `${filter} ${lookback}`);
+}
+
+export function buildSentryIssuesUrl({
+  host = DEFAULT_SENTRY_HOST,
+  org = DEFAULT_SENTRY_ORG,
+  project = DEFAULT_SENTRY_PROJECT,
+  query,
+  limit = SENTRY_ISSUES_LIMIT,
+  statsPeriod = SENTRY_STATS_PERIOD,
+} = {}) {
+  const url = new URL(`/api/0/projects/${org}/${project}/issues/`, host);
+  url.searchParams.set('query', query);
+  url.searchParams.set('limit', String(limit));
+  url.searchParams.set('statsPeriod', statsPeriod);
+  return url;
+}
+
+export function mergeSentryIssuesById(lists) {
+  const byId = new Map();
+  for (const issue of lists.flat()) {
+    if (!issue?.id) {
+      continue;
+    }
+    const key = String(issue.id);
+    if (!byId.has(key)) {
+      byId.set(key, issue);
+    }
+  }
+  return [...byId.values()];
+}
+
+export function sentryErrorDetail(bodyText, { maxLength = REDACT_MAX_LENGTH } = {}) {
+  const raw = String(bodyText ?? '').trim();
+  if (!raw) {
+    return '';
+  }
+  let detail = '';
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.detail === 'string') {
+      detail = parsed.detail;
+    } else if (parsed?.detail && typeof parsed.detail === 'object') {
+      detail = parsed.detail.message || parsed.detail.code || '';
+    }
+  } catch {
+    detail = '';
+  }
+  return detail ? redact(detail, { maxLength }) : '';
+}
+
+export function formatSentryIssuesError(status, bodyText) {
+  const detail = sentryErrorDetail(bodyText);
+  return detail ? `Sentry issues failed: ${status}: ${detail}` : `Sentry issues failed: ${status}`;
+}
+
+export function isTelemetryCollectFailure(warning) {
+  const text = String(warning || '');
+  if (text.startsWith('sentry: ')) {
+    return !text.includes('SENTRY_TRIAGE_TOKEN is not set');
+  }
+  if (text.startsWith('azure: ')) {
+    const azure = text.slice('azure: '.length);
+    return azure === 'azure-graph-failed'
+      || azure === 'azure-workspace-failed'
+      || azure === 'azure-login-failed'
+      || azure === 'azure-arm-vars-missing'
+      || azure.startsWith('azure-kql-failed:');
+  }
+  return false;
 }
 
 export const ARG_ALERTS_QUERY = `
@@ -225,7 +318,11 @@ export function normalizeRoute(value) {
   } else {
     path = path.split('?')[0].split('#')[0];
   }
-  path = path.replace(/\/+$/, '');
+  let end = path.length;
+  while (end > 0 && path[end - 1] === '/') {
+    end -= 1;
+  }
+  path = path.slice(0, end);
   if (!path) {
     return '/';
   }
@@ -783,5 +880,7 @@ export {
   DEFAULT_SENTRY_HOST,
   DEFAULT_SENTRY_ORG,
   DEFAULT_SENTRY_PROJECT,
-  SENTRY_QUERY,
+  SENTRY_ISSUES_LIMIT,
+  SENTRY_STATS_PERIOD,
+  SENTRY_STATUS_FILTERS,
 };

@@ -77,7 +77,17 @@ test('azure warning file is surfaced so a collect failure is not a silent no-op'
     since,
     warnings,
     root: repoRootFrom(),
-    sentryIssues: [],
+    sentryIssues: [{
+      id: '42',
+      title: 'API 500 on news',
+      count: 3,
+      lastSeen: '2026-09-27T10:00:00Z',
+      firstSeen: '2026-09-27T09:50:00Z',
+      permalink: 'https://sentry.io/issues/42',
+    }],
+    sentryEvents: {
+      42: { extra: { path: '/news/1003/story' } },
+    },
     appInsightsAlerts: [],
     appInsightsEvidence: {},
     azureWarningsPath: warnPath,
@@ -94,12 +104,17 @@ test('Sentry Link next URL is pinned to sentry.io', () => {
   assert.equal(sentryNextPageUrl('<https://evil.example/steal>; rel="next"'), '');
   assert.equal(sentryNextPageUrl('<http://127.0.0.1/x>; rel="next"'), '');
   assert.equal(sentryNextPageUrl('<https://sentry.io.evil.example/x>; rel="next"'), '');
+  assert.equal(
+    String(sentryNextPageUrl('<https://sentry.io/first>; rel="prev", <https://sentry.io/second>; results="true"; rel="next"')),
+    'https://sentry.io/second',
+  );
 });
 
 test('defaultSentrySearch refuses a Link next URL off sentry.io', async () => {
   const urls = [];
   const issues = await defaultSentrySearch({
     token: 't',
+    query: 'is:unresolved is:new lastSeen:-2h',
     fetchImpl: async (url) => {
       urls.push(String(url));
       return {
@@ -116,9 +131,60 @@ test('defaultSentrySearch refuses a Link next URL off sentry.io', async () => {
   assert.equal(issues.length, 1);
   assert.equal(urls.length, 1);
   assert.match(urls[0], /sentry\.io/);
+  assert.match(urls[0], /query=is%3Aunresolved\+is%3Anew\+lastSeen%3A-2h/);
+  assert.match(urls[0], /statsPeriod=24h/);
 });
 
-test('Sentry search errors are swallowed so App Insights can still file', async () => {
+test('defaultSentrySearch runs new and regressed queries and merges by id', async () => {
+  const urls = [];
+  const issues = await defaultSentrySearch({
+    token: 't',
+    lookbackHours: 2,
+    fetchImpl: async (url) => {
+      urls.push(String(url));
+      const query = new URL(url).searchParams.get('query');
+      return {
+        ok: true,
+        json: async () => (query.includes('is:new')
+          ? [{ id: '1', title: 'new' }, { id: '2', title: 'shared' }]
+          : [{ id: '2', title: 'regressed' }, { id: '3', title: 'only-regressed' }]),
+        headers: { get: () => '' },
+      };
+    },
+  });
+  assert.equal(urls.length, 2);
+  assert.ok(urls.some((url) => url.includes('is%3Anew')));
+  assert.ok(urls.some((url) => url.includes('is%3Aregressed')));
+  assert.ok(urls.every((url) => !url.includes('OR')));
+  assert.deepEqual(issues.map((issue) => issue.id), ['1', '2', '3']);
+  assert.equal(issues.find((issue) => issue.id === '2').title, 'shared');
+});
+
+test('defaultSentrySearch includes redacted Sentry detail on 400', async () => {
+  await assert.rejects(
+    () => defaultSentrySearch({
+      token: 'super-secret-token-value',
+      query: 'is:unresolved (is:new OR is:regressed)',
+      fetchImpl: async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          detail: 'Boolean statements containing "OR" or "AND" are not supported in this search Bearer super-secret-token-value',
+        }),
+        headers: { get: () => '' },
+      }),
+    }),
+    (error) => {
+      assert.match(error.message, /Sentry issues failed: 400/);
+      assert.match(error.message, /Boolean statements containing "OR"/);
+      assert.doesNotMatch(error.message, /super-secret-token-value/);
+      assert.match(error.message, /\[token\]/);
+      return true;
+    },
+  );
+});
+
+test('Sentry search errors fail closed and do not return partial Azure candidates', async () => {
   const warnings = [];
   const candidates = await collect({
     config,
@@ -126,7 +192,7 @@ test('Sentry search errors are swallowed so App Insights can still file', async 
     warnings,
     root: repoRootFrom(),
     sentrySearch: async () => {
-      throw new Error('sentry down');
+      throw new Error('Sentry issues failed: 400: Boolean statements containing "OR" or "AND" are not supported in this search');
     },
     sentryToken: 'token',
     appInsightsAlerts: [{ rule: 'qz-prod-exception-spike' }],
@@ -139,7 +205,6 @@ test('Sentry search errors are swallowed so App Insights can still file', async 
       }],
     },
   });
-  assert.equal(candidates.length, 1);
-  assert.equal(candidates[0].keys[0], 'ai:exc:SqlException');
-  assert.match(warnings[0], /sentry down/);
+  assert.deepEqual(candidates, []);
+  assert.match(warnings[0], /Sentry issues failed: 400/);
 });

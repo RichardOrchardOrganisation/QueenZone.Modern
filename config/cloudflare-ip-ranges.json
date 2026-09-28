@@ -1,5 +1,5 @@
 {
-  "refreshed": "2026-09-22",
+  "refreshed": "2026-09-28",
   "source": ["https://www.cloudflare.com/ips-v4", "https://www.cloudflare.com/ips-v6"],
   "ipv4": [
     "173.245.48.0/20",

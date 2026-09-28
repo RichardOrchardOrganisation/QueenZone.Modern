@@ -329,8 +329,12 @@ export function parseCobertura(contents, { repoRoot = defaultRepoRoot } = {}) {
       }
     }
 
-    for (const line of block.matchAll(/<line\s+([^>]+)\/>/g)) {
-      const attrs = line[1];
+    for (const lineBlock of block.split(/<line\s+/).slice(1)) {
+      const tagEnd = lineBlock.indexOf('/>');
+      if (tagEnd === -1) {
+        throw new Error(`Malformed Cobertura report: line tag is not closed in ${repoPath}.`);
+      }
+      const attrs = lineBlock.slice(0, tagEnd);
       const number = Number(/number="(\d+)"/.exec(attrs)?.[1]);
       const hits = Number(/hits="(\d+)"/.exec(attrs)?.[1]);
       if (!Number.isFinite(number)) {

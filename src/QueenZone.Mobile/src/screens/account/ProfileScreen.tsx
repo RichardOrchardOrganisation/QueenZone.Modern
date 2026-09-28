@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { getAppConfig } from '../../config/appConfig';
 import { avatarUrl, formatMemberSince, type MemberProfile } from '../../api/me';
 import type { HomeStackParamList } from '../../navigation/types';
@@ -18,6 +18,8 @@ import { LoadingBlock } from '../../ui/ScreenStates';
 import { CrestSeal } from '../../ui/CrestSeal';
 import { Eyebrow } from '../../ui/Eyebrow';
 import { SettingsRow } from '../../ui/SettingsRow';
+import { openExternalUrl } from '../../ui/openExternalUrl';
+import { rateAppUrl } from './rateAppUrl';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Profile'>;
 
@@ -34,6 +36,7 @@ function initials(name: string | null): string {
 
 export function ProfileScreen({ navigation }: Props) {
   const { c, mode } = useTheme();
+  const ratingUrl = rateAppUrl(Platform.OS);
   const { isSignedIn, isRestoring, displayName, profile, refreshProfile, signOut } = useSession();
   const unreadCount = useUnreadConversationCount();
   const [busy, setBusy] = useState(false);
@@ -91,6 +94,11 @@ export function ProfileScreen({ navigation }: Props) {
         <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Appearance')}>
           <Text style={[type.button, { color: c.accentPrimary }]}>Appearance</Text>
         </Pressable>
+        {ratingUrl ? (
+          <Pressable accessibilityRole="button" onPress={() => void openExternalUrl(ratingUrl)}>
+            <Text style={[type.button, { color: c.accentPrimary }]}>Rate this app</Text>
+          </Pressable>
+        ) : null}
         <ArchiveFooter />
       </ScrollView>
     );
@@ -167,6 +175,9 @@ export function ProfileScreen({ navigation }: Props) {
       />
       <SettingsRow title="Suggest news" onPress={() => openSuggestNews(navigation)} />
       <SettingsRow title="Contact" onPress={() => navigation.navigate('Contact')} />
+      {ratingUrl ? (
+        <SettingsRow title="Rate this app" onPress={() => void openExternalUrl(ratingUrl)} />
+      ) : null}
       <SettingsRow
         title="Analytics preferences"
         subtitle="Control anonymous app-usage analytics."
