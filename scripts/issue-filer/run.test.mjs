@@ -465,6 +465,73 @@ test('telemetry dry-run will-create lines use redacted titles', async () => {
   assert.match(text, /\\\[email\\\]/);
 });
 
+test('telemetry collect failure writes the plan then exits non-zero without filing', async () => {
+  const github = fakeGithub();
+  const lines = [];
+  const warnings = ['sentry: Sentry issues failed: 400: Boolean statements containing "OR" or "AND" are not supported in this search'];
+  const result = await runFiler({
+    root: repoRootFrom(),
+    dryRun: false,
+    now,
+    loop: 'telemetry',
+    github,
+    config,
+    ignore,
+    findingRules,
+    warnings,
+    collectors: [
+      async () => [{
+        source: 'appinsights',
+        keys: ['ai:exc:SqlException'],
+        title: '[appinsights] should not file',
+        area: 'news',
+        evidence: [],
+        count: 2,
+        level: 'L2',
+      }],
+    ],
+    existing: [],
+    stdout: (line) => lines.push(String(line)),
+  });
+  assert.equal(result.collectFailed, true);
+  assert.equal(result.wrote, false);
+  assert.match(lines.join('\n'), /warnings: sentry: Sentry issues failed: 400/);
+  assert.ok(!github.calls.some((call) => call[0] === 'createIssue'));
+
+  const mainLines = [];
+  const mainGithub = fakeGithub();
+  const code = await main(['--loop', 'telemetry', '--lookback-hours', '2'], {
+    root: repoRootFrom(),
+    github: mainGithub,
+    token: 'x',
+    repository: 'org/repo',
+    owner: 'org',
+    repo: 'repo',
+    warnings: ['azure: azure-graph-failed'],
+    collectors: [async () => []],
+    stdout: (line) => mainLines.push(String(line)),
+  });
+  assert.equal(code, 1);
+  assert.match(mainLines.join('\n'), /azure-graph-failed/);
+  assert.ok(!mainGithub.calls.some((call) => call[0] === 'createIssue'));
+});
+
+test('telemetry zero-result collect still exits zero', async () => {
+  const lines = [];
+  const code = await main(['--loop', 'telemetry', '--lookback-hours', '2', '--dry-run'], {
+    root: repoRootFrom(),
+    github: fakeGithub(),
+    token: 'x',
+    repository: 'org/repo',
+    owner: 'org',
+    repo: 'repo',
+    collectors: [async () => []],
+    stdout: (line) => lines.push(String(line)),
+  });
+  assert.equal(code, 0);
+  assert.match(lines.join('\n'), /Silent run: nothing to file/);
+});
+
 test('missing ingest-findings file fails closed', () => {
   assert.throws(
     () => resolveIngestFindingsPath(repoRootFrom(), 'scripts/issue-filer/missing-findings.json'),

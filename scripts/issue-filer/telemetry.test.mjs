@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { loadFilerFiles, repoRootFrom } from './config.mjs';
 import {
   availabilityKey,
+  buildSentryIssuesUrl,
   captureProofCommand,
   candidateFromEvidence,
   correlateSignals,
@@ -12,10 +13,13 @@ import {
   exceptionKey,
   extractSentryPath,
   extractTraceId,
+  formatSentryIssuesError,
   ingestionKey,
   inAppFrames,
+  isTelemetryCollectFailure,
   keysForEvidence,
   matchFeatureMap,
+  mergeSentryIssuesById,
   normalizeRoute,
   parseArgAlerts,
   parseEvidenceRows,
@@ -23,7 +27,9 @@ import {
   redact,
   requestKey,
   routeMatchesTemplate,
+  sentryErrorDetail,
   sentryKey,
+  sentrySearchQueries,
   shouldDryRunScheduled,
   telemetrySourceLabels,
 } from './telemetry.mjs';
@@ -94,6 +100,61 @@ test('feature-map matching uses the #1800 URL templates', () => {
   assert.match(captureProofCommand('web.news.detail'), /verify-queenzone\/scripts\/control-queenzone.ps1 capture-proof -Feature web.news.detail/);
   assert.match(captureProofCommand('mobile.photos.viewer'), /verify-queenzone-mobile/);
   assert.match(captureProofCommand(''), /Not mapped/);
+});
+
+test('Sentry issue search splits new and regressed and omits OR', () => {
+  const queries = sentrySearchQueries({ lookbackHours: 2 });
+  assert.deepEqual(queries, [
+    'is:unresolved is:new lastSeen:-2h',
+    'is:unresolved is:regressed lastSeen:-2h',
+  ]);
+  for (const query of queries) {
+    assert.doesNotMatch(query, /\bOR\b|\bAND\b|[()]/);
+    const url = buildSentryIssuesUrl({ query });
+    assert.equal(url.pathname, '/api/0/projects/self-0tb/queenzone-mobile/issues/');
+    assert.equal(url.searchParams.get('query'), query);
+    assert.equal(url.searchParams.get('limit'), '25');
+    assert.equal(url.searchParams.get('statsPeriod'), '24h');
+  }
+});
+
+test('sentryErrorDetail uses the detail field, truncated and redacted', () => {
+  assert.equal(
+    sentryErrorDetail('{"detail":"Boolean statements containing \\"OR\\" or \\"AND\\" are not supported in this search"}'),
+    'Boolean statements containing "OR" or "AND" are not supported in this search',
+  );
+  assert.equal(
+    sentryErrorDetail(JSON.stringify({ detail: { message: 'nope Bearer abcdefghijklmnop' } })),
+    'nope [token]',
+  );
+  assert.equal(sentryErrorDetail('{"message":"ignore me"}'), '');
+  const long = sentryErrorDetail(JSON.stringify({ detail: `prefix ${'x'.repeat(200)}` }));
+  assert.ok(long.length <= 120);
+  assert.match(long, /…$/);
+  assert.equal(
+    formatSentryIssuesError(400, '{"detail":"Boolean statements containing \\"OR\\" or \\"AND\\" are not supported in this search"}'),
+    'Sentry issues failed: 400: Boolean statements containing "OR" or "AND" are not supported in this search',
+  );
+  assert.equal(formatSentryIssuesError(400, ''), 'Sentry issues failed: 400');
+});
+
+test('isTelemetryCollectFailure treats Sentry and Azure source errors as fatal', () => {
+  assert.equal(isTelemetryCollectFailure('sentry: Sentry issues failed: 400: Boolean statements'), true);
+  assert.equal(isTelemetryCollectFailure('sentry: SENTRY_TRIAGE_TOKEN is not set'), false);
+  assert.equal(isTelemetryCollectFailure('sentry-event: timeout'), false);
+  assert.equal(isTelemetryCollectFailure('azure: azure-graph-failed'), true);
+  assert.equal(isTelemetryCollectFailure('azure: azure-workspace-failed'), true);
+  assert.equal(isTelemetryCollectFailure('azure: azure-kql-failed:qz-prod-server-5xx'), true);
+  assert.equal(isTelemetryCollectFailure('azure: azure-login-failed'), true);
+  assert.equal(isTelemetryCollectFailure('azure: azure-arm-vars-missing'), true);
+  assert.equal(isTelemetryCollectFailure('azure: azure-kql-unscoped:qz-prod-server-5xx'), false);
+});
+
+test('mergeSentryIssuesById keeps the first row per id', () => {
+  assert.deepEqual(
+    mergeSentryIssuesById([[{ id: '1', title: 'a' }], [{ id: '1', title: 'b' }, { id: '2' }]]),
+    [{ id: '1', title: 'a' }, { id: '2' }],
+  );
 });
 
 test('scheduled runs stay dry unless TELEMETRY_TRIAGE_FILE_ISSUES is true', () => {

@@ -18,6 +18,7 @@ import { collect as collectReview, DEFAULT_INGEST_FINDINGS, ingestedCandidates }
 import { collect as collectSonar, defaultSonarSearch } from './sources/sonar.mjs';
 import { collect as collectSuppressions } from './sources/suppressions.mjs';
 import { collect as collectTelemetry } from './sources/telemetry.mjs';
+import { isTelemetryCollectFailure } from './telemetry.mjs';
 import {
   buildComment,
   buildIssue,
@@ -300,16 +301,17 @@ export async function runFiler(options = {}) {
   }
   (options.stdout || console.log)(summary);
 
+  const collectFailed = extras.warnings.some(isTelemetryCollectFailure);
   const wrote = plan.create.length + plan.comment.length + plan.reopen.length;
-  if (options.dryRun) {
-    return { plan, candidates, extras, wrote: false };
+  if (options.dryRun || collectFailed) {
+    return { plan, candidates, extras, wrote: false, collectFailed };
   }
 
   if (wrote === 0) {
     if (lookbackDays >= 60 && config.reportIssueNumber && github) {
       await github.comment(config.reportIssueNumber, buildRankedReport(candidates));
     }
-    return { plan, candidates, extras, wrote: false };
+    return { plan, candidates, extras, wrote: false, collectFailed };
   }
 
   if (!github) {
@@ -363,7 +365,7 @@ export async function runFiler(options = {}) {
     await github.comment(config.reportIssueNumber, buildRankedReport(candidates));
   }
 
-  return { plan, candidates, extras, wrote: true };
+  return { plan, candidates, extras, wrote: true, collectFailed };
 }
 
 export function writeStepSummary(text, filePath = process.env.GITHUB_STEP_SUMMARY) {
@@ -413,7 +415,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     });
   });
 
-  await runFiler({
+  const result = await runFiler({
     root,
     dryRun: args.dryRun,
     lookbackDays: args.lookbackDays,
@@ -423,13 +425,15 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     ingestFindings: args.ingestFindings,
     github,
     sonarSearch,
+    collectors: deps.collectors,
+    warnings: deps.warnings,
     writeSummary: deps.writeSummary || writeStepSummary,
     stdout: deps.stdout,
     config: loaded.config,
     ignore: loaded.ignore,
     findingRules: loaded.findingRules,
   });
-  return 0;
+  return result.collectFailed ? 1 : 0;
 }
 
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
