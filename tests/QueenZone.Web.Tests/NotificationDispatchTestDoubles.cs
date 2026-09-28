@@ -61,15 +61,18 @@ internal sealed class RecordingPushTransport : IPushTransport
 
     public Exception? ThrowOnSend { get; set; }
 
+    public IReadOnlyList<PushDeviceToken> UnregisteredTokens { get; set; } = [];
+
     public int TokenSendCount => Sends.Sum(send => send.Tokens.Count);
 
     public void Reset()
     {
         Sends.Clear();
         ThrowOnSend = null;
+        UnregisteredTokens = [];
     }
 
-    public Task SendAsync(
+    public Task<IReadOnlyList<PushDeviceToken>> SendAsync(
         IReadOnlyList<PushDeviceToken> tokens,
         PushNotificationPayload payload,
         CancellationToken cancellationToken = default)
@@ -80,7 +83,7 @@ internal sealed class RecordingPushTransport : IPushTransport
         }
 
         Sends.Add(([.. tokens], payload));
-        return Task.CompletedTask;
+        return Task.FromResult(UnregisteredTokens);
     }
 }
 

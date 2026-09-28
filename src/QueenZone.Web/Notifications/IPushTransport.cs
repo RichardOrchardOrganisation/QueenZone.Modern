@@ -11,11 +11,12 @@ public sealed record PushDeviceToken(
 
 /// <summary>
 /// Best-effort APNs/FCM send. One HTTP send per device token. Missing credentials
-/// or provider errors must not throw to the caller.
+/// or provider errors must not throw to the caller. Returns only tokens the provider
+/// explicitly reported as unregistered, for conditional removal by the dispatcher.
 /// </summary>
 public interface IPushTransport
 {
-    Task SendAsync(
+    Task<IReadOnlyList<PushDeviceToken>> SendAsync(
         IReadOnlyList<PushDeviceToken> tokens,
         PushNotificationPayload payload,
         CancellationToken cancellationToken = default);

@@ -64,7 +64,26 @@ public sealed partial class NotificationDispatcher(
                 return;
             }
 
-            await pushTransport.SendAsync(DeviceTokenMapper.ToPushTokens(tokens), payload, cancellationToken);
+            var unregistered = await pushTransport.SendAsync(
+                DeviceTokenMapper.ToPushTokens(tokens), payload, cancellationToken);
+            foreach (var token in unregistered.Distinct())
+            {
+                var platform = DeviceTokenMapper.ToEntityPlatform(token.Platform);
+                var matchingRegistrations = tokens.Where(row =>
+                    row.MemberAccountId == token.MemberAccountId
+                    && row.Platform == platform
+                    && string.Equals(row.Token, token.Token, StringComparison.Ordinal));
+                foreach (var registration in matchingRegistrations)
+                {
+                    await deviceTokenRepository.DeleteIfTokenMatchesAsync(
+                        registration.Id,
+                        registration.UpdatedAt,
+                        token.MemberAccountId,
+                        platform,
+                        token.Token,
+                        cancellationToken);
+                }
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
