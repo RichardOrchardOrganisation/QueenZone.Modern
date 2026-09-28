@@ -2,28 +2,28 @@
 
 ## App details
 
-- **App name:** QueenZone
+- **App name:** QueenZone.org
 - **Short description:** Explore Queen history, photography, news and the QueenZone community
 - **Full description:**
 
-QueenZone brings a long-running independent Queen fan archive to Android.
+QueenZone.org is an independent Queen fan archive and community for exploring the band's history and following current news.
 
-Explore decades of Queen history through restored news, long-form stories, photography, biography, discography, timelines and fan performances. Search the archive, save material for later and keep favourite stories close at hand.
+EXPLORE QUEEN HISTORY
+Browse restored Queen news archives, long-form articles, photographs, biographies, discographies, timelines, trivia and fan performances. Search the archive to find stories and moments from across the years.
 
-Stay current with newly published Queen news, browse carefully preserved historical material and explore thousands of photographs organised into collections.
+FOLLOW THE NEWS
+Read newly published Queen news alongside historical coverage, with fresh stories and archive material in one place.
 
-Members can take part in the QueenZone community: read and join forum discussions, exchange private messages, suggest news, submit photographs directly from the camera or photo library, and choose which notifications they receive.
+JOIN THE COMMUNITY
+Members can read and take part in forum discussions, exchange private messages, suggest news and submit photographs from the camera or photo library.
 
-Native features include:
+MADE FOR YOUR PHONE
+• Add the On This Day widget to your Home Screen.
+• Download fan performances for offline playback.
+• Choose notifications for news, forum replies and private messages.
+• Switch between light and dark appearance.
 
-• Offline-friendly reading for previously loaded content
-• Push notifications for selected community activity and news
-• Camera and photo-library submission
-• An “On This Day” Home Screen widget
-• Sharing news links into QueenZone
-• Light and dark appearance, text-size preferences and reduced-motion support
-
-QueenZone is an independent, fan-run archive and community. It is not affiliated with Queen, its members, management, record labels or representatives.
+QueenZone.org is independent and fan-run. It is not affiliated with Queen, its members, management, record labels or representatives.
 
 ## Categorisation
 
@@ -50,7 +50,7 @@ The only committed public mailbox currently evidenced in the site is `privacy@qu
 
 ## Character checks
 
-- App name limit: 30 characters; draft uses 9.
+- App name limit: 30 characters; draft uses 13.
 - Short description limit: 80 characters; validate mechanically before upload.
 - Full description limit: 4,000 characters; validate mechanically before upload.
 
