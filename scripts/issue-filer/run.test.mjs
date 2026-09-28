@@ -33,6 +33,9 @@ function fakeGithub() {
     async addLabels(number, labels) {
       calls.push(['addLabels', number, labels]);
     },
+    async updateIssue(number, payload) {
+      calls.push(['updateIssue', number, payload]);
+    },
     async ensureLabel(name) {
       calls.push(['ensureLabel', name]);
     },
@@ -62,10 +65,13 @@ test('parseArgs defaults and rejects bad values', () => {
     dryRun: false,
     validate: false,
     lookbackDays: 7,
+    lookbackHours: null,
     maxIssues: 2,
     loop: 'gardener',
     ingestFindings: null,
   });
+  assert.equal(parseArgs(['--loop', 'telemetry', '--lookback-hours', '2']).lookbackHours, 2);
+  assert.throws(() => parseArgs(['--lookback-hours', '0']), /lookback-hours/);
   assert.equal(parseArgs(['--dry-run', '--lookback-days', '60', '--max-issues', '3']).lookbackDays, 60);
   assert.equal(parseArgs(['--ingest-findings']).ingestFindings, DEFAULT_INGEST_FINDINGS);
   assert.equal(parseArgs(['--ingest-findings', 'tmp/findings.json', '--dry-run']).ingestFindings, 'tmp/findings.json');
@@ -331,6 +337,132 @@ test('ingest-findings reads the committed file and caps the top two review rules
   assert.ok(result.plan.skipped.some((item) => item.reason === 'cap'));
   assert.ok(!result.plan.create.some((item) => item.candidate.storm));
   assert.match(lines.join('\n'), /mobile\.swallowed-error-state/);
+});
+
+test('telemetry lookback hours set the collector since timestamp', async () => {
+  let seenSince;
+  await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    lookbackHours: 2,
+    loop: 'telemetry',
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [
+      async (ctx) => {
+        seenSince = ctx.since;
+        return [];
+      },
+    ],
+    existing: [],
+    stdout: () => {},
+  });
+  assert.equal(seenSince.toISOString(), '2026-09-26T06:00:00.000Z');
+});
+
+test('later correlated keys are appended to an existing marker', async () => {
+  const github = fakeGithub();
+  const existingBody = 'body\n<!-- qz-filer v=1 keys=sentry:1 source=sentry -->\n';
+  await runFiler({
+    root: repoRootFrom(),
+    dryRun: false,
+    now,
+    loop: 'telemetry',
+    github,
+    config,
+    ignore,
+    findingRules,
+    collectors: [
+      async () => [{
+        source: 'telemetry',
+        keys: ['sentry:1', 'ai:req:/news/{id}:5xx'],
+        title: '[sentry] news 500',
+        area: 'news',
+        evidence: [],
+        count: 3,
+        level: 'L2',
+      }],
+    ],
+    existing: [{
+      number: 44,
+      title: 'old sentry',
+      body: existingBody,
+      state: 'open',
+      createdAt: '2026-09-20T00:00:00Z',
+      updatedAt: '2026-09-20T00:00:00Z',
+      user: 'github-actions[bot]',
+      labels: ['from-telemetry'],
+    }],
+    stdout: () => {},
+  });
+  const update = github.calls.find((call) => call[0] === 'updateIssue');
+  assert.ok(update);
+  assert.match(update[2].body, /keys=sentry:1,ai:req:\/news\/\{id\}:5xx/);
+});
+
+test('listIssuesByLabel throw blocks create', async () => {
+  const github = fakeGithub();
+  github.listIssuesByLabel = async () => {
+    throw new Error('label lookup failed');
+  };
+  await assert.rejects(() => runFiler({
+    root: repoRootFrom(),
+    dryRun: false,
+    now,
+    github,
+    config,
+    ignore,
+    findingRules,
+    loop: 'telemetry',
+    collectors: [
+      async () => [{
+        source: 'sentry',
+        keys: ['sentry:9'],
+        title: '[sentry] leak user@example.com',
+        area: 'news',
+        evidence: [],
+        count: 2,
+        level: 'L2',
+      }],
+    ],
+    stdout: () => {},
+  }), /label lookup failed/);
+  assert.ok(!github.calls.some((call) => call[0] === 'createIssue'));
+});
+
+test('telemetry dry-run will-create lines use redacted titles', async () => {
+  const lines = [];
+  await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    loop: 'telemetry',
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [
+      async () => [{
+        source: 'sentry',
+        keys: ['sentry:9'],
+        title: '[sentry] leak user@example.com Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aaa.bbb',
+        area: 'news',
+        evidence: [],
+        count: 2,
+        level: 'L2',
+      }],
+    ],
+    existing: [],
+    stdout: (line) => lines.push(String(line)),
+  });
+  const text = lines.join('\n');
+  assert.match(text, /will create:/);
+  assert.doesNotMatch(text, /user@example\.com/);
+  assert.doesNotMatch(text, /eyJhbGci/);
+  assert.match(text, /\\\[email\\\]/);
 });
 
 test('missing ingest-findings file fails closed', () => {

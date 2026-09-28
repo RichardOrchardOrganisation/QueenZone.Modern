@@ -179,6 +179,24 @@ test('gardener cap counts bot filings from this week', () => {
   assert.equal(plan.skipped.at(-1).reason, 'cap');
 });
 
+test('telemetry files a single new Sentry issue without the gardener min-occurrences floor', () => {
+  const plan = planFilings({
+    candidates: [candidate({
+      keys: ['sentry:1'],
+      title: '[sentry] new',
+      source: 'sentry',
+      count: 1,
+    })],
+    existing: [],
+    ignore: { entries: [] },
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(plan.create.length, 1);
+  assert.equal(plan.create[0].candidate.keys[0], 'sentry:1');
+});
+
 test('telemetry caps at 3 per day and storms above 5 candidates', () => {
   const many = Array.from({ length: 6 }, (_, index) => candidate({
     keys: [`sentry:${index}`],

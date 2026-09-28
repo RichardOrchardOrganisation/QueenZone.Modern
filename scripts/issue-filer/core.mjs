@@ -212,7 +212,7 @@ export function planFilings({
       skipped.push({ candidate, reason: 'invalid' });
       continue;
     }
-    if ((candidate.count || 0) < minOccurrences) {
+    if (loop !== 'telemetry' && (candidate.count || 0) < minOccurrences) {
       skipped.push({ candidate, reason: 'below-min-occurrences' });
       continue;
     }
@@ -270,7 +270,12 @@ export function planFilings({
         skipped.push({ candidate, reason: 'comment-cooldown', issue: match.number });
         continue;
       }
-      comment.push({ issueNumber: match.number, candidate, kind: 'update' });
+      comment.push({
+        issueNumber: match.number,
+        candidate,
+        kind: 'update',
+        existingBody: match.body,
+      });
       commentsUsed += 1;
       continue;
     }
@@ -297,7 +302,12 @@ export function planFilings({
         candidate,
         labels: [config.labels.regression || 'regression'],
       });
-      comment.push({ issueNumber: match.number, candidate, kind: 'regression' });
+      comment.push({
+        issueNumber: match.number,
+        candidate,
+        kind: 'regression',
+        existingBody: match.body,
+      });
       commentsUsed += 1;
       continue;
     }

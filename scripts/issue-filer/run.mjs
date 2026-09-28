@@ -4,35 +4,44 @@
  *
  *   node scripts/issue-filer/run.mjs --validate
  *   node scripts/issue-filer/run.mjs --loop gardener --lookback-days 7 --max-issues 2 --dry-run
+ *   node scripts/issue-filer/run.mjs --loop telemetry --lookback-hours 2 --max-issues 3 --dry-run
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadFilerFiles, repoRootFrom, validateFilerFiles } from './config.mjs';
 import { planFilings, unregisteredRules } from './core.mjs';
-import { isFilerComment, keysOverlap } from './finding.mjs';
+import { isFilerComment, keysOverlap, parseFilerMarker } from './finding.mjs';
 import { createGitHubClient, parseRepository } from './github-client.mjs';
 import { collect as collectCi } from './sources/ci.mjs';
 import { collect as collectReview, DEFAULT_INGEST_FINDINGS, ingestedCandidates } from './sources/review.mjs';
 import { collect as collectSonar, defaultSonarSearch } from './sources/sonar.mjs';
 import { collect as collectSuppressions } from './sources/suppressions.mjs';
+import { collect as collectTelemetry } from './sources/telemetry.mjs';
 import {
   buildComment,
   buildIssue,
   buildLogComment,
   buildRankedReport,
   formatPlanSummary,
+  mergedMarkerKeys,
+  replaceFilerMarker,
 } from './templates.mjs';
 
 const LABEL_META = {
   gardener: { color: '0e8a16', description: 'Filed by the weekly gardener.' },
   guardrail: { color: '5319e7', description: 'Repeat finding that should become an L1/L2 check.' },
   regression: { color: 'd93f0b', description: 'Closed completed issue that recurred within 30 days.' },
+  bug: { color: 'd73a4a', description: 'Something is broken.' },
+  'from-telemetry': { color: 'fbca04', description: 'Filed from Sentry or Application Insights.' },
+  'from-sentry': { color: '5319e7', description: 'Signal originated in Sentry.' },
+  'from-appinsights': { color: '0075ca', description: 'Signal originated in Application Insights.' },
+  'needs-triage': { color: 'ededed', description: 'No feature-map area yet.' },
 };
 
 const DEFAULT_COLLECTORS = {
   gardener: [collectReview, collectSonar, collectCi, collectSuppressions],
-  telemetry: [],
+  telemetry: [collectTelemetry],
 };
 
 export function parseArgs(argv) {
@@ -40,6 +49,7 @@ export function parseArgs(argv) {
     dryRun: false,
     validate: false,
     lookbackDays: 7,
+    lookbackHours: null,
     maxIssues: 2,
     loop: 'gardener',
     ingestFindings: null,
@@ -53,6 +63,8 @@ export function parseArgs(argv) {
       args.validate = true;
     } else if (flag === '--lookback-days') {
       args.lookbackDays = Number(list.shift());
+    } else if (flag === '--lookback-hours') {
+      args.lookbackHours = Number(list.shift());
     } else if (flag === '--max-issues') {
       args.maxIssues = Number(list.shift());
     } else if (flag === '--loop') {
@@ -70,6 +82,9 @@ export function parseArgs(argv) {
   }
   if (!Number.isFinite(args.lookbackDays) || args.lookbackDays < 1) {
     throw new Error('--lookback-days must be a positive number');
+  }
+  if (args.lookbackHours != null && (!Number.isFinite(args.lookbackHours) || args.lookbackHours <= 0)) {
+    throw new Error('--lookback-hours must be a positive number');
   }
   if (!Number.isFinite(args.maxIssues) || args.maxIssues < 1) {
     throw new Error('--max-issues must be a positive number');
@@ -159,9 +174,18 @@ export async function loadExisting(github, config, now) {
   return existing;
 }
 
-async function ensureKnownLabels(github, config) {
+async function ensureKnownLabels(github, config, extraNames = [], loop = 'gardener') {
   const names = [config.labels.gardener, config.labels.guardrail, config.labels.regression];
-  for (const name of names) {
+  if (loop === 'telemetry') {
+    names.push(
+      config.labels.needsTriage,
+      ...(config.labels.telemetry || []),
+      'from-sentry',
+      'from-appinsights',
+      ...extraNames,
+    );
+  }
+  for (const name of [...new Set(names)]) {
     const meta = LABEL_META[name] || { color: 'ededed', description: name };
     await github.ensureLabel(name, meta.color, meta.description);
   }
@@ -194,8 +218,11 @@ export async function runFiler(options = {}) {
   const { config, ignore, findingRules } = loaded;
   const loop = options.loop || 'gardener';
   const lookbackDays = options.lookbackDays ?? 7;
+  const lookbackHours = options.lookbackHours;
   const maxIssues = options.maxIssues ?? config.caps[loop]?.maxIssues ?? 2;
-  const since = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+  const since = lookbackHours
+    ? new Date(now.getTime() - lookbackHours * 60 * 60 * 1000)
+    : new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
   const warnings = options.warnings || [];
   const malformed = options.malformed || [];
   const github = options.github;
@@ -221,6 +248,21 @@ export async function runFiler(options = {}) {
     jobsByRunId: options.jobsByRunId,
     gitLogPatch: options.gitLogPatch,
     patch: options.patch,
+    lookbackHours,
+    sentryIssues: options.sentryIssues,
+    sentryEvents: options.sentryEvents,
+    sentryCandidates: options.sentryCandidates,
+    sentrySearch: options.sentrySearch,
+    sentryLatestEvent: options.sentryLatestEvent,
+    sentryToken: options.sentryToken,
+    appInsightsAlerts: options.appInsightsAlerts,
+    appInsightsEvidence: options.appInsightsEvidence,
+    appInsightsAlertsPath: options.appInsightsAlertsPath,
+    appInsightsEvidencePath: options.appInsightsEvidencePath,
+    azureWarningsPath: options.azureWarningsPath,
+    featureMap: options.featureMap,
+    deployedTip: options.deployedTip,
+    fetchImpl: options.fetchImpl,
   };
 
   let candidates = [];
@@ -274,7 +316,17 @@ export async function runFiler(options = {}) {
     throw new Error('GitHub client is required to write issues');
   }
 
-  await ensureKnownLabels(github, config);
+  await ensureKnownLabels(
+    github,
+    config,
+    plan.create.flatMap((item) => buildIssue({
+      candidate: item.candidate,
+      config,
+      previousIssue: item.previousIssue,
+      loop,
+    }).labels),
+    loop,
+  );
 
   for (const item of plan.create) {
     const issue = buildIssue({
@@ -291,6 +343,16 @@ export async function runFiler(options = {}) {
   }
   for (const item of plan.comment) {
     await github.comment(item.issueNumber, buildComment(item));
+    const previous = parseFilerMarker(item.existingBody)?.keys || [];
+    const merged = mergedMarkerKeys(item.existingBody, item.candidate);
+    if (item.existingBody && merged.length > previous.length && github.updateIssue) {
+      await github.updateIssue(item.issueNumber, {
+        body: replaceFilerMarker(item.existingBody, {
+          keys: merged,
+          source: item.candidate.source,
+        }),
+      });
+    }
   }
 
   if (plan.create.length + plan.reopen.length > 0) {
@@ -355,6 +417,7 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
     root,
     dryRun: args.dryRun,
     lookbackDays: args.lookbackDays,
+    lookbackHours: args.lookbackHours,
     maxIssues: args.maxIssues,
     loop: args.loop,
     ingestFindings: args.ingestFindings,
