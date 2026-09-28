@@ -1,5 +1,5 @@
 locals {
-  # Refreshed 2026-09-22 from https://www.cloudflare.com/ips-v4 and
+  # Verified 2026-09-28 against https://www.cloudflare.com/ips-v4 and
   # https://www.cloudflare.com/ips-v6. App Service ip_restriction.ip_address
   # is one CIDR (or one service tag) per rule. Azure publishes no Cloudflare
   # service tag; AzureFrontDoor.Backend is a different network and is not used.
@@ -159,14 +159,11 @@ resource "azurerm_linux_web_app" "production" {
     minimum_tls_version               = "1.2"
     remote_debugging_enabled          = false
     scm_minimum_tls_version           = "1.2"
-    # SCM stays Allow. deploy.yml (azure/webapps-deploy) and
-    # scripts/Invoke-AppServiceKudu.py reach *.scm.azurewebsites.net from
-    # GitHub-hosted runners, which are not Cloudflare addresses. Copying the
-    # main-site Cloudflare allow list onto SCM would 403 production deploys.
-    # SCM Deny waits for an explicit deploy/operator allow list, or for deploy
-    # to leave public SCM. Do not flip this with the main-site rules.
+    # Production release grants its current GitHub runner /32 to SCM for the
+    # duration of the deploy, then removes it. Keep SCM rules separate from
+    # Cloudflare: GitHub-hosted runners do not use Cloudflare source IPs.
     scm_use_main_ip_restriction       = false
-    scm_ip_restriction_default_action = "Allow"
+    scm_ip_restriction_default_action = var.allow_direct_access ? "Allow" : "Deny"
     ip_restriction_default_action     = var.allow_direct_access ? "Allow" : "Deny"
     use_32_bit_worker                 = true
     websockets_enabled                = false
