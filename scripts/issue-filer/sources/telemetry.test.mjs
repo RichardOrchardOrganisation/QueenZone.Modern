@@ -8,6 +8,7 @@ import {
   collect,
   createSentryFetch,
   defaultSentrySearch,
+  SENTRY_MAX_RETRY_WAIT_MS,
   sentryNextPageUrl,
   sentryRetryDelayMs,
 } from './telemetry.mjs';
@@ -146,6 +147,7 @@ test('defaultSentrySearch runs new and regressed queries and merges by id', asyn
   const issues = await defaultSentrySearch({
     token: 't',
     lookbackHours: 2,
+    minGapMs: 0,
     fetchImpl: async (url) => {
       urls.push(String(url));
       const query = new URL(url).searchParams.get('query');
@@ -234,6 +236,12 @@ function sentryJson(status, data, headers = {}) {
   };
 }
 
+function assertDelayWithinCap(ms) {
+  assert.equal(Number.isFinite(ms), true);
+  assert.ok(ms >= 0);
+  assert.ok(ms <= SENTRY_MAX_RETRY_WAIT_MS);
+}
+
 test('sentryRetryDelayMs prefers Retry-After seconds, then X-Sentry-Rate-Limit-Reset', () => {
   assert.equal(sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '2' }), { now: 0 }), 2000);
   assert.equal(
@@ -248,6 +256,37 @@ test('sentryRetryDelayMs prefers Retry-After seconds, then X-Sentry-Rate-Limit-R
   );
   assert.equal(sentryRetryDelayMs(sentryHeaders(), { attempt: 1 }), 1000);
   assert.equal(sentryRetryDelayMs(sentryHeaders(), { attempt: 2 }), 2000);
+});
+
+test('sentryRetryDelayMs clamps header delays to [0, cap]', () => {
+  const now = 1_000_000;
+  const cases = [
+    sentryRetryDelayMs(sentryHeaders(), { now, attempt: 1 }),
+    sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '-3' }), { now, attempt: 1 }),
+    sentryRetryDelayMs(sentryHeaders({ 'Retry-After': 'NaN' }), { now, attempt: 1 }),
+    sentryRetryDelayMs(sentryHeaders({
+      'Retry-After': 'Wed, 21 Oct 2015 07:28:00 GMT',
+    }), { now: Date.parse('Wed, 21 Oct 2015 07:28:01 GMT') }),
+    sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '86400' }), { now }),
+    sentryRetryDelayMs(sentryHeaders({ 'X-Sentry-Rate-Limit-Reset': '9999999999' }), { now }),
+    sentryRetryDelayMs(sentryHeaders({
+      'Retry-After': 'Wed, 21 Oct 2099 07:28:01 GMT',
+    }), { now }),
+  ];
+  for (const delay of cases) {
+    assertDelayWithinCap(delay);
+  }
+  assert.equal(sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '86400' }), { now }), SENTRY_MAX_RETRY_WAIT_MS);
+  assert.equal(
+    sentryRetryDelayMs(sentryHeaders({ 'X-Sentry-Rate-Limit-Reset': '9999999999' }), { now }),
+    SENTRY_MAX_RETRY_WAIT_MS,
+  );
+  assert.equal(
+    sentryRetryDelayMs(sentryHeaders({
+      'Retry-After': 'Wed, 21 Oct 2099 07:28:01 GMT',
+    }), { now }),
+    SENTRY_MAX_RETRY_WAIT_MS,
+  );
 });
 
 test('defaultSentrySearch retries a 429 then succeeds', async () => {

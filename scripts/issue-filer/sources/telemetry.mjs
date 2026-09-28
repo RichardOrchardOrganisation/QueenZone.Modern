@@ -49,6 +49,7 @@ async function readSentryBody(response) {
 
 export const SENTRY_MIN_REQUEST_GAP_MS = 250;
 export const SENTRY_MAX_ATTEMPTS = 3;
+export const SENTRY_MAX_RETRY_WAIT_MS = 8_000;
 
 function defaultSleep(ms) {
   return new Promise((resolve) => {
@@ -66,16 +67,28 @@ function headerValue(headers, name) {
   return headers[name] || headers[name.toLowerCase()] || '';
 }
 
+function fallbackRetryDelayMs(attempt) {
+  const n = Number.isFinite(attempt) && attempt > 0 ? attempt : 1;
+  return Math.min(1000 * (2 ** (n - 1)), SENTRY_MAX_RETRY_WAIT_MS);
+}
+
+function clampRetryDelayMs(ms, attempt) {
+  if (!Number.isFinite(ms)) {
+    return fallbackRetryDelayMs(attempt);
+  }
+  return Math.min(Math.max(0, ms), SENTRY_MAX_RETRY_WAIT_MS);
+}
+
 export function sentryRetryDelayMs(headers, { now = Date.now(), attempt = 1 } = {}) {
   const retryAfter = String(headerValue(headers, 'Retry-After') || '').trim();
   if (retryAfter) {
     const seconds = Number(retryAfter);
     if (Number.isFinite(seconds) && seconds >= 0) {
-      return Math.ceil(seconds * 1000);
+      return clampRetryDelayMs(Math.ceil(seconds * 1000), attempt);
     }
     const dateMs = Date.parse(retryAfter);
-    if (!Number.isNaN(dateMs)) {
-      return Math.max(0, dateMs - now);
+    if (Number.isFinite(dateMs)) {
+      return clampRetryDelayMs(dateMs - now, attempt);
     }
   }
   const reset = String(headerValue(headers, 'X-Sentry-Rate-Limit-Reset') || '').trim();
@@ -83,11 +96,10 @@ export function sentryRetryDelayMs(headers, { now = Date.now(), attempt = 1 } = 
     const value = Number(reset);
     if (Number.isFinite(value)) {
       const resetMs = value > 1e12 ? value : value * 1000;
-      return Math.max(0, resetMs - now);
+      return clampRetryDelayMs(resetMs - now, attempt);
     }
   }
-  const n = Number.isFinite(attempt) && attempt > 0 ? attempt : 1;
-  return Math.min(1000 * (2 ** (n - 1)), 8_000);
+  return fallbackRetryDelayMs(attempt);
 }
 
 export function createSentryFetch({
