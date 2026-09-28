@@ -247,7 +247,6 @@ public sealed class EfNewsRepository : INewsRepository
         return await ExecuteSearchWithFtsAsync(query.Trim(), page, pageSize, cancellationToken);
     }
 
-    [ExcludeFromCodeCoverage]
     private async Task<NewsSearchPage> ExecuteSearchWithFtsAsync(
         string query,
         int page,
