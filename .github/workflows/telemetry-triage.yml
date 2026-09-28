@@ -18,7 +18,7 @@ name: Telemetry triage
 
 on:
   schedule:
-    - cron: "17,47 * * * *"
+    - cron: "17 23 * * *" # Daily 07:17 Australia/Perth (23:17 UTC)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -182,6 +182,6 @@ jobs:
           fi
           node scripts/issue-filer/run.mjs \
             --loop telemetry \
-            --lookback-hours 2 \
+            --lookback-hours 26 \
             --max-issues 3 \
             "${extra[@]}"
