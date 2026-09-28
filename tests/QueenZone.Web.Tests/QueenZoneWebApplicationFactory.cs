@@ -1,3 +1,5 @@
+using System.Net;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.OutputCaching;
@@ -17,6 +19,9 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IR
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        // TestServer has no peer address. Give it a loopback one so forwarded-header trust
+        // (#1654) treats tests like a request arriving from the platform proxy.
+        builder.ConfigureServices(services => services.AddTransient<IStartupFilter, LoopbackPeerStartupFilter>());
         ConfigureTestServices(builder);
     }
 
@@ -84,4 +89,19 @@ public class QueenZoneWebApplicationFactory : WebApplicationFactory<Program>, IR
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
     }
+}
+
+/// <summary>Sets the connection peer to loopback ahead of <c>UseForwardedHeaders</c>.</summary>
+internal sealed class LoopbackPeerStartupFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) =>
+        app =>
+        {
+            app.Use((context, nextMiddleware) =>
+            {
+                context.Connection.RemoteIpAddress ??= IPAddress.Loopback;
+                return nextMiddleware(context);
+            });
+            next(app);
+        };
 }

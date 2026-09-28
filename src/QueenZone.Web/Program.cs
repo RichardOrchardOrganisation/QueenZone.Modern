@@ -150,18 +150,12 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// Azure App Service (and CDN/proxy, e.g. Cloudflare) terminates TLS and forwards plain HTTP.
-// Without forwarded headers, OAuth redirect_uri values use the internal host/scheme.
-// KnownIPNetworks/Proxies are cleared (edge IP is not fixed). Trust boundary: App Service/
-// Cloudflare as only public ingress. IP-based rate limits are soft if the edge is bypassed.
-// See docs/architecture/azure-hosting-plan.md (forwarded-headers trust).
-var forwardedHeadersOptions = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-};
-forwardedHeadersOptions.KnownIPNetworks.Clear();
-forwardedHeadersOptions.KnownProxies.Clear();
-app.UseForwardedHeaders(forwardedHeadersOptions);
+// Azure App Service (and Cloudflare) terminates TLS and forwards plain HTTP. Without forwarded
+// headers, OAuth redirect_uri values use the internal scheme and IP partitions see the proxy.
+// Only the platform front end and Cloudflare's published ranges (config/cloudflare-ip-ranges.json,
+// shared with the App Service ingress rules) may set the client IP and scheme. X-Forwarded-Host
+// is not honored. See docs/architecture/azure-hosting-plan.md (forwarded-headers trust), #1654.
+app.UseForwardedHeaders(QueenZoneForwardedHeaders.CreateOptions());
 // ASP.NET Core's automatic AllowedHosts filter runs outside this visible pipeline,
 // before the probe short-circuit above. App Service startup pings use an internal
 // link-local Host header, so that automatic filter returned 400 before /health could
