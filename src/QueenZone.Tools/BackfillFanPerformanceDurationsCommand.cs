@@ -100,7 +100,7 @@ internal static class BackfillFanPerformanceDurationsCommand
         }
 
         Console.WriteLine($"Processed {rows.Count}; resolved {succeeded}; failed {failed}. Re-run is safe: populated rows are skipped.");
-        return failed == 0 ? 0 : 1;
+        return Math.Clamp(failed, 0, 1);
     }
 
     private static int Usage(string error)

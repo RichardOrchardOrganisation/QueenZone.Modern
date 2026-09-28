@@ -3,6 +3,8 @@
  * correlation, and dedupe-key construction. The shared filer still owns
  * markers, caps, ignore, reopen, and comments.
  */
+import { isIP } from 'node:net';
+
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NUMERIC_RE = /^\d+$/;
 const METHOD_RE = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/i;
@@ -15,9 +17,9 @@ const DEFAULT_SENTRY_PROJECT = 'queenzone-mobile';
 export const LOOKBACK_HOURS = 2;
 export const REDACT_MAX_LENGTH = 120;
 
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const NON_WHITESPACE_RE = /\S+/g;
 const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-const IPV6_RE = /\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{0,4}\b/g;
+const IPV6_CANDIDATE_RE = /[0-9A-Fa-f:]+/g;
 const JWT_RE = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
 const BEARER_RE = /\b(?:Bearer|token)\s+[A-Za-z0-9._\-+/=]{8,}/gi;
 const API_KEY_RE = /\b(?:sk|pk|ghp|gho|github_pat|AIza)[-_][A-Za-z0-9_-]{16,}\b/g;
@@ -27,9 +29,18 @@ const LONG_B64_RE = /\b[A-Za-z0-9+/]{32,}={1,2}(?![A-Za-z0-9+/=])/g;
 
 export function redact(text, { maxLength = REDACT_MAX_LENGTH } = {}) {
   let value = String(text ?? '');
-  value = value.replace(EMAIL_RE, '[email]');
+  value = value.replace(NON_WHITESPACE_RE, (candidate) => {
+    const at = candidate.indexOf('@');
+    if (at < 1) {
+      return candidate;
+    }
+    const domain = candidate.slice(at + 1);
+    return domain.split('.').slice(1).some((part) => /^[A-Za-z]{2,}/.test(part))
+      ? '[email]'
+      : candidate;
+  });
   value = value.replace(IPV4_RE, '[ip]');
-  value = value.replace(IPV6_RE, '[ip]');
+  value = value.replace(IPV6_CANDIDATE_RE, (candidate) => isIP(candidate) === 6 ? '[ip]' : candidate);
   value = value.replace(BEARER_RE, '[token]');
   value = value.replace(JWT_RE, '[token]');
   value = value.replace(CONN_PAIR_RE, (match) => `${match.split('=')[0].trim()}=[secret]`);
@@ -225,7 +236,11 @@ export function normalizeRoute(value) {
   } else {
     path = path.split('?')[0].split('#')[0];
   }
-  path = path.replace(/\/+$/, '');
+  let end = path.length;
+  while (end > 0 && path[end - 1] === '/') {
+    end -= 1;
+  }
+  path = path.slice(0, end);
   if (!path) {
     return '/';
   }

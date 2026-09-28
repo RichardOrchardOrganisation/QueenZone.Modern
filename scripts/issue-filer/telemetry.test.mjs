@@ -57,8 +57,11 @@ test('normalizeRoute replaces numeric and GUID segments only', () => {
 
 test('redact masks emails, addresses, tokens, connection-string pairs, and long secrets', () => {
   assert.equal(redact('mail user@example.com please'), 'mail [email] please');
+  assert.equal(redact('release mobile@1.0.0'), 'release mobile@1.0.0');
+  assert.equal(redact('mail user@example.com.'), 'mail [email]');
   assert.equal(redact('from 203.0.113.10'), 'from [ip]');
   assert.equal(redact('v6 2001:0db8:85a3:0000:0000:8a2e:0370:7334'), 'v6 [ip]');
+  assert.equal(redact('v6 invalid 2001:xyz'), 'v6 invalid 2001:xyz');
   assert.equal(redact('jwt eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig'), 'jwt [token]');
   assert.equal(redact('auth Bearer abcdefghijklmnop'), 'auth [token]');
   assert.equal(redact('key sk-abcdefghijklmnopqrstuvwxyz1234'), 'key [token]');
