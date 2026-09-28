@@ -36,6 +36,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Single Cloudflare prefix list shared with infra/modules/azure-web (#1654). -->
+    <EmbeddedResource Include="..\..\config\cloudflare-ip-ranges.json" LogicalName="QueenZone.Web.cloudflare-ip-ranges.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="QueenZone.Web.Tests" />
     <Using Include="QueenZone.Routing" />
     <Using Include="QueenZone.Search.Shared" />

@@ -97,14 +97,16 @@ commit storage credentials or Key Vault secrets.
 
 ### Forwarded headers trust boundary
 
-The app clears `KnownIPNetworks` / `KnownProxies` so `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` from **App Service / Cloudflare** are accepted (required for correct OAuth redirect URIs and scheme).
+Forwarded `X-Forwarded-For` and `X-Forwarded-Proto` are applied only when the immediate peer is in a known network (`QueenZoneForwardedHeaders`, #1654): the published Cloudflare ranges in `config/cloudflare-ip-ranges.json` plus loopback/private/link-local addresses for the App Service front end. `ForwardLimit` is unlimited so a `visitor, cloudflare-edge` chain resolves to the visitor whether or not the platform appends a hop. `X-Forwarded-Host` is **not** honored; the raw Host is validated by host filtering and public URLs come from `Site:PublicBaseUrl`.
+
+`config/cloudflare-ip-ranges.json` is the single Cloudflare prefix list. `infra/modules/azure-web` reads it for the App Service ip restrictions and the web project embeds it for this trust list. Refresh it from <https://www.cloudflare.com/ips-v4> and <https://www.cloudflare.com/ips-v6> and update `refreshed`; with the main site on default Deny a stale list is an outage, not a soft failure.
 
 Immediately after forwarded-header processing, the app adds the trusted Cloudflare `CF-Connecting-IP` value to the active OpenTelemetry request span as `client.address` (falling back to the processed remote address). Application Insights uses that value for visitor geolocation and masks the stored `client_IP` to `0.0.0.0` by default. Keep masking enabled unless a separate privacy review approves raw IP retention.
 
 | Trust | Implication |
 | --- | --- |
 | Edge is the only public ingress | Normal production path — forwarded headers are trusted |
-| Client reaches Kestrel without the edge | Client can spoof `X-Forwarded-For` (and thus IP-based rate-limit partitions) |
+| Client reaches Kestrel without the edge | Peer is not a known network, so forwarded headers are ignored and the partition is the peer address |
 
 **Policy:**
 

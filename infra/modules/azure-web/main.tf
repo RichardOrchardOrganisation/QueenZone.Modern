@@ -1,35 +1,13 @@
 locals {
-  # Refreshed 2026-09-22 from https://www.cloudflare.com/ips-v4 and
-  # https://www.cloudflare.com/ips-v6. App Service ip_restriction.ip_address
-  # is one CIDR (or one service tag) per rule. Azure publishes no Cloudflare
-  # service tag; AzureFrontDoor.Backend is a different network and is not used.
-  cloudflare_ipv4_prefixes = [
-    "173.245.48.0/20",
-    "103.21.244.0/22",
-    "103.22.200.0/22",
-    "103.31.4.0/22",
-    "141.101.64.0/18",
-    "108.162.192.0/18",
-    "190.93.240.0/20",
-    "188.114.96.0/20",
-    "197.234.240.0/22",
-    "198.41.128.0/17",
-    "162.158.0.0/15",
-    "104.16.0.0/13",
-    "104.24.0.0/14",
-    "172.64.0.0/13",
-    "131.0.72.0/22",
-  ]
-
-  cloudflare_ipv6_prefixes = [
-    "2400:cb00::/32",
-    "2606:4700::/32",
-    "2803:f800::/32",
-    "2405:b500::/32",
-    "2405:8100::/32",
-    "2a06:98c0::/29",
-    "2c0f:f248::/32",
-  ]
+  # One list for App Service ip_restriction and the web app's forwarded-header
+  # trust (#1654): config/cloudflare-ip-ranges.json, refreshed from
+  # https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6.
+  # App Service ip_restriction.ip_address is one CIDR (or one service tag) per
+  # rule. Azure publishes no Cloudflare service tag; AzureFrontDoor.Backend is a
+  # different network and is not used.
+  cloudflare_ip_ranges     = jsondecode(file("${path.module}/../../../config/cloudflare-ip-ranges.json"))
+  cloudflare_ipv4_prefixes = local.cloudflare_ip_ranges.ipv4
+  cloudflare_ipv6_prefixes = local.cloudflare_ip_ranges.ipv6
 
   cloudflare_ipv4_rules = [for index, prefix in local.cloudflare_ipv4_prefixes : {
     name        = "Cloudflare-IPv4-${index + 1}"
