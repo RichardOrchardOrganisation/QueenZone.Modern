@@ -59,14 +59,12 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
 
         var entity = InMemoryFanPerformanceSubmissionRepository.CreateEntity(submission);
 
-        entity.AuditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
-        {
-            FanPerformanceSubmissionId = entity.Id,
-            Action = "Submitted",
-            ActorEmail = string.Empty,
-            OccurredAt = entity.SubmittedAt,
-            Details = "Member submitted a fan performance for review.",
-        });
+        entity.AuditLogs.Add(SubmissionReview.Copy(
+            new FanPerformanceSubmissionAuditLogEntity
+            {
+                FanPerformanceSubmissionId = entity.Id,
+            },
+            SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted a fan performance for review.")));
 
         dbContext.FanPerformanceSubmissions.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -168,14 +166,16 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             requireNeedsInfoNotes: true);
         var next = entity.Status;
 
-        dbContext.FanPerformanceSubmissionAuditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
-        {
-            FanPerformanceSubmissionId = entity.Id,
-            Action = next,
-            ActorEmail = entity.ReviewerEmail ?? string.Empty,
-            OccurredAt = entity.ReviewedAt.Value,
-            Details = auditDetails ?? BuildAuditDetails(next, entity),
-        });
+        dbContext.FanPerformanceSubmissionAuditLogs.Add(SubmissionReview.Copy(
+            new FanPerformanceSubmissionAuditLogEntity
+            {
+                FanPerformanceSubmissionId = entity.Id,
+            },
+            SubmissionReview.ForStatus(
+                next,
+                entity.ReviewerEmail,
+                entity.ReviewedAt!.Value,
+                auditDetails ?? InMemoryFanPerformanceSubmissionRepository.BuildAuditDetails(next, entity))));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -224,28 +224,28 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
             return null;
         }
 
-        if (!FanPerformanceSubmissionWorkflow.TryValidateStatusChange(
-                entity.Status,
-                FanPerformanceSubmissionStatus.Approved,
-                out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
+        SubmissionReview.EnsureTransition(
+            entity.Status,
+            FanPerformanceSubmissionStatus.Approved,
+            FanPerformanceSubmissionWorkflow.TryValidateStatusChange);
 
-        entity.Status = FanPerformanceSubmissionStatus.Approved;
         entity.PromotedStageId = promotedStageId;
-        entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+        var reviewedAt = SubmissionReview.Stamp(
+            entity,
+            FanPerformanceSubmissionStatus.Approved,
+            reviewerEmail,
+            reviewNotes);
 
-        dbContext.FanPerformanceSubmissionAuditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
-        {
-            FanPerformanceSubmissionId = entity.Id,
-            Action = FanPerformanceSubmissionStatus.Approved,
-            ActorEmail = entity.ReviewerEmail ?? string.Empty,
-            OccurredAt = entity.ReviewedAt.Value,
-            Details = $"Approved and published as fan performance #{promotedStageId}. Notes: {entity.ReviewNotes ?? "(none)"}",
-        });
+        dbContext.FanPerformanceSubmissionAuditLogs.Add(SubmissionReview.Copy(
+            new FanPerformanceSubmissionAuditLogEntity
+            {
+                FanPerformanceSubmissionId = entity.Id,
+            },
+            SubmissionReview.ForStatus(
+                FanPerformanceSubmissionStatus.Approved,
+                entity.ReviewerEmail,
+                reviewedAt,
+                $"Approved and published as fan performance #{promotedStageId}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -443,18 +443,4 @@ public sealed class EfFanPerformanceSubmissionRepository(QueenZoneDbContext dbCo
     }
 
     private static FanPerformanceSubmission Map(FanPerformanceSubmissionEntity entity) => MapEntity(entity);
-
-    private static string? BuildAuditDetails(string status, FanPerformanceSubmissionEntity entity) =>
-        status switch
-        {
-            FanPerformanceSubmissionStatus.Approved =>
-                $"Approved. Notes: {entity.ReviewNotes ?? "(none)"}",
-            FanPerformanceSubmissionStatus.Rejected =>
-                $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            FanPerformanceSubmissionStatus.NeedsInfo =>
-                $"Needs info. Notes: {entity.ReviewNotes ?? "(none)"}",
-            FanPerformanceSubmissionStatus.Withdrawn =>
-                "Member withdrew the submission.",
-            _ => entity.ReviewNotes,
-        };
 }

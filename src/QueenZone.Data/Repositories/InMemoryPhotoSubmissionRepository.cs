@@ -26,15 +26,13 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
             var entity = PhotoSubmissionRecords.NewEntity(submission);
 
             submissions.Add(entity);
-            auditLogs.Add(new PhotoSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                PhotoSubmissionId = entity.Id,
-                Action = "Submitted",
-                ActorEmail = string.Empty,
-                OccurredAt = entity.SubmittedAt,
-                Details = "Member submitted photo for review.",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new PhotoSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    PhotoSubmissionId = entity.Id,
+                },
+                SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted photo for review.")));
 
             return Task.FromResult(Map(entity));
         }
@@ -130,24 +128,17 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
             var next = PhotoSubmissionRecords.ApplyStatusChange(
                 entity, status, reviewerEmail, reviewNotes, rejectionReason, approvedCategory);
 
-            auditLogs.Add(new PhotoSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                PhotoSubmissionId = entity.Id,
-                Action = next,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = next switch
+            auditLogs.Add(SubmissionReview.Copy(
+                new PhotoSubmissionAuditLogEntity
                 {
-                    PhotoSubmissionStatus.Approved =>
-                        $"Approved for category '{entity.ApprovedCategory}'. Notes: {entity.ReviewNotes ?? "(none)"}",
-                    PhotoSubmissionStatus.Rejected =>
-                        $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
-                    PhotoSubmissionStatus.NeedsInfo =>
-                        $"Needs info. Notes: {entity.ReviewNotes ?? "(none)"}",
-                    _ => entity.ReviewNotes,
+                    Id = nextAuditId++,
+                    PhotoSubmissionId = entity.Id,
                 },
-            });
+                SubmissionReview.ForStatus(
+                    next,
+                    entity.ReviewerEmail,
+                    entity.ReviewedAt!.Value,
+                    PhotoSubmissionRecords.AuditDetails(next, entity))));
 
             return Task.FromResult<PhotoSubmission?>(Map(entity));
         }
@@ -169,28 +160,32 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                 return Task.FromResult<PhotoSubmission?>(null);
             }
 
-            if (!PhotoSubmissionWorkflow.TryValidateStatusChange(entity.Status, PhotoSubmissionStatus.Approved, out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                PhotoSubmissionStatus.Approved,
+                PhotoSubmissionWorkflow.TryValidateStatusChange);
 
             entity.Status = PhotoSubmissionStatus.Approved;
             entity.ApprovedCategory = SubmissionInput.NormalizeOptional(approvedCategory, 100)
                 ?? throw new InvalidOperationException("An approved gallery category is required.");
             entity.PromotedPicId = promotedPicId;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                PhotoSubmissionStatus.Approved,
+                reviewerEmail,
+                reviewNotes);
 
-            auditLogs.Add(new PhotoSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                PhotoSubmissionId = entity.Id,
-                Action = PhotoSubmissionStatus.Approved,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = $"Approved for category '{entity.ApprovedCategory}' and published to gallery as photo #{promotedPicId}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new PhotoSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    PhotoSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    PhotoSubmissionStatus.Approved,
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Approved for category '{entity.ApprovedCategory}' and published to gallery as photo #{promotedPicId}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<PhotoSubmission?>(Map(entity));
         }

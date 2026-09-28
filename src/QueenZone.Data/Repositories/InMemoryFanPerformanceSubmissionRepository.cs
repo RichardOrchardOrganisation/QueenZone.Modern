@@ -25,15 +25,13 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
         {
             var entity = CreateEntity(submission);
             submissions.Add(entity);
-            auditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                FanPerformanceSubmissionId = entity.Id,
-                Action = "Submitted",
-                ActorEmail = string.Empty,
-                OccurredAt = entity.SubmittedAt,
-                Details = "Member submitted a fan performance for review.",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new FanPerformanceSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    FanPerformanceSubmissionId = entity.Id,
+                },
+                SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted a fan performance for review.")));
 
             return Task.FromResult(Map(entity));
         }
@@ -148,15 +146,17 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
             }
 
             ApplyStatusChange(entity, status, actorEmail, reviewNotes, rejectionReason, requireNeedsInfoNotes: true);
-            auditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                FanPerformanceSubmissionId = entity.Id,
-                Action = entity.Status,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt ?? DateTimeOffset.UtcNow,
-                Details = auditDetails ?? BuildAuditDetails(entity.Status, entity),
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new FanPerformanceSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    FanPerformanceSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    entity.Status,
+                    entity.ReviewerEmail,
+                    entity.ReviewedAt ?? DateTimeOffset.UtcNow,
+                    auditDetails ?? BuildAuditDetails(entity.Status, entity))));
 
             return Task.FromResult<FanPerformanceSubmission?>(Map(entity));
         }
@@ -208,29 +208,29 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
                 return Task.FromResult<FanPerformanceSubmission?>(null);
             }
 
-            if (!FanPerformanceSubmissionWorkflow.TryValidateStatusChange(
-                    entity.Status,
-                    FanPerformanceSubmissionStatus.Approved,
-                    out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                FanPerformanceSubmissionStatus.Approved,
+                FanPerformanceSubmissionWorkflow.TryValidateStatusChange);
 
-            entity.Status = FanPerformanceSubmissionStatus.Approved;
             entity.PromotedStageId = promotedStageId;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                FanPerformanceSubmissionStatus.Approved,
+                reviewerEmail,
+                reviewNotes);
 
-            auditLogs.Add(new FanPerformanceSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                FanPerformanceSubmissionId = entity.Id,
-                Action = FanPerformanceSubmissionStatus.Approved,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = $"Approved and published as fan performance #{promotedStageId}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new FanPerformanceSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    FanPerformanceSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    FanPerformanceSubmissionStatus.Approved,
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Approved and published as fan performance #{promotedStageId}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<FanPerformanceSubmission?>(Map(entity));
         }
@@ -447,16 +447,16 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
         string? rejectionReason,
         bool requireNeedsInfoNotes = false)
     {
-        if (!FanPerformanceSubmissionWorkflow.TryValidateStatusChange(entity.Status, status, out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
+        SubmissionReview.EnsureTransition(
+            entity.Status,
+            status,
+            FanPerformanceSubmissionWorkflow.TryValidateStatusChange);
 
         var next = FanPerformanceSubmissionStatus.Normalize(status);
         var normalizedRejection = SubmissionInput.NormalizeOptional(rejectionReason, 500);
-        if (next == FanPerformanceSubmissionStatus.Rejected && normalizedRejection is null)
+        if (next == FanPerformanceSubmissionStatus.Rejected)
         {
-            throw new InvalidOperationException("A rejection reason is required.");
+            normalizedRejection = SubmissionReview.RequireRejectionReason(rejectionReason);
         }
 
         if (requireNeedsInfoNotes

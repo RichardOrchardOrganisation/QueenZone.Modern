@@ -59,14 +59,12 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
 
         var entity = PhotoSubmissionRecords.NewEntity(submission);
 
-        entity.AuditLogs.Add(new PhotoSubmissionAuditLogEntity
-        {
-            PhotoSubmissionId = entity.Id,
-            Action = "Submitted",
-            ActorEmail = string.Empty,
-            OccurredAt = entity.SubmittedAt,
-            Details = "Member submitted photo for review.",
-        });
+        entity.AuditLogs.Add(SubmissionReview.Copy(
+            new PhotoSubmissionAuditLogEntity
+            {
+                PhotoSubmissionId = entity.Id,
+            },
+            SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted photo for review.")));
 
         dbContext.PhotoSubmissions.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -123,14 +121,16 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
         var next = PhotoSubmissionRecords.ApplyStatusChange(
             entity, status, reviewerEmail, reviewNotes, rejectionReason, approvedCategory);
 
-        dbContext.PhotoSubmissionAuditLogs.Add(new PhotoSubmissionAuditLogEntity
-        {
-            PhotoSubmissionId = entity.Id,
-            Action = next,
-            ActorEmail = entity.ReviewerEmail ?? string.Empty,
-            OccurredAt = entity.ReviewedAt.Value,
-            Details = BuildAuditDetails(next, entity),
-        });
+        dbContext.PhotoSubmissionAuditLogs.Add(SubmissionReview.Copy(
+            new PhotoSubmissionAuditLogEntity
+            {
+                PhotoSubmissionId = entity.Id,
+            },
+            SubmissionReview.ForStatus(
+                next,
+                entity.ReviewerEmail,
+                entity.ReviewedAt!.Value,
+                PhotoSubmissionRecords.AuditDetails(next, entity))));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -151,27 +151,31 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
             return null;
         }
 
-        if (!PhotoSubmissionWorkflow.TryValidateStatusChange(entity.Status, PhotoSubmissionStatus.Approved, out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
+        SubmissionReview.EnsureTransition(
+            entity.Status,
+            PhotoSubmissionStatus.Approved,
+            PhotoSubmissionWorkflow.TryValidateStatusChange);
 
         entity.Status = PhotoSubmissionStatus.Approved;
         entity.ApprovedCategory = SubmissionInput.NormalizeOptional(approvedCategory, 100)
             ?? throw new InvalidOperationException("An approved gallery category is required.");
         entity.PromotedPicId = promotedPicId;
-        entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+        var reviewedAt = SubmissionReview.Stamp(
+            entity,
+            PhotoSubmissionStatus.Approved,
+            reviewerEmail,
+            reviewNotes);
 
-        dbContext.PhotoSubmissionAuditLogs.Add(new PhotoSubmissionAuditLogEntity
-        {
-            PhotoSubmissionId = entity.Id,
-            Action = PhotoSubmissionStatus.Approved,
-            ActorEmail = entity.ReviewerEmail ?? string.Empty,
-            OccurredAt = entity.ReviewedAt.Value,
-            Details = $"Approved for category '{entity.ApprovedCategory}' and published to gallery as photo #{promotedPicId}. Notes: {entity.ReviewNotes ?? "(none)"}",
-        });
+        dbContext.PhotoSubmissionAuditLogs.Add(SubmissionReview.Copy(
+            new PhotoSubmissionAuditLogEntity
+            {
+                PhotoSubmissionId = entity.Id,
+            },
+            SubmissionReview.ForStatus(
+                PhotoSubmissionStatus.Approved,
+                entity.ReviewerEmail,
+                reviewedAt,
+                $"Approved for category '{entity.ApprovedCategory}' and published to gallery as photo #{promotedPicId}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Map(entity);
@@ -209,18 +213,6 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
                 SubmittedAt = row.SubmittedAt,
             })
             .ToTopContributorsAsync(monthStart, maxCount, aggregateInSql: !dbContext.Database.IsSqliteProvider(), cancellationToken);
-
-    private static string? BuildAuditDetails(string status, PhotoSubmissionEntity entity) =>
-        status switch
-        {
-            PhotoSubmissionStatus.Approved =>
-                $"Approved for category '{entity.ApprovedCategory}'. Notes: {entity.ReviewNotes ?? "(none)"}",
-            PhotoSubmissionStatus.Rejected =>
-                $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            PhotoSubmissionStatus.NeedsInfo =>
-                $"Needs info. Notes: {entity.ReviewNotes ?? "(none)"}",
-            _ => entity.ReviewNotes,
-        };
 
     internal IQueryable<PhotoSubmissionListItem> PendingQueueQuery(int skip, int take) =>
         PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);

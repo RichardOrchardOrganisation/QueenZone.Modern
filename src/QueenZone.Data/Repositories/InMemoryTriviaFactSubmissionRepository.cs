@@ -38,15 +38,13 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
             };
 
             submissions.Add(entity);
-            auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                TriviaFactSubmissionId = entity.Id,
-                Action = "Submitted",
-                ActorEmail = string.Empty,
-                OccurredAt = entity.SubmittedAt,
-                Details = "Member submitted a trivia fact for review.",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new TriviaFactSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    TriviaFactSubmissionId = entity.Id,
+                },
+                SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted a trivia fact for review.")));
 
             return Task.FromResult(Map(entity));
         }
@@ -132,29 +130,29 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 return Task.FromResult<TriviaFactSubmission?>(null);
             }
 
-            if (!TriviaFactSubmissionWorkflow.TryValidateStatusChange(
-                    entity.Status,
-                    TriviaFactSubmissionStatus.Approved,
-                    out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                TriviaFactSubmissionStatus.Approved,
+                TriviaFactSubmissionWorkflow.TryValidateStatusChange);
 
-            entity.Status = TriviaFactSubmissionStatus.Approved;
             entity.PromotedTriviaId = promotedTriviaId;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                TriviaFactSubmissionStatus.Approved,
+                reviewerEmail,
+                reviewNotes);
 
-            auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                TriviaFactSubmissionId = entity.Id,
-                Action = TriviaFactSubmissionStatus.Approved,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = $"Approved and published as trivia fact #{promotedTriviaId}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new TriviaFactSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    TriviaFactSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    TriviaFactSubmissionStatus.Approved,
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Approved and published as trivia fact #{promotedTriviaId}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<TriviaFactSubmission?>(Map(entity));
         }
@@ -175,31 +173,29 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 return Task.FromResult<TriviaFactSubmission?>(null);
             }
 
-            if (!TriviaFactSubmissionWorkflow.TryValidateStatusChange(
-                    entity.Status,
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                TriviaFactSubmissionStatus.Rejected,
+                TriviaFactSubmissionWorkflow.TryValidateStatusChange);
+
+            entity.RejectionReason = SubmissionReview.RequireRejectionReason(rejectionReason);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                TriviaFactSubmissionStatus.Rejected,
+                reviewerEmail,
+                reviewNotes);
+
+            auditLogs.Add(SubmissionReview.Copy(
+                new TriviaFactSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    TriviaFactSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
                     TriviaFactSubmissionStatus.Rejected,
-                    out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
-
-            var normalizedReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
-                ?? throw new InvalidOperationException("A rejection reason is required.");
-            entity.Status = TriviaFactSubmissionStatus.Rejected;
-            entity.RejectionReason = normalizedReason;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
-
-            auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                TriviaFactSubmissionId = entity.Id,
-                Action = TriviaFactSubmissionStatus.Rejected,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<TriviaFactSubmission?>(Map(entity));
         }
