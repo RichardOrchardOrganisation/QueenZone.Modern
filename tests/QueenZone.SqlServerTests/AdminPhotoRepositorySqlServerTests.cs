@@ -7,45 +7,15 @@ namespace QueenZone.SqlServerTests;
 
 /// <summary>
 /// Runs <see cref="EfAdminPhotoRepository"/> against real SQL Server tables shaped like the legacy
-/// <c>PIC_FILES_T</c> / <c>PIC_CAT_T</c> (#1672). The column types below were read from the
-/// <c>queenzone_legacy_sync</c> mirror, including the <c>smallint</c> <c>PIC_WIDTH</c>,
-/// <c>PIC_HEIGHT</c> and <c>PICTURE_YEAR</c> columns that the in-memory admin tests cannot reach.
+/// <c>PIC_FILES_T</c> / <c>PIC_CAT_T</c> (#1672), created from <see cref="LegacyPhotoSchema"/>. That
+/// covers the <c>smallint</c> <c>PIC_WIDTH</c>, <c>PIC_HEIGHT</c> and <c>PICTURE_YEAR</c> columns that
+/// the in-memory admin tests cannot reach.
 /// The read-only mirror probe is <c>EfAdminPhotoRepositoryLegacyProbeTests</c> in
 /// <c>QueenZone.Web.Tests</c>.
 /// </summary>
 public sealed class AdminPhotoRepositorySqlServerTests : IAsyncLifetime
 {
     private const string Editor = "editor@example.com";
-
-    private const string LegacySchemaSql = """
-        CREATE TABLE dbo.PIC_CAT_T
-        (
-            PIC_CAT_ID tinyint IDENTITY(1,1) NOT NULL PRIMARY KEY,
-            Cat_ID int NOT NULL,
-            Paths nvarchar(100) NULL,
-            BaseUrl nvarchar(100) NULL,
-            Name nvarchar(100) NULL,
-            thedate datetime NULL
-        );
-
-        CREATE TABLE dbo.PIC_FILES_T
-        (
-            PIC_ID int IDENTITY(1,1) NOT NULL PRIMARY KEY,
-            Name varchar(150) NULL,
-            Cat_ID int NULL,
-            Date_time datetime NOT NULL,
-            Url varchar(400) NULL,
-            Thumb_URL varchar(255) NULL,
-            t_height int NULL,
-            t_width int NULL,
-            user_id int NULL,
-            DISPLAY int NULL,
-            PIC_HEIGHT smallint NOT NULL,
-            PIC_WIDTH smallint NOT NULL,
-            KEYWORDS varchar(1000) NULL,
-            PICTURE_YEAR smallint NULL
-        );
-        """;
 
     private static readonly DateTime BaseTime = new(2026, 8, 17, 10, 0, 0);
 
@@ -74,10 +44,7 @@ public sealed class AdminPhotoRepositorySqlServerTests : IAsyncLifetime
         await using (var schema = new PhotoSchemaContext(schemaOptions))
         {
             await schema.Database.EnsureCreatedAsync();
-            await schema.Database.ExecuteSqlRawAsync(LegacySchemaSql);
-            await schema.Database.ExecuteSqlRawAsync("""
-                INSERT INTO dbo.PIC_CAT_T (Cat_ID, Name) VALUES (9, N'Brian May'), (11, N'Roger Taylor');
-                """);
+            await schema.Database.ExecuteSqlRawAsync(LegacyPhotoSchema.CreateTablesSql);
         }
 
         dbContext = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
@@ -253,7 +220,7 @@ public sealed class AdminPhotoRepositorySqlServerTests : IAsyncLifetime
     }
 
     // The production DbContext includes legacy tables that cannot be created in a blank database,
-    // so only the modern audit table comes from EF; the legacy tables use LegacySchemaSql.
+    // so only the modern audit table comes from EF; the legacy tables use LegacyPhotoSchema.
     private sealed class PhotoSchemaContext(DbContextOptions<PhotoSchemaContext> options) : DbContext(options)
     {
         public DbSet<PhotoAdminAuditLogEntity> PhotoAdminAuditLogs => Set<PhotoAdminAuditLogEntity>();

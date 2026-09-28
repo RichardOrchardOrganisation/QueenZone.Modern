@@ -140,6 +140,7 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | `EfAdminNewsRepositoryLegacyProbeTests` | Mac `legacy-read-probes` |
 | `EfAdminPhotoRepositoryLegacyProbeTests` (read-only `PIC_FILES_T` / `PIC_CAT_T` admin reads) | Mac `legacy-read-probes` |
 | `EfBiographyRepositoryLegacyProbeTests` (read-only `Q_BIO_LIST_SP` / `Q_BIO_DISPLAY_SP`) | Mac `legacy-read-probes` |
+| `EfPhotoRepositoryLegacyProbeTests` (read-only public gallery SQL) | Mac `legacy-read-probes` |
 | `EfNewsFullTextSearchLiveProbeTests` (`EfNewsRepository.SearchAsync` via SQL Server full-text procedure) | Mac `legacy-read-probes`, with `RUN_NEWS_FTS_PROBE=true` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
 | `EfAdminNewsRepositoryLegacyWriteProbeTests` | Windows `legacy-write-probes` via `Probe-AdminNewsLegacyWrites.ps1` |

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -13,7 +12,6 @@ public sealed class EfPhotoRepository : IPhotoRepository
     private readonly QueenZoneDbContext dbContext;
     private readonly PhotoSqlQueries sql;
 
-    [ExcludeFromCodeCoverage]
     public EfPhotoRepository(QueenZoneDbContext dbContext)
         : this(dbContext, PhotoSqlQueries.CreateProduction())
     {
