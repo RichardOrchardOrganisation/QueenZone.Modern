@@ -174,7 +174,7 @@ Use deterministic sample or fake data for normal unit and web integration tests.
 
 If a PR touches any file under `design/tokens/`, also run `pwsh ./scripts/Sync-DesignTokens.ps1` before committing (see UI Architecture above) — CI's "Design token sync check" gate fails otherwise.
 
-When changing EF `SqlQueryRaw` projections over legacy tables, check the real SQL Server column types or cast projections to the C# row model types explicitly. Many legacy IDs and counts are `smallint`, which SQL Server materializes as `System.Int16`; in-memory route tests will not catch `Int16`-to-`Int32` mapping failures. Prefer a deterministic SQL-shape test plus an opt-in read-only legacy DB probe for new public legacy read surfaces.
+When changing EF `SqlQueryRaw` projections over legacy tables, check the real SQL Server column types or cast projections to the C# row model types explicitly. Many legacy IDs and counts are `smallint`, which SQL Server materializes as `System.Int16`; in-memory route tests will not catch `Int16`-to-`Int32` mapping failures. Prefer a deterministic SQL-shape test plus an opt-in read-only legacy DB probe for new public legacy read surfaces. Do not add new `IsSqliteDatabase()` branches for production SQL; use the SQL Server test + mirror probe pair in `docs/architecture/testing-policy.md` (#1672).
 
 Legacy read probes and self-cleaning write probes run automatically every night via `.github/workflows/nightly-legacy-checks.yml`. They use a same-day SQL Express mirror synced from the live Azure SQL DB, never the live database. The read probes run on macOS over the LAN; write probes run locally on the Windows SQL Express host. This is continuous signal, not a PR gate. See `docs/architecture/testing-policy.md` ("Data Integration Tests").
 
