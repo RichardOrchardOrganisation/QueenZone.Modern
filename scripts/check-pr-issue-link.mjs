@@ -34,14 +34,32 @@ export const MISSING_LINK_MESSAGE =
   'Issue-less PRs: apply the no-issue label (Dependabot is exempt). ' +
   'See AGENTS.md > "Linking issues so merge auto-closes them".';
 
+export function stripDelimited(text, open, close) {
+  const source = String(text || '');
+  let result = '';
+  let index = 0;
+  while (index < source.length) {
+    const start = source.indexOf(open, index);
+    if (start === -1) {
+      result += source.slice(index);
+      break;
+    }
+    result += source.slice(index, start);
+    const end = source.indexOf(close, start + open.length);
+    if (end === -1) {
+      break;
+    }
+    index = end + close.length;
+  }
+  return result;
+}
+
 export function stripHtmlComments(body) {
-  return String(body || '').replace(/<!--[\s\S]*?-->/g, '');
+  return stripDelimited(body, '<!--', '-->');
 }
 
 export function stripIgnoredMarkup(body) {
-  return stripHtmlComments(body)
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`[^`]*`/g, '');
+  return stripDelimited(stripDelimited(stripHtmlComments(body), '```', '```'), '`', '`');
 }
 
 export function labelNames(labels = []) {

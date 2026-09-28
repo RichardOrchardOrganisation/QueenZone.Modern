@@ -54,12 +54,14 @@ test('HTML comments are stripped so template examples do not count', () => {
   const body = '## Issue\n\n<!-- Closes #123 -->\n\n';
   assert.equal(stripHtmlComments(body).includes('Closes #123'), false);
   assert.deepEqual(extractIssueLinks(body), []);
+  assert.deepEqual(extractIssueLinks('<!-- Closes #123'), []);
 });
 
 test('fenced and inline code are stripped before matching link lines', () => {
   assert.deepEqual(extractIssueLinks('```\nCloses #1\n```\n'), []);
   assert.deepEqual(extractIssueLinks('See `Closes #2` in the template.\n'), []);
   assert.equal(stripIgnoredMarkup('`Closes #2`').includes('Closes #2'), false);
+  assert.deepEqual(extractIssueLinks('```\nCloses #1\n'), []);
   assert.deepEqual(extractIssueLinks('```\nCloses #1\n```\n\nCloses #1863\n'), [
     { keyword: 'closes', number: 1863 },
   ]);
