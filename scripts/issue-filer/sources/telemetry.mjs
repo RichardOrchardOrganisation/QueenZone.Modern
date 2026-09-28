@@ -66,12 +66,14 @@ export async function defaultSentrySearch({
 export function sentryNextPageUrl(linkHeader, { allowedHost = 'sentry.io' } = {}) {
   const header = String(linkHeader || '');
   for (const part of header.split(',')) {
-    const match = /<([^>]+)>\s*;\s*rel="next"/i.exec(part);
-    if (!match) {
+    const [urlPart, ...parameters] = part.split(';');
+    const link = urlPart.trim();
+    if (!link.startsWith('<') || !link.endsWith('>') ||
+        !parameters.some((parameter) => parameter.trim().toLowerCase() === 'rel="next"')) {
       continue;
     }
     try {
-      const url = new URL(match[1]);
+      const url = new URL(link.slice(1, -1));
       if (url.protocol !== 'https:' && url.protocol !== 'http:') {
         return '';
       }

@@ -125,12 +125,12 @@ function Get-OwningClassName {
     )
 
     $prefix = $Text.Substring(0, $MatchIndex)
-    $matches = [regex]::Matches($prefix, '(?m)^\s*(?:public|internal|private|protected)?\s*(?:sealed\s+|abstract\s+|partial\s+)*class\s+(\w+)')
-    if ($matches.Count -eq 0) {
+    $classMatches = [regex]::Matches($prefix, '(?m)^\s*(?:public|internal|private|protected)?\s*(?:sealed\s+|abstract\s+|partial\s+)*class\s+(\w+)')
+    if ($classMatches.Count -eq 0) {
         return $null
     }
 
-    return $matches[$matches.Count - 1].Groups[1].Value
+    return $classMatches[$classMatches.Count - 1].Groups[1].Value
 }
 
 function Get-HostConstructionHits {

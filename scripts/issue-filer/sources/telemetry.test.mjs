@@ -94,6 +94,10 @@ test('Sentry Link next URL is pinned to sentry.io', () => {
   assert.equal(sentryNextPageUrl('<https://evil.example/steal>; rel="next"'), '');
   assert.equal(sentryNextPageUrl('<http://127.0.0.1/x>; rel="next"'), '');
   assert.equal(sentryNextPageUrl('<https://sentry.io.evil.example/x>; rel="next"'), '');
+  assert.equal(
+    String(sentryNextPageUrl('<https://sentry.io/first>; rel="prev", <https://sentry.io/second>; results="true"; rel="next"')),
+    'https://sentry.io/second',
+  );
 });
 
 test('defaultSentrySearch refuses a Link next URL off sentry.io', async () => {
