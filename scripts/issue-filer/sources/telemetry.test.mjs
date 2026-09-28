@@ -348,6 +348,43 @@ test('persistent Sentry 429 fails closed and files nothing', async () => {
   assert.doesNotMatch(warnings[0], /super-secret-token-value/);
 });
 
+test('collect with ctx.now as a Date still issues Sentry requests', async () => {
+  const warnings = [];
+  const urls = [];
+  const candidates = await collect({
+    config,
+    since,
+    warnings,
+    root: repoRootFrom(),
+    now: new Date('2026-09-27T10:00:00Z'),
+    sentryToken: 'token',
+    minGapMs: 0,
+    sleep: async () => {},
+    fetchImpl: async (url) => {
+      urls.push(String(url));
+      if (String(url).includes('/events/latest/')) {
+        return sentryJson(200, { extra: { path: '/news/1003/story' } });
+      }
+      return sentryJson(200, [{
+        id: '77',
+        title: 'API 500 on news',
+        count: 2,
+        lastSeen: '2026-09-27T10:00:00Z',
+        firstSeen: '2026-09-27T09:50:00Z',
+        permalink: 'https://sentry.io/issues/77',
+      }]);
+    },
+    appInsightsAlerts: [],
+    appInsightsEvidence: {},
+  });
+  assert.ok(urls.some((url) => url.includes('/issues/')));
+  assert.ok(urls.some((url) => url.includes('/events/latest/')));
+  assert.equal(candidates.length, 1);
+  assert.ok(candidates[0].keys.includes('sentry:77'));
+  assert.equal(warnings.some((warning) => /now is not a function/.test(warning)), false);
+  assert.deepEqual(warnings, []);
+});
+
 test('Sentry requests are not issued concurrently', async () => {
   let inFlight = 0;
   let maxInFlight = 0;

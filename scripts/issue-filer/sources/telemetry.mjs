@@ -158,7 +158,7 @@ function resolveSentryFetch({
     ...(sleep ? { sleep } : {}),
     ...(minGapMs !== undefined ? { minGapMs } : {}),
     ...(maxAttempts !== undefined ? { maxAttempts } : {}),
-    ...(now ? { now } : {}),
+    ...(typeof now === 'function' ? { now } : {}),
   });
 }
 

@@ -18,7 +18,7 @@ name: Telemetry triage
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "17,47 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
