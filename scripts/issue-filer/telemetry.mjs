@@ -9,10 +9,16 @@ const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const NUMERIC_RE = /^\d+$/;
 const METHOD_RE = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/i;
 const CORRELATE_WINDOW_MS = 10 * 60 * 1000;
-const SENTRY_QUERY = 'is:unresolved (is:new OR is:regressed)';
+// Issues search rejects OR/AND/parentheses (docs.sentry.io/concepts/search/
+// "Using OR and AND" — those operators are only for Explore, Dashboards, and
+// Monitors). Split new vs regressed and merge by id. lastSeen:-Nh is the
+// documented 2h lookback (docs.sentry.io/concepts/search/searchable-properties/issues/).
+const SENTRY_STATUS_FILTERS = ['is:unresolved is:new', 'is:unresolved is:regressed'];
 const DEFAULT_SENTRY_HOST = 'https://sentry.io';
 const DEFAULT_SENTRY_ORG = 'self-0tb';
 const DEFAULT_SENTRY_PROJECT = 'queenzone-mobile';
+const SENTRY_ISSUES_LIMIT = 25;
+const SENTRY_STATS_PERIOD = '24h';
 
 export const LOOKBACK_HOURS = 2;
 export const REDACT_MAX_LENGTH = 120;
@@ -52,6 +58,82 @@ export function redact(text, { maxLength = REDACT_MAX_LENGTH } = {}) {
     return `${value.slice(0, Math.max(1, maxLength - 1))}…`;
   }
   return value;
+}
+
+export function sentrySearchQueries({ lookbackHours = LOOKBACK_HOURS } = {}) {
+  const hours = Number(lookbackHours);
+  const windowHours = Number.isFinite(hours) && hours > 0 ? hours : LOOKBACK_HOURS;
+  const lookback = `lastSeen:-${windowHours}h`;
+  return SENTRY_STATUS_FILTERS.map((filter) => `${filter} ${lookback}`);
+}
+
+export function buildSentryIssuesUrl({
+  host = DEFAULT_SENTRY_HOST,
+  org = DEFAULT_SENTRY_ORG,
+  project = DEFAULT_SENTRY_PROJECT,
+  query,
+  limit = SENTRY_ISSUES_LIMIT,
+  statsPeriod = SENTRY_STATS_PERIOD,
+} = {}) {
+  const url = new URL(`/api/0/projects/${org}/${project}/issues/`, host);
+  url.searchParams.set('query', query);
+  url.searchParams.set('limit', String(limit));
+  url.searchParams.set('statsPeriod', statsPeriod);
+  return url;
+}
+
+export function mergeSentryIssuesById(lists) {
+  const byId = new Map();
+  for (const issue of lists.flat()) {
+    if (!issue?.id) {
+      continue;
+    }
+    const key = String(issue.id);
+    if (!byId.has(key)) {
+      byId.set(key, issue);
+    }
+  }
+  return [...byId.values()];
+}
+
+export function sentryErrorDetail(bodyText, { maxLength = REDACT_MAX_LENGTH } = {}) {
+  const raw = String(bodyText ?? '').trim();
+  if (!raw) {
+    return '';
+  }
+  let detail = '';
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.detail === 'string') {
+      detail = parsed.detail;
+    } else if (parsed?.detail && typeof parsed.detail === 'object') {
+      detail = parsed.detail.message || parsed.detail.code || '';
+    }
+  } catch {
+    detail = '';
+  }
+  return detail ? redact(detail, { maxLength }) : '';
+}
+
+export function formatSentryIssuesError(status, bodyText) {
+  const detail = sentryErrorDetail(bodyText);
+  return detail ? `Sentry issues failed: ${status}: ${detail}` : `Sentry issues failed: ${status}`;
+}
+
+export function isTelemetryCollectFailure(warning) {
+  const text = String(warning || '');
+  if (text.startsWith('sentry: ')) {
+    return !text.includes('SENTRY_TRIAGE_TOKEN is not set');
+  }
+  if (text.startsWith('azure: ')) {
+    const azure = text.slice('azure: '.length);
+    return azure === 'azure-graph-failed'
+      || azure === 'azure-workspace-failed'
+      || azure === 'azure-login-failed'
+      || azure === 'azure-arm-vars-missing'
+      || azure.startsWith('azure-kql-failed:');
+  }
+  return false;
 }
 
 export const ARG_ALERTS_QUERY = `
@@ -798,5 +880,7 @@ export {
   DEFAULT_SENTRY_HOST,
   DEFAULT_SENTRY_ORG,
   DEFAULT_SENTRY_PROJECT,
-  SENTRY_QUERY,
+  SENTRY_ISSUES_LIMIT,
+  SENTRY_STATS_PERIOD,
+  SENTRY_STATUS_FILTERS,
 };
