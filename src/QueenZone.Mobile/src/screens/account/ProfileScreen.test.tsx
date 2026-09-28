@@ -1,8 +1,11 @@
 import { screen, userEvent } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import { ProfileScreen } from './ProfileScreen';
 import { memberProfileFixture } from '../../test/fixtures';
 import { createMockSession } from '../../test/mockSession';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
+import { openExternalUrl } from '../../ui/openExternalUrl';
+import { rateAppUrl } from './rateAppUrl';
 
 const mockSession = createMockSession();
 
@@ -12,6 +15,10 @@ jest.mock('../../session/SessionContext', () => ({
 
 jest.mock('../messages/useUnreadConversationCount', () => ({
   useUnreadConversationCount: () => 2,
+}));
+
+jest.mock('../../ui/openExternalUrl', () => ({
+  openExternalUrl: jest.fn(),
 }));
 
 function renderProfile() {
@@ -28,6 +35,15 @@ describe('ProfileScreen', () => {
     mockSession.displayName = null;
     mockSession.profile = null;
     mockSession.signOut.mockReset();
+    jest.mocked(openExternalUrl).mockReset();
+  });
+
+  it('uses the review pages for each store', () => {
+    expect(rateAppUrl('ios')).toBe('https://apps.apple.com/app/apple-store/id6803889011?action=write-review');
+    expect(rateAppUrl('android')).toBe(
+      'https://play.google.com/store/apps/details?id=org.queenzone.mobile&showAllReviews=true',
+    );
+    expect(rateAppUrl('web')).toBeNull();
   });
 
   it('gates signed-out visitors behind Sign in', async () => {
@@ -49,6 +65,8 @@ describe('ProfileScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('AnalyticsSettings');
     await user.press(screen.getByRole('button', { name: 'Appearance' }));
     expect(navigation.navigate).toHaveBeenCalledWith('Appearance');
+    await user.press(screen.getByRole('button', { name: 'Rate this app' }));
+    expect(openExternalUrl).toHaveBeenCalledWith(rateAppUrl(Platform.OS));
   });
 
   it('shows a restoring state instead of the signed-out gate', () => {
@@ -96,6 +114,7 @@ describe('ProfileScreen', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Analytics preferences' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Appearance' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Rate this app' })).toBeOnTheScreen();
   });
 
   it('opens My submissions from the member profile', async () => {
@@ -113,6 +132,19 @@ describe('ProfileScreen', () => {
     await user.press(screen.getByTestId('profile-my-submissions'));
 
     expect(navigation.navigate).toHaveBeenCalledWith('MySubmissions');
+  });
+
+  it('opens the store review page from the member profile', async () => {
+    const user = userEvent.setup();
+    mockSession.isSignedIn = true;
+    mockSession.displayName = 'Freddie';
+    mockSession.profile = memberProfileFixture();
+    mockSession.refreshProfile.mockResolvedValue(mockSession.profile);
+    renderProfile();
+
+    await user.press(screen.getByRole('button', { name: 'Rate this app' }));
+
+    expect(openExternalUrl).toHaveBeenCalledWith(rateAppUrl(Platform.OS));
   });
 
   it('calls sign out and shows a busy control while it is pending', async () => {
