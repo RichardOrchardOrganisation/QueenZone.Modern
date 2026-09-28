@@ -12,9 +12,12 @@
  */
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { isDependabot } from './check-pr-verification.mjs';
 
 export const NO_ISSUE_LABEL = 'no-issue';
+
+export function isDependabotLogin(pullRequest) {
+  return pullRequest?.user?.login === 'dependabot[bot]';
+}
 
 export const ISSUE_LINK_PATTERN = /\b(closes|fixes|resolves|part of|relates to)\s+#(\d+)\b/gi;
 
@@ -35,12 +38,18 @@ export function stripHtmlComments(body) {
   return String(body || '').replace(/<!--[\s\S]*?-->/g, '');
 }
 
+export function stripIgnoredMarkup(body) {
+  return stripHtmlComments(body)
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`[^`]*`/g, '');
+}
+
 export function labelNames(labels = []) {
   return labels.map((label) => (typeof label === 'string' ? label : label?.name)).filter(Boolean);
 }
 
 export function extractIssueLinks(body) {
-  const text = stripHtmlComments(body);
+  const text = stripIgnoredMarkup(body);
   const pattern = new RegExp(ISSUE_LINK_PATTERN.source, 'gi');
   const links = [];
   for (const match of text.matchAll(pattern)) {
@@ -83,7 +92,7 @@ export function evaluateIssueLinks({
     return { ok: true, exemption: 'no-issue label' };
   }
 
-  const text = stripHtmlComments(body);
+  const text = stripIgnoredMarkup(body);
   const links = extractIssueLinks(text);
   if (links.length === 0) {
     return { ok: false, error: MISSING_LINK_MESSAGE };
@@ -164,7 +173,7 @@ export async function checkPullRequestIssueLink({ github, context, core }) {
     return { ok: true, skipped: true };
   }
 
-  const dependabot = isDependabot(pullRequest);
+  const dependabot = isDependabotLogin(pullRequest);
   const labels = pullRequest.labels || [];
   const body = pullRequest.body || '';
 

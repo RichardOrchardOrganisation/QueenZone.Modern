@@ -6,7 +6,9 @@ import {
   evaluateIssueLinks,
   extractIssueLinks,
   fetchIssue,
+  isDependabotLogin,
   stripHtmlComments,
+  stripIgnoredMarkup,
 } from './check-pr-issue-link.mjs';
 
 function issue(number, { isPullRequest = false } = {}) {
@@ -52,6 +54,20 @@ test('HTML comments are stripped so template examples do not count', () => {
   const body = '## Issue\n\n<!-- Closes #123 -->\n\n';
   assert.equal(stripHtmlComments(body).includes('Closes #123'), false);
   assert.deepEqual(extractIssueLinks(body), []);
+});
+
+test('fenced and inline code are stripped before matching link lines', () => {
+  assert.deepEqual(extractIssueLinks('```\nCloses #1\n```\n'), []);
+  assert.deepEqual(extractIssueLinks('See `Closes #2` in the template.\n'), []);
+  assert.equal(stripIgnoredMarkup('`Closes #2`').includes('Closes #2'), false);
+  assert.deepEqual(extractIssueLinks('```\nCloses #1\n```\n\nCloses #1863\n'), [
+    { keyword: 'closes', number: 1863 },
+  ]);
+});
+
+test('Dependabot exemption is login-only, not a dependabot/ branch name', () => {
+  assert.equal(isDependabotLogin({ user: { login: 'dependabot[bot]' }, head: { ref: 'other' } }), true);
+  assert.equal(isDependabotLogin({ user: { login: 'cursor' }, head: { ref: 'dependabot/fake' } }), false);
 });
 
 test('extracts each recognized keyword case-insensitively', () => {
@@ -214,6 +230,29 @@ test('checkPullRequestIssueLink reports Dependabot and no-issue exemptions', asy
   });
   assert.equal(labeled.exemption, 'no-issue label');
   assert.match(labelCore.messages.info.join('\n'), /no-issue label exemption applied/);
+});
+
+test('a non-bot user on dependabot/fake with an empty body fails', async () => {
+  const core = mockCore();
+  const result = await checkPullRequestIssueLink({
+    github: mockGithub({}),
+    context: {
+      eventName: 'pull_request',
+      repo: { owner: 'o', repo: 'r' },
+      payload: {
+        pull_request: {
+          body: '',
+          labels: [],
+          user: { login: 'cursor' },
+          head: { ref: 'dependabot/fake' },
+        },
+      },
+    },
+    core,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, MISSING_LINK_MESSAGE);
+  assert.equal(core.messages.failed[0], MISSING_LINK_MESSAGE);
 });
 
 test('checkPullRequestIssueLink fetches issues and fails for a PR number', async () => {
