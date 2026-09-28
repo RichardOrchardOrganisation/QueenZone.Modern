@@ -47,6 +47,121 @@ async function readSentryBody(response) {
   return { data: null, text: '' };
 }
 
+export const SENTRY_MIN_REQUEST_GAP_MS = 250;
+export const SENTRY_MAX_ATTEMPTS = 3;
+export const SENTRY_MAX_RETRY_WAIT_MS = 8_000;
+
+function defaultSleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function headerValue(headers, name) {
+  if (!headers) {
+    return '';
+  }
+  if (typeof headers.get === 'function') {
+    return headers.get(name) || '';
+  }
+  return headers[name] || headers[name.toLowerCase()] || '';
+}
+
+function fallbackRetryDelayMs(attempt) {
+  const n = Number.isFinite(attempt) && attempt > 0 ? attempt : 1;
+  return Math.min(1000 * (2 ** (n - 1)), SENTRY_MAX_RETRY_WAIT_MS);
+}
+
+function clampRetryDelayMs(ms, attempt) {
+  if (!Number.isFinite(ms)) {
+    return fallbackRetryDelayMs(attempt);
+  }
+  return Math.min(Math.max(0, ms), SENTRY_MAX_RETRY_WAIT_MS);
+}
+
+export function sentryRetryDelayMs(headers, { now = Date.now(), attempt = 1 } = {}) {
+  const retryAfter = String(headerValue(headers, 'Retry-After') || '').trim();
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return clampRetryDelayMs(Math.ceil(seconds * 1000), attempt);
+    }
+    const dateMs = Date.parse(retryAfter);
+    if (Number.isFinite(dateMs)) {
+      return clampRetryDelayMs(dateMs - now, attempt);
+    }
+  }
+  const reset = String(headerValue(headers, 'X-Sentry-Rate-Limit-Reset') || '').trim();
+  if (reset) {
+    const value = Number(reset);
+    if (Number.isFinite(value)) {
+      const resetMs = value > 1e12 ? value : value * 1000;
+      return clampRetryDelayMs(resetMs - now, attempt);
+    }
+  }
+  return fallbackRetryDelayMs(attempt);
+}
+
+export function createSentryFetch({
+  fetchImpl = fetch,
+  sleep = defaultSleep,
+  minGapMs = SENTRY_MIN_REQUEST_GAP_MS,
+  maxAttempts = SENTRY_MAX_ATTEMPTS,
+  now = Date.now,
+} = {}) {
+  const gapMs = Number.isFinite(minGapMs) && minGapMs >= 0 ? minGapMs : SENTRY_MIN_REQUEST_GAP_MS;
+  const attempts = Number.isFinite(maxAttempts) && maxAttempts > 0 ? maxAttempts : SENTRY_MAX_ATTEMPTS;
+  let lastStartedAt = 0;
+  let chain = Promise.resolve();
+
+  async function send(url, init) {
+    const wait = lastStartedAt === 0 ? 0 : Math.max(0, gapMs - (now() - lastStartedAt));
+    if (wait > 0) {
+      await sleep(wait);
+    }
+    lastStartedAt = now();
+    return fetchImpl(url, init);
+  }
+
+  async function fetchWithRetry(url, init) {
+    let response;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      response = await send(url, init);
+      if (response.status !== 429 || attempt === attempts) {
+        return response;
+      }
+      await sleep(sentryRetryDelayMs(response.headers, { now: now(), attempt }));
+    }
+    return response;
+  }
+
+  return (url, init) => {
+    const run = chain.then(() => fetchWithRetry(url, init));
+    chain = run.then(() => undefined, () => undefined);
+    return run;
+  };
+}
+
+function resolveSentryFetch({
+  sentryFetch,
+  fetchImpl = fetch,
+  sleep,
+  minGapMs,
+  maxAttempts,
+  now,
+} = {}) {
+  if (sentryFetch) {
+    return sentryFetch;
+  }
+  return createSentryFetch({
+    fetchImpl,
+    ...(sleep ? { sleep } : {}),
+    ...(minGapMs !== undefined ? { minGapMs } : {}),
+    ...(maxAttempts !== undefined ? { maxAttempts } : {}),
+    ...(now ? { now } : {}),
+  });
+}
+
 async function fetchSentryIssuePages({
   host,
   org,
@@ -91,11 +206,24 @@ export async function defaultSentrySearch({
   queries,
   lookbackHours,
   fetchImpl = fetch,
+  sentryFetch,
+  sleep,
+  minGapMs,
+  maxAttempts,
+  now,
 } = {}) {
   if (!token) {
     const error = new Error('SENTRY_TRIAGE_TOKEN is not set');
     throw error;
   }
+  const request = resolveSentryFetch({
+    sentryFetch,
+    fetchImpl,
+    sleep,
+    minGapMs,
+    maxAttempts,
+    now,
+  });
   const queryList = query
     ? [query]
     : (queries || sentrySearchQueries({ lookbackHours }));
@@ -107,7 +235,7 @@ export async function defaultSentrySearch({
       project,
       token,
       query: item,
-      fetchImpl,
+      fetchImpl: request,
     }));
   }
   return mergeSentryIssuesById(pages);
@@ -143,9 +271,22 @@ export async function defaultSentryLatestEvent({
   token,
   issueId,
   fetchImpl = fetch,
+  sentryFetch,
+  sleep,
+  minGapMs,
+  maxAttempts,
+  now,
 } = {}) {
+  const request = resolveSentryFetch({
+    sentryFetch,
+    fetchImpl,
+    sleep,
+    minGapMs,
+    maxAttempts,
+    now,
+  });
   const url = new URL(`/api/0/issues/${issueId}/events/latest/`, host);
-  const response = await fetchImpl(url, {
+  const response = await request(url, {
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
@@ -224,6 +365,15 @@ export async function collect(ctx) {
     if (!token && !search) {
       warnings.push('sentry: SENTRY_TRIAGE_TOKEN is not set');
     } else {
+      const sentryFetch = ctx.sentryFetch || (!search
+        ? resolveSentryFetch({
+          fetchImpl: ctx.fetchImpl || fetch,
+          sleep: ctx.sleep,
+          minGapMs: ctx.minGapMs,
+          maxAttempts: ctx.maxAttempts,
+          now: ctx.now,
+        })
+        : undefined);
       try {
         const issues = search
           ? await search({ queries })
@@ -234,13 +384,13 @@ export async function collect(ctx) {
             token,
             queries,
             lookbackHours,
-            fetchImpl: ctx.fetchImpl || fetch,
+            sentryFetch,
           });
         const latestEvent = ctx.sentryLatestEvent || ((issueId) => defaultSentryLatestEvent({
           host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
           token,
           issueId,
-          fetchImpl: ctx.fetchImpl || fetch,
+          sentryFetch,
         }));
         for (const issue of issues || []) {
           let event = null;

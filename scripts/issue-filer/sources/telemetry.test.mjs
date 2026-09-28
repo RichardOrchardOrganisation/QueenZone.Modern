@@ -4,7 +4,14 @@ import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFilerFiles, repoRootFrom } from '../config.mjs';
-import { collect, defaultSentrySearch, sentryNextPageUrl } from './telemetry.mjs';
+import {
+  collect,
+  createSentryFetch,
+  defaultSentrySearch,
+  SENTRY_MAX_RETRY_WAIT_MS,
+  sentryNextPageUrl,
+  sentryRetryDelayMs,
+} from './telemetry.mjs';
 
 const { config } = loadFilerFiles(repoRootFrom());
 const since = new Date('2026-09-27T08:00:00Z');
@@ -140,6 +147,7 @@ test('defaultSentrySearch runs new and regressed queries and merges by id', asyn
   const issues = await defaultSentrySearch({
     token: 't',
     lookbackHours: 2,
+    minGapMs: 0,
     fetchImpl: async (url) => {
       urls.push(String(url));
       const query = new URL(url).searchParams.get('query');
@@ -207,4 +215,170 @@ test('Sentry search errors fail closed and do not return partial Azure candidate
   });
   assert.deepEqual(candidates, []);
   assert.match(warnings[0], /Sentry issues failed: 400/);
+});
+
+function sentryHeaders(map = {}) {
+  const normalised = Object.fromEntries(
+    Object.entries(map).map(([key, value]) => [key.toLowerCase(), value]),
+  );
+  return {
+    get: (name) => normalised[String(name).toLowerCase()] || '',
+  };
+}
+
+function sentryJson(status, data, headers = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => data,
+    text: async () => JSON.stringify(data),
+    headers: sentryHeaders(headers),
+  };
+}
+
+function assertDelayWithinCap(ms) {
+  assert.equal(Number.isFinite(ms), true);
+  assert.ok(ms >= 0);
+  assert.ok(ms <= SENTRY_MAX_RETRY_WAIT_MS);
+}
+
+test('sentryRetryDelayMs prefers Retry-After seconds, then X-Sentry-Rate-Limit-Reset', () => {
+  assert.equal(sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '2' }), { now: 0 }), 2000);
+  assert.equal(
+    sentryRetryDelayMs(sentryHeaders({
+      'Retry-After': 'Wed, 21 Oct 2015 07:28:01 GMT',
+    }), { now: Date.parse('Wed, 21 Oct 2015 07:28:00 GMT') }),
+    1000,
+  );
+  assert.equal(
+    sentryRetryDelayMs(sentryHeaders({ 'X-Sentry-Rate-Limit-Reset': '1005' }), { now: 1_000_000 }),
+    5000,
+  );
+  assert.equal(sentryRetryDelayMs(sentryHeaders(), { attempt: 1 }), 1000);
+  assert.equal(sentryRetryDelayMs(sentryHeaders(), { attempt: 2 }), 2000);
+});
+
+test('sentryRetryDelayMs clamps header delays to [0, cap]', () => {
+  const now = 1_000_000;
+  const cases = [
+    sentryRetryDelayMs(sentryHeaders(), { now, attempt: 1 }),
+    sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '-3' }), { now, attempt: 1 }),
+    sentryRetryDelayMs(sentryHeaders({ 'Retry-After': 'NaN' }), { now, attempt: 1 }),
+    sentryRetryDelayMs(sentryHeaders({
+      'Retry-After': 'Wed, 21 Oct 2015 07:28:00 GMT',
+    }), { now: Date.parse('Wed, 21 Oct 2015 07:28:01 GMT') }),
+    sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '86400' }), { now }),
+    sentryRetryDelayMs(sentryHeaders({ 'X-Sentry-Rate-Limit-Reset': '9999999999' }), { now }),
+    sentryRetryDelayMs(sentryHeaders({
+      'Retry-After': 'Wed, 21 Oct 2099 07:28:01 GMT',
+    }), { now }),
+  ];
+  for (const delay of cases) {
+    assertDelayWithinCap(delay);
+  }
+  assert.equal(sentryRetryDelayMs(sentryHeaders({ 'Retry-After': '86400' }), { now }), SENTRY_MAX_RETRY_WAIT_MS);
+  assert.equal(
+    sentryRetryDelayMs(sentryHeaders({ 'X-Sentry-Rate-Limit-Reset': '9999999999' }), { now }),
+    SENTRY_MAX_RETRY_WAIT_MS,
+  );
+  assert.equal(
+    sentryRetryDelayMs(sentryHeaders({
+      'Retry-After': 'Wed, 21 Oct 2099 07:28:01 GMT',
+    }), { now }),
+    SENTRY_MAX_RETRY_WAIT_MS,
+  );
+});
+
+test('defaultSentrySearch retries a 429 then succeeds', async () => {
+  const sleeps = [];
+  let calls = 0;
+  const issues = await defaultSentrySearch({
+    token: 't',
+    query: 'is:unresolved is:new lastSeen:-2h',
+    minGapMs: 0,
+    sleep: async (ms) => {
+      sleeps.push(ms);
+    },
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return sentryJson(429, { detail: 'Limit is 5 requests in 1 seconds' }, { 'Retry-After': '1' });
+      }
+      return sentryJson(200, [{ id: '9', title: 'recovered' }]);
+    },
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(sleeps, [1000]);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].id, '9');
+});
+
+test('persistent Sentry 429 fails closed and files nothing', async () => {
+  const warnings = [];
+  let calls = 0;
+  const candidates = await collect({
+    config,
+    since,
+    warnings,
+    root: repoRootFrom(),
+    sentryToken: 'super-secret-token-value',
+    minGapMs: 0,
+    maxAttempts: 3,
+    sleep: async () => {},
+    fetchImpl: async () => {
+      calls += 1;
+      return sentryJson(429, {
+        detail: 'You are attempting to use this endpoint too frequently. Limit is 5 requests in 1 seconds Bearer super-secret-token-value',
+      });
+    },
+    appInsightsAlerts: [{ rule: 'qz-prod-exception-spike' }],
+    appInsightsEvidence: {
+      'qz-prod-exception-spike': [{
+        ProblemId: 'SqlException',
+        ItemCount: 8,
+        lastSeen: '2026-09-27T10:00:00Z',
+        OperationName: 'GET /forum',
+      }],
+    },
+  });
+  assert.equal(calls, 3);
+  assert.deepEqual(candidates, []);
+  assert.match(warnings[0], /Sentry issues failed: 429/);
+  assert.match(warnings[0], /Limit is 5 requests in 1 seconds/);
+  assert.doesNotMatch(warnings[0], /super-secret-token-value/);
+});
+
+test('Sentry requests are not issued concurrently', async () => {
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const started = [];
+  const sentryFetch = createSentryFetch({
+    minGapMs: 0,
+    sleep: async () => {},
+    fetchImpl: async (url) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      started.push(String(url));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+      inFlight -= 1;
+      return sentryJson(200, [{ id: String(started.length) }]);
+    },
+  });
+  await Promise.all([
+    defaultSentrySearch({
+      token: 't',
+      query: 'is:unresolved is:new lastSeen:-2h',
+      sentryFetch,
+    }),
+    defaultSentrySearch({
+      token: 't',
+      query: 'is:unresolved is:regressed lastSeen:-2h',
+      sentryFetch,
+    }),
+    sentryFetch('https://sentry.io/api/0/issues/1/events/latest/'),
+  ]);
+  assert.equal(maxInFlight, 1);
+  assert.equal(started.length, 3);
 });
