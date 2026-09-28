@@ -13,7 +13,7 @@ Shared, deterministic issue filer for the weekly gardener (#1804) and telemetry 
 | `scripts/issue-filer/review-findings-60d.json` | Classified 60-day review findings for #1802 AC3. Ingested only when `--ingest-findings` is passed |
 | `scripts/issue-filer/` | Pure `planFilings` core, injected GitHub client, source collectors, templates |
 | `scripts/issue-filer/telemetry.mjs` | Sentry/App Insights parse, route normalisation, correlation, dedupe keys |
-| `.github/workflows/telemetry-triage.yml` | Daily poller at 07:17 Perth (2h lookback) that feeds the telemetry loop |
+| `.github/workflows/telemetry-triage.yml` | Daily poller at 07:17 Perth (26h lookback) that feeds the telemetry loop |
 
 ## Ignore list
 
