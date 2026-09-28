@@ -8,6 +8,7 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
     private readonly QueenZoneDbContext dbContext;
     private readonly string latestNewsSql;
     private readonly string latestNewsCountSql;
+    private readonly string pagingSuffix;
     private readonly string connectionString;
 
     public EfAdminNewsRepository(QueenZoneDbContext dbContext)
@@ -15,9 +16,14 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
     {
     }
 
-    internal EfAdminNewsRepository(QueenZoneDbContext dbContext, string? latestNewsSqlOverride)
+    internal EfAdminNewsRepository(
+        QueenZoneDbContext dbContext,
+        string? latestNewsSqlOverride,
+        string? pagingSuffixOverride = null)
     {
         this.dbContext = dbContext;
+        pagingSuffix = pagingSuffixOverride
+            ?? " ORDER BY PublishedAt DESC, NewsId DESC OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY";
         connectionString = dbContext.Database.GetConnectionString()
             ?? throw new InvalidOperationException("QueenZone legacy database connection string is not configured.");
         if (latestNewsSqlOverride is not null)
@@ -52,10 +58,6 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
         var offset = (normalizedPage - 1) * normalizedPageSize;
 
         var totalCount = await GetAdminNewsTotalCountAsync(cancellationToken);
-
-        var pagingSuffix = IsSqliteDatabase()
-            ? " ORDER BY PublishedAt DESC, NewsId DESC LIMIT {1} OFFSET {0}"
-            : " ORDER BY PublishedAt DESC, NewsId DESC OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY";
 
 #pragma warning disable EF1003 // SQL is generated from fixed schema-detection branches, not user input.
         var rows = await dbContext.NewsRows
@@ -257,9 +259,4 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
         return values.FirstOrDefault();
     }
 
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
 }

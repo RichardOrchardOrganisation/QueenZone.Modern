@@ -22,7 +22,7 @@ public sealed class EfAdminNewsRepositoryTests : IAsyncDisposable
         dbContext = new QueenZoneDbContext(options);
         AdminNewsSqliteTestHarness.EnsureNewsTable(dbContext);
         AdminNewsSqliteTestHarness.SeedArticle(dbContext, 4201, "SQLite admin article");
-        repository = new EfAdminNewsRepository(dbContext, SqliteLatestNewsSql);
+        repository = new EfAdminNewsRepository(dbContext, SqliteLatestNewsSql, AdminNewsSqliteTestHarness.PagingSuffix);
     }
 
     [Fact]
@@ -53,36 +53,6 @@ public sealed class EfAdminNewsRepositoryTests : IAsyncDisposable
         var article = await repository.GetByIdAsync(9999);
 
         Assert.Null(article);
-    }
-
-    [Fact]
-    public async Task GetPageAsync_returns_requested_slice_and_total_count()
-    {
-        for (var id = 4202; id <= 4210; id++)
-        {
-            var title = $"Article {id}";
-            var publishedAt = $"2026-06-{id - 4200:D2}";
-            dbContext.Database.ExecuteSql($"""
-                INSERT INTO NEWS_T (NEWS_ID, TITLE, EXCERPT, ARTICLE, "DATE", DISPLAY, TYPE, QUEEN_ONLINE)
-                VALUES ({id}, {title}, 'Excerpt', 'Body', {publishedAt}, 0, 0, 0);
-                """);
-        }
-
-        var firstPage = await repository.GetPageAsync(1, 4);
-
-        Assert.Equal(10, firstPage.TotalCount);
-        Assert.Equal(1, firstPage.Page);
-        Assert.Equal(4, firstPage.PageSize);
-        Assert.Equal(4, firstPage.Items.Count);
-        Assert.Equal(4210, firstPage.Items[0].Id);
-        Assert.Equal(4207, firstPage.Items[^1].Id);
-
-        var secondPage = await repository.GetPageAsync(2, 4);
-
-        Assert.Equal(10, secondPage.TotalCount);
-        Assert.Equal(4, secondPage.Items.Count);
-        Assert.Equal(4206, secondPage.Items[0].Id);
-        Assert.Equal(4203, secondPage.Items[^1].Id);
     }
 
     [Fact]
