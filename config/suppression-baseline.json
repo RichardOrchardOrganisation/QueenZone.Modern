@@ -121,9 +121,6 @@
     "src/QueenZone.Data/Repositories/EfArticlesRepository.cs": {
       "exclude-from-code-coverage": 1
     },
-    "src/QueenZone.Data/Repositories/EfBiographyRepository.cs": {
-      "exclude-from-code-coverage": 3
-    },
     "src/QueenZone.Data/Repositories/EfDiscographyRepository.cs": {
       "exclude-from-code-coverage": 1
     },
