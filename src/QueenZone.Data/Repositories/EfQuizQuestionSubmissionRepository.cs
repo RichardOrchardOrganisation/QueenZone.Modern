@@ -27,14 +27,12 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         var now = DateTimeOffset.UtcNow;
         var entity = QuizQuestionSubmissionRecords.NewEntity(submission, now);
 
-        entity.AuditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-        {
-            QuizQuestionSubmissionId = entity.Id,
-            Action = "Submitted",
-            ActorEmail = string.Empty,
-            OccurredAt = now,
-            Details = "Member submitted a quiz question for review.",
-        });
+        entity.AuditLogs.Add(SubmissionReview.Copy(
+            new QuizQuestionSubmissionAuditLogEntity
+            {
+                QuizQuestionSubmissionId = entity.Id,
+            },
+            SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted a quiz question for review.")));
 
         dbContext.QuizQuestionSubmissions.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -154,13 +152,10 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
             return null;
         }
 
-        if (!QuizQuestionSubmissionWorkflow.TryValidateStatusChange(
-                entity.Status,
-                QuizQuestionSubmissionStatus.Approved,
-                out var statusError))
-        {
-            throw new InvalidOperationException(statusError);
-        }
+        SubmissionReview.EnsureTransition(
+            entity.Status,
+            QuizQuestionSubmissionStatus.Approved,
+            QuizQuestionSubmissionWorkflow.TryValidateStatusChange);
 
         var errors = QuizQuestionSubmissionValidation.ValidateSubmission(
             edit.QuestionText,
@@ -197,20 +192,22 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
 
         dbContext.QuizQuestionSubmissionOptions.AddRange(newOptions);
 
-        entity.Status = QuizQuestionSubmissionStatus.Approved;
-        var now = DateTimeOffset.UtcNow;
-        entity.ReviewedAt = now;
-        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+        var reviewedAt = SubmissionReview.Stamp(
+            entity,
+            QuizQuestionSubmissionStatus.Approved,
+            reviewerEmail,
+            reviewNotes);
 
-        dbContext.QuizQuestionSubmissionAuditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-        {
-            QuizQuestionSubmissionId = entity.Id,
-            Action = QuizQuestionSubmissionStatus.Approved,
-            ActorEmail = entity.ReviewerEmail ?? string.Empty,
-            OccurredAt = now,
-            Details = $"Approved for the quiz builder's question bank. Notes: {entity.ReviewNotes ?? "(none)"}",
-        });
+        dbContext.QuizQuestionSubmissionAuditLogs.Add(SubmissionReview.Copy(
+            new QuizQuestionSubmissionAuditLogEntity
+            {
+                QuizQuestionSubmissionId = entity.Id,
+            },
+            SubmissionReview.ForStatus(
+                QuizQuestionSubmissionStatus.Approved,
+                entity.ReviewerEmail,
+                reviewedAt,
+                $"Approved for the quiz builder's question bank. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return await GetByIdAsync(id, cancellationToken);
@@ -232,14 +229,16 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
 
         var now = QuizQuestionSubmissionRecords.ApplyRejection(entity, reviewerEmail, rejectionReason, reviewNotes);
 
-        dbContext.QuizQuestionSubmissionAuditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-        {
-            QuizQuestionSubmissionId = entity.Id,
-            Action = QuizQuestionSubmissionStatus.Rejected,
-            ActorEmail = entity.ReviewerEmail ?? string.Empty,
-            OccurredAt = now,
-            Details = QuizQuestionSubmissionRecords.RejectionAuditDetails(entity),
-        });
+        dbContext.QuizQuestionSubmissionAuditLogs.Add(SubmissionReview.Copy(
+            new QuizQuestionSubmissionAuditLogEntity
+            {
+                QuizQuestionSubmissionId = entity.Id,
+            },
+            SubmissionReview.ForStatus(
+                QuizQuestionSubmissionStatus.Rejected,
+                entity.ReviewerEmail,
+                now,
+                QuizQuestionSubmissionRecords.RejectionAuditDetails(entity))));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return await GetByIdAsync(id, cancellationToken);
@@ -267,14 +266,16 @@ public sealed class EfQuizQuestionSubmissionRepository(QueenZoneDbContext dbCont
         entity.AddedToQuizId = quizId;
         entity.AddedToQuizAt = now;
 
-        dbContext.QuizQuestionSubmissionAuditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-        {
-            QuizQuestionSubmissionId = entity.Id,
-            Action = "AddedToQuiz",
-            ActorEmail = SubmissionInput.NormalizeOptional(actorEmail, 256) ?? string.Empty,
-            OccurredAt = now,
-            Details = $"Added to quiz {quizId} via the builder.",
-        });
+        dbContext.QuizQuestionSubmissionAuditLogs.Add(SubmissionReview.Copy(
+            new QuizQuestionSubmissionAuditLogEntity
+            {
+                QuizQuestionSubmissionId = entity.Id,
+            },
+            SubmissionReview.ForStatus(
+                "AddedToQuiz",
+                SubmissionInput.NormalizeOptional(actorEmail, 256),
+                now,
+                $"Added to quiz {quizId} via the builder.")));
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return await GetByIdAsync(id, cancellationToken);

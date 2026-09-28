@@ -45,23 +45,17 @@ internal static class QuizQuestionSubmissionRecords
         string rejectionReason,
         string? reviewNotes)
     {
-        if (!QuizQuestionSubmissionWorkflow.TryValidateStatusChange(
-                entity.Status,
-                QuizQuestionSubmissionStatus.Rejected,
-                out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
+        SubmissionReview.EnsureTransition(
+            entity.Status,
+            QuizQuestionSubmissionStatus.Rejected,
+            QuizQuestionSubmissionWorkflow.TryValidateStatusChange);
 
-        var normalizedReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
-            ?? throw new InvalidOperationException("A rejection reason is required.");
-        entity.Status = QuizQuestionSubmissionStatus.Rejected;
-        entity.RejectionReason = normalizedReason;
-        var now = DateTimeOffset.UtcNow;
-        entity.ReviewedAt = now;
-        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
-        return now;
+        entity.RejectionReason = SubmissionReview.RequireRejectionReason(rejectionReason);
+        return SubmissionReview.Stamp(
+            entity,
+            QuizQuestionSubmissionStatus.Rejected,
+            reviewerEmail,
+            reviewNotes);
     }
 
     internal static string RejectionAuditDetails(QuizQuestionSubmissionEntity entity) =>

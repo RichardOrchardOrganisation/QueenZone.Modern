@@ -36,15 +36,13 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
             var entity = QuizQuestionSubmissionRecords.NewEntity(submission, now);
 
             submissions.Add(entity);
-            auditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                QuizQuestionSubmissionId = entity.Id,
-                Action = "Submitted",
-                ActorEmail = string.Empty,
-                OccurredAt = now,
-                Details = "Member submitted a quiz question for review.",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted a quiz question for review.")));
 
             return Task.FromResult(Map(entity));
         }
@@ -135,13 +133,10 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
                 return Task.FromResult<QuizQuestionSubmission?>(null);
             }
 
-            if (!QuizQuestionSubmissionWorkflow.TryValidateStatusChange(
-                    entity.Status,
-                    QuizQuestionSubmissionStatus.Approved,
-                    out var statusError))
-            {
-                throw new InvalidOperationException(statusError);
-            }
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                QuizQuestionSubmissionStatus.Approved,
+                QuizQuestionSubmissionWorkflow.TryValidateStatusChange);
 
             var errors = QuizQuestionSubmissionValidation.ValidateSubmission(
                 edit.QuestionText,
@@ -165,21 +160,23 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
                 })
                 .ToList();
 
-            entity.Status = QuizQuestionSubmissionStatus.Approved;
-            var now = DateTimeOffset.UtcNow;
-            entity.ReviewedAt = now;
-            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                QuizQuestionSubmissionStatus.Approved,
+                reviewerEmail,
+                reviewNotes);
 
-            auditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                QuizQuestionSubmissionId = entity.Id,
-                Action = QuizQuestionSubmissionStatus.Approved,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = now,
-                Details = $"Approved for the quiz builder's question bank. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    QuizQuestionSubmissionStatus.Approved,
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Approved for the quiz builder's question bank. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<QuizQuestionSubmission?>(Map(entity));
         }
@@ -202,15 +199,17 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
 
             var now = QuizQuestionSubmissionRecords.ApplyRejection(entity, reviewerEmail, rejectionReason, reviewNotes);
 
-            auditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                QuizQuestionSubmissionId = entity.Id,
-                Action = QuizQuestionSubmissionStatus.Rejected,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = now,
-                Details = QuizQuestionSubmissionRecords.RejectionAuditDetails(entity),
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    QuizQuestionSubmissionStatus.Rejected,
+                    entity.ReviewerEmail,
+                    now,
+                    QuizQuestionSubmissionRecords.RejectionAuditDetails(entity))));
 
             return Task.FromResult<QuizQuestionSubmission?>(Map(entity));
         }
@@ -239,15 +238,17 @@ public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubm
             entity.AddedToQuizId = quizId;
             entity.AddedToQuizAt = now;
 
-            auditLogs.Add(new QuizQuestionSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                QuizQuestionSubmissionId = entity.Id,
-                Action = "AddedToQuiz",
-                ActorEmail = SubmissionInput.NormalizeOptional(actorEmail, 256) ?? string.Empty,
-                OccurredAt = now,
-                Details = $"Added to quiz {quizId} via the builder.",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    "AddedToQuiz",
+                    SubmissionInput.NormalizeOptional(actorEmail, 256),
+                    now,
+                    $"Added to quiz {quizId} via the builder.")));
 
             return Task.FromResult<QuizQuestionSubmission?>(Map(entity));
         }

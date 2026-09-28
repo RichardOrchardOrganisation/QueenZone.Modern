@@ -41,21 +41,17 @@ internal static class PhotoSubmissionRecords
         string? rejectionReason,
         string? approvedCategory)
     {
-        if (!PhotoSubmissionWorkflow.TryValidateStatusChange(entity.Status, status, out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
+        SubmissionReview.EnsureTransition(
+            entity.Status,
+            status,
+            PhotoSubmissionWorkflow.TryValidateStatusChange);
 
         var next = PhotoSubmissionStatus.Normalize(status);
-        entity.Status = next;
-        entity.ReviewedAt = DateTimeOffset.UtcNow;
-        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
+        SubmissionReview.Stamp(entity, next, reviewerEmail, reviewNotes);
 
         if (next == PhotoSubmissionStatus.Rejected)
         {
-            entity.RejectionReason = SubmissionInput.NormalizeOptional(rejectionReason, 500)
-                ?? throw new InvalidOperationException("A rejection reason is required.");
+            entity.RejectionReason = SubmissionReview.RequireRejectionReason(rejectionReason);
         }
         else if (!string.IsNullOrWhiteSpace(rejectionReason))
         {
@@ -76,4 +72,16 @@ internal static class PhotoSubmissionRecords
 
         return next;
     }
+
+    internal static string? AuditDetails(string status, PhotoSubmissionEntity entity) =>
+        status switch
+        {
+            PhotoSubmissionStatus.Approved =>
+                $"Approved for category '{entity.ApprovedCategory}'. Notes: {entity.ReviewNotes ?? "(none)"}",
+            PhotoSubmissionStatus.Rejected =>
+                $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
+            PhotoSubmissionStatus.NeedsInfo =>
+                $"Needs info. Notes: {entity.ReviewNotes ?? "(none)"}",
+            _ => entity.ReviewNotes,
+        };
 }
