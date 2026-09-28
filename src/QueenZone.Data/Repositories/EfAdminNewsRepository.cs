@@ -8,6 +8,7 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
     private readonly QueenZoneDbContext dbContext;
     private readonly string latestNewsSql;
     private readonly string latestNewsCountSql;
+    private readonly string pagingSuffix;
     private readonly string connectionString;
 
     public EfAdminNewsRepository(QueenZoneDbContext dbContext)
@@ -15,9 +16,14 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
     {
     }
 
-    internal EfAdminNewsRepository(QueenZoneDbContext dbContext, string? latestNewsSqlOverride)
+    internal EfAdminNewsRepository(
+        QueenZoneDbContext dbContext,
+        string? latestNewsSqlOverride,
+        string? pagingSuffixOverride = null)
     {
         this.dbContext = dbContext;
+        pagingSuffix = pagingSuffixOverride
+            ?? " ORDER BY PublishedAt DESC, NewsId DESC OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY";
         connectionString = dbContext.Database.GetConnectionString()
             ?? throw new InvalidOperationException("QueenZone legacy database connection string is not configured.");
         if (latestNewsSqlOverride is not null)
@@ -56,7 +62,7 @@ public sealed class EfAdminNewsRepository : IAdminNewsRepository
 #pragma warning disable EF1003 // SQL is generated from fixed schema-detection branches, not user input.
         var rows = await dbContext.NewsRows
             .FromSqlRaw(
-                latestNewsSql + " ORDER BY PublishedAt DESC, NewsId DESC OFFSET {0} ROWS FETCH NEXT {1} ROWS ONLY",
+                latestNewsSql + pagingSuffix,
                 offset,
                 normalizedPageSize)
             .AsNoTracking()

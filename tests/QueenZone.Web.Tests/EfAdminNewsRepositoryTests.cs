@@ -22,7 +22,7 @@ public sealed class EfAdminNewsRepositoryTests : IAsyncDisposable
         dbContext = new QueenZoneDbContext(options);
         AdminNewsSqliteTestHarness.EnsureNewsTable(dbContext);
         AdminNewsSqliteTestHarness.SeedArticle(dbContext, 4201, "SQLite admin article");
-        repository = new EfAdminNewsRepository(dbContext, SqliteLatestNewsSql);
+        repository = new EfAdminNewsRepository(dbContext, SqliteLatestNewsSql, AdminNewsSqliteTestHarness.PagingSuffix);
     }
 
     [Fact]

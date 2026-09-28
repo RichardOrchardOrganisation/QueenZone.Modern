@@ -68,7 +68,10 @@ public class AdminEfWebApplicationFactory : QueenZoneWebApplicationFactory
         services.AddScoped<IAdminNewsRepository>(sp =>
         {
             var dbContext = sp.GetRequiredService<QueenZoneDbContext>();
-            return new EfAdminNewsRepository(dbContext, AdminNewsSqliteTestHarness.LatestNewsSql);
+            return new EfAdminNewsRepository(
+                dbContext,
+                AdminNewsSqliteTestHarness.LatestNewsSql,
+                AdminNewsSqliteTestHarness.PagingSuffix);
         });
         services.AddScoped<INewsAuditRepository, EfNewsAuditRepository>();
         services.AddScoped<INewsDiscoveryRepository>(sp =>
