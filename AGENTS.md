@@ -94,7 +94,7 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 - Whether real legacy database checks were run.
 - Any skipped checks or known follow-up work.
 - A `## Verification` section when the PR changes mobile screens/navigation/UI or web Pages/Views/wwwroot: feature-map ids, the `capture-proof` command, platform, result, and proof links (or `Not verified:` naming the remaining check). Cloud agents cannot run the Android emulator; write `NOT RUN` and dispatch `mobile-device-smoke.yml` with `suite: proof`. Opt out only with the `no-ui-verification` label plus `Verification-skip-reason:`. Expo web is not mobile proof.
-- An `Issue:` line: `Closes #N`, `Fixes #N`, `Resolves #N`, `Part of #N`, or `Relates to #N`. Always include it.
+- An Issue line as plain text (never inside backticks or a code block): Closes #N, Fixes #N, Resolves #N, Part of #N, or Relates to #N. Always include it. N must be an issue, not a pull request.
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 
@@ -104,7 +104,19 @@ Every merge to `main` goes through GitHub's merge queue with squash. After openi
 
 ### Linking issues so merge auto-closes them
 
-Every PR description must include at least one line matching `Closes #N`, `Fixes #N`, `Resolves #N`, `Part of #N`, or `Relates to #N` (case-insensitive). Always include that line. The template's `Issue:` section lists those options. `Closes` / `Fixes` / `Resolves` close the issue on merge; `Part of` and `Relates to` do not. A prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else does not close the issue. Each N must be an existing issue in this repository, not a pull request. The `check-issue-link` job fails without that line, or if N is not an issue. Dependabot and the `no-issue` label are exempt; the check says which one applied. Editing the description re-runs the check.
+Every PR description must include at least one **plain-text** line matching Closes #N, Fixes #N, Resolves #N, Part of #N, or Relates to #N (case-insensitive). Always include that line. Never wrap it in backticks or a fenced code block: `check-issue-link` strips those, and GitHub will not auto-close an issue from a code span.
+
+Correct:
+
+Relates to #1863
+
+Wrong: wrapping the same phrase in backticks or a fenced code block.
+
+N must be an existing issue, not a pull request. The check fails if any keyword line (for example Relates to #N) references a PR. To mention a related PR, write it without a link keyword:
+
+Related PR: #1788
+
+The template's Issue section lists those options. Closes / Fixes / Resolves close the issue on merge; Part of and Relates to do not. A prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else does not close the issue. Each N must be an existing issue in this repository, not a pull request. The `check-issue-link` job fails without that line, or if N is not an issue. Dependabot and the `no-issue` label are exempt; the check says which one applied. Editing the description re-runs the check.
 
 ## Grok and other non-Cursor agents
 
