@@ -188,6 +188,8 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
                 return;
             }
 
+            RestrictClasses(element);
+
             if (string.Equals(element.TagName, "A", StringComparison.OrdinalIgnoreCase)
                 && element.HasAttribute("href"))
             {
@@ -212,6 +214,41 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
         };
 
         return sanitizer;
+    }
+
+    /// <summary>
+    /// Classes member HTML may carry (#1662): the ones this app adds for images and the legacy
+    /// BBCode quote markup that <c>site.css</c> styles. The Quill composer enables no class-based
+    /// formats, so nothing else is legitimate. Anything else could hook site or admin styling.
+    /// </summary>
+    private static readonly HashSet<string> AllowedClasses = new(StringComparer.Ordinal)
+    {
+        "qz-ugc-img",
+        "qz-ugc-img-link",
+        "qz-bbcode-quote",
+        "qz-bbcode-quote-author",
+    };
+
+    private static void RestrictClasses(IElement element)
+    {
+        var existing = element.GetAttribute("class");
+        if (existing is null)
+        {
+            return;
+        }
+
+        var kept = existing
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Where(AllowedClasses.Contains)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (kept.Length == 0)
+        {
+            element.RemoveAttribute("class");
+            return;
+        }
+
+        element.SetAttribute("class", string.Join(' ', kept));
     }
 
     private static void RewriteImageForDisplay(IElement img, string src)

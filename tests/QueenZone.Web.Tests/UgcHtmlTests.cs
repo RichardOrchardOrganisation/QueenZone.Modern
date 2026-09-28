@@ -97,6 +97,43 @@ public sealed class UgcHtmlTests
         Assert.Equal(1, html.Split("<a ", StringSplitOptions.None).Length - 1);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Arbitrary_class_tokens_are_stripped_on_save_and_display(bool forDisplay)
+    {
+        const string input = """<p class="qz-admin-bar evil">a</p><a href="https://example.com" class="qz-button">b</a>""";
+        var sut = Create();
+
+        var html = forDisplay ? sut.FormatForDisplay(input) : sut.Sanitize(input);
+
+        Assert.DoesNotContain("class=", html);
+        Assert.DoesNotContain("qz-admin-bar", html);
+        Assert.DoesNotContain("qz-button", html);
+    }
+
+    [Fact]
+    public void Allowed_legacy_quote_classes_survive_and_unknown_neighbours_do_not()
+    {
+        var html = Create().Sanitize(
+            """<blockquote class="qz-bbcode-quote evil"><div class="qz-bbcode-quote-author"><strong>Fred</strong></div>hi</blockquote>""");
+
+        Assert.Contains("<blockquote class=\"qz-bbcode-quote\">", html);
+        Assert.Contains("class=\"qz-bbcode-quote-author\"", html);
+        Assert.DoesNotContain("evil", html);
+    }
+
+    [Fact]
+    public void FormatForDisplay_image_keeps_only_the_ugc_class_and_still_gets_it()
+    {
+        var html = Create(publicBaseUrl: null).FormatForDisplay(
+            """<p><img src="/ugc/forum/editors/me/abc.webp" alt="scan" class="qz-admin-bar"></p>""");
+
+        Assert.Contains("class=\"qz-ugc-img\"", html);
+        Assert.DoesNotContain("qz-admin-bar", html);
+        Assert.Contains("class=\"qz-ugc-img-link\"", html);
+    }
+
     [Fact]
     public void FormatForDisplay_plain_text_auto_links()
     {
