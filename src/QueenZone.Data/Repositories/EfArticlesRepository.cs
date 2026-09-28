@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -19,7 +18,6 @@ public sealed class EfArticlesRepository : IArticlesRepository
     private readonly string sitemapSql;
     private readonly IEditorialArticleRepository? editorialArticles;
 
-    [ExcludeFromCodeCoverage]
     public EfArticlesRepository(QueenZoneDbContext dbContext, IEditorialArticleRepository editorialArticles)
     {
         this.dbContext = dbContext;

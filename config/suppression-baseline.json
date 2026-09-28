@@ -118,9 +118,6 @@
     "src/QueenZone.Data/Repositories/EfAdminNewsRepository.cs": {
       "pragma-warning-disable": 3
     },
-    "src/QueenZone.Data/Repositories/EfArticlesRepository.cs": {
-      "exclude-from-code-coverage": 1
-    },
     "src/QueenZone.Data/Repositories/EfDiscographyRepository.cs": {
       "exclude-from-code-coverage": 1
     },
