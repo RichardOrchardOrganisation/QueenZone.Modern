@@ -52,17 +52,24 @@ or a mobile-device-smoke suite=proof run. If a device is missing, write NOT RUN 
 
 Issue:
 
-<!-- Required. Put one of these on its own line (N = an existing issue, not a PR).
+<!-- Required. Put one of these on its own line as plain text (N = an existing issue, not a PR).
+     Never wrap the line in backticks or a code block — check-issue-link strips those,
+     and GitHub will not auto-close from a code span.
+     Correct: Relates to #1863
+     Wrong: the same phrase inside backticks or a fenced code block.
+     N must be an issue, not a pull request. The check fails if any keyword
+     line (e.g. Relates to #N) references a PR. To mention a related PR,
+     write it without a link keyword, e.g. Related PR: #1788.
      Closes / Fixes / Resolves close the issue on merge.
      Part of / Relates to do not.
      Issue-less PRs: apply the `no-issue` label. Dependabot is exempt.
      A prose "Implements #N" does not close the issue. -->
 
-- `Closes #N`
-- `Fixes #N`
-- `Resolves #N`
-- `Part of #N`
-- `Relates to #N`
+- Closes #N
+- Fixes #N
+- Resolves #N
+- Part of #N
+- Relates to #N
 
 ## Follow-up
 

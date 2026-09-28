@@ -1,5 +1,3 @@
-using Microsoft.VisualBasic.FileIO;
-
 namespace QueenZone.Data;
 
 /// <summary>
@@ -56,41 +54,10 @@ public sealed class QuizCsvImporter(IQuizRepository quizRepository)
 
     public static IReadOnlyList<AdminQuizDraft> ReadDrafts(string csvPath)
     {
-        if (string.IsNullOrWhiteSpace(csvPath))
-        {
-            throw new ArgumentException("CSV path is required.", nameof(csvPath));
-        }
-
-        using var parser = new TextFieldParser(csvPath);
-        parser.SetDelimiters(",");
-        parser.HasFieldsEnclosedInQuotes = true;
-        parser.TrimWhiteSpace = false;
-
-        var headers = parser.ReadFields()
-            ?? throw new InvalidOperationException("CSV file is empty.");
-        if (!headers.SequenceEqual(ExpectedHeaders, StringComparer.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"CSV header must be: {string.Join(",", ExpectedHeaders)}");
-        }
-
         var quizzes = new List<QuizGroup>();
         var closedQuizTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var rowNumber = 1;
-        while (!parser.EndOfData)
+        foreach (var (fields, rowNumber) in CsvImportRowParsing.ReadRows(csvPath, ExpectedHeaders))
         {
-            rowNumber++;
-            var fields = parser.ReadFields();
-            if (fields is null || fields.Length == 0 || fields.All(string.IsNullOrWhiteSpace))
-            {
-                continue;
-            }
-
-            if (fields.Length != ExpectedHeaders.Length)
-            {
-                throw new InvalidOperationException($"Row {rowNumber} has {fields.Length} columns; expected {ExpectedHeaders.Length}.");
-            }
-
             var row = ParseRow(fields, rowNumber);
 
             var quiz = quizzes.Count > 0 ? quizzes[^1] : null;

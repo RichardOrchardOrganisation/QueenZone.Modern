@@ -140,6 +140,7 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | `EfAdminNewsRepositoryLegacyProbeTests` | Mac `legacy-read-probes` |
 | `EfAdminPhotoRepositoryLegacyProbeTests` (read-only `PIC_FILES_T` / `PIC_CAT_T` admin reads) | Mac `legacy-read-probes` |
 | `EfBiographyRepositoryLegacyProbeTests` (read-only `Q_BIO_LIST_SP` / `Q_BIO_DISPLAY_SP`) | Mac `legacy-read-probes` |
+| `EfPhotoRepositoryLegacyProbeTests` (read-only public gallery SQL) | Mac `legacy-read-probes` |
 | `EfNewsFullTextSearchLiveProbeTests` (`EfNewsRepository.SearchAsync` via SQL Server full-text procedure) | Mac `legacy-read-probes`, with `RUN_NEWS_FTS_PROBE=true` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
 | `EfAdminNewsRepositoryLegacyWriteProbeTests` | Windows `legacy-write-probes` via `Probe-AdminNewsLegacyWrites.ps1` |
@@ -193,10 +194,19 @@ tables, `DateTimeOffset` ordering, full-text), cover it in two places:
 2. A read-only probe in `QueenZone.Web.Tests` that returns early when `ConnectionStrings__QueenZoneLegacy`
    is unset, added to the nightly `legacy-read-probes` filter.
 
-`AdminPhotoRepositorySqlServerTests` and `EfAdminPhotoRepositoryLegacyProbeTests` are the worked
-example; they replaced the class-level `[ExcludeFromCodeCoverage]` on `EfAdminPhotoRepository`. The
-next excluded repository you touch (for example `EfNewsRepository` full-text search or
-`EfPhotoRepository`) should get the same pair before further edits.
+Worked examples, each of which removed `[ExcludeFromCodeCoverage]`:
+
+- `EfAdminPhotoRepository` and `EfPhotoRepository`: `AdminPhotoRepositorySqlServerTests` and
+  `PhotoRepositorySqlServerTests` share the mirror's picture DDL in `LegacyPhotoSchema`. Their probes
+  are `EfAdminPhotoRepositoryLegacyProbeTests` and `EfPhotoRepositoryLegacyProbeTests`.
+- `EfBiographyRepository`: `BiographyRepositorySqlServerTests` copies the legacy stored procedures
+  verbatim. Its probe is `EfBiographyRepositoryLegacyProbeTests`.
+- `EfNewsRepository` full-text search: full-text is not installed in LocalDB or the CI container, so
+  `NewsSearchSqlServerTests` asserts the migration's procedure SQL as a string, then runs that
+  procedure with only the `FREETEXTTABLE` source swapped for LIKE. Real full-text matching stays with
+  `EfNewsFullTextSearchLiveProbeTests` (`RUN_NEWS_FTS_PROBE=true`).
+
+The next excluded repository you touch should get the same pair before further edits.
 
 When EF Core `SqlQueryRaw` maps legacy columns into typed row classes, do not rely only on in-memory route tests. The legacy schema uses many `smallint` and `bit` columns; SQL Server returns those as `System.Int16` and `bool`, not `int`. Either cast projected values to the row model type in SQL (for example, `CAST(Q_LINK_CAT_ID AS int) AS CategoryId`) and cover that SQL shape with a deterministic test, or run an opt-in read-only legacy database probe before deployment to prove the projection materializes.
 

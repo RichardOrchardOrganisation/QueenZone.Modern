@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.VisualBasic.FileIO;
 using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
@@ -62,41 +61,10 @@ public sealed class TriviaFactCsvImporter(QueenZoneDbContext dbContext)
 
     public static IReadOnlyList<TriviaFactCsvImportRow> ReadRows(string csvPath)
     {
-        if (string.IsNullOrWhiteSpace(csvPath))
-        {
-            throw new ArgumentException("CSV path is required.", nameof(csvPath));
-        }
-
-        using var parser = new TextFieldParser(csvPath);
-        parser.SetDelimiters(",");
-        parser.HasFieldsEnclosedInQuotes = true;
-        parser.TrimWhiteSpace = false;
-
-        var headers = parser.ReadFields()
-            ?? throw new InvalidOperationException("CSV file is empty.");
-        if (!headers.SequenceEqual(ExpectedHeaders, StringComparer.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"CSV header must be: {string.Join(",", ExpectedHeaders)}");
-        }
-
         var rows = new List<TriviaFactCsvImportRow>();
         var rowNumbersByText = new Dictionary<string, int>(StringComparer.Ordinal);
-        var rowNumber = 1;
-        while (!parser.EndOfData)
+        foreach (var (fields, rowNumber) in CsvImportRowParsing.ReadRows(csvPath, ExpectedHeaders))
         {
-            rowNumber++;
-            var fields = parser.ReadFields();
-            if (fields is null || fields.Length == 0 || fields.All(string.IsNullOrWhiteSpace))
-            {
-                continue;
-            }
-
-            if (fields.Length != ExpectedHeaders.Length)
-            {
-                throw new InvalidOperationException($"Row {rowNumber} has {fields.Length} columns; expected {ExpectedHeaders.Length}.");
-            }
-
             var row = ParseRow(fields, rowNumber);
             if (rowNumbersByText.TryGetValue(row.Text, out var firstRowNumber))
             {
