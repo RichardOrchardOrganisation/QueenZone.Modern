@@ -135,6 +135,25 @@ public sealed class NotificationDispatcherTests
     }
 
     [Fact]
+    public async Task ProviderConfirmedUnregisteredToken_IsRemovedAfterSend()
+    {
+        var transport = new RecordingPushTransport();
+        var (dispatcher, _, _, tokens) = CreateDispatcher(transport: transport);
+        var recipient = Guid.NewGuid();
+        await tokens.UpsertAsync(DeviceTokenTestData.Token(
+            recipient, DevicePushPlatform.Apns, "retired-apns", "device-one"));
+        await tokens.UpsertAsync(DeviceTokenTestData.Token(
+            recipient, DevicePushPlatform.Apns, "retired-apns", "device-two"));
+        transport.UnregisteredTokens =
+            [DeviceTokenTestData.PushToken(recipient, PushDevicePlatform.Apns, "retired-apns")];
+
+        await dispatcher.NotifyPrivateMessageAsync(Guid.NewGuid(), recipient, Guid.NewGuid());
+
+        Assert.Single(transport.Sends);
+        Assert.Empty(await tokens.ListByMemberIdsAsync([recipient]));
+    }
+
+    [Fact]
     public async Task ProviderThrow_IsSwallowed()
     {
         var transport = new RecordingPushTransport

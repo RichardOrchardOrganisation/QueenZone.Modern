@@ -55,6 +55,24 @@ public sealed class EfDeviceTokenRepository(QueenZoneDbContext dbContext) : IDev
         return deleted == 1;
     }
 
+    public async Task<bool> DeleteIfTokenMatchesAsync(
+        Guid registrationId,
+        DateTime updatedAt,
+        Guid memberAccountId,
+        DevicePushPlatform platform,
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        var deleted = await dbContext.DeviceTokens
+            .Where(row => row.Id == registrationId
+                && row.UpdatedAt == updatedAt
+                && row.MemberAccountId == memberAccountId
+                && row.Platform == platform
+                && row.Token == token)
+            .ExecuteDeleteAsync(cancellationToken);
+        return deleted > 0;
+    }
+
     public async Task<IReadOnlyList<DeviceTokenEntity>> ListByMemberIdsAsync(
         IReadOnlyCollection<Guid> memberAccountIds,
         CancellationToken cancellationToken = default)

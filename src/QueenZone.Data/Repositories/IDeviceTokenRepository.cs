@@ -24,6 +24,18 @@ public interface IDeviceTokenRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Removes a token only if the registration ID, version, member, platform, and
+    /// token still match the provider-rejected registration. A concurrent refresh remains intact.
+    /// </summary>
+    Task<bool> DeleteIfTokenMatchesAsync(
+        Guid registrationId,
+        DateTime updatedAt,
+        Guid memberAccountId,
+        DevicePushPlatform platform,
+        string token,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns every stored device token for the given members. A member with two
     /// devices yields two rows. Empty input returns an empty list.
     /// </summary>

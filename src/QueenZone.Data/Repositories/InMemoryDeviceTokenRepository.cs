@@ -45,6 +45,26 @@ public sealed class InMemoryDeviceTokenRepository(SharedDeviceTokenStore store) 
         }
     }
 
+    public Task<bool> DeleteIfTokenMatchesAsync(
+        Guid registrationId,
+        DateTime updatedAt,
+        Guid memberAccountId,
+        DevicePushPlatform platform,
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        lock (store.Gate)
+        {
+            var removed = store.Tokens.RemoveAll(row =>
+                row.Id == registrationId
+                && row.UpdatedAt == updatedAt
+                && row.MemberAccountId == memberAccountId
+                && row.Platform == platform
+                && row.Token == token);
+            return Task.FromResult(removed > 0);
+        }
+    }
+
     public Task<IReadOnlyList<DeviceTokenEntity>> ListByMemberIdsAsync(
         IReadOnlyCollection<Guid> memberAccountIds,
         CancellationToken cancellationToken = default)
