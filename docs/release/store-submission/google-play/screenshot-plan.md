@@ -8,16 +8,20 @@ The files must be JPEG or 24-bit PNG without alpha. The long edge cannot exceed 
 
 ## Phone sequence and exact overlay copy
 
-| Order | Real screen/state | Caption | Alt text draft |
-| --- | --- | --- | --- |
-| 1 | Home with hero and bottom navigation | **Decades of Queen history** | QueenZone Home showing a featured Queen archive story and main navigation. |
-| 2 | Archive hub and major collections | **Explore the complete archive** | QueenZone Archive with stories, timeline, biography and discography collections. |
-| 3 | News index or strong current story | **News, restored and current** | QueenZone News showing current and restored Queen stories. |
-| 4 | Photography collection/grid | **Thousands of photographs** | QueenZone Photography showing a grid of organised archive photographs. |
-| 5 | Timeline, biography or discography | **Stories behind the music** | QueenZone historical screen showing detailed Queen music history. |
-| 6 | Forum index signed out or a safe seeded thread | **Join the QueenZone community** | QueenZone Forum showing community discussion boards without private information. |
+The eight upload-ready screenshots pair real app captures with a short caption. Their wording describes the screen shown and does not imply article downloads or saved-article functionality.
 
-Optional seventh: Android On This Day widget — **Queen history, every day**.
+| Order | Real screen/state | Caption |
+| --- | --- | --- |
+| 1 | Home with hero and bottom navigation | **Queen history, every day** |
+| 2 | Archive hub and collections | **Explore the Queen archive** |
+| 3 | News index | **News, past and present** |
+| 4 | Photography collections | **Discover Queen photography** |
+| 5 | Biography chapters | **Stories behind the music** |
+| 6 | Discography index | **Explore the discography** |
+| 7 | Trivia screen | **Test your Queen knowledge** |
+| 8 | Forum boards | **Join fan discussions** |
+
+The app's On This Day widget and downloadable fan performances are described in the listing. Show either in future screenshots only after capturing the actual feature from the release build.
 
 ## Capture rules
 
