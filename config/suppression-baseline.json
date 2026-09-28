@@ -143,7 +143,7 @@
       "exclude-from-code-coverage": 1
     },
     "src/QueenZone.Data/Repositories/EfNewsRepository.cs": {
-      "exclude-from-code-coverage": 2
+      "exclude-from-code-coverage": 1
     },
     "src/QueenZone.Data/Repositories/EfSiteSearchService.cs": {
       "exclude-from-code-coverage": 1
