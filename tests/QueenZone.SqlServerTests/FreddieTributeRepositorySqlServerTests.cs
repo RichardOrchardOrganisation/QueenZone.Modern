@@ -144,10 +144,13 @@ public sealed class FreddieTributeRepositorySqlServerTests : IAsyncLifetime
         var stored = Assert.Single(await dbContext.Database
             .SqlQueryRaw<string>("SELECT Freddie_Date AS Value FROM dbo.FREDDIE_T WHERE ID = {0}", id)
             .ToListAsync());
+        var serverYear = Assert.Single(await dbContext.Database
+            .SqlQueryRaw<int>("SELECT YEAR(GETDATE()) AS Value")
+            .ToListAsync());
         // DF_Freddie_Date is getdate() written into varchar(50) in the server's datetime format.
         Assert.False(string.IsNullOrWhiteSpace(stored));
         Assert.Contains(
-            DateTime.Now.Year.ToString(CultureInfo.InvariantCulture),
+            serverYear.ToString(CultureInfo.InvariantCulture),
             stored,
             StringComparison.Ordinal);
 
