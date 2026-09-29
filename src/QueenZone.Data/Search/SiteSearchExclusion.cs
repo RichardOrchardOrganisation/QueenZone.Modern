@@ -1,3 +1,5 @@
+using QueenZone.Data.Entities;
+
 namespace QueenZone.Data;
 
 /// <summary>
@@ -70,6 +72,23 @@ public static class SiteSearchExclusion
             " OR ",
             SourceKeyPrefixes.Select(prefix => $"{sourceKeyColumn} LIKE {SqlNvarcharLiteral(prefix + "%")}"));
         return $"{contentTypeColumn} IN ({types}) OR {likes}";
+    }
+
+    /// <summary>
+    /// Leftover tribute rows for indexer cleanup. Uses <see cref="ContentTypes"/> and
+    /// <see cref="SourceKeyPrefixes"/> so EF <c>ExecuteDelete</c> stays aligned with the
+    /// SQL predicates.
+    /// </summary>
+    public static IQueryable<SearchDocumentEntity> WhereExcluded(
+        IQueryable<SearchDocumentEntity> documents)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+
+        var types = ContentTypes;
+        var prefixes = SourceKeyPrefixes;
+        return documents.Where(document =>
+            types.Contains(document.ContentType)
+            || prefixes.Any(prefix => document.SourceKey.StartsWith(prefix)));
     }
 
     /// <summary>

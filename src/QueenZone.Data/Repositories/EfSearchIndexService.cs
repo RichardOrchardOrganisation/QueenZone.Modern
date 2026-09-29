@@ -71,12 +71,7 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
 
         if (SiteSearchExclusion.IsExcludedContentType(contentType))
         {
-            await dbContext.SearchDocuments
-                .Where(d =>
-                    d.ContentType == SiteSearchContentType.Tribute
-                    || d.ContentType == SiteSearchContentType.FreddieTribute
-                    || d.SourceKey.StartsWith(SiteSearchContentType.Tribute + ":")
-                    || d.SourceKey.StartsWith(SiteSearchContentType.FreddieTribute + ":"))
+            await SiteSearchExclusion.WhereExcluded(dbContext.SearchDocuments)
                 .ExecuteDeleteAsync(cancellationToken);
             return;
         }

@@ -238,6 +238,8 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.Contains(SiteSearchExclusion.SqlIsSearchable("d"), sql, StringComparison.Ordinal);
         Assert.DoesNotContain("d.ContentType <> N'tribute'", migration[downStart..], StringComparison.Ordinal);
         Assert.DoesNotContain("d.ContentType <> N'tribute'", sql, StringComparison.Ordinal);
+        Assert.Contains("Tribute rows", migration[downStart..], StringComparison.Ordinal);
+        Assert.Contains("are not reinserted", migration[downStart..], StringComparison.Ordinal);
     }
 
     [Fact]

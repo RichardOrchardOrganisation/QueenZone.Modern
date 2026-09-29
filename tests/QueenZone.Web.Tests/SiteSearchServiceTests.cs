@@ -74,6 +74,16 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
         Assert.Equal(
             "NOT (d.ContentType IN (N'tribute', N'freddie-tribute') OR d.SourceKey LIKE N'tribute:%' OR d.SourceKey LIKE N'freddie-tribute:%')",
             SiteSearchExclusion.SqlIsSearchable("d"));
+
+        var leftover = new[]
+        {
+            new SearchDocumentEntity { ContentType = SiteSearchContentType.News, SourceKey = "news:3" },
+            new SearchDocumentEntity { ContentType = SiteSearchContentType.Tribute, SourceKey = "news:4" },
+            new SearchDocumentEntity { ContentType = SiteSearchContentType.News, SourceKey = "tribute:12" },
+        }.AsQueryable();
+        Assert.Equal(
+            ["news:4", "tribute:12"],
+            SiteSearchExclusion.WhereExcluded(leftover).Select(document => document.SourceKey).ToArray());
     }
 
     [Fact]

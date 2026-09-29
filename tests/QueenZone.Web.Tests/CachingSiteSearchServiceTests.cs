@@ -168,6 +168,24 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
     }
 
     [Fact]
+    public void AddSiteSearchResultCache_registers_the_concrete_inner_separately()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(new SharedSearchGate());
+        services.AddScoped<GatedSearchContext>();
+        services.AddScoped<ISiteSearchService, GatedSiteSearchService>();
+        services.AddSiteSearchResultCache();
+
+        Assert.Contains(
+            services,
+            descriptor => descriptor.ServiceType == typeof(GatedSiteSearchService)
+                && descriptor.ImplementationType == typeof(GatedSiteSearchService));
+        Assert.DoesNotContain(
+            services.Where(descriptor => descriptor.ServiceType == typeof(ISiteSearchService)),
+            descriptor => descriptor.ImplementationType == typeof(GatedSiteSearchService));
+    }
+
+    [Fact]
     public async Task AddSiteSearchResultCache_wraps_instance_and_factory_registrations()
     {
         var instanceInner = new CountingSiteSearchService();
@@ -371,8 +389,10 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
 
         Assert.Equal("queen", page.Results[0].Title);
         Assert.Equal("queen", leaderPage.Results[0].Title);
+        Assert.True(gate.InnersCreated >= 2);
         Assert.True(gate.ContextsCreated >= 2);
         Assert.True(gate.ContextDisposes >= 1);
+        Assert.DoesNotContain(typeof(CachingSiteSearchService), gate.InnerTypes);
     }
 
     private CachingSiteSearchService Create(
@@ -444,6 +464,10 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
         public int ContextsCreated;
 
         public int ContextDisposes;
+
+        public int InnersCreated;
+
+        public List<Type> InnerTypes { get; } = [];
     }
 
     /// <summary>
@@ -471,8 +495,22 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
         }
     }
 
-    private sealed class GatedSiteSearchService(SharedSearchGate gate, GatedSearchContext context) : ISiteSearchService
+    private sealed class GatedSiteSearchService : ISiteSearchService
     {
+        private readonly SharedSearchGate gate;
+        private readonly GatedSearchContext context;
+
+        public GatedSiteSearchService(SharedSearchGate gate, GatedSearchContext context)
+        {
+            this.gate = gate;
+            this.context = context;
+            Interlocked.Increment(ref gate.InnersCreated);
+            lock (gate.InnerTypes)
+            {
+                gate.InnerTypes.Add(GetType());
+            }
+        }
+
         public async Task<SiteSearchPage> SearchAsync(
             string query,
             string? contentType,

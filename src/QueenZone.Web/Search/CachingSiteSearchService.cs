@@ -66,6 +66,8 @@ public sealed class CachingSiteSearchService(
         Lazy<Task<SiteSearchPage>> lazy)
     {
         var fetch = FetchAndCacheAsync(key);
+        // Always drop the inflight entry when the shared task finishes — RanToCompletion,
+        // Faulted, or Canceled. Waiters must not be the ones that TryRemove.
         _ = fetch.ContinueWith(
             static (task, state) =>
             {
@@ -90,6 +92,12 @@ public sealed class CachingSiteSearchService(
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var search = createInner(scope.ServiceProvider);
+        if (search is CachingSiteSearchService)
+        {
+            throw new InvalidOperationException(
+                "Shared search fetch must resolve the unwrapped inner service, not ISiteSearchService.");
+        }
+
         var result = await search.SearchAsync(
             key.Query,
             key.ContentType,

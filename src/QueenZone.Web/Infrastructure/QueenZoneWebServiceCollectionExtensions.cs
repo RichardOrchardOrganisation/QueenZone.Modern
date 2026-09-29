@@ -484,6 +484,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         }
 
         services.Remove(existing);
+        RegisterUnwrappedInner(services, existing);
         services.Add(new ServiceDescriptor(
             typeof(ISiteSearchService),
             provider => new CachingSiteSearchService(
@@ -498,22 +499,49 @@ public static class QueenZoneWebServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Keep the concrete/undecorated inner resolvable from a dedicated scope without
+    /// going through <see cref="ISiteSearchService"/> — that slot is the caching
+    /// decorator and would recurse.
+    /// </summary>
+    private static void RegisterUnwrappedInner(IServiceCollection services, ServiceDescriptor existing)
+    {
+        if (existing.ImplementationType is not { } innerType
+            || innerType.IsInterface
+            || innerType == typeof(ISiteSearchService)
+            || innerType == typeof(CachingSiteSearchService))
+        {
+            return;
+        }
+
+        services.TryAdd(new ServiceDescriptor(innerType, innerType, existing.Lifetime));
+    }
+
     private static ISiteSearchService CreateSiteSearchInner(IServiceProvider provider, ServiceDescriptor existing)
     {
+        ISiteSearchService inner;
         if (existing.ImplementationInstance is ISiteSearchService instance)
         {
-            return instance;
+            inner = instance;
         }
-
-        if (existing.ImplementationFactory is not null)
+        else if (existing.ImplementationFactory is not null)
         {
-            return (ISiteSearchService)existing.ImplementationFactory(provider);
+            inner = (ISiteSearchService)existing.ImplementationFactory(provider);
+        }
+        else
+        {
+            var innerType = existing.ImplementationType
+                ?? throw new InvalidOperationException("ISiteSearchService registration has no implementation.");
+            inner = (ISiteSearchService)provider.GetRequiredService(innerType);
         }
 
-        return (ISiteSearchService)ActivatorUtilities.CreateInstance(
-            provider,
-            existing.ImplementationType
-            ?? throw new InvalidOperationException("ISiteSearchService registration has no implementation."));
+        if (inner is CachingSiteSearchService)
+        {
+            throw new InvalidOperationException(
+                "Shared search fetch must resolve the unwrapped inner service, not ISiteSearchService.");
+        }
+
+        return inner;
     }
 
     /// <summary>
