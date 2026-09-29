@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Pause, Play, SkipBack, SkipForward } from 'lucide-react-native';
 import { ApiError, fetchFanPerformanceDetail, fetchFanPerformancesPage, toPlainText, type FanPerformance } from '../../api';
@@ -23,6 +24,7 @@ export function FanPerformanceDetailScreen({ navigation, route }: Props) {
 }
 
 function FanPerformancePlayerPanel({ navigation, route }: Props) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const { id } = route.params;
   const { accessToken, isRestoring, isSignedIn } = useSession();
@@ -83,9 +85,15 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
   const description = toPlainText(track.description);
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={[styles.scroll, { backgroundColor: c.surfacePage }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+    >
+    <ScrollView
+      style={styles.scroll}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
     >
       <Text style={[type.eyebrow, { color: c.accentArchive }]}>Fan performances</Text>
       <Text
@@ -278,6 +286,7 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
         </View>
       ) : null}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

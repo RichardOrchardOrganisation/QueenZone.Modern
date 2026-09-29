@@ -1,8 +1,9 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { getAppConfig } from '../../config/appConfig';
 import { fetchJson, sendJson } from '../../api/client';
 import { ApiError } from '../../api/errors';
@@ -41,6 +42,7 @@ export function SettingsScreen({ navigation }: Props) {
 }
 
 function SettingsForm({ navigation }: Pick<Props, 'navigation'>) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const { accessToken, refreshProfile } = useSession();
   const [profile, setProfile] = useState<MemberProfile | null>(null);
@@ -262,7 +264,12 @@ function SettingsForm({ navigation }: Pick<Props, 'navigation'>) {
   const limits = profile?.limits;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.surfacePage }} contentContainerStyle={{ paddingBottom: space.section }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: c.surfacePage }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+    >
+    <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.section }}>
       <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl, gap: space.md }}>
         <Text style={[type.body, { color: c.textSecondary }]}>
           Update the name shown on your posts and contributions.
@@ -475,5 +482,6 @@ function SettingsForm({ navigation }: Pick<Props, 'navigation'>) {
         />
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

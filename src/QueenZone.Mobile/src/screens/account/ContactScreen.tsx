@@ -19,6 +19,7 @@ import {
 import { readProblemDetail } from '../../api/problemDetail';
 import { radius, space, type, useTheme } from '../../theme';
 import { FormFieldLabel, FormScreenLayout } from '../../ui/FormScreenLayout';
+import { testIds } from '../../test/testIds';
 
 const defaultTopic = 'Other';
 
@@ -113,7 +114,30 @@ export function ContactScreen() {
   }
 
   return (
-    <FormScreenLayout backgroundColor={c.surfacePage} bottomInset={insets.bottom}>
+    <FormScreenLayout
+      testID={testIds.contactScreen}
+      backgroundColor={c.surfacePage}
+      bottomInset={insets.bottom}
+      footer={confirmation ? null : (
+        <Pressable
+          testID={testIds.contactSend}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          accessibilityState={{ disabled: submitting || !form }}
+          disabled={submitting || !form}
+          onPress={() => void onSubmit()}
+          style={({ pressed }) => [
+            styles.submit,
+            { backgroundColor: c.accentPrimary, opacity: submitting || !form ? 0.6 : 1 },
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[type.button, { color: c.textOnAccent }]}>
+            {submitting ? 'Sending' : 'Send message'}
+          </Text>
+        </Pressable>
+      )}
+    >
         <Text style={[type.eyebrow, { color: c.accentPrimary }]}>Contact</Text>
         <Text style={[type.pageTitle, { color: c.textPrimary }]} maxFontSizeMultiplier={1.4} allowFontScaling>
           Contact us
@@ -227,6 +251,7 @@ export function ContactScreen() {
 
             <FormFieldLabel color={c.textMuted}>Your message</FormFieldLabel>
             <TextInput
+              testID={testIds.contactMessage}
               value={message}
               onChangeText={setMessage}
               maxLength={limits.maxMessageLength}
@@ -247,23 +272,6 @@ export function ContactScreen() {
                 {submitError}
               </Text>
             ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Send message"
-              accessibilityState={{ disabled: submitting || !form }}
-              disabled={submitting || !form}
-              onPress={() => void onSubmit()}
-              style={({ pressed }) => [
-                styles.submit,
-                { backgroundColor: c.accentPrimary, opacity: submitting || !form ? 0.6 : 1 },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[type.button, { color: c.textOnAccent }]}>
-                {submitting ? 'Sending' : 'Send message'}
-              </Text>
-            </Pressable>
           </View>
         )}
     </FormScreenLayout>
