@@ -134,17 +134,20 @@ public sealed class LinksRepositorySqlServerTests : IAsyncLifetime
         Assert.DoesNotContain(categories, category => category.Name == "Gone Sites");
 
         var official = categories[1];
+        // ORDER BY FEATURED_SITE DESC, TITLE ASC uses the stored varchar, so a
+        // leading-space title sorts before 'Brian May'. The repository trims after.
         Assert.Equal(
-            [13, 3, 7],
+            [3, 13, 7],
             official.Links.Select(link => link.Id));
         Assert.Equal(
-            ["Brian May", "Official Queen Site", "International Fan Club"],
+            ["Official Queen Site", "Brian May", "International Fan Club"],
             official.Links.Select(link => link.Title));
-        Assert.Equal("https://www.brianmay.com/", official.Links[0].Url);
+        Assert.Equal("https://www.queenonline.com/", official.Links[0].Url);
+        Assert.Equal("https://www.brianmay.com/", official.Links[1].Url);
         Assert.True(official.Links[0].IsFeatured);
         Assert.True(official.Links[1].IsFeatured);
         Assert.False(official.Links[2].IsFeatured);
-        Assert.Equal("Official.", official.Links[1].Comment);
+        Assert.Equal("Official.", official.Links[0].Comment);
         Assert.DoesNotContain(official.Links, link => link.Title is "Hidden" or "Dead Official" or "Mailto");
 
         Assert.Equal("Community", Assert.Single(categories[0].Links).Comment);
