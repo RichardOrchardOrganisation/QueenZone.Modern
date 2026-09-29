@@ -76,8 +76,7 @@ module.exports = defineConfig([
         },
       ],
       'react-hooks/preserve-manual-memoization': 'error',
-      // Reanimated shared values in ZoomableArchiveImage need a focused compiler-compatible rewrite (#1821).
-      'react-hooks/immutability': 'off',
+      'react-hooks/immutability': 'error',
       'react-hooks/globals': 'error',
       // Latest-value refs and gesture refs span the query hooks and screens (#1821).
       'react-hooks/refs': 'off',
