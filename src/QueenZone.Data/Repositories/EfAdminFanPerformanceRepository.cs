@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.Data.SqlClient;
 
@@ -7,7 +6,6 @@ namespace QueenZone.Data;
 /// <summary>
 /// Admin writes against legacy <c>Q_STAGE_T</c>. The table stays outside EF schema ownership.
 /// </summary>
-[ExcludeFromCodeCoverage] // Requires SQL Server legacy stage table; covered via in-memory admin tests.
 public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext) : IAdminFanPerformanceRepository
 {
     public async Task<AdminFanPerformancePage> GetPageAsync(
