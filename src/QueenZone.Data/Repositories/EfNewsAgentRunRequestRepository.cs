@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
+using static QueenZone.Data.RunRequestText;
 
 namespace QueenZone.Data;
 
@@ -254,10 +255,4 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
             request.CompletedAtUtc,
             request.Summary,
             request.ErrorMessage);
-
-    private static string Normalize(string value, int maxLength)
-    {
-        var normalized = string.IsNullOrWhiteSpace(value) ? "unknown" : value.Trim();
-        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
-    }
 }
