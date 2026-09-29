@@ -965,6 +965,22 @@ describe('SessionProvider', () => {
     expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
   });
 
+  it('does not rotate or sign out when /me returns 401 during a background launch', async () => {
+    setAppState('background');
+    readStored.mockResolvedValue({
+      ...authTokensFixture(),
+      expiresAt: Date.now() + 60_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' },
+    });
+    fetchJsonMock.mockRejectedValue(ApiError.http(401, 'Unauthorized'));
+
+    renderSession();
+    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledWith('/me', { accessToken: 'access-token' }));
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(clearStored).not.toHaveBeenCalled();
+    expect(screen.getByText('signed-in')).toBeOnTheScreen();
+  });
+
   it('does not rotate the grant from ensureAccessToken while backgrounded', async () => {
     const user = userEvent.setup();
     const now = 1_700_000_000_000;
