@@ -178,6 +178,20 @@ public sealed class AdminFanPerformanceRepositorySqlServerTests : IAsyncLifetime
         await repository.DeleteAsync(id, Editor);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             repository.SetVisibilityAsync(id, true, Editor));
+
+        var nullHidden = await InsertLegacyAsync("Null display", "Ghost", "Hidden by null.", "null.mp3",
+            "10", BaseTime, display: null);
+        var nullItem = await repository.GetByIdAsync(nullHidden);
+        Assert.NotNull(nullItem);
+        Assert.False(nullItem.IsVisible);
+        await repository.UpdateAsync(
+            nullHidden,
+            new AdminFanPerformanceUpdateRequest(nullItem.Title, nullItem.PerformedBy, nullItem.Description,
+                nullItem.DateAdded),
+            Editor,
+            nullItem.ToConcurrencyToken());
+        await repository.SetVisibilityAsync(nullHidden, true, Editor, expectedIsVisible: false);
+        Assert.True((await repository.GetByIdAsync(nullHidden))!.IsVisible);
     }
 
     [Fact]
