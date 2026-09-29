@@ -118,9 +118,6 @@
     "src/QueenZone.Data/Repositories/EfFanPerformanceRepository.cs": {
       "exclude-from-code-coverage": 4
     },
-    "src/QueenZone.Data/Repositories/EfForumWriteRepository.cs": {
-      "exclude-from-code-coverage": 2
-    },
     "src/QueenZone.Data/Repositories/EfNewsRepository.cs": {
       "exclude-from-code-coverage": 1
     },
@@ -129,9 +126,6 @@
     },
     "src/QueenZone.Data/Repositories/LegacyForumRepository.cs": {
       "exclude-from-code-coverage": 13
-    },
-    "src/QueenZone.Data/Repositories/ModernForumRepository.cs": {
-      "exclude-from-code-coverage": 14
     },
     "src/QueenZone.Data/Sql/EfProductionSql.cs": {
       "exclude-from-code-coverage": 1

@@ -143,6 +143,7 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | `EfArticlesRepositoryLegacyProbeTests` (read-only legacy article archive queries) | Mac `legacy-read-probes` |
 | `EfPhotoRepositoryLegacyProbeTests` (read-only public gallery SQL) | Mac `legacy-read-probes` |
 | `EfNewsFullTextSearchLiveProbeTests` (`EfNewsRepository.SearchAsync` via SQL Server full-text procedure) | Mac `legacy-read-probes`, with `RUN_NEWS_FTS_PROBE=true` |
+| `ModernForumRepositoryLiveProbeTests` (`ModernForumRepository` category/topic/sitemap reads and real `SearchForumAsync`) | Mac `legacy-read-probes` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
 | `EfAdminNewsRepositoryLegacyWriteProbeTests` | Windows `legacy-write-probes` via `Probe-AdminNewsLegacyWrites.ps1` |
 | `EfNewsSectionLiveProbeTests` `Admin_news_*` write Facts | Same script (rollback visibility + full lifecycle) |
@@ -206,6 +207,12 @@ Worked examples, each of which removed `[ExcludeFromCodeCoverage]`:
   `NewsSearchSqlServerTests` asserts the migration's procedure SQL as a string, then runs that
   procedure with only the `FREETEXTTABLE` source swapped for LIKE. Real full-text matching stays with
   `EfNewsFullTextSearchLiveProbeTests` (`RUN_NEWS_FTS_PROBE=true`).
+- `ModernForumRepository` and `EfForumWriteRepository` read-stat maintenance: base forum tables are
+  `ExcludeFromMigrations`, so `ModernForumRepositorySqlServerTests` /
+  `EfForumWriteReadStatsSqlServerTests` install a scratch schema from `docs/sql/004` / `006` plus
+  later visibility, `nvarchar(max)`, sequence, and poll columns. Search substitutes only the four
+  `FREETEXTTABLE` sources for LIKE. Real full-text matching stays with
+  `ModernForumRepositoryLiveProbeTests`.
 
 The next excluded repository you touch should get the same pair before further edits.
 

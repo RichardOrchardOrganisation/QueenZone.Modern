@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -16,7 +15,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
     /// <summary>Sitemap/export pages may scan large offsets; keep a higher ceiling.</summary>
     private const int SitemapCommandTimeoutSeconds = 120;
 
-    [ExcludeFromCodeCoverage] // SQL Server stored procedures; covered by opt-in legacy probes.
     public async Task<IReadOnlyList<ForumCategoryItem>> GetCategoriesAsync(CancellationToken cancellationToken = default)
     {
         var rows = await EfSql.QueryProcAsync<ForumCategoryRow>(
@@ -27,7 +25,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
         return rows.Select(Map).ToList();
     }
 
-    [ExcludeFromCodeCoverage]
     public async Task<ForumCategoryItem?> GetCategoryByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         var row = await EfSql.QueryProcSingleOrDefaultAsync<ForumCategoryRow>(
@@ -39,7 +36,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
         return row is null ? null : Map(row);
     }
 
-    [ExcludeFromCodeCoverage]
     public async Task<ForumCategoryTopicsPage> GetCategoryTopicsPageAsync(
         int forumId,
         int page,
@@ -67,7 +63,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             pageSize);
     }
 
-    [ExcludeFromCodeCoverage]
     public async Task<ForumTopicPostsPage?> GetTopicPostsPageAsync(
         int topicId,
         int page,
@@ -124,7 +119,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             pageSize);
     }
 
-    [ExcludeFromCodeCoverage]
     public Task<int> GetTotalThreadCountAsync(CancellationToken cancellationToken = default) =>
         EfSql.ExecuteScalarProcAsync(
             dbContext,
@@ -192,7 +186,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             .ToListAsync(cancellationToken);
     }
 
-    [ExcludeFromCodeCoverage]
     public async Task<ForumArchiveStats> GetArchiveStatsAsync(CancellationToken cancellationToken = default)
     {
         var categories = await GetCategoriesAsync(cancellationToken);
@@ -200,7 +193,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
         return ForumArchiveStats.FromCategories(categories, threadCount);
     }
 
-    [ExcludeFromCodeCoverage]
     public Task<int> GetTopicSitemapCountAsync(CancellationToken cancellationToken = default) =>
         EfSql.ExecuteScalarProcAsync(
             dbContext,
@@ -208,7 +200,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             commandTimeoutSeconds: SitemapCommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-    [ExcludeFromCodeCoverage]
     public async Task<IReadOnlyList<ForumTopicSitemapItem>> GetTopicSitemapPageAsync(
         int offset,
         int pageSize,
@@ -247,7 +238,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
         return await ExecuteSearchAsync(query, page, pageSize, cancellationToken);
     }
 
-    [ExcludeFromCodeCoverage]
     private async Task<ForumSearchPage> ExecuteSearchAsync(
         string query,
         int page,
@@ -276,7 +266,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             pageSize);
     }
 
-    [ExcludeFromCodeCoverage]
     private static ForumCategoryItem Map(ForumCategoryRow row) =>
         new(
             row.Id,
@@ -287,7 +276,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             string.IsNullOrWhiteSpace(row.LatestThreadTitle) ? null : row.LatestThreadTitle.Trim(),
             row.SortOrder);
 
-    [ExcludeFromCodeCoverage]
     private static ForumPostItem MapPost(ForumPostRow row) =>
         new(
             row.Q_FORUM_TOPIC_ID,
@@ -305,7 +293,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             row.EditCount,
             row.USER_ID);
 
-    [ExcludeFromCodeCoverage]
     private static ForumTopicItem MapTopic(ForumTopicRow row) =>
         new(
             row.Q_FORUM_TOPIC_ID,
@@ -316,7 +303,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
             string.IsNullOrWhiteSpace(row.LAST_POST_USERNAME) ? null : row.LAST_POST_USERNAME.Trim(),
             row.STICKY == 1);
 
-    [ExcludeFromCodeCoverage]
     private static ForumSearchResult MapSearch(ForumSearchRow row) =>
         new(
             row.TopicId,
@@ -404,7 +390,6 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
         public int SortOrder { get; set; }
     }
 
-    [ExcludeFromCodeCoverage]
     internal sealed class ForumSearchRow
     {
         public int TopicId { get; set; }
