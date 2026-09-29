@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -14,7 +13,6 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
     private readonly string countSql;
     private readonly Func<int, FormattableString> byIdSql;
 
-    [ExcludeFromCodeCoverage]
     public EfFanPerformanceRepository(QueenZoneDbContext dbContext)
         : this(
             dbContext,
@@ -55,7 +53,6 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
         return rowsFromSql.Select(MapRow).ToList();
     }
 
-    [ExcludeFromCodeCoverage] // SQL Server legacy table path.
     private async Task<IReadOnlyList<FanPerformance>> GetPageViaSqlServerAsync(
         int page,
         int pageSize,
@@ -99,7 +96,6 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
         return values.FirstOrDefault();
     }
 
-    [ExcludeFromCodeCoverage]
     private Task<int> GetVisibleCountViaSqlServerAsync(CancellationToken cancellationToken) =>
         EfSql.ExecuteScalarSqlAsync(
             dbContext,
@@ -124,7 +120,6 @@ public sealed class EfFanPerformanceRepository : IFanPerformanceRepository
         return row is null ? null : MapRow(row);
     }
 
-    [ExcludeFromCodeCoverage] // SQL Server stored procedure path.
     private async Task<FanPerformance?> GetByIdViaSqlServerAsync(int id, CancellationToken cancellationToken)
     {
         var rows = await EfSql.QuerySqlAsync<StageRow>(

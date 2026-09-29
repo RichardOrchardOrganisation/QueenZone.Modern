@@ -152,6 +152,8 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | `EfBiographyRepositoryLegacyProbeTests` (read-only `Q_BIO_LIST_SP` / `Q_BIO_DISPLAY_SP`) | Mac `legacy-read-probes` |
 | `EfArticlesRepositoryLegacyProbeTests` (read-only legacy article archive queries) | Mac `legacy-read-probes` |
 | `EfPhotoRepositoryLegacyProbeTests` (read-only public gallery SQL) | Mac `legacy-read-probes` |
+| `EfFanPerformanceRepositoryLegacyProbeTests` (read-only `Q_STAGE_T` public reads) | Mac `legacy-read-probes` |
+| `EfAdminFanPerformanceRepositoryLegacyProbeTests` (read-only `Q_STAGE_T` admin list/get) | Mac `legacy-read-probes` |
 | `EfNewsFullTextSearchLiveProbeTests` (`EfNewsRepository.SearchAsync` via SQL Server full-text procedure) | Mac `legacy-read-probes`, with `RUN_NEWS_FTS_PROBE=true` |
 | `ModernForumRepositoryLiveProbeTests` (`ModernForumRepository` category/topic/sitemap reads and real `SearchForumAsync`) | Mac `legacy-read-probes` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
@@ -217,6 +219,10 @@ Worked examples, each of which removed `[ExcludeFromCodeCoverage]`:
   `NewsSearchSqlServerTests` asserts the migration's procedure SQL as a string, then runs that
   procedure with only the `FREETEXTTABLE` source swapped for LIKE. Real full-text matching stays with
   `EfNewsFullTextSearchLiveProbeTests` (`RUN_NEWS_FTS_PROBE=true`).
+- `EfFanPerformanceRepository` and `EfAdminFanPerformanceRepository`: `FanPerformanceRepositorySqlServerTests`
+  and `AdminFanPerformanceRepositorySqlServerTests` share the mirror's `Q_STAGE_T` DDL in
+  `LegacyFanPerformanceSchema` (ad-hoc SQL only; no `Q_STAGE_*_SP` procs). Their probes are
+  `EfFanPerformanceRepositoryLegacyProbeTests` and `EfAdminFanPerformanceRepositoryLegacyProbeTests`.
 - `ModernForumRepository` and `EfForumWriteRepository` read-stat maintenance: base forum tables are
   `ExcludeFromMigrations`, so `ModernForumRepositorySqlServerTests` /
   `EfForumWriteReadStatsSqlServerTests` install a scratch schema from `docs/sql/004` / `006` plus

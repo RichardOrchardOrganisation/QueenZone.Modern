@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.Data.SqlClient;
 
@@ -7,9 +6,15 @@ namespace QueenZone.Data;
 /// <summary>
 /// Admin writes against legacy <c>Q_STAGE_T</c>. The table stays outside EF schema ownership.
 /// </summary>
-[ExcludeFromCodeCoverage] // Requires SQL Server legacy stage table; covered via in-memory admin tests.
 public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext) : IAdminFanPerformanceRepository
 {
+    /// <summary>
+    /// Same mapping as the list/detail <c>IsVisible</c> projection: only <c>DISPLAY = 1</c>
+    /// is visible; 0 and NULL are hidden. Filters and compare-and-swap predicates must use
+    /// this instead of <c>DISPLAY = @Display</c>, which drops NULL under three-valued logic.
+    /// </summary>
+    private const string MappedDisplaySql = "(CASE WHEN DISPLAY = 1 THEN 1 ELSE 0 END)";
+
     public async Task<AdminFanPerformancePage> GetPageAsync(
         AdminFanPerformanceListFilter filter,
         int page,
@@ -23,7 +28,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
         var where = new StringBuilder("WHERE 1 = 1");
         if (filter.IsVisible is bool)
         {
-            where.Append(" AND DISPLAY = @Display");
+            where.Append($" AND {MappedDisplaySql} = @Display");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -53,7 +58,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
                 thesize AS FileSizeText,
                 DATE_ADDED AS DateAdded,
                 DurationSeconds,
-                CAST(CASE WHEN DISPLAY = 1 THEN 1 ELSE 0 END AS bit) AS IsVisible
+                CAST({MappedDisplaySql} AS bit) AS IsVisible
             FROM dbo.Q_STAGE_T
             {where}
             ORDER BY DATE_ADDED DESC, Q_STAGE_ID DESC
@@ -77,7 +82,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
 
     public async Task<AdminFanPerformanceItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        const string sql = """
+        var sql = $"""
             SELECT
                 CAST(Q_STAGE_ID AS int) AS Id,
                 TITLE AS Title,
@@ -87,7 +92,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
                 thesize AS FileSizeText,
                 DATE_ADDED AS DateAdded,
                 DurationSeconds,
-                CAST(CASE WHEN DISPLAY = 1 THEN 1 ELSE 0 END AS bit) AS IsVisible
+                CAST({MappedDisplaySql} AS bit) AS IsVisible
             FROM dbo.Q_STAGE_T
             WHERE Q_STAGE_ID = @Id
             """;
@@ -159,12 +164,12 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
             """;
         if (expected is not null)
         {
-            sql += """
+            sql += $"""
                  AND TITLE = @ExpectedTitle
                  AND PERFORMED_BY = @ExpectedPerformedBy
                  AND ISNULL(DESCRIPTION, '') = @ExpectedDescription
                  AND DATE_ADDED = @ExpectedDateAdded
-                 AND DISPLAY = @ExpectedDisplay
+                 AND {MappedDisplaySql} = @ExpectedDisplay
                 """;
         }
 
@@ -210,7 +215,7 @@ public sealed class EfAdminFanPerformanceRepository(QueenZoneDbContext dbContext
             """;
         if (expectedIsVisible is bool)
         {
-            sql += " AND DISPLAY = @ExpectedDisplay";
+            sql += $" AND {MappedDisplaySql} = @ExpectedDisplay";
         }
 
         var rows = await EfSql.ExecuteNonQuerySqlAsync(
