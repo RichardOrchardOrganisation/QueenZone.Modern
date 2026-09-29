@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -13,7 +12,6 @@ public sealed class EfFreddieTributeRepository : IFreddieTributeRepository
     private readonly string idSeekBeforeSql;
     private readonly string byIdSql;
 
-    [ExcludeFromCodeCoverage]
     public EfFreddieTributeRepository(QueenZoneDbContext dbContext)
         : this(
             dbContext,
