@@ -15,6 +15,8 @@ public static class SitemapEndpoints
 
                 Disallow: /admin/
                 Disallow: /health
+                Disallow: /search
+                Disallow: /api/v1/search
 
                 Sitemap: {baseUrl}/sitemap.xml
                 """;

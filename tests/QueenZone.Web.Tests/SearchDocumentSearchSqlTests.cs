@@ -216,10 +216,42 @@ public sealed class SearchDocumentSearchSqlTests
             StringComparison.Ordinal);
         Assert.Contains("@RankLimit      INT = 1000", up, StringComparison.Ordinal);
         Assert.Contains("@TypedRankLimit INT = 5000", up, StringComparison.Ordinal);
+        Assert.Contains("CREATE TABLE #Page", up, StringComparison.Ordinal);
+        Assert.Contains("INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)", up, StringComparison.Ordinal);
+        Assert.Contains("SELECT @TotalRecords = COUNT(*)", up, StringComparison.Ordinal);
+        Assert.Contains("FROM   #Matches;", up, StringComparison.Ordinal);
+        Assert.DoesNotContain("@ContentType IS NULL OR", up, StringComparison.Ordinal);
+        Assert.DoesNotContain("INNER JOIN #Matches", up, StringComparison.Ordinal);
 
         var sql = ReadSqlSourceOfTruth();
         Assert.Equal(2, CountOccurrences(sql, "d.ContentType <> N'tribute'"));
         Assert.DoesNotContain("d.ContentType <> N'tribute'", migration[downStart..], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Search_tail_pages_from_matches_then_joins_only_the_page()
+    {
+        var sql = ReadSqlSourceOfTruth();
+        var tail = ReadSearchTail();
+
+        Assert.Contains("ContentType NVARCHAR(50) NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("PublishedAt DATETIMEOFFSET NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("CREATE TABLE #Page", tail, StringComparison.Ordinal);
+        Assert.Contains(
+            "ORDER BY SearchRank DESC, PublishedAt DESC, DocumentId DESC",
+            tail,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ORDER BY p.SearchRank DESC, p.PublishedAt DESC, p.DocumentId DESC",
+            tail,
+            StringComparison.Ordinal);
+        Assert.Contains("FROM   #Page p", tail, StringComparison.Ordinal);
+        Assert.Contains("INNER JOIN dbo.SearchDocument d ON d.Id = p.DocumentId", tail, StringComparison.Ordinal);
+        Assert.Contains("SELECT @TotalRecords = COUNT(*)", tail, StringComparison.Ordinal);
+        Assert.Contains("FROM   #Matches;", tail, StringComparison.Ordinal);
+        Assert.DoesNotContain("@ContentType IS NULL OR", tail, StringComparison.Ordinal);
+        Assert.DoesNotContain("INNER JOIN #Matches", tail, StringComparison.Ordinal);
+        Assert.DoesNotContain("OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;", sql.Replace(tail, string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
     }
 
     private static string ReadSqlSourceOfTruth() =>
@@ -244,6 +276,14 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.True(elseIndex >= 0 && beginIndex > elseIndex && endIndex > beginIndex,
             "Expected a typed ELSE BEGIN/END match-insert branch.");
         return sql[elseIndex..endIndex];
+    }
+
+    private static string ReadSearchTail()
+    {
+        var sql = ReadSqlSourceOfTruth();
+        var pageIndex = sql.IndexOf("CREATE TABLE #Page", StringComparison.Ordinal);
+        Assert.True(pageIndex >= 0, "Expected a #Page materialization after the match inserts.");
+        return sql[pageIndex..];
     }
 
     private static string ReadRepoFile(string relativePath)

@@ -44,6 +44,11 @@ public sealed class InMemorySiteSearchService(SharedSearchIndexStore store) : IS
             .ToList();
 
         var totalCount = matches.Count;
+        if (SiteSearchLimits.IsBeyondMaxPage(normalizedPage))
+        {
+            return Task.FromResult(new SiteSearchPage([], totalCount, normalizedPage, take));
+        }
+
         var pageItems = matches
             .Skip((normalizedPage - 1) * take)
             .Take(take)

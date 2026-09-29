@@ -216,6 +216,28 @@ public sealed class SearchApiTests :
     }
 
     [Fact]
+    public async Task Search_beyond_max_page_returns_empty_items_with_true_total()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        using var firstResponse = await client.GetAsync($"{SearchApiEndpoints.Path}?q=archive&page=1");
+        using var deepResponse = await client.GetAsync(
+            $"{SearchApiEndpoints.Path}?q=archive&page={SiteSearchLimits.MaxPage + 1}");
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deepResponse.StatusCode);
+        var first = await firstResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SearchResultDto>>();
+        var deep = await deepResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SearchResultDto>>();
+        Assert.NotNull(first);
+        Assert.NotNull(deep);
+        Assert.True(first!.TotalCount > 0);
+        Assert.Equal(first.TotalCount, deep!.TotalCount);
+        Assert.Empty(deep.Items);
+        Assert.Equal(SiteSearchLimits.MaxPage + 1, deep.Page);
+        Assert.Equal(SearchModel.PageSize, deep.PageSize);
+    }
+
+    [Fact]
     public async Task Search_clamps_invalid_paging_query_values()
     {
         using var client = factory.CreateAnonymousClient();

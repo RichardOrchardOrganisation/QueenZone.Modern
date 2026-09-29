@@ -6,8 +6,10 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace QueenZone.Data.Migrations;
 
 /// <summary>
-/// Removes Freddie tribute rows from <c>SearchDocument</c> and filters them out of
-/// <c>dbo.SearchDocument_Search</c> at the <c>#Matches</c> insert. No index changes.
+/// Removes Freddie tribute rows from <c>SearchDocument</c> and rewrites
+/// <c>dbo.SearchDocument_Search</c>: tributes never enter <c>#Matches</c>, the temp
+/// table carries order columns, count reads <c>#Matches</c> only, and the page
+/// materializes through a small <c>#Page</c> before the display join. No index changes.
 /// Rank caps and <c>OPTION (RECOMPILE)</c> are unchanged.
 /// </summary>
 /// <remarks>
@@ -59,13 +61,15 @@ public partial class ExcludeTributesFromSiteSearch : Migration
                 CREATE TABLE #Matches
                 (
                     DocumentId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-                    SearchRank INT NOT NULL
+                    SearchRank INT NOT NULL,
+                    ContentType NVARCHAR(50) NOT NULL,
+                    PublishedAt DATETIMEOFFSET NULL
                 );
 
                 IF @ContentType IS NULL
                 BEGIN
-                    INSERT INTO #Matches (DocumentId, SearchRank)
-                    SELECT ft.[KEY], ft.[RANK]
+                    INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)
+                    SELECT ft.[KEY], ft.[RANK], d.ContentType, d.PublishedAt
                     FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft
                     INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
                     WHERE  d.ContentType <> N'tribute'
@@ -73,10 +77,12 @@ public partial class ExcludeTributesFromSiteSearch : Migration
                 END
                 ELSE
                 BEGIN
-                    INSERT INTO #Matches (DocumentId, SearchRank)
+                    INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)
                     SELECT TOP (@MatchLimit)
                            d.Id,
-                           ft.[RANK]
+                           ft.[RANK],
+                           d.ContentType,
+                           d.PublishedAt
                     FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
                     INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
                     WHERE  d.ContentType = @ContentType
@@ -84,6 +90,19 @@ public partial class ExcludeTributesFromSiteSearch : Migration
                     ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
                     OPTION (RECOMPILE);
                 END
+
+                CREATE TABLE #Page
+                (
+                    DocumentId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                    SearchRank INT NOT NULL,
+                    PublishedAt DATETIMEOFFSET NULL
+                );
+
+                INSERT INTO #Page (DocumentId, SearchRank, PublishedAt)
+                SELECT DocumentId, SearchRank, PublishedAt
+                FROM   #Matches
+                ORDER BY SearchRank DESC, PublishedAt DESC, DocumentId DESC
+                OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
 
                 SELECT
                     d.ContentType,
@@ -95,16 +114,12 @@ public partial class ExcludeTributesFromSiteSearch : Migration
                     d.ImageUrl,
                     d.Category,
                     d.AuthorDisplayName
-                FROM   dbo.SearchDocument d
-                INNER JOIN #Matches fm ON fm.DocumentId = d.Id
-                WHERE  @ContentType IS NULL OR d.ContentType = @ContentType
-                ORDER BY fm.SearchRank DESC, d.PublishedAt DESC, d.Id DESC
-                OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
+                FROM   #Page p
+                INNER JOIN dbo.SearchDocument d ON d.Id = p.DocumentId
+                ORDER BY p.SearchRank DESC, p.PublishedAt DESC, p.DocumentId DESC;
 
                 SELECT @TotalRecords = COUNT(*)
-                FROM   dbo.SearchDocument d
-                INNER JOIN #Matches fm ON fm.DocumentId = d.Id
-                WHERE  @ContentType IS NULL OR d.ContentType = @ContentType;
+                FROM   #Matches;
             END;
             """);
     }

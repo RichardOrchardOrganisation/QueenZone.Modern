@@ -29,9 +29,21 @@ public static class SiteSearchLimits
     public const int MinQueryLength = 2;
 
     /// <summary>
+    /// Deepest result page website and API search will materialize. Deeper pages return an
+    /// empty result list with the true rank-capped <c>totalCount</c>, not an error.
+    /// </summary>
+    public const int MaxPage = 10;
+
+    /// <summary>
     /// True when <paramref name="query"/> is empty, whitespace, or shorter than
     /// <see cref="MinQueryLength"/> after trimming.
     /// </summary>
     public static bool IsBelowMinimumLength(string? query) =>
         string.IsNullOrWhiteSpace(query) || query.Trim().Length < MinQueryLength;
+
+    /// <summary>
+    /// True when <paramref name="page"/> is past <see cref="MaxPage"/>. Page numbers below 1
+    /// are treated as page 1.
+    /// </summary>
+    public static bool IsBeyondMaxPage(int page) => Math.Max(page, 1) > MaxPage;
 }

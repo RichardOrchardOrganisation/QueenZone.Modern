@@ -29,9 +29,28 @@ public sealed class EfSiteSearchService(
 
         var normalizedPage = Math.Max(page, 1);
         var take = Math.Clamp(pageSize, 1, MaxPageSize);
-        var offset = (normalizedPage - 1) * take;
         var trimmed = query.Trim();
 
+        if (SiteSearchLimits.IsBeyondMaxPage(normalizedPage))
+        {
+            return await SiteSearchSqlTimeout.ExecuteAsync(
+                async ct =>
+                {
+                    var counted = await ExecuteSearchAsync(
+                        trimmed,
+                        contentType,
+                        offset: 0,
+                        take: 1,
+                        normalizedPage: 1,
+                        ct);
+                    return EmptyPageWithTotal(counted.TotalCount, normalizedPage, take);
+                },
+                logger,
+                trimmed,
+                cancellationToken);
+        }
+
+        var offset = (normalizedPage - 1) * take;
         return await SiteSearchSqlTimeout.ExecuteAsync(
             ct => ExecuteSearchAsync(trimmed, contentType, offset, take, normalizedPage, ct),
             logger,
@@ -72,6 +91,9 @@ public sealed class EfSiteSearchService(
             normalizedPage,
             take);
     }
+
+    internal static SiteSearchPage EmptyPageWithTotal(int totalCount, int page, int pageSize) =>
+        new([], totalCount, page, pageSize);
 
     internal static SiteSearchResult Map(SiteSearchRow row) =>
         new(

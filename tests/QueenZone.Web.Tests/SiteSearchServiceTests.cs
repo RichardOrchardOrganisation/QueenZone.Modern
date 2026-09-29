@@ -47,6 +47,10 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
     public void Tribute_is_not_a_selectable_search_type()
     {
         Assert.Equal(2, SiteSearchLimits.MinQueryLength);
+        Assert.Equal(10, SiteSearchLimits.MaxPage);
+        Assert.False(SiteSearchLimits.IsBeyondMaxPage(10));
+        Assert.False(SiteSearchLimits.IsBeyondMaxPage(0));
+        Assert.True(SiteSearchLimits.IsBeyondMaxPage(11));
         Assert.DoesNotContain(SiteSearchContentType.Tribute, SiteSearchContentType.All);
         Assert.Null(SiteSearchContentType.Normalize(SiteSearchContentType.Tribute));
         Assert.True(SiteSearchContentType.IsExcludedFromSiteSearch("TRIBUTE"));
@@ -123,5 +127,46 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
         Assert.Equal(SiteSearchContentType.News, Assert.Single(all.Results).ContentType);
         Assert.Empty(typed.Results);
         Assert.Equal(0, typed.TotalCount);
+    }
+
+    [Fact]
+    public async Task InMemorySearch_beyond_max_page_returns_empty_with_true_total()
+    {
+        var store = new SharedSearchIndexStore();
+        for (var index = 0; index < 25; index++)
+        {
+            store.Upsert(new SearchDocumentEntity
+            {
+                SourceKey = SearchDocumentSourceKey.ForNews(index + 1),
+                ContentType = SiteSearchContentType.News,
+                Title = $"Queen news {index}",
+                Body = "body",
+                Summary = "summary",
+                Url = $"/news/{index + 1}/queen-news",
+                PublishedAt = DateTimeOffset.Parse("2026-09-01T00:00:00Z").AddDays(index),
+            });
+        }
+
+        var service = new InMemorySiteSearchService(store);
+        var first = await service.SearchAsync("Queen", null, 1, 2);
+        var deep = await service.SearchAsync("Queen", null, SiteSearchLimits.MaxPage + 1, 2);
+
+        Assert.Equal(25, first.TotalCount);
+        Assert.Equal(2, first.Results.Count);
+        Assert.Equal(25, deep.TotalCount);
+        Assert.Empty(deep.Results);
+        Assert.Equal(11, deep.Page);
+        Assert.Equal(2, deep.PageSize);
+    }
+
+    [Fact]
+    public void Empty_page_with_total_keeps_requested_page_and_true_count()
+    {
+        var page = EfSiteSearchService.EmptyPageWithTotal(37, 11, 20);
+
+        Assert.Empty(page.Results);
+        Assert.Equal(37, page.TotalCount);
+        Assert.Equal(11, page.Page);
+        Assert.Equal(20, page.PageSize);
     }
 }
