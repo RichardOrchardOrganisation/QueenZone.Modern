@@ -7,12 +7,15 @@ namespace QueenZone.Web.Search;
 /// Bounded in-process cache around <see cref="ISiteSearchService"/>. Anonymous requests only;
 /// never caches short queries, pages beyond <see cref="SiteSearchLimits.MaxPage"/>, exceptions,
 /// timeouts, cancellations, or unavailable results. Successful empty pages for real queries
-/// are cached. Concurrent misses for the same key share one inner call.
+/// are cached. Concurrent misses for the same key share one inner call that runs in its own
+/// DI scope so it can outlive the request that started it.
 /// </summary>
 public sealed class CachingSiteSearchService(
     ISiteSearchService inner,
     SiteSearchResultCache cache,
     IHttpContextAccessor httpContextAccessor,
+    IServiceScopeFactory scopeFactory,
+    Func<IServiceProvider, ISiteSearchService> createInner,
     TimeProvider? timeProvider = null) : ISiteSearchService
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
@@ -51,23 +54,31 @@ public sealed class CachingSiteSearchService(
             return hit;
         }
 
-        var lazy = cache.Inflight.GetOrAdd(
-            key,
-            static (cacheKey, owner) => new Lazy<Task<SiteSearchPage>>(
-                () => owner.FetchAndCacheAsync(cacheKey)),
-            this);
+        Lazy<Task<SiteSearchPage>> created = null!;
+        created = new Lazy<Task<SiteSearchPage>>(() => StartSharedFetch(key, created));
+        var lazy = cache.Inflight.GetOrAdd(key, created);
 
-        try
-        {
-            return await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            if (lazy.IsValueCreated && lazy.Value.IsCompleted)
+        return await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task<SiteSearchPage> StartSharedFetch(
+        SiteSearchCacheKey key,
+        Lazy<Task<SiteSearchPage>> lazy)
+    {
+        var fetch = FetchAndCacheAsync(key);
+        _ = fetch.ContinueWith(
+            static (task, state) =>
             {
-                cache.Inflight.TryRemove(KeyValuePair.Create(key, lazy));
-            }
-        }
+                var (ownerCache, cacheKey, ownerLazy) =
+                    ((SiteSearchResultCache Cache, SiteSearchCacheKey Key, Lazy<Task<SiteSearchPage>> Lazy))state!;
+                ownerCache.Inflight.TryRemove(KeyValuePair.Create(cacheKey, ownerLazy));
+                _ = task.Exception;
+            },
+            (cache, key, lazy),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return fetch;
     }
 
     private async Task<SiteSearchPage> FetchAndCacheAsync(SiteSearchCacheKey key)
@@ -77,7 +88,9 @@ public sealed class CachingSiteSearchService(
             return hit;
         }
 
-        var result = await inner.SearchAsync(
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var search = createInner(scope.ServiceProvider);
+        var result = await search.SearchAsync(
             key.Query,
             key.ContentType,
             key.Page,

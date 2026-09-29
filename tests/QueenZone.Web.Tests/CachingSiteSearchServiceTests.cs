@@ -8,8 +8,18 @@ using QueenZone.Web.Search;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class CachingSiteSearchServiceTests
+public sealed class CachingSiteSearchServiceTests : IDisposable
 {
+    private readonly List<ServiceProvider> providers = [];
+
+    public void Dispose()
+    {
+        foreach (var provider in providers)
+        {
+            provider.Dispose();
+        }
+    }
+
     [Fact]
     public async Task Anonymous_hit_reuses_cached_page()
     {
@@ -198,6 +208,7 @@ public sealed class CachingSiteSearchServiceTests
 
         Assert.Equal(1, inner.Calls);
         Assert.Same(pages[0], pages[1]);
+        await WaitForInflightEmpty(cache);
     }
 
     [Fact]
@@ -270,25 +281,224 @@ public sealed class CachingSiteSearchServiceTests
         Assert.Equal("queen", page.Results[0].Title);
     }
 
-    private static CachingSiteSearchService Create(
+    [Fact]
+    public async Task All_waiters_cancel_then_inflight_is_removed_and_next_call_reexecutes()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 9, 29, 0, 0, 0, TimeSpan.Zero));
+        var inner = new CountingSiteSearchService { HoldFirstCall = true };
+        var cache = new SiteSearchResultCache();
+        var sut = Create(inner, anonymous: true, timeProvider: clock, cache: cache);
+        using var firstCts = new CancellationTokenSource();
+        using var secondCts = new CancellationTokenSource();
+
+        var first = sut.SearchAsync("Queen", null, 1, 20, firstCts.Token);
+        await inner.Entered.Task;
+        var second = sut.SearchAsync("Queen", null, 1, 20, secondCts.Token);
+        firstCts.Cancel();
+        secondCts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        Assert.False(cache.Inflight.IsEmpty);
+
+        inner.Release.SetResult();
+        await WaitForInflightEmpty(cache);
+
+        var cached = await sut.SearchAsync("Queen", null, 1, 20);
+        Assert.Equal(1, inner.Calls);
+        Assert.Equal("queen", cached.Results[0].Title);
+
+        clock.Advance(SiteSearchResultCache.AbsoluteExpiration);
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        var replay = await sut.SearchAsync("Queen", null, 1, 20);
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("queen", replay.Results[0].Title);
+        Assert.True(cache.Inflight.IsEmpty);
+    }
+
+    [Fact]
+    public async Task Faulted_shared_task_is_not_replayed()
+    {
+        var inner = new CountingSiteSearchService { HoldFirstCall = true, ThrowOnCall = 1 };
+        var cache = new SiteSearchResultCache();
+        var sut = Create(inner, anonymous: true, cache: cache);
+
+        var first = sut.SearchAsync("Queen", null, 1, 20);
+        await inner.Entered.Task;
+        var second = sut.SearchAsync("Queen", null, 1, 20);
+        inner.Release.SetResult();
+
+        await Assert.ThrowsAsync<SiteSearchTimeoutException>(() => first);
+        await Assert.ThrowsAsync<SiteSearchTimeoutException>(() => second);
+        await WaitForInflightEmpty(cache);
+
+        var recovered = await sut.SearchAsync("Queen", null, 1, 20);
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("queen", recovered.Results[0].Title);
+        Assert.True(cache.Inflight.IsEmpty);
+    }
+
+    [Fact]
+    public async Task Leader_request_scope_dispose_does_not_fail_follower()
+    {
+        var gate = new SharedSearchGate();
+        var services = new ServiceCollection();
+        services.AddSingleton(gate);
+        services.AddSingleton<IHttpContextAccessor>(AnonymousAccessor());
+        services.AddScoped<GatedSearchContext>();
+        services.AddScoped<ISiteSearchService, GatedSiteSearchService>();
+        services.AddSiteSearchResultCache();
+        await using var root = services.BuildServiceProvider();
+
+        var leaderScope = root.CreateAsyncScope();
+        var leader = leaderScope.ServiceProvider
+            .GetRequiredService<ISiteSearchService>()
+            .SearchAsync("Queen", null, 1, 20);
+        await gate.Entered.Task;
+
+        await using var followerScope = root.CreateAsyncScope();
+        var follower = followerScope.ServiceProvider
+            .GetRequiredService<ISiteSearchService>()
+            .SearchAsync("Queen", null, 1, 20);
+
+        await leaderScope.DisposeAsync();
+        gate.Release.SetResult();
+
+        var page = await follower;
+        var leaderPage = await leader;
+
+        Assert.Equal("queen", page.Results[0].Title);
+        Assert.Equal("queen", leaderPage.Results[0].Title);
+        Assert.True(gate.ContextsCreated >= 2);
+        Assert.True(gate.ContextDisposes >= 1);
+    }
+
+    private CachingSiteSearchService Create(
         ISiteSearchService inner,
         bool anonymous,
         TimeProvider? timeProvider = null,
         SiteSearchResultCache? cache = null)
     {
-        var accessor = new HttpContextAccessor
+        var services = new ServiceCollection();
+        services.AddSingleton(inner);
+        services.AddSingleton<ISiteSearchService>(inner);
+        services.AddSingleton<IHttpContextAccessor>(anonymous ? AnonymousAccessor() : AuthenticatedAccessor());
+        if (timeProvider is not null)
+        {
+            services.AddSingleton(timeProvider);
+        }
+
+        if (cache is not null)
+        {
+            services.AddSingleton(cache);
+        }
+
+        services.AddSiteSearchResultCache();
+        var provider = services.BuildServiceProvider();
+        providers.Add(provider);
+        return Assert.IsType<CachingSiteSearchService>(provider.GetRequiredService<ISiteSearchService>());
+    }
+
+    private static HttpContextAccessor AnonymousAccessor() =>
+        new()
         {
             HttpContext = new DefaultHttpContext
             {
-                User = anonymous
-                    ? new ClaimsPrincipal(new ClaimsIdentity())
-                    : new ClaimsPrincipal(new ClaimsIdentity(
-                        [new Claim(ClaimTypes.Name, "member")],
-                        authenticationType: "test")),
+                User = new ClaimsPrincipal(new ClaimsIdentity()),
             },
         };
 
-        return new CachingSiteSearchService(inner, cache ?? new SiteSearchResultCache(), accessor, timeProvider);
+    private static HttpContextAccessor AuthenticatedAccessor() =>
+        new()
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.Name, "member")],
+                    authenticationType: "test")),
+            },
+        };
+
+    private static async Task WaitForInflightEmpty(SiteSearchResultCache cache)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+        while (!cache.Inflight.IsEmpty)
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException("Inflight entry was not removed.");
+            }
+
+            await Task.Yield();
+        }
+    }
+
+    private sealed class SharedSearchGate
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ContextsCreated;
+
+        public int ContextDisposes;
+    }
+
+    /// <summary>
+    /// Stand-in for a request-scoped <c>DbContext</c>. The shared fetch must resolve
+    /// this from its own scope so disposing the leader request does not close it.
+    /// </summary>
+    private sealed class GatedSearchContext : IDisposable
+    {
+        private readonly SharedSearchGate gate;
+        private int disposed;
+
+        public GatedSearchContext(SharedSearchGate gate)
+        {
+            this.gate = gate;
+            Interlocked.Increment(ref gate.ContextsCreated);
+        }
+
+        public void ThrowIfDisposed() =>
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) == 1, this);
+
+        public void Dispose()
+        {
+            Volatile.Write(ref disposed, 1);
+            Interlocked.Increment(ref gate.ContextDisposes);
+        }
+    }
+
+    private sealed class GatedSiteSearchService(SharedSearchGate gate, GatedSearchContext context) : ISiteSearchService
+    {
+        public async Task<SiteSearchPage> SearchAsync(
+            string query,
+            string? contentType,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            context.ThrowIfDisposed();
+            gate.Entered.TrySetResult();
+            await gate.Release.Task;
+            context.ThrowIfDisposed();
+            return new SiteSearchPage(
+                [new SiteSearchResult(
+                    SiteSearchContentType.News,
+                    SearchDocumentSourceKey.ForNews(1),
+                    query,
+                    "summary",
+                    "/news/1",
+                    null,
+                    null,
+                    null,
+                    null)],
+                1,
+                page,
+                pageSize);
+        }
     }
 
     private sealed class CountingSiteSearchService : ISiteSearchService
@@ -334,15 +544,15 @@ public sealed class CachingSiteSearchServiceTests
                 throw new OperationCanceledException();
             }
 
-            if (ThrowOnCall == call)
-            {
-                throw new SiteSearchTimeoutException(query, TimeSpan.FromSeconds(30), new InvalidOperationException("timeout"));
-            }
-
             if (HoldFirstCall && call == 1)
             {
                 Entered.SetResult();
                 await Release.Task;
+            }
+
+            if (ThrowOnCall == call)
+            {
+                throw new SiteSearchTimeoutException(query, TimeSpan.FromSeconds(30), new InvalidOperationException("timeout"));
             }
 
             if (EmptyResults)

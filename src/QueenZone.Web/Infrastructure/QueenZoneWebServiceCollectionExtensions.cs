@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.NewsAgent;
@@ -474,7 +475,7 @@ public static class QueenZoneWebServiceCollectionExtensions
     public static IServiceCollection AddSiteSearchResultCache(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
-        services.AddSingleton<SiteSearchResultCache>();
+        services.TryAddSingleton<SiteSearchResultCache>();
 
         var existing = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(ISiteSearchService));
         if (existing is null)
@@ -489,6 +490,8 @@ public static class QueenZoneWebServiceCollectionExtensions
                 CreateSiteSearchInner(provider, existing),
                 provider.GetRequiredService<SiteSearchResultCache>(),
                 provider.GetRequiredService<IHttpContextAccessor>(),
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                scopedProvider => CreateSiteSearchInner(scopedProvider, existing),
                 provider.GetService<TimeProvider>()),
             existing.Lifetime));
 
