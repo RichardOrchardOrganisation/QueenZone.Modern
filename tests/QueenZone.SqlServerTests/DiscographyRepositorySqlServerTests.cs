@@ -6,11 +6,13 @@ namespace QueenZone.SqlServerTests;
 /// <summary>
 /// Runs the production <see cref="EfDiscographyRepository"/> (legacy <c>Q_ALBUM_LIST_SP</c> /
 /// <c>Q_ALBUM_T_DISPLAY_SP</c> / <c>Q_ALBUM_SONG_T_LIST_SP</c>) against a scratch SQL Server
-/// database (#1672 / #1886). Tables and procedures were copied from <c>docs/db-schema.txt</c>
-/// (the committed legacy dump; this environment cannot reach <c>queenzone_legacy_sync</c>):
-/// <c>tinyint</c> album ids and flags, <c>smallint</c> song ids, <c>smalldatetime</c> release
-/// dates. The read-only mirror probe is <c>EfDiscographyRepositoryLegacyProbeTests</c> in
-/// <c>QueenZone.Web.Tests</c>.
+/// database (#1672 / #1886). Tables and procedures were copied from a 2026-09-29 read-only
+/// dump of <c>queenzone_legacy_sync</c> (<c>OBJECT_DEFINITION</c> / <c>sys.columns</c>):
+/// <c>tinyint</c> <c>Q_ALBUM_T.Q_ALBUM_ID</c> / <c>ARTIST</c> / <c>ACTIVE</c> versus
+/// <c>smallint</c> <c>Q_ALBUM_SONG_T.Q_ALBUM_ID</c> and identity <c>Q_ARTIST_T.Q_ARTIST_ID</c>;
+/// display takes <c>@Q_ALBUM_ID int</c>, song list takes <c>smallint</c>;
+/// <c>SONG_LYRICS</c> is <c>varchar(4000) NOT NULL</c>. The read-only mirror probe is
+/// <c>EfDiscographyRepositoryLegacyProbeTests</c> in <c>QueenZone.Web.Tests</c>.
 /// </summary>
 public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
 {
@@ -39,7 +41,7 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
             PICTURE_HEIGHT smallint NULL,
             PICTURE_WIDTH smallint NULL,
             ACTIVE tinyint NOT NULL,
-            CREATE_DATE smalldatetime NOT NULL DEFAULT (getdate())
+            CREATE_DATE smalldatetime NOT NULL
         );
         """,
         """
@@ -52,7 +54,7 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
             SONG_NOTES varchar(2000) NULL,
             Q_ARTIST_ID tinyint NOT NULL,
             IS_SINGLE tinyint NOT NULL,
-            CREATE_DATE smalldatetime NOT NULL DEFAULT (getdate())
+            CREATE_DATE smalldatetime NOT NULL
         );
         """,
         """
@@ -148,18 +150,18 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
             """
             INSERT INTO dbo.Q_ARTIST_T (ARTIST_NAME) VALUES ('Queen');
             INSERT INTO dbo.Q_ALBUM_T
-                (Q_ALBUM_ID, ALBUM_NAME, ARTIST, RELEASE_DATE, GENERAL_NOTES, THUMB_URL, PICTURE_URL, ACTIVE)
+                (Q_ALBUM_ID, ALBUM_NAME, ARTIST, RELEASE_DATE, GENERAL_NOTES, THUMB_URL, PICTURE_URL, ACTIVE, CREATE_DATE)
             VALUES
-                (1, 'A Night at the Opera', 1, '1975-11-21', 'Notes', NULL, 'opera.jpg', 1),
-                (2, 'Sheer Heart Attack', 1, '1974-11-08', NULL, 'sha.jpg', NULL, 1),
-                (4, 'Hidden', 1, '1970-01-01', NULL, NULL, NULL, 0),
-                (7, 'Queen II', 1, '1974-03-08', 'Second album.', 'queen-ii.jpg', 'queen-ii-full.jpg', 1);
+                (1, 'A Night at the Opera', 1, '1975-11-21', 'Notes', NULL, 'opera.jpg', 1, '2020-01-01'),
+                (2, 'Sheer Heart Attack', 1, '1974-11-08', NULL, 'sha.jpg', NULL, 1, '2020-01-01'),
+                (4, 'Hidden', 1, '1970-01-01', NULL, NULL, NULL, 0, '2020-01-01'),
+                (7, 'Queen II', 1, '1974-03-08', 'Second album.', 'queen-ii.jpg', 'queen-ii-full.jpg', 1, '2020-01-01');
             INSERT INTO dbo.Q_ALBUM_SONG_T
-                (SONG_TITLE, SONG_LYRICS, Q_ALBUM_ID, SONG_NOTES, Q_ARTIST_ID, IS_SINGLE)
+                (SONG_TITLE, SONG_LYRICS, Q_ALBUM_ID, SONG_NOTES, Q_ARTIST_ID, IS_SINGLE, CREATE_DATE)
             VALUES
-                ('Procession', '', 7, NULL, 1, 0),
-                ('Bohemian Rhapsody', 'Is this the real life', 1, 'Single', 1, 1),
-                ('You''re My Best Friend', '   ', 1, NULL, 1, 0);
+                ('Procession', '', 7, NULL, 1, 0, '2020-01-01'),
+                ('Bohemian Rhapsody', 'Is this the real life', 1, 'Single', 1, 1, '2020-01-01'),
+                ('You''re My Best Friend', '   ', 1, NULL, 1, 0, '2020-01-01');
             """);
 
         var albums = await repository.GetAlbumsAsync();
