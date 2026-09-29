@@ -296,7 +296,7 @@ GitHub Actions workflow `.github/workflows/ci.yml` blocks merge when these fail:
 | **Formatting** | `dotnet format QueenZone.sln --verify-no-changes` (matches root `.editorconfig`; CRLF via `.gitattributes`) — runs as its own job in parallel with Build/Test, not a Build step | Yes |
 | **Test (sharded)** | Mixed `QueenZone.Web.Tests` shards (Release, Coverlet) | Yes |
 | **Small test projects** | `Tools`/`Storage`/`NewsAgent` test projects, in parallel with the Web.Tests shards | Yes |
-| **Global line coverage** | At least **51%** across the union of deterministic suite reports | Yes |
+| **Global line coverage** | At least **91%** across the union of deterministic suite reports | Yes |
 | **Changed-line coverage** | At least **70%** of changed, coverable `.cs` lines in the PR diff vs `main` | Yes |
 | **Smoke test** | Published app responds on `/health`, `/`, `/news` (starts after `build`, overlaps coverage) | Yes |
 | **EF migrations (SQL Express mirror)** | When migration-related paths change: `has-pending-model-changes` + `database update` against the SQL Express mirror (no production Azure SQL, no prod GitHub Environment) | Yes (job runs only for those PRs) |
@@ -358,7 +358,7 @@ Run the [default verification](#default-verification-before-a-pull-request) firs
 git fetch origin main
 # After default restore/build/format, collect coverage and gate:
 dotnet test QueenZone.sln --configuration Release --no-build --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef origin/main
+powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef origin/main
 ```
 
 On Linux or GitHub Actions, use `pwsh` instead of `powershell` for the last command.
@@ -375,7 +375,7 @@ npm run preflight
 
 `npm run typecheck` is `tsc --noEmit && tsc --noEmit -p tsconfig.test.json` (app sources plus test files, `src/test/`, `jest.setup.ts`, and `contracts/**/*.ts`). `npm run preflight` is that combined typecheck + lint + unit tests + Expo Doctor. Doctor's package-version check consults Expo's current SDK list, so a lockfile that passed this morning can fail CI the same afternoon when Expo publishes a patch (`npx expo install <package>`). Do not skip Doctor on mobile PRs.
 
-When the PR also changes production TypeScript/TSX, run the mobile coverage gate (floors in `scripts/mobile-coverage-floors.json`; do not copy the web C# 51%/70% numbers):
+When the PR also changes production TypeScript/TSX, run the mobile coverage gate (floors in `scripts/mobile-coverage-floors.json`; do not copy the web C# 91%/70% numbers):
 
 ```powershell
 cd src/QueenZone.Mobile

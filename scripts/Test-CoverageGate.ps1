@@ -2,7 +2,7 @@ param(
     [Parameter()]
     [string]$Reports,
 
-    [double]$GlobalLineThreshold = 51,
+    [double]$GlobalLineThreshold = 91,
 
     [double]$ChangedLineThreshold = 70,
 
