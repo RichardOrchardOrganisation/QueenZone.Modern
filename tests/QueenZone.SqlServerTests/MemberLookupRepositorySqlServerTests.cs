@@ -69,15 +69,15 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
             .UseSqlServer(ConnectionString).Options);
         repository = new EfMemberLookupRepository(dbContext);
 
-        // IDs are deliberately not username order so a sort-by-id bug fails the
-        // ORDER BY USERNAME, USER_ID assertion. char(40) pads USERNAME on the right.
+        // Freddie is USER_ID 43 and Mercury is 42 so ORDER BY USERNAME, USER_ID
+        // is not the same as ORDER BY USER_ID. char(40) pads USERNAME on the right.
         await dbContext.Database.ExecuteSqlRawAsync(
             """
             SET IDENTITY_INSERT dbo.USERS_T ON;
             INSERT INTO dbo.USERS_T (USER_ID, USERNAME, EMAIL)
             VALUES
-                (43, '  Mercury  ', 'freddie@example.com'),
-                (42, '  Freddie  ', 'freddie@example.com'),
+                (42, '  Mercury  ', 'freddie@example.com'),
+                (43, '  Freddie  ', 'freddie@example.com'),
                 (99, 'Other', 'other@example.com'),
                 (20, 'SameName', 'shared@example.com'),
                 (7, 'SameName', 'shared@example.com'),
@@ -99,11 +99,11 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
     {
         var first = await repository.FindByEmailAsync("freddie@example.com");
         Assert.NotNull(first);
-        Assert.Equal(42, first.UserId);
+        Assert.Equal(43, first.UserId);
         Assert.Equal("Freddie", first.Username);
 
         var all = await repository.FindAllByEmailAsync("freddie@example.com");
-        Assert.Equal([42, 43], all.Select(match => match.UserId).ToArray());
+        Assert.Equal([43, 42], all.Select(match => match.UserId).ToArray());
         Assert.Equal(["Freddie", "Mercury"], all.Select(match => match.Username).ToArray());
 
         // Same username, different USER_ID: the secondary sort is USER_ID.
@@ -113,7 +113,7 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
         Assert.Empty(await repository.FindAllByEmailAsync("missing@example.com"));
         Assert.Null(await repository.FindByEmailAsync("missing@example.com"));
 
-        var byId = await repository.FindByUserIdAsync(42);
+        var byId = await repository.FindByUserIdAsync(43);
         Assert.NotNull(byId);
         Assert.Equal("Freddie", byId.Username);
         Assert.Null(await repository.FindByUserIdAsync(999));
@@ -139,7 +139,7 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
 
         // Leading/trailing spaces in the inserted literal are kept, then char(40) pads;
         // production code Trims on read.
-        var padded = await repository.FindByUserIdAsync(42);
+        var padded = await repository.FindByUserIdAsync(43);
         Assert.Equal("Freddie", padded!.Username);
 
         // EMAIL is CI_AS and not unique; a case-different lookup is the same row.

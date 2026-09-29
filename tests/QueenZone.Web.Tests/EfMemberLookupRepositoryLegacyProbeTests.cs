@@ -42,6 +42,7 @@ public sealed class EfMemberLookupRepositoryLegacyProbeTests
         Assert.NotNull(byId);
         Assert.Equal(userId, byId.UserId);
         Assert.NotNull(byId.Username);
+        Assert.Equal(byId.Username.Trim(), byId.Username);
         Assert.Null(await repository.FindByUserIdAsync(int.MaxValue));
 
         var emailUserIds = await dbContext.Database
@@ -69,9 +70,11 @@ public sealed class EfMemberLookupRepositoryLegacyProbeTests
         var email = emails[0];
         var byEmail = await repository.FindByEmailAsync(email);
         Assert.NotNull(byEmail);
-        Assert.Equal(emailUserId, byEmail.UserId);
 
+        // FindByEmailAsync is first of ORDER BY USERNAME, USER_ID — not the lowest USER_ID.
         var all = await repository.FindAllByEmailAsync(email);
+        Assert.NotEmpty(all);
+        Assert.Equal(all[0].UserId, byEmail.UserId);
         Assert.Contains(all, match => match.UserId == emailUserId);
     }
 }
