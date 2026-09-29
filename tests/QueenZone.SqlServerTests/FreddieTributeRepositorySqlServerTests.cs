@@ -130,7 +130,12 @@ public sealed class FreddieTributeRepositorySqlServerTests : IAsyncLifetime
             OUTPUT CAST(INSERTED.ID AS int) AS Value
             VALUES ({0}, {1}, {2}, {3}, {4}, {5})
             """,
-            name, thought, dateText, timeText, country, display).ToListAsync();
+            name is string n ? n : DBNull.Value,
+            thought is string t ? t : DBNull.Value,
+            dateText,
+            timeText is string tm ? tm : DBNull.Value,
+            country is string c ? c : DBNull.Value,
+            display is int d ? d : DBNull.Value).ToListAsync();
         return ids.Single();
     }
 
