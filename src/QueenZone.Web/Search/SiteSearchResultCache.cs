@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
+using QueenZone.Data;
 
 namespace QueenZone.Web.Search;
 
@@ -24,6 +26,8 @@ public sealed class SiteSearchResultCache : IDisposable
     }
 
     public IMemoryCache Memory { get; }
+
+    internal ConcurrentDictionary<SiteSearchCacheKey, Lazy<Task<SiteSearchPage>>> Inflight { get; } = new();
 
     public void Dispose() => Memory.Dispose();
 }

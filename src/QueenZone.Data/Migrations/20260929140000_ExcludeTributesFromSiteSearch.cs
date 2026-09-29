@@ -23,17 +23,15 @@ public partial class ExcludeTributesFromSiteSearch : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql("""
+        migrationBuilder.Sql($"""
             IF OBJECT_ID(N'dbo.SearchDocument', N'U') IS NOT NULL
             BEGIN
                 DELETE FROM dbo.SearchDocument
-                WHERE ContentType IN (N'tribute', N'freddie-tribute')
-                   OR SourceKey LIKE N'tribute:%'
-                   OR SourceKey LIKE N'freddie-tribute:%';
+                WHERE {SiteSearchExclusion.SqlIsExcluded("ContentType", "SourceKey")};
             END
             """);
 
-        migrationBuilder.Sql("""
+        migrationBuilder.Sql($"""
             CREATE OR ALTER PROCEDURE dbo.SearchDocument_Search
                 @Query          NVARCHAR(500),
                 @ContentType    NVARCHAR(50) = NULL,
@@ -72,24 +70,24 @@ public partial class ExcludeTributesFromSiteSearch : Migration
                     SELECT ft.[KEY], ft.[RANK], d.ContentType, d.PublishedAt
                     FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft
                     INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
-                    WHERE  d.ContentType <> N'tribute'
+                    WHERE  {SiteSearchExclusion.SqlIsSearchable("d")}
                     OPTION (RECOMPILE);
-                END
-                ELSE
-                BEGIN
-                    INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)
-                    SELECT TOP (@MatchLimit)
-                           d.Id,
-                           ft.[RANK],
-                           d.ContentType,
-                           d.PublishedAt
-                    FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
-                    INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
-                    WHERE  d.ContentType = @ContentType
-                      AND  d.ContentType <> N'tribute'
-                    ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
-                    OPTION (RECOMPILE);
-                END
+            END
+            ELSE
+            BEGIN
+                INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)
+                SELECT TOP (@MatchLimit)
+                       d.Id,
+                       ft.[RANK],
+                       d.ContentType,
+                       d.PublishedAt
+                FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
+                INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
+                WHERE  d.ContentType = @ContentType
+                  AND  {SiteSearchExclusion.SqlIsSearchable("d")}
+                ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
+                OPTION (RECOMPILE);
+            END
 
                 CREATE TABLE #Page
                 (

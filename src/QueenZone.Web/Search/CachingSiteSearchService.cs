@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
 using QueenZone.Data;
 
@@ -6,8 +5,9 @@ namespace QueenZone.Web.Search;
 
 /// <summary>
 /// Bounded in-process cache around <see cref="ISiteSearchService"/>. Anonymous requests only;
-/// never caches short queries, exceptions, timeouts, or cancellations. Concurrent misses for
-/// the same key share one inner call.
+/// never caches short queries, pages beyond <see cref="SiteSearchLimits.MaxPage"/>, exceptions,
+/// timeouts, cancellations, or unavailable results. Successful empty pages for real queries
+/// are cached. Concurrent misses for the same key share one inner call.
 /// </summary>
 public sealed class CachingSiteSearchService(
     ISiteSearchService inner,
@@ -15,66 +15,74 @@ public sealed class CachingSiteSearchService(
     IHttpContextAccessor httpContextAccessor,
     TimeProvider? timeProvider = null) : ISiteSearchService
 {
-    private static readonly ConcurrentDictionary<string, Lazy<Task<SiteSearchPage>>> Inflight =
-        new(StringComparer.Ordinal);
-
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
-    public Task<SiteSearchPage> SearchAsync(
+    /// <summary>
+    /// Test seam: skip the outer cache lookup so <see cref="FetchAndCacheAsync"/> must
+    /// recheck before SQL.
+    /// </summary>
+    internal bool BypassOuterCacheLookup { get; set; }
+
+    public async Task<SiteSearchPage> SearchAsync(
         string query,
         string? contentType,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        if (SiteSearchLimits.IsBelowMinimumLength(query) || IsAuthenticated())
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var key = SiteSearchCacheKey.Normalize(query, contentType, page, pageSize);
+
+        if (SiteSearchLimits.IsBelowMinimumLength(key.Query)
+            || SiteSearchLimits.IsBeyondMaxPage(key.Page)
+            || IsAuthenticated())
         {
-            return inner.SearchAsync(query, contentType, page, pageSize, cancellationToken);
+            return await inner.SearchAsync(
+                key.Query,
+                key.ContentType,
+                key.Page,
+                key.PageSize,
+                cancellationToken).ConfigureAwait(false);
         }
 
-        var key = BuildKey(query, contentType, page, pageSize);
-        if (TryGetFresh(key, out var hit))
+        if (!BypassOuterCacheLookup && TryGetFresh(key, out var hit))
         {
-            return Task.FromResult(hit);
+            return hit;
         }
 
-        var lazy = Inflight.GetOrAdd(
+        var lazy = cache.Inflight.GetOrAdd(
             key,
-            static (cacheKey, state) => new Lazy<Task<SiteSearchPage>>(() =>
-                state.Owner.FetchAndCacheAsync(
-                    cacheKey,
-                    state.Query,
-                    state.ContentType,
-                    state.Page,
-                    state.PageSize,
-                    state.CancellationToken)),
-            (Owner: this, Query: query, ContentType: contentType, Page: page, PageSize: pageSize, CancellationToken: cancellationToken));
+            static (cacheKey, owner) => new Lazy<Task<SiteSearchPage>>(
+                () => owner.FetchAndCacheAsync(cacheKey)),
+            this);
 
-        return AwaitInflightAsync(key, lazy);
-    }
-
-    private async Task<SiteSearchPage> AwaitInflightAsync(string key, Lazy<Task<SiteSearchPage>> lazy)
-    {
         try
         {
-            return await lazy.Value.ConfigureAwait(false);
+            return await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            Inflight.TryRemove(KeyValuePair.Create(key, lazy));
+            if (lazy.IsValueCreated && lazy.Value.IsCompleted)
+            {
+                cache.Inflight.TryRemove(KeyValuePair.Create(key, lazy));
+            }
         }
     }
 
-    private async Task<SiteSearchPage> FetchAndCacheAsync(
-        string key,
-        string query,
-        string? contentType,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken)
+    private async Task<SiteSearchPage> FetchAndCacheAsync(SiteSearchCacheKey key)
     {
-        var result = await inner.SearchAsync(query, contentType, page, pageSize, cancellationToken)
-            .ConfigureAwait(false);
+        if (TryGetFresh(key, out var hit))
+        {
+            return hit;
+        }
+
+        var result = await inner.SearchAsync(
+            key.Query,
+            key.ContentType,
+            key.Page,
+            key.PageSize,
+            CancellationToken.None).ConfigureAwait(false);
 
         cache.Memory.Set(
             key,
@@ -88,7 +96,7 @@ public sealed class CachingSiteSearchService(
         return result;
     }
 
-    private bool TryGetFresh(string key, out SiteSearchPage page)
+    private bool TryGetFresh(SiteSearchCacheKey key, out SiteSearchPage page)
     {
         if (cache.Memory.TryGetValue(key, out CachedSearchPage? cached)
             && cached is not null
@@ -104,15 +112,6 @@ public sealed class CachingSiteSearchService(
 
     private bool IsAuthenticated() =>
         httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true;
-
-    internal static string BuildKey(string query, string? contentType, int page, int pageSize)
-    {
-        var normalizedQuery = query.Trim().ToLowerInvariant();
-        var normalizedType = string.IsNullOrWhiteSpace(contentType)
-            ? string.Empty
-            : contentType.Trim().ToLowerInvariant();
-        return $"search:{normalizedQuery}|{normalizedType}|{page}|{pageSize}|anon";
-    }
 
     private sealed record CachedSearchPage(SiteSearchPage Page, DateTimeOffset ExpiresAt);
 }

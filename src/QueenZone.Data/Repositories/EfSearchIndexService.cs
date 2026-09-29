@@ -19,7 +19,7 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(document.SourceKey);
 
-        if (IsExcludedTribute(document.ContentType, document.SourceKey))
+        if (SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey))
         {
             await RemoveAsync(document.SourceKey, cancellationToken);
             return;
@@ -69,10 +69,14 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
         ArgumentNullException.ThrowIfNull(documents);
 
-        if (SiteSearchContentType.IsExcludedFromSiteSearch(contentType))
+        if (SiteSearchExclusion.IsExcludedContentType(contentType))
         {
             await dbContext.SearchDocuments
-                .Where(d => d.ContentType == contentType)
+                .Where(d =>
+                    d.ContentType == SiteSearchContentType.Tribute
+                    || d.ContentType == SiteSearchContentType.FreddieTribute
+                    || d.SourceKey.StartsWith(SiteSearchContentType.Tribute + ":")
+                    || d.SourceKey.StartsWith(SiteSearchContentType.FreddieTribute + ":"))
                 .ExecuteDeleteAsync(cancellationToken);
             return;
         }
@@ -101,6 +105,11 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
             var now = DateTimeOffset.UtcNow;
             foreach (var document in documents)
             {
+                if (SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey))
+                {
+                    continue;
+                }
+
                 document.Id = document.Id == Guid.Empty ? Guid.NewGuid() : document.Id;
                 document.ContentType = contentType;
                 document.IndexedAt = now;
@@ -118,7 +127,4 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
             .Select(g => new { ContentType = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.ContentType, g => g.Count, cancellationToken);
 
-    private static bool IsExcludedTribute(string? contentType, string? sourceKey) =>
-        SiteSearchContentType.IsExcludedFromSiteSearch(contentType)
-        || SearchDocumentSourceKey.IsTribute(sourceKey);
 }

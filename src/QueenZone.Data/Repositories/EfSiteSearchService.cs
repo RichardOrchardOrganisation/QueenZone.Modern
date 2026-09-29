@@ -13,8 +13,6 @@ public sealed class EfSiteSearchService(
     QueenZoneDbContext dbContext,
     ILogger<EfSiteSearchService> logger) : ISiteSearchService
 {
-    private const int MaxPageSize = 100;
-
     public async Task<SiteSearchPage> SearchAsync(
         string query,
         string? contentType,
@@ -27,8 +25,8 @@ public sealed class EfSiteSearchService(
             return new SiteSearchPage([], 0, page, pageSize);
         }
 
-        var normalizedPage = Math.Max(page, 1);
-        var take = Math.Clamp(pageSize, 1, MaxPageSize);
+        var normalizedPage = SiteSearchLimits.NormalizePage(page);
+        var take = SiteSearchLimits.NormalizePageSize(pageSize);
         var trimmed = query.Trim();
 
         if (SiteSearchLimits.IsBeyondMaxPage(normalizedPage))

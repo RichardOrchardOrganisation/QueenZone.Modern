@@ -180,7 +180,7 @@ public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
 
         Assert.Contains(FreeTextUntyped, sql, StringComparison.Ordinal);
         Assert.Contains(FreeTextTyped, sql, StringComparison.Ordinal);
-        Assert.Equal(2, sql.Split("d.ContentType <> N'tribute'", StringSplitOptions.None).Length - 1);
+        Assert.Equal(2, sql.Split(SiteSearchExclusion.SqlIsSearchable("d"), StringSplitOptions.None).Length - 1);
         Assert.Contains("@RankLimit      INT = 1000", sql, StringComparison.Ordinal);
         Assert.Contains("@TypedRankLimit INT = 5000", sql, StringComparison.Ordinal);
         Assert.Equal(2, sql.Split("OPTION (RECOMPILE)", StringSplitOptions.None).Length - 1);
@@ -221,6 +221,41 @@ public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
         var typedNews = await search.SearchAsync("Freddie", SiteSearchContentType.News, 1, 20);
         Assert.Equal(1, typedNews.TotalCount);
         Assert.Equal(SiteSearchContentType.News, Assert.Single(typedNews.Results).ContentType);
+    }
+
+    [Fact]
+    public async Task Search_excludes_alias_and_mismatched_tribute_rows()
+    {
+        dbContext.SearchDocuments.AddRange(
+            Document(
+                "freddie-tribute:7",
+                SiteSearchContentType.FreddieTribute,
+                "Freddie alias tribute",
+                "Thank you Freddie."),
+            Document(
+                SearchDocumentSourceKey.ForTribute(8),
+                SiteSearchContentType.News,
+                "Freddie mismatched key",
+                "News type with a tribute source key."),
+            Document(
+                "news:44",
+                SiteSearchContentType.Tribute,
+                "Freddie mismatched type",
+                "Tribute type with a news source key."),
+            Document(
+                SearchDocumentSourceKey.ForNews(3),
+                SiteSearchContentType.News,
+                "Freddie news article",
+                "Published news about Freddie."));
+        await dbContext.SaveChangesAsync();
+
+        var all = await search.SearchAsync("Freddie", null, 1, 20);
+        Assert.Equal(1, all.TotalCount);
+        Assert.Equal(SearchDocumentSourceKey.ForNews(3), Assert.Single(all.Results).SourceKey);
+
+        var typedAlias = await search.SearchAsync("Freddie", SiteSearchContentType.FreddieTribute, 1, 20);
+        Assert.Equal(0, typedAlias.TotalCount);
+        Assert.Empty(typedAlias.Results);
     }
 
     [Fact]

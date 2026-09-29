@@ -24,9 +24,12 @@
 -- in Body needs room to enter the candidate set before ContentType is filtered. The finite 5000
 -- scan cap avoids asking the full-text engine to rank the entire corpus.
 --
--- Freddie tributes (ContentType = N'tribute') are excluded at the #Matches insert so they
--- never consume rank slots or appear in results. Leftover tribute rows are deleted by
--- migration 20260929140000_ExcludeTributesFromSiteSearch; the indexer refuses to write them.
+-- Freddie tributes (ContentType tribute / freddie-tribute, or source keys tribute: /
+-- freddie-tribute:) are excluded at the #Matches insert so they never consume rank slots
+-- or appear in results. Leftover tribute rows are deleted by migration
+-- 20260929140000_ExcludeTributesFromSiteSearch; the indexer refuses to write them. The
+-- predicate is SiteSearchExclusion.SqlIsSearchable — the same rule as indexer writes and
+-- leftover cleanup.
 --
 -- Query Store on S0 showed the page SELECT joining up to 1,000 #Matches rows to the wide
 -- PK_SearchDocument (~148 MB) before sort/TOP, and the count hash-joining a full scan of
@@ -88,7 +91,7 @@ BEGIN
         SELECT ft.[KEY], ft.[RANK], d.ContentType, d.PublishedAt
         FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft
         INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
-        WHERE  d.ContentType <> N'tribute'
+        WHERE  NOT (d.ContentType IN (N'tribute', N'freddie-tribute') OR d.SourceKey LIKE N'tribute:%' OR d.SourceKey LIKE N'freddie-tribute:%')
         OPTION (RECOMPILE);
     END
     ELSE
@@ -102,7 +105,7 @@ BEGIN
         FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
         INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
         WHERE  d.ContentType = @ContentType
-          AND  d.ContentType <> N'tribute'
+          AND  NOT (d.ContentType IN (N'tribute', N'freddie-tribute') OR d.SourceKey LIKE N'tribute:%' OR d.SourceKey LIKE N'freddie-tribute:%')
         ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
         OPTION (RECOMPILE);
     END

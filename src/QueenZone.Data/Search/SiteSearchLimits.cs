@@ -35,6 +35,12 @@ public static class SiteSearchLimits
     public const int MaxPage = 10;
 
     /// <summary>
+    /// Upper bound for a single search page. Website, API, cache keys, and both search
+    /// services clamp to this so key and execution stay aligned.
+    /// </summary>
+    public const int MaxPageSize = 100;
+
+    /// <summary>
     /// True when <paramref name="query"/> is empty, whitespace, or shorter than
     /// <see cref="MinQueryLength"/> after trimming.
     /// </summary>
@@ -45,5 +51,9 @@ public static class SiteSearchLimits
     /// True when <paramref name="page"/> is past <see cref="MaxPage"/>. Page numbers below 1
     /// are treated as page 1.
     /// </summary>
-    public static bool IsBeyondMaxPage(int page) => Math.Max(page, 1) > MaxPage;
+    public static bool IsBeyondMaxPage(int page) => NormalizePage(page) > MaxPage;
+
+    public static int NormalizePage(int page) => Math.Max(page, 1);
+
+    public static int NormalizePageSize(int pageSize) => Math.Clamp(pageSize, 1, MaxPageSize);
 }

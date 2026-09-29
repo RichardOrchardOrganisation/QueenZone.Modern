@@ -8,7 +8,7 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(document.SourceKey);
-        if (IsExcludedTribute(document.ContentType, document.SourceKey))
+        if (SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey))
         {
             store.Remove(document.SourceKey);
             return Task.CompletedTask;
@@ -32,13 +32,22 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
         ArgumentNullException.ThrowIfNull(documents);
-        if (SiteSearchContentType.IsExcludedFromSiteSearch(contentType))
+        if (SiteSearchExclusion.IsExcludedContentType(contentType))
         {
-            store.ReplaceContentType(contentType, []);
+            foreach (var leftover in store.GetAll())
+            {
+                if (SiteSearchExclusion.IsExcluded(leftover.ContentType, leftover.SourceKey))
+                {
+                    store.Remove(leftover.SourceKey);
+                }
+            }
+
             return Task.CompletedTask;
         }
 
-        store.ReplaceContentType(contentType, documents);
+        store.ReplaceContentType(
+            contentType,
+            documents.Where(document => !SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey)).ToList());
         return Task.CompletedTask;
     }
 
@@ -50,7 +59,4 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
         return Task.FromResult(counts);
     }
 
-    private static bool IsExcludedTribute(string? contentType, string? sourceKey) =>
-        SiteSearchContentType.IsExcludedFromSiteSearch(contentType)
-        || SearchDocumentSourceKey.IsTribute(sourceKey);
 }

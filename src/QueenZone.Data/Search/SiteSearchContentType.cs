@@ -22,6 +22,11 @@ public static class SiteSearchContentType
     /// </summary>
     public const string Tribute = "tribute";
 
+    /// <summary>
+    /// Historical tribute content-type alias. Treated the same as <see cref="Tribute"/>.
+    /// </summary>
+    public const string FreddieTribute = "freddie-tribute";
+
     public static readonly IReadOnlyList<string> All =
     [
         News, Article, LegacyArticle, Forum, Biography, Discography, Photo, Timeline, FanPerformance,
@@ -51,7 +56,7 @@ public static class SiteSearchContentType
     /// <c>?type=tribute</c> filter.
     /// </summary>
     public static bool IsExcludedFromSiteSearch(string? contentType) =>
-        string.Equals(contentType, Tribute, StringComparison.OrdinalIgnoreCase);
+        SiteSearchExclusion.IsExcludedContentType(contentType);
 
     public static string DisplayLabel(string contentType) => contentType switch
     {

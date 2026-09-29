@@ -21,6 +21,23 @@ public sealed class CachingSiteSearchServiceTests
 
         Assert.Same(first, second);
         Assert.Equal(1, inner.Calls);
+        Assert.Equal("queen", inner.LastQuery);
+        Assert.Null(inner.LastContentType);
+    }
+
+    [Fact]
+    public async Task Null_and_blank_content_types_share_one_normalized_call()
+    {
+        var inner = new CountingSiteSearchService();
+        var sut = Create(inner, anonymous: true);
+
+        await sut.SearchAsync("Queen", null, 1, 20);
+        await sut.SearchAsync("Queen", string.Empty, 1, 20);
+        await sut.SearchAsync("Queen", "   ", 0, 20);
+
+        Assert.Equal(1, inner.Calls);
+        Assert.Null(inner.LastContentType);
+        Assert.Equal(1, inner.LastPage);
     }
 
     [Fact]
@@ -31,9 +48,11 @@ public sealed class CachingSiteSearchServiceTests
 
         await sut.SearchAsync("Queen", null, 1, 20);
         await sut.SearchAsync("Queen", SiteSearchContentType.News, 1, 20);
+        Assert.Equal(SiteSearchContentType.News, inner.LastContentType);
         await sut.SearchAsync("Queen", null, 2, 20);
 
         Assert.Equal(3, inner.Calls);
+        Assert.Null(inner.LastContentType);
     }
 
     [Fact]
@@ -60,7 +79,7 @@ public sealed class CachingSiteSearchServiceTests
         await Assert.ThrowsAsync<SiteSearchTimeoutException>(() => sut.SearchAsync("Queen", null, 1, 20));
         var recovered = await sut.SearchAsync("Queen", null, 1, 20);
 
-        Assert.Equal("Queen", recovered.Results[0].Title);
+        Assert.Equal("queen", recovered.Results[0].Title);
         Assert.Equal(2, inner.Calls);
     }
 
@@ -69,15 +88,12 @@ public sealed class CachingSiteSearchServiceTests
     {
         var inner = new CountingSiteSearchService { CancelOnCall = 1 };
         var sut = Create(inner, anonymous: true);
-        using var cancelled = new CancellationTokenSource();
-        cancelled.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            sut.SearchAsync("Queen", null, 1, 20, cancelled.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(() => sut.SearchAsync("Queen", null, 1, 20));
         var recovered = await sut.SearchAsync("Queen", null, 1, 20);
 
         Assert.Equal(2, inner.Calls);
-        Assert.Equal("Queen", recovered.Results[0].Title);
+        Assert.Equal("queen", recovered.Results[0].Title);
     }
 
     [Fact]
@@ -90,6 +106,33 @@ public sealed class CachingSiteSearchServiceTests
         await sut.SearchAsync("a", null, 1, 20);
 
         Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Beyond_max_page_is_not_cached()
+    {
+        var inner = new CountingSiteSearchService();
+        var sut = Create(inner, anonymous: true);
+
+        await sut.SearchAsync("Queen", null, SiteSearchLimits.MaxPage + 1, 20);
+        await sut.SearchAsync("Queen", null, SiteSearchLimits.MaxPage + 1, 20);
+
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal(11, inner.LastPage);
+    }
+
+    [Fact]
+    public async Task Successful_empty_page_for_a_real_query_is_cached()
+    {
+        var inner = new CountingSiteSearchService { EmptyResults = true };
+        var sut = Create(inner, anonymous: true);
+
+        var first = await sut.SearchAsync("zzzz", null, 1, 20);
+        var second = await sut.SearchAsync("ZZZZ", null, 1, 20);
+
+        Assert.Empty(first.Results);
+        Assert.Same(first, second);
+        Assert.Equal(1, inner.Calls);
     }
 
     [Fact]
@@ -142,11 +185,13 @@ public sealed class CachingSiteSearchServiceTests
     public async Task Concurrent_misses_share_one_inner_call()
     {
         var inner = new CountingSiteSearchService { HoldFirstCall = true };
-        var sut = Create(inner, anonymous: true);
+        var cache = new SiteSearchResultCache();
+        var firstSut = Create(inner, anonymous: true, cache: cache);
+        var secondSut = Create(inner, anonymous: true, cache: cache);
 
-        var first = sut.SearchAsync("Queen", null, 1, 20);
+        var first = firstSut.SearchAsync("Queen", null, 1, 20);
         await inner.Entered.Task;
-        var second = sut.SearchAsync("Queen", null, 1, 20);
+        var second = secondSut.SearchAsync("Queen", null, 1, 20);
         inner.Release.SetResult();
 
         var pages = await Task.WhenAll(first, second);
@@ -155,10 +200,81 @@ public sealed class CachingSiteSearchServiceTests
         Assert.Same(pages[0], pages[1]);
     }
 
+    [Fact]
+    public async Task Inflight_lives_on_the_cache_instance_not_a_static()
+    {
+        var inner = new CountingSiteSearchService { HoldFirstCall = true };
+        var first = Create(inner, anonymous: true, cache: new SiteSearchResultCache());
+        var second = Create(inner, anonymous: true, cache: new SiteSearchResultCache());
+
+        var held = first.SearchAsync("Queen", null, 1, 20);
+        await inner.Entered.Task;
+        var other = second.SearchAsync("Queen", null, 1, 20);
+        inner.Release.SetResult();
+
+        await Task.WhenAll(held, other);
+
+        Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Factory_rechecks_cache_before_sql()
+    {
+        var inner = new CountingSiteSearchService();
+        var sut = Create(inner, anonymous: true);
+
+        await sut.SearchAsync("Queen", null, 1, 20);
+        sut.BypassOuterCacheLookup = true;
+        await sut.SearchAsync("Queen", null, 1, 20);
+
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Fact]
+    public async Task Leader_cancel_does_not_cancel_followers()
+    {
+        var inner = new CountingSiteSearchService { HoldFirstCall = true };
+        var sut = Create(inner, anonymous: true);
+        using var leaderCts = new CancellationTokenSource();
+
+        var leader = sut.SearchAsync("Queen", null, 1, 20, leaderCts.Token);
+        await inner.Entered.Task;
+        var follower = sut.SearchAsync("Queen", null, 1, 20);
+        leaderCts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => leader);
+        inner.Release.SetResult();
+        var page = await follower;
+
+        Assert.Equal(1, inner.Calls);
+        Assert.Equal("queen", page.Results[0].Title);
+    }
+
+    [Fact]
+    public async Task Follower_cancel_does_not_cancel_the_shared_fetch()
+    {
+        var inner = new CountingSiteSearchService { HoldFirstCall = true };
+        var sut = Create(inner, anonymous: true);
+        using var followerCts = new CancellationTokenSource();
+
+        var leader = sut.SearchAsync("Queen", null, 1, 20);
+        await inner.Entered.Task;
+        var follower = sut.SearchAsync("Queen", null, 1, 20, followerCts.Token);
+        followerCts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => follower);
+        inner.Release.SetResult();
+        var page = await leader;
+
+        Assert.Equal(1, inner.Calls);
+        Assert.Equal("queen", page.Results[0].Title);
+    }
+
     private static CachingSiteSearchService Create(
         ISiteSearchService inner,
         bool anonymous,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        SiteSearchResultCache? cache = null)
     {
         var accessor = new HttpContextAccessor
         {
@@ -172,18 +288,28 @@ public sealed class CachingSiteSearchServiceTests
             },
         };
 
-        return new CachingSiteSearchService(inner, new SiteSearchResultCache(), accessor, timeProvider);
+        return new CachingSiteSearchService(inner, cache ?? new SiteSearchResultCache(), accessor, timeProvider);
     }
 
     private sealed class CountingSiteSearchService : ISiteSearchService
     {
         public int Calls { get; private set; }
 
+        public string? LastQuery { get; private set; }
+
+        public string? LastContentType { get; private set; }
+
+        public int LastPage { get; private set; }
+
+        public int LastPageSize { get; private set; }
+
         public int ThrowOnCall { get; init; }
 
         public int CancelOnCall { get; init; }
 
         public bool HoldFirstCall { get; init; }
+
+        public bool EmptyResults { get; init; }
 
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -198,10 +324,14 @@ public sealed class CachingSiteSearchServiceTests
         {
             var call = Interlocked.Increment(ref calls);
             Calls = call;
+            LastQuery = query;
+            LastContentType = contentType;
+            LastPage = page;
+            LastPageSize = pageSize;
 
             if (CancelOnCall == call)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                throw new OperationCanceledException();
             }
 
             if (ThrowOnCall == call)
@@ -213,6 +343,11 @@ public sealed class CachingSiteSearchServiceTests
             {
                 Entered.SetResult();
                 await Release.Task;
+            }
+
+            if (EmptyResults)
+            {
+                return new SiteSearchPage([], 0, page, pageSize);
             }
 
             return new SiteSearchPage(

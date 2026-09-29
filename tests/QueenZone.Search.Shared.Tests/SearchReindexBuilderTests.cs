@@ -370,6 +370,15 @@ public sealed class SearchReindexBuilderTests
             Summary = "Leftover",
             Url = "/freddie-mercury-tribute",
         });
+        store.Upsert(new SearchDocumentEntity
+        {
+            SourceKey = "freddie-tribute:2",
+            ContentType = SiteSearchContentType.FreddieTribute,
+            Title = "Leftover alias",
+            Body = "Historical alias must be cleared too.",
+            Summary = "Leftover",
+            Url = "/freddie-mercury-tribute",
+        });
 
         await builder.ReindexAllAsync();
 

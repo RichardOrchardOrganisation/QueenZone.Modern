@@ -29,8 +29,7 @@ public static class SearchDocumentSourceKey
             return false;
         }
 
-        return sourceKey.StartsWith("tribute:", StringComparison.OrdinalIgnoreCase)
-            || sourceKey.StartsWith("freddie-tribute:", StringComparison.OrdinalIgnoreCase);
+        return SiteSearchExclusion.IsExcludedSourceKey(sourceKey);
     }
 
     /// <summary>

@@ -52,13 +52,28 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
         Assert.False(SiteSearchLimits.IsBeyondMaxPage(0));
         Assert.True(SiteSearchLimits.IsBeyondMaxPage(11));
         Assert.DoesNotContain(SiteSearchContentType.Tribute, SiteSearchContentType.All);
+        Assert.DoesNotContain(SiteSearchContentType.FreddieTribute, SiteSearchContentType.All);
         Assert.Null(SiteSearchContentType.Normalize(SiteSearchContentType.Tribute));
+        Assert.Null(SiteSearchContentType.Normalize(SiteSearchContentType.FreddieTribute));
         Assert.True(SiteSearchContentType.IsExcludedFromSiteSearch("TRIBUTE"));
+        Assert.True(SiteSearchContentType.IsExcludedFromSiteSearch("Freddie-Tribute"));
+        Assert.True(SiteSearchExclusion.IsExcluded(SiteSearchContentType.FreddieTribute, "news:3"));
+        Assert.True(SiteSearchExclusion.IsExcluded(SiteSearchContentType.News, "tribute:12"));
+        Assert.False(SiteSearchExclusion.IsExcluded(SiteSearchContentType.News, "news:3"));
         Assert.True(SearchDocumentSourceKey.IsTribute(SearchDocumentSourceKey.ForTribute(12)));
         Assert.True(SearchDocumentSourceKey.IsTribute("freddie-tribute:12"));
         Assert.False(SearchDocumentSourceKey.IsTribute(null));
         Assert.False(SearchDocumentSourceKey.IsTribute("   "));
         Assert.False(SearchDocumentSourceKey.IsTribute("news:3"));
+        Assert.Equal(100, SiteSearchLimits.MaxPageSize);
+        Assert.Equal(1, SiteSearchLimits.NormalizePage(0));
+        Assert.Equal(100, SiteSearchLimits.NormalizePageSize(500));
+        Assert.Equal(
+            "ContentType IN (N'tribute', N'freddie-tribute') OR SourceKey LIKE N'tribute:%' OR SourceKey LIKE N'freddie-tribute:%'",
+            SiteSearchExclusion.SqlIsExcluded("ContentType", "SourceKey"));
+        Assert.Equal(
+            "NOT (d.ContentType IN (N'tribute', N'freddie-tribute') OR d.SourceKey LIKE N'tribute:%' OR d.SourceKey LIKE N'freddie-tribute:%')",
+            SiteSearchExclusion.SqlIsSearchable("d"));
     }
 
     [Fact]
@@ -78,6 +93,25 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
         store.Upsert(leftover);
 
         await index.UpsertAsync(leftover);
+        store.Upsert(new SearchDocumentEntity
+        {
+            SourceKey = "freddie-tribute:4",
+            ContentType = SiteSearchContentType.FreddieTribute,
+            Title = "Alias leftover",
+            Body = "body",
+            Summary = "summary",
+            Url = "/freddie-mercury-tribute",
+        });
+        store.Upsert(new SearchDocumentEntity
+        {
+            SourceKey = SearchDocumentSourceKey.ForNews(9),
+            ContentType = SiteSearchContentType.News,
+            Title = "Keep this news",
+            Body = "body",
+            Summary = "summary",
+            Url = "/news/9/keep-this-news",
+        });
+
         await index.ReplaceContentTypeAsync(
             SiteSearchContentType.Tribute,
             [
@@ -92,7 +126,36 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
                 },
             ]);
 
-        Assert.Empty(store.GetAll());
+        var remaining = store.GetAll();
+        Assert.Single(remaining);
+        Assert.Equal("news:9", remaining[0].SourceKey);
+
+        await index.ReplaceContentTypeAsync(
+            SiteSearchContentType.News,
+            [
+                new SearchDocumentEntity
+                {
+                    SourceKey = SearchDocumentSourceKey.ForNews(10),
+                    ContentType = SiteSearchContentType.News,
+                    Title = "Replacement news",
+                    Body = "body",
+                    Summary = "summary",
+                    Url = "/news/10/replacement-news",
+                },
+                new SearchDocumentEntity
+                {
+                    SourceKey = SearchDocumentSourceKey.ForTribute(11),
+                    ContentType = SiteSearchContentType.News,
+                    Title = "Should be skipped",
+                    Body = "body",
+                    Summary = "summary",
+                    Url = "/news/11/skipped",
+                },
+            ]);
+
+        remaining = store.GetAll();
+        Assert.Single(remaining);
+        Assert.Equal("news:10", remaining[0].SourceKey);
     }
 
     [Fact]
@@ -107,6 +170,24 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
             Body = "Thank you for teaching us to be fearless.",
             Summary = "Fearless tribute",
             Url = "/freddie-mercury-tribute",
+        });
+        store.Upsert(new SearchDocumentEntity
+        {
+            SourceKey = "freddie-tribute:3",
+            ContentType = SiteSearchContentType.FreddieTribute,
+            Title = "Freddie alias still fearless",
+            Body = "Alias leftover",
+            Summary = "Alias",
+            Url = "/freddie-mercury-tribute",
+        });
+        store.Upsert(new SearchDocumentEntity
+        {
+            SourceKey = SearchDocumentSourceKey.ForTribute(4),
+            ContentType = SiteSearchContentType.News,
+            Title = "Freddie mismatched key is fearless",
+            Body = "Should not appear",
+            Summary = "Mismatch",
+            Url = "/news/4/mismatch",
         });
         store.Upsert(new SearchDocumentEntity
         {

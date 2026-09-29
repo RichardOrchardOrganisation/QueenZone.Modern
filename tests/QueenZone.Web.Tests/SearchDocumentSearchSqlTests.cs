@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using QueenZone.Data;
+using QueenZone.Data.Migrations;
 
 namespace QueenZone.Web.Tests;
 
@@ -28,7 +30,7 @@ public sealed class SearchDocumentSearchSqlTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("SELECT TOP (@MatchLimit)", untypedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("d.ContentType = @ContentType", untypedBranch, StringComparison.Ordinal);
-        Assert.Contains("d.ContentType <> N'tribute'", untypedBranch, StringComparison.Ordinal);
+        Assert.Contains(SiteSearchExclusion.SqlIsSearchable("d"), untypedBranch, StringComparison.Ordinal);
         Assert.Contains("INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]", untypedBranch, StringComparison.Ordinal);
         Assert.Equal(
             1,
@@ -59,7 +61,7 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.True(joinIndex >= 0, "Typed search must join SearchDocument before capping.");
         Assert.True(filterIndex > joinIndex, "Typed search must filter ContentType after the join.");
         Assert.True(orderIndex > filterIndex, "Typed search must apply TOP after the ContentType filter.");
-        Assert.Contains("d.ContentType <> N'tribute'", typedBranch, StringComparison.Ordinal);
+        Assert.Contains(SiteSearchExclusion.SqlIsSearchable("d"), typedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("[RANK] *", typedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("CONTAINSTABLE", typedBranch, StringComparison.Ordinal);
         Assert.Contains("SELECT TOP (@MatchLimit)", typedBranch, StringComparison.Ordinal);
@@ -203,8 +205,8 @@ public sealed class SearchDocumentSearchSqlTests
 
         var up = migration[upStart..downStart];
         Assert.Contains("DELETE FROM dbo.SearchDocument", up, StringComparison.Ordinal);
-        Assert.Contains("ContentType IN (N'tribute', N'freddie-tribute')", up, StringComparison.Ordinal);
-        Assert.Equal(2, CountOccurrences(up, "d.ContentType <> N'tribute'"));
+        Assert.Contains("SiteSearchExclusion.SqlIsExcluded", up, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(up, "SiteSearchExclusion.SqlIsSearchable"));
         Assert.Equal(2, CountOccurrences(up, "OPTION (RECOMPILE)"));
         Assert.Contains(
             "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit)",
@@ -223,9 +225,19 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.DoesNotContain("@ContentType IS NULL OR", up, StringComparison.Ordinal);
         Assert.DoesNotContain("INNER JOIN #Matches", up, StringComparison.Ordinal);
 
+        var generated = string.Join(
+            "\n",
+            new ExcludeTributesFromSiteSearch().UpOperations
+                .OfType<SqlOperation>()
+                .Select(operation => operation.Sql));
+        Assert.Contains(SiteSearchExclusion.SqlIsExcluded("ContentType", "SourceKey"), generated, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(generated, SiteSearchExclusion.SqlIsSearchable("d")));
+
         var sql = ReadSqlSourceOfTruth();
-        Assert.Equal(2, CountOccurrences(sql, "d.ContentType <> N'tribute'"));
+        Assert.Equal(2, CountOccurrences(sql, SiteSearchExclusion.SqlIsSearchable("d")));
+        Assert.Contains(SiteSearchExclusion.SqlIsSearchable("d"), sql, StringComparison.Ordinal);
         Assert.DoesNotContain("d.ContentType <> N'tribute'", migration[downStart..], StringComparison.Ordinal);
+        Assert.DoesNotContain("d.ContentType <> N'tribute'", sql, StringComparison.Ordinal);
     }
 
     [Fact]
