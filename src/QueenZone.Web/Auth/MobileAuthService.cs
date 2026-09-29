@@ -526,7 +526,7 @@ public sealed class MobileAuthService(
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
-        var (refreshToken, grant) = NewRefreshGrant(account.Id, utcNow);
+        var (refreshToken, grant) = NewRefreshGrant(account, utcNow);
         await grants.StoreRefreshTokenAsync(grant, cancellationToken);
         return TokenPair(account, refreshToken);
     }
@@ -541,14 +541,14 @@ public sealed class MobileAuthService(
         DateTime utcNow,
         CancellationToken cancellationToken)
     {
-        var (refreshToken, grant) = NewRefreshGrant(account.Id, utcNow);
+        var (refreshToken, grant) = NewRefreshGrant(account, utcNow);
         return await grants.TryRotateRefreshTokenAsync(rotatedFromTokenHash, grant, utcNow, cancellationToken)
             ? TokenPair(account, refreshToken)
             : null;
     }
 
     private (string RefreshToken, MobileAuthRefreshTokenEntity Grant) NewRefreshGrant(
-        Guid memberAccountId,
+        MemberAccount account,
         DateTime utcNow)
     {
         var mobile = options.Value;
@@ -557,7 +557,7 @@ public sealed class MobileAuthService(
         {
             Id = Guid.NewGuid(),
             TokenHash = MobileAuthPkce.Sha256Hex(refreshToken),
-            MemberAccountId = memberAccountId,
+            MemberAccountId = account.Id,
             ClientId = mobile.ClientId,
             CreatedAt = utcNow,
             ExpiresAt = utcNow.AddDays(mobile.RefreshTokenLifetimeDays),
