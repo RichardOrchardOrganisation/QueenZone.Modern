@@ -150,20 +150,21 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
             INSERT INTO dbo.Q_ALBUM_T
                 (Q_ALBUM_ID, ALBUM_NAME, ARTIST, RELEASE_DATE, GENERAL_NOTES, THUMB_URL, PICTURE_URL, ACTIVE)
             VALUES
-                (1, 'Queen II', 1, '1974-03-08', 'Second album.', 'queen-ii.jpg', 'queen-ii-full.jpg', 1),
+                (1, 'A Night at the Opera', 1, '1975-11-21', 'Notes', NULL, 'opera.jpg', 1),
                 (2, 'Sheer Heart Attack', 1, '1974-11-08', NULL, 'sha.jpg', NULL, 1),
-                (3, 'A Night at the Opera', 1, '1975-11-21', 'Notes', NULL, 'opera.jpg', 1),
-                (4, 'Hidden', 1, '1970-01-01', NULL, NULL, NULL, 0);
+                (4, 'Hidden', 1, '1970-01-01', NULL, NULL, NULL, 0),
+                (7, 'Queen II', 1, '1974-03-08', 'Second album.', 'queen-ii.jpg', 'queen-ii-full.jpg', 1);
             INSERT INTO dbo.Q_ALBUM_SONG_T
                 (SONG_TITLE, SONG_LYRICS, Q_ALBUM_ID, SONG_NOTES, Q_ARTIST_ID, IS_SINGLE)
             VALUES
-                ('Procession', '', 1, NULL, 1, 0),
-                ('Bohemian Rhapsody', 'Is this the real life', 3, 'Single', 1, 1),
-                ('You''re My Best Friend', '   ', 3, NULL, 1, 0);
+                ('Procession', '', 7, NULL, 1, 0),
+                ('Bohemian Rhapsody', 'Is this the real life', 1, 'Single', 1, 1),
+                ('You''re My Best Friend', '   ', 1, NULL, 1, 0);
             """);
 
         var albums = await repository.GetAlbumsAsync();
-        Assert.Equal([1, 2, 3], albums.Select(album => album.AlbumId));
+        // IDs are deliberately not release-date order (7, 2, 1) so a sort-by-id bug fails this.
+        Assert.Equal([7, 2, 1], albums.Select(album => album.AlbumId));
         Assert.Equal(["Queen II", "Sheer Heart Attack", "A Night at the Opera"], albums.Select(album => album.Name));
         Assert.Equal([1974, 1974, 1975], albums.Select(album => album.ReleaseYear));
         Assert.Equal("queen-ii", albums[0].Slug);
@@ -171,7 +172,7 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
         // Q_ALBUM_LIST_SP projects isnull(THUMB_URL, '') so a missing filename is not a cover URL.
         Assert.Null(albums[2].ThumbnailUrl);
 
-        var opera = await repository.GetAlbumByIdAsync(3);
+        var opera = await repository.GetAlbumByIdAsync(1);
         Assert.NotNull(opera);
         Assert.Equal("A Night at the Opera", opera.Name);
         Assert.Equal("a-night-at-the-opera", opera.Slug);
@@ -187,7 +188,7 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
         Assert.Null(opera.Songs[1].Lyrics);
         Assert.Null(opera.Songs[1].Notes);
 
-        var queenIi = await repository.GetAlbumByIdAsync(1);
+        var queenIi = await repository.GetAlbumByIdAsync(7);
         Assert.Equal("Procession", Assert.Single(queenIi!.Songs).Title);
         Assert.Equal(AlbumCoverUrl.Build("queen-ii-full.jpg"), queenIi.CoverUrl);
 
