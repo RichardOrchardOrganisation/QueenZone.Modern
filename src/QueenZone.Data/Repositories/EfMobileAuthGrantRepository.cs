@@ -63,6 +63,38 @@ public sealed class EfMobileAuthGrantRepository(QueenZoneDbContext dbContext) : 
         return updated == 1;
     }
 
+    public Task<bool> TryRotateRefreshTokenAsync(
+        string oldTokenHash,
+        MobileAuthRefreshTokenEntity replacement,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default) =>
+        QueenZoneDbTransactions.ExecuteAsync(
+            dbContext,
+            async ct =>
+            {
+                // The conditional UPDATE takes the row lock, so a concurrent rotation
+                // of the same token waits here and then matches zero rows.
+                var revoked = await dbContext.MobileAuthRefreshTokens
+                    .Where(token => token.TokenHash == oldTokenHash
+                        && token.RevokedAt == null
+                        && token.ExpiresAt > utcNow)
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(token => token.RevokedAt, utcNow)
+                            .SetProperty(token => token.ReplacedByTokenHash, replacement.TokenHash),
+                        ct);
+                if (revoked != 1)
+                {
+                    return false;
+                }
+
+                dbContext.MobileAuthRefreshTokens.Add(replacement);
+                await dbContext.SaveChangesAsync(ct);
+                dbContext.Entry(replacement).State = EntityState.Detached;
+                return true;
+            },
+            cancellationToken);
+
     public async Task<int> RevokeAllRefreshTokensForMemberAsync(
         Guid memberAccountId,
         DateTime utcNow,
@@ -72,18 +104,4 @@ public sealed class EfMobileAuthGrantRepository(QueenZoneDbContext dbContext) : 
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(token => token.RevokedAt, utcNow),
                 cancellationToken);
-
-    public async Task<bool> LinkRefreshTokenRotationAsync(
-        string oldTokenHash,
-        string newTokenHash,
-        CancellationToken cancellationToken = default)
-    {
-        var updated = await dbContext.MobileAuthRefreshTokens
-            .Where(token => token.TokenHash == oldTokenHash && token.ReplacedByTokenHash == null)
-            .ExecuteUpdateAsync(
-                setters => setters.SetProperty(token => token.ReplacedByTokenHash, newTokenHash),
-                cancellationToken);
-
-        return updated == 1;
-    }
 }

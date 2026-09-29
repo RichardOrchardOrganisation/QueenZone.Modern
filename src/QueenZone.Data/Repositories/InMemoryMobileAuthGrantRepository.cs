@@ -76,6 +76,27 @@ public sealed class InMemoryMobileAuthGrantRepository(SharedMobileAuthGrantStore
         }
     }
 
+    public Task<bool> TryRotateRefreshTokenAsync(
+        string oldTokenHash,
+        MobileAuthRefreshTokenEntity replacement,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        lock (store.Gate)
+        {
+            var token = store.RefreshTokens.FirstOrDefault(item => item.TokenHash == oldTokenHash);
+            if (token is null || token.RevokedAt is not null || token.ExpiresAt <= utcNow)
+            {
+                return Task.FromResult(false);
+            }
+
+            token.RevokedAt = utcNow;
+            token.ReplacedByTokenHash = replacement.TokenHash;
+            store.RefreshTokens.Add(CloneRefresh(replacement));
+            return Task.FromResult(true);
+        }
+    }
+
     public Task<int> RevokeAllRefreshTokensForMemberAsync(
         Guid memberAccountId,
         DateTime utcNow,
@@ -96,24 +117,6 @@ public sealed class InMemoryMobileAuthGrantRepository(SharedMobileAuthGrantStore
             }
 
             return Task.FromResult(count);
-        }
-    }
-
-    public Task<bool> LinkRefreshTokenRotationAsync(
-        string oldTokenHash,
-        string newTokenHash,
-        CancellationToken cancellationToken = default)
-    {
-        lock (store.Gate)
-        {
-            var token = store.RefreshTokens.FirstOrDefault(item => item.TokenHash == oldTokenHash);
-            if (token is null || token.ReplacedByTokenHash is not null)
-            {
-                return Task.FromResult(false);
-            }
-
-            token.ReplacedByTokenHash = newTokenHash;
-            return Task.FromResult(true);
         }
     }
 

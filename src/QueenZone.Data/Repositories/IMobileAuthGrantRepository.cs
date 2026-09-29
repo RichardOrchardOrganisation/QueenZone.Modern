@@ -34,19 +34,20 @@ public interface IMobileAuthGrantRepository
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 
-    Task<int> RevokeAllRefreshTokensForMemberAsync(
-        Guid memberAccountId,
+    /// <summary>
+    /// Revokes a still-valid refresh token, stores <paramref name="replacement"/>, and
+    /// links the old token to it, all in one transaction. Returns false and stores
+    /// nothing when the old hash is unknown, already revoked, or expired, so a failed
+    /// store can never leave a revoked grant with no successor.
+    /// </summary>
+    Task<bool> TryRotateRefreshTokenAsync(
+        string oldTokenHash,
+        MobileAuthRefreshTokenEntity replacement,
         DateTime utcNow,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Records that <paramref name="oldTokenHash"/> was rotated into
-    /// <paramref name="newTokenHash"/>, so a later replay of the old token can be
-    /// traced forward to the grant that replaced it. Returns false when the old
-    /// hash is unknown or already has a recorded successor.
-    /// </summary>
-    Task<bool> LinkRefreshTokenRotationAsync(
-        string oldTokenHash,
-        string newTokenHash,
+    Task<int> RevokeAllRefreshTokensForMemberAsync(
+        Guid memberAccountId,
+        DateTime utcNow,
         CancellationToken cancellationToken = default);
 }

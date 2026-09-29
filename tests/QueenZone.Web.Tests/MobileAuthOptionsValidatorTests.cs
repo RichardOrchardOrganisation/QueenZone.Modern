@@ -17,6 +17,25 @@ public sealed class MobileAuthOptionsValidatorTests
     }
 
     [Fact]
+    public void DefaultsUnusedSuccessorRecoveryOnWithADailyLimit()
+    {
+        var options = new MobileAuthOptions();
+        Assert.True(options.RefreshTokenUnusedSuccessorRecovery);
+        Assert.Equal(10, options.RefreshTokenUnusedSuccessorRecoveryDailyLimit);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1001)]
+    public void RejectsOutOfRangeUnusedSuccessorRecoveryDailyLimit(int limit)
+    {
+        var result = new MobileAuthOptionsValidator()
+            .Validate(null, new MobileAuthOptions { RefreshTokenUnusedSuccessorRecoveryDailyLimit = limit });
+        Assert.True(result.Failed);
+        Assert.Contains("RefreshTokenUnusedSuccessorRecoveryDailyLimit", result.FailureMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AllowsMissingSigningKey_InProduction()
     {
         var result = new MobileAuthOptionsValidator()

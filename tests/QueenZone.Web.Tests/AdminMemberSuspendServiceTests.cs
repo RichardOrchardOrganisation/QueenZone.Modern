@@ -235,9 +235,10 @@ public sealed class AdminMemberSuspendServiceTests
             return Task.FromResult(0);
         }
 
-        public Task<bool> LinkRefreshTokenRotationAsync(
+        public Task<bool> TryRotateRefreshTokenAsync(
             string oldTokenHash,
-            string newTokenHash,
+            QueenZone.Data.Entities.MobileAuthRefreshTokenEntity replacement,
+            DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
     }

@@ -186,9 +186,10 @@ internal sealed class ThrowingRevokeMobileAuthGrantRepository : IMobileAuthGrant
         CancellationToken cancellationToken = default) =>
         throw new InvalidOperationException("token store unavailable");
 
-    public Task<bool> LinkRefreshTokenRotationAsync(
+    public Task<bool> TryRotateRefreshTokenAsync(
         string oldTokenHash,
-        string newTokenHash,
+        QueenZone.Data.Entities.MobileAuthRefreshTokenEntity replacement,
+        DateTime utcNow,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(false);
 }
