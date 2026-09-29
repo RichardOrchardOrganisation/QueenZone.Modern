@@ -25,6 +25,8 @@ There are none of these: `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `HACK` / 
 | Six `InMemory*Repository` classes and `EfHelpRequestRepository` | Private copies of `NormalizeOptional(value, maxLength)` | Identical to `SubmissionInput.NormalizeOptional` (#1788). |
 | `EfDeviceTokenRepository`, `EfHomePollRepository`, `EfPrivateMessageRepository` | Pass-through `IsUniqueConstraintViolation` wrappers | Callers use the `DbUpdateExceptionExtensions` extension directly. |
 | Article, forum, trivia, news-agent, and idempotency code ([#1822](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1822)) | Private `HtmlTagRegex`, `ToOffset`, `EnsureRowVersion`, trivia normalisation, and unique-violation helpers | [#1843](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1843) consolidated them into shared helpers while preserving the intentional row-version and null-handling differences. |
+| `ModernForumRepository` 14 × `[ExcludeFromCodeCoverage]` (13 methods + `ForumSearchRow`) | SQL Server stored-procedure reads | #1892 covers them with `ModernForumRepositorySqlServerTests` plus `ModernForumRepositoryLiveProbeTests`. |
+| `EfForumWriteRepository` 2 × `[ExcludeFromCodeCoverage]` (`ApplyCreateThreadStatsAsync`, `ApplyCreatePostStatsAsync`) | SQL Server read-stat maintenance | #1892 covers them with `EfForumWriteReadStatsSqlServerTests`. |
 
 ### Remove with a linked issue
 
@@ -39,7 +41,7 @@ There are none of these: `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `HACK` / 
 
 | Location | Count | Why it stays |
 | --- | --- | --- |
-| `[ExcludeFromCodeCoverage]` on `src/QueenZone.Data/Repositories/*`, `Sql/*`, `Storage/AzureBlobStorageBackend` | 56 | These are SQL Server- and Azure-only paths (stored procedures, `COL_LENGTH` probes, legacy tables) that SQLite unit tests can't run. They're covered by the in-memory repositories plus the opt-in SQL Express probes (see `AGENTS.md`). New code should reach coverage through SQLite or in-memory tests. Only add the attribute with a `Justification` naming the probe that covers it. |
+| `[ExcludeFromCodeCoverage]` on `src/QueenZone.Data/Repositories/*`, `Sql/*`, `Storage/AzureBlobStorageBackend` | 56 | These are SQL Server- and Azure-only paths (stored procedures, `COL_LENGTH` probes, legacy tables) that SQLite unit tests can't run. They're covered by the in-memory repositories plus the opt-in SQL Express probes (see `AGENTS.md`). This is not a keep-forever licence for every SQL-only method: when a path can run in `QueenZone.SqlServerTests` (scratch schema or procedure substitution), remove the exclusion and add the #1672 pair instead, as #1892 did for `ModernForumRepository` and forum read-stat maintenance. New code should reach coverage through SQLite, in-memory, or that SQL Server project. Only add the attribute with a `Justification` naming the probe that covers it. |
 | `[ExcludeFromCodeCoverage]` on `src/QueenZone.Data/Entities/*` | 46 | EF entity property bags. Newer entities don't carry it, so don't add it to new ones. |
 | `[ExcludeFromCodeCoverage]` on `src/QueenZone.Tools/*` commands and `DevSnapshot` | 15 | One-shot operator tools against production SQL and blobs. Their pure logic is tested in `QueenZone.Tools.Tests`. |
 | `[ExcludeFromCodeCoverage]` on thin SDK adapters in `QueenZone.Web` (`SmtpEmailSender`, `GoogleAnalyticsDataClient`, auth/telemetry registration, `UgcHtml` sanitizer wiring) | 5 | Each wraps a third-party client behind an injectable seam that is tested. |
