@@ -156,6 +156,7 @@ public static class QueenZoneWebServiceCollectionExtensions
             IValidateOptions<MutationRateLimitingOptions>,
             MutationRateLimitingOptionsValidator>();
         services.AddSingleton<MobileAuthAccountRateLimiter>();
+        services.AddSingleton<MobileAuthReplayRecoveryLimiter>();
 
         services.AddRateLimiter(limiter =>
         {

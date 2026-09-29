@@ -27,7 +27,31 @@ public sealed class MobileAuthRefreshFlowTests : IClassFixture<WebHostVariantCac
     public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task RefreshGrant_IssuesNewAccessToken_AndRejectsReuseAfterTheGraceWindow()
+    public async Task RefreshGrant_DaysLaterReplayWithAnUnusedSuccessor_RecoversInsteadOfSigningOut()
+    {
+        // The app refreshed, iOS suspended it before the response landed, and the
+        // member didn't open it again for over a week.
+        clocked.Clock!.SetUtcNow(DateTimeOffset.UtcNow);
+        var issued = await CompletePkceAsync(clocked, "idle-fan@example.com", "google-idle-1");
+        using var lostRequest = RefreshForm(issued.RefreshToken);
+        var lost = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, lostRequest);
+        Assert.Equal(HttpStatusCode.OK, lost.StatusCode);
+
+        clocked.Clock.Advance(TimeSpan.FromDays(8));
+        using var retriedRequest = RefreshForm(issued.RefreshToken);
+        var retried = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, retriedRequest);
+
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        var recovered = await ReadTokenPayloadAsync(retried);
+        Assert.False(string.IsNullOrWhiteSpace(recovered.AccessToken));
+
+        using var nextRequest = RefreshForm(recovered.RefreshToken);
+        var next = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, nextRequest);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+    }
+
+    [Fact]
+    public async Task RefreshGrant_IssuesNewAccessToken_AndRejectsReuseOnceTheChainHasMovedOn()
     {
         clocked.Clock!.SetUtcNow(DateTimeOffset.UtcNow);
         var issued = await CompletePkceAsync(clocked, "refresh-fan@example.com", "google-refresh-1");
@@ -46,8 +70,11 @@ public sealed class MobileAuthRefreshFlowTests : IClassFixture<WebHostVariantCac
         var session = await sessionClient.GetAsync(MobileAuthEndpoints.SessionPath);
         Assert.Equal(HttpStatusCode.OK, session.StatusCode);
 
-        // Past the reuse grace window, replaying the rotated-away token is theft,
-        // not a client that lost its rotation response.
+        // Someone used the successor, so past the reuse grace window replaying the
+        // rotated-away token is theft, not a client that lost its rotation response.
+        using var advanceRequest = RefreshForm(refreshed.RefreshToken);
+        var advanced = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, advanceRequest);
+        Assert.Equal(HttpStatusCode.OK, advanced.StatusCode);
         clocked.Clock.Advance(TimeSpan.FromSeconds(301));
         using var reusedRequest = RefreshForm(issued.RefreshToken);
         var reused = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, reusedRequest);

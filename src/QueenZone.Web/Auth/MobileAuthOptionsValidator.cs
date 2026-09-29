@@ -49,6 +49,11 @@ public sealed class MobileAuthOptionsValidator : IValidateOptions<MobileAuthOpti
             $"{prefix}:RefreshTokenLifetimeDays",
             options.RefreshTokenLifetimeDays,
             maximum: 90);
+        OptionsValidation.RequirePositiveAtMost(
+            failures,
+            $"{prefix}:RefreshTokenUnusedSuccessorRecoveryDailyLimit",
+            options.RefreshTokenUnusedSuccessorRecoveryDailyLimit,
+            maximum: 1000);
 
         // Do not fail production startup when SigningKey is blank. Mobile PKCE is unused until
         // a client exists; requiring MobileAuth__SigningKey at ValidateOnStart took
