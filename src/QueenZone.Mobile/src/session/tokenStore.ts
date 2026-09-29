@@ -150,15 +150,9 @@ export async function replaceSessionItemChangingAccessibility(
 
 /**
  * Recover a grant written to staging when the process died before promote.
- * Prefer the primary; callers should only invoke this when primary is missing.
+ * The staged grant can be newer than an existing primary after a killed refresh.
  */
-async function adoptStagingGrant(keys: ScopedKeys): Promise<StoredGrant | null> {
-  const stagingRaw = await SecureStore.getItemAsync(keys.grantNext, sessionStoreOptions);
-  const staging = parseGrant(stagingRaw);
-  if (!staging || !stagingRaw) {
-    return null;
-  }
-
+async function adoptStagingGrant(keys: ScopedKeys, stagingRaw: string, staging: StoredGrant): Promise<StoredGrant> {
   try {
     await SecureStore.setItemAsync(keys.grant, stagingRaw, sessionStoreOptions);
     await SecureStore.deleteItemAsync(keys.grantNext, sessionStoreOptions);
@@ -298,8 +292,15 @@ export async function readStoredSession(): Promise<StoredSession | null> {
       SecureStore.getItemAsync(keys.identity, sessionStoreOptions),
     ]);
 
+    const stagingRaw = await SecureStore.getItemAsync(keys.grantNext, sessionStoreOptions);
+    const staged = parseGrant(stagingRaw);
+    // A refresh rotates its token before this write begins. If iOS kills the
+    // process after staging but before promotion, the primary is already spent.
+    // Its reuse may revoke every device after the server's short grace window.
     const grant =
-      parseGrant(grantRaw) ?? (await adoptStagingGrant(keys)) ?? (await adoptPredecessorGrant());
+      staged && stagingRaw
+        ? await adoptStagingGrant(keys, stagingRaw, staged)
+        : (parseGrant(grantRaw) ?? (await adoptPredecessorGrant()));
     if (!grant) {
       return null;
     }
@@ -378,11 +379,15 @@ async function clearPredecessorKeys(): Promise<void> {
 
 export async function clearStoredSession(): Promise<void> {
   const keys = scopedKeys();
+  // Remove staging before the primary: a kill during sign-out must not leave a
+  // staged grant that can be adopted after the primary has been deleted.
+  await Promise.all([
+    SecureStore.deleteItemAsync(keys.grantNext, sessionStoreOptions),
+    SecureStore.deleteItemAsync(keys.identityNext, sessionStoreOptions),
+  ]);
   await Promise.all([
     SecureStore.deleteItemAsync(keys.grant, sessionStoreOptions),
-    SecureStore.deleteItemAsync(keys.grantNext, sessionStoreOptions),
     SecureStore.deleteItemAsync(keys.identity, sessionStoreOptions),
-    SecureStore.deleteItemAsync(keys.identityNext, sessionStoreOptions),
     clearPredecessorKeys(),
   ]);
 }
