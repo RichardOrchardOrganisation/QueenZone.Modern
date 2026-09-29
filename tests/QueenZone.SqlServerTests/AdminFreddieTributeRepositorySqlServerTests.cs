@@ -5,12 +5,12 @@ namespace QueenZone.SqlServerTests;
 
 /// <summary>
 /// Runs the production <see cref="EfAdminFreddieTributeRepository"/> against a scratch
-/// <c>FREDDIE_T</c> (#1672 / #1887). Column types come from <c>docs/db-schema.txt</c> (the
-/// committed legacy dump; this environment cannot reach <c>queenzone_legacy_sync</c>), including
+/// <c>FREDDIE_T</c> (#1672 / #1887). The table matches the <c>queenzone_legacy_sync</c>
+/// read-only dump of 2026-09-29 (see <see cref="LegacyFreddieTributeSchema"/>), including
 /// the nullable <c>tinyint</c> <c>DISPLAY</c> that admin maps through
 /// <c>CASE WHEN DISPLAY = 1 THEN CAST(1 AS bit)</c>. Covers list filters, duplicate counts,
-/// visibility/delete writes, and compare-and-swap concurrency. The modern repository does not
-/// call the legacy <c>Q_FREDDIE_*</c> procedures.
+/// visibility/delete writes, and compare-and-swap concurrency. There are no stored
+/// procedures — the repository uses inline SQL.
 /// </summary>
 public sealed class AdminFreddieTributeRepositorySqlServerTests : IAsyncLifetime
 {

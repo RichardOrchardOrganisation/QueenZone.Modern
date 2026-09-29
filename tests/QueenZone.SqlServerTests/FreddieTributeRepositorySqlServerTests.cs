@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data;
 
@@ -5,12 +6,12 @@ namespace QueenZone.SqlServerTests;
 
 /// <summary>
 /// Runs the production <see cref="EfFreddieTributeRepository"/> SQL against a scratch
-/// <c>FREDDIE_T</c> (#1672 / #1887). Column types come from <c>docs/db-schema.txt</c> (the
-/// committed legacy dump; this environment cannot reach <c>queenzone_legacy_sync</c>):
-/// <c>int</c> identity ids, <c>varchar</c> name/thought/date/time/country, and a nullable
-/// <c>tinyint</c> <c>DISPLAY</c>. The modern repository does not call the legacy
-/// <c>Q_FREDDIE_*</c> procedures. The read-only mirror probe is
-/// <c>EfFreddieTributeRepositoryLegacyProbeTests</c> in <c>QueenZone.Web.Tests</c>.
+/// <c>FREDDIE_T</c> (#1672 / #1887). The table matches the <c>queenzone_legacy_sync</c>
+/// read-only dump of 2026-09-29 (see <see cref="LegacyFreddieTributeSchema"/>): <c>int</c>
+/// identity ids, <c>varchar</c> name/thought/date/time/country with
+/// <c>SQL_Latin1_General_CP1_CI_AS</c>, and a nullable <c>tinyint</c> <c>DISPLAY</c>.
+/// There are no stored procedures — the repository uses inline SQL. The read-only mirror
+/// probe is <c>EfFreddieTributeRepositoryLegacyProbeTests</c> in <c>QueenZone.Web.Tests</c>.
 /// </summary>
 public sealed class FreddieTributeRepositorySqlServerTests : IAsyncLifetime
 {
@@ -110,6 +111,49 @@ public sealed class FreddieTributeRepositorySqlServerTests : IAsyncLifetime
         Assert.Equal("Maya", random.Name);
         Assert.Equal(visible, await repository.PickRandomVisibleIdAsync());
         Assert.Null(await repository.GetVisibleByIdAsync(hidden));
+    }
+
+    [Fact]
+    public async Task Display_null_is_hidden_from_public_reads()
+    {
+        await ClearAsync();
+        var hidden = await InsertAsync("Null display", "Has a thought", "24 November 2001", "11:00", "US",
+            display: null);
+        var visible = await InsertAsync("Maya", "Freddie still shines.", "24 November 2001", "10:00", "India",
+            display: 1);
+
+        var page = await repository.GetPageAsync(1, 10);
+        Assert.Equal(1, page.TotalCount);
+        Assert.Equal(visible, Assert.Single(page.Items).Id);
+        Assert.Null(await repository.GetVisibleByIdAsync(hidden));
+        Assert.Equal(visible, await repository.PickRandomVisibleIdAsync());
+    }
+
+    [Fact]
+    public async Task Freddie_Date_default_materializes_as_server_formatted_text()
+    {
+        await ClearAsync();
+        var ids = await dbContext.Database.SqlQueryRaw<int>(
+            """
+            INSERT INTO dbo.FREDDIE_T (Name, Thought, DISPLAY)
+            OUTPUT CAST(INSERTED.ID AS int) AS Value
+            VALUES ('Maya', 'Still shining.', 1)
+            """).ToListAsync();
+        var id = ids.Single();
+
+        var stored = Assert.Single(await dbContext.Database
+            .SqlQueryRaw<string>("SELECT Freddie_Date AS Value FROM dbo.FREDDIE_T WHERE ID = {0}", id)
+            .ToListAsync());
+        // DF_Freddie_Date is getdate() written into varchar(50) in the server's datetime format.
+        Assert.False(string.IsNullOrWhiteSpace(stored));
+        Assert.Contains(
+            DateTime.Now.Year.ToString(CultureInfo.InvariantCulture),
+            stored,
+            StringComparison.Ordinal);
+
+        var tribute = await repository.GetVisibleByIdAsync(id);
+        Assert.NotNull(tribute);
+        Assert.Equal(stored.Trim(), tribute.DateText);
     }
 
     private Task ClearAsync() =>
