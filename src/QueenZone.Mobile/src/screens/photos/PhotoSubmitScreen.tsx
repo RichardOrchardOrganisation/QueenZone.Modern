@@ -1,3 +1,4 @@
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -45,6 +46,7 @@ export function PhotoSubmitScreen({ navigation }: Props) {
 }
 
 function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
+  const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const { accessToken } = useSession();
@@ -213,7 +215,7 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: c.surfacePage }]}
       behavior="padding"
-      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <ScrollView
         ref={scrollRef}

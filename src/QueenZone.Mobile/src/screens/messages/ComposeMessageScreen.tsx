@@ -1,3 +1,4 @@
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
@@ -42,6 +43,7 @@ export function ComposeMessageScreen({ navigation }: Props) {
 }
 
 function ComposeForm({ navigation }: Pick<Props, 'navigation'>) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const { accessToken, profile } = useSession();
@@ -163,6 +165,7 @@ function ComposeForm({ navigation }: Pick<Props, 'navigation'>) {
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: c.surfacePage }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <View style={[styles.body, { paddingBottom: Math.max(insets.bottom, space.md) }]}>
         <Text style={[type.meta, { color: c.textMuted }]}>To</Text>

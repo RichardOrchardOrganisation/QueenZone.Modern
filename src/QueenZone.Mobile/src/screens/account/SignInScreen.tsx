@@ -1,3 +1,4 @@
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -15,6 +16,7 @@ import { CrestSeal } from '../../ui/CrestSeal';
 type Props = NativeStackScreenProps<RootStackParamList, 'SignIn'>;
 
 export function SignInScreen({ navigation, route }: Props) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const { isSignedIn, signIn, signInWithPassword } = useSession();
   const [providers, setProviders] = useState<AuthProvider[]>(fallbackAuthProviders);
@@ -127,6 +129,7 @@ export function SignInScreen({ navigation, route }: Props) {
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.surfacePage }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <ScrollView
         ref={scrollRef}

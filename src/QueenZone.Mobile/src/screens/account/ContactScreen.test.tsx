@@ -1,7 +1,8 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
+import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { contactApiUrl } from '../../api/contact';
 import { jsonResponse } from '../../test/fixtures';
-import { renderWithProviders } from '../../test/render';
+import { renderWithProviders, testHeaderHeight } from '../../test/render';
 import { ContactScreen } from './ContactScreen';
 
 jest.mock('../../config/appConfig', () => ({
@@ -51,6 +52,16 @@ describe('ContactScreen', () => {
     expect(screen.getByRole('button', { name: 'Technical problem' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
     expect(fetchMock).toHaveBeenCalledWith(contactUrl, { headers: { Accept: 'application/json' } });
+  });
+
+  it('keeps the send action outside the scrolling fields and offsets the keyboard by the header', async () => {
+    renderContact();
+    await waitFor(() => expect(screen.getByLabelText('Your message')).toBeOnTheScreen());
+
+    const avoiding = screen.UNSAFE_getByType(KeyboardAvoidingView);
+    expect(avoiding.props.keyboardVerticalOffset).toBe(Platform.OS === 'ios' ? testHeaderHeight : 0);
+    expect(within(screen.UNSAFE_getByType(ScrollView)).queryByRole('button', { name: 'Send message' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeOnTheScreen();
   });
 
   it('submits the form and shows confirmation', async () => {

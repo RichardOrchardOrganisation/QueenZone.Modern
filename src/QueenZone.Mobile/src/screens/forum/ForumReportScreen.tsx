@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError, forumPostReportCategories, reportForumPost, type ForumPostReportCategory } from '../../api';
 import { getAppConfig } from '../../config';
@@ -17,6 +18,7 @@ export function ForumReportScreen(props: Props) {
 }
 
 function ForumReportForm({ navigation, route }: Props) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const { accessToken } = useSession();
   const [category, setCategory] = useState<ForumPostReportCategory | null>(null);
@@ -45,7 +47,12 @@ function ForumReportForm({ navigation, route }: Props) {
     </View>;
   }
 
-  return <ScrollView style={{ backgroundColor: c.surfacePage }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <KeyboardAvoidingView
+    style={{ flex: 1, backgroundColor: c.surfacePage }}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+  >
+  <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Text style={[type.body, { color: c.textSecondary }]}>{`Report ${route.params.authorUsername}'s post. Your identity is not shown to the author.`}</Text>
     <Text style={[type.listTitle, { color: c.textPrimary, marginTop: space.xl }]}>Reason</Text>
     {forumPostReportCategories.map((item) => <Pressable key={item} accessibilityRole="radio" accessibilityState={{ checked: category === item }} onPress={() => setCategory(item)} style={[styles.option, { borderColor: category === item ? c.accentPrimary : c.hairline }]}>
@@ -60,7 +67,8 @@ function ForumReportForm({ navigation, route }: Props) {
       <Button label="Community rules" variant="ghost" size="sm" onPress={() => void openExternalUrl(`${websiteUrl}/terms`)} />
       <Button label="Contact support" variant="ghost" size="sm" onPress={() => void openExternalUrl(`${websiteUrl}/contact`)} />
     </View>
-  </ScrollView>;
+  </ScrollView>
+  </KeyboardAvoidingView>;
 }
 
 const styles = StyleSheet.create({

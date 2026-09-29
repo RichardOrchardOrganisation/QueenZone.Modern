@@ -99,8 +99,14 @@
       "sources": [
         "src/QueenZone.Mobile/src/screens/account/ContactScreen.tsx"
       ],
-      "testIds": [],
-      "flows": [],
+      "testIds": [
+        "contactScreen",
+        "contactMessage",
+        "contactSend"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/13-contact-keyboard.yaml"
+      ],
       "specs": [],
       "selectors": [],
       "signIn": "none",

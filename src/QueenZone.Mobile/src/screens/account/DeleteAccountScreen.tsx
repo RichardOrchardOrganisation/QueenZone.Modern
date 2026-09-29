@@ -1,3 +1,4 @@
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput } from 'react-native';
@@ -108,6 +109,7 @@ function DeletionReceiptView({
 }
 
 function DeleteAccountForm({ onReceipt }: { onReceipt: (receipt: DeletionReceipt) => void }) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const { accessToken, refreshProfile, signOut } = useSession();
   const [profile, setProfile] = useState<MemberProfile | null>(null);
@@ -219,6 +221,7 @@ function DeleteAccountForm({ onReceipt }: { onReceipt: (receipt: DeletionReceipt
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.surfacePage }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <ScrollView
         ref={scrollRef}

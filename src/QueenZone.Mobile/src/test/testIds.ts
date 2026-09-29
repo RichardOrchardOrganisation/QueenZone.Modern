@@ -44,6 +44,10 @@ export const testIds = {
   suggestNewsSuccess: 'suggest-news-success',
   suggestNewsViewSubmissions: 'suggest-news-view-submissions',
 
+  contactScreen: 'contact-screen',
+  contactMessage: 'contact-message',
+  contactSend: 'contact-send',
+
   searchTypeFilters: 'search-type-filters',
 
   photosScreen: 'photos-screen',
