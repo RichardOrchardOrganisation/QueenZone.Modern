@@ -5,10 +5,16 @@ using static QueenZone.Data.RunRequestText;
 namespace QueenZone.Data;
 
 public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext)
-    : INewsAgentRunRequestRepository
+    : EfRunRequestRepositoryBase<NewsAgentRunRequestEntity, NewsAgentRunRequestStatus, NewsAgentRunRequest>(dbContext),
+        INewsAgentRunRequestRepository
 {
-    private const string ActiveKey = "active";
-    private static readonly TimeSpan StaleRunTimeout = TimeSpan.FromHours(3);
+    protected override NewsAgentRunRequestStatus Pending => NewsAgentRunRequestStatus.Pending;
+
+    protected override NewsAgentRunRequestStatus Running => NewsAgentRunRequestStatus.Running;
+
+    protected override NewsAgentRunRequestStatus Completed => NewsAgentRunRequestStatus.Completed;
+
+    protected override NewsAgentRunRequestStatus Failed => NewsAgentRunRequestStatus.Failed;
 
     public async Task<NewsAgentRunRequestQueueResult> QueueAsync(
         NewsAgentRunRequestCreate request,
@@ -16,15 +22,7 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (request.Kind == NewsAgentRunRequestKind.ScheduledGathering)
-        {
-            var active = await GetActiveGatheringAsync(cancellationToken);
-            if (active is not null)
-            {
-                return new NewsAgentRunRequestQueueResult(Map(active), WasCreated: false);
-            }
-        }
-
+        var isGathering = request.Kind == NewsAgentRunRequestKind.ScheduledGathering;
         var now = DateTime.UtcNow;
         var entity = new NewsAgentRunRequestEntity
         {
@@ -36,114 +34,12 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
                 ? null
                 : Normalize(request.ArticleUrl, 2000),
             GenerateDraft = request.GenerateDraft,
-            ActiveKey = request.Kind == NewsAgentRunRequestKind.ScheduledGathering ? ActiveKey : null,
+            ActiveKey = isGathering ? ActiveKey : null,
             UpdatedAtUtc = now
         };
-        dbContext.NewsAgentRunRequests.Add(entity);
 
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-            return new NewsAgentRunRequestQueueResult(Map(entity), WasCreated: true);
-        }
-        catch (DbUpdateException)
-        {
-            dbContext.Entry(entity).State = EntityState.Detached;
-            if (request.Kind != NewsAgentRunRequestKind.ScheduledGathering)
-            {
-                throw;
-            }
-
-            var active = await GetActiveGatheringAsync(cancellationToken);
-            if (active is null)
-            {
-                throw;
-            }
-
-            return new NewsAgentRunRequestQueueResult(Map(active), WasCreated: false);
-        }
-    }
-
-    public async Task<NewsAgentRunRequest?> ClaimNextAsync(
-        string runnerId,
-        CancellationToken cancellationToken = default)
-    {
-        runnerId = Normalize(runnerId, 100);
-        await UpsertHeartbeatAsync(runnerId, claimed: false, cancellationToken);
-
-        var now = DateTime.UtcNow;
-        var staleBefore = now.Subtract(StaleRunTimeout);
-        await dbContext.NewsAgentRunRequests
-            .Where(request =>
-                request.Status == NewsAgentRunRequestStatus.Running
-                && request.UpdatedAtUtc < staleBefore)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(request => request.Status, NewsAgentRunRequestStatus.Pending)
-                .SetProperty(request => request.RunnerId, (string?)null)
-                .SetProperty(request => request.StartedAtUtc, (DateTime?)null)
-                .SetProperty(request => request.UpdatedAtUtc, now),
-                cancellationToken);
-
-        while (true)
-        {
-            var requestId = await dbContext.NewsAgentRunRequests
-                .AsNoTracking()
-                .Where(request => request.Status == NewsAgentRunRequestStatus.Pending)
-                .OrderBy(request => request.RequestedAtUtc)
-                .Select(request => (long?)request.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-            if (requestId is null)
-            {
-                return null;
-            }
-
-            now = DateTime.UtcNow;
-            var updated = await dbContext.NewsAgentRunRequests
-                .Where(request => request.Id == requestId && request.Status == NewsAgentRunRequestStatus.Pending)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(request => request.Status, NewsAgentRunRequestStatus.Running)
-                    .SetProperty(request => request.RunnerId, runnerId)
-                    .SetProperty(request => request.StartedAtUtc, now)
-                    .SetProperty(request => request.UpdatedAtUtc, now),
-                    cancellationToken);
-            if (updated == 0)
-            {
-                continue;
-            }
-
-            await UpsertHeartbeatAsync(runnerId, claimed: true, cancellationToken);
-            var claimed = await dbContext.NewsAgentRunRequests
-                .AsNoTracking()
-                .SingleAsync(request => request.Id == requestId, cancellationToken);
-            return Map(claimed);
-        }
-    }
-
-    public Task<bool> CompleteAsync(
-        long requestId,
-        string summary,
-        CancellationToken cancellationToken = default) =>
-        FinishAsync(requestId, NewsAgentRunRequestStatus.Completed, Normalize(summary, 2000), null, cancellationToken);
-
-    public Task<bool> FailAsync(
-        long requestId,
-        string errorMessage,
-        CancellationToken cancellationToken = default) =>
-        FinishAsync(requestId, NewsAgentRunRequestStatus.Failed, null, Normalize(errorMessage, 2000), cancellationToken);
-
-    public async Task<bool> ReturnToPendingAsync(
-        long requestId,
-        CancellationToken cancellationToken = default)
-    {
-        var updated = await dbContext.NewsAgentRunRequests
-            .Where(request => request.Id == requestId && request.Status == NewsAgentRunRequestStatus.Running)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(request => request.Status, NewsAgentRunRequestStatus.Pending)
-                .SetProperty(request => request.RunnerId, (string?)null)
-                .SetProperty(request => request.StartedAtUtc, (DateTime?)null)
-                .SetProperty(request => request.UpdatedAtUtc, DateTime.UtcNow),
-                cancellationToken);
-        return updated == 1;
+        var (queued, wasCreated) = await QueueCoreAsync(entity, singleActive: isGathering, cancellationToken);
+        return new NewsAgentRunRequestQueueResult(queued, wasCreated);
     }
 
     public Task RecordHeartbeatAsync(
@@ -151,19 +47,9 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
         CancellationToken cancellationToken = default) =>
         UpsertHeartbeatAsync(Normalize(runnerId, 100), claimed: false, cancellationToken);
 
-    public async Task<IReadOnlyList<NewsAgentRunRequest>> ListRecentAsync(
-        int limit = 10,
-        CancellationToken cancellationToken = default) =>
-        await dbContext.NewsAgentRunRequests
-            .AsNoTracking()
-            .OrderByDescending(request => request.RequestedAtUtc)
-            .Take(Math.Clamp(limit, 1, 100))
-            .Select(request => Map(request))
-            .ToListAsync(cancellationToken);
-
     public async Task<NewsAgentRunnerHeartbeat?> GetLatestHeartbeatAsync(
         CancellationToken cancellationToken = default) =>
-        await dbContext.NewsAgentRunnerHeartbeats
+        await DbContext.NewsAgentRunnerHeartbeats
             .AsNoTracking()
             .OrderByDescending(heartbeat => heartbeat.LastSeenAtUtc)
             .Select(heartbeat => new NewsAgentRunnerHeartbeat(
@@ -172,31 +58,11 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
                 heartbeat.LastClaimedAtUtc))
             .FirstOrDefaultAsync(cancellationToken);
 
-    private async Task<bool> FinishAsync(
-        long requestId,
-        NewsAgentRunRequestStatus status,
-        string? summary,
-        string? errorMessage,
-        CancellationToken cancellationToken)
-    {
-        var now = DateTime.UtcNow;
-        var updated = await dbContext.NewsAgentRunRequests
-            .Where(request => request.Id == requestId && request.Status == NewsAgentRunRequestStatus.Running)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(request => request.Status, status)
-                .SetProperty(request => request.CompletedAtUtc, now)
-                .SetProperty(request => request.Summary, summary)
-                .SetProperty(request => request.ErrorMessage, errorMessage)
-                .SetProperty(request => request.ActiveKey, (string?)null)
-                .SetProperty(request => request.UpdatedAtUtc, now),
-                cancellationToken);
-        return updated == 1;
-    }
+    protected override Task BeforeClaimAsync(string runnerId, CancellationToken cancellationToken) =>
+        UpsertHeartbeatAsync(runnerId, claimed: false, cancellationToken);
 
-    private Task<NewsAgentRunRequestEntity?> GetActiveGatheringAsync(CancellationToken cancellationToken) =>
-        dbContext.NewsAgentRunRequests
-            .AsNoTracking()
-            .SingleOrDefaultAsync(request => request.ActiveKey == ActiveKey, cancellationToken);
+    protected override Task AfterClaimAsync(string runnerId, CancellationToken cancellationToken) =>
+        UpsertHeartbeatAsync(runnerId, claimed: true, cancellationToken);
 
     private async Task UpsertHeartbeatAsync(
         string runnerId,
@@ -204,7 +70,7 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
         CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-        var updated = await dbContext.NewsAgentRunnerHeartbeats
+        var updated = await DbContext.NewsAgentRunnerHeartbeats
             .Where(heartbeat => heartbeat.RunnerId == runnerId)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(heartbeat => heartbeat.LastSeenAtUtc, now)
@@ -217,7 +83,7 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
             return;
         }
 
-        dbContext.NewsAgentRunnerHeartbeats.Add(new NewsAgentRunnerHeartbeatEntity
+        DbContext.NewsAgentRunnerHeartbeats.Add(new NewsAgentRunnerHeartbeatEntity
         {
             RunnerId = runnerId,
             LastSeenAtUtc = now,
@@ -225,12 +91,12 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
         });
         try
         {
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await DbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException)
         {
-            dbContext.ChangeTracker.Clear();
-            await dbContext.NewsAgentRunnerHeartbeats
+            DbContext.ChangeTracker.Clear();
+            await DbContext.NewsAgentRunnerHeartbeats
                 .Where(heartbeat => heartbeat.RunnerId == runnerId)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(heartbeat => heartbeat.LastSeenAtUtc, now)
@@ -241,7 +107,7 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
         }
     }
 
-    private static NewsAgentRunRequest Map(NewsAgentRunRequestEntity request) =>
+    protected override NewsAgentRunRequest Map(NewsAgentRunRequestEntity request) =>
         new(
             request.Id,
             request.Status,

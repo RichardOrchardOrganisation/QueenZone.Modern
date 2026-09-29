@@ -1,6 +1,6 @@
 namespace QueenZone.Data.Entities;
 
-public sealed class SearchReindexRunRequestEntity : IRunRequestEntity
+public sealed class SearchReindexRunRequestEntity : IRunRequestEntity<SearchReindexRunRequestStatus>
 {
     public long Id { get; set; }
 
