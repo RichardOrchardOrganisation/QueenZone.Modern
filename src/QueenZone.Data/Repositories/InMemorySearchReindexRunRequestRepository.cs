@@ -1,3 +1,5 @@
+using static QueenZone.Data.RunRequestText;
+
 namespace QueenZone.Data;
 
 public sealed class InMemorySearchReindexRunRequestRepository(SharedSearchReindexRunRequestStore store)
@@ -37,10 +39,4 @@ public sealed class InMemorySearchReindexRunRequestRepository(SharedSearchReinde
         int limit = 10,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(store.ListRecent(Math.Clamp(limit, 1, 100)));
-
-    private static string Normalize(string value, int maxLength)
-    {
-        var normalized = string.IsNullOrWhiteSpace(value) ? "unknown" : value.Trim();
-        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
-    }
 }

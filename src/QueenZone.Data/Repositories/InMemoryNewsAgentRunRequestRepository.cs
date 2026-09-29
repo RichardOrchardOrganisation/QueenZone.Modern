@@ -1,3 +1,5 @@
+using static QueenZone.Data.RunRequestText;
+
 namespace QueenZone.Data;
 
 public sealed class InMemoryNewsAgentRunRequestRepository(SharedNewsAgentRunRequestStore store)
@@ -52,10 +54,4 @@ public sealed class InMemoryNewsAgentRunRequestRepository(SharedNewsAgentRunRequ
     public Task<NewsAgentRunnerHeartbeat?> GetLatestHeartbeatAsync(
         CancellationToken cancellationToken = default) =>
         Task.FromResult(store.GetLatestHeartbeat());
-
-    private static string Normalize(string value, int maxLength)
-    {
-        var normalized = string.IsNullOrWhiteSpace(value) ? "unknown" : value.Trim();
-        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
-    }
 }
