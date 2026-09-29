@@ -8,6 +8,12 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(document.SourceKey);
+        if (IsExcludedTribute(document.ContentType, document.SourceKey))
+        {
+            store.Remove(document.SourceKey);
+            return Task.CompletedTask;
+        }
+
         store.Upsert(document);
         return Task.CompletedTask;
     }
@@ -26,6 +32,12 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
         ArgumentNullException.ThrowIfNull(documents);
+        if (SiteSearchContentType.IsExcludedFromSiteSearch(contentType))
+        {
+            store.ReplaceContentType(contentType, []);
+            return Task.CompletedTask;
+        }
+
         store.ReplaceContentType(contentType, documents);
         return Task.CompletedTask;
     }
@@ -37,4 +49,8 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
             .ToDictionary(g => g.Key, g => g.Count());
         return Task.FromResult(counts);
     }
+
+    private static bool IsExcludedTribute(string? contentType, string? sourceKey) =>
+        SiteSearchContentType.IsExcludedFromSiteSearch(contentType)
+        || SearchDocumentSourceKey.IsTribute(sourceKey);
 }

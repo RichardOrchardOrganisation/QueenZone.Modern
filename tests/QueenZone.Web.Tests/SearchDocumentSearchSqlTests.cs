@@ -28,6 +28,8 @@ public sealed class SearchDocumentSearchSqlTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("SELECT TOP (@MatchLimit)", untypedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("d.ContentType = @ContentType", untypedBranch, StringComparison.Ordinal);
+        Assert.Contains("d.ContentType <> N'tribute'", untypedBranch, StringComparison.Ordinal);
+        Assert.Contains("INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]", untypedBranch, StringComparison.Ordinal);
         Assert.Equal(
             1,
             CountOccurrences(
@@ -57,6 +59,7 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.True(joinIndex >= 0, "Typed search must join SearchDocument before capping.");
         Assert.True(filterIndex > joinIndex, "Typed search must filter ContentType after the join.");
         Assert.True(orderIndex > filterIndex, "Typed search must apply TOP after the ContentType filter.");
+        Assert.Contains("d.ContentType <> N'tribute'", typedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("[RANK] *", typedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("CONTAINSTABLE", typedBranch, StringComparison.Ordinal);
         Assert.Contains("SELECT TOP (@MatchLimit)", typedBranch, StringComparison.Ordinal);
@@ -187,6 +190,36 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.Contains("@Query, @TypedMatchLimit", up, StringComparison.Ordinal);
         Assert.Contains("OPTION (RECOMPILE)", up, StringComparison.Ordinal);
         Assert.DoesNotContain("@TypedRankLimit", migration[downStart..], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Latest_migration_excludes_tributes_at_matches_insert()
+    {
+        var migration = ReadRepoFile(Path.Combine(
+            "src", "QueenZone.Data", "Migrations", "20260929140000_ExcludeTributesFromSiteSearch.cs"));
+        var upStart = migration.IndexOf("protected override void Up", StringComparison.Ordinal);
+        var downStart = migration.IndexOf("protected override void Down", StringComparison.Ordinal);
+        Assert.True(upStart >= 0 && downStart > upStart, "Expected Up before Down.");
+
+        var up = migration[upStart..downStart];
+        Assert.Contains("DELETE FROM dbo.SearchDocument", up, StringComparison.Ordinal);
+        Assert.Contains("ContentType IN (N'tribute', N'freddie-tribute')", up, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(up, "d.ContentType <> N'tribute'"));
+        Assert.Equal(2, CountOccurrences(up, "OPTION (RECOMPILE)"));
+        Assert.Contains(
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit)",
+            up,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit)",
+            up,
+            StringComparison.Ordinal);
+        Assert.Contains("@RankLimit      INT = 1000", up, StringComparison.Ordinal);
+        Assert.Contains("@TypedRankLimit INT = 5000", up, StringComparison.Ordinal);
+
+        var sql = ReadSqlSourceOfTruth();
+        Assert.Equal(2, CountOccurrences(sql, "d.ContentType <> N'tribute'"));
+        Assert.DoesNotContain("d.ContentType <> N'tribute'", migration[downStart..], StringComparison.Ordinal);
     }
 
     private static string ReadSqlSourceOfTruth() =>

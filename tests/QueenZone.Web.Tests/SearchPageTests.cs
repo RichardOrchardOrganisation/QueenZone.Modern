@@ -76,6 +76,26 @@ public sealed class SearchPageTests :
     }
 
     [Fact]
+    public async Task SearchPage_one_character_query_does_not_call_search_or_set_unavailable()
+    {
+        var model = new SearchModel(new TimeoutSiteSearchService())
+        {
+            Query = "a",
+            PageContext = new PageContext
+            {
+                ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()),
+            },
+        };
+
+        await model.OnGetAsync(CancellationToken.None);
+
+        Assert.False(model.SearchUnavailable);
+        Assert.NotNull(model.Results);
+        Assert.Empty(model.Results.Results);
+        Assert.Equal(0, model.Results.TotalCount);
+    }
+
+    [Fact]
     public async Task SearchPage_sql_timeout_sets_unavailable_flag()
     {
         var model = new SearchModel(new TimeoutSiteSearchService())
@@ -91,6 +111,18 @@ public sealed class SearchPageTests :
 
         Assert.True(model.SearchUnavailable);
         Assert.Null(model.Results);
+    }
+
+    [Fact]
+    public async Task SearchPage_one_character_query_returns_empty_without_unavailable()
+    {
+        var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/search?q=a");
+
+        Assert.Contains("No results found", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(SearchModel.UnavailableMessage, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("role=\"alert\"", body, StringComparison.Ordinal);
     }
 
     [Fact]

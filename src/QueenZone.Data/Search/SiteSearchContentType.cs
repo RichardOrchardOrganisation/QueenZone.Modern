@@ -16,6 +16,12 @@ public static class SiteSearchContentType
     public const string Timeline = "timeline";
     public const string FanPerformance = "fan-performance";
 
+    /// <summary>
+    /// Freddie tribute guestbook entries. Never listed in <see cref="All"/> and never written
+    /// to <c>SearchDocument</c> — site search excludes them entirely.
+    /// </summary>
+    public const string Tribute = "tribute";
+
     public static readonly IReadOnlyList<string> All =
     [
         News, Article, LegacyArticle, Forum, Biography, Discography, Photo, Timeline, FanPerformance,
@@ -39,6 +45,13 @@ public static class SiteSearchContentType
 
         return null;
     }
+
+    /// <summary>
+    /// Freddie tributes must never appear in site search, including leftover rows and a
+    /// <c>?type=tribute</c> filter.
+    /// </summary>
+    public static bool IsExcludedFromSiteSearch(string? contentType) =>
+        string.Equals(contentType, Tribute, StringComparison.OrdinalIgnoreCase);
 
     public static string DisplayLabel(string contentType) => contentType switch
     {

@@ -85,6 +85,8 @@ public sealed class SearchApiTests :
     [InlineData("")]
     [InlineData("?q=")]
     [InlineData("?q=%20%20")]
+    [InlineData("?q=a")]
+    [InlineData("?q=%20Q%20")]
     public async Task Search_empty_or_whitespace_query_returns_empty_page(string query)
     {
         using var client = factory.CreateAnonymousClient();

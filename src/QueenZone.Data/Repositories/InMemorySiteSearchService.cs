@@ -17,7 +17,7 @@ public sealed class InMemorySiteSearchService(SharedSearchIndexStore store) : IS
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        if (SiteSearchLimits.IsBelowMinimumLength(query))
         {
             return Task.FromResult(new SiteSearchPage([], 0, page, pageSize));
         }
@@ -27,6 +27,8 @@ public sealed class InMemorySiteSearchService(SharedSearchIndexStore store) : IS
         var trimmedQuery = query.Trim();
 
         var matches = store.GetAll()
+            .Where(document => !SiteSearchContentType.IsExcludedFromSiteSearch(document.ContentType)
+                && !SearchDocumentSourceKey.IsTribute(document.SourceKey))
             .Where(document => contentType is null || document.ContentType == contentType)
             .Select(document => new
             {

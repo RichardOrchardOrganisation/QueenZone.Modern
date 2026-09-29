@@ -19,6 +19,12 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(document.SourceKey);
 
+        if (IsExcludedTribute(document.ContentType, document.SourceKey))
+        {
+            await RemoveAsync(document.SourceKey, cancellationToken);
+            return;
+        }
+
         var existing = await dbContext.SearchDocuments
             .SingleOrDefaultAsync(d => d.SourceKey == document.SourceKey, cancellationToken);
 
@@ -63,6 +69,14 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
         ArgumentNullException.ThrowIfNull(documents);
 
+        if (SiteSearchContentType.IsExcludedFromSiteSearch(contentType))
+        {
+            await dbContext.SearchDocuments
+                .Where(d => d.ContentType == contentType)
+                .ExecuteDeleteAsync(cancellationToken);
+            return;
+        }
+
         // Explicit transactions under EnableRetryOnFailure must run inside the execution strategy
         // so Azure SQL transient failures can retry the whole unit of work (see QueenZoneSqlServerOptions).
         // Without this wrapper, ExecuteDelete/SaveChanges under a user-initiated transaction throws
@@ -103,4 +117,8 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
             .GroupBy(d => d.ContentType)
             .Select(g => new { ContentType = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.ContentType, g => g.Count, cancellationToken);
+
+    private static bool IsExcludedTribute(string? contentType, string? sourceKey) =>
+        SiteSearchContentType.IsExcludedFromSiteSearch(contentType)
+        || SearchDocumentSourceKey.IsTribute(sourceKey);
 }

@@ -5,8 +5,9 @@
 -- 20260908140000_CapTypedSearchAfterContentTypeFilter (typed search caps after
 -- the ContentType filter so a track-title hit is not crowded out of the global top 1000),
 -- 20260914080000_RecompileSearchDocumentSearchMatches (OPTION (RECOMPILE) on both
--- FREETEXTTABLE match inserts), and 20260922140000_CapTypedSearchFullTextCandidates
--- (finite typed-search candidate window).
+-- FREETEXTTABLE match inserts), 20260922140000_CapTypedSearchFullTextCandidates
+-- (finite typed-search candidate window), and 20260929140000_ExcludeTributesFromSiteSearch
+-- (Freddie tributes never enter #Matches; leftover tribute rows are deleted).
 -- See docs/sql/README.md for contributor conventions.
 --
 -- Unlike the per-content-type NEWS_T_SearchPublished / ModernForum_SearchThreads procs, this
@@ -21,6 +22,10 @@
 -- fill the global top 1000 for common terms, so a discography album whose track title lives only
 -- in Body needs room to enter the candidate set before ContentType is filtered. The finite 5000
 -- scan cap avoids asking the full-text engine to rank the entire corpus.
+--
+-- Freddie tributes (ContentType = N'tribute') are excluded at the #Matches insert so they
+-- never consume rank slots or appear in results. Leftover tribute rows are deleted by
+-- migration 20260929140000_ExcludeTributesFromSiteSearch; the indexer refuses to write them.
 --
 -- Both FREETEXTTABLE match inserts carry OPTION (RECOMPILE). @MatchLimit and @ContentType
 -- are local variables, not literals, so without RECOMPILE the optimizer compiles (and then
@@ -64,25 +69,28 @@ BEGIN
         SearchRank INT NOT NULL
     );
 
-    IF @ContentType IS NULL
-    BEGIN
-        INSERT INTO #Matches (DocumentId, SearchRank)
-        SELECT ft.[KEY], ft.[RANK]
-        FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft
-        OPTION (RECOMPILE);
-    END
-    ELSE
-    BEGIN
-        INSERT INTO #Matches (DocumentId, SearchRank)
-        SELECT TOP (@MatchLimit)
-               d.Id,
-               ft.[RANK]
-        FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
-        INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
-        WHERE  d.ContentType = @ContentType
-        ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
-        OPTION (RECOMPILE);
-    END
+                IF @ContentType IS NULL
+                BEGIN
+                    INSERT INTO #Matches (DocumentId, SearchRank)
+                    SELECT ft.[KEY], ft.[RANK]
+                    FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft
+                    INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
+                    WHERE  d.ContentType <> N'tribute'
+                    OPTION (RECOMPILE);
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO #Matches (DocumentId, SearchRank)
+                    SELECT TOP (@MatchLimit)
+                           d.Id,
+                           ft.[RANK]
+                    FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
+                    INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
+                    WHERE  d.ContentType = @ContentType
+                      AND  d.ContentType <> N'tribute'
+                    ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
+                    OPTION (RECOMPILE);
+                END
 
     SELECT
         d.ContentType,

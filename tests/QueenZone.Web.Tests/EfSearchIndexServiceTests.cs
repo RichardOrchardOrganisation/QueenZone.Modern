@@ -110,6 +110,53 @@ public sealed class EfSearchIndexServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task UpsertAsync_DoesNotWriteFreddieTributeDocuments()
+    {
+        await service.UpsertAsync(Document(
+            SearchDocumentSourceKey.ForTribute(9),
+            SiteSearchContentType.Tribute,
+            "A leftover tribute thought"));
+
+        Assert.Empty(await dbContext.SearchDocuments.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task UpsertAsync_RemovesExistingFreddieTributeRow()
+    {
+        await service.UpsertAsync(Document("news:8", SiteSearchContentType.News, "Keep me"));
+        dbContext.SearchDocuments.Add(Document(
+            SearchDocumentSourceKey.ForTribute(11),
+            SiteSearchContentType.Tribute,
+            "Already indexed tribute"));
+        await dbContext.SaveChangesAsync();
+
+        await service.UpsertAsync(Document(
+            SearchDocumentSourceKey.ForTribute(11),
+            SiteSearchContentType.Tribute,
+            "Refreshed tribute"));
+
+        var rows = await dbContext.SearchDocuments.AsNoTracking().ToListAsync();
+        Assert.Single(rows);
+        Assert.Equal("news:8", rows[0].SourceKey);
+    }
+
+    [Fact]
+    public async Task ReplaceContentTypeAsync_Tribute_DeletesWithoutInserting()
+    {
+        dbContext.SearchDocuments.Add(Document(
+            SearchDocumentSourceKey.ForTribute(4),
+            SiteSearchContentType.Tribute,
+            "Old tribute"));
+        await dbContext.SaveChangesAsync();
+
+        await service.ReplaceContentTypeAsync(
+            SiteSearchContentType.Tribute,
+            [Document(SearchDocumentSourceKey.ForTribute(5), SiteSearchContentType.Tribute, "New tribute")]);
+
+        Assert.Empty(await dbContext.SearchDocuments.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
     public async Task RemoveAsync_DeletesBySourceKey()
     {
         await service.UpsertAsync(Document("news:8", SiteSearchContentType.News, "Delete me"));

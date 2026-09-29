@@ -21,4 +21,17 @@ public static class SiteSearchLimits
     /// allowing a common term to rank the entire search corpus.
     /// </summary>
     public const int TypedMatchScanLimit = 5000;
+
+    /// <summary>
+    /// Minimum trimmed query length that is sent to SQL. Shorter input returns an empty page
+    /// without executing <c>dbo.SearchDocument_Search</c>.
+    /// </summary>
+    public const int MinQueryLength = 2;
+
+    /// <summary>
+    /// True when <paramref name="query"/> is empty, whitespace, or shorter than
+    /// <see cref="MinQueryLength"/> after trimming.
+    /// </summary>
+    public static bool IsBelowMinimumLength(string? query) =>
+        string.IsNullOrWhiteSpace(query) || query.Trim().Length < MinQueryLength;
 }

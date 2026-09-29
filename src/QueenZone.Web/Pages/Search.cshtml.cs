@@ -47,6 +47,13 @@ public sealed class SearchModel(ISiteSearchService siteSearchService) : PageMode
         }
 
         CurrentPage = Math.Max(1, CurrentPage);
+
+        if (SiteSearchLimits.IsBelowMinimumLength(Query))
+        {
+            Results = new SiteSearchPage([], 0, CurrentPage, PageSize);
+            return;
+        }
+
         try
         {
             Results = await siteSearchService.SearchAsync(Query, ActiveContentType, CurrentPage, PageSize, cancellationToken);

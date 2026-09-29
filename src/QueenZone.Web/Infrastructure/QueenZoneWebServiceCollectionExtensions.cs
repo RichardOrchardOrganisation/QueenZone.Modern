@@ -7,6 +7,7 @@ using QueenZone.Data;
 using QueenZone.NewsAgent;
 using QueenZone.Storage;
 using QueenZone.Web.Health;
+using QueenZone.Web.Search;
 using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web;
@@ -444,6 +445,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         }
 
         services.AddQueenZoneData(configuration, environment);
+        services.AddSiteSearchResultCache();
         if (QueenZoneEnvironments.UsesInMemoryBlobStorage(environment))
         {
             services.AddQueenZoneFunctionalInMemoryStorage(configuration);
@@ -462,6 +464,53 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddMobileApiContractHost(environment);
 
         return services;
+    }
+
+    /// <summary>
+    /// Wraps the already-registered <see cref="ISiteSearchService"/> with a size-bounded
+    /// in-process result cache. Dedicated <see cref="SiteSearchResultCache"/> so search
+    /// entries do not share the app-wide memory cache.
+    /// </summary>
+    public static IServiceCollection AddSiteSearchResultCache(this IServiceCollection services)
+    {
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SiteSearchResultCache>();
+
+        var existing = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(ISiteSearchService));
+        if (existing is null)
+        {
+            throw new InvalidOperationException("ISiteSearchService must be registered before the search result cache.");
+        }
+
+        services.Remove(existing);
+        services.Add(new ServiceDescriptor(
+            typeof(ISiteSearchService),
+            provider => new CachingSiteSearchService(
+                CreateSiteSearchInner(provider, existing),
+                provider.GetRequiredService<SiteSearchResultCache>(),
+                provider.GetRequiredService<IHttpContextAccessor>(),
+                provider.GetService<TimeProvider>()),
+            existing.Lifetime));
+
+        return services;
+    }
+
+    private static ISiteSearchService CreateSiteSearchInner(IServiceProvider provider, ServiceDescriptor existing)
+    {
+        if (existing.ImplementationInstance is ISiteSearchService instance)
+        {
+            return instance;
+        }
+
+        if (existing.ImplementationFactory is not null)
+        {
+            return (ISiteSearchService)existing.ImplementationFactory(provider);
+        }
+
+        return (ISiteSearchService)ActivatorUtilities.CreateInstance(
+            provider,
+            existing.ImplementationType
+            ?? throw new InvalidOperationException("ISiteSearchService registration has no implementation."));
     }
 
     /// <summary>

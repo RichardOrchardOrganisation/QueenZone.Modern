@@ -22,7 +22,7 @@ public sealed class EfSiteSearchService(
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        if (SiteSearchLimits.IsBelowMinimumLength(query))
         {
             return new SiteSearchPage([], 0, page, pageSize);
         }

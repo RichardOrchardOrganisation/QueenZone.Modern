@@ -18,7 +18,9 @@ namespace QueenZone.Search.Shared;
 /// three-step treatment (paginate the existing public repository, map to
 /// <see cref="SearchDocumentEntity"/>, call <see cref="ISearchIndexService.ReplaceContentTypeAsync"/>)
 /// and can be added as an additional <c>Reindex*Async</c> method following the pattern below.
-/// Freddie Tribute content is deliberately not indexed.
+/// Freddie Tribute content is deliberately not indexed — <see cref="SiteSearchContentType.Tribute"/>
+/// is excluded from <c>SearchDocument</c> writes, leftover tribute rows are deleted by migration,
+/// and <c>dbo.SearchDocument_Search</c> filters them defensively.
 /// </remarks>
 public sealed class SearchReindexBuilder(
     ISearchIndexService searchIndexService,
@@ -49,6 +51,7 @@ public sealed class SearchReindexBuilder(
         await RunContentTypeAsync(SiteSearchContentType.Discography, () => ReindexDiscographyAsync(cancellationToken), onContentTypeStarted);
         await RunContentTypeAsync(SiteSearchContentType.Timeline, () => ReindexTimelineAsync(cancellationToken), onContentTypeStarted);
         await RunContentTypeAsync(SiteSearchContentType.FanPerformance, () => ReindexFanPerformancesAsync(cancellationToken), onContentTypeStarted);
+        await searchIndexService.ReplaceContentTypeAsync(SiteSearchContentType.Tribute, [], cancellationToken);
     }
 
     private static async Task RunContentTypeAsync(
