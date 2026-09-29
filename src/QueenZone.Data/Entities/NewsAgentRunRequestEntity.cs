@@ -1,6 +1,6 @@
 namespace QueenZone.Data.Entities;
 
-public sealed class NewsAgentRunRequestEntity : IRunRequestEntity
+public sealed class NewsAgentRunRequestEntity : IRunRequestEntity<NewsAgentRunRequestStatus>
 {
     public long Id { get; set; }
 
