@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -15,7 +14,6 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
     private readonly Func<int, FormattableString> displaySql;
     private readonly Func<int, FormattableString> songsSql;
 
-    [ExcludeFromCodeCoverage]
     public EfDiscographyRepository(QueenZoneDbContext dbContext)
         : this(
             dbContext,
