@@ -1,6 +1,6 @@
 namespace QueenZone.Data.Entities;
 
-public sealed class NewsAgentRunLeaseEntity
+public sealed class NewsAgentRunLeaseEntity : ILeaseEntity
 {
     public string LeaseName { get; set; } = string.Empty;
 
