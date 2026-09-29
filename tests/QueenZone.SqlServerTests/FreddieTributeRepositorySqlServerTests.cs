@@ -191,3 +191,4 @@ public sealed class FreddieTributeRepositorySqlServerTests : IAsyncLifetime
 
     // Creates and drops the scratch database; the legacy table comes from LegacyFreddieTributeSchema.
     private sealed class EmptySchemaContext(DbContextOptions<EmptySchemaContext> options) : DbContext(options);
+}
