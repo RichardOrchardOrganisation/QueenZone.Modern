@@ -123,12 +123,10 @@ public partial class ExcludeTributesFromSiteSearch : Migration
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// Restores the previous <c>SearchDocument_Search</c> body only. Tribute rows
-    /// deleted in <see cref="Up"/> are not reinserted.
-    /// </remarks>
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        // Restores the previous SearchDocument_Search body only. Tribute rows
+        // deleted in Up are not reinserted.
         migrationBuilder.Sql("""
             CREATE OR ALTER PROCEDURE dbo.SearchDocument_Search
                 @Query          NVARCHAR(500),
