@@ -153,6 +153,20 @@ function renderSession() {
   );
 }
 
+// The react-native jest preset mocks `AppState.currentState` as a function, so
+// `jest.replaceProperty` refuses it. Redefine it per test and put it back after.
+const originalAppStateDescriptor = Object.getOwnPropertyDescriptor(AppState, 'currentState');
+
+function setAppState(state: string) {
+  Object.defineProperty(AppState, 'currentState', { value: state, configurable: true, writable: true });
+}
+
+afterEach(() => {
+  if (originalAppStateDescriptor) {
+    Object.defineProperty(AppState, 'currentState', originalAppStateDescriptor);
+  }
+});
+
 beforeEach(() => {
   // `restoreMocks: true` (jest.config.js) restores a spied `jest.fn()` to a bare
   // stub that returns `undefined`, not to the `{ remove: jest.fn() }}`-returning
@@ -910,6 +924,171 @@ describe('SessionProvider', () => {
         }
       });
       await waitFor(() => expect(screen.getByText('foreground')).toBeOnTheScreen());
+    } finally {
+      dateNow.mockRestore();
+    }
+  });
+
+  it('defers an expired-token refresh on an iOS background launch until the app is active', async () => {
+    // A BGTask wake (home widget) mounts the app and suspends it when the task
+    // ends; a rotation started there can be lost and later replayed as reuse.
+    const appStateHandlers: ((state: string) => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
+      if (type === 'change') {
+        appStateHandlers.push(handler as (state: string) => void);
+      }
+      return { remove: jest.fn() };
+    });
+    setAppState('background');
+    readStored.mockResolvedValue({
+      ...authTokensFixture(),
+      expiresAt: Date.now() - 1_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' },
+    });
+    refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
+
+    renderSession();
+    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
+    expect(screen.getByText('Freddie')).toBeOnTheScreen();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(fetchJsonMock).not.toHaveBeenCalled();
+    expect(clearStored).not.toHaveBeenCalled();
+
+    setAppState('active');
+    await act(async () => {
+      for (const handler of appStateHandlers) {
+        handler('active');
+      }
+    });
+    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
+  });
+
+  it('does not rotate or sign out when /me returns 401 during a background launch', async () => {
+    setAppState('background');
+    readStored.mockResolvedValue({
+      ...authTokensFixture(),
+      expiresAt: Date.now() + 60_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' },
+    });
+    fetchJsonMock.mockRejectedValue(ApiError.http(401, 'Unauthorized'));
+
+    renderSession();
+    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledWith('/me', { accessToken: 'access-token' }));
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(clearStored).not.toHaveBeenCalled();
+    expect(screen.getByText('signed-in')).toBeOnTheScreen();
+  });
+
+  it('does not rotate the grant from ensureAccessToken while backgrounded', async () => {
+    const user = userEvent.setup();
+    const now = 1_700_000_000_000;
+    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
+      refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
+      renderSession();
+      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
+
+      setAppState('background');
+      dateNow.mockReturnValue(now + 120_000);
+      await user.press(screen.getByText('do-ensure-token'));
+
+      expect(refreshAccessToken).not.toHaveBeenCalled();
+      expect(clearStored).not.toHaveBeenCalled();
+      expect(screen.getByText('signed-in')).toBeOnTheScreen();
+    } finally {
+      dateNow.mockRestore();
+    }
+  });
+
+  it('keeps a rotated grant in memory when persisting it fails for a non-lock reason', async () => {
+    // The server has already spent the previous refresh token; losing the new
+    // one would replay a dead grant on the next refresh.
+    const user = userEvent.setup();
+    const now = 1_700_000_000_000;
+    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const appStateHandlers: ((state: string) => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
+      if (type === 'change') {
+        appStateHandlers.push(handler as (state: string) => void);
+      }
+      return { remove: jest.fn() };
+    });
+    try {
+      readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
+      renderSession();
+      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
+
+      writeStored.mockRejectedValueOnce(new Error('SecureStore staging write could not be confirmed'));
+      refreshAccessToken.mockResolvedValueOnce(
+        authTokensFixture({ accessToken: 'next', refreshToken: 'next-refresh' }),
+      );
+      dateNow.mockReturnValue(now + 120_000);
+      await user.press(screen.getByText('do-ensure-token'));
+      await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
+
+      refreshAccessToken.mockResolvedValueOnce(
+        authTokensFixture({ accessToken: 'third', refreshToken: 'third-refresh' }),
+      );
+      dateNow.mockReturnValue(now + 2_000_000);
+      await user.press(screen.getByText('do-ensure-token'));
+      await waitFor(() => expect(screen.getByText('third')).toBeOnTheScreen());
+      expect(refreshAccessToken).toHaveBeenLastCalledWith('http://qz.test', 'next-refresh');
+      expect(clearStored).not.toHaveBeenCalled();
+
+      writeStored.mockClear();
+      await act(async () => {
+        for (const handler of appStateHandlers) {
+          handler('active');
+        }
+      });
+      // The later refresh persisted successfully, so there is nothing pending.
+      expect(writeStored).not.toHaveBeenCalledWith(expect.objectContaining({ refreshToken: 'next-refresh' }));
+    } finally {
+      dateNow.mockRestore();
+    }
+  });
+
+  it('retries a failed non-lock session write when the app becomes active', async () => {
+    const user = userEvent.setup();
+    const now = 1_700_000_000_000;
+    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const appStateHandlers: ((state: string) => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
+      if (type === 'change') {
+        appStateHandlers.push(handler as (state: string) => void);
+      }
+      return { remove: jest.fn() };
+    });
+    try {
+      readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
+      renderSession();
+      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
+
+      writeStored.mockRejectedValueOnce(new Error('SecureStore staging write could not be confirmed'));
+      writeStored.mockRejectedValueOnce(new Error('still failing'));
+      refreshAccessToken.mockResolvedValueOnce(
+        authTokensFixture({ accessToken: 'next', refreshToken: 'next-refresh' }),
+      );
+      dateNow.mockReturnValue(now + 120_000);
+      await user.press(screen.getByText('do-ensure-token'));
+      await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
+
+      // First retry fails without an unhandled rejection; the second succeeds.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        await act(async () => {
+          for (const handler of appStateHandlers) {
+            handler('active');
+          }
+        });
+      }
+      await waitFor(() =>
+        expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ refreshToken: 'next-refresh' })),
+      );
+      expect(writeStored).toHaveBeenCalledTimes(3);
+      expect(clearStored).not.toHaveBeenCalled();
     } finally {
       dateNow.mockRestore();
     }
