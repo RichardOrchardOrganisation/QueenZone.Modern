@@ -52,6 +52,43 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
         Assert.True(SiteSearchContentType.IsExcludedFromSiteSearch("TRIBUTE"));
         Assert.True(SearchDocumentSourceKey.IsTribute(SearchDocumentSourceKey.ForTribute(12)));
         Assert.True(SearchDocumentSourceKey.IsTribute("freddie-tribute:12"));
+        Assert.False(SearchDocumentSourceKey.IsTribute(null));
+        Assert.False(SearchDocumentSourceKey.IsTribute("   "));
+        Assert.False(SearchDocumentSourceKey.IsTribute("news:3"));
+    }
+
+    [Fact]
+    public async Task InMemoryIndex_does_not_write_tribute_documents()
+    {
+        var store = new SharedSearchIndexStore();
+        var index = new InMemorySearchIndexService(store);
+        var leftover = new SearchDocumentEntity
+        {
+            SourceKey = SearchDocumentSourceKey.ForTribute(4),
+            ContentType = SiteSearchContentType.Tribute,
+            Title = "Old tribute",
+            Body = "body",
+            Summary = "summary",
+            Url = "/freddie-mercury-tribute",
+        };
+        store.Upsert(leftover);
+
+        await index.UpsertAsync(leftover);
+        await index.ReplaceContentTypeAsync(
+            SiteSearchContentType.Tribute,
+            [
+                new SearchDocumentEntity
+                {
+                    SourceKey = SearchDocumentSourceKey.ForTribute(5),
+                    ContentType = SiteSearchContentType.Tribute,
+                    Title = "New tribute",
+                    Body = "body",
+                    Summary = "summary",
+                    Url = "/freddie-mercury-tribute",
+                },
+            ]);
+
+        Assert.Empty(store.GetAll());
     }
 
     [Fact]

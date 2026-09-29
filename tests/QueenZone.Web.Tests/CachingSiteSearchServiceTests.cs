@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using QueenZone.Data;
+using QueenZone.Web;
 using QueenZone.Web.Search;
 
 namespace QueenZone.Web.Tests;
@@ -100,6 +102,40 @@ public sealed class CachingSiteSearchServiceTests
         await sut.SearchAsync("Queen", null, 1, 20);
 
         Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
+    public void AddSiteSearchResultCache_requires_an_inner_registration()
+    {
+        var services = new ServiceCollection();
+
+        var error = Assert.Throws<InvalidOperationException>(services.AddSiteSearchResultCache);
+
+        Assert.Contains("ISiteSearchService", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddSiteSearchResultCache_wraps_instance_and_factory_registrations()
+    {
+        var instanceInner = new CountingSiteSearchService();
+        var instanceServices = new ServiceCollection();
+        instanceServices.AddSingleton<ISiteSearchService>(instanceInner);
+        instanceServices.AddSiteSearchResultCache();
+        await using var instanceProvider = instanceServices.BuildServiceProvider();
+        var fromInstance = instanceProvider.GetRequiredService<ISiteSearchService>();
+        Assert.IsType<CachingSiteSearchService>(fromInstance);
+        await fromInstance.SearchAsync("Queen", null, 1, 20);
+        Assert.Equal(1, instanceInner.Calls);
+
+        var factoryInner = new CountingSiteSearchService();
+        var factoryServices = new ServiceCollection();
+        factoryServices.AddSingleton<ISiteSearchService>(_ => factoryInner);
+        factoryServices.AddSiteSearchResultCache();
+        await using var factoryProvider = factoryServices.BuildServiceProvider();
+        var fromFactory = factoryProvider.GetRequiredService<ISiteSearchService>();
+        Assert.IsType<CachingSiteSearchService>(fromFactory);
+        await fromFactory.SearchAsync("Queen", null, 1, 20);
+        Assert.Equal(1, factoryInner.Calls);
     }
 
     [Fact]
