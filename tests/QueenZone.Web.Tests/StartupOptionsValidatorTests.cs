@@ -655,6 +655,398 @@ public sealed class StartupOptionsValidatorTests
         Assert.False(result.Failed);
     }
 
+    [Fact]
+    public void NewsSuggestionOptionsValidator_accepts_defaults()
+    {
+        var result = new NewsSuggestionOptionsValidator().Validate(null, new NewsSuggestionOptions());
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(NewsSuggestionOptionsValidator.MaxSubmissionsPerMemberPerDay)]
+    public void NewsSuggestionOptionsValidator_accepts_minimum_and_maximum(int value)
+    {
+        var result = new NewsSuggestionOptionsValidator().Validate(
+            null,
+            new NewsSuggestionOptions { MaxSubmissionsPerMemberPerDay = value });
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(NewsSuggestionOptionsValidator.MaxSubmissionsPerMemberPerDay + 1)]
+    public void NewsSuggestionOptionsValidator_rejects_out_of_range(int value)
+    {
+        var result = new NewsSuggestionOptionsValidator().Validate(
+            null,
+            new NewsSuggestionOptions { MaxSubmissionsPerMemberPerDay = value });
+        Assert.True(result.Failed);
+        Assert.Contains("NewsSuggestions:MaxSubmissionsPerMemberPerDay", result.FailureMessage);
+    }
+
+    [Fact]
+    public void FanPerformanceSubmissionOptionsValidator_accepts_defaults()
+    {
+        var result = new FanPerformanceSubmissionOptionsValidator()
+            .Validate(null, new FanPerformanceSubmissionOptions());
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(FanPerformanceSubmissionOptionsValidator.MaxStaleAfterDays)]
+    public void FanPerformanceSubmissionOptionsValidator_accepts_minimum_and_maximum(int value)
+    {
+        var result = new FanPerformanceSubmissionOptionsValidator().Validate(
+            null,
+            new FanPerformanceSubmissionOptions { StaleAfterDays = value });
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(FanPerformanceSubmissionOptionsValidator.MaxStaleAfterDays + 1)]
+    public void FanPerformanceSubmissionOptionsValidator_rejects_out_of_range(int value)
+    {
+        var result = new FanPerformanceSubmissionOptionsValidator().Validate(
+            null,
+            new FanPerformanceSubmissionOptions { StaleAfterDays = value });
+        Assert.True(result.Failed);
+        Assert.Contains("FanPerformanceSubmissions:StaleAfterDays", result.FailureMessage);
+    }
+
+    [Fact]
+    public void HelpRequestOptionsValidator_accepts_defaults()
+    {
+        var result = new HelpRequestOptionsValidator().Validate(null, new HelpRequestOptions());
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(nameof(HelpRequestOptions.MaxAnonymousPerIpPerHour), 1)]
+    [InlineData(nameof(HelpRequestOptions.MaxAnonymousPerIpPerHour), HelpRequestOptionsValidator.MaxPermitLimit)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerMinute), 1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerMinute), HelpRequestOptionsValidator.MaxPermitLimit)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerEmailPerDay), 1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerEmailPerDay), HelpRequestOptionsValidator.MaxPermitLimit)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerDay), 1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerDay), HelpRequestOptionsValidator.MaxPermitLimit)]
+    public void HelpRequestOptionsValidator_accepts_cap_minimum_and_maximum(string property, int value)
+    {
+        var result = new HelpRequestOptionsValidator().Validate(null, HelpRequestWith(property, value));
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(nameof(HelpRequestOptions.MaxAnonymousPerIpPerHour), "HelpRequests:MaxAnonymousPerIpPerHour", -1)]
+    [InlineData(nameof(HelpRequestOptions.MaxAnonymousPerIpPerHour), "HelpRequests:MaxAnonymousPerIpPerHour", 0)]
+    [InlineData(
+        nameof(HelpRequestOptions.MaxAnonymousPerIpPerHour),
+        "HelpRequests:MaxAnonymousPerIpPerHour",
+        HelpRequestOptionsValidator.MaxPermitLimit + 1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerMinute), "HelpRequests:MaxPerMemberPerMinute", -1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerMinute), "HelpRequests:MaxPerMemberPerMinute", 0)]
+    [InlineData(
+        nameof(HelpRequestOptions.MaxPerMemberPerMinute),
+        "HelpRequests:MaxPerMemberPerMinute",
+        HelpRequestOptionsValidator.MaxPermitLimit + 1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerEmailPerDay), "HelpRequests:MaxPerEmailPerDay", -1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerEmailPerDay), "HelpRequests:MaxPerEmailPerDay", 0)]
+    [InlineData(
+        nameof(HelpRequestOptions.MaxPerEmailPerDay),
+        "HelpRequests:MaxPerEmailPerDay",
+        HelpRequestOptionsValidator.MaxPermitLimit + 1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerDay), "HelpRequests:MaxPerMemberPerDay", -1)]
+    [InlineData(nameof(HelpRequestOptions.MaxPerMemberPerDay), "HelpRequests:MaxPerMemberPerDay", 0)]
+    [InlineData(
+        nameof(HelpRequestOptions.MaxPerMemberPerDay),
+        "HelpRequests:MaxPerMemberPerDay",
+        HelpRequestOptionsValidator.MaxPermitLimit + 1)]
+    public void HelpRequestOptionsValidator_rejects_out_of_range_caps(string property, string path, int value)
+    {
+        var result = new HelpRequestOptionsValidator().Validate(null, HelpRequestWith(property, value));
+        Assert.True(result.Failed);
+        Assert.Contains(path, result.FailureMessage);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(HelpRequestOptionsValidator.MaxMinimumDwellSeconds)]
+    public void HelpRequestOptionsValidator_accepts_dwell_range_including_zero(int value)
+    {
+        var result = new HelpRequestOptionsValidator().Validate(
+            null,
+            new HelpRequestOptions { MinimumDwellSeconds = value });
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(HelpRequestOptionsValidator.MaxMinimumDwellSeconds + 1)]
+    public void HelpRequestOptionsValidator_rejects_dwell_outside_range(int value)
+    {
+        var result = new HelpRequestOptionsValidator().Validate(
+            null,
+            new HelpRequestOptions { MinimumDwellSeconds = value });
+        Assert.True(result.Failed);
+        Assert.Contains("HelpRequests:MinimumDwellSeconds", result.FailureMessage);
+    }
+
+    [Fact]
+    public void HelpRequestOptionsValidator_reports_each_invalid_property()
+    {
+        var result = new HelpRequestOptionsValidator().Validate(
+            null,
+            new HelpRequestOptions
+            {
+                MaxAnonymousPerIpPerHour = 0,
+                MaxPerMemberPerMinute = 0,
+                MaxPerEmailPerDay = 0,
+                MaxPerMemberPerDay = 0,
+                MinimumDwellSeconds = -1,
+            });
+        Assert.True(result.Failed);
+        Assert.Equal(5, result.Failures.Count());
+        Assert.Contains("HelpRequests:MaxAnonymousPerIpPerHour", result.FailureMessage);
+        Assert.Contains("HelpRequests:MaxPerMemberPerMinute", result.FailureMessage);
+        Assert.Contains("HelpRequests:MaxPerEmailPerDay", result.FailureMessage);
+        Assert.Contains("HelpRequests:MaxPerMemberPerDay", result.FailureMessage);
+        Assert.Contains("HelpRequests:MinimumDwellSeconds", result.FailureMessage);
+    }
+
+    [Fact]
+    public void PrivateMessageRateLimitOptionsValidator_accepts_defaults()
+    {
+        var result = new PrivateMessageRateLimitOptionsValidator()
+            .Validate(null, new PrivateMessageRateLimitOptions());
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.WindowMinutes), 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.WindowMinutes), PrivateMessageRateLimitOptionsValidator.MaxWindowMinutes)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxMessagesPerWindow), 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxMessagesPerWindow), PrivateMessageRateLimitOptionsValidator.MaxPermitLimit)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxNewRecipientsPerWindow), 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxNewRecipientsPerWindow), PrivateMessageRateLimitOptionsValidator.MaxPermitLimit)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxDuplicateMessagesPerWindow), 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxDuplicateMessagesPerWindow), PrivateMessageRateLimitOptionsValidator.MaxPermitLimit)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountAgeDays), 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountAgeDays), PrivateMessageRateLimitOptionsValidator.MaxNewAccountAgeDays)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxMessagesPerWindow), 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxMessagesPerWindow), PrivateMessageRateLimitOptionsValidator.MaxPermitLimit)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxNewRecipientsPerWindow), 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxNewRecipientsPerWindow), PrivateMessageRateLimitOptionsValidator.MaxPermitLimit)]
+    public void PrivateMessageRateLimitOptionsValidator_accepts_minimum_and_maximum(string property, int value)
+    {
+        var result = new PrivateMessageRateLimitOptionsValidator()
+            .Validate(null, PrivateMessageWith(property, value));
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.WindowMinutes), "RateLimiting:PrivateMessages:WindowMinutes", -1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.WindowMinutes), "RateLimiting:PrivateMessages:WindowMinutes", 0)]
+    [InlineData(
+        nameof(PrivateMessageRateLimitOptions.WindowMinutes),
+        "RateLimiting:PrivateMessages:WindowMinutes",
+        PrivateMessageRateLimitOptionsValidator.MaxWindowMinutes + 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxMessagesPerWindow), "RateLimiting:PrivateMessages:MaxMessagesPerWindow", -1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxMessagesPerWindow), "RateLimiting:PrivateMessages:MaxMessagesPerWindow", 0)]
+    [InlineData(
+        nameof(PrivateMessageRateLimitOptions.MaxMessagesPerWindow),
+        "RateLimiting:PrivateMessages:MaxMessagesPerWindow",
+        PrivateMessageRateLimitOptionsValidator.MaxPermitLimit + 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxNewRecipientsPerWindow), "RateLimiting:PrivateMessages:MaxNewRecipientsPerWindow", -1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxNewRecipientsPerWindow), "RateLimiting:PrivateMessages:MaxNewRecipientsPerWindow", 0)]
+    [InlineData(
+        nameof(PrivateMessageRateLimitOptions.MaxNewRecipientsPerWindow),
+        "RateLimiting:PrivateMessages:MaxNewRecipientsPerWindow",
+        PrivateMessageRateLimitOptionsValidator.MaxPermitLimit + 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxDuplicateMessagesPerWindow), "RateLimiting:PrivateMessages:MaxDuplicateMessagesPerWindow", -1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.MaxDuplicateMessagesPerWindow), "RateLimiting:PrivateMessages:MaxDuplicateMessagesPerWindow", 0)]
+    [InlineData(
+        nameof(PrivateMessageRateLimitOptions.MaxDuplicateMessagesPerWindow),
+        "RateLimiting:PrivateMessages:MaxDuplicateMessagesPerWindow",
+        PrivateMessageRateLimitOptionsValidator.MaxPermitLimit + 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountAgeDays), "RateLimiting:PrivateMessages:NewAccountAgeDays", -1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountAgeDays), "RateLimiting:PrivateMessages:NewAccountAgeDays", 0)]
+    [InlineData(
+        nameof(PrivateMessageRateLimitOptions.NewAccountAgeDays),
+        "RateLimiting:PrivateMessages:NewAccountAgeDays",
+        PrivateMessageRateLimitOptionsValidator.MaxNewAccountAgeDays + 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxMessagesPerWindow), "RateLimiting:PrivateMessages:NewAccountMaxMessagesPerWindow", -1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxMessagesPerWindow), "RateLimiting:PrivateMessages:NewAccountMaxMessagesPerWindow", 0)]
+    [InlineData(
+        nameof(PrivateMessageRateLimitOptions.NewAccountMaxMessagesPerWindow),
+        "RateLimiting:PrivateMessages:NewAccountMaxMessagesPerWindow",
+        PrivateMessageRateLimitOptionsValidator.MaxPermitLimit + 1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxNewRecipientsPerWindow), "RateLimiting:PrivateMessages:NewAccountMaxNewRecipientsPerWindow", -1)]
+    [InlineData(nameof(PrivateMessageRateLimitOptions.NewAccountMaxNewRecipientsPerWindow), "RateLimiting:PrivateMessages:NewAccountMaxNewRecipientsPerWindow", 0)]
+    [InlineData(
+        nameof(PrivateMessageRateLimitOptions.NewAccountMaxNewRecipientsPerWindow),
+        "RateLimiting:PrivateMessages:NewAccountMaxNewRecipientsPerWindow",
+        PrivateMessageRateLimitOptionsValidator.MaxPermitLimit + 1)]
+    public void PrivateMessageRateLimitOptionsValidator_rejects_out_of_range(string property, string path, int value)
+    {
+        var result = new PrivateMessageRateLimitOptionsValidator()
+            .Validate(null, PrivateMessageWith(property, value));
+        Assert.True(result.Failed);
+        Assert.Contains(path, result.FailureMessage);
+    }
+
+    [Fact]
+    public void PrivateMessageRateLimitOptionsValidator_reports_each_invalid_property()
+    {
+        var result = new PrivateMessageRateLimitOptionsValidator().Validate(
+            null,
+            new PrivateMessageRateLimitOptions
+            {
+                WindowMinutes = 0,
+                MaxMessagesPerWindow = 0,
+                MaxNewRecipientsPerWindow = 0,
+                MaxDuplicateMessagesPerWindow = 0,
+                NewAccountAgeDays = 0,
+                NewAccountMaxMessagesPerWindow = 0,
+                NewAccountMaxNewRecipientsPerWindow = 0,
+            });
+        Assert.True(result.Failed);
+        Assert.Equal(7, result.Failures.Count());
+        Assert.Contains("RateLimiting:PrivateMessages:WindowMinutes", result.FailureMessage);
+        Assert.Contains("RateLimiting:PrivateMessages:MaxMessagesPerWindow", result.FailureMessage);
+        Assert.Contains("RateLimiting:PrivateMessages:MaxNewRecipientsPerWindow", result.FailureMessage);
+        Assert.Contains("RateLimiting:PrivateMessages:MaxDuplicateMessagesPerWindow", result.FailureMessage);
+        Assert.Contains("RateLimiting:PrivateMessages:NewAccountAgeDays", result.FailureMessage);
+        Assert.Contains("RateLimiting:PrivateMessages:NewAccountMaxMessagesPerWindow", result.FailureMessage);
+        Assert.Contains("RateLimiting:PrivateMessages:NewAccountMaxNewRecipientsPerWindow", result.FailureMessage);
+    }
+
+    [Fact]
+    public void PushNotificationOptionsValidator_accepts_defaults()
+    {
+        var result = new PushNotificationOptionsValidator().Validate(null, new PushNotificationOptions());
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData("sandbox")]
+    [InlineData("production")]
+    public void PushNotificationOptionsValidator_accepts_exact_lowercase_environments_without_credentials(
+        string environment)
+    {
+        var result = new PushNotificationOptionsValidator().Validate(
+            null,
+            new PushNotificationOptions { Apns = new ApnsPushOptions { Environment = environment } });
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Sandbox")]
+    [InlineData("sandox")]
+    [InlineData("unknown")]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData(null)]
+    public void PushNotificationOptionsValidator_rejects_non_canonical_environments(string? environment)
+    {
+        var result = new PushNotificationOptionsValidator().Validate(
+            null,
+            new PushNotificationOptions { Apns = new ApnsPushOptions { Environment = environment! } });
+        Assert.True(result.Failed);
+        Assert.Contains("PushNotifications:Apns:Environment", result.FailureMessage);
+    }
+
+    [Fact]
+    public void PushNotificationOptionsValidator_accepts_partial_apns_credentials_with_valid_environment()
+    {
+        var result = new PushNotificationOptionsValidator().Validate(
+            null,
+            new PushNotificationOptions
+            {
+                Apns = new ApnsPushOptions
+                {
+                    Environment = "sandbox",
+                    TeamId = "TEAM123456",
+                },
+            });
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
+    public void PushNotificationOptionsValidator_rejects_null_apns()
+    {
+        var result = new PushNotificationOptionsValidator().Validate(
+            null,
+            new PushNotificationOptions { Apns = null! });
+        Assert.True(result.Failed);
+        Assert.Contains("PushNotifications:Apns:Environment", result.FailureMessage);
+    }
+
+    private static HelpRequestOptions HelpRequestWith(string property, int value)
+    {
+        var options = new HelpRequestOptions();
+        switch (property)
+        {
+            case nameof(HelpRequestOptions.MaxAnonymousPerIpPerHour):
+                options.MaxAnonymousPerIpPerHour = value;
+                break;
+            case nameof(HelpRequestOptions.MaxPerMemberPerMinute):
+                options.MaxPerMemberPerMinute = value;
+                break;
+            case nameof(HelpRequestOptions.MaxPerEmailPerDay):
+                options.MaxPerEmailPerDay = value;
+                break;
+            case nameof(HelpRequestOptions.MaxPerMemberPerDay):
+                options.MaxPerMemberPerDay = value;
+                break;
+            case nameof(HelpRequestOptions.MinimumDwellSeconds):
+                options.MinimumDwellSeconds = value;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(property), property, null);
+        }
+
+        return options;
+    }
+
+    private static PrivateMessageRateLimitOptions PrivateMessageWith(string property, int value)
+    {
+        var options = new PrivateMessageRateLimitOptions();
+        switch (property)
+        {
+            case nameof(PrivateMessageRateLimitOptions.WindowMinutes):
+                options.WindowMinutes = value;
+                break;
+            case nameof(PrivateMessageRateLimitOptions.MaxMessagesPerWindow):
+                options.MaxMessagesPerWindow = value;
+                break;
+            case nameof(PrivateMessageRateLimitOptions.MaxNewRecipientsPerWindow):
+                options.MaxNewRecipientsPerWindow = value;
+                break;
+            case nameof(PrivateMessageRateLimitOptions.MaxDuplicateMessagesPerWindow):
+                options.MaxDuplicateMessagesPerWindow = value;
+                break;
+            case nameof(PrivateMessageRateLimitOptions.NewAccountAgeDays):
+                options.NewAccountAgeDays = value;
+                break;
+            case nameof(PrivateMessageRateLimitOptions.NewAccountMaxMessagesPerWindow):
+                options.NewAccountMaxMessagesPerWindow = value;
+                break;
+            case nameof(PrivateMessageRateLimitOptions.NewAccountMaxNewRecipientsPerWindow):
+                options.NewAccountMaxNewRecipientsPerWindow = value;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(property), property, null);
+        }
+
+        return options;
+    }
+
     private static BlobUploadOptionsValidator CreateBlobValidator(
         string environmentName,
         string? blobConnection = null)
