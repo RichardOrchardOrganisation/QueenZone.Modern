@@ -80,6 +80,14 @@ builder.Services.AddRazorPages(options =>
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
             QueenZoneRateLimitPolicies.Auth)));
     options.Conventions.AddPageApplicationModelConvention(
+        "/Account/LinkExternalLogin",
+        model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+            QueenZoneRateLimitPolicies.Auth)));
+    options.Conventions.AddPageApplicationModelConvention(
+        "/Account/Logout",
+        model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+            QueenZoneRateLimitPolicies.Auth)));
+    options.Conventions.AddPageApplicationModelConvention(
         "/Account/Settings",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
             QueenZoneRateLimitPolicies.AuthenticatedWrite)));

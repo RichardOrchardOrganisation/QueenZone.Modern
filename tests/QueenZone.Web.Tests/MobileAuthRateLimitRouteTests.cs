@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,6 +56,46 @@ public sealed class MobileAuthRateLimitRouteTests : IClassFixture<WebHostVariant
         Assert.Contains("temporarily_unavailable", body, StringComparison.Ordinal);
         Assert.DoesNotContain(issued.RefreshToken, body, StringComparison.Ordinal);
         Assert.DoesNotContain(issued.AccessToken, body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/account/logout", "203.0.113.81")]
+    [InlineData("/account/link-external-login?handler=Confirm", "203.0.113.82")]
+    [InlineData("/account/link-external-login?handler=Password", "203.0.113.83")]
+    [InlineData("/account/link-external-login?handler=Cancel", "203.0.113.84")]
+    public async Task BrowserAuthPost_ExhaustedIpAllowance_Returns429(string path, string ip)
+    {
+        using var client = ipAuthorize.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", ip);
+
+        using var contact = await client.GetAsync("/contact");
+        var token = ExtractAntiforgeryToken(await contact.Content.ReadAsStringAsync());
+        var pair = MobileAuthPkceTestData.CreatePair();
+        using var exhaust = await client.GetAsync(AuthorizeUrl(pair.Challenge));
+        using var rejected = await client.PostAsync(
+            path,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, contact.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, exhaust.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+    }
+
+    [Fact]
+    public async Task BrowserLogoutGet_ExhaustedIpAllowance_Returns429()
+    {
+        using var client = ipAuthorize.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.85");
+
+        var pair = MobileAuthPkceTestData.CreatePair();
+        using var exhaust = await client.GetAsync(AuthorizeUrl(pair.Challenge));
+        using var rejected = await client.GetAsync("/account/logout");
+
+        Assert.Equal(HttpStatusCode.Redirect, exhaust.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
     }
 
     [Fact]
@@ -127,6 +168,16 @@ public sealed class MobileAuthRateLimitRouteTests : IClassFixture<WebHostVariant
             ["username"] = "auth-password-rate@example.com",
             ["password"] = "correct horse battery staple",
         });
+
+    private static string ExtractAntiforgeryToken(string html)
+    {
+        var match = Regex.Match(
+            html,
+            """name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""",
+            RegexOptions.IgnoreCase);
+        Assert.True(match.Success, "Antiforgery token was not found.");
+        return match.Groups["token"].Value;
+    }
 
     private static string AuthorizeUrl(string challenge, string state = "st") =>
         $"{MobileAuthEndpoints.AuthorizePath}?response_type=code" +

@@ -61,6 +61,16 @@ Good targets:
 
 These tests are the default place to cover user-visible route behavior.
 
+#### Mutation abuse-control contract
+
+`MutationEndpointInventoryTests` is an endpoint-data-source contract: after the
+Testing host starts, it inventories `POST`/`PUT`/`PATCH`/`DELETE` routes and
+requires a named rate-limit policy, a documented read-only classification, or a
+typed persistent-control exception. See
+[mutation-rate-limiting.md](mutation-rate-limiting.md) for how to classify a new
+mutation. Evaluator logic stays in `MutationAbuseControlContractTests` (no
+per-test `WithWebHostBuilder` host). Authentication alone is not throttling.
+
 **Output cache:** environment `Testing` disables public HTML output caching so cases stay deterministic. Production-shaped hit/miss, compression, static-asset cache headers, and mobile-auth startup coverage share one Production-environment host via `ProductionHostCollection` / `ProductionHostFixture`. Tests that read cache or counting-repository state call `ResetAsync()` (start the host, evict output-cache tags, then zero counters). Fail-closed Production settings live on `ProductionHostSettings`; a different Production boot (for example no mobile signing key) is a named variant in `WebHostVariants.cs`, not a per-test host. No extra secrets or env vars are required for a normal `dotnet test` run.
 
 Admin editorial routes also have a second HTTP integration layer that wires `EfAdminNewsRepository` and `EfNewsDiscoveryRepository` through SQLite (`AdminNewsEfRoutesTests`, `AdminNewsDiscoveryEfRoutesTests`). Use that layer for create/edit/publish/promote persistence checks that in-memory fakes cannot catch.

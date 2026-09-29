@@ -25,6 +25,7 @@ This repository is the modern QueenZone rebuild. The project is archive-first: i
 - `.cursor/agents/` and `.cursor/skills/orchestrate-epic/` are the **Cursor-only** issue-queue overlay (planner / implementer / verifier / reviewer). Pin `/orchestrate-epic` as a Custom Mode in Cursor. Grok and other non-Cursor agents do not use that loop — they stay a single agent in the current chat (see [Grok and other non-Cursor agents](#grok-and-other-non-cursor-agents)). The portable protocol is the **issue-queue** Cursor plugin (`~/.cursor/plugins/local/issue-queue`, skill `/orchestrate-issues`). This repo keeps copies so a clone works without the plugin.
 - `docs/feature-map/` is the maintained mobile + web feature map (entry points, sources, test IDs, Maestro flows, E2E specs). Both verify skills read it. `node scripts/check-feature-map.mjs` (also `npm run preflight` in `src/QueenZone.Mobile`) fails CI when a screen or public/member page is unmapped.
 - `docs/architecture/workaround-audit.md` lists every known workaround, suppression, and version pin with a keep / remove decision. `config/suppression-baseline.json` is its CI ratchet (see [Workarounds and suppressions](#workarounds-and-suppressions)).
+- `docs/architecture/mutation-rate-limiting.md` is the mutation abuse-control contract (named policies, read-only classifications, and the endpoint inventory guard).
 
 Keep durable workflow guidance in this file and keep user-facing setup guidance in `README.md`.
 
@@ -183,6 +184,8 @@ dotnet test QueenZone.sln --configuration Release --no-build
 ```
 
 Use deterministic sample or fake data for normal unit and web integration tests. Real legacy database tests must be opt-in and clearly reported.
+
+When adding a `POST`, `PUT`, `PATCH`, or `DELETE`, classify it in `docs/architecture/mutation-rate-limiting.md`. `MutationEndpointInventoryTests` fails CI unless the non-admin route has named rate-limit metadata, an exact reviewed read-only classification, or a typed persistent-control exception. Authentication, antiforgery, and idempotency are not enough.
 
 If a PR touches any file under `design/tokens/`, also run `pwsh ./scripts/Sync-DesignTokens.ps1` before committing (see UI Architecture above) — CI's "Design token sync check" gate fails otherwise.
 
