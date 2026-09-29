@@ -30,7 +30,7 @@ build and imports no coverage) because:
 
 - PR decoration already works on AA, including Dependabot PRs that never
   receive `SONAR_TOKEN`. A CI scan would lose those.
-- Coverage is already gated in CI (`scripts/Test-CoverageGate.ps1`: 51%
+- Coverage is already gated in CI (`scripts/Test-CoverageGate.ps1`: 91%
   global, 70% changed lines, plus the mobile floors). Importing coverage
   would turn on Sonar way's `new_coverage < 80` and fail PRs that pass
   our 70% gate.

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Coverage gate before pull requests
 
-CI blocks merge when changed-line coverage is below **70%** for coverable `.cs` lines in the PR diff vs `main`. Global line coverage must be at least **51%**.
+CI blocks merge when changed-line coverage is below **70%** for coverable `.cs` lines in the PR diff vs `main`. Global line coverage must be at least **91%**.
 
 ## Before opening or updating a PR
 
@@ -15,7 +15,7 @@ CI blocks merge when changed-line coverage is below **70%** for coverable `.cs` 
 ```powershell
 git fetch origin main
 dotnet test QueenZone.sln --configuration Release --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef origin/main
+powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef origin/main
 ```
 
 3. If the gate fails, it prints uncovered `path:line` entries. Add or extend tests until changed-line coverage is at least 70%.

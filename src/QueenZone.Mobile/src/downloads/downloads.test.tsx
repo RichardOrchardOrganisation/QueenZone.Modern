@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react-native';
+import { waitFor } from '@testing-library/react-native';
 import { createMemoryStorage } from '../cache/storage';
 import { resetExternalStoreForTests } from '../cache/externalStore';
 import { fanPerformanceFixture } from '../test/fixtures';
@@ -216,11 +217,9 @@ describe('download manager', () => {
 
     enqueueDownload(track, memberId, async () => 'member-token');
     enqueueDownload(track, memberId, async () => 'member-token');
-    await Promise.resolve();
-    await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+    await waitFor(() => {
+      expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+    });
     expect(host.exists('file:///documents/fan-performances/187.part')).toBe(false);
     const stored = await getCompletedDownload(memberId, '187');
     expect(stored?.sourceRevision).toBe('"etag-9"');
@@ -243,9 +242,9 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(host.exists('file:///documents/fan-performances/187.flac')).toBe(true);
+    await waitFor(() => {
+      expect(host.exists('file:///documents/fan-performances/187.flac')).toBe(true);
+    });
     expect((await getCompletedDownload(memberId, '187'))?.localUri).toBe(
       'file:///documents/fan-performances/187.flac',
     );
@@ -270,16 +269,16 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(host.promote).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(host.promote).toHaveBeenCalled();
+    });
     expect(host.exists('file:///documents/fan-performances/187.mp3')).toBe(false);
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloading');
 
     finishPromote();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+    await waitFor(() => {
+      expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+    });
     expect((await getCompletedDownload(memberId, '187'))?.byteSize).toBe(4);
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
   });
@@ -300,11 +299,12 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('failed');
+    });
     expect(promote).not.toHaveBeenCalled();
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
     expect(host.exists('file:///documents/fan-performances/187')).toBe(false);
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('failed');
     expect(getDownloadUiSnapshot(memberId, '187')?.status).not.toBe('downloaded');
   });
 
@@ -326,14 +326,15 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'failed',
+        error: DOWNLOAD_TOO_SMALL_MESSAGE,
+      });
+    });
     expect(promote).not.toHaveBeenCalled();
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
     expect(host.exists('file:///documents/fan-performances/187')).toBe(false);
-    expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
-      status: 'failed',
-      error: DOWNLOAD_TOO_SMALL_MESSAGE,
-    });
     expect(getDownloadUiSnapshot(memberId, '187')?.status).not.toBe('downloaded');
   });
 
@@ -351,11 +352,11 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('failed');
+    });
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
     expect(host.exists('file:///documents/fan-performances/187.part')).toBe(false);
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('failed');
   });
 
   it('rejects unauthorized recordings and low storage without a completed entry', async () => {
@@ -368,9 +369,10 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('failed');
+    });
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('failed');
   });
 
   it('removes the file and manifest entry without touching a server copy', async () => {
@@ -405,15 +407,18 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const snapshot = getDownloadUiSnapshot(memberId, '187');
-    expect(snapshot?.status).toBe('downloading');
-    expect(snapshot?.byteSize).toBe(256);
-    expect(snapshot?.expectedBytes).toBe(1024);
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'downloading',
+        byteSize: 256,
+        expectedBytes: 1024,
+      });
+    });
 
     release();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    });
   });
 
   it('writes progress onto the active performance id, not the first queued id', async () => {
@@ -465,20 +470,21 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(third, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(getDownloadUiSnapshot(memberId, '193')).toMatchObject({
-      status: 'downloading',
-      byteSize: 400,
-      expectedBytes: 1000,
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '193')).toMatchObject({
+        status: 'downloading',
+        byteSize: 400,
+        expectedBytes: 1000,
+      });
     });
     expect(getDownloadUiSnapshot(memberId, '191')?.status).toBe('failed');
     expect(getDownloadUiSnapshot(memberId, '191')?.byteSize).toBeNull();
     expect(getDownloadUiSnapshot(memberId, '192')?.status).toBe('failed');
 
     release();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(getDownloadUiSnapshot(memberId, '193')?.status).toBe('downloaded');
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '193')?.status).toBe('downloaded');
+    });
     expect(getDownloadUiSnapshot(memberId, '191')?.status).toBe('failed');
   });
 
@@ -492,9 +498,9 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+    await waitFor(() => {
+      expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+    });
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
   });
 
@@ -508,10 +514,11 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
-      status: 'failed',
-      error: DOWNLOAD_RATE_LIMITED_MESSAGE,
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'failed',
+        error: DOWNLOAD_RATE_LIMITED_MESSAGE,
+      });
     });
 
     setDownloadProbeForTests(async () => ({
@@ -520,8 +527,9 @@ describe('download manager', () => {
       byteSize: 4,
     }));
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    });
   });
 
   it('retries a stale downloading snapshot that has no running job', async () => {
@@ -541,8 +549,9 @@ describe('download manager', () => {
     );
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    });
   });
 
   it('treats a missing .part as a finalize failure and never promotes', async () => {
@@ -558,15 +567,15 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'failed',
+        error: DOWNLOAD_PART_MISSING_MESSAGE,
+      });
+    });
     expect(promote).not.toHaveBeenCalled();
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
     expect(host.exists('file:///documents/fan-performances/187')).toBe(false);
-    expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
-      status: 'failed',
-      error: DOWNLOAD_PART_MISSING_MESSAGE,
-    });
     expect(getDownloadUiSnapshot(memberId, '187')?.error).not.toBe(DOWNLOAD_FAILED_MESSAGE);
     expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -599,15 +608,15 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'failed',
+        error: DOWNLOAD_EMPTY_PART_MESSAGE,
+      });
+    });
     expect(promote).not.toHaveBeenCalled();
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
     expect(host.exists('file:///documents/fan-performances/187.part')).toBe(false);
-    expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
-      status: 'failed',
-      error: DOWNLOAD_EMPTY_PART_MESSAGE,
-    });
     expect(getDownloadUiSnapshot(memberId, '187')?.error).not.toBe(DOWNLOAD_FAILED_MESSAGE);
     expect(getDownloadUiSnapshot(memberId, '187')?.status).not.toBe('downloaded');
   });
@@ -628,9 +637,9 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(host.exists('file:///documents/fan-performances/187.mp3')).toBe(true);
+    await waitFor(() => {
+      expect(host.exists('file:///documents/fan-performances/187.mp3')).toBe(true);
+    });
     expect(host.exists(returnedUri)).toBe(false);
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
     expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
@@ -667,9 +676,9 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    });
     expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
       expect.objectContaining({
         category: 'download',
@@ -715,15 +724,15 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'failed',
+        error: DOWNLOAD_TOO_SMALL_MESSAGE,
+      });
+    });
     expect(promote).not.toHaveBeenCalled();
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
     expect(host.exists('file:///documents/fan-performances/187')).toBe(false);
-    expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
-      status: 'failed',
-      error: DOWNLOAD_TOO_SMALL_MESSAGE,
-    });
     expect(getDownloadUiSnapshot(memberId, '187')?.status).not.toBe('downloaded');
     expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -761,15 +770,18 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const snapshot = getDownloadUiSnapshot(memberId, '187');
-    expect(snapshot?.status).toBe('downloading');
-    expect(snapshot?.byteSize).toBe(200);
-    expect(snapshot?.expectedBytes).toBe(5_000_000);
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'downloading',
+        byteSize: 200,
+        expectedBytes: 5_000_000,
+      });
+    });
 
     release();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    });
   });
 
   it('maps a NoSuchFile promote error to the missing-part message', async () => {
@@ -792,11 +804,11 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
-      status: 'failed',
-      error: DOWNLOAD_PART_MISSING_MESSAGE,
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'failed',
+        error: DOWNLOAD_PART_MISSING_MESSAGE,
+      });
     });
     expect(getDownloadUiSnapshot(memberId, '187')?.error).not.toBe(DOWNLOAD_FAILED_MESSAGE);
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
@@ -834,15 +846,15 @@ describe('download manager', () => {
     }));
 
     enqueueDownload(track, memberId, async () => 'member-token');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
+    await waitFor(() => {
+      expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
+        status: 'failed',
+        error: DOWNLOAD_INCOMPLETE_MESSAGE,
+      });
+    });
     expect(promote).not.toHaveBeenCalled();
     expect(await getCompletedDownload(memberId, '187')).toBeNull();
     expect(host.exists('file:///documents/fan-performances/187')).toBe(false);
-    expect(getDownloadUiSnapshot(memberId, '187')).toMatchObject({
-      status: 'failed',
-      error: DOWNLOAD_INCOMPLETE_MESSAGE,
-    });
     expect(getDownloadUiSnapshot(memberId, '187')?.status).not.toBe('downloaded');
   });
 

@@ -369,7 +369,7 @@ migration candidates run their respective gates. A manual `workflow_dispatch`
 run conservatively enables all gates. `scripts/Test-MergeGroupChangeRange.sh`
 checks the docs, mobile, web, migration, and multi-PR path cases.
 
-The 51% global and 70% changed-line C# coverage gates apply to web changes in
+The 91% global and 70% changed-line C# coverage gates apply to web changes in
 both event types, and the gate fails if its base is missing or is not an
 ancestor of the checked-out commit. Merge groups (and manual runs) pass
 `origin/main`, so a candidate must provably contain `main` and the diff covers
@@ -470,7 +470,7 @@ Implemented in `scripts/Test-CoverageGate.ps1` and invoked from the `coverage` j
 
 | Gate | Threshold | What it measures |
 | --- | --- | --- |
-| **Global line coverage** | **≥ 51%** | Line coverage across the union of Cobertura reports from all shards / test projects |
+| **Global line coverage** | **≥ 91%** | Line coverage across the union of Cobertura reports from all shards / test projects |
 | **Changed-line coverage** | **≥ 70%** | Coverable `.cs` lines added or modified in the PR or combined queue diff against `main` |
 
 Rules:
@@ -513,7 +513,7 @@ Measured baseline on 2026-08-24 from `61eab2b` (after #833 / #883), then enforce
 | **Global branch** | **≥ 16.1%** | 16.19% (382/2360) | Jest/Istanbul branch map across all production files (V8 `BRDA` keys do not overlay) |
 | **Changed-line** | **≥ 70%** | n/a (new-code bar) | Coverable `src/QueenZone.Mobile/src/**/*.{ts,tsx}` lines in `git diff origin/main...HEAD` |
 
-Changed-line starts at 70% because the #833 component/hook harness can cover TSX; it is **not** a copy of the web C# 70% without evidence. The global floor is the measured mobile baseline (42.8%), not the web C# 51%. If a pull request changes no coverable mobile TypeScript/TSX lines, the changed-line gate is skipped. Paths are normalized to POSIX `src/QueenZone.Mobile/...` so Windows and Linux reports match.
+Changed-line starts at 70% because the #833 component/hook harness can cover TSX; it is **not** a copy of the web C# 70% without evidence. The global floor is the measured mobile baseline (42.8%), not the web C# 91%. If a pull request changes no coverable mobile TypeScript/TSX lines, the changed-line gate is skipped. Paths are normalized to POSIX `src/QueenZone.Mobile/...` so Windows and Linux reports match.
 
 **CI.** `mobile-js` (same path triggers as preflight, plus the coverage script/floors files) runs the #837 npm advisory gate after `npm ci`, then typecheck, lint, `npm run test:coverage`, the coverage gate, and Expo Doctor. It writes a job summary with line/branch/function/statement totals for both suites and the merge, plus uncovered changed coverable lines. Artifacts: machine-readable merged Cobertura + `summary.json` (3-day) and a short HTML report (1-day). Do not commit `coverage/` output.
 
@@ -675,7 +675,7 @@ dotnet restore QueenZone.sln
 dotnet build QueenZone.sln --configuration Release --no-restore
 dotnet format QueenZone.sln --verify-no-changes
 dotnet test QueenZone.sln --configuration Release --no-build --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef origin/main
+powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef origin/main
 ```
 
 If the pull request touches `QueenZoneDbContext`, entity mappings, or files under `src/QueenZone.Data/Migrations/`, also run:

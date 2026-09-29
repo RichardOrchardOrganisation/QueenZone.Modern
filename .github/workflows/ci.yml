@@ -842,7 +842,7 @@ jobs:
         shell: pwsh
         env:
           COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
-        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef $env:COVERAGE_BASE_REF -RequireBaseRef
+        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef $env:COVERAGE_BASE_REF -RequireBaseRef
 
       - name: Build observed Web.Tests duration map
         shell: pwsh
