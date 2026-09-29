@@ -105,20 +105,20 @@ export function ZoomableArchiveImage({
   onToggleChromeRef.current = onToggleChrome;
 
   useEffect(() => {
-    imageWidthValue.value = imageWidth;
-    imageHeightValue.value = imageHeight;
+    imageWidthValue.set(imageWidth);
+    imageHeightValue.set(imageHeight);
   }, [imageHeight, imageHeightValue, imageWidth, imageWidthValue]);
 
   useEffect(() => {
     cancelAnimation(scale);
     cancelAnimation(translateX);
     cancelAnimation(translateY);
-    scale.value = photoZoomMinScale;
-    savedScale.value = photoZoomMinScale;
-    translateX.value = 0;
-    translateY.value = 0;
-    savedTranslateX.value = 0;
-    savedTranslateY.value = 0;
+    scale.set(photoZoomMinScale);
+    savedScale.set(photoZoomMinScale);
+    translateX.set(0);
+    translateY.set(0);
+    savedTranslateX.set(0);
+    savedTranslateY.set(0);
     setZoomed(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Reanimated shared values are refs, not render deps.
   }, [resetKey]);
@@ -149,8 +149,8 @@ export function ZoomableArchiveImage({
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      containerWidth.value = event.nativeEvent.layout.width;
-      containerHeight.value = event.nativeEvent.layout.height;
+      containerWidth.set(event.nativeEvent.layout.width);
+      containerHeight.set(event.nativeEvent.layout.height);
     },
     [containerHeight, containerWidth],
   );
@@ -210,12 +210,12 @@ export function ZoomableArchiveImage({
   const composedGesture = useMemo(() => {
     const resetZoomAnimated = (announce: boolean) => {
       'worklet';
-      scale.value = withSpring(photoZoomMinScale, photoZoomSpringConfig);
-      savedScale.value = photoZoomMinScale;
-      translateX.value = withSpring(0, photoZoomSpringConfig);
-      translateY.value = withSpring(0, photoZoomSpringConfig);
-      savedTranslateX.value = 0;
-      savedTranslateY.value = 0;
+      scale.set(withSpring(photoZoomMinScale, photoZoomSpringConfig));
+      savedScale.set(photoZoomMinScale);
+      translateX.set(withSpring(0, photoZoomSpringConfig));
+      translateY.set(withSpring(0, photoZoomSpringConfig));
+      savedTranslateX.set(0);
+      savedTranslateY.set(0);
       if (announce) {
         runOnJS(announceAndTrackZoom)(photoZoomMinScale);
       }
@@ -246,17 +246,17 @@ export function ZoomableArchiveImage({
         containerSize(),
         imageSize(),
       );
-      translateX.value = clamped.x;
-      translateY.value = clamped.y;
+      translateX.set(clamped.x);
+      translateY.set(clamped.y);
     };
 
     // Pinch stays on the JS thread: same Reanimated 4 iOS worklet abort class
     // as gallery swipe. Shared-value writes from these JS handlers are allowed.
     const pinchGesture = runPhotoZoomOnJS(Gesture.Pinch())
       .onBegin(() => {
-        pinchStartScale.value = scale.value;
-        pinchStartTranslateX.value = translateX.value;
-        pinchStartTranslateY.value = translateY.value;
+        pinchStartScale.set(scale.value);
+        pinchStartTranslateX.set(translateX.value);
+        pinchStartTranslateY.set(translateY.value);
       })
       .onUpdate((event) => {
         const newScale = clampPhotoZoomScale(pinchStartScale.value * event.scale);
@@ -269,7 +269,7 @@ export function ZoomableArchiveImage({
           event.focalY,
           containerSize(),
         );
-        scale.value = newScale;
+        scale.set(newScale);
         applyPan(focal.x, focal.y, newScale);
       })
       .onEnd(() => {
@@ -278,9 +278,9 @@ export function ZoomableArchiveImage({
           return;
         }
 
-        savedScale.value = scale.value;
-        savedTranslateX.value = translateX.value;
-        savedTranslateY.value = translateY.value;
+        savedScale.set(scale.value);
+        savedTranslateX.set(translateX.value);
+        savedTranslateY.set(translateY.value);
         runOnJS(announceAndTrackZoom)(scale.value);
       });
 
@@ -315,8 +315,8 @@ export function ZoomableArchiveImage({
         );
       })
       .onEnd(() => {
-        savedTranslateX.value = translateX.value;
-        savedTranslateY.value = translateY.value;
+        savedTranslateX.set(translateX.value);
+        savedTranslateY.set(translateY.value);
       });
 
     const doubleTapGesture = runPhotoZoomOnJS(
@@ -344,12 +344,12 @@ export function ZoomableArchiveImage({
         containerSize(),
         imageSize(),
       );
-      scale.value = withSpring(newScale, photoZoomSpringConfig);
-      savedScale.value = newScale;
-      translateX.value = withSpring(clamped.x, photoZoomSpringConfig);
-      translateY.value = withSpring(clamped.y, photoZoomSpringConfig);
-      savedTranslateX.value = clamped.x;
-      savedTranslateY.value = clamped.y;
+      scale.set(withSpring(newScale, photoZoomSpringConfig));
+      savedScale.set(newScale);
+      translateX.set(withSpring(clamped.x, photoZoomSpringConfig));
+      translateY.set(withSpring(clamped.y, photoZoomSpringConfig));
+      savedTranslateX.set(clamped.x);
+      savedTranslateY.set(clamped.y);
       runOnJS(announceAndTrackZoom)(newScale);
     });
 
