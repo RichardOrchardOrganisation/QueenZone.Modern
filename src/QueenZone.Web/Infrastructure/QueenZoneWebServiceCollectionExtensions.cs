@@ -85,19 +85,27 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<BlobUploadOptions>, BlobUploadOptionsValidator>();
 
         services.AddOptions<NewsSuggestionOptions>()
-            .Bind(configuration.GetSection(NewsSuggestionOptions.SectionName));
+            .Bind(configuration.GetSection(NewsSuggestionOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<NewsSuggestionOptions>, NewsSuggestionOptionsValidator>();
 
         services.AddOptions<FanPerformanceSubmissionOptions>()
-            .Bind(configuration.GetSection(FanPerformanceSubmissionOptions.SectionName));
+            .Bind(configuration.GetSection(FanPerformanceSubmissionOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<FanPerformanceSubmissionOptions>, FanPerformanceSubmissionOptionsValidator>();
 
         services.AddOptions<HelpRequestOptions>()
-            .Bind(configuration.GetSection(HelpRequestOptions.SectionName));
+            .Bind(configuration.GetSection(HelpRequestOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<HelpRequestOptions>, HelpRequestOptionsValidator>();
 
         services.AddOptions<SmtpEmailOptions>()
             .Bind(configuration.GetSection(SmtpEmailOptions.SectionName));
 
         services.AddOptions<PrivateMessageRateLimitOptions>()
-            .Bind(configuration.GetSection(PrivateMessageRateLimitOptions.SectionName));
+            .Bind(configuration.GetSection(PrivateMessageRateLimitOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<PrivateMessageRateLimitOptions>, PrivateMessageRateLimitOptionsValidator>();
 
         services.AddOptions<MobileAuthOptions>()
             .Bind(configuration.GetSection(MobileAuthOptions.SectionName))
@@ -115,7 +123,16 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<GalleryOrphanSweepOptions>, GalleryOrphanSweepOptionsValidator>();
 
         services.AddOptions<PushNotificationOptions>()
-            .Bind(configuration.GetSection(PushNotificationOptions.SectionName));
+            .Configure<IHostEnvironment>((options, environment) =>
+            {
+                options.Apns.Environment =
+                    environment.IsDevelopment() ? "sandbox" : "production";
+            })
+            .Bind(configuration.GetSection(PushNotificationOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            IValidateOptions<PushNotificationOptions>,
+            PushNotificationOptionsValidator>();
 
         return services;
     }

@@ -23,7 +23,12 @@ public sealed class ApnsPushOptions
 
     public string? PrivateKeyPem { get; set; }
 
-    /// <summary><c>sandbox</c> or <c>production</c>. Defaults to production.</summary>
+    /// <summary>
+    /// <c>sandbox</c> or <c>production</c> (exact lowercase). The property initializer
+    /// is <c>production</c>. DI registration defaults Development hosts to
+    /// <c>sandbox</c> and every other host to <c>production</c> before bind; an
+    /// explicit setting wins. Empty or whitespace values fail startup validation.
+    /// </summary>
     public string Environment { get; set; } = "production";
 
     /// <summary>APNs topic / bundle id. Defaults to <c>org.queenzone.mobile</c>.</summary>
