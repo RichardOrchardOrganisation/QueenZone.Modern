@@ -13,6 +13,10 @@ namespace QueenZone.SqlServerTests;
 /// <c>PK_USERS_T</c>, <c>USERNAME char(40) NULL</c>, <c>EMAIL varchar(100) NULL</c>,
 /// both text columns <c>SQL_Latin1_General_CP1_CI_AS</c>. Only the columns the
 /// production SQL reads are created (plus the identity PK so inserts work).
+/// Unused dump columns that are nullable — and therefore omitted, not required
+/// for inserts — include <c>COUNTRY</c>, <c>PICTURE_HEIGHT</c>,
+/// <c>PICTURE_WIDTH</c>, <c>LAST_LOGIN</c>, <c>UPLOADED</c>, <c>DOWNLOADED</c>,
+/// and <c>VIEW_ADS tinyint NULL default 1</c>.
 /// The read-only mirror probe is <c>EfMemberLookupRepositoryLegacyProbeTests</c>
 /// in <c>QueenZone.Web.Tests</c>.
 /// </summary>
