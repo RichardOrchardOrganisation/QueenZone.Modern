@@ -85,6 +85,8 @@ public sealed class SearchApiTests :
     [InlineData("")]
     [InlineData("?q=")]
     [InlineData("?q=%20%20")]
+    [InlineData("?q=a")]
+    [InlineData("?q=%20Q%20")]
     public async Task Search_empty_or_whitespace_query_returns_empty_page(string query)
     {
         using var client = factory.CreateAnonymousClient();
@@ -211,6 +213,28 @@ public sealed class SearchApiTests :
         Assert.NotNull(payload);
         Assert.NotEmpty(payload!.Items);
         Assert.Contains(payload.Items, item => item.Url.Contains("/forum/topic/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Search_beyond_max_page_returns_empty_items_with_true_total()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        using var firstResponse = await client.GetAsync($"{SearchApiEndpoints.Path}?q=archive&page=1");
+        using var deepResponse = await client.GetAsync(
+            $"{SearchApiEndpoints.Path}?q=archive&page={SiteSearchLimits.MaxPage + 1}");
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deepResponse.StatusCode);
+        var first = await firstResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SearchResultDto>>();
+        var deep = await deepResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SearchResultDto>>();
+        Assert.NotNull(first);
+        Assert.NotNull(deep);
+        Assert.True(first!.TotalCount > 0);
+        Assert.Equal(first.TotalCount, deep!.TotalCount);
+        Assert.Empty(deep.Items);
+        Assert.Equal(SiteSearchLimits.MaxPage + 1, deep.Page);
+        Assert.Equal(SearchModel.PageSize, deep.PageSize);
     }
 
     [Fact]

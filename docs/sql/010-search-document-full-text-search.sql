@@ -5,8 +5,10 @@
 -- 20260908140000_CapTypedSearchAfterContentTypeFilter (typed search caps after
 -- the ContentType filter so a track-title hit is not crowded out of the global top 1000),
 -- 20260914080000_RecompileSearchDocumentSearchMatches (OPTION (RECOMPILE) on both
--- FREETEXTTABLE match inserts), and 20260922140000_CapTypedSearchFullTextCandidates
--- (finite typed-search candidate window).
+-- FREETEXTTABLE match inserts), 20260922140000_CapTypedSearchFullTextCandidates
+-- (finite typed-search candidate window), and 20260929140000_ExcludeTributesFromSiteSearch
+-- (Freddie tributes never enter #Matches; leftover tribute rows are deleted;
+-- #Matches carries order columns so count and paging stay on the temp table).
 -- See docs/sql/README.md for contributor conventions.
 --
 -- Unlike the per-content-type NEWS_T_SearchPublished / ModernForum_SearchThreads procs, this
@@ -22,6 +24,23 @@
 -- in Body needs room to enter the candidate set before ContentType is filtered. The finite 5000
 -- scan cap avoids asking the full-text engine to rank the entire corpus.
 --
+-- Freddie tributes (ContentType tribute / freddie-tribute, or source keys tribute: /
+-- freddie-tribute:) are excluded at the #Matches insert so they never consume rank slots
+-- or appear in results. Leftover tribute rows are deleted by migration
+-- 20260929140000_ExcludeTributesFromSiteSearch; the indexer refuses to write them. The
+-- predicate is SiteSearchExclusion.SqlIsSearchable — the same rule as indexer writes and
+-- leftover cleanup.
+--
+-- Query Store on S0 showed the page SELECT joining up to 1,000 #Matches rows to the wide
+-- PK_SearchDocument (~148 MB) before sort/TOP, and the count hash-joining a full scan of
+-- IX_SearchDocument_ContentType_PublishedAt. There is no missing-index hint, no key lookup,
+-- and no leading-wildcard or other non-sargable predicate in the plan — the cost is the
+-- clustered-index join of the rank window. #Matches therefore carries ContentType and
+-- PublishedAt at insert time. COUNT(*) reads #Matches only. OFFSET/FETCH materializes a
+-- small #Page from #Matches, then the display SELECT joins only those rows to
+-- SearchDocument. Typed and untyped inserts stay split so the tail never uses
+-- '@ContentType IS NULL OR ...'.
+--
 -- Both FREETEXTTABLE match inserts carry OPTION (RECOMPILE). @MatchLimit and @ContentType
 -- are local variables, not literals, so without RECOMPILE the optimizer compiles (and then
 -- reuses) one cached plan for whatever @Query/@ContentType happened to run first. Full-text
@@ -35,12 +54,12 @@
 -- compile cost for a plan built from that call's actual parameter values every time.
 
 CREATE OR ALTER PROCEDURE dbo.SearchDocument_Search
-    @Query        NVARCHAR(500),
-    @ContentType  NVARCHAR(50) = NULL,
-    @Offset       INT,
-    @PageSize     INT,
-    @TotalRecords INT OUTPUT,
-    @RankLimit    INT = 1000,
+    @Query          NVARCHAR(500),
+    @ContentType    NVARCHAR(50) = NULL,
+    @Offset         INT,
+    @PageSize       INT,
+    @TotalRecords   INT OUTPUT,
+    @RankLimit      INT = 1000,
     @TypedRankLimit INT = 5000
 AS
 BEGIN
@@ -61,28 +80,48 @@ BEGIN
     CREATE TABLE #Matches
     (
         DocumentId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        SearchRank INT NOT NULL
+        SearchRank INT NOT NULL,
+        ContentType NVARCHAR(50) NOT NULL,
+        PublishedAt DATETIMEOFFSET NULL
     );
 
     IF @ContentType IS NULL
     BEGIN
-        INSERT INTO #Matches (DocumentId, SearchRank)
-        SELECT ft.[KEY], ft.[RANK]
+        INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)
+        SELECT ft.[KEY], ft.[RANK], d.ContentType, d.PublishedAt
         FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit) ft
+        INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
+        WHERE  NOT (d.ContentType IN (N'tribute', N'freddie-tribute') OR d.SourceKey LIKE N'tribute:%' OR d.SourceKey LIKE N'freddie-tribute:%')
         OPTION (RECOMPILE);
     END
     ELSE
     BEGIN
-        INSERT INTO #Matches (DocumentId, SearchRank)
+        INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)
         SELECT TOP (@MatchLimit)
                d.Id,
-               ft.[RANK]
+               ft.[RANK],
+               d.ContentType,
+               d.PublishedAt
         FROM   FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit) ft
         INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]
         WHERE  d.ContentType = @ContentType
+          AND  NOT (d.ContentType IN (N'tribute', N'freddie-tribute') OR d.SourceKey LIKE N'tribute:%' OR d.SourceKey LIKE N'freddie-tribute:%')
         ORDER BY ft.[RANK] DESC, d.PublishedAt DESC, d.Id DESC
         OPTION (RECOMPILE);
     END
+
+    CREATE TABLE #Page
+    (
+        DocumentId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SearchRank INT NOT NULL,
+        PublishedAt DATETIMEOFFSET NULL
+    );
+
+    INSERT INTO #Page (DocumentId, SearchRank, PublishedAt)
+    SELECT DocumentId, SearchRank, PublishedAt
+    FROM   #Matches
+    ORDER BY SearchRank DESC, PublishedAt DESC, DocumentId DESC
+    OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
 
     SELECT
         d.ContentType,
@@ -94,14 +133,10 @@ BEGIN
         d.ImageUrl,
         d.Category,
         d.AuthorDisplayName
-    FROM   dbo.SearchDocument d
-    INNER JOIN #Matches fm ON fm.DocumentId = d.Id
-    WHERE  @ContentType IS NULL OR d.ContentType = @ContentType
-    ORDER BY fm.SearchRank DESC, d.PublishedAt DESC, d.Id DESC
-    OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
+    FROM   #Page p
+    INNER JOIN dbo.SearchDocument d ON d.Id = p.DocumentId
+    ORDER BY p.SearchRank DESC, p.PublishedAt DESC, p.DocumentId DESC;
 
     SELECT @TotalRecords = COUNT(*)
-    FROM   dbo.SearchDocument d
-    INNER JOIN #Matches fm ON fm.DocumentId = d.Id
-    WHERE  @ContentType IS NULL OR d.ContentType = @ContentType;
+    FROM   #Matches;
 END;

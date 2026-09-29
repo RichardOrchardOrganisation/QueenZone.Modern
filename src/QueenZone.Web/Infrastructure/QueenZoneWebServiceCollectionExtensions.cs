@@ -2,11 +2,13 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.NewsAgent;
 using QueenZone.Storage;
 using QueenZone.Web.Health;
+using QueenZone.Web.Search;
 using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web;
@@ -444,6 +446,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         }
 
         services.AddQueenZoneData(configuration, environment);
+        services.AddSiteSearchResultCache();
         if (QueenZoneEnvironments.UsesInMemoryBlobStorage(environment))
         {
             services.AddQueenZoneFunctionalInMemoryStorage(configuration);
@@ -462,6 +465,83 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddMobileApiContractHost(environment);
 
         return services;
+    }
+
+    /// <summary>
+    /// Wraps the already-registered <see cref="ISiteSearchService"/> with a size-bounded
+    /// in-process result cache. Dedicated <see cref="SiteSearchResultCache"/> so search
+    /// entries do not share the app-wide memory cache.
+    /// </summary>
+    public static IServiceCollection AddSiteSearchResultCache(this IServiceCollection services)
+    {
+        services.AddHttpContextAccessor();
+        services.TryAddSingleton<SiteSearchResultCache>();
+
+        var existing = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(ISiteSearchService));
+        if (existing is null)
+        {
+            throw new InvalidOperationException("ISiteSearchService must be registered before the search result cache.");
+        }
+
+        services.Remove(existing);
+        RegisterUnwrappedInner(services, existing);
+        services.Add(new ServiceDescriptor(
+            typeof(ISiteSearchService),
+            provider => new CachingSiteSearchService(
+                CreateSiteSearchInner(provider, existing),
+                provider.GetRequiredService<SiteSearchResultCache>(),
+                provider.GetRequiredService<IHttpContextAccessor>(),
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                scopedProvider => CreateSiteSearchInner(scopedProvider, existing),
+                provider.GetService<TimeProvider>()),
+            existing.Lifetime));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Keep the concrete/undecorated inner resolvable from a dedicated scope without
+    /// going through <see cref="ISiteSearchService"/> — that slot is the caching
+    /// decorator and would recurse.
+    /// </summary>
+    private static void RegisterUnwrappedInner(IServiceCollection services, ServiceDescriptor existing)
+    {
+        if (existing.ImplementationType is not { } innerType
+            || innerType.IsInterface
+            || innerType == typeof(ISiteSearchService)
+            || innerType == typeof(CachingSiteSearchService))
+        {
+            return;
+        }
+
+        services.TryAdd(new ServiceDescriptor(innerType, innerType, existing.Lifetime));
+    }
+
+    private static ISiteSearchService CreateSiteSearchInner(IServiceProvider provider, ServiceDescriptor existing)
+    {
+        ISiteSearchService inner;
+        if (existing.ImplementationInstance is ISiteSearchService instance)
+        {
+            inner = instance;
+        }
+        else if (existing.ImplementationFactory is not null)
+        {
+            inner = (ISiteSearchService)existing.ImplementationFactory(provider);
+        }
+        else
+        {
+            var innerType = existing.ImplementationType
+                ?? throw new InvalidOperationException("ISiteSearchService registration has no implementation.");
+            inner = (ISiteSearchService)provider.GetRequiredService(innerType);
+        }
+
+        if (inner is CachingSiteSearchService)
+        {
+            throw new InvalidOperationException(
+                "Shared search fetch must resolve the unwrapped inner service, not ISiteSearchService.");
+        }
+
+        return inner;
     }
 
     /// <summary>

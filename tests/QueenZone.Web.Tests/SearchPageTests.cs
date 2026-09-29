@@ -76,6 +76,62 @@ public sealed class SearchPageTests :
     }
 
     [Fact]
+    public async Task SearchPage_beyond_max_page_caps_total_pages_and_is_not_unavailable()
+    {
+        var model = new SearchModel(new FixedCountSiteSearchService(500))
+        {
+            Query = "queen",
+            CurrentPage = SiteSearchLimits.MaxPage + 1,
+            PageContext = new PageContext
+            {
+                ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()),
+            },
+        };
+
+        await model.OnGetAsync(CancellationToken.None);
+
+        Assert.False(model.SearchUnavailable);
+        Assert.NotNull(model.Results);
+        Assert.Empty(model.Results.Results);
+        Assert.Equal(500, model.Results.TotalCount);
+        Assert.Equal(SiteSearchLimits.MaxPage, model.TotalPages);
+    }
+
+    [Fact]
+    public async Task SearchPage_beyond_max_page_returns_empty_without_unavailable()
+    {
+        var client = factory.CreateClient();
+
+        using var response = await client.GetAsync($"/search?q=archive&page={SiteSearchLimits.MaxPage + 1}");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain(SearchModel.UnavailableMessage, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Page Not Found", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Something went wrong", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SearchPage_one_character_query_does_not_call_search_or_set_unavailable()
+    {
+        var model = new SearchModel(new TimeoutSiteSearchService())
+        {
+            Query = "a",
+            PageContext = new PageContext
+            {
+                ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()),
+            },
+        };
+
+        await model.OnGetAsync(CancellationToken.None);
+
+        Assert.False(model.SearchUnavailable);
+        Assert.NotNull(model.Results);
+        Assert.Empty(model.Results.Results);
+        Assert.Equal(0, model.Results.TotalCount);
+    }
+
+    [Fact]
     public async Task SearchPage_sql_timeout_sets_unavailable_flag()
     {
         var model = new SearchModel(new TimeoutSiteSearchService())
@@ -91,6 +147,18 @@ public sealed class SearchPageTests :
 
         Assert.True(model.SearchUnavailable);
         Assert.Null(model.Results);
+    }
+
+    [Fact]
+    public async Task SearchPage_one_character_query_returns_empty_without_unavailable()
+    {
+        var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/search?q=a");
+
+        Assert.Contains("No results found", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(SearchModel.UnavailableMessage, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("role=\"alert\"", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -272,5 +340,16 @@ public sealed class SearchPageTests :
         var body = await client.GetStringAsync(path);
 
         Assert.DoesNotContain("""<meta name="robots" content="noindex""", body);
+    }
+
+    private sealed class FixedCountSiteSearchService(int totalCount) : ISiteSearchService
+    {
+        public Task<SiteSearchPage> SearchAsync(
+            string query,
+            string? contentType,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SiteSearchPage([], totalCount, page, pageSize));
     }
 }

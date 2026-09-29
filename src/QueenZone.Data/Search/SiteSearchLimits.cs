@@ -21,4 +21,39 @@ public static class SiteSearchLimits
     /// allowing a common term to rank the entire search corpus.
     /// </summary>
     public const int TypedMatchScanLimit = 5000;
+
+    /// <summary>
+    /// Minimum trimmed query length that is sent to SQL. Shorter input returns an empty page
+    /// without executing <c>dbo.SearchDocument_Search</c>.
+    /// </summary>
+    public const int MinQueryLength = 2;
+
+    /// <summary>
+    /// Deepest result page website and API search will materialize. Deeper pages return an
+    /// empty result list with the true rank-capped <c>totalCount</c>, not an error.
+    /// </summary>
+    public const int MaxPage = 10;
+
+    /// <summary>
+    /// Upper bound for a single search page. Website, API, cache keys, and both search
+    /// services clamp to this so key and execution stay aligned.
+    /// </summary>
+    public const int MaxPageSize = 100;
+
+    /// <summary>
+    /// True when <paramref name="query"/> is empty, whitespace, or shorter than
+    /// <see cref="MinQueryLength"/> after trimming.
+    /// </summary>
+    public static bool IsBelowMinimumLength(string? query) =>
+        string.IsNullOrWhiteSpace(query) || query.Trim().Length < MinQueryLength;
+
+    /// <summary>
+    /// True when <paramref name="page"/> is past <see cref="MaxPage"/>. Page numbers below 1
+    /// are treated as page 1.
+    /// </summary>
+    public static bool IsBeyondMaxPage(int page) => NormalizePage(page) > MaxPage;
+
+    public static int NormalizePage(int page) => Math.Max(page, 1);
+
+    public static int NormalizePageSize(int pageSize) => Math.Clamp(pageSize, 1, MaxPageSize);
 }
