@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -13,7 +12,6 @@ public sealed class EfMemberLookupRepository : ILegacyMemberLookupRepository
     private readonly Func<string, FormattableString> findByEmailSql;
     private readonly Func<int, FormattableString> findByUserIdSql;
 
-    [ExcludeFromCodeCoverage]
     public EfMemberLookupRepository(QueenZoneDbContext dbContext)
         : this(
             dbContext,

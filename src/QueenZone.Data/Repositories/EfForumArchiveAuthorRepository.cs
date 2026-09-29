@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -13,7 +12,6 @@ public sealed class EfForumArchiveAuthorRepository : IForumArchiveAuthorReposito
     private readonly QueenZoneDbContext dbContext;
     private readonly Func<int, FormattableString> summarySql;
 
-    [ExcludeFromCodeCoverage]
     public EfForumArchiveAuthorRepository(QueenZoneDbContext dbContext)
         : this(dbContext, EfProductionSql.CreateForumArchiveAuthorSummarySql())
     {
