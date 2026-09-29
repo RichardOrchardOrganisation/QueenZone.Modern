@@ -237,7 +237,7 @@ describe('tokenStore', () => {
     expect(mockMemory.has(key('identityShell.next'))).toBe(false);
   });
 
-  it('prefers the live grant over leftover staging after a kill mid-cleanup', async () => {
+  it('adopts the newer staged grant when iOS kills a refresh before promotion', async () => {
     mockMemory.set(
       key('grant'),
       JSON.stringify({ accessToken: 'live-a', refreshToken: 'live-r', expiresAt: 1 }),
@@ -248,9 +248,25 @@ describe('tokenStore', () => {
     );
 
     await expect(readStoredSession()).resolves.toMatchObject({
-      accessToken: 'live-a',
-      refreshToken: 'live-r',
+      accessToken: 'staged-a',
+      refreshToken: 'staged-r',
     });
+    expect(JSON.parse(mockMemory.get(key('grant')) ?? '{}')).toMatchObject({ refreshToken: 'staged-r' });
+    expect(mockMemory.has(key('grant.next'))).toBe(false);
+  });
+
+  it('ignores malformed staging and keeps the primary grant', async () => {
+    mockMemory.set(
+      key('grant'),
+      JSON.stringify({ accessToken: 'live-a', refreshToken: 'live-r', expiresAt: 2 }),
+    );
+    mockMemory.set(
+      key('grant.next'),
+      '{invalid-json',
+    );
+
+    await expect(readStoredSession()).resolves.toMatchObject({ refreshToken: 'live-r' });
+    expect(JSON.parse(mockMemory.get(key('grant')) ?? '{}')).toMatchObject({ refreshToken: 'live-r' });
   });
 
   it('does not overwrite the live grant when staging cannot be confirmed', async () => {
@@ -273,7 +289,7 @@ describe('tokenStore', () => {
     });
   });
 
-  it('keeps the previous grant if promote is killed after staging is confirmed', async () => {
+  it('recovers the rotated grant if promote is killed after staging is confirmed', async () => {
     await writeStoredSession({ accessToken: 'old-a', refreshToken: 'old-r', expiresIn: 900 });
 
     let sets = 0;
@@ -291,9 +307,10 @@ describe('tokenStore', () => {
 
     expect(JSON.parse(mockMemory.get(key('grant.next')) ?? '{}')).toMatchObject({ refreshToken: 'new-r' });
     await expect(readStoredSession()).resolves.toMatchObject({
-      accessToken: 'old-a',
-      refreshToken: 'old-r',
+      accessToken: 'new-a',
+      refreshToken: 'new-r',
     });
+    expect(JSON.parse(mockMemory.get(key('grant')) ?? '{}')).toMatchObject({ refreshToken: 'new-r' });
   });
 
   it('migrates a legacy per-field grant to the scoped combined key without signing the member out', async () => {
@@ -338,6 +355,24 @@ describe('tokenStore', () => {
     expect(mockMemory.has(key('grant'))).toBe(false);
     expect(mockMemory.has(key('grant.next'))).toBe(false);
     expect(mockMemory.has(key('identityShell.next'))).toBe(false);
+  });
+
+  it('deletes staging before the primary grant on sign-out', async () => {
+    await writeStoredSession({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
+    mockMemory.set(
+      key('grant.next'),
+      JSON.stringify({ accessToken: 'next-a', refreshToken: 'next-r', expiresAt: 1 }),
+    );
+    const deletes: string[] = [];
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      deletes.push(storeKey);
+      mockMemory.delete(storeKey);
+    });
+
+    await clearStoredSession();
+
+    expect(deletes.indexOf(key('grant.next'))).toBeLessThan(deletes.indexOf(key('grant')));
+    await expect(readStoredSession()).resolves.toBeNull();
   });
 
   it('surfaces SecureStore failures instead of swallowing them', async () => {
