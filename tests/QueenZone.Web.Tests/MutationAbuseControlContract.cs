@@ -123,9 +123,9 @@ internal static class MutationAbuseControlContract
             candidates.AddRange(GetMutationCandidates(endpoint, services));
         }
 
-        return candidates
-            .DistinctBy(candidate => candidate.Key, MutationKeyComparer.Instance)
-            .ToList();
+        // Keep every endpoint. DistinctBy-first would drop an unprotected sibling
+        // when a protected or admin-only endpoint with the same key appears first.
+        return candidates;
     }
 
     public static IReadOnlyList<MutationCandidate> GetMutationCandidates(
@@ -193,6 +193,7 @@ internal static class MutationAbuseControlContract
             .OrderBy(failure => failure.Key.RoutePattern, StringComparer.OrdinalIgnoreCase)
             .ThenBy(failure => failure.Key.Method, StringComparer.OrdinalIgnoreCase)
             .ThenBy(failure => failure.Key.Handler ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .DistinctBy(failure => failure.Key, MutationKeyComparer.Instance)
             .ToList();
     }
 

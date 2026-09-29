@@ -58,6 +58,60 @@ public sealed class MutationAbuseControlContractTests
         Assert.Empty(failures);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Evaluate_SameKeyDifferentProtection_ReportsUnprotectedSiblingRegardlessOfOrder(
+        bool protectedFirst)
+    {
+        var protectedEndpoint = MutationContractEndpoints.Minimal(
+            "POST",
+            "/dup",
+            new EnableRateLimitingAttribute(QueenZoneRateLimitPolicies.AuthenticatedWrite));
+        var unprotected = MutationContractEndpoints.Minimal("POST", "/dup");
+        var endpoints = protectedFirst
+            ? new Endpoint[] { protectedEndpoint, unprotected }
+            : [unprotected, protectedEndpoint];
+
+        var candidates = MutationAbuseControlContract.Discover(endpoints);
+        var failures = MutationAbuseControlContract.Evaluate(endpoints, MutationAbuseControlDecisions.Empty);
+
+        Assert.Equal(2, candidates.Count);
+        Assert.Contains(candidates, candidate => candidate.HasNamedControl);
+        Assert.Contains(candidates, candidate => !candidate.HasNamedControl && !candidate.IsAdminOnly);
+        var failure = Assert.Single(failures);
+        Assert.Equal("POST", failure.Key.Method);
+        Assert.Equal("/dup", failure.Key.RoutePattern);
+        Assert.Contains("missing effective named rate-limit policy", failure.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Evaluate_SameKeyAdminAndUnprotected_ReportsUnprotectedSiblingRegardlessOfOrder(
+        bool adminFirst)
+    {
+        var admin = MutationContractEndpoints.Minimal(
+            "POST",
+            "/dup-admin",
+            new AuthorizeAttribute(AdminAuthenticationSchemes.Policy));
+        var unprotected = MutationContractEndpoints.Minimal("POST", "/dup-admin");
+        var endpoints = adminFirst
+            ? new Endpoint[] { admin, unprotected }
+            : [unprotected, admin];
+
+        var candidates = MutationAbuseControlContract.Discover(endpoints);
+        var failures = MutationAbuseControlContract.Evaluate(endpoints, MutationAbuseControlDecisions.Empty);
+
+        Assert.Equal(2, candidates.Count);
+        Assert.Contains(candidates, candidate => candidate.IsAdminOnly);
+        Assert.Contains(candidates, candidate => !candidate.IsAdminOnly && !candidate.HasNamedControl);
+        var failure = Assert.Single(failures);
+        Assert.Equal("POST", failure.Key.Method);
+        Assert.Equal("/dup-admin", failure.Key.RoutePattern);
+        Assert.Contains("missing effective named rate-limit policy", failure.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Evaluate_NamedPolicy_Passes()
     {
