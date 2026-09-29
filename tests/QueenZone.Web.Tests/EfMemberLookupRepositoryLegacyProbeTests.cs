@@ -8,7 +8,8 @@ namespace QueenZone.Web.Tests;
 /// <c>USERS_T</c> table (#1672 / #1890). Skips when
 /// <c>ConnectionStrings__QueenZoneLegacy</c> is not set; the nightly
 /// <c>legacy-read-probes</c> job runs it against the SQL Express mirror.
-/// Scratch-schema coverage lives in <c>MemberLookupRepositorySqlServerTests</c>.
+/// Scratch-schema coverage lives in <c>MemberLookupRepositorySqlServerTests</c>
+/// (verified against the 2026-09-29 <c>queenzone_legacy_sync</c> catalog dump).
 /// Selects only <c>USER_ID</c> / <c>EMAIL</c> / repository <c>USERNAME</c> — never
 /// <c>PASSWORD</c> or other credential columns.
 /// </summary>

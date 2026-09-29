@@ -7,13 +7,14 @@ namespace QueenZone.SqlServerTests;
 /// Runs the production <see cref="EfMemberLookupRepository"/> constructor
 /// (<see cref="EfProductionSql.CreateMemberLookupSql"/> /
 /// <see cref="EfProductionSql.CreateMemberLookupByUserIdSql"/>) against a scratch
-/// SQL Server <c>USERS_T</c> (#1672 / #1890). Column types come from the committed
-/// <c>docs/db-schema.txt</c> dump (22 June 2026) and the slim <c>USERS_T</c> already
-/// used by <see cref="PhotoRepositorySqlServerTests"/>: <c>USER_ID int</c>,
-/// <c>USERNAME char(40) NULL</c>, <c>EMAIL varchar(100) NULL</c>. This environment
-/// could not query <c>sys.columns</c> on <c>queenzone_legacy_sync</c>. The read-only
-/// mirror probe is <c>EfMemberLookupRepositoryLegacyProbeTests</c> in
-/// <c>QueenZone.Web.Tests</c>.
+/// SQL Server <c>USERS_T</c> (#1672 / #1890). Column types were verified against
+/// the 2026-09-29 read-only catalog dump of <c>queenzone_legacy_sync</c>
+/// (<c>sys.columns</c>): <c>USER_ID int IDENTITY(1,1)</c> with
+/// <c>PK_USERS_T</c>, <c>USERNAME char(40) NULL</c>, <c>EMAIL varchar(100) NULL</c>,
+/// both text columns <c>SQL_Latin1_General_CP1_CI_AS</c>. Only the columns the
+/// production SQL reads are created (plus the identity PK so inserts work).
+/// The read-only mirror probe is <c>EfMemberLookupRepositoryLegacyProbeTests</c>
+/// in <c>QueenZone.Web.Tests</c>.
 /// </summary>
 public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
 {
@@ -44,10 +45,19 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
                 """
                 CREATE TABLE dbo.USERS_T
                 (
-                    USER_ID int NOT NULL PRIMARY KEY,
-                    USERNAME char(40) NULL,
-                    EMAIL varchar(100) NULL
+                    USER_ID int IDENTITY(1,1) NOT NULL,
+                    USERNAME char(40) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+                    EMAIL varchar(100) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+                    CONSTRAINT PK_USERS_T PRIMARY KEY CLUSTERED (USER_ID)
                 );
+
+                CREATE NONCLUSTERED INDEX USERS_T25
+                    ON dbo.USERS_T (EMAIL)
+                    WITH (FILLFACTOR = 90);
+
+                CREATE NONCLUSTERED INDEX USERS_T29
+                    ON dbo.USERS_T (USERNAME, USER_ID)
+                    WITH (FILLFACTOR = 90);
                 """);
         }
 
@@ -59,6 +69,7 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
         // ORDER BY USERNAME, USER_ID assertion. char(40) pads USERNAME on the right.
         await dbContext.Database.ExecuteSqlRawAsync(
             """
+            SET IDENTITY_INSERT dbo.USERS_T ON;
             INSERT INTO dbo.USERS_T (USER_ID, USERNAME, EMAIL)
             VALUES
                 (43, '  Mercury  ', 'freddie@example.com'),
@@ -66,7 +77,9 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
                 (99, 'Other', 'other@example.com'),
                 (20, 'SameName', 'shared@example.com'),
                 (7, 'SameName', 'shared@example.com'),
-                (5, NULL, 'noul@example.com');
+                (5, NULL, 'noul@example.com'),
+                (11, 'Brian', 'brian@example.com');
+            SET IDENTITY_INSERT dbo.USERS_T OFF;
             """);
     }
 
@@ -105,11 +118,34 @@ public sealed class MemberLookupRepositorySqlServerTests : IAsyncLifetime
         var noName = await repository.FindByUserIdAsync(5);
         Assert.NotNull(noName);
         Assert.Equal(string.Empty, noName.Username);
+    }
 
-        // Default SQL Server collation is CI; EMAIL = @email follows that.
-        var caseInsensitive = await repository.FindByEmailAsync("FREDDIE@EXAMPLE.COM");
-        Assert.NotNull(caseInsensitive);
-        Assert.Equal(42, caseInsensitive.UserId);
+    [Fact]
+    public async Task Char40_username_trims_and_email_lookup_is_case_insensitive()
+    {
+        // Mirror USERNAME is char(40): SQL Server right-pads 'Brian' to 40 bytes.
+        var storedLength = await dbContext.Database
+            .SqlQueryRaw<int>("SELECT DATALENGTH(USERNAME) AS [Value] FROM dbo.USERS_T WHERE USER_ID = 11")
+            .SingleAsync();
+        Assert.Equal(40, storedLength);
+
+        var byId = await repository.FindByUserIdAsync(11);
+        Assert.NotNull(byId);
+        Assert.Equal("Brian", byId.Username);
+
+        // Leading/trailing spaces in the inserted literal are kept, then char(40) pads;
+        // production code Trims on read.
+        var padded = await repository.FindByUserIdAsync(42);
+        Assert.Equal("Freddie", padded!.Username);
+
+        // EMAIL is CI_AS and not unique; a case-different lookup is the same row.
+        var mixedCase = await repository.FindByEmailAsync("BRIAN@EXAMPLE.COM");
+        Assert.NotNull(mixedCase);
+        Assert.Equal(11, mixedCase.UserId);
+        Assert.Equal("Brian", mixedCase.Username);
+        Assert.Equal(
+            (await repository.FindByEmailAsync("brian@example.com"))!.UserId,
+            mixedCase.UserId);
     }
 
     private DbContextOptions<EmptySchemaContext> SchemaOptions() =>
