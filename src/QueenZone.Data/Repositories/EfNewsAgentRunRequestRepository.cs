@@ -1,7 +1,6 @@
-using static QueenZone.Data.RunRequestText;
-
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
+using static QueenZone.Data.RunRequestText;
 
 namespace QueenZone.Data;
 
