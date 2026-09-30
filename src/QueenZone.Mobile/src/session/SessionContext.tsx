@@ -37,7 +37,8 @@ import { resolvePushMemberId } from '../notifications/pushMemberId';
 import {
   configureOfflineQueueAuth,
   countPendingOfflineItems,
-  discardOfflineQueue,
+  prepareOfflineQueueDiscard,
+  invalidateOfflineQueueFlush,
   flushOfflineQueue,
 } from '../offlineQueue';
 import {
@@ -75,6 +76,18 @@ export type SessionActions = {
 };
 
 type SessionContextValue = Session & SessionActions;
+
+type CleanupJob = {
+  generation: number;
+  memberId: string | null;
+  credentials: boolean;
+  operationScoped: boolean;
+  run: () => Promise<void>;
+  running: boolean;
+  reported: boolean;
+};
+
+const pendingSendInspectionTimeoutMs = 5_000;
 
 const SessionStateContext = createContext<Session | undefined>(undefined);
 const SessionActionsContext = createContext<SessionActions | undefined>(undefined);
@@ -146,7 +159,92 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const expiresAtRef = useRef(expiresAt);
   const memberIdRef = useRef<string | null>(null);
   const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
-  const pendingSessionWriteRef = useRef<AuthTokens | null>(null);
+  const pendingSessionWriteRef = useRef<{ tokens: AuthTokens; resetIdentity: boolean } | null>(null);
+  const generationRef = useRef(0);
+  const credentialWorkRef = useRef<Promise<unknown>>(Promise.resolve());
+  const cleanupJobsRef = useRef(new Set<CleanupJob>());
+
+  // Serialize writes and deletion. A native write already in progress cannot be
+  // cancelled; sign-out's deletion must run after it and before any newer grant.
+  const serializeCredentials = useCallback(<T,>(work: () => Promise<T>): Promise<T> => {
+    const next = credentialWorkRef.current.then(work, work);
+    credentialWorkRef.current = next.catch(() => {});
+    return next;
+  }, []);
+
+  const cleanupIsSafe = useCallback((job: CleanupJob): boolean => {
+    if (job.operationScoped || job.generation === generationRef.current) {
+      return true;
+    }
+    if (job.credentials || !job.memberId) {
+      return false;
+    }
+    return memberIdRef.current !== job.memberId &&
+      (!sessionRef.current.accessToken || memberIdRef.current !== null);
+  }, []);
+
+  const runCleanup = useCallback(function retry(job: CleanupJob) {
+    if (job.running || !cleanupIsSafe(job)) {
+      return;
+    }
+    job.running = true;
+    // Invoke immediately: cache/download invalidation happens before their first
+    // await, so a new session cannot start while old in-flight work is still live.
+    let work: Promise<void>;
+    try {
+      work = job.run();
+    } catch {
+      work = Promise.reject(new Error('Local cleanup failed'));
+    }
+    void work.then(
+      () => {
+        job.running = false;
+        cleanupJobsRef.current.delete(job);
+      },
+      () => {
+        job.running = false;
+        if (!job.reported) {
+          job.reported = true;
+          Alert.alert(
+            'Sign-out cleanup incomplete',
+            `${sessionRef.current.accessToken ? 'Your current session is unchanged.' : 'You are signed out in this app.'} Saved sign-in or offline data may remain on this device. Retry cleanup before closing the app or signing in again. A restart could restore a session or pending sends.`,
+            [
+              { text: 'OK' },
+              { text: 'Retry cleanup', onPress: () => retry(job) },
+            ],
+          );
+        }
+      },
+    );
+  }, [cleanupIsSafe]);
+
+  const queueCleanup = useCallback((
+    generation: number,
+    memberId: string | null,
+    credentials: boolean,
+    run: (isCurrent: () => boolean) => Promise<void>,
+    operationScoped = false,
+  ) => {
+    const job: CleanupJob = {
+      generation, memberId, credentials, operationScoped, running: false, reported: false,
+      run: () => run(() => cleanupIsSafe(job)),
+    };
+    cleanupJobsRef.current.add(job);
+    runCleanup(job);
+  }, [cleanupIsSafe, runCleanup]);
+
+  const cleanupPrivateData = useCallback((memberId: string | null, generation: number) => {
+    queueCleanup(generation, memberId, false, () => purgePrivateContentCache(memberId));
+    queueCleanup(generation, memberId, false, (isCurrent) => purgeAllDownloads(memberId, isCurrent, generationRef.current === generation));
+  }, [queueCleanup]);
+
+  const beginSessionGeneration = useCallback(() => {
+    generationRef.current += 1;
+    invalidateOfflineQueueFlush();
+    pendingSessionWriteRef.current = null;
+    refreshInFlightRef.current = null;
+    return generationRef.current;
+  }, []);
   sessionRef.current = session;
   refreshTokenRef.current = refreshToken;
   expiresAtRef.current = expiresAt;
@@ -160,94 +258,112 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       expiresAtRef.current = tokens.expiresAt;
       setRefreshToken(tokens.refreshToken);
       setExpiresAt(tokens.expiresAt);
-      setSession((current) => {
-        const next = sessionFromAccessToken(tokens.accessToken, {
-          displayName: extras.displayName !== undefined ? extras.displayName : current.displayName,
-          profile: extras.profile !== undefined ? extras.profile : current.profile,
-        });
-        sessionRef.current = next;
-        return next;
+      const current = sessionRef.current;
+      const next = sessionFromAccessToken(tokens.accessToken, {
+        displayName: extras.displayName !== undefined ? extras.displayName : current.displayName,
+        profile: extras.profile !== undefined ? extras.profile : current.profile,
       });
+      sessionRef.current = next;
+      setSession(next);
     },
     [],
   );
 
-  const applyProfile = useCallback((accessToken: string, profile: MemberProfile | null) => {
+  const applyProfile = useCallback((accessToken: string, profile: MemberProfile | null, generation: number) => {
+    if (generation !== generationRef.current || sessionRef.current.accessToken !== accessToken) {
+      return;
+    }
     if (!profile) {
-      setSession((current) => {
-        const next = sessionFromAccessToken(accessToken, {
-          displayName: current.displayName,
-          profile: current.profile,
-        });
-        sessionRef.current = next;
-        return next;
-      });
+      // Keep the current identity shell when /me is unavailable.
       return;
     }
 
     const previousId = memberIdRef.current;
     const nextId = profile.memberId;
     if (previousId && nextId && previousId !== nextId) {
-      void purgePrivateContentCache(previousId);
-      void purgeAllDownloads(previousId);
+      cleanupPrivateData(previousId, generation);
     }
     memberIdRef.current = nextId;
     void reconcileDownloads(nextId).catch(() => {
       // Offline reconcile can retry on the next launch.
     });
-    if (!releaseSmokeEmbedEnabled()) {
-      void writeStoredIdentityShell({
-        displayName: profile.displayName,
-        memberId: profile.memberId,
-        avatarPath: profile.avatarPath,
+    if (!releaseSmokeEmbedEnabled() && pendingSessionWriteRef.current?.tokens.accessToken !== accessToken) {
+      void serializeCredentials(async () => {
+        if (generation !== generationRef.current || pendingSessionWriteRef.current?.tokens.accessToken === accessToken) {
+          return;
+        }
+        await writeStoredIdentityShell({
+          displayName: profile.displayName,
+          memberId: profile.memberId,
+          avatarPath: profile.avatarPath,
+        });
       }).catch(() => {
         // Token grant is already stored. A shell write miss only delays initials until /me succeeds.
       });
     }
-    setSession(() => {
-      const next = sessionFromAccessToken(accessToken, {
-        displayName: profile.displayName,
-        profile,
-      });
-      sessionRef.current = next;
-      return next;
+    const next = sessionFromAccessToken(accessToken, {
+      displayName: profile.displayName,
+      profile,
     });
-  }, []);
+    sessionRef.current = next;
+    setSession(next);
+  }, [cleanupPrivateData, serializeCredentials]);
 
   const applyTokens = useCallback(
-    async (tokens: AuthTokens): Promise<MemberProfile | null> => {
+    async (tokens: AuthTokens, generation: number, resetIdentity = false): Promise<MemberProfile | null> => {
+      if (generation !== generationRef.current) {
+        return null;
+      }
+      // A refresh may replace a fresh grant whose identity reset failed. Carry
+      // that obligation until a credential write actually completes it.
+      const resetStoredIdentity = resetIdentity || pendingSessionWriteRef.current?.resetIdentity === true;
       let stored: StoredSession;
       try {
-        stored = await writeStoredSession(tokens);
+        const written = await serializeCredentials(async () =>
+          generation === generationRef.current
+            ? (resetStoredIdentity ? writeStoredSession(tokens, true) : writeStoredSession(tokens))
+            : null,
+        );
+        if (!written || generation !== generationRef.current) {
+          return null;
+        }
+        stored = written;
         pendingSessionWriteRef.current = null;
       } catch {
+        if (generation !== generationRef.current) {
+          return null;
+        }
         // Keep the new grant in memory whatever the write failure (locked
         // Keychain or otherwise) and persist it on the next foreground. The
         // server has already spent the previous refresh token, so dropping this
         // one would replay a dead grant on the next refresh.
-        pendingSessionWriteRef.current = tokens;
+        pendingSessionWriteRef.current = { tokens, resetIdentity: resetStoredIdentity };
         stored = {
           ...tokens,
           expiresAt: Date.now() + Math.max(tokens.expiresIn - 30, 30) * 1000,
         };
       }
-      applyTokenState(stored);
+      if (resetIdentity) {
+        const previousMember = memberIdRef.current;
+        memberIdRef.current = resolvePushMemberId(tokens.accessToken);
+        if (previousMember) {
+          cleanupPrivateData(previousMember, generation);
+        }
+      }
+      applyTokenState(stored, resetIdentity ? { displayName: null, profile: null } : {});
       const profile = await loadProfile(tokens.accessToken);
-      applyProfile(tokens.accessToken, profile);
-      return profile;
+      applyProfile(tokens.accessToken, profile, generation);
+      return generation === generationRef.current ? profile : null;
     },
-    [applyProfile, applyTokenState],
+    [applyProfile, applyTokenState, cleanupPrivateData, serializeCredentials],
   );
 
   const clearLocal = useCallback(async () => {
-    await purgeAllDownloads(memberIdRef.current);
+    const token = sessionRef.current.accessToken;
+    const memberId = memberIdRef.current ??
+      (token ? resolvePushMemberId(token, sessionRef.current.profile?.memberId) : null);
+    const generation = beginSessionGeneration();
     memberIdRef.current = null;
-    await purgePrivateContentCache();
-    try {
-      await clearStoredSession();
-    } catch {
-      // In-memory sign-out still has to happen if SecureStore delete fails.
-    }
     refreshTokenRef.current = null;
     expiresAtRef.current = 0;
     const next = { ...signedOut, isRestoring: false };
@@ -255,7 +371,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setRefreshToken(null);
     setExpiresAt(0);
     setSession(next);
-  }, []);
+
+    // Authentication reset and the credential-deletion attempt never await
+    // ancillary storage or the network. Queue deletion before another sign-in.
+    queueCleanup(generation, memberId, true, () => serializeCredentials(clearStoredSession));
+    cleanupPrivateData(memberId, generation);
+  }, [beginSessionGeneration, cleanupPrivateData, queueCleanup, serializeCredentials]);
 
   const refreshWithStoredGrant = useCallback((): Promise<string | null> => {
     if (refreshInFlightRef.current) {
@@ -272,25 +393,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return Promise.resolve(null);
     }
 
+    const generation = generationRef.current;
     const flight = (async () => {
       let tokens: AuthTokens;
       try {
         tokens = await refreshAccessToken(getAppConfig().apiBaseUrl, refresh);
       } catch (err) {
-        if (!isTransientRefreshFailure(err)) {
+        if (generation === generationRef.current && !isTransientRefreshFailure(err)) {
           await clearLocal();
         }
         return null;
       }
 
       try {
-        await applyTokens(tokens);
+        await applyTokens(tokens, generation);
       } catch {
         // The refresh grant itself succeeded — the access token is good. A follow-up
         // `/me` hiccup (a transient 401, an outage, ...) shouldn't sign the member out;
         // it just means the profile stays stale until it can be fetched successfully.
       }
-      return tokens.accessToken;
+      return generation === generationRef.current ? tokens.accessToken : null;
     })();
 
     refreshInFlightRef.current = flight;
@@ -350,18 +472,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return;
       }
       inFlight = true;
+      const generation = generationRef.current;
+      const isCurrent = () => !cancelled && generation === generationRef.current;
       try {
         let stored: StoredSession | null;
         try {
           stored =
             getAppConfig().appEnv === 'development'
               ? await withTimeout(
-                  readStoredSession(),
+                  serializeCredentials(readStoredSession),
                   developmentSessionRestoreTimeoutMs,
                   sessionRestoreTimeoutLabel,
                 )
-              : await readStoredSession();
+              : await serializeCredentials(readStoredSession);
         } catch (error) {
+          if (!isCurrent()) {
+            return;
+          }
           if (isSessionRestoreTimeoutError(error)) {
             // Simulator SecureStore can hang instead of resolving. Fail open so
             // Profile is not stuck on "Restoring your session…" (#1387).
@@ -377,7 +504,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           throw error;
         }
         lockedPending = false;
-        if (cancelled) {
+        if (!isCurrent()) {
           return;
         }
 
@@ -415,7 +542,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         try {
           if (pendingRefresh) {
             const next = await pendingRefresh;
-            if (!next && !cancelled && !sessionRef.current.accessToken && !memberIdRef.current) {
+            if (!next && isCurrent() && !sessionRef.current.accessToken && !memberIdRef.current) {
               await clearLocal();
             }
             return;
@@ -423,11 +550,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
           try {
             const profile = await loadProfile(stored.accessToken);
-            if (!cancelled) {
-              applyProfile(stored.accessToken, profile);
+            if (isCurrent()) {
+              applyProfile(stored.accessToken, profile, generation);
             }
           } catch (err) {
-            if (cancelled) {
+            if (!isCurrent()) {
               return;
             }
 
@@ -438,7 +565,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             }
             if (canRetryRefresh) {
               const next = await refreshWithStoredGrant();
-              if (!next && !cancelled && !sessionRef.current.accessToken && !memberIdRef.current) {
+              if (!next && isCurrent() && !sessionRef.current.accessToken && !memberIdRef.current) {
                 await clearLocal();
               }
               return;
@@ -449,7 +576,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             }
           }
         } catch {
-          if (!cancelled) {
+          if (isCurrent()) {
             await clearLocal();
           }
         }
@@ -470,7 +597,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       appState.remove();
     };
-  }, [applyProfile, applyTokenState, clearLocal, refreshWithStoredGrant]);
+  }, [applyProfile, applyTokenState, clearLocal, refreshWithStoredGrant, serializeCredentials]);
 
   useEffect(() => {
     configureOfflineQueueAuth({
@@ -501,10 +628,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (!pending) {
         return;
       }
-      void writeStoredSession(pending)
-        .then(() => {
-          if (pendingSessionWriteRef.current === pending) {
+      const generation = generationRef.current;
+      void serializeCredentials(async () => {
+        if (generation === generationRef.current && pendingSessionWriteRef.current === pending) {
+          if (pending.resetIdentity) {
+            await writeStoredSession(pending.tokens, true);
+          } else {
+            await writeStoredSession(pending.tokens);
+          }
+        }
+      }).then(() => {
+          if (pendingSessionWriteRef.current === pending && generation === generationRef.current) {
             pendingSessionWriteRef.current = null;
+            const current = sessionRef.current;
+            const profile = current.profile;
+            if (current.accessToken === pending.tokens.accessToken && profile) {
+              void serializeCredentials(async () => {
+                if (generation !== generationRef.current || sessionRef.current.accessToken !== current.accessToken) {
+                  return;
+                }
+                await writeStoredIdentityShell({
+                  displayName: profile.displayName,
+                  memberId: profile.memberId,
+                  avatarPath: profile.avatarPath,
+                });
+              }).catch(() => {});
+            }
           }
         })
         .catch(() => {
@@ -515,6 +664,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         retryPendingWrite();
+        for (const job of cleanupJobsRef.current) {
+          runCleanup(job);
+        }
         if (refreshTokenRef.current) {
           flushIfSignedIn();
         }
@@ -529,7 +681,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       appState.remove();
       network.remove();
     };
-  }, [ensureAccessToken]);
+  }, [ensureAccessToken, runCleanup, serializeCredentials]);
 
   const applySmokeSession = useCallback(
     async (accessToken: string): Promise<boolean> => {
@@ -542,26 +694,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      const generation = beginSessionGeneration();
       if (releaseSmokeEmbedEnabled()) {
+        const previousMember = memberIdRef.current;
+        memberIdRef.current = resolvePushMemberId(token);
+        if (previousMember) {
+          cleanupPrivateData(previousMember, generation);
+        }
         const expiresAt = Date.now() + Math.max(smokeAuthExpiresInSeconds - 30, 30) * 1000;
         applyTokenState({
           accessToken: token,
           refreshToken: smokeAuthRefreshPlaceholder,
           expiresAt,
-        });
+        }, { displayName: null, profile: null });
         const profile = await loadProfile(token);
-        applyProfile(token, profile);
-        return true;
+        applyProfile(token, profile, generation);
+        return generation === generationRef.current;
       }
 
       await applyTokens({
         accessToken: token,
         refreshToken: smokeAuthRefreshPlaceholder,
         expiresIn: smokeAuthExpiresInSeconds,
-      });
-      return true;
+      }, generation, true);
+      return generation === generationRef.current;
     },
-    [applyProfile, applyTokenState, applyTokens],
+    [applyProfile, applyTokenState, applyTokens, beginSessionGeneration, cleanupPrivateData],
   );
 
   useEffect(() => {
@@ -623,16 +781,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [isSignedIn, accessToken, memberId]);
 
   const refreshProfile = useCallback(async () => {
+    const generation = generationRef.current;
     const token = await ensureAccessToken();
-    if (!token) {
+    if (!token || generation !== generationRef.current) {
       return null;
     }
 
     try {
       const profile = await loadProfile(token);
-      applyProfile(token, profile);
-      return profile;
+      applyProfile(token, profile, generation);
+      return generation === generationRef.current ? profile : null;
     } catch (err) {
+      if (generation !== generationRef.current || sessionRef.current.accessToken !== token) {
+        return null;
+      }
       if (!(err instanceof ApiError) || err.status !== 401) {
         return sessionRef.current.profile;
       }
@@ -658,68 +820,84 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(
     async (provider: string) => {
+      const generation = beginSessionGeneration();
       const tokens = await signInWithProvider(getAppConfig().apiBaseUrl, provider);
-      await applyTokens(tokens);
+      await applyTokens(tokens, generation, true);
     },
-    [applyTokens],
+    [applyTokens, beginSessionGeneration],
   );
 
   const signInWithPassword = useCallback(
     async (email: string, password: string) => {
+      const generation = beginSessionGeneration();
       const tokens = await requestPasswordTokens(getAppConfig().apiBaseUrl, email, password);
-      await applyTokens(tokens);
+      await applyTokens(tokens, generation, true);
     },
-    [applyTokens],
+    [applyTokens, beginSessionGeneration],
   );
 
   const signOut = useCallback(async () => {
-    // Current tokens/profile are read via sessionRef / refreshTokenRef so this
-    // callback identity stays stable across token refresh and /me.
+    const generation = generationRef.current;
     const token = sessionRef.current.accessToken;
-    const signedOutMemberId =
-      (token ? resolvePushMemberId(token, sessionRef.current.profile?.memberId) : null) ??
-      sessionRef.current.profile?.memberId ??
-      null;
-    const pending = await countPendingOfflineItems(signedOutMemberId);
-    if (pending > 0) {
+    const signedOutMemberId = memberIdRef.current ??
+      (token ? resolvePushMemberId(token, sessionRef.current.profile?.memberId) : null);
+    let discardPending = false;
+    let inspectionFailed = false;
+    try {
+      discardPending = await withTimeout(
+        countPendingOfflineItems(signedOutMemberId),
+        pendingSendInspectionTimeoutMs,
+        'pending-send-inspection-timeout',
+      ) > 0;
+    } catch {
+      // Unknown is not an empty queue. Ask before discarding anything.
+      inspectionFailed = true;
+      discardPending = true;
+    }
+    if (generation !== generationRef.current) {
+      return;
+    }
+    if (discardPending) {
       const confirmed = await new Promise<boolean>((resolve) => {
         Alert.alert(
-          'Discard pending sends?',
-          'Messages and replies waiting to send will be deleted.',
+          inspectionFailed ? 'Unable to check pending sends' : 'Discard pending sends?',
+          inspectionFailed
+            ? 'Pending messages and replies could not be checked. Sign out and discard any pending sends when storage is available?'
+            : 'Messages and replies waiting to send will be deleted.',
           [
             { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
             { text: 'Sign out', style: 'destructive', onPress: () => resolve(true) },
           ],
+          { cancelable: true, onDismiss: () => resolve(false) },
         );
       });
-      if (!confirmed) {
+      if (!confirmed || generation !== generationRef.current) {
         return;
       }
-      await discardOfflineQueue(signedOutMemberId);
     }
     const refresh = refreshTokenRef.current;
     const apiBaseUrl = getAppConfig().apiBaseUrl;
-    // Clear the device session first. Remote logout/revoke/push unregister
-    // can hang (React Native fetch often ignores AbortSignal) or crash the
-    // process; awaiting them first left the member signed in after a kill.
-    await clearLocal();
-    startRemoteSignOut({
-      accessToken: token,
-      refreshToken: refresh,
-      apiBaseUrl,
-      memberId: signedOutMemberId,
-    });
-  }, [clearLocal]);
+    // Capture confirmed discard intent before changing sessions. Its retry only
+    // targets pre-intent operations, including after a same-member sign-in.
+    const discard = discardPending ? prepareOfflineQueueDiscard(signedOutMemberId) : null;
+    void clearLocal();
+    if (discard) {
+      queueCleanup(generationRef.current, signedOutMemberId, false, discard, true);
+    }
+    startRemoteSignOut({ accessToken: token, refreshToken: refresh, apiBaseUrl, memberId: signedOutMemberId });
+  }, [clearLocal, queueCleanup]);
 
   const setAccessToken = useCallback((accessToken: string | null) => {
-    setSession((current) =>
-      sessionFromAccessToken(accessToken, {
-        isRestoring: current.isRestoring,
-        displayName: current.displayName,
-        profile: current.profile,
-      }),
-    );
-  }, []);
+    beginSessionGeneration();
+    const current = sessionRef.current;
+    const next = sessionFromAccessToken(accessToken, {
+      isRestoring: current.isRestoring,
+      displayName: current.displayName,
+      profile: current.profile,
+    });
+    sessionRef.current = next;
+    setSession(next);
+  }, [beginSessionGeneration]);
 
   const actions = useMemo<SessionActions>(
     () => ({

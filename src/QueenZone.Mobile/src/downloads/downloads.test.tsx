@@ -3,7 +3,7 @@ import { waitFor } from '@testing-library/react-native';
 import { createMemoryStorage } from '../cache/storage';
 import { resetExternalStoreForTests } from '../cache/externalStore';
 import { fanPerformanceFixture } from '../test/fixtures';
-import { createMemoryDownloadHost, getDownloadFileHost, setDownloadFileHostForTests } from './files';
+import { createMemoryDownloadHost, downloadMemberFilePrefix, getDownloadFileHost, setDownloadFileHostForTests } from './files';
 import {
   getCompletedDownload,
   reconcileDownloadManifest,
@@ -14,6 +14,7 @@ import {
 import {
   enqueueDownload,
   purgeAllDownloads,
+  reconcileDownloads,
   removeDownload,
   resetDownloadManagerForTests,
   setDownloadProbeForTests,
@@ -28,6 +29,7 @@ import {
   OFFLINE_PLAYBACK_MESSAGE,
   SIGN_IN_PLAYBACK_MESSAGE,
 } from './messages';
+import { registerPlaybackStopper } from './playbackStop';
 import { resolveAudioSource } from './resolveAudioSource';
 import { getDownloadUiSnapshot, resetDownloadUiForTests, setDownloadUiSnapshot, transientSnapshot } from './uiState';
 import type { DownloadManifestEntry } from './types';
@@ -47,6 +49,22 @@ function completed(overrides: Partial<DownloadManifestEntry> = {}): DownloadMani
     memberId,
     ...overrides,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function downloadedUri(host: ReturnType<typeof createMemoryDownloadHost>, extension: string): string {
+  return host.listAllUris().find((uri) =>
+    uri.includes(`${downloadMemberFilePrefix(memberId)}187_`) && uri.endsWith(`.${extension}`),
+  ) ?? '';
 }
 
 function resetDownloads() {
@@ -218,7 +236,7 @@ describe('download manager', () => {
     enqueueDownload(track, memberId, async () => 'member-token');
     enqueueDownload(track, memberId, async () => 'member-token');
     await waitFor(() => {
-      expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+      expect(host.files.get(downloadedUri(host, 'mp3'))?.byteLength).toBe(4);
     });
     expect(host.exists('file:///documents/fan-performances/187.part')).toBe(false);
     const stored = await getCompletedDownload(memberId, '187');
@@ -243,10 +261,10 @@ describe('download manager', () => {
 
     enqueueDownload(track, memberId, async () => 'member-token');
     await waitFor(() => {
-      expect(host.exists('file:///documents/fan-performances/187.flac')).toBe(true);
+      expect(host.exists(downloadedUri(host, 'flac'))).toBe(true);
     });
     expect((await getCompletedDownload(memberId, '187'))?.localUri).toBe(
-      'file:///documents/fan-performances/187.flac',
+      downloadedUri(host, 'flac'),
     );
   });
 
@@ -272,12 +290,12 @@ describe('download manager', () => {
     await waitFor(() => {
       expect(host.promote).toHaveBeenCalled();
     });
-    expect(host.exists('file:///documents/fan-performances/187.mp3')).toBe(false);
+    expect(host.exists(downloadedUri(host, 'mp3'))).toBe(false);
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloading');
 
     finishPromote();
     await waitFor(() => {
-      expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+      expect(host.files.get(downloadedUri(host, 'mp3'))?.byteLength).toBe(4);
     });
     expect((await getCompletedDownload(memberId, '187'))?.byteSize).toBe(4);
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
@@ -499,7 +517,7 @@ describe('download manager', () => {
 
     enqueueDownload(track, memberId, async () => 'member-token');
     await waitFor(() => {
-      expect(host.files.get('file:///documents/fan-performances/187.mp3')?.byteLength).toBe(4);
+      expect(host.files.get(downloadedUri(host, 'mp3'))?.byteLength).toBe(4);
     });
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
   });
@@ -556,7 +574,7 @@ describe('download manager', () => {
 
   it('treats a missing .part as a finalize failure and never promotes', async () => {
     const host = createMemoryDownloadHost({
-      downloadImpl: async () => ({ uri: 'file:///documents/fan-performances/187.part' }),
+      downloadImpl: async ({ destUri }) => ({ uri: destUri }),
     });
     const promote = jest.spyOn(host, 'promote');
     setDownloadFileHostForTests(host);
@@ -638,7 +656,7 @@ describe('download manager', () => {
 
     enqueueDownload(track, memberId, async () => 'member-token');
     await waitFor(() => {
-      expect(host.exists('file:///documents/fan-performances/187.mp3')).toBe(true);
+      expect(host.exists(downloadedUri(host, 'mp3'))).toBe(true);
     });
     expect(host.exists(returnedUri)).toBe(false);
     expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
@@ -648,7 +666,7 @@ describe('download manager', () => {
         message: 'task-complete',
         data: expect.objectContaining({
           destMismatch: true,
-          destUri: 'file:///documents/fan-performances/187.part',
+          destUri: expect.stringMatching(/member-.*_187_.*\.part$/),
           returnedUri,
         }),
       }),
@@ -911,6 +929,272 @@ describe('download manager', () => {
     await promotion;
   });
 
+
+  it.each(['getItem', 'removeItem'] as const)('reports %s cleanup failures and allows a later retry', async (operation) => {
+    const storage = createMemoryStorage();
+    setDownloadManifestStorageForTests(storage);
+    await upsertCompletedDownload(completed());
+    setDownloadUiSnapshot(memberId, transientSnapshot('187', 'downloaded'));
+    const failing = jest.spyOn(storage, operation).mockRejectedValueOnce(new Error('Storage unavailable'));
+
+    const cleanup = purgeAllDownloads(memberId);
+    expect(getDownloadUiSnapshot(memberId, '187')).toBeNull();
+    await expect(cleanup).rejects.toThrow('Storage unavailable');
+    failing.mockRestore();
+    await expect(purgeAllDownloads(memberId)).resolves.toBeUndefined();
+    expect(await getCompletedDownload(memberId, '187')).toBeNull();
+  });
+
+  it.each([memberId, 'member-2'])('retires old jobs before storage settles and preserves newer %s work', async (nextMember) => {
+    const storage = createMemoryStorage();
+    setDownloadManifestStorageForTests(storage);
+    const read = storage.getItem.bind(storage);
+    const manifestRead = deferred<string | null>();
+    const transfer = deferred<void>();
+    let oldSignal: AbortSignal | undefined;
+    let oldProgress: ((written: number, total: number) => void) | undefined;
+    let oldDest = '';
+    const download = jest.fn(async (input: Parameters<ReturnType<typeof createMemoryDownloadHost>['download']>[0]) => {
+      if (!oldDest) {
+        oldDest = input.destUri;
+        oldSignal = input.signal;
+        oldProgress = input.onProgress;
+        await transfer.promise;
+      }
+      host.files.set(input.destUri, new Uint8Array([1, 2, 3, 4]));
+      return { uri: input.destUri };
+    });
+    const host = createMemoryDownloadHost({ downloadImpl: download });
+    setDownloadFileHostForTests(host);
+    setDownloadProbeForTests(async () => ({ status: 206, sourceRevision: null, byteSize: 4 }));
+    const oldQueuedToken = jest.fn(async () => 'old-token');
+    enqueueDownload(track, memberId, async () => 'old-token');
+    enqueueDownload(fanPerformanceFixture({ id: 188 }), memberId, oldQueuedToken);
+    await waitFor(() => expect(oldSignal).toBeDefined());
+    jest.spyOn(storage, 'getItem').mockImplementationOnce(() => manifestRead.promise).mockImplementation(read);
+
+    const cleanup = purgeAllDownloads(memberId);
+    expect(oldSignal?.aborted).toBe(true);
+    expect(getDownloadUiSnapshot(memberId, '187')).toBeNull();
+    expect(getDownloadUiSnapshot(memberId, '188')).toBeNull();
+    oldProgress?.(4, 4);
+    expect(getDownloadUiSnapshot(memberId, '187')).toBeNull();
+    enqueueDownload(track, nextMember, async () => 'new-token');
+    await waitFor(() => expect(download).toHaveBeenCalledTimes(2));
+    if (nextMember !== memberId) {
+      await waitFor(() => expect(getDownloadUiSnapshot(nextMember, '187')?.status).toBe('downloaded'));
+    }
+    manifestRead.resolve(null);
+    await cleanup;
+    await waitFor(() => expect(getDownloadUiSnapshot(nextMember, '187')?.status).toBe('downloaded'));
+    const entry = await getCompletedDownload(nextMember, '187');
+    expect(entry).not.toBeNull();
+    const newUri = entry!.localUri;
+    expect(newUri).not.toBe(oldDest.replace(/\.part$/, '.mp3'));
+
+    const removeOldFile = jest.spyOn(host, 'deleteIfExists');
+    transfer.resolve();
+    await waitFor(() => expect(removeOldFile).toHaveBeenCalledWith(oldDest));
+    expect(host.exists(oldDest)).toBe(false);
+    expect(host.exists(newUri)).toBe(true);
+    expect((await getCompletedDownload(nextMember, '187'))?.localUri).toBe(newUri);
+    expect(getDownloadUiSnapshot(nextMember, '187')?.status).toBe('downloaded');
+    expect(oldQueuedToken).not.toHaveBeenCalled();
+    if (nextMember !== memberId) {
+      expect(await getCompletedDownload(memberId, '187')).toBeNull();
+      expect(getDownloadUiSnapshot(memberId, '187')).toBeNull();
+    }
+  });
+
+  it('cleans a retired asynchronous promotion without deleting a new account recording', async () => {
+    const host = createMemoryDownloadHost();
+    const promote = host.promote.bind(host);
+    const pendingPromotion = deferred<void>();
+    let oldCompleted = '';
+    host.promote = jest.fn(async (partUri, completedUri) => {
+      if (!oldCompleted) {
+        oldCompleted = completedUri;
+        const bytes = host.files.get(partUri)!;
+        await pendingPromotion.promise;
+        host.files.set(completedUri, bytes);
+        host.files.delete(partUri);
+      } else {
+        await promote(partUri, completedUri);
+      }
+    });
+    setDownloadFileHostForTests(host);
+    setDownloadProbeForTests(async () => ({ status: 206, sourceRevision: null, byteSize: 4 }));
+    enqueueDownload(track, memberId, async () => 'old-token');
+    await waitFor(() => expect(oldCompleted).not.toBe(''));
+    await purgeAllDownloads(memberId);
+    enqueueDownload(track, 'member-2', async () => 'new-token');
+    await waitFor(() => expect(getDownloadUiSnapshot('member-2', '187')?.status).toBe('downloaded'));
+    const newEntry = await getCompletedDownload('member-2', '187');
+
+    const removeOldFile = jest.spyOn(host, 'deleteIfExists');
+    pendingPromotion.resolve();
+    await waitFor(() => expect(removeOldFile).toHaveBeenCalledWith(oldCompleted));
+    expect(host.exists(oldCompleted)).toBe(false);
+    expect(host.exists(newEntry!.localUri)).toBe(true);
+    expect(await getCompletedDownload(memberId, '187')).toBeNull();
+    expect(getDownloadUiSnapshot(memberId, '187')).toBeNull();
+  });
+
+  it('orders cleanup after a pending manifest write and before new same-member writes', async () => {
+    const storage = createMemoryStorage();
+    const write = storage.setItem.bind(storage);
+    const pendingWrite = deferred<void>();
+    const oldWrite = jest.spyOn(storage, 'setItem').mockImplementationOnce(async (key, value) => {
+      await pendingWrite.promise;
+      await write(key, value);
+    });
+    setDownloadManifestStorageForTests(storage);
+    const host = createMemoryDownloadHost();
+    setDownloadFileHostForTests(host);
+    setDownloadProbeForTests(async () => ({ status: 206, sourceRevision: null, byteSize: 4 }));
+    enqueueDownload(track, memberId, async () => 'old-token');
+    await waitFor(() => expect(oldWrite).toHaveBeenCalledTimes(1));
+
+    const cleanup = purgeAllDownloads(memberId);
+    enqueueDownload(track, memberId, async () => 'new-token');
+    pendingWrite.resolve();
+    await cleanup;
+    await waitFor(() => expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded'));
+    const entry = await getCompletedDownload(memberId, '187');
+    expect(host.exists(entry!.localUri)).toBe(true);
+    expect(host.listAllUris()).toEqual([entry!.localUri]);
+  });
+
+  it('rejects superseded cleanup without clearing newer UI or stopping playback', async () => {
+    const stop = jest.fn();
+    const unregister = registerPlaybackStopper(stop);
+    setDownloadUiSnapshot(memberId, transientSnapshot('187', 'downloaded'));
+    await expect(purgeAllDownloads(memberId, () => false)).rejects.toThrow('Download cleanup was superseded.');
+    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+    expect(stop).not.toHaveBeenCalled();
+    await purgeAllDownloads('old-member', () => true, false);
+    expect(stop).not.toHaveBeenCalled();
+    await purgeAllDownloads(memberId);
+    expect(stop).toHaveBeenCalledTimes(1);
+    unregister();
+  });
+
+  it('rechecks the cleanup guard after a delayed manifest read', async () => {
+    const storage = createMemoryStorage();
+    setDownloadManifestStorageForTests(storage);
+    await upsertCompletedDownload(completed());
+    const stored = await storage.getItem(`qz:downloads:v1:member:${memberId}`);
+    const pendingRead = deferred<string | null>();
+    const read = jest.spyOn(storage, 'getItem').mockImplementationOnce(() => pendingRead.promise);
+    const remove = jest.spyOn(storage, 'removeItem');
+    let current = true;
+    const cleanup = purgeAllDownloads(memberId, () => current);
+    await waitFor(() => expect(read).toHaveBeenCalled());
+    current = false;
+    setDownloadUiSnapshot(memberId, transientSnapshot('187', 'queued'));
+    pendingRead.resolve(stored);
+
+    await expect(cleanup).rejects.toThrow('Download cleanup was superseded.');
+    expect(remove).not.toHaveBeenCalled();
+    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('queued');
+  });
+
+  it('does not rehydrate old UI when reconciliation finishes after sign-out', async () => {
+    const storage = createMemoryStorage();
+    setDownloadManifestStorageForTests(storage);
+    const pendingRead = deferred<string | null>();
+    const read = jest.spyOn(storage, 'getItem').mockImplementationOnce(() => pendingRead.promise);
+    const reconciliation = reconcileDownloads(memberId);
+    const rejected = expect(reconciliation).rejects.toThrow('Download cleanup was superseded.');
+    await waitFor(() => expect(read).toHaveBeenCalled());
+    const cleanup = purgeAllDownloads(memberId);
+    pendingRead.resolve(null);
+    await rejected;
+    await cleanup;
+    expect(getDownloadUiSnapshot(memberId, '187')).toBeNull();
+  });
+
+  it('keeps a replacement job locked when a retired job with the same key settles', async () => {
+    const oldTransfer = deferred<void>();
+    const newTransfer = deferred<void>();
+    let calls = 0;
+    let oldPart = '';
+    const host = createMemoryDownloadHost({
+      downloadImpl: async ({ destUri }) => {
+        calls += 1;
+        if (calls === 1) {
+          oldPart = destUri;
+          await oldTransfer.promise;
+        } else if (calls === 2) {
+          await newTransfer.promise;
+        }
+        host.files.set(destUri, new Uint8Array([1, 2, 3, 4]));
+        return { uri: destUri };
+      },
+    });
+    setDownloadFileHostForTests(host);
+    setDownloadProbeForTests(async () => ({ status: 206, sourceRevision: null, byteSize: 4 }));
+    enqueueDownload(track, memberId, async () => 'old-token');
+    await waitFor(() => expect(calls).toBe(1));
+    await purgeAllDownloads(memberId);
+    enqueueDownload(track, memberId, async () => 'new-token');
+    await waitFor(() => expect(calls).toBe(2));
+    const oldDeletion = jest.spyOn(host, 'deleteIfExists');
+    oldTransfer.resolve();
+    await waitFor(() => expect(oldDeletion).toHaveBeenCalledWith(oldPart));
+
+    const duplicateToken = jest.fn(async () => 'duplicate');
+    const queuedToken = jest.fn(async () => 'queued');
+    enqueueDownload(track, memberId, duplicateToken);
+    enqueueDownload(fanPerformanceFixture({ id: 188 }), memberId, queuedToken);
+    expect(duplicateToken).not.toHaveBeenCalled();
+    expect(queuedToken).not.toHaveBeenCalled();
+    newTransfer.resolve();
+    await waitFor(() => expect(getDownloadUiSnapshot(memberId, '188')?.status).toBe('downloaded'));
+    expect(calls).toBe(3);
+    expect(duplicateToken).not.toHaveBeenCalled();
+    expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded');
+  });
+
+  it('rejects a delayed global sweep after newer account work starts', async () => {
+    const storage = createMemoryStorage();
+    setDownloadManifestStorageForTests(storage);
+    const keys = deferred<readonly string[]>();
+    jest.spyOn(storage, 'getAllKeys').mockImplementationOnce(() => keys.promise);
+    const host = createMemoryDownloadHost();
+    setDownloadFileHostForTests(host);
+    setDownloadProbeForTests(async () => ({ status: 206, sourceRevision: null, byteSize: 4 }));
+    const cleanup = purgeAllDownloads();
+    enqueueDownload(track, 'member-2', async () => 'new-token');
+    await waitFor(() => expect(getDownloadUiSnapshot('member-2', '187')?.status).toBe('downloaded'));
+    const entry = await getCompletedDownload('member-2', '187');
+    keys.resolve(['qz:downloads:v1:member:member-2']);
+    await expect(cleanup).rejects.toThrow('Download cleanup was superseded.');
+    expect((await getCompletedDownload('member-2', '187'))?.localUri).toBe(entry!.localUri);
+    expect(host.exists(entry!.localUri)).toBe(true);
+  });
+
+  it('keeps another member part and an active own-member part during reconciliation', async () => {
+    const transfer = deferred<void>();
+    const host = createMemoryDownloadHost({
+      downloadImpl: async ({ destUri }) => {
+        host.files.set(destUri, new Uint8Array([1, 2, 3, 4]));
+        await transfer.promise;
+        return { uri: destUri };
+      },
+    });
+    const otherPart = host.partUri(`${downloadMemberFilePrefix('member-2')}188_job`);
+    host.files.set(otherPart, new Uint8Array([1]));
+    setDownloadFileHostForTests(host);
+    setDownloadProbeForTests(async () => ({ status: 206, sourceRevision: null, byteSize: 4 }));
+    enqueueDownload(track, memberId, async () => 'token');
+    await waitFor(() => expect(host.listPartUris()).toHaveLength(2));
+    await reconcileDownloads(memberId);
+    expect(host.listPartUris()).toHaveLength(2);
+    transfer.resolve();
+    await waitFor(() => expect(getDownloadUiSnapshot(memberId, '187')?.status).toBe('downloaded'));
+    expect(host.exists(otherPart)).toBe(true);
+  });
   it('sign-out deletes files, partials, and the manifest', async () => {
     const host = createMemoryDownloadHost();
     setDownloadFileHostForTests(host);

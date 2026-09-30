@@ -12,10 +12,10 @@ import {
   messageForFinalizeFailure,
   resolveDownloadPartUri,
 } from './finalize';
-import { getDownloadFileHost } from './files';
+import { downloadMemberFilePrefix, getDownloadFileHost, isDownloadFileForMember, isLegacyDownloadFile } from './files';
 import {
+  assertDownloadCleanupCurrent,
   clearDownloadManifest,
-  readDownloadManifest,
   reconcileDownloadManifest,
   removeCompletedDownload,
   upsertCompletedDownload,
@@ -44,10 +44,29 @@ import {
 } from './uiState';
 import { DISK_SAFETY_MARGIN_BYTES } from './types';
 
-const inflight = new Map<string, Promise<void>>();
+type DownloadJob = {
+  track: FanPerformance;
+  memberId: string;
+  tokenFactory: () => Promise<string | null>;
+  fileId: string;
+  abort: AbortController;
+  isCurrent: () => boolean;
+};
+
+const inflight = new Map<string, { job: DownloadJob; work: Promise<void> }>();
 const queuedIds: string[] = [];
-const queuedTracks = new Map<string, { track: FanPerformance; memberId: string; tokenFactory: () => Promise<string | null> }>();
-let activeId: string | null = null;
+const queuedTracks = new Map<string, DownloadJob>();
+const memberGenerations = new Map<string, number>();
+let globalGeneration = 0;
+let nextJobId = 0;
+let activeJob: DownloadJob | null = null;
+
+function captureGeneration(memberId: string): () => boolean {
+  const global = globalGeneration;
+  const member = memberGenerations.get(memberId) ?? 0;
+  return () => global === globalGeneration && member === (memberGenerations.get(memberId) ?? 0);
+}
+
 let probeAudio: typeof defaultProbeAudio = defaultProbeAudio;
 
 const PROBE_TIMEOUT_MS = 12_000;
@@ -59,7 +78,7 @@ function mutexKey(memberId: string, performanceId: string): string {
 }
 
 function isJobActive(key: string): boolean {
-  return inflight.has(key) || queuedTracks.has(key) || activeId === key;
+  return inflight.has(key) || queuedTracks.has(key);
 }
 
 function parseContentRangeTotal(header: string | null): number | null {
@@ -145,8 +164,13 @@ export function setDownloadProbeForTests(next: typeof defaultProbeAudio | null):
 }
 
 export async function reconcileDownloads(memberId: string): Promise<void> {
-  const manifest = await reconcileDownloadManifest(memberId);
-  hydrateDownloadUiFromManifest(memberId, Object.values(manifest.entries));
+  const isCurrent = captureGeneration(memberId);
+  const manifest = await reconcileDownloadManifest(memberId, isCurrent, (uri) =>
+    ![...inflight.values()].some(({ job }) => getDownloadFileHost().partUri(job.fileId) === uri),
+  );
+  if (isCurrent()) {
+    hydrateDownloadUiFromManifest(memberId, Object.values(manifest.entries));
+  }
 }
 
 export function enqueueDownload(
@@ -166,7 +190,14 @@ export function enqueueDownload(
     return;
   }
 
-  queuedTracks.set(key, { track, memberId, tokenFactory: ensureAccessToken });
+  queuedTracks.set(key, {
+    track,
+    memberId,
+    tokenFactory: ensureAccessToken,
+    fileId: `${downloadMemberFilePrefix(memberId)}${performanceId}_${Date.now()}_${++nextJobId}`,
+    abort: new AbortController(),
+    isCurrent: captureGeneration(memberId),
+  });
   queuedIds.push(key);
   setDownloadUiSnapshot(
     memberId,
@@ -179,7 +210,7 @@ export function enqueueDownload(
 }
 
 async function pumpQueue(): Promise<void> {
-  if (activeId) {
+  if (activeJob) {
     return;
   }
 
@@ -195,15 +226,17 @@ async function pumpQueue(): Promise<void> {
     return;
   }
 
-  activeId = key;
-  const work = runDownload(job.track, job.memberId, job.tokenFactory).finally(() => {
-    inflight.delete(key);
-    if (activeId === key) {
-      activeId = null;
+  activeJob = job;
+  const work = runDownload(job).finally(() => {
+    if (inflight.get(key)?.job === job) {
+      inflight.delete(key);
+    }
+    if (activeJob === job) {
+      activeJob = null;
     }
     void pumpQueue();
   });
-  inflight.set(key, work);
+  inflight.set(key, { job, work });
   await work;
 }
 
@@ -234,14 +267,12 @@ function messageForDownloadError(error: unknown): string {
   return DOWNLOAD_FAILED_MESSAGE;
 }
 
-async function runDownload(
-  track: FanPerformance,
-  memberId: string,
-  ensureAccessToken: () => Promise<string | null>,
-): Promise<void> {
+async function runDownload(job: DownloadJob): Promise<void> {
+  const { track, memberId, tokenFactory: ensureAccessToken } = job;
+  const isCurrent = () => job.isCurrent() && !job.abort.signal.aborted;
   const performanceId = String(track.id);
   const host = getDownloadFileHost();
-  const partUri = host.partUri(performanceId);
+  const partUri = host.partUri(job.fileId);
   let completedUri: string | null = null;
 
   setDownloadUiSnapshot(
@@ -252,13 +283,14 @@ async function runDownload(
     }),
   );
 
-  const downloadAbort = new AbortController();
+  const downloadAbort = job.abort;
   const downloadTimer = setTimeout(() => downloadAbort.abort(), DOWNLOAD_TIMEOUT_MS);
   let abortReason: 'timeout' | 'storage' | null = null;
   let materializedPartUri = partUri;
 
   try {
     const token = await ensureAccessToken();
+    assertDownloadCleanupCurrent(job.isCurrent);
     if (!token) {
       throw new Error(DOWNLOAD_UNAUTHORIZED_MESSAGE);
     }
@@ -302,6 +334,7 @@ async function runDownload(
       // Probe network errors: still attempt the download.
     }
 
+    assertDownloadCleanupCurrent(job.isCurrent);
     reportDownloadBreadcrumb('probe', {
       performanceId,
       status: probeStatus,
@@ -335,6 +368,9 @@ async function runDownload(
       headers: { Authorization: `Bearer ${token}` },
       signal: downloadAbort.signal,
       onProgress: (written, total) => {
+        if (!isCurrent()) {
+          return;
+        }
         if (total > 0) {
           progressTotal = total;
         }
@@ -364,6 +400,8 @@ async function runDownload(
       },
     });
 
+    materializedPartUri = resolveDownloadPartUri(partUri, taskResult?.uri);
+    assertDownloadCleanupCurrent(job.isCurrent);
     if (downloadAbort.signal.aborted) {
       throw new Error(abortReason === 'storage' ? LOW_STORAGE_MESSAGE : DOWNLOAD_TIMEOUT_MESSAGE);
     }
@@ -418,7 +456,9 @@ async function runDownload(
       host.deleteIfExists(partToPromote);
       throw new Error(messageForFinalizeFailure('tiny-complete'));
     }
-    if (await fileLooksLikeHttpError((uri, max) => host.readPrefix(uri, max), partToPromote, size)) {
+    const partIsHttpError = await fileLooksLikeHttpError((uri, max) => host.readPrefix(uri, max), partToPromote, size);
+    assertDownloadCleanupCurrent(job.isCurrent);
+    if (partIsHttpError) {
       host.deleteIfExists(partToPromote);
       throw new Error(DOWNLOAD_FAILED_MESSAGE);
     }
@@ -428,13 +468,15 @@ async function runDownload(
     }
 
     const audioPrefix = await host.readPrefix(partToPromote, 4);
+    assertDownloadCleanupCurrent(job.isCurrent);
     completedUri = host.completedUri(
-      performanceId,
+      job.fileId,
       resolveDownloadAudioExtension(audioPrefix, probeContentType),
     );
 
     try {
       await host.promote(partToPromote, completedUri);
+      assertDownloadCleanupCurrent(job.isCurrent);
     } catch (error) {
       reportDownloadBreadcrumb('promote-error', {
         performanceId,
@@ -454,6 +496,7 @@ async function runDownload(
       throw new Error(DOWNLOAD_FAILED_MESSAGE);
     }
 
+    assertDownloadCleanupCurrent(job.isCurrent);
     const entry = {
       performanceId,
       localUri: completedUri,
@@ -464,13 +507,17 @@ async function runDownload(
       completedAt: new Date().toISOString(),
       memberId,
     };
-    await upsertCompletedDownload(entry);
+    await upsertCompletedDownload(entry, job.isCurrent);
+    assertDownloadCleanupCurrent(job.isCurrent);
     setDownloadUiSnapshot(memberId, snapshotFromEntry(entry));
   } catch (error) {
     host.deleteIfExists(partUri);
     host.deleteIfExists(materializedPartUri);
     if (completedUri) {
       host.deleteIfExists(completedUri);
+    }
+    if (!job.isCurrent()) {
+      return;
     }
     const message = messageForDownloadError(error);
     setDownloadUiSnapshot(
@@ -487,7 +534,7 @@ async function runDownload(
 }
 
 export async function removeDownload(memberId: string, performanceId: string): Promise<void> {
-  const host = getDownloadFileHost();
+  const isCurrent = captureGeneration(memberId);
   setDownloadUiSnapshot(
     memberId,
     transientSnapshot(performanceId, 'removing', {
@@ -495,49 +542,84 @@ export async function removeDownload(memberId: string, performanceId: string): P
     }),
   );
   stopPlaybackIf(performanceId);
-  host.deleteIfExists(host.completedUri(performanceId, null));
-  host.deleteIfExists(host.completedUri(performanceId, 'mp3'));
-  host.deleteIfExists(host.completedUri(performanceId, 'flac'));
-  host.deleteIfExists(host.partUri(performanceId));
-  await removeCompletedDownload(memberId, performanceId);
-  clearDownloadUiSnapshot(memberId, performanceId);
+  await discardInvalidLocalDownload(memberId, performanceId, isCurrent);
 }
 
-export async function discardInvalidLocalDownload(memberId: string, performanceId: string): Promise<void> {
+export async function discardInvalidLocalDownload(
+  memberId: string,
+  performanceId: string,
+  isCurrent: () => boolean = captureGeneration(memberId),
+): Promise<void> {
   const host = getDownloadFileHost();
-  host.deleteIfExists(host.completedUri(performanceId, null));
-  host.deleteIfExists(host.completedUri(performanceId, 'mp3'));
-  host.deleteIfExists(host.completedUri(performanceId, 'flac'));
-  host.deleteIfExists(host.partUri(performanceId));
-  await removeCompletedDownload(memberId, performanceId);
-  clearDownloadUiSnapshot(memberId, performanceId);
-}
-
-export async function purgeAllDownloads(memberId?: string | null): Promise<void> {
-  stopActivePlayback();
-  const host = getDownloadFileHost();
-  if (memberId) {
-    const manifest = await readDownloadManifest(memberId);
-    for (const entry of Object.values(manifest.entries)) {
+  await removeCompletedDownload(memberId, performanceId, isCurrent, (entry) => {
+    if (entry) {
       host.deleteIfExists(entry.localUri);
-      host.deleteIfExists(host.partUri(entry.performanceId));
     }
+  });
+  if (isCurrent()) {
+    clearDownloadUiSnapshot(memberId, performanceId);
+  }
+}
+
+export async function purgeAllDownloads(
+  memberId?: string | null,
+  isCurrent: () => boolean = () => true,
+  stopPlayback = true,
+): Promise<void> {
+  assertDownloadCleanupCurrent(isCurrent);
+  // Revoke old jobs and UI synchronously. Storage may reject or never settle;
+  // neither may keep the old session's downloads alive or block a new account.
+  if (memberId) {
+    memberGenerations.set(memberId, (memberGenerations.get(memberId) ?? 0) + 1);
   } else {
-    for (const uri of host.listAllUris()) {
-      host.deleteIfExists(uri);
+    globalGeneration += 1;
+  }
+  const matches = (job: DownloadJob) => !memberId || job.memberId === memberId;
+  for (const [key, job] of queuedTracks) {
+    if (matches(job)) {
+      job.abort.abort();
+      queuedTracks.delete(key);
+      const index = queuedIds.indexOf(key);
+      if (index >= 0) {
+        queuedIds.splice(index, 1);
+      }
     }
   }
-
-  for (const partUri of host.listPartUris()) {
-    host.deleteIfExists(partUri);
+  for (const [key, { job }] of inflight) {
+    if (matches(job)) {
+      job.abort.abort();
+      inflight.delete(key);
+      if (activeJob === job) {
+        activeJob = null;
+      }
+    }
   }
-
-  await clearDownloadManifest(memberId);
+  if (stopPlayback) {
+    stopActivePlayback();
+  }
   clearDownloadUiForMember(memberId);
-  queuedIds.length = 0;
-  queuedTracks.clear();
-  inflight.clear();
-  activeId = null;
+  const generationIsCurrent = memberId ? captureGeneration(memberId) : (() => {
+    const generation = globalGeneration;
+    const lastJobId = nextJobId;
+    return () => globalGeneration === generation && nextJobId === lastJobId;
+  })();
+  const cleanupIsCurrent = () => isCurrent() && generationIsCurrent();
+  const host = getDownloadFileHost();
+  // Snapshot before the first await: never sweep a later session's files.
+  const uris = host.listAllUris(true).filter((uri) =>
+    !memberId || isDownloadFileForMember(uri, memberId) || (uri.endsWith('.part') && isLegacyDownloadFile(uri)),
+  );
+  for (const uri of uris) {
+    host.deleteIfExists(uri, true);
+  }
+  const cleanup = clearDownloadManifest(memberId, cleanupIsCurrent, (manifest) => {
+    for (const entry of Object.values(manifest.entries)) {
+      host.deleteIfExists(entry.localUri, true);
+    }
+  });
+  void pumpQueue();
+  await cleanup;
+  assertDownloadCleanupCurrent(cleanupIsCurrent);
 }
 
 function getTitleHint(memberId: string, performanceId: string): string {
@@ -548,6 +630,8 @@ export function resetDownloadManagerForTests(): void {
   queuedIds.length = 0;
   queuedTracks.clear();
   inflight.clear();
-  activeId = null;
+  activeJob = null;
+  globalGeneration += 1;
+  memberGenerations.clear();
   probeAudio = defaultProbeAudio;
 }

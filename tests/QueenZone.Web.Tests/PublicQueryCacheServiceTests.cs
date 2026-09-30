@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Reflection;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,6 +11,8 @@ namespace QueenZone.Web.Tests;
 
 public sealed class PublicQueryCacheServiceTests
 {
+    private static readonly TimeSpan CoordinationTimeout = TimeSpan.FromSeconds(10);
+
     [Fact]
     public async Task LatestNewsAndPublishedCountAreCachedUntilInvalidated()
     {
@@ -233,16 +237,29 @@ public sealed class PublicQueryCacheServiceTests
     public async Task Concurrent_cold_cache_hits_invoke_factory_once()
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var newsRepository = new SlowCountingNewsRepository(TimeSpan.FromMilliseconds(100));
+        var load = new PendingNewsLoad();
+        var newsRepository = new ControlledNewsRepository(load);
         var service = CreateService(memoryCache, newsRepository: newsRepository);
+        service.InvalidateNewsCache();
+        var key = PublicQueryCacheKeys.LatestNews(memoryCache.Get<string>(PublicQueryCacheKeys.NewsVersion)!, 5);
+        var tasks = Enumerable.Range(0, 12).Select(_ => service.GetLatestNewsAsync(5)).ToArray();
 
-        var tasks = Enumerable.Range(0, 12)
-            .Select(_ => service.GetLatestNewsAsync(5))
-            .ToArray();
-        await Task.WhenAll(tasks);
+        try
+        {
+            await load.WaitUntilEnteredAsync();
+            Assert.Equal(1, newsRepository.StartedCallCount);
+            Assert.All(tasks, task => Assert.False(task.IsCompleted));
+            Assert.Single(GetRetainedLoadGates([key]));
+        }
+        finally
+        {
+            load.Complete();
+        }
 
-        Assert.Equal(1, newsRepository.LatestCallCount);
-        Assert.All(tasks, t => Assert.Same(tasks[0].Result, t.Result));
+        var results = await Task.WhenAll(tasks).WaitAsync(CoordinationTimeout);
+        Assert.All(results, result => Assert.Same(results[0], result));
+        Assert.Equal(1, newsRepository.StartedCallCount);
+        Assert.Empty(GetRetainedLoadGates([key]));
     }
 
     [Fact]
@@ -250,34 +267,231 @@ public sealed class PublicQueryCacheServiceTests
     {
         // Production registers PublicQueryCacheService as scoped; gates must be process-wide.
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var newsRepository = new SlowCountingNewsRepository(TimeSpan.FromMilliseconds(100));
+        var loads = Enumerable.Range(0, 3).Select(_ => new PendingNewsLoad()).ToArray();
+        var newsRepository = new ControlledNewsRepository(loads);
         var services = Enumerable.Range(0, 12)
             .Select(_ => CreateService(memoryCache, newsRepository: newsRepository))
             .ToArray();
+        services[0].InvalidateNewsCache();
+        var key = PublicQueryCacheKeys.LatestNews(memoryCache.Get<string>(PublicQueryCacheKeys.NewsVersion)!, 5);
+        object? previousGate = null;
 
-        var tasks = services.Select(s => s.GetLatestNewsAsync(5)).ToArray();
-        await Task.WhenAll(tasks);
+        for (var round = 0; round < loads.Length; round++)
+        {
+            memoryCache.Remove(key);
+            var tasks = services.Select(service => service.GetLatestNewsAsync(5)).ToArray();
+            try
+            {
+                await loads[round].WaitUntilEnteredAsync();
+                Assert.Equal(round + 1, newsRepository.StartedCallCount);
+                Assert.All(tasks, task => Assert.False(task.IsCompleted));
+                var currentGate = Assert.Single(GetRetainedLoadGates([key]));
+                Assert.NotSame(previousGate, currentGate);
+                previousGate = currentGate;
+            }
+            finally
+            {
+                loads[round].Complete();
+            }
 
-        Assert.Equal(1, newsRepository.LatestCallCount);
-        Assert.All(tasks, t => Assert.Same(tasks[0].Result, t.Result));
+            var results = await Task.WhenAll(tasks).WaitAsync(CoordinationTimeout);
+            Assert.All(results, result => Assert.Same(results[0], result));
+            Assert.Equal(round + 1, newsRepository.StartedCallCount);
+            Assert.Empty(GetRetainedLoadGates([key]));
+        }
     }
 
     [Fact]
     public async Task Waiting_for_busy_cache_key_observes_cancellation()
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
-        var newsRepository = new BlockingNewsRepository();
+        var load = new PendingNewsLoad();
+        var newsRepository = new ControlledNewsRepository(load);
         var service = CreateService(memoryCache, newsRepository: newsRepository);
-
+        var otherScope = CreateService(memoryCache, newsRepository: newsRepository);
+        service.InvalidateNewsCache();
+        var key = PublicQueryCacheKeys.LatestNews(memoryCache.Get<string>(PublicQueryCacheKeys.NewsVersion)!, 5);
         var first = service.GetLatestNewsAsync(5);
-        await newsRepository.WaitUntilEnteredAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var cancellation = new CancellationTokenSource();
+        var cancelled = otherScope.GetLatestNewsAsync(5, cancellation.Token);
+        var survivingWaiter = otherScope.GetLatestNewsAsync(5);
+        Task<IReadOnlyList<NewsItem>>? lateArrival = null;
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.GetLatestNewsAsync(5, timeout.Token));
+        try
+        {
+            await load.WaitUntilEnteredAsync();
+            var activeGate = Assert.Single(GetRetainedLoadGates([key]));
+            Assert.False(cancelled.IsCompleted);
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled.WaitAsync(CoordinationTimeout));
 
-        newsRepository.Release();
-        _ = await first;
+            lateArrival = otherScope.GetLatestNewsAsync(5);
+            Assert.False(survivingWaiter.IsCompleted);
+            Assert.False(lateArrival.IsCompleted);
+            Assert.Equal(1, newsRepository.StartedCallCount);
+            Assert.Same(activeGate, Assert.Single(GetRetainedLoadGates([key])));
+        }
+        finally
+        {
+            load.Complete();
+        }
+
+        var results = await Task.WhenAll(first, survivingWaiter, lateArrival!).WaitAsync(CoordinationTimeout);
+        Assert.All(results, result => Assert.Same(results[0], result));
+        Assert.Equal(1, newsRepository.StartedCallCount);
+        Assert.Empty(GetRetainedLoadGates([key]));
+    }
+
+    [Fact]
+    public async Task GetLatestNewsAsync_PreCancelledCaller_ReclaimsGateAndAllowsRetry()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var load = new PendingNewsLoad();
+        var repository = new ControlledNewsRepository(load);
+        var service = CreateService(memoryCache, newsRepository: repository);
+        service.InvalidateNewsCache();
+        var key = PublicQueryCacheKeys.LatestNews(memoryCache.Get<string>(PublicQueryCacheKeys.NewsVersion)!, 5);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetLatestNewsAsync(5, cancellation.Token));
+
+        Assert.Equal(0, repository.StartedCallCount);
+        Assert.Empty(GetRetainedLoadGates([key]));
+        var retry = service.GetLatestNewsAsync(5);
+        try
+        {
+            await load.WaitUntilEnteredAsync();
+            Assert.Single(GetRetainedLoadGates([key]));
+        }
+        finally
+        {
+            load.Complete();
+        }
+
+        await retry.WaitAsync(CoordinationTimeout);
+        Assert.Equal(1, repository.StartedCallCount);
+        Assert.Empty(GetRetainedLoadGates([key]));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetLatestNewsAsync_FailedOrCancelledFactory_PreservesWaitersAndAllowsRetry(bool cancelFactory)
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var failedLoad = new PendingNewsLoad();
+        var successfulLoad = new PendingNewsLoad();
+        var repository = new ControlledNewsRepository(failedLoad, successfulLoad);
+        var service = CreateService(memoryCache, newsRepository: repository);
+        var otherScope = CreateService(memoryCache, newsRepository: repository);
+        service.InvalidateNewsCache();
+        var key = PublicQueryCacheKeys.LatestNews(memoryCache.Get<string>(PublicQueryCacheKeys.NewsVersion)!, 5);
+        using var cancellation = new CancellationTokenSource();
+        var first = service.GetLatestNewsAsync(5, cancellation.Token);
+        var waiting = otherScope.GetLatestNewsAsync(5);
+        Task<IReadOnlyList<NewsItem>>? lateArrival = null;
+
+        try
+        {
+            await failedLoad.WaitUntilEnteredAsync();
+            var activeGate = Assert.Single(GetRetainedLoadGates([key]));
+            if (cancelFactory)
+            {
+                cancellation.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first.WaitAsync(CoordinationTimeout));
+            }
+            else
+            {
+                failedLoad.Fail();
+                await Assert.ThrowsAsync<InvalidOperationException>(() => first.WaitAsync(CoordinationTimeout));
+            }
+
+            await successfulLoad.WaitUntilEnteredAsync();
+            // A new caller must join the promoted waiter, not create a second active gate.
+            lateArrival = otherScope.GetLatestNewsAsync(5);
+            Assert.False(waiting.IsCompleted);
+            Assert.False(lateArrival.IsCompleted);
+            Assert.Equal(2, repository.StartedCallCount);
+            Assert.Same(activeGate, Assert.Single(GetRetainedLoadGates([key])));
+        }
+        finally
+        {
+            failedLoad.Complete();
+            successfulLoad.Complete();
+        }
+
+        var results = await Task.WhenAll(waiting, lateArrival!).WaitAsync(CoordinationTimeout);
+        Assert.Same(results[0], results[1]);
+        Assert.Same(results[0], await service.GetLatestNewsAsync(5));
+        Assert.Equal(2, repository.StartedCallCount);
+        Assert.Empty(GetRetainedLoadGates([key]));
+    }
+
+    [Fact]
+    public async Task GetLatestNewsAsync_DifferentKeys_LoadConcurrently()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var firstLoad = new PendingNewsLoad();
+        var secondLoad = new PendingNewsLoad();
+        var repository = new ControlledNewsRepository(firstLoad, secondLoad);
+        var service = CreateService(memoryCache, newsRepository: repository);
+        var otherScope = CreateService(memoryCache, newsRepository: repository);
+        service.InvalidateNewsCache();
+        var version = memoryCache.Get<string>(PublicQueryCacheKeys.NewsVersion)!;
+        var keys = new[] { PublicQueryCacheKeys.LatestNews(version, 5), PublicQueryCacheKeys.LatestNews(version, 6) };
+        var first = service.GetLatestNewsAsync(5);
+        var second = otherScope.GetLatestNewsAsync(6);
+
+        try
+        {
+            await Task.WhenAll(firstLoad.WaitUntilEnteredAsync(), secondLoad.WaitUntilEnteredAsync());
+            Assert.Equal(2, repository.StartedCallCount);
+            Assert.Equal(2, GetRetainedLoadGates(keys).Length);
+            Assert.False(first.IsCompleted);
+            Assert.False(second.IsCompleted);
+        }
+        finally
+        {
+            firstLoad.Complete();
+            secondLoad.Complete();
+        }
+
+        await Task.WhenAll(first, second).WaitAsync(CoordinationTimeout);
+        Assert.Empty(GetRetainedLoadGates(keys));
+    }
+
+    [Fact]
+    public async Task GetPhotoCategoryPageAsync_ManyPagesAndVersions_DoesNotRetainCompletedGates()
+    {
+        const int versionCount = 8;
+        const int pagesPerVersion = 256;
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var repository = new CountingPhotoRepository();
+        var service = CreateService(memoryCache, photoRepository: repository);
+        var keys = new List<string>();
+
+        for (var versionIndex = 0; versionIndex < versionCount; versionIndex++)
+        {
+            service.InvalidatePhotoCache();
+            var version = memoryCache.Get<string>(PublicQueryCacheKeys.PhotoVersion)!;
+            keys.AddRange(Enumerable.Range(1, pagesPerVersion)
+                .Select(page => PublicQueryCacheKeys.PhotoCategoryPage(version, 1, page, 24)));
+            Assert.Empty(GetRetainedLoadGates(keys));
+
+            for (var page = 1; page <= pagesPerVersion; page++)
+            {
+                await service.GetPhotoCategoryPageAsync(1, page, 24);
+            }
+
+            Assert.Empty(GetRetainedLoadGates(keys));
+        }
+
+        // The old process-lifetime dictionary would retain all 2,048 workload gates. The new
+        // registry returns from zero to zero after every version, without an RSS/GC assertion.
+        Assert.Equal(2_048, keys.Count);
+        Assert.Equal(keys.Count, repository.PageCallCount);
+        Assert.Empty(GetRetainedLoadGates(keys));
     }
 
     [Fact]
@@ -807,33 +1021,55 @@ public sealed class PublicQueryCacheServiceTests
         }
     }
 
-    private sealed class SlowCountingNewsRepository(TimeSpan delay) : CountingNewsRepository
+    // The retained coordination-object count is an architectural contract, so inspect the
+    // registry rather than source text or GC/RSS. Filter to this test's unique cache versions
+    // to avoid interference from other test classes loading unrelated keys in parallel.
+    private static object[] GetRetainedLoadGates(IEnumerable<string> keys)
     {
-        public override async Task<IReadOnlyList<NewsItem>> GetLatestAsync(
-            int count,
-            CancellationToken cancellationToken = default)
+        var flags = BindingFlags.Static | BindingFlags.NonPublic;
+        var sync = typeof(PublicQueryCacheService).GetField("LoadGatesSync", flags)!.GetValue(null)!;
+        lock (sync)
         {
-            await Task.Delay(delay, cancellationToken);
-            return await base.GetLatestAsync(count, cancellationToken);
+            var gates = (IDictionary)typeof(PublicQueryCacheService).GetField("LoadGates", flags)!.GetValue(null)!;
+            return keys.Select(key => gates[key]).OfType<object>().ToArray();
         }
     }
 
-    private sealed class BlockingNewsRepository : CountingNewsRepository
+    private sealed class PendingNewsLoad
     {
         private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<IReadOnlyList<NewsItem>> result = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task WaitUntilEnteredAsync() => entered.Task;
+        public Task WaitUntilEnteredAsync() => entered.Task.WaitAsync(CoordinationTimeout);
 
-        public void Release() => release.TrySetResult();
+        public void Complete() => result.TrySetResult([]);
 
-        public override async Task<IReadOnlyList<NewsItem>> GetLatestAsync(
+        public void Fail() => result.TrySetException(new InvalidOperationException("Expected cache-load failure."));
+
+        public async Task<IReadOnlyList<NewsItem>> RunAsync(CancellationToken cancellationToken)
+        {
+            entered.TrySetResult();
+            return await result.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    private sealed class ControlledNewsRepository(params PendingNewsLoad[] loads) : CountingNewsRepository
+    {
+        private int startedCallCount;
+
+        public int StartedCallCount => Volatile.Read(ref startedCallCount);
+
+        public override Task<IReadOnlyList<NewsItem>> GetLatestAsync(
             int count,
             CancellationToken cancellationToken = default)
         {
-            entered.TrySetResult();
-            await release.Task;
-            return await base.GetLatestAsync(count, cancellationToken);
+            var index = Interlocked.Increment(ref startedCallCount) - 1;
+            if (index >= loads.Length)
+            {
+                throw new InvalidOperationException("Unexpected concurrent cache factory.");
+            }
+
+            return loads[index].RunAsync(cancellationToken);
         }
     }
 

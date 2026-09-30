@@ -127,3 +127,17 @@ describe('getContentCache', () => {
     stopDownloads();
   });
 });
+
+it('invalidates pending private work immediately and reports failed disk purge', async () => {
+  const storage = createMemoryStorage();
+  const cache = new ContentCache({ storage: {
+    ...storage,
+    async getAllKeys() { throw new Error('device store unavailable'); },
+  } });
+  setContentCacheForTests(cache);
+  const lease = cache.acquireLease(conversationCacheKey('member-a', 'c1'));
+  const purging = purgePrivateContentCache('member-a');
+  assert.equal(lease.current, false);
+  await assert.rejects(purging, /device store unavailable/);
+  lease.release();
+});

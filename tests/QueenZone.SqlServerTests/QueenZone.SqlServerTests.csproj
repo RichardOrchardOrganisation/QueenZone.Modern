@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\QueenZone.Web.Tests\SqlExceptionFactory.cs" Link="SqlExceptionFactory.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\QueenZone.Data\QueenZone.Data.csproj" />
   </ItemGroup>
 

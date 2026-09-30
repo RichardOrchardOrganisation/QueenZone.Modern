@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -30,10 +29,12 @@ public sealed class PublicQueryCacheService(
     /// <summary>
     /// Process-wide per-key gates so concurrent cold-cache hits share a single factory execution
     /// even when <see cref="PublicQueryCacheService"/> is scoped (one instance per HTTP request).
-    /// Key set is small (news/article version variants, catalog pools, forum stats, history, photo pages).
+    /// Keys include unbounded page/date/id/version variants. Retain a gate only while its holder
+    /// or registered waiters use it; cardinality is the number of currently active distinct keys,
+    /// and returns to zero when loads finish. Completed keys and semaphores are not retained.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> LoadGates =
-        new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, LoadGate> LoadGates = new(StringComparer.Ordinal);
+    private static readonly object LoadGatesSync = new();
 
     public Task<IReadOnlyList<NewsItem>> GetLatestNewsAsync(int count, CancellationToken cancellationToken = default)
     {
@@ -509,22 +510,66 @@ public sealed class PublicQueryCacheService(
             return cached;
         }
 
-        var gate = LoadGates.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var gate = RentLoadGate(key);
         try
         {
-            if (cache.TryGetValue(key, out cached) && cached is not null)
+            await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                return cached;
-            }
+                if (cache.TryGetValue(key, out cached) && cached is not null)
+                {
+                    return cached;
+                }
 
-            var value = await factory().ConfigureAwait(false);
-            cache.Set(key, value, duration);
-            return value;
+                var value = await factory().ConfigureAwait(false);
+                cache.Set(key, value, duration);
+                return value;
+            }
+            finally
+            {
+                gate.Semaphore.Release();
+            }
         }
         finally
         {
-            gate.Release();
+            ReturnLoadGate(key, gate);
         }
+    }
+
+    private static LoadGate RentLoadGate(string key)
+    {
+        lock (LoadGatesSync)
+        {
+            if (!LoadGates.TryGetValue(key, out var gate))
+            {
+                gate = new LoadGate();
+                LoadGates.Add(key, gate);
+            }
+
+            // Register before waiting so a releasing holder cannot remove a waiter's gate.
+            gate.ReferenceCount++;
+            return gate;
+        }
+    }
+
+    private static void ReturnLoadGate(string key, LoadGate gate)
+    {
+        lock (LoadGatesSync)
+        {
+            // Includes callers cancelled before acquiring the semaphore. Removal and rent
+            // share this lock, so the final reference cannot race with a new caller.
+            if (--gate.ReferenceCount == 0)
+            {
+                LoadGates.Remove(key);
+                gate.Semaphore.Dispose();
+            }
+        }
+    }
+
+    private sealed class LoadGate
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public int ReferenceCount { get; set; }
     }
 }

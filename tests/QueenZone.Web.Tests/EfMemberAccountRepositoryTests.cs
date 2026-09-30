@@ -531,6 +531,44 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Purge_RetainsAppleRevocationAndBlobOutboxUntilEachIsCompleted()
+    {
+        var account = await SeedAccountAsync("apple-purge@example.test", "Apple Purge");
+        await repository.UpdateAvatarUrlAsync(account.Id, $"members/{account.Id:N}/avatar.webp");
+        await repository.AddExternalLoginAsync(account.Id, "Apple", "protected-apple", account.Email);
+        await repository.AddExternalLoginAsync(account.Id, "Apple", "unprotected-apple", account.Email);
+        await repository.AddExternalLoginAsync(account.Id, "Google", "google-login", account.Email);
+        IAppleRevocationRepository revocations = repository;
+        await revocations.SaveAppleRefreshTokenAsync(account.Id, "protected-apple", "protected-token");
+        var requestedAt = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        await repository.RequestDeletionAsync(account.Id, requestedAt, immediate: true);
+        Assert.Empty(await revocations.ListPendingAppleRevocationsAsync(10));
+
+        var result = await repository.PurgeDeletedAccountsAsync(
+            requestedAt.AddDays(-MemberAccountDeletionPolicy.RetentionDays), requestedAt);
+
+        Assert.Equal(1, result.PurgedCount);
+        Assert.Equal(["Apple"], await repository.ListExternalProvidersAsync(account.Id));
+        var pending = Assert.Single(await revocations.ListPendingAppleRevocationsAsync(10));
+        Assert.Equal("protected-token", pending.ProtectedToken);
+        Assert.False((await repository.GetDeletionProgressAsync(account.Id))!.IsComplete);
+        var login = await dbContext.MemberExternalLogins.AsNoTracking().SingleAsync();
+        Assert.Equal("deleted@deleted.invalid", login.Email);
+
+        await revocations.CompleteAppleRevocationAsync(pending.ExternalLoginId);
+        Assert.Empty(await repository.ListExternalProvidersAsync(account.Id));
+        Assert.False((await repository.GetDeletionProgressAsync(account.Id))!.IsComplete);
+        var blobs = await repository.ListPendingDeletionBlobsAsync(10);
+        Assert.Equal(2, blobs.Count);
+        foreach (var blob in blobs)
+        {
+            await repository.CompleteDeletionBlobAsync(blob.Id);
+        }
+        Assert.True((await repository.GetDeletionProgressAsync(account.Id))!.IsComplete);
+        Assert.Equal(0, (await repository.PurgeDeletedAccountsAsync(requestedAt, requestedAt)).PurgedCount);
+    }
+
+    [Fact]
     public async Task LocalPasswordAccountOperations_ProjectUpdateAndRemoveCredential()
     {
         var account = await SeedAccountAsync("reviewer-ef@example.com", "EF Reviewer");
