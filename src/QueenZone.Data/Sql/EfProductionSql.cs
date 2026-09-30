@@ -216,44 +216,6 @@ internal static class EfProductionSql
                 WHERE {{PublishedNewsQuery.LatestRowFilter}}
                 """);
 
-    /// <summary>
-    /// Builds LIKE-based news search queries used as a SQLite fallback for deterministic tests.
-    /// Production uses the <c>dbo.NEWS_T_SearchPublished</c> stored procedure (full-text search).
-    /// <paramref name="searchCte"/> must project <c>Body</c> from <c>ARTICLE</c> so the LIKE clause can match it;
-    /// the outer SELECT replaces Body with an empty constant so the LOB is not sent to the application.
-    /// Parameters: {0} = LIKE pattern (e.g. <c>%freddie%</c>), {1} = OFFSET row count, {2} = FETCH row count.
-    /// The count query uses only {0}.
-    /// </summary>
-    public static (string SearchSql, string SearchCountSql) CreateNewsSqliteLikeSearchQueries(string searchCte) =>
-        (
-            searchCte + $$"""
-
-                SELECT
-                    Id,
-                    Title,
-                    Excerpt,
-                    CAST(N'' AS nvarchar(max)) AS Body,
-                    PublishedAt,
-                    SourceUrl,
-                    IsPublished,
-                    Slug,
-                    ImageBlobKey,
-                    ImageGalleryPicId,
-                    ForumTopicId
-                FROM PublishedNews
-                WHERE {{PublishedNewsQuery.LatestRowFilter}}
-                  AND (Title LIKE {0} OR Excerpt LIKE {0} OR Body LIKE {0})
-                ORDER BY PublishedAt DESC, Id DESC
-                OFFSET {1} ROWS FETCH NEXT {2} ROWS ONLY
-                """,
-            searchCte + $$"""
-
-                SELECT COUNT(*) AS Value
-                FROM PublishedNews
-                WHERE {{PublishedNewsQuery.LatestRowFilter}}
-                  AND (Title LIKE {0} OR Excerpt LIKE {0} OR Body LIKE {0})
-                """);
-
     public static (string ListSql, Func<int, FormattableString> DisplaySql, Func<int, FormattableString> SongsSql)
         CreateDiscographyQueries() =>
         (

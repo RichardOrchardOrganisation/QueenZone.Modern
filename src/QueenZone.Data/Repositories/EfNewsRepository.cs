@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -21,14 +20,8 @@ public sealed class EfNewsRepository : INewsRepository
     private readonly string archivePageByDecadeSql;
     private readonly string countByDecadeSql;
     private readonly string archiveYearRangeSql;
-
-    // SQLite-only: LIKE-based fallback for deterministic tests.
-    // On SQL Server the SearchAsync path uses dbo.NEWS_T_SearchPublished instead.
-    private readonly string sqliteLikeSearchSql;
-    private readonly string sqliteLikeSearchCountSql;
     private readonly INewsSuggestionRepository? newsSuggestionRepository;
 
-    [ExcludeFromCodeCoverage]
     public EfNewsRepository(
         QueenZoneDbContext dbContext,
         INewsSuggestionRepository newsSuggestionRepository)
@@ -54,20 +47,11 @@ public sealed class EfNewsRepository : INewsRepository
             columns.HasForumTopicIdColumn);
         (latestSql, countSql, archivePageSql, byIdSql, sitemapSql, archivePageByDecadeSql, countByDecadeSql, archiveYearRangeSql) =
             EfProductionSql.CreateNewsQueries(listCte, detailCte);
-        // SQLite fallback: body-inclusive CTE for LIKE matching (not used on SQL Server).
-        var searchCte = PublishedNewsQuery.BuildPublishedNewsCte(
-            includeSlug,
-            includeBody: true,
-            columns.HasImageBlobKeyColumn,
-            columns.HasImageGalleryPicIdColumn,
-            columns.HasForumTopicIdColumn);
-        (sqliteLikeSearchSql, sqliteLikeSearchCountSql) =
-            EfProductionSql.CreateNewsSqliteLikeSearchQueries(searchCte);
     }
 
     /// <summary>
-    /// Test constructor: accepts SQLite-compatible LIKE search SQL for the search fallback path.
-    /// SQL templates must use EF <c>{0}</c>/<c>{1}</c>/<c>{2}</c> placeholders.
+    /// Test constructor: injects SQLite-compatible SQL templates.
+    /// Templates must use EF <c>{0}</c>/<c>{1}</c>/<c>{2}</c> placeholders.
     /// </summary>
     internal EfNewsRepository(
         QueenZoneDbContext dbContext,
@@ -76,8 +60,6 @@ public sealed class EfNewsRepository : INewsRepository
         string archivePageSql,
         string byIdSql,
         string sitemapSql,
-        string sqliteLikeSearchSql = "",
-        string sqliteLikeSearchCountSql = "",
         INewsSuggestionRepository? newsSuggestionRepository = null,
         string archivePageByDecadeSql = "",
         string countByDecadeSql = "",
@@ -89,8 +71,6 @@ public sealed class EfNewsRepository : INewsRepository
         this.archivePageSql = archivePageSql;
         this.byIdSql = byIdSql;
         this.sitemapSql = sitemapSql;
-        this.sqliteLikeSearchSql = sqliteLikeSearchSql;
-        this.sqliteLikeSearchCountSql = sqliteLikeSearchCountSql;
         this.newsSuggestionRepository = newsSuggestionRepository;
         this.archivePageByDecadeSql = archivePageByDecadeSql;
         this.countByDecadeSql = countByDecadeSql;
@@ -239,11 +219,6 @@ public sealed class EfNewsRepository : INewsRepository
             return new NewsSearchPage([], 0, page, pageSize);
         }
 
-        if (IsSqliteDatabase())
-        {
-            return await ExecuteSearchWithLikeAsync(query.Trim(), page, pageSize, cancellationToken);
-        }
-
         return await ExecuteSearchWithFtsAsync(query.Trim(), page, pageSize, cancellationToken);
     }
 
@@ -277,41 +252,6 @@ public sealed class EfNewsRepository : INewsRepository
             normalizedPage,
             take);
     }
-
-    private async Task<NewsSearchPage> ExecuteSearchWithLikeAsync(
-        string query,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken)
-    {
-        var normalizedPage = Math.Max(page, 1);
-        var take = Math.Clamp(pageSize, 1, MaxPageSize);
-        var offset = (normalizedPage - 1) * take;
-        var likePattern = $"%{query}%";
-
-        var countValues = await dbContext.Database
-            .SqlQueryRaw<int>(sqliteLikeSearchCountSql, likePattern)
-            .ToListAsync(cancellationToken);
-        var totalCount = countValues.FirstOrDefault();
-
-        if (totalCount == 0)
-        {
-            return new NewsSearchPage([], 0, normalizedPage, take);
-        }
-
-        var rows = await dbContext.Database
-            .SqlQueryRaw<NewsRow>(sqliteLikeSearchSql, likePattern, offset, take)
-            .ToListAsync(cancellationToken);
-
-        var items = await AddSubmissionAttributionAsync(rows.Select(Map).ToList(), cancellationToken);
-        return new NewsSearchPage(items, totalCount, normalizedPage, take);
-    }
-
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
 
     private async Task<IReadOnlyList<NewsItem>> AddSubmissionAttributionAsync(
         IReadOnlyList<NewsItem> items,
