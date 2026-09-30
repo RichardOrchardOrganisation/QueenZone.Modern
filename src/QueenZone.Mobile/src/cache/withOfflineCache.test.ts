@@ -252,3 +252,30 @@ for (const mode of ['swr', 'offline'] as const) {
     assert.equal(await storage.getItem(cache.entryKey(key)), null);
   });
 }
+
+for (const mode of ['swr', 'offline'] as const) {
+  it(`rechecks ownership after the cached-result helper resolves (${mode})`, async () => {
+    let purge: Promise<void> | undefined;
+    class CompletionBoundaryCache extends ContentCache {
+      override read<T>(_key: string, _lease?: import('./contentCache.ts').CacheLease) {
+        // The first microtask precedes the helper's continuation. The second
+        // invalidates after its check but before the caller resumes.
+        queueMicrotask(() => queueMicrotask(() => { purge = this.purgePrefix('private:'); }));
+        return Promise.resolve({ payload: { value: 'private cached' } as T, cachedAt: new Date().toISOString() });
+      }
+    }
+    const cache = new CompletionBoundaryCache({ storage: createMemoryStorage() });
+    const pending = withOfflineCacheResult(cache, 'private:member-a:conversation',
+      mode === 'swr' ? async () => ({ value: 'network' }) : async () => { throw ApiError.offline(); },
+      mode === 'swr' ? { ttlMs: 60_000 } : {});
+    if (mode === 'offline') {
+      await assert.rejects(pending, ApiError);
+    } else {
+      const result = await pending;
+      assert.equal(result.source, 'network');
+      assert.deepEqual(result.data, { value: 'network' });
+    }
+    assert.ok(purge);
+    await purge;
+  });
+}

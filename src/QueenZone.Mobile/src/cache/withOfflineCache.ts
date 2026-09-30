@@ -163,7 +163,7 @@ async function recoverCached<T>(cache: ContentCache, key: string, lease: CacheLe
   }
   if (!fallback || !isCacheFallbackFailure(error)) throw error;
   const cached = await readCached<T>(cache, key, lease);
-  if (!cached) throw error;
+  if (!lease.current || !cached) throw error;
   return { data: cached.payload, source: 'cache', cachedAt: cached.cachedAt };
 }
 
@@ -175,7 +175,7 @@ async function readWithLease<T>(
   const invalidateOn = options.invalidateOn ?? [];
   if (fallback && options.ttlMs !== undefined && options.ttlMs > 0) {
     const fresh = await readCached<T>(cache, cacheKey, lease);
-    if (fresh !== null && cacheAgeMs(fresh.cachedAt) < options.ttlMs) {
+    if (lease.current && fresh !== null && cacheAgeMs(fresh.cachedAt) < options.ttlMs) {
       revalidateInBackground(cache, cacheKey, fetchFresh, invalidateOn);
       return { data: fresh.payload, source: 'cache', cachedAt: fresh.cachedAt };
     }
