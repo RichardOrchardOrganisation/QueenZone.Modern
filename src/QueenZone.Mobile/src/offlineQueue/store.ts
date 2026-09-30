@@ -60,7 +60,7 @@ export function isOfflineQueueItemDiscarded(item: OfflineQueueItem): boolean {
  * awaiting storage. A delayed read or failed cleanup cannot admit old sends, and
  * retries cannot delete genuinely new operations from a later same-member login.
  */
-export function prepareOfflineQueueDiscard(memberId?: string | null): () => Promise<void> {
+export function prepareOfflineQueueDiscard(memberId: string | null = null): () => Promise<void> {
   const scope = memberId || null;
   const cutoff = enqueueSequence;
   discardedBefore.set(scope, cutoff);

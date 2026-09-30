@@ -276,7 +276,8 @@ export class ContentCache {
       // Recover from missing/corrupt/failed metadata without discarding payloads.
     }
     const index = new Map<string, AccessMetadata>();
-    for (const key of keys) {
+    await keys.reduce(async (previous, key) => {
+      await previous;
       let access = Object.hasOwn(saved, key) ? saved[key] : undefined;
       if (!access || typeof access.accessedAt !== 'string' || !Number.isFinite(access.accessSeq)) {
         // An unrelated unreadable entry must not hide a healthy offline payload.
@@ -289,7 +290,7 @@ export class ContentCache {
       }
       index.set(key, { accessedAt: access.accessedAt, accessSeq: access.accessSeq });
       this.accessSeq = Math.max(this.accessSeq, access.accessSeq);
-    }
+    }, Promise.resolve());
     this.index = index;
   }
 

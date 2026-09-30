@@ -190,12 +190,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     job.running = true;
     // Invoke immediately: cache/download invalidation happens before their first
     // await, so a new session cannot start while old in-flight work is still live.
-    let work: Promise<void>;
-    try {
-      work = job.run();
-    } catch {
-      work = Promise.reject(new Error('Local cleanup failed'));
-    }
+    const work = (async () => { await job.run(); })();
     void work.then(
       () => {
         job.running = false;
@@ -319,11 +314,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const resetStoredIdentity = resetIdentity || pendingSessionWriteRef.current?.resetIdentity === true;
       let stored: StoredSession;
       try {
-        const written = await serializeCredentials(async () =>
-          generation === generationRef.current
-            ? (resetStoredIdentity ? writeStoredSession(tokens, true) : writeStoredSession(tokens))
-            : null,
-        );
+        const written = await serializeCredentials<StoredSession | null>(() => {
+          if (generation !== generationRef.current) return Promise.resolve(null);
+          return resetStoredIdentity ? writeStoredSession(tokens, true) : writeStoredSession(tokens);
+        });
         if (!written || generation !== generationRef.current) {
           return null;
         }
@@ -358,7 +352,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [applyProfile, applyTokenState, cleanupPrivateData, serializeCredentials],
   );
 
-  const clearLocal = useCallback(async () => {
+  const clearLocal = useCallback(() => {
     const token = sessionRef.current.accessToken;
     const memberId = memberIdRef.current ??
       (token ? resolvePushMemberId(token, sessionRef.current.profile?.memberId) : null);
@@ -376,6 +370,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // ancillary storage or the network. Queue deletion before another sign-in.
     queueCleanup(generation, memberId, true, () => serializeCredentials(clearStoredSession));
     cleanupPrivateData(memberId, generation);
+    return Promise.resolve();
   }, [beginSessionGeneration, cleanupPrivateData, queueCleanup, serializeCredentials]);
 
   const refreshWithStoredGrant = useCallback((): Promise<string | null> => {
@@ -629,36 +624,34 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return;
       }
       const generation = generationRef.current;
-      void serializeCredentials(async () => {
-        if (generation === generationRef.current && pendingSessionWriteRef.current === pending) {
-          if (pending.resetIdentity) {
-            await writeStoredSession(pending.tokens, true);
-          } else {
-            await writeStoredSession(pending.tokens);
-          }
-        }
-      }).then(() => {
-          if (pendingSessionWriteRef.current === pending && generation === generationRef.current) {
-            pendingSessionWriteRef.current = null;
-            const current = sessionRef.current;
-            const profile = current.profile;
-            if (current.accessToken === pending.tokens.accessToken && profile) {
-              void serializeCredentials(async () => {
-                if (generation !== generationRef.current || sessionRef.current.accessToken !== current.accessToken) {
-                  return;
-                }
-                await writeStoredIdentityShell({
-                  displayName: profile.displayName,
-                  memberId: profile.memberId,
-                  avatarPath: profile.avatarPath,
-                });
-              }).catch(() => {});
+      void (async () => {
+        try {
+          await serializeCredentials(async () => {
+            if (generation !== generationRef.current || pendingSessionWriteRef.current !== pending) return;
+            if (pending.resetIdentity) {
+              await writeStoredSession(pending.tokens, true);
+            } else {
+              await writeStoredSession(pending.tokens);
             }
-          }
-        })
-        .catch(() => {
-          // Still pending; the next foreground or refresh tries again.
-        });
+          });
+          if (pendingSessionWriteRef.current !== pending || generation !== generationRef.current) return;
+          pendingSessionWriteRef.current = null;
+          const current = sessionRef.current;
+          const profile = current.profile;
+          if (current.accessToken !== pending.tokens.accessToken || !profile) return;
+          await serializeCredentials(async () => {
+            if (generation !== generationRef.current || sessionRef.current.accessToken !== current.accessToken) return;
+            await writeStoredIdentityShell({
+              displayName: profile.displayName,
+              memberId: profile.memberId,
+              avatarPath: profile.avatarPath,
+            });
+          });
+        } catch {
+          // Failed token writes remain pending; an identity-shell failure leaves
+          // the already persisted grant intact. Foreground can retry token writes.
+        }
+      })();
     };
 
     const appState = AppState.addEventListener('change', (state) => {

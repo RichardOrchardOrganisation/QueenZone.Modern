@@ -267,6 +267,52 @@ function messageForDownloadError(error: unknown): string {
   return DOWNLOAD_FAILED_MESSAGE;
 }
 
+async function probeDownloadAudio(url: string, token: string): Promise<AudioDownloadProbe | null> {
+  try {
+    const probe = await probeAudio(url, token);
+    if ([401, 403, 404].includes(probe.status)) throw new Error(DOWNLOAD_UNAUTHORIZED_MESSAGE);
+    if (probe.status === 429) throw new Error(DOWNLOAD_RATE_LIMITED_MESSAGE);
+    // The transfer is authoritative; probe network failures remain best effort.
+    return probe;
+  } catch (error) {
+    if (error instanceof Error &&
+        [DOWNLOAD_UNAUTHORIZED_MESSAGE, DOWNLOAD_RATE_LIMITED_MESSAGE].includes(error.message)) throw error;
+    return null;
+  }
+}
+
+async function validateDownloadPart(
+  host: ReturnType<typeof getDownloadFileHost>, partToPromote: string, partExists: boolean,
+  size: number, expectedBytes: number | null, progressTotal: number | null, isCurrent: () => boolean,
+): Promise<void> {
+  if (!partExists) {
+    throw new Error(messageForFinalizeFailure('missing-part'));
+  }
+  if (size <= 0) {
+    host.deleteIfExists(partToPromote);
+    throw new Error(messageForFinalizeFailure('empty-part'));
+  }
+  if (expectedBytes && expectedBytes > 64 && size < expectedBytes * 0.95) {
+    host.deleteIfExists(partToPromote);
+    throw new Error(messageForFinalizeFailure('incomplete'));
+  }
+  if (isTinyCompleteDownload({ size, probeExpected: expectedBytes, progressTotal })) {
+    host.deleteIfExists(partToPromote);
+    throw new Error(messageForFinalizeFailure('tiny-complete'));
+  }
+  const partIsHttpError = await fileLooksLikeHttpError((uri, max) => host.readPrefix(uri, max), partToPromote, size);
+  assertDownloadCleanupCurrent(isCurrent);
+  if (partIsHttpError) {
+    host.deleteIfExists(partToPromote);
+    throw new Error(DOWNLOAD_FAILED_MESSAGE);
+  }
+  if (!canPromotePart(partExists, size)) {
+    host.deleteIfExists(partToPromote);
+    throw new Error(messageForFinalizeFailure('missing-part'));
+  }
+
+}
+
 async function runDownload(job: DownloadJob): Promise<void> {
   const { track, memberId, tokenFactory: ensureAccessToken } = job;
   const isCurrent = () => job.isCurrent() && !job.abort.signal.aborted;
@@ -296,43 +342,14 @@ async function runDownload(job: DownloadJob): Promise<void> {
     }
 
     const url = apiV1Url(fanPerformanceAudioPath(track.id));
-    let sourceRevision: string | null = null;
-    let expectedBytes: number | null = null;
-    let probeStatus: number | null = null;
-    let probeContentType: string | null = null;
-    let probeContentLength: number | null = null;
-    let probeRedirected = false;
-    let probeFinalTarget: string | null = null;
-    try {
-      const probe = await probeAudio(url, token);
-      probeStatus = probe.status;
-      probeContentType = probe.contentType ?? null;
-      probeContentLength = probe.contentLength ?? null;
-      probeRedirected = Boolean(probe.redirected);
-      probeFinalTarget = probe.finalTarget ?? null;
-      if (probe.status === 401 || probe.status === 403 || probe.status === 404) {
-        throw new Error(DOWNLOAD_UNAUTHORIZED_MESSAGE);
-      }
-      if (probe.status === 429) {
-        throw new Error(DOWNLOAD_RATE_LIMITED_MESSAGE);
-      }
-      // Non-200/206 (including a timed-out probe status 0) is not fatal.
-      // Streaming already proved the file is there; File.downloadFileAsync
-      // is the real transfer (full GET — a Cloudflare Worker hop, if any,
-      // can disagree on Content-Length / error body / redirect vs Range).
-      // A Range probe that ignores Range and buffers the whole MP3 used to
-      // fail longer tracks and leak the connection.
-      sourceRevision = probe.sourceRevision;
-      expectedBytes = probe.byteSize;
-    } catch (error) {
-      if (error instanceof Error && error.message === DOWNLOAD_UNAUTHORIZED_MESSAGE) {
-        throw error;
-      }
-      if (error instanceof Error && error.message === DOWNLOAD_RATE_LIMITED_MESSAGE) {
-        throw error;
-      }
-      // Probe network errors: still attempt the download.
-    }
+    const probe = await probeDownloadAudio(url, token);
+    const sourceRevision = probe?.sourceRevision ?? null;
+    let expectedBytes = probe?.byteSize ?? null;
+    const probeStatus = probe?.status ?? null;
+    const probeContentType = probe?.contentType ?? null;
+    const probeContentLength = probe?.contentLength ?? null;
+    const probeRedirected = Boolean(probe?.redirected);
+    const probeFinalTarget = probe?.finalTarget ?? null;
 
     assertDownloadCleanupCurrent(job.isCurrent);
     reportDownloadBreadcrumb('probe', {
@@ -441,31 +458,7 @@ async function runDownload(job: DownloadJob): Promise<void> {
       finalTarget: probeFinalTarget,
     });
 
-    if (!partExists) {
-      throw new Error(messageForFinalizeFailure('missing-part'));
-    }
-    if (size <= 0) {
-      host.deleteIfExists(partToPromote);
-      throw new Error(messageForFinalizeFailure('empty-part'));
-    }
-    if (expectedBytes && expectedBytes > 64 && size < expectedBytes * 0.95) {
-      host.deleteIfExists(partToPromote);
-      throw new Error(messageForFinalizeFailure('incomplete'));
-    }
-    if (isTinyCompleteDownload({ size, probeExpected: expectedBytes, progressTotal })) {
-      host.deleteIfExists(partToPromote);
-      throw new Error(messageForFinalizeFailure('tiny-complete'));
-    }
-    const partIsHttpError = await fileLooksLikeHttpError((uri, max) => host.readPrefix(uri, max), partToPromote, size);
-    assertDownloadCleanupCurrent(job.isCurrent);
-    if (partIsHttpError) {
-      host.deleteIfExists(partToPromote);
-      throw new Error(DOWNLOAD_FAILED_MESSAGE);
-    }
-    if (!canPromotePart(partExists, size)) {
-      host.deleteIfExists(partToPromote);
-      throw new Error(messageForFinalizeFailure('missing-part'));
-    }
+    await validateDownloadPart(host, partToPromote, partExists, size, expectedBytes, progressTotal, job.isCurrent);
 
     const audioPrefix = await host.readPrefix(partToPromote, 4);
     assertDownloadCleanupCurrent(job.isCurrent);
@@ -561,19 +554,7 @@ export async function discardInvalidLocalDownload(
   }
 }
 
-export async function purgeAllDownloads(
-  memberId?: string | null,
-  isCurrent: () => boolean = () => true,
-  stopPlayback = true,
-): Promise<void> {
-  assertDownloadCleanupCurrent(isCurrent);
-  // Revoke old jobs and UI synchronously. Storage may reject or never settle;
-  // neither may keep the old session's downloads alive or block a new account.
-  if (memberId) {
-    memberGenerations.set(memberId, (memberGenerations.get(memberId) ?? 0) + 1);
-  } else {
-    globalGeneration += 1;
-  }
+function cancelDownloads(memberId?: string | null): void {
   const matches = (job: DownloadJob) => !memberId || job.memberId === memberId;
   for (const [key, job] of queuedTracks) {
     if (matches(job)) {
@@ -594,6 +575,22 @@ export async function purgeAllDownloads(
       }
     }
   }
+}
+
+export async function purgeAllDownloads(
+  memberId?: string | null,
+  isCurrent: () => boolean = () => true,
+  stopPlayback = true,
+): Promise<void> {
+  assertDownloadCleanupCurrent(isCurrent);
+  // Revoke old jobs and UI synchronously. Storage may reject or never settle;
+  // neither may keep the old session's downloads alive or block a new account.
+  if (memberId) {
+    memberGenerations.set(memberId, (memberGenerations.get(memberId) ?? 0) + 1);
+  } else {
+    globalGeneration += 1;
+  }
+  cancelDownloads(memberId);
   if (stopPlayback) {
     stopActivePlayback();
   }

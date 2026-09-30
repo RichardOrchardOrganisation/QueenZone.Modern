@@ -134,60 +134,56 @@ export async function withOfflineCacheResult<T>(
   }
 }
 
+async function readCached<T>(cache: ContentCache, key: string, lease: CacheLease): Promise<CacheRecord<T> | null> {
+  try {
+    const record = await cache.read<T>(key, lease);
+    return lease.current ? record : null;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheFresh<T>(cache: ContentCache, key: string, data: T, lease: CacheLease): Promise<CachedResult<T>> {
+  let cachedAt = new Date().toISOString();
+  try {
+    cachedAt = await cache.put(key, data, lease);
+  } catch {
+    // Read path still succeeds if the device store is full or unavailable.
+  }
+  return { data, source: 'network', cachedAt };
+}
+
+async function recoverCached<T>(cache: ContentCache, key: string, lease: CacheLease,
+  error: unknown, fallback: boolean, invalidateOn: readonly number[]): Promise<CachedResult<T>> {
+  if (isAbortError(error)) throw error;
+  const status = httpStatus(error);
+  if (status !== null && invalidateOn.includes(status)) {
+    try { await cache.remove(key, lease); } catch {}
+    throw error;
+  }
+  if (!fallback || !isCacheFallbackFailure(error)) throw error;
+  const cached = await readCached<T>(cache, key, lease);
+  if (!cached) throw error;
+  return { data: cached.payload, source: 'cache', cachedAt: cached.cachedAt };
+}
+
 async function readWithLease<T>(
-  cache: ContentCache,
-  cacheKey: string,
-  fetchFresh: () => Promise<T>,
-  options: OfflineCacheOptions,
-  lease: CacheLease,
+  cache: ContentCache, cacheKey: string, fetchFresh: () => Promise<T>,
+  options: OfflineCacheOptions, lease: CacheLease,
 ): Promise<CachedResult<T>> {
   const fallback = options.fallback !== false;
   const invalidateOn = options.invalidateOn ?? [];
-
   if (fallback && options.ttlMs !== undefined && options.ttlMs > 0) {
-    let fresh: CacheRecord<T> | null = null;
-    try {
-      fresh = await cache.read<T>(cacheKey, lease);
-    } catch {}
-    if (lease.current && fresh !== null && cacheAgeMs(fresh.cachedAt) < options.ttlMs) {
+    const fresh = await readCached<T>(cache, cacheKey, lease);
+    if (fresh !== null && cacheAgeMs(fresh.cachedAt) < options.ttlMs) {
       revalidateInBackground(cache, cacheKey, fetchFresh, invalidateOn);
       return { data: fresh.payload, source: 'cache', cachedAt: fresh.cachedAt };
     }
   }
-
   try {
-    const data = await fetchFresh();
-    let cachedAt = new Date().toISOString();
-    try {
-      cachedAt = await cache.put(cacheKey, data, lease);
-    } catch {
-      // Read path still succeeds if the device store is full or unavailable.
-    }
-    return { data, source: 'network', cachedAt };
-  } catch (err) {
-    if (isAbortError(err)) {
-      throw err;
-    }
-
-    const status = httpStatus(err);
-    if (status !== null && invalidateOn.includes(status)) {
-      try {
-        await cache.remove(cacheKey, lease);
-      } catch {}
-      throw err;
-    }
-
-    if (!fallback || !isCacheFallbackFailure(err)) {
-      throw err;
-    }
-
-    try {
-      const cached = await cache.read<T>(cacheKey, lease);
-      if (lease.current && cached !== null) {
-        return { data: cached.payload, source: 'cache', cachedAt: cached.cachedAt };
-      }
-    } catch {}
-    throw err;
+    return await cacheFresh(cache, cacheKey, await fetchFresh(), lease);
+  } catch (error) {
+    return recoverCached<T>(cache, cacheKey, lease, error, fallback, invalidateOn);
   }
 }
 

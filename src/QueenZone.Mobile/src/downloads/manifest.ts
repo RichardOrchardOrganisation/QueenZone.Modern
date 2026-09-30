@@ -157,6 +157,25 @@ export async function clearDownloadManifest(
   ));
 }
 
+async function migrateDownloadExtension(
+  entry: DownloadManifestEntry,
+  host: ReturnType<typeof getDownloadFileHost>,
+  isCurrent: ManifestGuard,
+): Promise<boolean> {
+  const leaf = entry.localUri.split('/').pop() ?? '';
+  if (leaf.includes('.')) return false;
+  const extension = resolveDownloadAudioExtension(await host.readPrefix(entry.localUri, 4));
+  assertDownloadCleanupCurrent(isCurrent);
+  const migratedUri = `${entry.localUri}.${extension}`;
+  await host.promote(entry.localUri, migratedUri);
+  if (!isCurrent()) {
+    host.deleteIfExists(migratedUri);
+    assertDownloadCleanupCurrent(isCurrent);
+  }
+  entry.localUri = migratedUri;
+  return true;
+}
+
 /**
  * Drop missing/zero-length completed files and scrub leftover `.part` files.
  * Partial or failed downloads never become completed entries.
@@ -185,19 +204,7 @@ export async function reconcileDownloadManifest(
         continue;
       }
 
-      const leaf = entry.localUri.split('/').pop() ?? '';
-      if (!leaf.includes('.')) {
-        const extension = resolveDownloadAudioExtension(await host.readPrefix(entry.localUri, 4));
-        assertDownloadCleanupCurrent(isCurrent);
-        const migratedUri = `${entry.localUri}.${extension}`;
-        await host.promote(entry.localUri, migratedUri);
-        if (!isCurrent()) {
-          host.deleteIfExists(migratedUri);
-          assertDownloadCleanupCurrent(isCurrent);
-        }
-        entry.localUri = migratedUri;
-        dirty = true;
-      }
+      dirty = await migrateDownloadExtension(entry, host, isCurrent) || dirty;
     }
 
     for (const partUri of host.listPartUris()) {
