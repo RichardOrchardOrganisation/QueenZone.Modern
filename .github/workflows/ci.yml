@@ -176,7 +176,7 @@ jobs:
       # cache/task diagnostics to the job summary. This covers more than the
       # previous direct ~/.gradle cache and makes misses visible.
       - name: Setup Gradle caching and diagnostics
-        uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # Unsigned CI builds must not call sentry-cli upload (no org/token here).
       # Publish workflows set SENTRY_ORG/PROJECT/AUTH_TOKEN and upload for real.
