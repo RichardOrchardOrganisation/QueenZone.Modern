@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using QueenZone.Data;
 
 namespace QueenZone.Web;
@@ -5,7 +6,9 @@ namespace QueenZone.Web;
 /// <summary>
 /// Attaches batched discussion fields to news list/detail shapes. Does not render UI.
 /// </summary>
-public sealed class NewsDiscussionComposer(INewsForumDiscussionLookup discussionLookup)
+public sealed class NewsDiscussionComposer(
+    INewsForumDiscussionLookup discussionLookup,
+    ILogger<NewsDiscussionComposer> logger)
 {
     public async Task<IReadOnlyList<NewsListItemDto>> ToListItemsAsync(
         IReadOnlyList<NewsItem> items,
@@ -19,7 +22,7 @@ public sealed class NewsDiscussionComposer(INewsForumDiscussionLookup discussion
         NewsItem item,
         CancellationToken cancellationToken = default)
     {
-        var discussion = await GetDetailDiscussionAsync(item.ForumTopicId, cancellationToken);
+        var discussion = await GetDetailDiscussionAsync(item, cancellationToken);
         return ContentApiMapper.ToNewsDetail(item, discussion.ReplyCount, discussion.Preview);
     }
 
@@ -35,7 +38,7 @@ public sealed class NewsDiscussionComposer(INewsForumDiscussionLookup discussion
         NewsItem item,
         CancellationToken cancellationToken = default)
     {
-        var discussion = await GetDetailDiscussionAsync(item.ForumTopicId, cancellationToken);
+        var discussion = await GetDetailDiscussionAsync(item, cancellationToken);
         return PublicContentMapper.ToNewsDetailItem(item, discussion.ReplyCount, discussion.Preview);
     }
 
@@ -53,25 +56,60 @@ public sealed class NewsDiscussionComposer(INewsForumDiscussionLookup discussion
             return new Dictionary<int, int>();
         }
 
-        return await discussionLookup.GetReplyCountsAsync(topicIds, cancellationToken);
+        try
+        {
+            return await discussionLookup.GetReplyCountsAsync(topicIds, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                exception,
+                "News list discussion reply-count lookup failed for topics {TopicIds}; omitting reply counts.",
+                string.Join(",", topicIds));
+            return new Dictionary<int, int>();
+        }
     }
 
     private async Task<(int? ReplyCount, IReadOnlyList<NewsDiscussionPreviewDto>? Preview)> GetDetailDiscussionAsync(
-        int? topicId,
+        NewsItem item,
         CancellationToken cancellationToken)
     {
-        if (topicId is not int id)
+        if (item.ForumTopicId is not int topicId)
         {
             return (null, null);
         }
 
-        var discussion = await discussionLookup.GetDiscussionAsync(
-            id,
-            NewsForumDiscussion.PreviewReplyCount,
-            cancellationToken);
-        var preview = discussion.Preview
-            .Select(item => new NewsDiscussionPreviewDto(item.AuthorDisplayName, item.PostedAt, item.Excerpt))
-            .ToList();
-        return (discussion.ReplyCount, preview);
+        try
+        {
+            var discussion = await discussionLookup.GetDiscussionAsync(
+                topicId,
+                NewsForumDiscussion.PreviewReplyCount,
+                cancellationToken);
+            if (!discussion.ThreadFound)
+            {
+                logger.LogWarning(
+                    "News {NewsId} discussion topic {TopicId} has no visible forum thread; omitting discussion.",
+                    item.Id,
+                    topicId);
+                return (null, null);
+            }
+
+            var preview = discussion.Preview
+                .Select(previewItem => new NewsDiscussionPreviewDto(
+                    previewItem.AuthorDisplayName,
+                    previewItem.PostedAt,
+                    previewItem.Excerpt))
+                .ToList();
+            return (discussion.ReplyCount, preview);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                exception,
+                "News {NewsId} discussion lookup failed for topic {TopicId}; omitting discussion.",
+                item.Id,
+                topicId);
+            return (null, null);
+        }
     }
 }

@@ -453,7 +453,8 @@ public sealed class WebHostInfrastructureTests
         Assert.Null(await host.Services.GetRequiredService<INewsRepository>().GetByIdAsync(6101));
         var cleared = await host.Services.GetRequiredService<INewsForumDiscussionLookup>()
             .GetDiscussionAsync(1002, 2);
-        Assert.Equal(0, cleared.ReplyCount);
+        Assert.Null(cleared.ReplyCount);
+        Assert.False(cleared.ThreadFound);
     }
 
     [Fact]
