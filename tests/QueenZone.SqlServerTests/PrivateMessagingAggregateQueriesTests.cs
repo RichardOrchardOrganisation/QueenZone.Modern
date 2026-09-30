@@ -5,22 +5,25 @@ using QueenZone.Data.Entities;
 namespace QueenZone.SqlServerTests;
 
 /// <summary>
-/// Exercises the SQL-Server-only paths in <see cref="EfPrivateMessageRepository"/>: the inbox
-/// projection that folds the unread count into the paged query, the joined-aggregate unread
-/// conversation count, and the merged participant/conversation lookup used when opening a
-/// conversation. These only run against a real SQL Server (<c>IsSqliteDatabase()</c> gates them
-/// off in the default SQLite-backed <c>QueenZone.Web.Tests</c> suite), so they need coverage here
-/// instead. See <c>docs/architecture/testing-policy.md</c> ("Modern-schema SQL Server Tests") and
-/// <see cref="DashboardAggregateQueriesTests"/> for the scratch-schema pattern this mirrors.
+/// Exercises the production SQL Server paths in <see cref="EfPrivateMessageRepository"/> and
+/// <see cref="EfPrivateMessageModerationRepository"/>. Inbox paging/unread fold and the joined
+/// unread-conversation count now use one SQL shape on both providers (SortKey / Guid, not
+/// DateTimeOffset). Rate-limit counters and report-list ordering still split because SQLite
+/// cannot translate DateTimeOffset comparisons or ORDER BY. IDENTITY SortKey assignment is
+/// SQL Server-only (SQLite EnsureCreated still uses the in-process helper). See
+/// <c>docs/architecture/testing-policy.md</c> ("Production SQL paths: no new SQLite branches")
+/// and <see cref="DashboardAggregateQueriesTests"/> for the scratch-schema pattern.
 /// </summary>
 public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
 {
     private readonly string databaseName = $"QueenZoneSqlServerTests_{Guid.NewGuid():N}";
     private QueenZoneDbContext dbContext = null!;
     private EfPrivateMessageRepository repository = null!;
+    private EfPrivateMessageModerationRepository moderation = null!;
     private readonly Guid aliceId = Guid.NewGuid();
     private readonly Guid bobId = Guid.NewGuid();
     private readonly Guid carolId = Guid.NewGuid();
+    private readonly Guid daveId = Guid.NewGuid();
 
     private string ConnectionString
     {
@@ -52,6 +55,7 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
             .Options;
         dbContext = new QueenZoneDbContext(options);
         repository = new EfPrivateMessageRepository(dbContext);
+        moderation = new EfPrivateMessageModerationRepository(dbContext);
 
         dbContext.MemberAccounts.AddRange(
             new MemberAccount
@@ -76,6 +80,14 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
                 Email = "carol-sql@example.com",
                 NormalizedEmail = "CAROL-SQL@EXAMPLE.COM",
                 DisplayName = "Carol",
+                CreatedAt = DateTime.UtcNow,
+            },
+            new MemberAccount
+            {
+                Id = daveId,
+                Email = "dave-sql@example.com",
+                NormalizedEmail = "DAVE-SQL@EXAMPLE.COM",
+                DisplayName = "Dave",
                 CreatedAt = DateTime.UtcNow,
             });
         await dbContext.SaveChangesAsync();
@@ -171,8 +183,132 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
         Assert.Null(await repository.GetConversationAsync(Guid.NewGuid(), bobId));
     }
 
-    // Minimal model covering only MemberAccounts + the private-messaging tables, mirroring the
-    // Fluent config in QueenZoneDbContext for those entities.
+    [Fact]
+    public async Task GetInboxAsync_pages_and_orders_by_last_message_sort_key()
+    {
+        var withAlice = await repository.SendNewOrExistingAsync(
+            aliceId, carolId, "Oldest thread", DateTimeOffset.Parse("2026-08-04T09:00:00Z"));
+        var withBob = await repository.SendNewOrExistingAsync(
+            bobId, carolId, "Middle thread", DateTimeOffset.Parse("2026-08-04T10:00:00Z"));
+        var withDave = await repository.SendNewOrExistingAsync(
+            daveId, carolId, "Newest thread", DateTimeOffset.Parse("2026-08-04T11:00:00Z"));
+        Assert.True(withAlice.Succeeded && withBob.Succeeded && withDave.Succeeded);
+
+        var page1 = await repository.GetInboxAsync(carolId, page: 1, pageSize: 2);
+        var page2 = await repository.GetInboxAsync(carolId, page: 2, pageSize: 2);
+        var clamped = await repository.GetInboxAsync(carolId, page: 99, pageSize: 2);
+
+        Assert.Equal(3, page1.TotalCount);
+        Assert.Equal(2, page1.Items.Count);
+        Assert.Equal(withDave.ConversationId, page1.Items[0].ConversationId);
+        Assert.Equal(withBob.ConversationId, page1.Items[1].ConversationId);
+        Assert.Equal("Dave", page1.Items[0].OtherParticipantDisplayName);
+        Assert.Equal("Bob", page1.Items[1].OtherParticipantDisplayName);
+        Assert.Equal(withAlice.ConversationId, Assert.Single(page2.Items).ConversationId);
+        Assert.Equal(page2.Items[0].ConversationId, Assert.Single(clamped.Items).ConversationId);
+        Assert.Equal(2, clamped.Page);
+
+        Assert.True(await repository.ArchiveConversationAsync(withDave.ConversationId!.Value, carolId));
+        var inbox = await repository.GetInboxAsync(carolId, page: 1, pageSize: 10);
+        var archived = await repository.GetArchivedInboxAsync(carolId, page: 1, pageSize: 10);
+        Assert.Equal(2, inbox.TotalCount);
+        Assert.Equal([withBob.ConversationId, withAlice.ConversationId], inbox.Items.Select(i => i.ConversationId));
+        Assert.Equal(withDave.ConversationId, Assert.Single(archived.Items).ConversationId);
+
+        var strangerId = Guid.NewGuid();
+        var empty = await repository.GetInboxAsync(strangerId);
+        Assert.Equal(0, empty.TotalCount);
+        Assert.Empty(empty.Items);
+        Assert.Equal(0, await repository.CountUnreadConversationsAsync(strangerId));
+    }
+
+    [Fact]
+    public async Task RateLimitCounts_use_sql_server_datetimeoffset_comparisons()
+    {
+        var start = DateTimeOffset.Parse("2026-08-05T10:00:00Z");
+        var created = await repository.SendNewOrExistingAsync(aliceId, bobId, "Repeat", start.AddMinutes(-1));
+        await repository.ReplyAsync(created.ConversationId!.Value, aliceId, "Repeat", start.AddMinutes(1));
+        await repository.ReplyAsync(created.ConversationId.Value, aliceId, "Different", start.AddMinutes(2));
+
+        Assert.Equal(2, await repository.CountMessagesBySenderSinceAsync(aliceId, start));
+        Assert.Equal(0, await repository.CountMessagesBySenderSinceAsync(bobId, start));
+        Assert.Equal(1, await repository.CountIdenticalMessagesBySenderSinceAsync(aliceId, "Repeat", start));
+        Assert.Equal(1, await repository.CountIdenticalMessagesBySenderSinceAsync(aliceId, "Different", start));
+        Assert.Equal(0, await repository.CountIdenticalMessagesBySenderSinceAsync(aliceId, "Missing", start));
+    }
+
+    [Fact]
+    public async Task DistinctNewRecipients_uses_sql_server_datetimeoffset_join()
+    {
+        var start = DateTimeOffset.Parse("2026-08-06T10:00:00Z");
+        var old = await repository.SendNewOrExistingAsync(aliceId, bobId, "Old", start.AddMinutes(-30));
+        await repository.ReplyAsync(old.ConversationId!.Value, aliceId, "Reply", start.AddMinutes(1));
+        await repository.SendNewOrExistingAsync(aliceId, carolId, "New", start.AddMinutes(2));
+
+        Assert.Equal(1, await repository.CountDistinctNewRecipientsSinceAsync(aliceId, start));
+        Assert.Equal(0, await repository.CountDistinctNewRecipientsSinceAsync(bobId, start));
+    }
+
+    [Fact]
+    public async Task Send_assigns_identity_sort_keys_on_sql_server()
+    {
+        var sent = await repository.SendNewOrExistingAsync(
+            aliceId, bobId, "First", DateTimeOffset.Parse("2026-08-07T09:00:00Z"));
+        Assert.True(sent.Succeeded);
+        var first = await repository.GetConversationAsync(sent.ConversationId!.Value, bobId);
+        Assert.Equal(1, Assert.Single(first!.Messages).SortKey);
+
+        await repository.ReplyAsync(
+            sent.ConversationId.Value, bobId, "Second", DateTimeOffset.Parse("2026-08-07T09:01:00Z"));
+        var both = await repository.GetConversationAsync(sent.ConversationId.Value, aliceId);
+        Assert.Equal([1L, 2L], both!.Messages.Select(m => m.SortKey));
+        Assert.Equal(["First", "Second"], both.Messages.Select(m => m.Body));
+    }
+
+    [Fact]
+    public async Task ListReportsAsync_orders_pages_and_filters_on_sql_server()
+    {
+        var first = await repository.SendNewOrExistingAsync(
+            aliceId, bobId, "To Bob", DateTimeOffset.Parse("2026-08-08T09:00:00Z"));
+        var second = await repository.SendNewOrExistingAsync(
+            aliceId, carolId, "To Carol", DateTimeOffset.Parse("2026-08-08T09:01:00Z"));
+        var third = await repository.SendNewOrExistingAsync(
+            aliceId, daveId, "To Dave", DateTimeOffset.Parse("2026-08-08T09:02:00Z"));
+        var firstMessageId = (await repository.GetConversationAsync(first.ConversationId!.Value, bobId))!.Messages[^1].Id;
+        var secondMessageId = (await repository.GetConversationAsync(second.ConversationId!.Value, carolId))!.Messages[^1].Id;
+        var thirdMessageId = (await repository.GetConversationAsync(third.ConversationId!.Value, daveId))!.Messages[^1].Id;
+
+        var older = await moderation.CreateReportAsync(
+            bobId, first.ConversationId!.Value, firstMessageId, "Older", DateTimeOffset.Parse("2026-08-08T10:00:00Z"));
+        var middle = await moderation.CreateReportAsync(
+            carolId, second.ConversationId!.Value, secondMessageId, "Middle", DateTimeOffset.Parse("2026-08-08T11:00:00Z"));
+        var newer = await moderation.CreateReportAsync(
+            daveId, third.ConversationId!.Value, thirdMessageId, "Newer", DateTimeOffset.Parse("2026-08-08T12:00:00Z"));
+        Assert.True(older.Succeeded && middle.Succeeded && newer.Succeeded);
+
+        var page1 = await moderation.ListReportsAsync(null, 1, 1);
+        var page2 = await moderation.ListReportsAsync("all", 2, 1);
+        var page3 = await moderation.ListReportsAsync(PrivateMessageReportStatus.Open, 3, 1);
+        Assert.Equal(3, page1.TotalCount);
+        Assert.Equal(newer.ReportId, Assert.Single(page1.Items).Id);
+        Assert.Equal(middle.ReportId, Assert.Single(page2.Items).Id);
+        Assert.Equal(older.ReportId, Assert.Single(page3.Items).Id);
+        Assert.Equal("Dave", page1.Items[0].ReporterDisplayName);
+        Assert.Equal("Alice", page1.Items[0].ReportedDisplayName);
+
+        await moderation.UpdateReportStatusAsync(
+            older.ReportId!.Value, PrivateMessageReportStatus.Dismissed, "mod@example.com");
+        var dismissed = await moderation.ListReportsAsync(PrivateMessageReportStatus.Dismissed, 1, 10);
+        var stillOpen = await moderation.ListReportsAsync(PrivateMessageReportStatus.Open, 1, 10);
+        Assert.Equal(older.ReportId, Assert.Single(dismissed.Items).Id);
+        Assert.Equal(2, stillOpen.TotalCount);
+        Assert.Equal([newer.ReportId, middle.ReportId], stillOpen.Items.Select(i => i.Id));
+        Assert.Equal(2, await moderation.CountOpenReportsAsync());
+    }
+
+    // Scratch schema aligned to the 2026-09-30 queenzone_legacy_sync dump for the six modern
+    // tables (no stored procedures). Extra live columns ReviewNotes/ReviewedAt/ReviewerEmail on
+    // PrivateMessageReports are not mapped by EF and are omitted. Audit log has no FK to reports.
     private sealed class ScratchSchemaDbContext(DbContextOptions<ScratchSchemaDbContext> options)
         : DbContext(options)
     {
@@ -186,6 +322,9 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
         public DbSet<PrivateMessageEntity> PrivateMessages => Set<PrivateMessageEntity>();
 
         public DbSet<PrivateMessageReportEntity> PrivateMessageReports => Set<PrivateMessageReportEntity>();
+
+        public DbSet<PrivateMessageReportAuditLogEntity> PrivateMessageReportAuditLogs =>
+            Set<PrivateMessageReportAuditLogEntity>();
 
         public DbSet<MemberMessageBlockEntity> MemberMessageBlocks => Set<MemberMessageBlockEntity>();
 
@@ -272,6 +411,7 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
                     .IsRequired();
                 entity.Property(message => message.CreatedAt).IsRequired();
                 entity.Property(message => message.SortKey)
+                    .UseIdentityColumn(1, 1)
                     .ValueGeneratedOnAdd()
                     .IsRequired();
 
@@ -312,6 +452,7 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
                 entity.Property(report => report.CreatedAt).IsRequired();
                 entity.Property(report => report.MessageCreatedAtSnapshot).IsRequired();
                 entity.Property(report => report.MessageSortKeySnapshot).IsRequired();
+                entity.Property(report => report.PrecedingContextJson).HasColumnType("nvarchar(max)");
 
                 entity.HasIndex(report => new { report.ReporterMemberId, report.MessageId })
                     .IsUnique()
@@ -343,6 +484,20 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
                     .WithMany()
                     .HasForeignKey(report => report.ReportedMemberId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<PrivateMessageReportAuditLogEntity>(entity =>
+            {
+                entity.ToTable("PrivateMessageReportAuditLog");
+                entity.HasKey(log => log.Id);
+                entity.Property(log => log.Id).UseIdentityColumn(1, 1);
+                entity.Property(log => log.Action).HasMaxLength(50).IsRequired();
+                entity.Property(log => log.ActorEmail).HasMaxLength(256).IsRequired();
+                entity.Property(log => log.OccurredAt).IsRequired();
+                entity.Property(log => log.Details).HasMaxLength(2000);
+                entity.HasIndex(log => new { log.ReportId, log.OccurredAt })
+                    .IsDescending(false, true)
+                    .HasDatabaseName("IX_PrivateMessageReportAuditLog_ReportId_OccurredAt");
             });
 
             modelBuilder.Entity<MemberMessageBlockEntity>(entity =>
