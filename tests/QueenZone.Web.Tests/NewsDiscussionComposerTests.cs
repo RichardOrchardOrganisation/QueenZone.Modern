@@ -155,10 +155,10 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
         var detail = await composer.ToDetailAsync(Item(7037, topicId: 1175833020));
         var website = await composer.ToDetailItemAsync(Item(7037, topicId: 1175833020));
 
-        Assert.Equal(1175833020, detail.TopicId);
+        Assert.Null(detail.TopicId);
         Assert.Null(detail.DiscussionReplyCount);
         Assert.Null(detail.DiscussionPreview);
-        Assert.Equal(1175833020, website.TopicId);
+        Assert.Null(website.TopicId);
         Assert.Null(website.DiscussionReplyCount);
         Assert.Null(website.DiscussionPreview);
         Assert.Equal(2, logger.Warnings.Count);
@@ -184,8 +184,10 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
         var detail = await composer.ToDetailAsync(Item(7037, topicId: 1175833020));
         var website = await composer.ToDetailItemAsync(Item(7037, topicId: 1175833020));
 
+        Assert.Null(detail.TopicId);
         Assert.Null(detail.DiscussionReplyCount);
         Assert.Null(detail.DiscussionPreview);
+        Assert.Null(website.TopicId);
         Assert.Null(website.DiscussionReplyCount);
         Assert.Null(website.DiscussionPreview);
         Assert.Equal(2, logger.Warnings.Count);

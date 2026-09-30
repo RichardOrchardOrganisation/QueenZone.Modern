@@ -23,7 +23,10 @@ public sealed class NewsDiscussionComposer(
         CancellationToken cancellationToken = default)
     {
         var discussion = await GetDetailDiscussionAsync(item, cancellationToken);
-        return ContentApiMapper.ToNewsDetail(item, discussion.ReplyCount, discussion.Preview);
+        return ContentApiMapper.ToNewsDetail(
+            ForMappedDiscussion(item, discussion.ReplyCount),
+            discussion.ReplyCount,
+            discussion.Preview);
     }
 
     public async Task<IReadOnlyList<NewsArchiveItem>> ToArchiveItemsAsync(
@@ -39,7 +42,10 @@ public sealed class NewsDiscussionComposer(
         CancellationToken cancellationToken = default)
     {
         var discussion = await GetDetailDiscussionAsync(item, cancellationToken);
-        return PublicContentMapper.ToNewsDetailItem(item, discussion.ReplyCount, discussion.Preview);
+        return PublicContentMapper.ToNewsDetailItem(
+            ForMappedDiscussion(item, discussion.ReplyCount),
+            discussion.ReplyCount,
+            discussion.Preview);
     }
 
     private async Task<IReadOnlyDictionary<int, int>> GetReplyCountsAsync(
@@ -112,4 +118,11 @@ public sealed class NewsDiscussionComposer(
             return (null, null);
         }
     }
+
+    /// <summary>
+    /// ADR 0016: a null topic id omits the discussion block. Soft-fail paths clear the
+    /// mapped topic so HTML/API do not advertise a missing or failed forum thread.
+    /// </summary>
+    private static NewsItem ForMappedDiscussion(NewsItem item, int? discussionReplyCount) =>
+        discussionReplyCount is null ? item with { ForumTopicId = null } : item;
 }

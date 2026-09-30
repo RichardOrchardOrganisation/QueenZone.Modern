@@ -134,10 +134,12 @@ public sealed class NewsArticleDiscussionPreviewTests :
         Assert.Contains("Orphan forum topic article", html);
         Assert.DoesNotContain("Start the discussion", html);
         Assert.DoesNotContain("Join the discussion", html);
+        Assert.DoesNotContain("/forum/topic/", html);
 
         var detail = await apiResponse.Content.ReadFromJsonAsync<NewsDetailDto>();
         Assert.NotNull(detail);
         Assert.Equal(item.Id, detail!.Id);
+        Assert.Null(detail.TopicId);
         Assert.Null(detail.DiscussionReplyCount);
         Assert.Null(detail.DiscussionPreview);
     }
@@ -160,10 +162,12 @@ public sealed class NewsArticleDiscussionPreviewTests :
         Assert.Contains("Discussion lookup timeout article", html);
         Assert.DoesNotContain("Start the discussion", html);
         Assert.DoesNotContain("Join the discussion", html);
+        Assert.DoesNotContain("/forum/topic/", html);
 
         var detail = await apiResponse.Content.ReadFromJsonAsync<NewsDetailDto>();
         Assert.NotNull(detail);
-        Assert.Null(detail!.DiscussionReplyCount);
+        Assert.Null(detail!.TopicId);
+        Assert.Null(detail.DiscussionReplyCount);
         Assert.Null(detail.DiscussionPreview);
     }
 
