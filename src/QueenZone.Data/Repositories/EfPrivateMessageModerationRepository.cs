@@ -230,6 +230,8 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
             query = query.Where(r => r.Status == statusFilter);
         }
 
+        // SQLite cannot ORDER BY DateTimeOffset, so the test provider materialises then sorts.
+        // Production SQL Server orders and pages in the database (see PrivateMessagingAggregateQueriesTests).
         if (IsSqliteDatabase())
         {
             var allRows = await query

@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
 
@@ -67,11 +66,9 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, PrivateMessageLimits.MaxInboxPageSize);
 
-        if (IsSqliteDatabase())
-        {
-            return await GetInboxSqliteAsync(memberId, page, pageSize, isArchived, cancellationToken);
-        }
-
+        // Inbox ranking uses LastMessageSortKey (bigint) plus ConversationId, so one SQL shape
+        // translates on both SQL Server and the SQLite test provider. Unread count is a correlated
+        // scalar subquery (APPLY on SQL Server).
         var totalCount = await dbContext.PrivateConversationParticipants
             .AsNoTracking()
             .CountAsync(
@@ -112,9 +109,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
     public Task<int> CountUnreadConversationsAsync(
         Guid memberId,
         CancellationToken cancellationToken = default) =>
-        IsSqliteDatabase()
-            ? CountUnreadConversationsSqliteAsync(memberId, cancellationToken)
-            : CountUnreadConversationsSqlAsync(memberId, cancellationToken);
+        CountUnreadConversationsSqlAsync(memberId, cancellationToken);
 
     public async Task<PrivateConversationDetail?> GetConversationAsync(
         Guid conversationId,
@@ -515,8 +510,9 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
         PrivateMessageEntity message,
         CancellationToken cancellationToken)
     {
-        // SQL Server uses IDENTITY via ValueGeneratedOnAdd. SQLite EnsureCreated does not
-        // auto-generate non-PK integers, so assign a monotonic SortKey in-process.
+        // SQL Server is bigint IDENTITY(1,1) via ValueGeneratedOnAdd (queenzone_legacy_sync
+        // dump 2026-09-30). SQLite EnsureCreated does not auto-generate non-PK integers, so
+        // assign a monotonic SortKey in-process for the default test suite.
         if (!IsSqliteDatabase())
         {
             return;
@@ -562,8 +558,8 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
         Guid memberId,
         CancellationToken cancellationToken)
     {
-        // Join + Distinct/Count instead of a per-row correlated Any() subquery, matching the
-        // batched aggregate join CountUnreadForPageSqlAsync already uses.
+        // Join + Distinct/Count instead of a per-row correlated Any() subquery. Same shape on
+        // SQLite and SQL Server because the predicates use SortKey (bigint), not DateTimeOffset.
         return await (
             from m in dbContext.PrivateMessages.AsNoTracking()
             join p in dbContext.PrivateConversationParticipants.AsNoTracking()
@@ -577,131 +573,6 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
             .Distinct()
             .CountAsync(cancellationToken);
     }
-
-    private async Task<int> CountUnreadConversationsSqliteAsync(
-        Guid memberId,
-        CancellationToken cancellationToken)
-    {
-        var pageRows = await dbContext.PrivateConversationParticipants
-            .AsNoTracking()
-            .Where(p => p.MemberId == memberId && !p.IsArchived && !p.IsRemoved)
-            .Select(p => new InboxPageRow(
-                p.ConversationId,
-                p.LastReadSortKey,
-                string.Empty,
-                default,
-                string.Empty,
-                Guid.Empty))
-            .ToListAsync(cancellationToken);
-        if (pageRows.Count == 0)
-        {
-            return 0;
-        }
-
-        var unread = await CountUnreadForPageSqlAsync(memberId, pageRows, cancellationToken);
-        return unread.Count(pair => pair.Value > 0);
-    }
-
-    private async Task<PrivateInboxPage> GetInboxSqliteAsync(
-        Guid memberId,
-        int page,
-        int pageSize,
-        bool isArchived,
-        CancellationToken cancellationToken)
-    {
-        var rows = await dbContext.PrivateConversationParticipants
-            .AsNoTracking()
-            .Where(p => p.MemberId == memberId && p.IsArchived == isArchived && !p.IsRemoved)
-            .Select(p => new
-            {
-                p.ConversationId,
-                p.LastReadSortKey,
-                Preview = p.Conversation!.LastMessagePreview,
-                LastMessageAt = p.Conversation.LastMessageAt,
-                LastMessageSortKey = p.Conversation.LastMessageSortKey,
-                OtherDisplayName = p.Conversation.MemberLowId == memberId
-                    ? (p.Conversation.MemberHigh != null ? p.Conversation.MemberHigh.DisplayName : string.Empty)
-                    : (p.Conversation.MemberLow != null ? p.Conversation.MemberLow.DisplayName : string.Empty),
-                OtherId = p.Conversation.MemberLowId == memberId
-                    ? p.Conversation.MemberHighId
-                    : p.Conversation.MemberLowId,
-            })
-            .ToListAsync(cancellationToken);
-
-        var totalCount = rows.Count;
-        var totalPages = totalCount <= 0 ? 1 : (totalCount + pageSize - 1) / pageSize;
-        page = Math.Min(page, totalPages);
-
-        var pageRows = rows
-            .OrderByDescending(r => r.LastMessageSortKey)
-            .ThenByDescending(r => r.ConversationId)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(r => new InboxPageRow(
-                r.ConversationId,
-                r.LastReadSortKey,
-                r.Preview,
-                r.LastMessageAt,
-                r.OtherDisplayName,
-                r.OtherId))
-            .ToList();
-
-        var unreadByConversation = await CountUnreadForPageSqlAsync(memberId, pageRows, cancellationToken);
-        return new PrivateInboxPage(MapInbox(pageRows, unreadByConversation), totalCount, page, pageSize);
-    }
-
-    private async Task<Dictionary<Guid, int>> CountUnreadForPageSqlAsync(
-        Guid memberId,
-        IReadOnlyList<InboxPageRow> pageRows,
-        CancellationToken cancellationToken)
-    {
-        if (pageRows.Count == 0)
-        {
-            return [];
-        }
-
-        var conversationIds = pageRows.Select(r => r.ConversationId).ToList();
-
-        // SQL filtered aggregate: only unread (SortKey > cursor) messages, grouped by conversation.
-        var aggregated = await (
-            from m in dbContext.PrivateMessages.AsNoTracking()
-            join p in dbContext.PrivateConversationParticipants.AsNoTracking()
-                on m.ConversationId equals p.ConversationId
-            where conversationIds.Contains(m.ConversationId)
-                && p.MemberId == memberId
-                && m.SenderMemberId != memberId
-                && (p.LastReadSortKey == null || m.SortKey > p.LastReadSortKey)
-            group m by m.ConversationId
-            into g
-            select new { ConversationId = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
-
-        var result = conversationIds.ToDictionary(id => id, _ => 0);
-        foreach (var row in aggregated)
-        {
-            result[row.ConversationId] = row.Count;
-        }
-
-        return result;
-    }
-
-    private static IReadOnlyList<PrivateConversationListItem> MapInbox(
-        IReadOnlyList<InboxPageRow> pageRows,
-        IReadOnlyDictionary<Guid, int> unreadByConversation) =>
-        pageRows
-            .Select(r =>
-            {
-                var unread = unreadByConversation.GetValueOrDefault(r.ConversationId);
-                return new PrivateConversationListItem(
-                    r.ConversationId,
-                    r.OtherId,
-                    string.IsNullOrWhiteSpace(r.OtherDisplayName) ? "Unknown member" : r.OtherDisplayName,
-                    r.Preview,
-                    r.LastMessageAt,
-                    unread > 0,
-                    unread);
-            })
-            .ToList();
 
     private static IReadOnlyList<PrivateConversationListItem> MapInboxWithUnread(
         IReadOnlyList<InboxPageRowWithUnread> pageRows) =>
@@ -955,14 +826,6 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
         body.Length <= PrivateMessageLimits.PreviewLength
             ? body
             : body[..PrivateMessageLimits.PreviewLength];
-
-    private sealed record InboxPageRow(
-        Guid ConversationId,
-        long? LastReadSortKey,
-        string Preview,
-        DateTimeOffset LastMessageAt,
-        string OtherDisplayName,
-        Guid OtherId);
 
     private sealed record InboxPageRowWithUnread(
         Guid ConversationId,
