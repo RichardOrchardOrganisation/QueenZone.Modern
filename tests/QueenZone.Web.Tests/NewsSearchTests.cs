@@ -131,73 +131,30 @@ public sealed class InMemoryNewsSearchTests
 }
 
 // ---------------------------------------------------------------------------
-// EfNewsRepository: SQLite path tests for the LIKE fallback used in tests
+// EfNewsRepository: provider-agnostic SearchAsync early return.
+// Matching, ranking, and paging live in NewsSearchSqlServerTests (#1875 / #1882).
 // ---------------------------------------------------------------------------
 
-public sealed class EfNewsRepositorySearchTests : IAsyncDisposable
+public sealed class EfNewsRepositorySearchBlankQueryTests : IAsyncDisposable
 {
-    // SQLite-compatible LIKE search SQL. Mirrors the shape of EfProductionSql.CreateNewsSqliteLikeSearchQueries
-    // but uses LIMIT/OFFSET syntax instead of SQL Server's OFFSET/FETCH.
-    private const string SqliteSearchSql = """
-        SELECT
-            NEWS_ID  AS Id,
-            COALESCE(TITLE, '')   AS Title,
-            COALESCE(EXCERPT, '') AS Excerpt,
-            ''                    AS Body,
-            "DATE"  AS PublishedAt,
-            SOURCE_URL AS SourceUrl,
-            DISPLAY    AS IsPublished,
-            SLUG       AS Slug,
-            IMAGE_BLOB_KEY AS ImageBlobKey,
-            IMAGE_GALLERY_PIC_ID AS ImageGalleryPicId,
-            FORUM_TOPIC_ID AS ForumTopicId
-        FROM NEWS_T
-        WHERE DISPLAY = 1
-          AND (TITLE LIKE {0} OR EXCERPT LIKE {0} OR ARTICLE LIKE {0})
-        ORDER BY "DATE" DESC, NEWS_ID DESC
-        LIMIT {2} OFFSET {1}
-        """;
-
-    private const string SqliteSearchCountSql = """
-        SELECT COUNT(*) AS Value
-        FROM NEWS_T
-        WHERE DISPLAY = 1
-          AND (TITLE LIKE {0} OR EXCERPT LIKE {0} OR ARTICLE LIKE {0})
-        """;
-
     private readonly SqliteConnection connection;
     private readonly QueenZoneDbContext dbContext;
     private readonly EfNewsRepository repository;
 
-    public EfNewsRepositorySearchTests()
+    public EfNewsRepositorySearchBlankQueryTests()
     {
         connection = new SqliteConnection("Data Source=:memory:");
         connection.Open();
-        var options = new DbContextOptionsBuilder<QueenZoneDbContext>()
+        dbContext = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlite(connection)
-            .Options;
-        dbContext = new QueenZoneDbContext(options);
-        AdminNewsSqliteTestHarness.EnsureNewsTable(dbContext);
-
-        // Seed: one published article matching "bohemian rhapsody"
-        AdminNewsSqliteTestHarness.SeedArticle(
-            dbContext, 1, "Bohemian Rhapsody release", "Classic Queen single", "Full article body", "2026-01-01", isPublished: true);
-        // Second published article – different keyword; both share "Queen" for pagination tests
-        AdminNewsSqliteTestHarness.SeedArticle(
-            dbContext, 2, "Live Aid 1985", "The greatest show", "Mercury stole the Queen show", "2026-01-02", isPublished: true);
-        // Unpublished – should never appear in results
-        AdminNewsSqliteTestHarness.SeedArticle(
-            dbContext, 3, "Hidden draft about bohemian", "Secret excerpt", "Secret body", "2026-01-03", isPublished: false);
-
+            .Options);
         repository = new EfNewsRepository(
             dbContext,
             latestSql: string.Empty,
             countSql: string.Empty,
             archivePageSql: string.Empty,
             byIdSql: string.Empty,
-            sitemapSql: string.Empty,
-            sqliteLikeSearchSql: SqliteSearchSql,
-            sqliteLikeSearchCountSql: SqliteSearchCountSql);
+            sitemapSql: string.Empty);
     }
 
     public async ValueTask DisposeAsync()
@@ -213,85 +170,6 @@ public sealed class EfNewsRepositorySearchTests : IAsyncDisposable
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalCount);
-    }
-
-    [Fact]
-    public async Task SearchAsync_matches_title()
-    {
-        var result = await repository.SearchAsync("Bohemian Rhapsody", 1, 20);
-
-        Assert.Single(result.Items);
-        Assert.Equal(1, result.Items[0].Id);
-        Assert.Equal(1, result.TotalCount);
-    }
-
-    [Fact]
-    public async Task SearchAsync_matches_excerpt()
-    {
-        var result = await repository.SearchAsync("greatest show", 1, 20);
-
-        Assert.Single(result.Items);
-        Assert.Equal(2, result.Items[0].Id);
-    }
-
-    [Fact]
-    public async Task SearchAsync_matches_body()
-    {
-        var result = await repository.SearchAsync("Mercury stole", 1, 20);
-
-        Assert.Single(result.Items);
-        Assert.Equal(2, result.Items[0].Id);
-    }
-
-    [Fact]
-    public async Task SearchAsync_is_case_insensitive()
-    {
-        var lower = await repository.SearchAsync("bohemian rhapsody", 1, 20);
-        var upper = await repository.SearchAsync("BOHEMIAN RHAPSODY", 1, 20);
-
-        Assert.Equal(lower.TotalCount, upper.TotalCount);
-        Assert.Equal(1, lower.TotalCount);
-    }
-
-    [Fact]
-    public async Task SearchAsync_returns_empty_for_no_match()
-    {
-        var result = await repository.SearchAsync("xyzzy_nothing", 1, 20);
-
-        Assert.Empty(result.Items);
-        Assert.Equal(0, result.TotalCount);
-    }
-
-    [Fact]
-    public async Task SearchAsync_never_returns_unpublished_records()
-    {
-        // "bohemian" matches both ID 1 (published) and ID 3 (unpublished)
-        var result = await repository.SearchAsync("bohemian", 1, 20);
-
-        Assert.DoesNotContain(result.Items, item => item.Id == 3);
-        Assert.Equal(1, result.TotalCount);
-    }
-
-    [Fact]
-    public async Task SearchAsync_paginates_correctly()
-    {
-        // Both published articles contain "Queen"
-        var pageOne = await repository.SearchAsync("Queen", 1, 1);
-        var pageTwo = await repository.SearchAsync("Queen", 2, 1);
-
-        Assert.Single(pageOne.Items);
-        Assert.Single(pageTwo.Items);
-        Assert.Equal(2, pageOne.TotalCount);
-        Assert.NotEqual(pageOne.Items[0].Id, pageTwo.Items[0].Id);
-    }
-
-    [Fact]
-    public async Task SearchAsync_respects_page_size()
-    {
-        var result = await repository.SearchAsync("Queen", 1, 1);
-
-        Assert.Single(result.Items);
-        Assert.Equal(2, result.TotalCount);
     }
 }
 

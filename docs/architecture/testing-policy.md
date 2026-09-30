@@ -155,6 +155,7 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | `EfFanPerformanceRepositoryLegacyProbeTests` (read-only `Q_STAGE_T` public reads) | Mac `legacy-read-probes` |
 | `EfAdminFanPerformanceRepositoryLegacyProbeTests` (read-only `Q_STAGE_T` admin list/get) | Mac `legacy-read-probes` |
 | `EfNewsFullTextSearchLiveProbeTests` (`EfNewsRepository.SearchAsync` via SQL Server full-text procedure) | Mac `legacy-read-probes`, with `RUN_NEWS_FTS_PROBE=true` |
+| `EfNewsRepositoryLegacyProbeTests` (read-only public archive/count/page/by-id/sitemap/decade + `LegacyNewsSchema` COL_LENGTH) | Mac `legacy-read-probes` |
 | `ModernForumRepositoryLiveProbeTests` (`ModernForumRepository` category/topic/sitemap reads and real `SearchForumAsync`) | Mac `legacy-read-probes` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
 | `EfAdminNewsRepositoryLegacyWriteProbeTests` | Windows `legacy-write-probes` via `Probe-AdminNewsLegacyWrites.ps1` |
@@ -215,10 +216,14 @@ Worked examples, each of which removed `[ExcludeFromCodeCoverage]`:
   are `EfAdminPhotoRepositoryLegacyProbeTests` and `EfPhotoRepositoryLegacyProbeTests`.
 - `EfBiographyRepository`: `BiographyRepositorySqlServerTests` copies the legacy stored procedures
   verbatim. Its probe is `EfBiographyRepositoryLegacyProbeTests`.
-- `EfNewsRepository` full-text search: full-text is not installed in LocalDB or the CI container, so
+- `EfNewsRepository` archive reads and `LegacyNewsSchema` COL_LENGTH probes:
+  `NewsRepositorySqlServerTests` runs the production constructor against scratch `NEWS_T` typed from
+  the mirror (including date-desc `ROW_NUMBER` dedupe). Its probe is
+  `EfNewsRepositoryLegacyProbeTests`. Full-text is not installed in LocalDB or the CI container, so
   `NewsSearchSqlServerTests` asserts the migration's procedure SQL as a string, then runs that
   procedure with only the `FREETEXTTABLE` source swapped for LIKE. Real full-text matching stays with
-  `EfNewsFullTextSearchLiveProbeTests` (`RUN_NEWS_FTS_PROBE=true`).
+  `EfNewsFullTextSearchLiveProbeTests` (`RUN_NEWS_FTS_PROBE=true`). There is no SQLite `LIKE`
+  search branch.
 - `EfFanPerformanceRepository` and `EfAdminFanPerformanceRepository`: `FanPerformanceRepositorySqlServerTests`
   and `AdminFanPerformanceRepositorySqlServerTests` share the mirror's `Q_STAGE_T` DDL in
   `LegacyFanPerformanceSchema` (ad-hoc SQL only; no `Q_STAGE_*_SP` procs). Their probes are

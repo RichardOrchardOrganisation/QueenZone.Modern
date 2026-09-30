@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 
 namespace QueenZone.Data;
 
@@ -61,7 +60,6 @@ public static class LegacyNewsSchema
     /// Returns whether <c>NEWS_T.SLUG</c> exists. Result is cached for the process lifetime
     /// per connection string (same probe as <see cref="GetNewsColumnAvailability"/>).
     /// </summary>
-    [ExcludeFromCodeCoverage] // SQL Server COL_LENGTH probe (cached).
     internal static bool HasSlugColumn(string connectionString) =>
         GetNewsColumnAvailability(connectionString).HasSlugColumn;
 
@@ -69,7 +67,6 @@ public static class LegacyNewsSchema
     /// Probes legacy <c>NEWS_T</c> column availability once per connection string, then reuses
     /// the result for all subsequent repository constructions in this process.
     /// </summary>
-    [ExcludeFromCodeCoverage] // SQL Server COL_LENGTH probe (cached).
     internal static NewsColumnAvailability GetNewsColumnAvailability(string connectionString)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
@@ -106,11 +103,9 @@ public static class LegacyNewsSchema
     internal static void SeedColumnAvailabilityCacheForTests(string connectionString, NewsColumnAvailability columns) =>
         ColumnAvailabilityCache[connectionString] = columns;
 
-    [ExcludeFromCodeCoverage] // SQL Server COL_LENGTH probe (cached).
     private static NewsColumnAvailability ProbeNewsColumnAvailability(string connectionString) =>
         ProbeNewsColumnAvailabilityAsync(connectionString, CancellationToken.None).GetAwaiter().GetResult();
 
-    [ExcludeFromCodeCoverage] // SQL Server COL_LENGTH probe.
     private static Task<NewsColumnAvailability> ProbeNewsColumnAvailabilityAsync(
         string connectionString, CancellationToken cancellationToken)
     {
