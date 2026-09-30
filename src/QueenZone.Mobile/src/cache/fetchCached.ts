@@ -1,6 +1,6 @@
 import { fetchJson, type FetchJsonOptions } from '../api/client';
 import { getContentCache } from './defaultCache';
-import type { ContentCache } from './contentCache';
+import type { CacheLease, ContentCache } from './contentCache';
 import { withOfflineCacheResult, type CachedResult, type OfflineCacheOptions } from './withOfflineCache';
 
 export type FetchCachedOptions = FetchJsonOptions &
@@ -11,7 +11,10 @@ export type FetchCachedOptions = FetchJsonOptions &
     cache?: ContentCache;
   };
 
-const inFlight = new Map<string, Promise<CachedResult<unknown>>>();
+const inFlight = new WeakMap<ContentCache, Map<string, {
+  lease: CacheLease;
+  promise: Promise<CachedResult<unknown>>;
+}>>();
 
 /**
  * Network-first fetch with offline cache fallback for previously opened details.
@@ -32,22 +35,29 @@ export async function fetchJsonWithOfflineCacheResult<T>(
 ): Promise<CachedResult<T>> {
   const { cacheKey, cache = getContentCache(), invalidateOn, fallback, ttlMs, ...fetchOptions } = options;
 
-  const existing = inFlight.get(cacheKey);
-  if (existing) {
-    return existing as Promise<CachedResult<T>>;
+  let flights = inFlight.get(cache);
+  if (!flights) {
+    flights = new Map();
+    inFlight.set(cache, flights);
   }
+  const existing = flights.get(cacheKey);
+  if (existing?.lease.current) {
+    return existing.promise as Promise<CachedResult<T>>;
+  }
+  const lease = cache.acquireLease(cacheKey);
 
   const pending = withOfflineCacheResult(cache, cacheKey, () => fetchJson<T>(path, fetchOptions), {
     invalidateOn,
     fallback,
     ttlMs,
   }).finally(() => {
-    if (inFlight.get(cacheKey) === pending) {
-      inFlight.delete(cacheKey);
+    lease.release();
+    if (flights.get(cacheKey)?.promise === pending) {
+      flights.delete(cacheKey);
     }
   });
 
-  inFlight.set(cacheKey, pending);
+  flights.set(cacheKey, { lease, promise: pending });
   return pending;
 }
 

@@ -140,7 +140,7 @@ async function writeSessionItem(key: string, value: string): Promise<void> {
  * Use only when intentionally changing Keychain accessibility, not for ordinary
  * grant or identity updates under the same AFTER_FIRST_UNLOCK options.
  */
-export async function replaceSessionItemChangingAccessibility(
+async function replaceSessionItemChangingAccessibilityCore(
   key: string,
   value: string,
 ): Promise<void> {
@@ -284,7 +284,7 @@ async function adoptPredecessorGrant(): Promise<StoredGrant | null> {
   return null;
 }
 
-export async function readStoredSession(): Promise<StoredSession | null> {
+async function readStoredSessionCore(): Promise<StoredSession | null> {
   try {
     const keys = scopedKeys();
     const [grantRaw, identityRaw] = await Promise.all([
@@ -328,7 +328,21 @@ export async function readStoredSession(): Promise<StoredSession | null> {
   }
 }
 
-export async function writeStoredSession(tokens: AuthTokens): Promise<StoredSession> {
+async function writeStoredSessionCore(tokens: AuthTokens, resetIdentity: boolean): Promise<StoredSession> {
+  if (resetIdentity) {
+    // Fresh authentication must not attach the previous account's shell to the
+    // new grant if /me is delayed or offline. Refreshes keep their cached shell.
+    const keys = scopedKeys();
+    const cleared = await Promise.allSettled([
+      SecureStore.deleteItemAsync(keys.identityNext, sessionStoreOptions),
+      SecureStore.deleteItemAsync(keys.identity, sessionStoreOptions),
+      SecureStore.deleteItemAsync(predecessorKeys.unscopedIdentity, sessionStoreOptions),
+    ]);
+    const failed = cleared.find((result) => result.status === 'rejected');
+    if (failed?.status === 'rejected') {
+      rethrowKeychainError(failed.reason);
+    }
+  }
   const expiresAt = Date.now() + Math.max(tokens.expiresIn - 30, 30) * 1000;
   const grant: StoredGrant = { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt };
   try {
@@ -342,7 +356,7 @@ export async function writeStoredSession(tokens: AuthTokens): Promise<StoredSess
   return { ...tokens, expiresAt };
 }
 
-export async function writeStoredIdentityShell(shell: StoredIdentityShell): Promise<void> {
+async function writeStoredIdentityShellCore(shell: StoredIdentityShell): Promise<void> {
   const payload: StoredIdentityShell = {
     displayName: shell.displayName,
     memberId: shell.memberId,
@@ -357,7 +371,7 @@ export async function writeStoredIdentityShell(shell: StoredIdentityShell): Prom
   }
 }
 
-async function clearPredecessorKeys(): Promise<void> {
+async function clearPredecessorKeys(bestEffort = true): Promise<void> {
   const keys = scopedKeys();
   try {
     await Promise.all(
@@ -372,24 +386,30 @@ async function clearPredecessorKeys(): Promise<void> {
         predecessorKeys.unscopedIdentity,
       ].map((key) => SecureStore.deleteItemAsync(key, sessionStoreOptions)),
     );
-  } catch {
+  } catch (error) {
+    if (!bestEffort) {
+      throw error;
+    }
     // Nothing to recover: the scoped grant is what gets read.
   }
 }
 
-export async function clearStoredSession(): Promise<void> {
+async function clearStoredSessionCore(): Promise<void> {
   const keys = scopedKeys();
-  // Remove staging before the primary: a kill during sign-out must not leave a
-  // staged grant that can be adopted after the primary has been deleted.
-  await Promise.all([
+  // Try every credential even when one delete fails. Keep staging-before-primary
+  // ordering, and propagate failure so sign-out can report and retry erasure.
+  const staging = await Promise.allSettled([
     SecureStore.deleteItemAsync(keys.grantNext, sessionStoreOptions),
     SecureStore.deleteItemAsync(keys.identityNext, sessionStoreOptions),
   ]);
-  await Promise.all([
+  const primary = await Promise.allSettled([
     SecureStore.deleteItemAsync(keys.grant, sessionStoreOptions),
     SecureStore.deleteItemAsync(keys.identity, sessionStoreOptions),
-    clearPredecessorKeys(),
+    clearPredecessorKeys(false),
   ]);
+  if ([...staging, ...primary].some((result) => result.status === 'rejected')) {
+    throw new Error('Stored session cleanup incomplete');
+  }
 }
 
 function parseIdentityShell(raw: string | null): StoredIdentityShell | null {
@@ -419,4 +439,35 @@ function parseIdentityShell(raw: string | null): StoredIdentityShell | null {
   } catch {
     return null;
   }
+}
+
+// Native Keychain calls cannot be cancelled. Serialize the complete operations,
+// including restore-time migrations, across provider unmount/remount as well as
+// refresh/sign-out. A failed operation must not poison later deletion or sign-in.
+let sessionStorageTail: Promise<unknown> = Promise.resolve();
+
+function serializeSessionStorage<T>(work: () => Promise<T>): Promise<T> {
+  const next = sessionStorageTail.then(work, work);
+  sessionStorageTail = next.catch(() => {});
+  return next;
+}
+
+export function readStoredSession(): Promise<StoredSession | null> {
+  return serializeSessionStorage(readStoredSessionCore);
+}
+
+export function writeStoredSession(tokens: AuthTokens, resetIdentity = false): Promise<StoredSession> {
+  return serializeSessionStorage(() => writeStoredSessionCore(tokens, resetIdentity));
+}
+
+export function writeStoredIdentityShell(shell: StoredIdentityShell): Promise<void> {
+  return serializeSessionStorage(() => writeStoredIdentityShellCore(shell));
+}
+
+export function clearStoredSession(): Promise<void> {
+  return serializeSessionStorage(clearStoredSessionCore);
+}
+
+export function replaceSessionItemChangingAccessibility(key: string, value: string): Promise<void> {
+  return serializeSessionStorage(() => replaceSessionItemChangingAccessibilityCore(key, value));
 }

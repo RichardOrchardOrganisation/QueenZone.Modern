@@ -13,6 +13,13 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
 
     private readonly List<PendingMemberDeletionBlob> pendingDeletionBlobs = [];
 
+    private readonly IAppleRevocationRepository appleRevocations;
+
+    public InMemoryMemberAccountRepository()
+    {
+        appleRevocations = new InMemoryAppleRevocationRepository(accounts, externalLogins, gate);
+    }
+
     public Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         lock (gate)
@@ -101,49 +108,16 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
         Guid memberAccountId,
         string providerKey,
         string protectedToken,
-        CancellationToken cancellationToken = default)
-    {
-        lock (gate)
-        {
-            var login = externalLogins.FirstOrDefault(login => login.MemberAccountId == memberAccountId
-                && login.Provider == "Apple" && login.ProviderKey == providerKey);
-            if (login is not null)
-            {
-                login.AppleRefreshTokenProtected = protectedToken;
-            }
-            return Task.CompletedTask;
-        }
-    }
+        CancellationToken cancellationToken = default) =>
+        appleRevocations.SaveAppleRefreshTokenAsync(memberAccountId, providerKey, protectedToken, cancellationToken);
 
     public Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
         int limit,
-        CancellationToken cancellationToken = default)
-    {
-        lock (gate)
-        {
-            IReadOnlyList<PendingAppleRevocation> items = externalLogins
-                .Where(login => login.Provider == "Apple"
-                    && login.AppleRefreshTokenProtected is not null
-                    && accounts.Any(account => account.Id == login.MemberAccountId
-                        && account.PersonalDataPurgedAt is not null))
-                .Take(limit)
-                .Select(login => new PendingAppleRevocation(login.Id, login.AppleRefreshTokenProtected!))
-                .ToList();
-            return Task.FromResult(items);
-        }
-    }
+        CancellationToken cancellationToken = default) =>
+        appleRevocations.ListPendingAppleRevocationsAsync(limit, cancellationToken);
 
-    public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default)
-    {
-        lock (gate)
-        {
-            externalLogins.RemoveAll(login => login.Id == externalLoginId
-                && login.Provider == "Apple"
-                && accounts.Any(account => account.Id == login.MemberAccountId
-                    && account.PersonalDataPurgedAt is not null));
-            return Task.CompletedTask;
-        }
-    }
+    public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default) =>
+        appleRevocations.CompleteAppleRevocationAsync(externalLoginId, cancellationToken);
 
     public Task<IReadOnlyList<string>> ListExternalProvidersAsync(Guid memberAccountId, CancellationToken cancellationToken = default)
     {

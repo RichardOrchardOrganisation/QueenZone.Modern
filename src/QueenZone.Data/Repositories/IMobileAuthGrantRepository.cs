@@ -38,7 +38,9 @@ public interface IMobileAuthGrantRepository
     /// Revokes a still-valid refresh token, stores <paramref name="replacement"/>, and
     /// links the old token to it, all in one transaction. Returns false and stores
     /// nothing when the old hash is unknown, already revoked, or expired, so a failed
-    /// store can never leave a revoked grant with no successor.
+    /// store can never leave a revoked grant with no successor. An execution-strategy retry
+    /// of the same invocation may acknowledge its exact already-committed successor;
+    /// a separate replay still returns false, even with the same replacement entity.
     /// </summary>
     Task<bool> TryRotateRefreshTokenAsync(
         string oldTokenHash,

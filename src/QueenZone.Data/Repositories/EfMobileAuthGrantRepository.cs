@@ -67,8 +67,11 @@ public sealed class EfMobileAuthGrantRepository(QueenZoneDbContext dbContext) : 
         string oldTokenHash,
         MobileAuthRefreshTokenEntity replacement,
         DateTime utcNow,
-        CancellationToken cancellationToken = default) =>
-        QueenZoneDbTransactions.ExecuteAsync(
+        CancellationToken cancellationToken = default)
+    {
+        // This state belongs to one invocation, not to the repository or a later replay.
+        var replacementStored = false;
+        return QueenZoneDbTransactions.ExecuteAsync(
             dbContext,
             async ct =>
             {
@@ -85,15 +88,31 @@ public sealed class EfMobileAuthGrantRepository(QueenZoneDbContext dbContext) : 
                         ct);
                 if (revoked != 1)
                 {
-                    return false;
+                    // A commit acknowledgement can fail after the database committed.
+                    // Only a retry of this invocation may acknowledge its exact successor.
+                    return replacementStored && await dbContext.MobileAuthRefreshTokens
+                        .AnyAsync(token => token.TokenHash == oldTokenHash
+                            && token.RevokedAt == utcNow
+                            && token.ReplacedByTokenHash == replacement.TokenHash
+                            && dbContext.MobileAuthRefreshTokens.Any(successor =>
+                                successor.Id == replacement.Id
+                                && successor.TokenHash == replacement.TokenHash
+                                && successor.MemberAccountId == replacement.MemberAccountId
+                                && successor.ClientId == replacement.ClientId
+                                && successor.CreatedAt == replacement.CreatedAt
+                                && successor.ExpiresAt == replacement.ExpiresAt
+                                && successor.RevokedAt == replacement.RevokedAt
+                                && successor.ReplacedByTokenHash == replacement.ReplacedByTokenHash), ct);
                 }
 
                 dbContext.MobileAuthRefreshTokens.Add(replacement);
                 await dbContext.SaveChangesAsync(ct);
+                replacementStored = true;
                 dbContext.Entry(replacement).State = EntityState.Detached;
                 return true;
             },
             cancellationToken);
+    }
 
     public async Task<int> RevokeAllRefreshTokensForMemberAsync(
         Guid memberAccountId,

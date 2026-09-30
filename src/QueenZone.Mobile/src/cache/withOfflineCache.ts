@@ -1,4 +1,4 @@
-import type { CacheRecord, ContentCache } from './contentCache';
+import type { CacheLease, CacheRecord, ContentCache } from './contentCache';
 
 export type CacheSource = 'network' | 'cache';
 
@@ -58,23 +58,23 @@ function cacheAgeMs(cachedAt: string): number {
 // instance, so concurrent SWR hits (e.g. two screens reading the same key)
 // only trigger one network call. Scoped by instance so tests using a fresh
 // ContentCache never see another test's in-flight state.
-const revalidating = new WeakMap<ContentCache, Set<string>>();
+const revalidating = new WeakMap<ContentCache, Map<string, CacheLease>>();
 
-function beginRevalidation(cache: ContentCache, cacheKey: string): boolean {
+function beginRevalidation(cache: ContentCache, cacheKey: string): CacheLease | null {
   let keys = revalidating.get(cache);
   if (!keys) {
-    keys = new Set();
+    keys = new Map();
     revalidating.set(cache, keys);
   }
-  if (keys.has(cacheKey)) {
-    return false;
-  }
-  keys.add(cacheKey);
-  return true;
+  if (keys.get(cacheKey)?.current) return null;
+  const lease = cache.acquireLease(cacheKey);
+  keys.set(cacheKey, lease);
+  return lease;
 }
 
-function endRevalidation(cache: ContentCache, cacheKey: string): void {
-  revalidating.get(cache)?.delete(cacheKey);
+function endRevalidation(cache: ContentCache, cacheKey: string, lease: CacheLease): void {
+  if (revalidating.get(cache)?.get(cacheKey) === lease) revalidating.get(cache)?.delete(cacheKey);
+  lease.release();
 }
 
 /**
@@ -88,14 +88,15 @@ function revalidateInBackground<T>(
   fetchFresh: () => Promise<T>,
   invalidateOn: readonly number[],
 ): void {
-  if (!beginRevalidation(cache, cacheKey)) {
+  const lease = beginRevalidation(cache, cacheKey);
+  if (!lease) {
     return;
   }
   void (async () => {
     try {
       const data = await fetchFresh();
       try {
-        await cache.put(cacheKey, data);
+        await cache.put(cacheKey, data, lease);
       } catch {
         // Device store full/unavailable: stale value stays put until it ages out.
       }
@@ -106,11 +107,11 @@ function revalidateInBackground<T>(
       const status = httpStatus(err);
       if (status !== null && invalidateOn.includes(status)) {
         try {
-          await cache.remove(cacheKey);
+          await cache.remove(cacheKey, lease);
         } catch {}
       }
     } finally {
-      endRevalidation(cache, cacheKey);
+      endRevalidation(cache, cacheKey, lease);
     }
   })();
 }
@@ -125,53 +126,64 @@ export async function withOfflineCacheResult<T>(
   fetchFresh: () => Promise<T>,
   options: OfflineCacheOptions = {},
 ): Promise<CachedResult<T>> {
+  const lease = cache.acquireLease(cacheKey);
+  try {
+    return await readWithLease(cache, cacheKey, fetchFresh, options, lease);
+  } finally {
+    lease.release();
+  }
+}
+
+async function readCached<T>(cache: ContentCache, key: string, lease: CacheLease): Promise<CacheRecord<T> | null> {
+  try {
+    const record = await cache.read<T>(key, lease);
+    return lease.current ? record : null;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheFresh<T>(cache: ContentCache, key: string, data: T, lease: CacheLease): Promise<CachedResult<T>> {
+  let cachedAt = new Date().toISOString();
+  try {
+    cachedAt = await cache.put(key, data, lease);
+  } catch {
+    // Read path still succeeds if the device store is full or unavailable.
+  }
+  return { data, source: 'network', cachedAt };
+}
+
+async function recoverCached<T>(cache: ContentCache, key: string, lease: CacheLease,
+  error: unknown, fallback: boolean, invalidateOn: readonly number[]): Promise<CachedResult<T>> {
+  if (isAbortError(error)) throw error;
+  const status = httpStatus(error);
+  if (status !== null && invalidateOn.includes(status)) {
+    try { await cache.remove(key, lease); } catch {}
+    throw error;
+  }
+  if (!fallback || !isCacheFallbackFailure(error)) throw error;
+  const cached = await readCached<T>(cache, key, lease);
+  if (!lease.current || !cached) throw error;
+  return { data: cached.payload, source: 'cache', cachedAt: cached.cachedAt };
+}
+
+async function readWithLease<T>(
+  cache: ContentCache, cacheKey: string, fetchFresh: () => Promise<T>,
+  options: OfflineCacheOptions, lease: CacheLease,
+): Promise<CachedResult<T>> {
   const fallback = options.fallback !== false;
   const invalidateOn = options.invalidateOn ?? [];
-
   if (fallback && options.ttlMs !== undefined && options.ttlMs > 0) {
-    let fresh: CacheRecord<T> | null = null;
-    try {
-      fresh = await cache.read<T>(cacheKey);
-    } catch {}
-    if (fresh !== null && cacheAgeMs(fresh.cachedAt) < options.ttlMs) {
+    const fresh = await readCached<T>(cache, cacheKey, lease);
+    if (lease.current && fresh !== null && cacheAgeMs(fresh.cachedAt) < options.ttlMs) {
       revalidateInBackground(cache, cacheKey, fetchFresh, invalidateOn);
       return { data: fresh.payload, source: 'cache', cachedAt: fresh.cachedAt };
     }
   }
-
   try {
-    const data = await fetchFresh();
-    let cachedAt = new Date().toISOString();
-    try {
-      cachedAt = await cache.put(cacheKey, data);
-    } catch {
-      // Read path still succeeds if the device store is full or unavailable.
-    }
-    return { data, source: 'network', cachedAt };
-  } catch (err) {
-    if (isAbortError(err)) {
-      throw err;
-    }
-
-    const status = httpStatus(err);
-    if (status !== null && invalidateOn.includes(status)) {
-      try {
-        await cache.remove(cacheKey);
-      } catch {}
-      throw err;
-    }
-
-    if (!fallback || !isCacheFallbackFailure(err)) {
-      throw err;
-    }
-
-    try {
-      const cached = await cache.read<T>(cacheKey);
-      if (cached !== null) {
-        return { data: cached.payload, source: 'cache', cachedAt: cached.cachedAt };
-      }
-    } catch {}
-    throw err;
+    return await cacheFresh(cache, cacheKey, await fetchFresh(), lease);
+  } catch (error) {
+    return recoverCached<T>(cache, cacheKey, lease, error, fallback, invalidateOn);
   }
 }
 

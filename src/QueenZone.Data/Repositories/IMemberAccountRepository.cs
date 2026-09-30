@@ -2,7 +2,7 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-public interface IMemberAccountRepository
+public interface IMemberAccountRepository : IAppleRevocationRepository
 {
     Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default);
 
@@ -28,18 +28,6 @@ public interface IMemberAccountRepository
     Task<MemberAccount> CreateAsync(MemberAccount account, CancellationToken cancellationToken = default);
 
     Task AddExternalLoginAsync(Guid memberAccountId, string provider, string providerKey, string email, CancellationToken cancellationToken = default);
-
-    Task SaveAppleRefreshTokenAsync(
-        Guid memberAccountId,
-        string providerKey,
-        string protectedToken,
-        CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
-        int limit,
-        CancellationToken cancellationToken = default);
-
-    Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates <see cref="MemberAccount.DisplayName"/> for the given member.

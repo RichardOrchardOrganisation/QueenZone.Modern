@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AppState, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, AppState, Text, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { act, screen, waitFor, userEvent } from '@testing-library/react-native';
 import { ApiError, fetchJson } from '../api/client';
@@ -11,6 +11,9 @@ import { SessionProvider, useSession, useSessionActions, type SessionActions } f
 import * as oauth from './oauth';
 import * as tokenStore from './tokenStore';
 import * as notifications from '../notifications';
+import * as downloadManager from '../downloads/manager';
+import { setDownloadManifestStorageForTests } from '../downloads/manifest';
+import * as offlineQueue from '../offlineQueue/store';
 import {
   ContentCache,
   conversationCacheKey,
@@ -89,8 +92,11 @@ const clearPushRegistration = notifications.clearPushRegistration as jest.Mocked
   typeof notifications.clearPushRegistration
 >;
 
+let capturedActions: SessionActions;
+
 function Probe() {
   const session = useSession();
+  useEffect(() => { capturedActions = session; }, [session]);
   const [smokeResult, setSmokeResult] = useState('smoke-idle');
   return (
     <>
@@ -162,6 +168,9 @@ function setAppState(state: string) {
 }
 
 afterEach(() => {
+  setDownloadManifestStorageForTests(null);
+  offlineQueue.setOfflineQueueStorageForTests(null);
+  setContentCacheForTests(null);
   if (originalAppStateDescriptor) {
     Object.defineProperty(AppState, 'currentState', originalAppStateDescriptor);
   }
@@ -448,7 +457,7 @@ describe('SessionProvider', () => {
       accessToken: 'password-access',
       refreshToken: 'refresh-token',
       expiresIn: 900,
-    });
+    }, true);
     await waitFor(() => expect(syncPushRegistration).toHaveBeenCalledWith('password-access', 'member-1'));
   });
 
@@ -617,7 +626,7 @@ describe('SessionProvider', () => {
       accessToken: 'smoke-access',
       refreshToken: 'smoke-debug-no-refresh',
       expiresIn: 3600,
-    });
+    }, true);
   });
 
   it.each(['staging', 'production'] as const)(
@@ -1256,4 +1265,373 @@ describe('SessionProvider actions context stability', () => {
       dateNow.mockRestore();
     }
   });
+});
+
+
+describe('SessionProvider sign-out failure and race isolation', () => {
+  async function restoreMember() {
+    readStored.mockResolvedValue({
+      ...authTokensFixture(),
+      expiresAt: Date.now() + 60_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' },
+    });
+    renderSession();
+    await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
+  }
+
+  it.each(['read', 'delete'] as const)('signs out and retries a failed download manifest %s', async (failure) => {
+    await restoreMember();
+    const storage = createMemoryStorage();
+    const failedOperation = failure === 'read'
+      ? jest.spyOn(storage, 'getItem').mockRejectedValueOnce(new Error('private storage failure'))
+      : jest.spyOn(storage, 'removeItem').mockRejectedValueOnce(new Error('private storage failure'));
+    setDownloadManifestStorageForTests(storage);
+    const alert = jest.spyOn(Alert, 'alert');
+
+    await act(async () => { await capturedActions.signOut(); });
+
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(screen.getByText('no-token')).toBeOnTheScreen();
+    await waitFor(() => expect(clearStored).toHaveBeenCalled());
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(
+      'Sign-out cleanup incomplete', expect.any(String), expect.any(Array),
+    ));
+    const attempts = failedOperation.mock.calls.length;
+    await act(async () => {
+      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup')?.onPress?.();
+    });
+    expect(failedOperation.mock.calls.length).toBeGreaterThan(attempts);
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(JSON.stringify(alert.mock.calls)).not.toContain('private storage failure');
+  });
+
+  it('does not await stalled download cleanup or remote revocation before resetting auth', async () => {
+    await restoreMember();
+    const cleanup = deferred<void>();
+    const purge = jest.spyOn(downloadManager, 'purgeAllDownloads').mockReturnValue(cleanup.promise);
+    logoutRemote.mockReturnValue(new Promise(() => {}));
+    await act(async () => { await capturedActions.signOut(); });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(clearStored).toHaveBeenCalled();
+    expect(purge).toHaveBeenCalledWith('member-1', expect.any(Function), true);
+
+    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
+    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
+    await act(async () => { await capturedActions.signIn('Google'); });
+    await act(async () => { cleanup.resolve(); });
+    expect(screen.getByText('Brian')).toBeOnTheScreen();
+    expect(screen.getByText('new-account')).toBeOnTheScreen();
+    expect(clearStored).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports failed private cache erasure and retries it without deleting the public cache', async () => {
+    await restoreMember();
+    const storage = createMemoryStorage();
+    const cache = new ContentCache({ storage });
+    setContentCacheForTests(cache);
+    await cache.put(conversationCacheKey('member-1', 'old'), { body: 'private' });
+    await cache.put(forumTopicCacheKey(10), { public: true });
+    jest.spyOn(storage, 'multiRemove').mockRejectedValueOnce(new Error('disk failure'));
+    const alert = jest.spyOn(Alert, 'alert');
+
+    await act(async () => { await capturedActions.signOut(); });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(clearStored).toHaveBeenCalled();
+    await waitFor(() => expect(alert).toHaveBeenCalled());
+    await act(async () => {
+      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup')?.onPress?.();
+    });
+    expect(await cache.get(conversationCacheKey('member-1', 'old'))).toBeNull();
+    expect(await cache.get(forumTopicCacheKey(10))).toEqual({ public: true });
+  });
+
+  it.each([false, true])('preserves pending-send consent when inspection fails (confirm=%s)', async (confirm) => {
+    await restoreMember();
+    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockRejectedValue(new Error('inspection failed'));
+    const discard = jest.fn(async () => {});
+    jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
+    const alert = jest.spyOn(Alert, 'alert');
+    let signOut!: Promise<void>;
+    await act(async () => { signOut = capturedActions.signOut(); });
+    expect(alert.mock.lastCall?.[0]).toBe('Unable to check pending sends');
+    expect(screen.getByText('signed-in')).toBeOnTheScreen();
+    expect(clearStored).not.toHaveBeenCalled();
+    await act(async () => {
+      alert.mock.lastCall?.[2]?.find((button) => button.text === (confirm ? 'Sign out' : 'Cancel'))?.onPress?.();
+      await signOut;
+    });
+    expect(screen.getByText(confirm ? 'signed-out' : 'signed-in')).toBeOnTheScreen();
+    expect(discard).toHaveBeenCalledTimes(confirm ? 1 : 0);
+    expect(clearStored).toHaveBeenCalledTimes(confirm ? 1 : 0);
+  });
+
+  it.each([false, true])('preserves known pending-send confirmation (confirm=%s)', async (confirm) => {
+    await restoreMember();
+    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockResolvedValue(2);
+    const discard = jest.fn(async () => {});
+    jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
+    const alert = jest.spyOn(Alert, 'alert');
+    let signOut!: Promise<void>;
+    await act(async () => { signOut = capturedActions.signOut(); });
+    expect(alert.mock.lastCall?.[0]).toBe('Discard pending sends?');
+    await act(async () => {
+      alert.mock.lastCall?.[2]?.find((button) => button.text === (confirm ? 'Sign out' : 'Cancel'))?.onPress?.();
+      await signOut;
+    });
+    expect(screen.getByText(confirm ? 'signed-out' : 'signed-in')).toBeOnTheScreen();
+    expect(discard).toHaveBeenCalledTimes(confirm ? 1 : 0);
+  });
+
+  it('does not block auth reset on confirmed pending-send deletion failure', async () => {
+    await restoreMember();
+    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockResolvedValue(1);
+    const discard = jest.fn(async () => {}).mockRejectedValue(new Error('queue deletion failed'));
+    jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
+    const alert = jest.spyOn(Alert, 'alert');
+    let signOut!: Promise<void>;
+    await act(async () => { signOut = capturedActions.signOut(); });
+    await act(async () => {
+      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Sign out')?.onPress?.();
+      await signOut;
+    });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(clearStored).toHaveBeenCalled();
+    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
+  });
+
+  it('ignores a late refreshed grant after sign-out and a new account sign-in', async () => {
+    await restoreMember();
+    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
+    refreshAccessToken.mockReturnValue(refresh.promise);
+    const now = Date.now();
+    jest.spyOn(Date, 'now').mockReturnValue(now + 120_000);
+    let pendingRefresh!: Promise<string | null>;
+    await act(async () => { pendingRefresh = capturedActions.ensureAccessToken(); });
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    await act(async () => { await capturedActions.signOut(); });
+    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
+    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
+    await act(async () => { await capturedActions.signIn('Google'); });
+    await act(async () => {
+      refresh.resolve(authTokensFixture({ accessToken: 'stale-access', refreshToken: 'stale-refresh' }));
+      expect(await pendingRefresh).toBeNull();
+    });
+    expect(writeStored).not.toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'stale-access' }));
+    expect(screen.getByText('new-account')).toBeOnTheScreen();
+    expect(screen.getByText('Brian')).toBeOnTheScreen();
+  });
+
+  it('ignores a late profile after sign-out and does not queue its identity write', async () => {
+    await restoreMember();
+    const profile = deferred<ReturnType<typeof memberProfilePayload>>();
+    fetchJsonMock.mockReturnValue(profile.promise);
+    let pendingProfile!: ReturnType<SessionActions['refreshProfile']>;
+    await act(async () => { pendingProfile = capturedActions.refreshProfile(); });
+    await act(async () => { await capturedActions.signOut(); });
+    writeIdentity.mockClear();
+    await act(async () => {
+      profile.resolve(memberProfilePayload({ displayName: 'Stale identity' }));
+      expect(await pendingProfile).toBeNull();
+    });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(writeIdentity).not.toHaveBeenCalled();
+  });
+
+  it('orders a pending credential write, sign-out deletion, and a new account write', async () => {
+    await restoreMember();
+    const write = deferred<tokenStore.StoredSession>();
+    const order: string[] = [];
+    writeStored.mockImplementationOnce(async () => { order.push('old-write'); return write.promise; });
+    clearStored.mockImplementation(async () => { order.push('delete'); });
+    signInWithProvider.mockResolvedValueOnce(authTokensFixture({ accessToken: 'old-attempt' }));
+    let oldSignIn!: Promise<void>;
+    await act(async () => { oldSignIn = capturedActions.signIn('Google'); });
+    expect(order).toEqual(['old-write']);
+    await act(async () => { await capturedActions.signOut(); });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    signInWithProvider.mockResolvedValueOnce(authTokensFixture({ accessToken: 'new-account' }));
+    writeStored.mockImplementation(async (tokens) => {
+      order.push('new-write');
+      return { ...tokens, expiresAt: Date.now() + 60_000 };
+    });
+    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
+    let newSignIn!: Promise<void>;
+    await act(async () => { newSignIn = capturedActions.signIn('Google'); });
+    expect(order).toEqual(['old-write']);
+    await act(async () => {
+      write.resolve({ ...authTokensFixture({ accessToken: 'old-attempt' }), expiresAt: Date.now() + 60_000 });
+      await Promise.all([oldSignIn, newSignIn]);
+    });
+    expect(order).toEqual(['old-write', 'delete', 'new-write']);
+    expect(screen.getByText('new-account')).toBeOnTheScreen();
+    expect(screen.getByText('Brian')).toBeOnTheScreen();
+  });
+
+  it('does not retry an old failed credential deletion after a new session is stored', async () => {
+    await restoreMember();
+    clearStored.mockRejectedValueOnce(new Error('locked keychain'));
+    const alert = jest.spyOn(Alert, 'alert');
+    await act(async () => { await capturedActions.signOut(); });
+    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
+    const retry = alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup');
+    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
+    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
+    await act(async () => { await capturedActions.signIn('Google'); });
+    await act(async () => { retry?.onPress?.(); });
+    expect(clearStored).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('new-account')).toBeOnTheScreen();
+  });
+
+  it('offers Cancel when pending-send inspection stalls instead of assuming no sends', async () => {
+    await restoreMember();
+    jest.useFakeTimers();
+    try {
+      jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockReturnValue(new Promise(() => {}));
+      const alert = jest.spyOn(Alert, 'alert');
+      let signOut!: Promise<void>;
+      await act(async () => { signOut = capturedActions.signOut(); });
+      await act(async () => { jest.advanceTimersByTime(5_000); });
+      expect(alert.mock.lastCall?.[0]).toBe('Unable to check pending sends');
+      expect(clearStored).not.toHaveBeenCalled();
+      await act(async () => {
+        alert.mock.lastCall?.[2]?.find((button) => button.text === 'Cancel')?.onPress?.();
+        await signOut;
+      });
+      expect(screen.getByText('signed-in')).toBeOnTheScreen();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('retries failed credential deletion while the same sign-out is current', async () => {
+    await restoreMember();
+    clearStored.mockRejectedValueOnce(new Error('locked keychain')).mockResolvedValue(undefined);
+    const alert = jest.spyOn(Alert, 'alert');
+    await act(async () => { await capturedActions.signOut(); });
+    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
+    await act(async () => {
+      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup')?.onPress?.();
+    });
+    expect(clearStored).toHaveBeenCalledTimes(2);
+    expect(await capturedActions.ensureAccessToken()).toBeNull();
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+  });
+
+  it('ignores a sign-in response that arrives after sign-out', async () => {
+    await restoreMember();
+    const login = deferred<ReturnType<typeof authTokensFixture>>();
+    signInWithProvider.mockReturnValue(login.promise);
+    let signingIn!: Promise<void>;
+    await act(async () => { signingIn = capturedActions.signIn('Google'); });
+    await act(async () => { await capturedActions.signOut(); });
+    writeStored.mockClear();
+    await act(async () => {
+      login.resolve(authTokensFixture({ accessToken: 'late-login' }));
+      await signingIn;
+    });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(writeStored).not.toHaveBeenCalled();
+  });
+
+  it('does not restore a delayed stored identity after sign-out', async () => {
+    const read = deferred<tokenStore.StoredSession | null>();
+    readStored.mockReturnValue(read.promise);
+    renderSession();
+    await act(async () => { await capturedActions.signOut(); });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    await act(async () => {
+      read.resolve({
+        ...authTokensFixture({ accessToken: 'stale-stored' }),
+        expiresAt: Date.now() + 60_000,
+        identity: { memberId: 'member-1', displayName: 'Old identity' },
+      });
+    });
+    expect(screen.getByText('signed-out')).toBeOnTheScreen();
+    expect(screen.queryByText('Old identity')).toBeNull();
+    expect(clearStored).toHaveBeenCalled();
+  });
+
+
+  it('clears the old identity during fresh sign-in while the new profile is delayed', async () => {
+    await restoreMember();
+    const profile = deferred<ReturnType<typeof memberProfilePayload>>();
+    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
+    fetchJsonMock.mockReturnValue(profile.promise);
+    let signingIn!: Promise<void>;
+    await act(async () => { signingIn = capturedActions.signIn('Google'); });
+    await waitFor(() => expect(screen.getByText('new-account')).toBeOnTheScreen());
+    expect(screen.queryByText('Freddie')).toBeNull();
+    expect(screen.getByText('anonymous')).toBeOnTheScreen();
+    expect(writeStored).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'new-account' }), true);
+    await act(async () => {
+      profile.resolve(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
+      await signingIn;
+    });
+    expect(screen.getByText('Brian')).toBeOnTheScreen();
+  });
+
+
+  it('defers the new identity shell until its failed grant write is successfully retried', async () => {
+    const listeners: ((state: AppStateStatus) => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      listeners.push(listener);
+      return { remove: jest.fn() };
+    });
+    await restoreMember();
+    writeIdentity.mockClear();
+    writeStored.mockRejectedValueOnce(new Error('fresh grant not stored'));
+    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
+    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
+    await act(async () => { await capturedActions.signIn('Google'); });
+    expect(screen.getByText('Brian')).toBeOnTheScreen();
+    expect(writeIdentity).not.toHaveBeenCalled();
+    await act(async () => { listeners.forEach((listener) => listener('active')); });
+    await waitFor(() => expect(writeIdentity).toHaveBeenCalledWith({
+      displayName: 'Brian', memberId: 'member-2', avatarPath: null,
+    }));
+    expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ accessToken: 'new-account' }), true);
+  });
+
+
+  it('retries confirmed operation-scoped discard after same-member sign-in', async () => {
+    await restoreMember();
+    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockResolvedValue(1);
+    const discard = jest.fn(async () => {}).mockRejectedValueOnce(new Error('queue deletion failed'));
+    const prepare = jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
+    const alert = jest.spyOn(Alert, 'alert');
+    let signOut!: Promise<void>;
+    await act(async () => { signOut = capturedActions.signOut(); });
+    await act(async () => {
+      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Sign out')?.onPress?.();
+      await signOut;
+    });
+    expect(prepare).toHaveBeenCalledWith('member-1');
+    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
+    const retry = alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup');
+    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-same-member-session' }));
+    fetchJsonMock.mockResolvedValue(memberProfilePayload());
+    await act(async () => { await capturedActions.signIn('Google'); });
+    await act(async () => { retry?.onPress?.(); });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(discard).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('new-same-member-session')).toBeOnTheScreen();
+  });
+
+
+  it('carries a failed fresh identity reset into a replacing refresh grant', async () => {
+    await restoreMember();
+    writeStored.mockRejectedValueOnce(new Error('old identity deletion failed'));
+    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'fresh-account' }));
+    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
+    await act(async () => { await capturedActions.signIn('Google'); });
+    expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ accessToken: 'fresh-account' }), true);
+    jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 2_000_000);
+    refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'refreshed-account' }));
+    fetchJsonMock.mockRejectedValue(new TypeError('offline profile'));
+    await act(async () => { await capturedActions.ensureAccessToken(); });
+    expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ accessToken: 'refreshed-account' }), true);
+    expect(screen.getByText('refreshed-account')).toBeOnTheScreen();
+    expect(screen.getByText('Brian')).toBeOnTheScreen();
+  });
+
 });

@@ -108,14 +108,15 @@ describe('withOfflineCacheResult TTL / stale-while-revalidate', () => {
   it('deduplicates concurrent background revalidations for the same key', async () => {
     const cache = newCache();
     await cache.put('k', { value: 'cached' });
-    const fetchFresh = mock.fn(async () => ({ value: 'revalidated' }));
-
-    await withOfflineCacheResult(cache, 'k', fetchFresh, { ttlMs: 60_000 });
-    await withOfflineCacheResult(cache, 'k', fetchFresh, { ttlMs: 60_000 });
-
-    await flush();
-
+    const response = Promise.withResolvers<{ value: string }>();
+    const fetchFresh = mock.fn(() => response.promise);
+    await Promise.all([
+      withOfflineCacheResult(cache, 'k', fetchFresh, { ttlMs: 60_000 }),
+      withOfflineCacheResult(cache, 'k', fetchFresh, { ttlMs: 60_000 }),
+    ]);
     assert.equal(fetchFresh.mock.calls.length, 1);
+    response.resolve({ value: 'revalidated' });
+    await flush();
   });
 
   it('swallows a failed background revalidation and keeps the stale value cached', async () => {
@@ -175,3 +176,106 @@ describe('withOfflineCacheResult TTL / stale-while-revalidate', () => {
     assert.equal(fetchFresh.mock.calls.length, 2);
   });
 });
+
+
+it('does not repersist private data from a background revalidation after purge', async () => {
+  const cache = newCache();
+  const key = 'private:member-a:conversation';
+  await cache.put(key, { value: 'cached' });
+  const response = Promise.withResolvers<{ value: string }>();
+  const result = await withOfflineCacheResult(cache, key, () => response.promise, { ttlMs: 60_000 });
+  assert.equal(result.source, 'cache');
+  await cache.purgePrefix('private:');
+  response.resolve({ value: 'old session' });
+  await response.promise; // Background continuation queues its write before this read.
+  assert.equal(await cache.get(key), null);
+});
+
+it('late unauthorized responses do not delete a new session snapshot', async () => {
+  const cache = newCache();
+  const key = 'private:member-a:conversation';
+  const response = Promise.withResolvers<never>();
+  const pending = withOfflineCacheResult(cache, key, () => response.promise, { invalidateOn: [401] });
+  const rejected = assert.rejects(pending, ApiError);
+  await cache.purgePrefix('private:');
+  await cache.put(key, { value: 'new session' });
+  response.reject(new ApiError(401, 'Unauthorized'));
+  await rejected;
+  assert.deepEqual(await cache.get(key), { value: 'new session' });
+});
+
+it('new-session SWR can start while an invalidated same-key refresh is pending', async () => {
+  const cache = newCache();
+  const key = 'private:member-a:conversation';
+  await cache.put(key, { value: 'old cached' });
+  const old = Promise.withResolvers<{ value: string }>();
+  await withOfflineCacheResult(cache, key, () => old.promise, { ttlMs: 60_000 });
+  await cache.purgePrefix('private:');
+  await cache.put(key, { value: 'new cached' });
+  const fresh = Promise.withResolvers<{ value: string }>();
+  let calls = 0;
+  await withOfflineCacheResult(cache, key, () => { calls++; return fresh.promise; }, { ttlMs: 60_000 });
+  assert.equal(calls, 1);
+  old.resolve({ value: 'old refreshed' });
+  await old.promise;
+  fresh.resolve({ value: 'new refreshed' });
+  await fresh.promise;
+  assert.deepEqual(await cache.get(key), { value: 'new refreshed' });
+});
+
+for (const mode of ['swr', 'offline'] as const) {
+  it(`does not cross a purge between cache-read completion and ${mode} continuation`, async () => {
+    const readFinished = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    class PausedReadCache extends ContentCache {
+      override async read<T>(key: string, lease?: import('./contentCache.ts').CacheLease) {
+        const record = await super.read<T>(key, lease);
+        readFinished.resolve();
+        await resume.promise;
+        return record;
+      }
+    }
+    const storage = createMemoryStorage();
+    const cache = new PausedReadCache({ storage });
+    const key = 'private:member-a:conversation';
+    await cache.put(key, { value: 'private cached' });
+    const response = Promise.withResolvers<{ value: string }>();
+    const pending = withOfflineCacheResult(cache, key,
+      mode === 'swr' ? () => response.promise : () => Promise.reject(ApiError.offline()),
+      mode === 'swr' ? { ttlMs: 60_000 } : {});
+    const expected = mode === 'offline' ? assert.rejects(pending, ApiError) : pending;
+    await readFinished.promise;
+    await cache.purgePrefix('private:');
+    resume.resolve();
+    response.resolve({ value: 'old response' });
+    await expected;
+    assert.equal(await storage.getItem(cache.entryKey(key)), null);
+  });
+}
+
+for (const mode of ['swr', 'offline'] as const) {
+  it(`rechecks ownership after the cached-result helper resolves (${mode})`, async () => {
+    let purge: Promise<void> | undefined;
+    class CompletionBoundaryCache extends ContentCache {
+      override read<T>(_key: string, _lease?: import('./contentCache.ts').CacheLease) {
+        // The first microtask precedes the helper's continuation. The second
+        // invalidates after its check but before the caller resumes.
+        queueMicrotask(() => queueMicrotask(() => { purge = this.purgePrefix('private:'); }));
+        return Promise.resolve({ payload: { value: 'private cached' } as T, cachedAt: new Date().toISOString() });
+      }
+    }
+    const cache = new CompletionBoundaryCache({ storage: createMemoryStorage() });
+    const pending = withOfflineCacheResult(cache, 'private:member-a:conversation',
+      mode === 'swr' ? async () => ({ value: 'network' }) : async () => { throw ApiError.offline(); },
+      mode === 'swr' ? { ttlMs: 60_000 } : {});
+    if (mode === 'offline') {
+      await assert.rejects(pending, ApiError);
+    } else {
+      const result = await pending;
+      assert.equal(result.source, 'network');
+      assert.deepEqual(result.data, { value: 'network' });
+    }
+    assert.ok(purge);
+    await purge;
+  });
+}

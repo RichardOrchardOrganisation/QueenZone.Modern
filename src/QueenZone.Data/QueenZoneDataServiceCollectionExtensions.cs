@@ -62,6 +62,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IAdminNewsRepository, EfAdminNewsRepository>();
         services.AddScoped<INewsAuditRepository, EfNewsAuditRepository>();
         services.AddScoped<IMemberAccountRepository, EfMemberAccountRepository>();
+        services.AddScoped<IAppleRevocationRepository>(sp => sp.GetRequiredService<IMemberAccountRepository>());
         services.AddScoped<IForumWriteRepository, EfForumWriteRepository>();
         services.AddScoped<IForumAttachmentRepository, EfForumAttachmentRepository>();
         services.AddScoped<IForumPollRepository, EfForumPollRepository>();
@@ -176,6 +177,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddSingleton<IAdminNewsRepository, InMemoryAdminNewsRepository>();
         services.AddSingleton<INewsAuditRepository, InMemoryNewsAuditRepository>();
         services.AddSingleton<IMemberAccountRepository, InMemoryMemberAccountRepository>();
+        services.AddSingleton<IAppleRevocationRepository>(sp => sp.GetRequiredService<IMemberAccountRepository>());
         services.AddSingleton<ILiveActivityQueryService, InMemoryLiveActivityQueryService>();
         var discoveryStore = new SharedNewsDiscoveryStore();
         SampleNewsDiscoveryData.Seed(discoveryStore);
