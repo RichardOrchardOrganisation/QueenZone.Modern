@@ -85,7 +85,7 @@ public static class SearchReindexSqlRetry
         ArgumentNullException.ThrowIfNull(delayBeforeRetry);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
 
-        for (var attempt = 1; ; attempt++)
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
             {
