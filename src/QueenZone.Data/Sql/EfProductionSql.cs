@@ -1,14 +1,9 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace QueenZone.Data;
 
 /// <summary>
 /// Production SQL Server query text for EF public-read repositories.
-/// Excluded from coverage: exercised against real SQL Server in opt-in probes / production,
-/// while deterministic tests inject SQLite-compatible SQL via repository test constructors.
 /// Dynamic ints use EF <c>{0}</c> placeholders (passed to <c>SqlQueryRaw</c>), not string interpolation.
 /// </summary>
-[ExcludeFromCodeCoverage]
 internal static class EfProductionSql
 {
     /// <summary>
