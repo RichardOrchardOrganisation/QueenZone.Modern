@@ -101,17 +101,24 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.DoesNotContain("OPTION (RECOMPILE)", migration[downStart..], StringComparison.Ordinal);
     }
 
+    // 2026-09-30 queenzone_legacy_sync dump: catalog FT_SearchCatalog, Title/Body,
+    // language 1033, AUTO change tracking, system stoplist (stoplist_id=0). Language
+    // and stoplist are SQL Server defaults — the migration does not spell them.
     [Fact]
     public void SearchDocument_fts_uses_auto_change_tracking_not_a_sync_rebuild()
     {
         var migration = ReadRepoFile(
             Path.Combine("src", "QueenZone.Data", "Migrations", "20260804113500_AddSearchDocumentFullTextSearch.cs"));
 
+        Assert.Contains("CREATE FULLTEXT CATALOG FT_SearchCatalog", migration, StringComparison.Ordinal);
+        Assert.Contains("CREATE FULLTEXT INDEX ON dbo.SearchDocument (Title, Body)", migration, StringComparison.Ordinal);
+        Assert.Contains("KEY INDEX PK_SearchDocument ON FT_SearchCatalog WITH CHANGE_TRACKING AUTO", migration, StringComparison.Ordinal);
         Assert.Contains("WITH CHANGE_TRACKING AUTO", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("CHANGE_TRACKING OFF", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("CHANGE_TRACKING MANUAL", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("START FULL POPULATION", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("START UPDATE POPULATION", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("STOPLIST", migration, StringComparison.Ordinal);
     }
 
     [Fact]

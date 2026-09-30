@@ -155,6 +155,7 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | `EfFanPerformanceRepositoryLegacyProbeTests` (read-only `Q_STAGE_T` public reads) | Mac `legacy-read-probes` |
 | `EfAdminFanPerformanceRepositoryLegacyProbeTests` (read-only `Q_STAGE_T` admin list/get) | Mac `legacy-read-probes` |
 | `EfNewsFullTextSearchLiveProbeTests` (`EfNewsRepository.SearchAsync` via SQL Server full-text procedure) | Mac `legacy-read-probes`, with `RUN_NEWS_FTS_PROBE=true` |
+| `EfSiteSearchFullTextSearchLiveProbeTests` (`EfSiteSearchService` via `dbo.SearchDocument_Search`) | Mac `legacy-read-probes`, with `RUN_SITE_SEARCH_FTS_PROBE=true` |
 | `EfNewsRepositoryLegacyProbeTests` (read-only public archive/count/page/by-id/sitemap/decade + `LegacyNewsSchema` COL_LENGTH) | Mac `legacy-read-probes` |
 | `ModernForumRepositoryLiveProbeTests` (`ModernForumRepository` category/topic/sitemap reads and real `SearchForumAsync`) | Mac `legacy-read-probes` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
@@ -224,6 +225,13 @@ Worked examples, each of which removed `[ExcludeFromCodeCoverage]`:
   procedure with only the `FREETEXTTABLE` source swapped for LIKE. Real full-text matching stays with
   `EfNewsFullTextSearchLiveProbeTests` (`RUN_NEWS_FTS_PROBE=true`). There is no SQLite `LIKE`
   search branch.
+- `EfSiteSearchService` (`dbo.SearchDocument_Search`): full-text is not installed in LocalDB or
+  the CI container, so `SearchDocumentSearchSqlServerTests` asserts the migration's procedure SQL
+  against the 2026-09-30 mirror `OBJECT_DEFINITION`, then creates it with only the
+  `FREETEXTTABLE` sources swapped for LIKE. Scratch `SearchDocument` types and indexes come from
+  that dump (`SearchDocumentSchema`). Rank caps, tribute filters, `#Page` paging, and
+  `@TotalRecords` run as shipped. Real full-text matching stays with
+  `EfSiteSearchFullTextSearchLiveProbeTests` (`RUN_SITE_SEARCH_FTS_PROBE=true`).
 - `EfFanPerformanceRepository` and `EfAdminFanPerformanceRepository`: `FanPerformanceRepositorySqlServerTests`
   and `AdminFanPerformanceRepositorySqlServerTests` share the mirror's `Q_STAGE_T` DDL in
   `LegacyFanPerformanceSchema` (ad-hoc SQL only; no `Q_STAGE_*_SP` procs). Their probes are
