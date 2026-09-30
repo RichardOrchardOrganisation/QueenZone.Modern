@@ -182,10 +182,11 @@ public sealed class LegacyForumRepositorySqlServerTests : IAsyncLifetime
         Assert.NotNull(page2);
         Assert.Equal([1007], page2.Posts.Select(post => post.Id));
         Assert.Equal(string.Empty, page2.Posts[0].Body);
-        Assert.NotNull(page2.Posts[0].Attachments);
-        Assert.Equal("solo.jpg", page2.Posts[0].Attachments[0].FileName);
-        Assert.Equal(2048L, page2.Posts[0].Attachments[0].FileSizeBytes);
-        Assert.Equal("/forum/attachment/legacy/1007", page2.Posts[0].Attachments[0].Url);
+        var attachments = page2.Posts[0].Attachments;
+        Assert.NotNull(attachments);
+        Assert.Equal("solo.jpg", attachments[0].FileName);
+        Assert.Equal(2048L, attachments[0].FileSizeBytes);
+        Assert.Equal("/forum/attachment/legacy/1007", attachments[0].Url);
         Assert.DoesNotContain(page2.Posts, post => post.Id is 1008 or 1013);
 
         var beyond = await repository.GetTopicPostsPageAsync(1000, 9, 10);
