@@ -9,12 +9,13 @@ namespace QueenZone.SqlServerTests;
 
 /// <summary>
 /// Covers the SQL Server path of <see cref="EfSiteSearchService"/> (#1895 / #1443).
-/// Full-text search is not installed in LocalDB or
-/// the CI <c>mssql</c> container, so the test creates <c>dbo.SearchDocument_Search</c> from
-/// <see cref="ExcludeTributesFromSiteSearch"/> with only the <c>FREETEXTTABLE</c> sources
-/// swapped for a LIKE match. Rank caps, tribute filters, paging, and <c>@TotalRecords</c>
-/// run as shipped. Real full-text matching stays with
-/// <c>EfSiteSearchFullTextSearchLiveProbeTests</c>.
+/// Scratch <c>SearchDocument</c> matches the 2026-09-30 <c>queenzone_legacy_sync</c> dump
+/// (<see cref="SearchDocumentSchema"/>). Full-text is not installed in LocalDB or the CI
+/// <c>mssql</c> container, so the test creates <c>dbo.SearchDocument_Search</c> from
+/// <see cref="ExcludeTributesFromSiteSearch"/> — the same body as the dump
+/// <c>OBJECT_DEFINITION</c> — with only the <c>FREETEXTTABLE</c> sources swapped for LIKE.
+/// Rank caps, tribute filters, paging, and <c>@TotalRecords</c> run as shipped. Real
+/// full-text matching stays with <c>EfSiteSearchFullTextSearchLiveProbeTests</c>.
 /// </summary>
 public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
 {
@@ -33,26 +34,6 @@ public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
                OR Body LIKE N'%' + @Query + N'%'
             GROUP BY Id
         ) ft
-        """;
-
-    // Modern EF table. Lengths and nullability match SearchDocumentEntityConfiguration
-    // (no legacy dump — SearchDocument is not a mirrored Web Forms table).
-    private const string SearchDocumentTableSql = """
-        CREATE TABLE dbo.SearchDocument
-        (
-            Id uniqueidentifier NOT NULL PRIMARY KEY,
-            SourceKey nvarchar(200) NOT NULL,
-            ContentType nvarchar(50) NOT NULL,
-            Title nvarchar(300) NOT NULL,
-            Body nvarchar(max) NOT NULL,
-            Summary nvarchar(500) NULL,
-            Url nvarchar(500) NOT NULL,
-            PublishedAt datetimeoffset NULL,
-            ImageUrl nvarchar(512) NULL,
-            Category nvarchar(200) NULL,
-            AuthorDisplayName nvarchar(256) NULL,
-            IndexedAt datetimeoffset NOT NULL
-        );
         """;
 
     /// <summary>
@@ -160,7 +141,7 @@ public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
         await using (var schema = new EmptySchemaContext(SchemaOptions()))
         {
             await schema.Database.EnsureCreatedAsync();
-            await schema.Database.ExecuteSqlRawAsync(SearchDocumentTableSql);
+            await schema.Database.ExecuteSqlRawAsync(SearchDocumentSchema.CreateTableSql);
             await schema.Database.ExecuteSqlRawAsync(ApplyLikeStandIn(SearchProcedureSql()));
         }
 
@@ -177,18 +158,39 @@ public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Migration_procedure_filters_tributes_at_matches_insert()
+    public void Migration_procedure_matches_mirror_object_definition()
     {
         var sql = SearchProcedureSql();
 
         Assert.Contains(FreeTextUntyped, sql, StringComparison.Ordinal);
         Assert.Contains(FreeTextTyped, sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CONTAINSTABLE", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("CONTAINS(", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("NOLOCK", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("NEWS_T", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("ModernForum", sql, StringComparison.Ordinal);
         Assert.Equal(2, sql.Split(SiteSearchExclusion.SqlIsSearchable("d"), StringSplitOptions.None).Length - 1);
         Assert.Contains("@RankLimit      INT = 1000", sql, StringComparison.Ordinal);
         Assert.Contains("@TypedRankLimit INT = 5000", sql, StringComparison.Ordinal);
+        Assert.Contains("WHEN @RankLimit > 1000 THEN 1000", sql, StringComparison.Ordinal);
+        Assert.Contains("WHEN @TypedRankLimit > 5000 THEN 5000", sql, StringComparison.Ordinal);
         Assert.Equal(2, sql.Split("OPTION (RECOMPILE)", StringSplitOptions.None).Length - 1);
+        Assert.Contains("CREATE TABLE #Matches", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE TABLE #Page", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "ORDER BY SearchRank DESC, PublishedAt DESC, DocumentId DESC",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY",
+            sql,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ORDER BY p.SearchRank DESC, p.PublishedAt DESC, p.DocumentId DESC",
+            sql,
+            StringComparison.Ordinal);
         Assert.Contains("SELECT @TotalRecords = COUNT(*)", sql, StringComparison.Ordinal);
+        Assert.Contains("FROM   #Matches;", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("@ContentType IS NULL OR", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("INNER JOIN #Matches", sql, StringComparison.Ordinal);
     }

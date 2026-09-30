@@ -226,9 +226,11 @@ Worked examples, each of which removed `[ExcludeFromCodeCoverage]`:
   `EfNewsFullTextSearchLiveProbeTests` (`RUN_NEWS_FTS_PROBE=true`). There is no SQLite `LIKE`
   search branch.
 - `EfSiteSearchService` (`dbo.SearchDocument_Search`): full-text is not installed in LocalDB or
-  the CI container, so `SearchDocumentSearchSqlServerTests` asserts the migration's procedure SQL,
-  then creates it with only the `FREETEXTTABLE` sources swapped for LIKE. Rank caps, tribute
-  filters, `#Page` paging, and `@TotalRecords` run as shipped. Real full-text matching stays with
+  the CI container, so `SearchDocumentSearchSqlServerTests` asserts the migration's procedure SQL
+  against the 2026-09-30 mirror `OBJECT_DEFINITION`, then creates it with only the
+  `FREETEXTTABLE` sources swapped for LIKE. Scratch `SearchDocument` types and indexes come from
+  that dump (`SearchDocumentSchema`). Rank caps, tribute filters, `#Page` paging, and
+  `@TotalRecords` run as shipped. Real full-text matching stays with
   `EfSiteSearchFullTextSearchLiveProbeTests` (`RUN_SITE_SEARCH_FTS_PROBE=true`).
 - `EfFanPerformanceRepository` and `EfAdminFanPerformanceRepository`: `FanPerformanceRepositorySqlServerTests`
   and `AdminFanPerformanceRepositorySqlServerTests` share the mirror's `Q_STAGE_T` DDL in
