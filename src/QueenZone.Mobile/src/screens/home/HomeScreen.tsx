@@ -2,7 +2,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ForumRecentThread, PhotoCategoryListItem } from '../../api';
 import { nestedTabParams } from '../../navigation/nestedTab';
@@ -25,6 +25,7 @@ import { HomeOnThisDaySection } from './HomeOnThisDaySection';
 import { HomePollCard } from './HomePollCard';
 import { HomeSprintCard } from './HomeSprintCard';
 import { HomeQueenQuoteSection } from './HomeQueenQuoteSection';
+import { HomeWidgetPrompt } from './HomeWidgetPrompt';
 import { TabRootMasthead } from './TabRootMasthead';
 import { useHomeScreenData } from './useHomeScreenData';
 import { homeFilters, liveStripIsVisible, liveStripLabel, visibleSectionsForFilter, type HomeFilterKey } from './homeMeta';
@@ -176,10 +177,13 @@ export function HomeScreen({ navigation }: Props) {
           />
 
           {showOnThisDay && data.onThisDayEvent ? (
-            <HomeOnThisDaySection
-              event={data.onThisDayEvent}
-              onViewTimeline={() => navigation.navigate('ArchiveTab', nestedTabParams('Timeline'))}
-            />
+            <>
+              <HomeOnThisDaySection
+                event={data.onThisDayEvent}
+                onViewTimeline={() => navigation.navigate('ArchiveTab', nestedTabParams('Timeline'))}
+              />
+              {Platform.OS === 'ios' ? <HomeWidgetPrompt summary={data.onThisDayEvent.summary} /> : null}
+            </>
           ) : null}
 
           {showQueenQuotes && data.onThisDayQuote && data.featuredQuote ? (

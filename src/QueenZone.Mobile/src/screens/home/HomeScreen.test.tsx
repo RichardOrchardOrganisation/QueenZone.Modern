@@ -435,7 +435,7 @@ describe('HomeScreen', () => {
   it('keeps On This Day visible while a pull refreshes', async () => {
     fetchDay.mockResolvedValue(onThisDayFixture());
     renderHome();
-    await waitFor(() => expect(screen.getByText('Queen released The Game.')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0));
 
     const pendingNews = deferred<ReturnType<typeof pagedResponse<ReturnType<typeof newsItemFixture>>>>();
     fetchNews.mockReturnValueOnce(pendingNews.promise);
@@ -444,7 +444,7 @@ describe('HomeScreen', () => {
     });
 
     expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
-    expect(screen.getByText('Queen released The Game.')).toBeOnTheScreen();
+    expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0);
     expect(screen.getByText('30 JUNE 1980')).toBeOnTheScreen();
 
     pendingNews.resolve(
@@ -458,7 +458,7 @@ describe('HomeScreen', () => {
       ),
     );
     await waitFor(() => expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false));
-    expect(screen.getByText('Queen released The Game.')).toBeOnTheScreen();
+    expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0);
     await flushVirtualizedList();
   });
 
@@ -467,7 +467,7 @@ describe('HomeScreen', () => {
     fetchQuote.mockResolvedValue({ id: 9, text: 'A kind of magic', whoSaid: 'Freddie Mercury' });
     renderHome();
 
-    await waitFor(() => expect(screen.getByText('Queen released The Game.')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0));
     expect(screen.getByText('On this day')).toBeOnTheScreen();
     expect(screen.getByText('Queen Quotes')).toBeOnTheScreen();
     expect(screen.getByText('“A kind of magic”')).toBeOnTheScreen();
@@ -494,7 +494,7 @@ describe('HomeScreen', () => {
     fetchQuote.mockResolvedValue(null);
     renderHome();
 
-    await waitFor(() => expect(screen.getByText('Queen released The Game.')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0));
     expect(screen.getByText('On this day')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'View timeline' })).toBeOnTheScreen();
     expect(screen.queryByText('Queen Quotes')).not.toBeOnTheScreen();
