@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace QueenZone.Data;
@@ -56,7 +55,6 @@ public sealed class EfSiteSearchService(
             cancellationToken);
     }
 
-    [ExcludeFromCodeCoverage]
     private async Task<SiteSearchPage> ExecuteSearchAsync(
         string query,
         string? contentType,

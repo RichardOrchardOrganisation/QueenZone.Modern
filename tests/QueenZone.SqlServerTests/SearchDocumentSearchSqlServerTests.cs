@@ -8,12 +8,13 @@ using QueenZone.Data.Migrations;
 namespace QueenZone.SqlServerTests;
 
 /// <summary>
-/// Covers the SQL Server path of <see cref="EfSiteSearchService"/> excluding Freddie tributes
-/// and paging through <c>#Page</c> (#1443). Full-text search is not installed in LocalDB or
+/// Covers the SQL Server path of <see cref="EfSiteSearchService"/> (#1895 / #1443).
+/// Full-text search is not installed in LocalDB or
 /// the CI <c>mssql</c> container, so the test creates <c>dbo.SearchDocument_Search</c> from
 /// <see cref="ExcludeTributesFromSiteSearch"/> with only the <c>FREETEXTTABLE</c> sources
 /// swapped for a LIKE match. Rank caps, tribute filters, paging, and <c>@TotalRecords</c>
-/// run as shipped.
+/// run as shipped. Real full-text matching stays with
+/// <c>EfSiteSearchFullTextSearchLiveProbeTests</c>.
 /// </summary>
 public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
 {
@@ -34,6 +35,8 @@ public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
         ) ft
         """;
 
+    // Modern EF table. Lengths and nullability match SearchDocumentEntityConfiguration
+    // (no legacy dump — SearchDocument is not a mirrored Web Forms table).
     private const string SearchDocumentTableSql = """
         CREATE TABLE dbo.SearchDocument
         (
@@ -188,6 +191,60 @@ public sealed class SearchDocumentSearchSqlServerTests : IAsyncLifetime
         Assert.Contains("SELECT @TotalRecords = COUNT(*)", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("@ContentType IS NULL OR", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("INNER JOIN #Matches", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Search_materializes_display_columns_ranks_and_pages()
+    {
+        var published = DateTimeOffset.Parse("2026-09-15T12:00:00Z");
+        dbContext.SearchDocuments.AddRange(
+            new SearchDocumentEntity
+            {
+                Id = Guid.Parse("00000000-0000-0000-0000-0000000000aa"),
+                SourceKey = "news:77",
+                ContentType = SiteSearchContentType.News,
+                Title = "Wembley Live Aid",
+                Body = "Concert coverage",
+                Summary = "Card excerpt",
+                Url = "/news/77/wembley-live-aid",
+                PublishedAt = published,
+                ImageUrl = "https://cdn.example/wembley.jpg",
+                Category = "Concerts",
+                AuthorDisplayName = "Brian",
+                IndexedAt = DateTimeOffset.Parse("2026-09-29T00:00:00Z"),
+            },
+            Document(
+                "forum-thread:8",
+                SiteSearchContentType.Forum,
+                "Press notes",
+                "Body-only Live Aid mention",
+                DateTimeOffset.Parse("2026-09-01T00:00:00Z")));
+        await dbContext.SaveChangesAsync();
+
+        var first = await search.SearchAsync("  Live Aid ", null, 1, 1);
+        Assert.Equal(2, first.TotalCount);
+        Assert.Equal((1, 1), (first.Page, first.PageSize));
+        var hit = Assert.Single(first.Results);
+        Assert.Equal(
+            (SiteSearchContentType.News, "news:77", "Wembley Live Aid", "Card excerpt"),
+            (hit.ContentType, hit.SourceKey, hit.Title, hit.Summary));
+        Assert.Equal("/news/77/wembley-live-aid", hit.Url);
+        Assert.Equal(published, hit.PublishedAt);
+        Assert.Equal(
+            ("https://cdn.example/wembley.jpg", "Concerts", "Brian"),
+            (hit.ImageUrl, hit.Category, hit.AuthorDisplayName));
+
+        var second = await search.SearchAsync("Live Aid", null, 2, 1);
+        Assert.Equal(2, second.TotalCount);
+        Assert.Equal("forum-thread:8", Assert.Single(second.Results).SourceKey);
+
+        var typed = await search.SearchAsync("Live Aid", SiteSearchContentType.News, 1, 10);
+        Assert.Equal(1, typed.TotalCount);
+        Assert.Equal("news:77", Assert.Single(typed.Results).SourceKey);
+
+        var none = await search.SearchAsync("zeppelin", null, 1, 10);
+        Assert.Equal(0, none.TotalCount);
+        Assert.Empty(none.Results);
     }
 
     [Fact]
