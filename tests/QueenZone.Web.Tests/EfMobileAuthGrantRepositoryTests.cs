@@ -154,6 +154,21 @@ public sealed class EfMobileAuthGrantRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task TryRotateRefreshToken_SeparateReplayWithSameReplacementStillFails()
+    {
+        var member = await SeedMemberAsync();
+        var now = new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc);
+        await repository.StoreRefreshTokenAsync(CreateRefresh("ef-replay-old", member.Id, now));
+        var replacement = CreateRefresh("ef-replay-new", member.Id, now);
+
+        Assert.True(await repository.TryRotateRefreshTokenAsync("ef-replay-old", replacement, now));
+        Assert.False(await repository.TryRotateRefreshTokenAsync("ef-replay-old", replacement, now));
+        Assert.Equal(2, await dbContext.MobileAuthRefreshTokens.CountAsync());
+        Assert.Equal(replacement.TokenHash,
+            (await repository.FindRefreshTokenByHashAsync("ef-replay-old"))!.ReplacedByTokenHash);
+    }
+
+    [Fact]
     public async Task TryRotateRefreshToken_RollsBackTheRevokeWhenTheStoreFails()
     {
         // A failed insert must not leave the presented grant revoked with no

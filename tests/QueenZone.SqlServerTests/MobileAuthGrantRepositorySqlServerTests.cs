@@ -145,6 +145,18 @@ public sealed class MobileAuthGrantRepositorySqlServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TryRotate_SeparateReplayWithSameReplacementStillFails()
+    {
+        var repository = new EfMobileAuthGrantRepository(NewContext());
+        await repository.StoreRefreshTokenAsync(Grant("old"));
+        var replacement = Grant("new");
+
+        Assert.True(await repository.TryRotateRefreshTokenAsync("old", replacement, Now));
+        Assert.False(await repository.TryRotateRefreshTokenAsync("old", replacement, Now));
+        await AssertSingleRotationAsync(NewContext(), "old", replacement);
+    }
+
+    [Fact]
     public async Task TryRotate_ConcurrentRotationsOfOneGrantHaveOneWinner()
     {
         await new EfMobileAuthGrantRepository(NewContext()).StoreRefreshTokenAsync(Grant("contended"));

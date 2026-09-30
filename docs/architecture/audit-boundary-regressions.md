@@ -1,7 +1,7 @@
 # Audit boundary regression ownership
 
 Follow-up for #1953. Concrete regressions belong with their fixing issue; this
-inventory does not duplicate their suites or reopen the fixed token-rotation bug.
+inventory extends the existing token-rotation suite at its commit-retry boundary.
 
 | Scenario | Owner | Existing fixture / owning tests |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ The current main baseline already contains
 SQLite `EfMobileAuthGrantRepositoryTests` also covers atomic outcome, missing/replayed
 grants and insert-failure rollback. `MobileAuthServiceTests` covers losing refresh
 races, retry guidance, and recovery within the replacement-token grace window.
-No duplicate implementation or tests are added here.
+The retry regressions below extend those existing fixtures.
 
 The #1953 follow-on adds two real-SQL fault-injection regressions to that fixture:
 
@@ -56,14 +56,22 @@ Both retain the production SQL Server retry strategy and reuse the existing
 `SqlExceptionFactory`. Retry/count/data assertions precede the result assertion.
 They are not SQLite substitutes or fault-free retry-configuration checks.
 
-Execution status: added but **not run in the cloud** (no .NET/SQL Server). Source
-inspection predicts the lost-acknowledgement test fails at its final `Assert.True`:
-the retried conditional revoke sees the committed old grant as already revoked and
-returns false, although the original attempt stored the successor. The repository
-interface says false stores nothing; existing service-level recovery may mask that
-result, so no user-facing failure is claimed without execution. Real SQL Server
-verification and any resulting narrow correction remain required before #1953 is
-complete.
+Execution status: CI run `36700628300`, SQL job `109840024819`, executed the
+real SQL Server suite at audit commit `cd4cd45`: 96 tests passed and the
+lost-acknowledgement test failed at its final `Assert.True` with an actual result
+of false. The preceding retry/count and exact single-successor persistence
+assertions passed. The before-commit fault case passed. No production database
+was used.
+
+The correction keeps acknowledgement state local to one repository invocation.
+After that invocation successfully stores its replacement, an execution-strategy
+retry may return true only when the old grant links to the exact persisted
+successor (id, hash, member, client, timestamps and revocation/link state).
+A separate replay starts with no such acknowledgement state and still returns
+false, even with the same replacement entity. Both SQLite and real SQL Server
+regressions cover that separate-replay boundary. Confirmation of the correction
+on real SQL Server remains pending the follow-up CI commit; #1953 is not yet
+claimed complete.
 
 ## Verification boundaries
 
