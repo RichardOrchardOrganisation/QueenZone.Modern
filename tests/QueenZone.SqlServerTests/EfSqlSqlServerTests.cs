@@ -157,16 +157,16 @@ public sealed class EfSqlSqlServerTests : IAsyncLifetime
         Assert.Null(hit.Title);
         Assert.True(EfSql.GetNullableBool(found));
 
-        found.Value = DBNull.Value;
+        var missing = EfSql.OutputBool("@Found");
         Assert.Null(await EfSql.QueryProcSingleOrDefaultAsync<ScratchRow>(
             dbContext,
             "dbo.EfSqlScratch_GetRow",
             command =>
             {
                 command.Parameters.Add(EfSql.Input("@Id", 2));
-                command.Parameters.Add(found);
+                command.Parameters.Add(missing);
             }));
-        Assert.False(EfSql.GetNullableBool(found));
+        Assert.False(EfSql.GetNullableBool(missing));
 
         Assert.Equal(0, await EfSql.ExecuteScalarProcAsync(
             dbContext,
