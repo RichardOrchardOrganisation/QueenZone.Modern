@@ -33,3 +33,7 @@ Preconditions:
 - Use an exact name when clicking `Ranking every studio album` on the index so nearby words do not steal the hit.
 - Sample topics for boards other than The Music may be empty. Do not treat an empty non-music board as a host failure.
 - Signed-in posting is a different surface. This map only covers public read.
+
+## YouTube card proof (`web.forum.youtube`)
+
+Open `/forum/1/the-music/page/2`, then `Archive sample thread 1030`. This read-only archive fixture includes two eligible video cards, a duplicate link, a quoted link, an inline sentence link, and a signature URL. Page 2 repeats the card fixture after 15 posts. Artwork is local; each card retains the original link and Watch on YouTube. Before activation there is no iframe or YouTube resource request. Keyboard activation of Load YouTube video keeps focus on the same control (now Unload YouTube video); activating another removes the first frame. At 320px and larger, frames must remain at least 200 x 200px without overflow. Verify pagination, JavaScript disabled and offline fallback. The mapped Playwright spec stubs the player and proves network/Referer, one-player behavior, keyboard/focus, quotes and pagination. Separately smoke-test real playback/fullscreen and record unavailable video or identification error 153 honestly.

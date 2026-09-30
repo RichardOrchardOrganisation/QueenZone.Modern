@@ -91,6 +91,22 @@ public static class SampleForumData
 
     public static IReadOnlyList<ForumPostItem> CreateSeedPosts(int topicId)
     {
+        // Deterministic archive-shaped browser fixture; never writes legacy rows.
+        if (topicId == 1030)
+        {
+            return Enumerable.Range(1, 16).Select(index => new ForumPostItem(
+                103000 + index,
+                index is 1 or 16
+                    ? """<p>Before the shared video.</p><p><a href="http://youtube.com/watch?v=M7lc1UVf-VE&amp;t=1m30s">Original video</a></p><p><a href="https://youtu.be/abcdefghijk">Another video</a></p><p><a href="https://youtu.be/M7lc1UVf-VE?t=90">Duplicate link</a></p><blockquote><p><a href="https://youtu.be/12345678901">Quoted video</a></p></blockquote><p>Inline <a href="https://youtu.be/12345678901">sentence link</a> stays readable.</p><p>After the shared video.</p>"""
+                    : $"Archive video fixture reply {index}.",
+                new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(index),
+                "archive_video_fan",
+                "https://youtu.be/M7lc1UVf-VE",
+                10,
+                new DateTime(2004, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                AuthorLegacyUserId: 5002)).ToList();
+        }
+
         if (topicId == 1002)
         {
             var posts = new List<ForumPostItem>

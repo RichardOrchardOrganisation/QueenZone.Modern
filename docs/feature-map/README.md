@@ -150,6 +150,7 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `web.forum.report` — Report a post (Pages/Forum/Report.cshtml — /forum/post/{postId}/report)
 - `web.forum.topic` — Forum topic (Pages/Forum/Topic.cshtml — /forum/topic/{topicId}/{slug})
 - `web.forum.topicPage` — Forum topic page (Pages/Forum/TopicPage.cshtml — /forum/topic/{topicId}/{slug}/page/{pageNumber})
+- `web.forum.youtube` — Forum YouTube cards (Pages/Forum/Topic.cshtml — /forum/topic/1030/archive-sample-thread-1030)
 
 ### account
 

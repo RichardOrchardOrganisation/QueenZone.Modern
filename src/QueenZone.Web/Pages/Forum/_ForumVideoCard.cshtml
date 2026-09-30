@@ -1,0 +1,14 @@
+@model ForumVideoCard
+<span class="qz-forum-video" data-qz-forum-video data-video-id="@Model.Video.VideoId" data-start-seconds="@Model.Video.StartSeconds" data-testid="forum-video-card">
+  <span class="qz-forum-video__viewport" data-video-viewport>
+    <span class="qz-forum-video__placeholder" data-video-placeholder>
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="2" /><path d="m20 15 14 9-14 9z" fill="currentColor" /></svg>
+      <span>YouTube video</span>
+    </span>
+  </span>
+  <span class="qz-forum-video__disclosure">Loading this video connects to YouTube. YouTube may collect data after loading.</span>
+  <button type="button" class="qz-button qz-forum-video__load" data-video-load hidden>Load YouTube video</button>
+  <span class="qz-forum-video__status" data-video-status role="status" aria-live="polite"></span>
+  <span class="qz-forum-video__fallback"><a href="@Model.Video.WatchUrl" target="_blank" rel="noopener noreferrer">Watch on YouTube</a></span>
+  <span class="qz-forum-video__original">Original link: @Html.Raw(Model.OriginalLink)</span>
+</span>

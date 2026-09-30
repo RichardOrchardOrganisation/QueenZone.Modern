@@ -1,0 +1,10 @@
+@model string
+@inject UgcHtml UgcHtml
+@foreach (var part in ForumVideoRendering.Split(ForumVideoContent.Project(Model, UgcHtml)))
+{
+  @Html.Raw(part.Html)
+  @if (part.Card is not null)
+  {
+    <partial name="_ForumVideoCard" model="part.Card" />
+  }
+}

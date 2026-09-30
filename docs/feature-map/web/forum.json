@@ -65,13 +65,17 @@
         "ranking thread"
       ],
       "sources": [
-        "src/QueenZone.Web/Pages/Forum/Topic.cshtml"
+        "src/QueenZone.Web/Pages/Forum/Topic.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumVideoBody.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
+        "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
       "testIds": [],
       "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/SmokeTests.cs",
-        "tests/QueenZone.Web.E2E/ForumPostingWorkflowTests.cs"
+        "tests/QueenZone.Web.E2E/ForumPostingWorkflowTests.cs",
+        "tests/QueenZone.Web.E2E/ForumYoutubeVideoTests.cs"
       ],
       "selectors": [],
       "signIn": "none",
@@ -85,14 +89,19 @@
     {
       "aliases": [],
       "sources": [
-        "src/QueenZone.Web/Pages/Forum/TopicPage.cshtml"
+        "src/QueenZone.Web/Pages/Forum/TopicPage.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumVideoBody.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
+        "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
       "testIds": [],
       "flows": [],
-      "specs": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/ForumYoutubeVideoTests.cs"
+      ],
       "selectors": [],
       "signIn": "none",
-      "recipe": "",
+      "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
       "id": "web.forum.topicPage",
       "name": "Forum topic page",
       "page": "Pages/Forum/TopicPage.cshtml",
@@ -204,6 +213,29 @@
       "page": "Pages/Forum/ArchiveAuthor.cshtml",
       "url": "/forum/archive-authors/{legacyUserId}",
       "entry": "Forum post → archive author profile"
+    },
+    {
+      "aliases": [
+        "forum YouTube video cards"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/_ForumVideoBody.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
+        "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/ForumYoutubeVideoTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
+      "id": "web.forum.youtube",
+      "name": "Forum YouTube cards",
+      "page": "Pages/Forum/Topic.cshtml",
+      "url": "/forum/topic/1030/archive-sample-thread-1030",
+      "entry": "Forum board page 2 → Archive sample thread 1030"
     }
   ]
 }

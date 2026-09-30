@@ -29,7 +29,7 @@ public static class SecurityHeaders
         "style-src 'self'; " +
         $"script-src 'self' 'nonce-{nonce}' https://www.googletagmanager.com https://www.google-analytics.com; " +
         "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com; " +
-        "frame-src 'self' https://www.googletagmanager.com; " +
+        "frame-src 'self' https://www.googletagmanager.com https://www.youtube-nocookie.com; " +
         "object-src 'none'";
 
     public static void Apply(HttpContext context)

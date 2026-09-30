@@ -68,6 +68,7 @@ public class E2ECategoryGuardTests
             nameof(EditorWorkflowTests),
             nameof(ForumPostingWorkflowTests),
             nameof(ForumSafetyWorkflowTests),
+            nameof(ForumYoutubeVideoTests),
             nameof(LiveSiteTransportRetryTests),
             nameof(PageShapeAssertionTests),
             nameof(PhotographyLightboxTests),
