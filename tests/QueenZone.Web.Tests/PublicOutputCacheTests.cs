@@ -1,4 +1,5 @@
 using System.Net;
+using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using QueenZone.Web;
@@ -112,6 +113,54 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
         Assert.Equal(HttpStatusCode.OK, trackedResponse.StatusCode);
         Assert.True(callsAfterFirst > 0);
         Assert.Equal(callsAfterFirst, callsAfterTracked);
+    }
+
+    [Theory]
+    [InlineData("/timeline?decade=1980s", "Live Aid performance", "/timeline?decade=2020s", "QueenZone modernisation milestone")]
+    [InlineData("/timeline?decade=2020s", "QueenZone modernisation milestone", "/timeline?decade=1980s", "Live Aid performance")]
+    [InlineData("/articles?cp=1", "Community cache article 01", "/articles?cp=2", "Community cache article 13")]
+    [InlineData("/articles?cp=2", "Community cache article 13", "/articles?cp=1", "Community cache article 01")]
+    [InlineData("/articles?tag=music", "Community cache article 01", "/articles?tag=live", "Community cache article 13")]
+    [InlineData("/articles?tag=live", "Community cache article 13", "/articles?tag=music", "Community cache article 01")]
+    [InlineData("/quizzes/leaderboard", "Today's leaderboard", "/quizzes/leaderboard?scope=all", "Best runs")]
+    [InlineData("/quizzes/leaderboard?scope=all", "Best runs", "/quizzes/leaderboard", "Today's leaderboard")]
+    [InlineData("/quizzes/leaderboard?scope=all", "Best runs", "/quizzes/leaderboard?scope=total", "Total points")]
+    [InlineData("/quizzes/leaderboard?scope=total", "Total points", "/quizzes/leaderboard?scope=all", "Best runs")]
+    public async Task Production_content_variants_have_independent_reusable_cache_entries(
+        string firstPath, string firstContent, string secondPath, string secondContent)
+    {
+        await production.ResetAsync();
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+
+        var first = await client.GetStringAsync(firstPath);
+        var second = await client.GetStringAsync(secondPath);
+        AssertVariant(first, firstPath, firstContent, secondContent);
+        AssertVariant(second, secondPath, secondContent, firstContent);
+
+        // Exact body equality includes the CSP nonce: it proves reuse of the rendered
+        // response, rather than merely another render using the same query-cache data.
+        Assert.Equal(first, await client.GetStringAsync(firstPath));
+        Assert.Equal(second, await client.GetStringAsync(secondPath));
+        var trackingSeparator = secondPath.Contains('?') ? "&" : "?";
+        Assert.Equal(second, await client.GetStringAsync($"{secondPath}{trackingSeparator}utm_source=audit"));
+    }
+
+    private static void AssertVariant(string html, string path, string expected, string other)
+    {
+        var document = new HtmlParser().ParseDocument(html);
+        var content = path.StartsWith("/quizzes/leaderboard", StringComparison.Ordinal)
+            ? document.QuerySelector("h1")!.TextContent
+            : document.Body!.TextContent;
+        Assert.Contains(expected, content);
+        Assert.DoesNotContain(other, content);
+        // Article filters intentionally canonicalize to the unfiltered archive URL.
+        var canonicalPath = path.StartsWith("/articles", StringComparison.Ordinal) ? "/articles" : path;
+        Assert.Equal(TestSiteConfiguration.PublicBaseUrl + canonicalPath,
+            document.QuerySelector("link[rel=canonical]")!.GetAttribute("href"));
     }
 
     [Fact]

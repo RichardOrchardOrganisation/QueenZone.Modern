@@ -59,6 +59,12 @@ public sealed class PublicOutputCachePoliciesTests
         Assert.Contains("page", PublicOutputCachePolicies.PublicHtmlQueryKeys);
         Assert.Contains("pageNumber", PublicOutputCachePolicies.PublicHtmlQueryKeys);
         Assert.Contains("size", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("decade", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("cp", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("tag", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("scope", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("claim", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+        Assert.Contains("handler", PublicOutputCachePolicies.PublicHtmlQueryKeys);
         Assert.DoesNotContain("utm_source", PublicOutputCachePolicies.PublicHtmlQueryKeys);
         Assert.DoesNotContain("*", PublicOutputCachePolicies.PublicHtmlQueryKeys);
     }
