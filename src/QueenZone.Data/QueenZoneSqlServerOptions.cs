@@ -11,7 +11,10 @@ namespace QueenZone.Data;
 /// (configured in <see cref="QueenZoneDataServiceCollectionExtensions"/> and
 /// <see cref="QueenZoneDbContextFactory"/>). Prefer idempotent writes, or wrap
 /// multi-statement work in an explicit execution strategy when adding new
-/// non-idempotent batches.
+/// non-idempotent batches. Command timeouts (SqlException -2) are intentionally
+/// omitted from that global list so public search can fail-soft via
+/// <see cref="SiteSearchSqlTimeout"/>; the admin search-reindex job retries
+/// -2 and deadlock 1205 at job grain in <see cref="SearchReindexSqlRetry"/>.
 /// </para>
 /// <para>
 /// Default was historically 300s for all commands, which held connections too long

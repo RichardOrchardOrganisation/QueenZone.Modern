@@ -95,21 +95,35 @@ public sealed class SearchReindexJobService(
     {
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var builder = scope.ServiceProvider.GetRequiredService<SearchReindexBuilder>();
-
-            await builder.ReindexAllAsync(
-                cancellationToken,
-                contentType =>
+            // Recreate the scope on every attempt: a deadlocked/timed-out DbContext is not reusable.
+            await SearchReindexSqlRetry.ExecuteAsync(
+                async ct =>
                 {
-                    var label = SiteSearchContentType.DisplayLabel(contentType);
-                    SetSnapshot(new SearchReindexJobSnapshot(
-                        SearchReindexJobPhase.Running,
-                        contentType,
-                        $"Indexing {label}…",
-                        startedAt,
-                        FinishedAt: null));
-                });
+                    await using var scope = scopeFactory.CreateAsyncScope();
+                    var builder = scope.ServiceProvider.GetRequiredService<SearchReindexBuilder>();
+
+                    await builder.ReindexAllAsync(
+                        ct,
+                        contentType =>
+                        {
+                            var label = SiteSearchContentType.DisplayLabel(contentType);
+                            SetSnapshot(new SearchReindexJobSnapshot(
+                                SearchReindexJobPhase.Running,
+                                contentType,
+                                $"Indexing {label}…",
+                                startedAt,
+                                FinishedAt: null));
+                        });
+                },
+                timeProvider,
+                logger,
+                cancellationToken,
+                onRetry: (attempt, maxAttempts, _) => SetSnapshot(new SearchReindexJobSnapshot(
+                    SearchReindexJobPhase.Running,
+                    CurrentContentType: null,
+                    $"Transient SQL fault; retrying reindex ({attempt}/{maxAttempts})…",
+                    startedAt,
+                    FinishedAt: null)));
 
             SetSnapshot(new SearchReindexJobSnapshot(
                 SearchReindexJobPhase.Succeeded,
@@ -133,7 +147,7 @@ public sealed class SearchReindexJobService(
             SetSnapshot(new SearchReindexJobSnapshot(
                 SearchReindexJobPhase.Failed,
                 CurrentContentType: null,
-                Message: "Reindex failed — see application logs for details.",
+                SearchReindexSqlRetry.FormatFailureMessage(ex),
                 StartedAt: startedAt,
                 FinishedAt: timeProvider.GetUtcNow()));
         }
