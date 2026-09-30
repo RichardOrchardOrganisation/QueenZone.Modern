@@ -95,9 +95,10 @@ public static class ForumApiMapper
                 ToAttachmentDownloadUrl(attachment.Url)))
             .ToList();
 
+        var projection = ForumVideoContent.Project(post.Body, ugcHtml);
         return new ForumPostDto(
             post.Id,
-            ugcHtml.FormatForDisplay(post.Body),
+            projection.Body,
             post.PostedAt,
             post.AuthorUsername,
             post.Signature,
@@ -105,7 +106,8 @@ public static class ForumApiMapper
             post.AuthorMemberId,
             post.EditedAt,
             post.EditCount,
-            attachments);
+            attachments,
+            projection.YoutubeVideos);
     }
 
     public static IReadOnlyList<ForumPostDto> ToPosts(
