@@ -62,6 +62,8 @@ internal sealed class ProductionCountingWebApplicationFactory : ProductionWebApp
         {
             services.RemoveAll<IArticlesRepository>();
             services.AddSingleton<IArticlesRepository>(Articles);
+            services.RemoveAll<IArticleRepository>();
+            services.AddSingleton<IArticleRepository>(new CacheVariantArticleRepository());
         });
     }
 }

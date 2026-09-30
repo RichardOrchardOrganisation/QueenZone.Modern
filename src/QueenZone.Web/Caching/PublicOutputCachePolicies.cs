@@ -43,7 +43,9 @@ public static class PublicOutputCachePolicies
 
     /// <summary>
     /// Query values that change public HTML. Marketing/tracking parameters are deliberately
-    /// omitted so they reuse the canonical page's cache entry.
+    /// omitted so they reuse the canonical page's cache entry. Keep this contract in sync
+    /// with public page inputs and the production variant tests; see
+    /// docs/architecture/hosting-scale-and-cache.md (Public HTML query variation).
     /// </summary>
     public static readonly string[] PublicHtmlQueryKeys =
     [
@@ -52,6 +54,12 @@ public static class PublicOutputCachePolicies
         "size",
         "slug",
         "year",
+        "decade", // Timeline selection.
+        "cp", // Community article pagination.
+        "tag", // Community article filtering.
+        "scope", // Daily, best-run, and total-points leaderboards.
+        "claim", // Quiz sprint guest-score claim notice.
+        "handler", // Razor Pages named GET handlers must not reuse the default response.
     ];
 
     public static bool IsPublicReadOnlyRequest(HttpContext httpContext)

@@ -41,6 +41,38 @@ Public performance work already relies on **process-local** mechanisms that are 
 
 Those designs become **incorrect or leaky** only if instance count &gt; 1 (stale HTML/news on another worker, rate-limit bypass, invalidation that does not reach every node).
 
+## Public HTML query variation
+
+`PublicOutputCachePolicies.PublicHtmlQueryKeys` is the explicit query contract for
+anonymous Razor HTML. Path and route values also distinguish entries. Marketing
+parameters such as `utm_source` intentionally reuse the same rendered response.
+
+| Inputs | Consumers / purpose |
+| --- | --- |
+| `page`, `pageNumber` | Archive pagination, public member activity, and archive-author pagination |
+| `size` | Photo category/detail size filtering |
+| `slug`, `year` | Retained existing variation keys for archive routes |
+| `decade` | Timeline's visible decade and canonical URL |
+| `cp`, `tag` | Community article page and tag filter (canonical remains `/articles`) |
+| `scope` | Quiz leaderboard daily, best-run, or total-points view and canonical URL |
+| `claim` | Quiz sprint's guest-score claim notice |
+| `handler` | Razor Pages GET handler selection, including sprint's start redirect |
+
+The #1947 review checked public GET parameters, bound properties, and direct query
+reads. Other detail identifiers come from route templates; search/help/account/admin/
+submission surfaces are excluded, and member-only surfaces do not qualify as
+anonymous cacheable responses. Existing response-level safeguards (including
+Set-Cookie handling) still apply. Variation does not make a private response cacheable.
+
+When a public page gains a content-changing input, update this contract and add a
+production-shaped regression test that warms one variant and requests another in
+both orders. Assert visible content and canonical metadata, then assert that
+identical and tracking-only requests reuse their own variant. Ordinary `Testing`
+hosts deliberately bypass HTML output caching; use `ProductionHostFixture` with
+sample/fake repositories. Preserve authenticated bypass and editorial tag eviction.
+For a feature with a larger independent query contract, prefer a dedicated policy
+rather than growing the global list indefinitely.
+
 ## Archived / deferred work (cost)
 
 Tracked under epic [#312](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/312) Phase D:
