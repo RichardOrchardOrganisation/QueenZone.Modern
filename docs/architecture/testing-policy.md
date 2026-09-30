@@ -158,6 +158,7 @@ EF column — and run locally on Windows after the read checks and that migrate 
 | `EfSiteSearchFullTextSearchLiveProbeTests` (`EfSiteSearchService` via `dbo.SearchDocument_Search`) | Mac `legacy-read-probes`, with `RUN_SITE_SEARCH_FTS_PROBE=true` |
 | `EfNewsRepositoryLegacyProbeTests` (read-only public archive/count/page/by-id/sitemap/decade + `LegacyNewsSchema` COL_LENGTH) | Mac `legacy-read-probes` |
 | `ModernForumRepositoryLiveProbeTests` (`ModernForumRepository` category/topic/sitemap reads and real `SearchForumAsync`) | Mac `legacy-read-probes` |
+| `EfLegacyForumRepositoryLegacyProbeTests` (read-only legacy `Q_FORUM_T` / topic / `Q_FORUM_*_SP` reads; topic surfaces skip when `Q_FORUM_TOPIC_T` is absent on the sync mirror) | Mac `legacy-read-probes` |
 | `EfNewsSectionLiveProbeTests` public read Fact | Mac `legacy-read-probes` |
 | `EfAdminNewsRepositoryLegacyWriteProbeTests` | Windows `legacy-write-probes` via `Probe-AdminNewsLegacyWrites.ps1` |
 | `EfNewsSectionLiveProbeTests` `Admin_news_*` write Facts | Same script (rollback visibility + full lifecycle) |
@@ -242,6 +243,10 @@ Worked examples, each of which removed `[ExcludeFromCodeCoverage]`:
   later visibility, `nvarchar(max)`, sequence, and poll columns. Search substitutes only the four
   `FREETEXTTABLE` sources for LIKE. Real full-text matching stays with
   `ModernForumRepositoryLiveProbeTests`.
+- `LegacyForumRepository`: `LegacyForumRepositorySqlServerTests` creates `Q_FORUM_T` from the sync
+  dump and `Q_FORUM_TOPIC_T` / views from QueenZoneLocal (those objects are not on
+  `queenzone_legacy_sync`), plus the sync `OBJECT_DEFINITION` of `Q_FORUM_VIEW_PAGE_SP` and
+  `Q_FORUM_TOPIC_NEW_SP`. Its probe is `EfLegacyForumRepositoryLegacyProbeTests`.
 
 The next excluded repository you touch should get the same pair before further edits.
 
