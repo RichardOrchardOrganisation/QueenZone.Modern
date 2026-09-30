@@ -10,7 +10,7 @@ public sealed class MobileAppsPageTests : IClassFixture<QueenZoneWebApplicationF
     }
 
     [Fact]
-    public async Task MobileAppsPageRendersAndroidAndIosTestingInstructions()
+    public async Task MobileAppsPageRendersAndroidTestingAndIosAppStoreListing()
     {
         var client = factory.CreateClient();
 
@@ -24,9 +24,13 @@ public sealed class MobileAppsPageTests : IClassFixture<QueenZoneWebApplicationF
         Assert.Contains("Become a tester", body);
         Assert.Contains("Open the testing page", body);
         Assert.Contains("Sometimes it takes about 5 minutes for your account to register in the Google Group", body);
-        Assert.Contains("support@queenzone.org", body);
-        Assert.Contains("TestFlight", body);
+        Assert.Contains("https://apps.apple.com/au/app/queenzone-org/id6803889011", body);
+        Assert.Contains("Get it on the App Store", body);
+        Assert.Contains("The iOS app is live on the App Store.", body);
         Assert.Contains("More than 200 fan performances", body);
         Assert.DoesNotContain("That is all.", body);
+        Assert.DoesNotContain("TestFlight", body);
+        Assert.DoesNotContain("https://apps.apple.com/app/testflight/id899247664", body);
+        Assert.DoesNotContain("mailto:support@queenzone.org", body);
     }
 }
