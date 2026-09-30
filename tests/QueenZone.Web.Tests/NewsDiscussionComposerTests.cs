@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
@@ -20,7 +22,7 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
         var lookup = new RecordingDiscussionLookup();
         lookup.ReplyCounts[11] = 4;
         lookup.ReplyCounts[12] = 0;
-        var composer = new NewsDiscussionComposer(lookup);
+        var composer = CreateComposer(lookup);
         var items = new List<NewsItem>
         {
             Item(1, topicId: 11),
@@ -45,14 +47,14 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
     {
         var lookup = new RecordingDiscussionLookup
         {
-            Discussion = (
+            Discussion = NewsForumDiscussionLookupResult.Found(
                 3,
                 [
                     new NewsDiscussionPreview("Alice", new DateTime(2026, 8, 1, 10, 0, 0, DateTimeKind.Utc), "first reply"),
                     new NewsDiscussionPreview("Bob", new DateTime(2026, 8, 1, 11, 0, 0, DateTimeKind.Utc), "second reply"),
                 ]),
         };
-        var composer = new NewsDiscussionComposer(lookup);
+        var composer = CreateComposer(lookup);
 
         var detail = await composer.ToDetailAsync(Item(9, topicId: 77));
 
@@ -78,13 +80,13 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
     {
         var lookup = new RecordingDiscussionLookup
         {
-            Discussion = (
+            Discussion = NewsForumDiscussionLookupResult.Found(
                 1,
                 [
                     new NewsDiscussionPreview("Only", new DateTime(2026, 8, 1, 10, 0, 0, DateTimeKind.Utc), "sole reply"),
                 ]),
         };
-        var composer = new NewsDiscussionComposer(lookup);
+        var composer = CreateComposer(lookup);
 
         var detail = await composer.ToDetailAsync(Item(8, topicId: 55));
         var website = await composer.ToDetailItemAsync(Item(8, topicId: 55));
@@ -103,7 +105,7 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
     public async Task Detail_WithoutTopicId_HasNoDiscussionBlock()
     {
         var lookup = new RecordingDiscussionLookup();
-        var composer = new NewsDiscussionComposer(lookup);
+        var composer = CreateComposer(lookup);
 
         var detail = await composer.ToDetailAsync(Item(5, topicId: null));
         var website = await composer.ToDetailItemAsync(Item(5, topicId: null));
@@ -116,6 +118,116 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
         Assert.Null(website.DiscussionPreview);
         Assert.Empty(lookup.DiscussionCalls);
         Assert.Empty(lookup.ReplyCountCalls);
+    }
+
+    [Fact]
+    public async Task Detail_WhenVisibleThreadHasZeroReplies_ExposesZeroReplyCount()
+    {
+        var lookup = new RecordingDiscussionLookup
+        {
+            Discussion = NewsForumDiscussionLookupResult.Found(0, []),
+        };
+        var logger = new ListLogger<NewsDiscussionComposer>();
+        var composer = CreateComposer(lookup, logger);
+
+        var detail = await composer.ToDetailAsync(Item(6, topicId: 88));
+        var website = await composer.ToDetailItemAsync(Item(6, topicId: 88));
+
+        Assert.Equal(88, detail.TopicId);
+        Assert.Equal(0, detail.DiscussionReplyCount);
+        Assert.Empty(detail.DiscussionPreview!);
+        Assert.Equal(88, website.TopicId);
+        Assert.Equal(0, website.DiscussionReplyCount);
+        Assert.Empty(website.DiscussionPreview!);
+        Assert.Empty(logger.Warnings);
+    }
+
+    [Fact]
+    public async Task Detail_WhenThreadIsMissing_OmitsDiscussionAndLogsWarning()
+    {
+        var lookup = new RecordingDiscussionLookup
+        {
+            Discussion = NewsForumDiscussionLookupResult.Missing,
+        };
+        var logger = new ListLogger<NewsDiscussionComposer>();
+        var composer = CreateComposer(lookup, logger);
+
+        var detail = await composer.ToDetailAsync(Item(7037, topicId: 1175833020));
+        var website = await composer.ToDetailItemAsync(Item(7037, topicId: 1175833020));
+
+        Assert.Null(detail.TopicId);
+        Assert.Null(detail.DiscussionReplyCount);
+        Assert.Null(detail.DiscussionPreview);
+        Assert.Null(website.TopicId);
+        Assert.Null(website.DiscussionReplyCount);
+        Assert.Null(website.DiscussionPreview);
+        Assert.Equal(2, logger.Warnings.Count);
+        Assert.All(
+            logger.Warnings,
+            warning =>
+            {
+                Assert.Contains("7037", warning, StringComparison.Ordinal);
+                Assert.Contains("1175833020", warning, StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public async Task Detail_WhenLookupThrows_OmitsDiscussionAndLogsWarning()
+    {
+        var lookup = new RecordingDiscussionLookup
+        {
+            DiscussionException = new TimeoutException("command timeout"),
+        };
+        var logger = new ListLogger<NewsDiscussionComposer>();
+        var composer = CreateComposer(lookup, logger);
+
+        var detail = await composer.ToDetailAsync(Item(7037, topicId: 1175833020));
+        var website = await composer.ToDetailItemAsync(Item(7037, topicId: 1175833020));
+
+        Assert.Null(detail.TopicId);
+        Assert.Null(detail.DiscussionReplyCount);
+        Assert.Null(detail.DiscussionPreview);
+        Assert.Null(website.TopicId);
+        Assert.Null(website.DiscussionReplyCount);
+        Assert.Null(website.DiscussionPreview);
+        Assert.Equal(2, logger.Warnings.Count);
+        Assert.All(
+            logger.Warnings,
+            warning =>
+            {
+                Assert.Contains("7037", warning, StringComparison.Ordinal);
+                Assert.Contains("1175833020", warning, StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public async Task List_WhenReplyCountsThrow_FailOpenAndLogsWarning()
+    {
+        var lookup = new RecordingDiscussionLookup
+        {
+            ReplyCountsException = new InvalidOperationException("reply counts failed"),
+        };
+        lookup.ReplyCounts[11] = 4;
+        var logger = new ListLogger<NewsDiscussionComposer>();
+        var composer = CreateComposer(lookup, logger);
+        var items = new List<NewsItem>
+        {
+            Item(1, topicId: 11),
+            Item(2, topicId: 12),
+        };
+
+        var list = await composer.ToListItemsAsync(items);
+        var archive = await composer.ToArchiveItemsAsync(items);
+
+        Assert.Equal(11, list[0].TopicId);
+        Assert.Equal(0, list[0].ReplyCount);
+        Assert.Equal(12, list[1].TopicId);
+        Assert.Equal(0, list[1].ReplyCount);
+        Assert.Equal(0, archive[0].ReplyCount);
+        Assert.Equal(2, logger.Warnings.Count);
+        Assert.All(
+            logger.Warnings,
+            warning => Assert.Contains("11,12", warning, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -158,6 +270,11 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
         Assert.Equal(3, card.ReplyCount);
     }
 
+    private static NewsDiscussionComposer CreateComposer(
+        INewsForumDiscussionLookup lookup,
+        ILogger<NewsDiscussionComposer>? logger = null) =>
+        new(lookup, logger ?? NullLogger<NewsDiscussionComposer>.Instance);
+
     private static NewsItem Item(int id, int? topicId) =>
         new(
             id,
@@ -179,26 +296,72 @@ public sealed class NewsDiscussionComposerTests : IClassFixture<QueenZoneWebAppl
 
         public int LastPreviewCount { get; private set; }
 
-        public (int ReplyCount, IReadOnlyList<NewsDiscussionPreview> Preview) Discussion { get; set; } =
-            (0, []);
+        public NewsForumDiscussionLookupResult Discussion { get; set; } =
+            NewsForumDiscussionLookupResult.Found(0, []);
+
+        public Exception? DiscussionException { get; set; }
+
+        public Exception? ReplyCountsException { get; set; }
 
         public Task<IReadOnlyDictionary<int, int>> GetReplyCountsAsync(
             IReadOnlyList<int> topicIds,
             CancellationToken cancellationToken = default)
         {
+            if (ReplyCountsException is not null)
+            {
+                throw ReplyCountsException;
+            }
+
             ReplyCountCalls.Add(topicIds.ToList());
             return Task.FromResult<IReadOnlyDictionary<int, int>>(
                 topicIds.ToDictionary(id => id, id => ReplyCounts.GetValueOrDefault(id)));
         }
 
-        public Task<(int ReplyCount, IReadOnlyList<NewsDiscussionPreview> Preview)> GetDiscussionAsync(
+        public Task<NewsForumDiscussionLookupResult> GetDiscussionAsync(
             int topicId,
             int previewCount,
             CancellationToken cancellationToken = default)
         {
+            if (DiscussionException is not null)
+            {
+                throw DiscussionException;
+            }
+
             DiscussionCalls.Add(topicId);
             LastPreviewCount = previewCount;
             return Task.FromResult(Discussion);
+        }
+    }
+
+    private sealed class ListLogger<T> : ILogger<T>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull => NullScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
+            }
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+
+            public void Dispose()
+            {
+            }
         }
     }
 }

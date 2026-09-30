@@ -2357,34 +2357,50 @@ internal sealed class SeedableDiscussionLookup : INewsForumDiscussionLookup
         preview = seededPreview;
     }
 
+    public Exception? GetDiscussionException { get; set; }
+
+    public Exception? GetReplyCountsException { get; set; }
+
     public void Reset()
     {
         topicId = null;
         replyCount = 0;
         preview = [];
+        GetDiscussionException = null;
+        GetReplyCountsException = null;
     }
 
     public Task<IReadOnlyDictionary<int, int>> GetReplyCountsAsync(
         IReadOnlyList<int> topicIds,
         CancellationToken cancellationToken = default)
     {
+        if (GetReplyCountsException is not null)
+        {
+            throw GetReplyCountsException;
+        }
+
         IReadOnlyDictionary<int, int> counts = topicId is int id && topicIds.Contains(id)
             ? new Dictionary<int, int> { [id] = replyCount }
             : new Dictionary<int, int>();
         return Task.FromResult(counts);
     }
 
-    public Task<(int ReplyCount, IReadOnlyList<NewsDiscussionPreview> Preview)> GetDiscussionAsync(
+    public Task<NewsForumDiscussionLookupResult> GetDiscussionAsync(
         int requestedTopicId,
         int previewCount,
         CancellationToken cancellationToken = default)
     {
-        if (topicId != requestedTopicId)
+        if (GetDiscussionException is not null)
         {
-            return Task.FromResult<(int, IReadOnlyList<NewsDiscussionPreview>)>((0, []));
+            throw GetDiscussionException;
         }
 
-        return Task.FromResult((replyCount, preview));
+        if (topicId != requestedTopicId)
+        {
+            return Task.FromResult(NewsForumDiscussionLookupResult.Missing);
+        }
+
+        return Task.FromResult(NewsForumDiscussionLookupResult.Found(replyCount, preview));
     }
 }
 

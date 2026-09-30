@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using QueenZone.Data;
 using QueenZone.Web;
 
@@ -114,6 +116,59 @@ public sealed class NewsArticleDiscussionPreviewTests :
         var topicPage = await client.GetStringAsync(topicHref);
         Assert.Contains("Ranking every studio album", topicPage);
         Assert.Contains("Sign in to reply", topicPage);
+    }
+
+    [Fact]
+    public async Task DetailAndApi_WhenDiscussionTopicIsMissing_Return200WithoutPreview()
+    {
+        var item = Article(6106, "Orphan forum topic article", topicId: 1175833020);
+        discussionHost.SeedableNews!.Seed(item);
+
+        using var client = discussionHost.CreateAnonymousClient();
+        using var htmlResponse = await client.GetAsync(NewsRoutes.GetNewsDetailPath(item));
+        using var apiResponse = await client.GetAsync($"{ContentApiEndpoints.RootPath}/news/{item.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, htmlResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
+        var html = await htmlResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Orphan forum topic article", html);
+        Assert.DoesNotContain("Start the discussion", html);
+        Assert.DoesNotContain("Join the discussion", html);
+        Assert.DoesNotContain("/forum/topic/", html);
+
+        var detail = await apiResponse.Content.ReadFromJsonAsync<NewsDetailDto>();
+        Assert.NotNull(detail);
+        Assert.Equal(item.Id, detail!.Id);
+        Assert.Null(detail.TopicId);
+        Assert.Null(detail.DiscussionReplyCount);
+        Assert.Null(detail.DiscussionPreview);
+    }
+
+    [Fact]
+    public async Task DetailAndApi_WhenDiscussionLookupThrows_Return200WithoutPreview()
+    {
+        var item = Article(6107, "Discussion lookup timeout article", topicId: 1175833020);
+        discussionHost.SeedableNews!.Seed(item);
+        discussionHost.SeedableDiscussion!.GetDiscussionException =
+            new TimeoutException("command timeout");
+
+        using var client = discussionHost.CreateAnonymousClient();
+        using var htmlResponse = await client.GetAsync(NewsRoutes.GetNewsDetailPath(item));
+        using var apiResponse = await client.GetAsync($"{ContentApiEndpoints.RootPath}/news/{item.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, htmlResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
+        var html = await htmlResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Discussion lookup timeout article", html);
+        Assert.DoesNotContain("Start the discussion", html);
+        Assert.DoesNotContain("Join the discussion", html);
+        Assert.DoesNotContain("/forum/topic/", html);
+
+        var detail = await apiResponse.Content.ReadFromJsonAsync<NewsDetailDto>();
+        Assert.NotNull(detail);
+        Assert.Null(detail!.TopicId);
+        Assert.Null(detail.DiscussionReplyCount);
+        Assert.Null(detail.DiscussionPreview);
     }
 
     [Fact]

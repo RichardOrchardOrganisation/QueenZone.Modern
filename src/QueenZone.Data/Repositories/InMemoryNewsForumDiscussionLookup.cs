@@ -20,12 +20,17 @@ public sealed class InMemoryNewsForumDiscussionLookup(InMemoryForumWriteReposito
         return counts;
     }
 
-    public async Task<(int ReplyCount, IReadOnlyList<NewsDiscussionPreview> Preview)> GetDiscussionAsync(
+    public async Task<NewsForumDiscussionLookupResult> GetDiscussionAsync(
         int topicId,
         int previewCount,
         CancellationToken cancellationToken = default)
     {
         var thread = await writeRepository.GetThreadAsync(topicId, cancellationToken);
+        if (thread is null)
+        {
+            return NewsForumDiscussionLookupResult.Missing;
+        }
+
         var created = writeRepository.GetPostsForTopic(topicId);
         IReadOnlyList<NewsDiscussionPreview> chronological = created.Count > 0
             ? created
@@ -45,9 +50,7 @@ public sealed class InMemoryNewsForumDiscussionLookup(InMemoryForumWriteReposito
         var preview = replies.Count <= take
             ? replies
             : replies.Skip(replies.Count - take).ToList();
-        var replyCount = thread is not null
-            ? Math.Max(0, thread.PostCount - 1)
-            : replies.Count;
-        return (replyCount, preview);
+        var replyCount = Math.Max(0, thread.PostCount - 1);
+        return NewsForumDiscussionLookupResult.Found(replyCount, preview);
     }
 }
