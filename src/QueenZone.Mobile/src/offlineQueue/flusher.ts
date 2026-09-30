@@ -1,5 +1,6 @@
 import { classifyQueueFailure, exhaustedRetries, nextRetryAt } from './retry';
 import {
+  isOfflineQueueItemDiscarded,
   listOfflineQueue,
   removeOfflineItem,
   updateOfflineItem,
@@ -31,7 +32,8 @@ type QueueSenders = {
 };
 
 let auth: OfflineQueueAuth | null = null;
-let flushing = false;
+let flushGeneration = 0;
+let activeFlush: AbortController | null = null;
 let senders: QueueSenders | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -42,20 +44,21 @@ export function clearOfflineQueueRetryTimer(): void {
   }
 }
 
-async function armRetryTimer(memberId: string): Promise<void> {
+async function armRetryTimer(memberId: string, isCurrent: () => boolean): Promise<void> {
+  if (!isCurrent()) return;
   clearOfflineQueueRetryTimer();
   const upcoming = (await listOfflineQueue(memberId))
     .filter((item) => item.state === 'queued')
     .map((item) => Date.parse(item.nextRetryAt))
     .filter((stamp) => Number.isFinite(stamp))
     .sort((a, b) => a - b)[0];
-  if (upcoming == null) {
+  if (upcoming == null || !isCurrent()) {
     return;
   }
   const delay = Math.min(Math.max(0, upcoming - Date.now()), 5 * 60_000);
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    void flushOfflineQueue();
+    if (isCurrent()) void flushOfflineQueue();
   }, delay);
 }
 
@@ -77,7 +80,16 @@ async function resolveSenders(): Promise<QueueSenders> {
 }
 
 export function configureOfflineQueueAuth(next: OfflineQueueAuth | null): void {
+  invalidateOfflineQueueFlush();
   auth = next;
+}
+
+/** Invalidate synchronously at every session boundary, while retaining auth getters. */
+export function invalidateOfflineQueueFlush(): void {
+  flushGeneration += 1;
+  activeFlush?.abort();
+  activeFlush = null;
+  clearOfflineQueueRetryTimer();
 }
 
 function targetKey(item: OfflineQueueItem): string {
@@ -90,44 +102,48 @@ function targetKey(item: OfflineQueueItem): string {
   return `compose:${item.target.recipientMemberId}`;
 }
 
-async function sendItem(item: OfflineQueueItem, accessToken: string): Promise<void> {
+async function sendItem(
+  item: OfflineQueueItem,
+  accessToken: string,
+  signal: AbortSignal,
+  isCurrent: () => boolean,
+): Promise<void> {
   const body = item.payload.body;
+  const active = await resolveSenders();
+  if (!isCurrent() || isOfflineQueueItemDiscarded(item)) return;
   if (item.kind === 'forum.reply' && 'topicId' in item.target) {
-    const active = await resolveSenders();
     await active.createForumReply(
       item.target.topicId,
       { body },
       accessToken,
-      undefined,
+      signal,
       item.operationId,
     );
     return;
   }
   if (item.kind === 'message.reply' && 'conversationId' in item.target) {
-    const active = await resolveSenders();
     await active.replyToConversation(
       accessToken,
       item.target.conversationId,
       body,
-      undefined,
+      signal,
       item.operationId,
     );
     return;
   }
   if (item.kind === 'message.compose' && 'recipientMemberId' in item.target) {
-    const active = await resolveSenders();
     await active.composeMessage(
       accessToken,
       item.target.recipientMemberId,
       body,
-      undefined,
+      signal,
       item.operationId,
     );
   }
 }
 
 export async function flushOfflineQueue(): Promise<void> {
-  if (flushing) {
+  if (activeFlush) {
     return;
   }
   const currentAuth = auth;
@@ -135,15 +151,21 @@ export async function flushOfflineQueue(): Promise<void> {
     return;
   }
 
-  flushing = true;
+  const generation = flushGeneration;
+  const controller = new AbortController();
+  activeFlush = controller;
   let memberId: string | null = null;
+  const isCurrent = () => generation === flushGeneration && auth === currentAuth &&
+    !controller.signal.aborted && memberId !== null && currentAuth.getMemberId() === memberId;
   try {
     memberId = currentAuth.getMemberId();
     if (!memberId) {
       return;
     }
 
-    const accessToken = (await currentAuth.refreshAccessToken()) ?? currentAuth.getAccessToken();
+    const refreshedToken = await currentAuth.refreshAccessToken();
+    if (!isCurrent()) return;
+    const accessToken = refreshedToken ?? currentAuth.getAccessToken();
     if (!accessToken) {
       return;
     }
@@ -152,20 +174,28 @@ export async function flushOfflineQueue(): Promise<void> {
     const items = (await listOfflineQueue(memberId))
       .filter((item) => item.state !== 'needs_attention' && item.nextRetryAt <= now)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    if (!isCurrent()) return;
 
     const blockedTargets = new Set<string>();
 
     for (const item of items) {
+      if (!isCurrent()) return;
+      if (isOfflineQueueItemDiscarded(item)) continue;
       const key = targetKey(item);
       if (blockedTargets.has(key)) {
         continue;
       }
 
-      await updateOfflineItem(item.operationId, { state: 'sending' });
+      const sending = await updateOfflineItem(item.operationId, { state: 'sending' }, isCurrent);
+      if (!isCurrent()) return;
+      if (!sending || isOfflineQueueItemDiscarded(sending)) continue;
       try {
-        await sendItem(item, accessToken);
-        await removeOfflineItem(item.operationId);
+        await sendItem(sending, accessToken, controller.signal, isCurrent);
+        if (!isCurrent()) return;
+        await removeOfflineItem(item.operationId, isCurrent);
       } catch (err) {
+        if (!isCurrent()) return;
+        if (isOfflineQueueItemDiscarded(item)) continue;
         const kind = classifyQueueFailure(err);
         const attemptCount = item.attemptCount + 1;
         if (kind === 'permanent' || exhaustedRetries(attemptCount)) {
@@ -173,7 +203,7 @@ export async function flushOfflineQueue(): Promise<void> {
             state: 'needs_attention',
             attemptCount,
             lastError: err instanceof Error ? err.message : 'Send failed.',
-          });
+          }, isCurrent);
           continue;
         }
 
@@ -182,7 +212,7 @@ export async function flushOfflineQueue(): Promise<void> {
           attemptCount,
           nextRetryAt: nextRetryAt(attemptCount, err),
           lastError: err instanceof Error ? err.message : 'Send failed.',
-        });
+        }, isCurrent);
         blockedTargets.add(key);
         if (kind === 'auth' || kind === 'systemic' || kind === 'retry') {
           return;
@@ -190,9 +220,10 @@ export async function flushOfflineQueue(): Promise<void> {
       }
     }
   } finally {
-    flushing = false;
-    if (memberId) {
-      void armRetryTimer(memberId);
+    if (activeFlush === controller) activeFlush = null;
+    if (memberId && isCurrent()) {
+      // Storage may be temporarily unavailable; foreground/enqueue triggers retry.
+      void armRetryTimer(memberId, isCurrent).catch(() => {});
     }
   }
 }

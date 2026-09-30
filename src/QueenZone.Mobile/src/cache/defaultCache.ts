@@ -30,13 +30,10 @@ export function setContentCacheForTests(cache: ContentCache | null): void {
 export async function purgePrivateContentCache(memberId?: string | null): Promise<void> {
   const prefix = memberId ? privateMemberCachePrefix(memberId) : PRIVATE_CACHE_KEY_PREFIX;
   const downloadPrefix = memberId ? downloadUiCachePrefix(memberId) : DOWNLOAD_UI_CACHE_KEY_PREFIX;
-  try {
-    await getContentCache().purgePrefix(prefix);
-  } catch {
-    // Sign-out still has to finish if the device store is unavailable.
-  }
-  // Prefix-scoped store invalidation (PM unread + #927 download-ui seam).
-  // Binary download files are a sibling store; this only drops UI versions.
+  // Start purge before notifying listeners: outstanding network leases become
+  // invalid synchronously, even when device storage is stalled.
+  const purge = getContentCache().purgePrefix(prefix);
   invalidatePrefix(prefix);
   invalidatePrefix(downloadPrefix);
+  await purge;
 }

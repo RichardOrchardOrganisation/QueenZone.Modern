@@ -16,9 +16,9 @@ export type DownloadFileHost = {
   partUri(performanceId: string): string;
   exists(uri: string): boolean;
   size(uri: string): number;
-  deleteIfExists(uri: string): void;
+  deleteIfExists(uri: string, strict?: boolean): void;
   listPartUris(): string[];
-  listAllUris(): string[];
+  listAllUris(strict?: boolean): string[];
   promote(partUri: string, completedUri: string): void | Promise<void>;
   writeBytes(uri: string, bytes: Uint8Array): void;
   readPrefix(uri: string, maxBytes: number): Promise<Uint8Array | null>;
@@ -41,6 +41,20 @@ export function opaqueFileName(
 ): string {
   const id = performanceId.replace(/[^A-Za-z0-9_-]/g, '');
   return extension ? `${id}.${extension}` : id;
+}
+
+/** New downloads have member-scoped, per-job names; legacy manifest URIs stay readable. */
+export function downloadMemberFilePrefix(memberId: string): string {
+  const encoded = Array.from(memberId, (char) => char.codePointAt(0)!.toString(16)).join('-');
+  return `member-${encoded}_`;
+}
+
+export function isDownloadFileForMember(uri: string, memberId: string): boolean {
+  return (uri.split('/').pop() ?? '').startsWith(downloadMemberFilePrefix(memberId));
+}
+
+export function isLegacyDownloadFile(uri: string): boolean {
+  return !(uri.split('/').pop() ?? '').startsWith('member-');
 }
 
 function createNativeHost(): DownloadFileHost {
@@ -85,23 +99,32 @@ function createNativeHost(): DownloadFileHost {
         return 0;
       }
     },
-    deleteIfExists(uri) {
+    deleteIfExists(uri, strict = false) {
       try {
         const file = fileFor(uri);
         if (file.exists) {
           file.delete();
+          if (strict && file.exists) {
+            throw new Error('Downloaded file remains after deletion');
+          }
         }
       } catch {
-        // Best-effort cleanup.
+        if (strict) {
+          throw new Error('Downloaded file cleanup failed');
+        }
+        // Non-sign-out callers retain best-effort cleanup.
       }
     },
-    listAllUris() {
+    listAllUris(strict = false) {
       try {
         return audioDir()
           .list()
           .filter((entry): entry is File => entry instanceof File)
           .map((entry) => entry.uri);
       } catch {
+        if (strict) {
+          throw new Error('Downloaded file listing failed');
+        }
         return [];
       }
     },

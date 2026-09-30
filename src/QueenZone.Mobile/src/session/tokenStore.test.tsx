@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { deferred } from '../test/fixtures';
 import {
   clearStoredSession,
   isKeychainLockedError,
@@ -613,4 +614,89 @@ describe('tokenStore', () => {
       expect(mockMemory.get(key('refreshToken', stagingBaseUrl))).toBe('staging-r');
     });
   });
+});
+
+
+describe('tokenStore operation ordering', () => {
+  it('finishes an old staging write before sign-out deletion and a newer account write', async () => {
+    const firstWrite = deferred<void>();
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    (SecureStore.setItemAsync as jest.Mock).mockImplementationOnce(async (storeKey: string, value: string) => {
+      entered();
+      await firstWrite.promise;
+      mockMemory.set(storeKey, value);
+    });
+    const oldWrite = writeStoredSession({ accessToken: 'old', refreshToken: 'old-refresh', expiresIn: 900 });
+    await started;
+    const deletion = clearStoredSession();
+    const nextWrite = writeStoredSession({ accessToken: 'new', refreshToken: 'new-refresh', expiresIn: 900 });
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    firstWrite.resolve();
+    await Promise.all([oldWrite, deletion, nextWrite]);
+    expect((await readStoredSession())?.accessToken).toBe('new');
+    expect(mockMemory.has(key('grant.next'))).toBe(false);
+  });
+
+  it('finishes a pending identity write before clearing the session', async () => {
+    const firstWrite = deferred<void>();
+    let entered!: () => void;
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    (SecureStore.setItemAsync as jest.Mock).mockImplementationOnce(async (storeKey: string, value: string) => {
+      entered();
+      await firstWrite.promise;
+      mockMemory.set(storeKey, value);
+    });
+    const identity = writeStoredIdentityShell({ memberId: 'old-member', displayName: 'Old identity' });
+    await started;
+    const deletion = clearStoredSession();
+    firstWrite.resolve();
+    await Promise.all([identity, deletion]);
+    expect(mockMemory.has(key('identityShell'))).toBe(false);
+    expect(mockMemory.has(key('identityShell.next'))).toBe(false);
+  });
+
+  it('attempts primary deletion despite staging deletion failure and can retry', async () => {
+    await writeStoredSession({ accessToken: 'old', refreshToken: 'old-refresh', expiresIn: 900 });
+    (SecureStore.deleteItemAsync as jest.Mock).mockRejectedValueOnce(new Error('device failure with sensitive detail'));
+    await expect(clearStoredSession()).rejects.toThrow('Stored session cleanup incomplete');
+    expect(mockMemory.has(key('grant'))).toBe(false);
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(key('identityShell'), sessionStoreOptions);
+    await expect(clearStoredSession()).resolves.toBeUndefined();
+    await expect(readStoredSession()).resolves.toBeNull();
+  });
+
+  it('does not hide predecessor credential deletion failure', async () => {
+    mockMemory.set(legacyKey('grant'), JSON.stringify({ accessToken: 'old', refreshToken: 'r', expiresAt: 1 }));
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (storeKey: string) => {
+      if (storeKey === legacyKey('grant')) throw new Error('legacy removal failed');
+      mockMemory.delete(storeKey);
+    });
+    await expect(clearStoredSession()).rejects.toThrow('Stored session cleanup incomplete');
+    expect(mockMemory.has(legacyKey('grant'))).toBe(true);
+  });
+
+  it('drops the previous identity shell on fresh sign-in but preserves it on refresh', async () => {
+    await writeStoredSession({ accessToken: 'old', refreshToken: 'old-refresh', expiresIn: 900 });
+    await writeStoredIdentityShell({ memberId: 'old-member', displayName: 'Old identity' });
+    await writeStoredSession({ accessToken: 'refreshed', refreshToken: 'r2', expiresIn: 900 });
+    expect((await readStoredSession())?.identity?.memberId).toBe('old-member');
+    await writeStoredSession({ accessToken: 'new-account', refreshToken: 'new-refresh', expiresIn: 900 }, true);
+    const next = await readStoredSession();
+    expect(next?.accessToken).toBe('new-account');
+    expect(next?.identity).toBeNull();
+  });
+
+
+  it('cannot restore the previous shell when a fresh grant succeeds but its identity write fails', async () => {
+    await writeStoredSession({ accessToken: 'old', refreshToken: 'r1', expiresIn: 900 });
+    await writeStoredIdentityShell({ memberId: 'old-member', displayName: 'Old identity' });
+    await writeStoredSession({ accessToken: 'new-account', refreshToken: 'r2', expiresIn: 900 }, true);
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(new Error('identity write failed'));
+    await expect(writeStoredIdentityShell({ memberId: 'new-member', displayName: 'New identity' })).rejects.toThrow();
+    const restored = await readStoredSession();
+    expect(restored?.accessToken).toBe('new-account');
+    expect(restored?.identity).toBeNull();
+  });
+
 });

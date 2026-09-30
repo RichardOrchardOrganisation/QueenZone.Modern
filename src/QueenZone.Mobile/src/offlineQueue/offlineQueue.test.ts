@@ -25,12 +25,15 @@ const { classifyQueueFailure } = await import('./retry.ts');
 const {
   discardOfflineQueue,
   listOfflineQueue,
+  prepareOfflineQueueDiscard,
+  removeOfflineItem,
   setOfflineQueueStorageForTests,
 } = await import('./store.ts');
 const { enqueueForumReply, enqueueMessageReply } = await import('./index.ts');
 const {
   configureOfflineQueueAuth,
   flushOfflineQueue,
+  invalidateOfflineQueueFlush,
   setOfflineQueueSendersForTests,
 } = await import('./flusher.ts');
 
@@ -80,6 +83,189 @@ describe('offline queue store', () => {
 });
 
 describe('offline queue flusher', () => {
+  it('FlushOfflineQueue_SignOutDuringFirstSend_AbortsAndNeverSendsCapturedSecondRow', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const sent: string[] = [];
+    const signals: AbortSignal[] = [];
+    setOfflineQueueSendersForTests({
+      createForumReply: async (_topic, input, _token, signal) => {
+        sent.push(input.body);
+        assert.ok(signal);
+        signals.push(signal);
+        started.resolve();
+        await release.promise;
+      },
+      replyToConversation: async () => {},
+      composeMessage: async () => {},
+    });
+    configureOfflineQueueAuth({
+      getAccessToken: () => 'old-token',
+      getMemberId: () => memberA,
+      refreshAccessToken: async () => 'old-token',
+    });
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'first' });
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'second' });
+    const flushing = flushOfflineQueue();
+    await started.promise;
+    const cleanup = prepareOfflineQueueDiscard(memberA);
+    configureOfflineQueueAuth(null);
+    assert.equal(signals[0]?.aborted, true);
+    await cleanup();
+    release.resolve();
+    await flushing;
+    assert.deepEqual(sent, ['first']);
+    assert.deepEqual(await listOfflineQueue(), []);
+  });
+
+  it('FlushOfflineQueue_FailedDiscardThenSameMemberLogin_SendsOnlyNewOperations', async () => {
+    const base = createMemoryStorage();
+    let fail = false;
+    setOfflineQueueStorageForTests({
+      ...base,
+      async setItem(key, value) {
+        if (fail) throw new Error('Cleanup storage failed');
+        await base.setItem(key, value);
+      },
+    });
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'discarded' });
+    const cleanup = prepareOfflineQueueDiscard(memberA);
+    fail = true;
+    await assert.rejects(cleanup(), { message: 'Cleanup storage failed' });
+    fail = false;
+    const sent: string[] = [];
+    setOfflineQueueSendersForTests({
+      createForumReply: async (_topic, input, token) => { sent.push(`${input.body}:${token}`); },
+      replyToConversation: async () => {},
+      composeMessage: async () => {},
+    });
+    configureOfflineQueueAuth({
+      getAccessToken: () => 'new-token',
+      getMemberId: () => memberA,
+      refreshAccessToken: async () => 'new-token',
+    });
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'new' });
+    await flushOfflineQueue();
+    await cleanup();
+    assert.deepEqual(sent, ['new:new-token']);
+    assert.deepEqual(await listOfflineQueue(), []);
+  });
+
+  it('FlushOfflineQueue_RemovedCapturedRow_DoesNotSendWhenUpdateReturnsNull', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const sent: string[] = [];
+    setOfflineQueueSendersForTests({
+      createForumReply: async (_topic, input) => {
+        sent.push(input.body);
+        started.resolve();
+        await release.promise;
+      },
+      replyToConversation: async () => {},
+      composeMessage: async () => {},
+    });
+    configureOfflineQueueAuth({
+      getAccessToken: () => 'token',
+      getMemberId: () => memberA,
+      refreshAccessToken: async () => 'token',
+    });
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'first' });
+    const second = await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'removed' });
+    const flushing = flushOfflineQueue();
+    await started.promise;
+    await removeOfflineItem(second.operationId);
+    release.resolve();
+    await flushing;
+    assert.deepEqual(sent, ['first']);
+  });
+
+  it('FlushOfflineQueue_SessionInvalidatedDuringRefresh_NewFlushUsesRetainedAuthGetters', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    const refreshStarted = Promise.withResolvers<void>();
+    const oldRefresh = Promise.withResolvers<string | null>();
+    let currentMember = memberA;
+    let currentToken = 'old-token';
+    let refreshCalls = 0;
+    configureOfflineQueueAuth({
+      getAccessToken: () => currentToken,
+      getMemberId: () => currentMember,
+      refreshAccessToken: async () => {
+        refreshCalls += 1;
+        if (refreshCalls === 1) {
+          refreshStarted.resolve();
+          return oldRefresh.promise;
+        }
+        return currentToken;
+      },
+    });
+    const sent: string[] = [];
+    setOfflineQueueSendersForTests({
+      createForumReply: async (_topic, input, token) => { sent.push(`${input.body}:${token}`); },
+      replyToConversation: async () => {},
+      composeMessage: async () => {},
+    });
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'old' });
+    await enqueueForumReply({ memberId: memberB, topicId: 1, body: 'new' });
+    const oldFlush = flushOfflineQueue();
+    await refreshStarted.promise;
+    invalidateOfflineQueueFlush();
+    currentMember = memberB;
+    currentToken = 'new-token';
+    await flushOfflineQueue();
+    oldRefresh.resolve('old-token');
+    await oldFlush;
+    assert.deepEqual(sent, ['new:new-token']);
+    assert.equal((await listOfflineQueue(memberA)).length, 1);
+  });
+
+  it('FlushOfflineQueue_OldSenderPending_SameMemberNewFlushIsNotBlockedOrClobbered', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    const oldStarted = Promise.withResolvers<void>();
+    const oldRelease = Promise.withResolvers<void>();
+    const newStarted = Promise.withResolvers<void>();
+    const newRelease = Promise.withResolvers<void>();
+    let token = 'old-token';
+    const sent: string[] = [];
+    configureOfflineQueueAuth({
+      getAccessToken: () => token,
+      getMemberId: () => memberA,
+      refreshAccessToken: async () => token,
+    });
+    setOfflineQueueSendersForTests({
+      createForumReply: async (_topic, input, accessToken) => {
+        sent.push(`${input.body}:${accessToken}`);
+        if (input.body === 'old') {
+          oldStarted.resolve();
+          await oldRelease.promise;
+        } else {
+          newStarted.resolve();
+          await newRelease.promise;
+        }
+      },
+      replyToConversation: async () => {},
+      composeMessage: async () => {},
+    });
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'old' });
+    const oldFlush = flushOfflineQueue();
+    await oldStarted.promise;
+    const cleanup = prepareOfflineQueueDiscard(memberA);
+    invalidateOfflineQueueFlush();
+    token = 'new-token';
+    await enqueueForumReply({ memberId: memberA, topicId: 1, body: 'new' });
+    const newFlush = flushOfflineQueue();
+    await newStarted.promise;
+    oldRelease.resolve();
+    await oldFlush;
+    await flushOfflineQueue();
+    assert.deepEqual(sent, ['old:old-token', 'new:new-token']);
+    newRelease.resolve();
+    await newFlush;
+    await cleanup();
+    assert.deepEqual(await listOfflineQueue(), []);
+  });
+
   it('sends FIFO per target and uses the operation id', async () => {
     setOfflineQueueStorageForTests(createMemoryStorage());
     const sent: string[] = [];

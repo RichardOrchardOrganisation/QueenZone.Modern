@@ -28,6 +28,7 @@ const {
   forumTopicCacheKey,
   forumTopicPostsCacheKey,
   PRIVATE_CACHE_KEY_PREFIX,
+  privateMemberCachePrefix,
 } = await import('./keys.ts');
 const { invalidateIncompatiblePostPages, pagedTailIncompatible } = await import('./pagedCache.ts');
 
@@ -371,4 +372,233 @@ describe('member isolation', () => {
       body: 'secret from A',
     });
   });
+});
+
+
+describe('cache lifecycle and maintenance boundaries (#1948, #1951)', () => {
+  it('rejects a late private fetch after purge while a new same-member request can persist', async () => {
+    const cache = new ContentCache({ storage: createMemoryStorage() });
+    const key = conversationCacheKey('member-a', 'c1');
+    const response = Promise.withResolvers<{ body: string }>();
+    const pending = withOfflineCache(cache, key, () => response.promise);
+    await cache.purgePrefix(PRIVATE_CACHE_KEY_PREFIX);
+    await cache.put(key, { body: 'new session' });
+    response.resolve({ body: 'old session' });
+    await pending;
+    assert.deepEqual(await cache.get(key), { body: 'new session' });
+  });
+
+  it('preserves public requests while invalidating only the previous member', async () => {
+    const cache = new ContentCache({ storage: createMemoryStorage() });
+    const a = cache.acquireLease(conversationCacheKey('member-a', 'c1'));
+    const b = cache.acquireLease(conversationCacheKey('member-b', 'c1'));
+    const publicLease = cache.acquireLease('news:1');
+    await cache.purgePrefix(privateMemberCachePrefix('member-a'));
+    assert.equal(a.current, false);
+    assert.equal(b.current, true);
+    assert.equal(publicLease.current, true);
+    a.release(); b.release(); publicLease.release();
+  });
+
+  it('purge waits for an already-started storage write and removes it before new writes', async () => {
+    const backing = createMemoryStorage();
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const cache = new ContentCache({ storage: {
+      ...backing,
+      async setItem(key, value) {
+        if (key.includes('conversation') && value.includes('old')) {
+          started.resolve();
+          await release.promise;
+        }
+        await backing.setItem(key, value);
+      },
+    } });
+    const key = conversationCacheKey('member-a', 'c1');
+    const pending = cache.put(key, { body: 'old' });
+    await started.promise;
+    const purged = cache.purgePrefix(PRIVATE_CACHE_KEY_PREFIX);
+    const fresh = cache.put(key, { body: 'new' });
+    release.resolve();
+    await Promise.all([pending, purged, fresh]);
+    assert.deepEqual(await cache.get(key), { body: 'new' });
+  });
+
+  it('a delayed read cannot return purged content or resurrect its envelope', async () => {
+    const backing = createMemoryStorage();
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let delay = false;
+    const cache = new ContentCache({ storage: {
+      ...backing,
+      async getItem(key) {
+        const raw = await backing.getItem(key);
+        if (delay && key.includes('conversation')) {
+          started.resolve();
+          await release.promise;
+        }
+        return raw;
+      },
+    } });
+    const key = conversationCacheKey('member-a', 'c1');
+    await cache.put(key, { body: 'private' });
+    delay = true;
+    const read = cache.read(key);
+    await started.promise;
+    const purge = cache.purgePrefix(PRIVATE_CACHE_KEY_PREFIX);
+    release.resolve();
+    assert.equal(await read, null);
+    await purge;
+    assert.equal(await cache.size(), 0);
+  });
+
+  it('capacity insertion reads no payloads and a warm hit only reads its own payload', async () => {
+    const backing = createMemoryStorage();
+    let reads = 0;
+    let writes = 0;
+    let enumerations = 0;
+    const storage = {
+      ...backing,
+      async getItem(key: string) { reads++; return backing.getItem(key); },
+      async setItem(key: string, value: string) { writes++; return backing.setItem(key, value); },
+      async getAllKeys() { enumerations++; return backing.getAllKeys(); },
+    };
+    const cache = new ContentCache({ storage });
+    await Promise.all(Array.from({ length: 80 }, (_, i) => cache.put(`news:${i}`, { id: i })));
+    reads = 0; writes = 0; enumerations = 0;
+    await cache.put('news:80', { id: 80 });
+    assert.equal(reads, 0);
+    assert.equal(enumerations, 0);
+    assert.equal(writes, 2);
+    await cache.get('news:80');
+    assert.equal(reads, 1);
+    assert.equal(await cache.size(), 80);
+    assert.equal(await cache.get('news:0'), null);
+    reads = 0;
+    const restored = new ContentCache({ storage });
+    await restored.get('news:80');
+    assert.equal(reads, 2); // One compact index and the requested payload.
+  });
+
+  it('recovers corrupt metadata and preserves migrated envelope LRU ordering', async () => {
+    const storage = createMemoryStorage();
+    const first = new ContentCache({ storage, maxEntries: 2 });
+    await first.put('a', 1);
+    await first.put('b', 2);
+    await storage.setItem('qz:content:$lru-v1', 'broken');
+    const restored = new ContentCache({ storage, maxEntries: 2 });
+    await restored.put('c', 3);
+    assert.equal(await restored.get('a'), null);
+    assert.equal(await restored.get('b'), 2);
+    assert.equal(await restored.get('c'), 3);
+  });
+
+  it('returns offline payload even when optional metadata persistence fails', async () => {
+    const backing = createMemoryStorage();
+    const first = new ContentCache({ storage: backing });
+    await first.put('news:1', { id: 1 });
+    const cache = new ContentCache({ storage: {
+      ...backing,
+      async setItem() { throw new Error('storage unavailable'); },
+    } });
+    assert.deepEqual(await withOfflineCache(cache, 'news:1', () => Promise.reject(ApiError.offline())), { id: 1 });
+  });
+});
+
+
+it('private purge preserves public recency without forcing another payload scan', async () => {
+  const backing = createMemoryStorage();
+  let payloadReads = 0;
+  const cache = new ContentCache({ maxEntries: 2, storage: {
+    ...backing,
+    async getItem(key) {
+      if (!key.endsWith('$lru-v1')) payloadReads++;
+      return backing.getItem(key);
+    },
+  } });
+  await cache.put('public:a', 'a');
+  await cache.put('public:b', 'b');
+  await cache.get('public:a');
+  payloadReads = 0;
+  await cache.purgePrefix('private:');
+  await cache.put('public:c', 'c');
+  assert.equal(payloadReads, 0);
+  assert.equal(await cache.get('public:a'), 'a');
+  assert.equal(await cache.get('public:b'), null);
+  assert.equal(await cache.get('public:c'), 'c');
+});
+
+
+it('recovers healthy offline payloads even when another entry cannot be read', async () => {
+  const backing = createMemoryStorage();
+  const original = new ContentCache({ storage: backing });
+  await original.put('good', { value: 'available offline' });
+  await original.put('bad', { value: 'unreadable' });
+  await backing.removeItem('qz:content:$lru-v1');
+  const cache = new ContentCache({ storage: {
+    ...backing,
+    async getItem(key) {
+      if (key === 'qz:content:bad') throw new Error('one damaged row');
+      return backing.getItem(key);
+    },
+  } });
+  assert.deepEqual(await withOfflineCache(cache, 'good', () => Promise.reject(ApiError.offline())),
+    { value: 'available offline' });
+});
+
+
+it('authoritative HTTP removal succeeds even when optional key enumeration fails', async () => {
+  const backing = createMemoryStorage();
+  const original = new ContentCache({ storage: backing });
+  const key = conversationCacheKey('member-a', 'c1');
+  await original.put(key, { body: 'revoked' });
+  let failEnumeration = true;
+  const cache = new ContentCache({ storage: {
+    ...backing,
+    async getAllKeys() {
+      if (failEnumeration) throw new Error('enumeration unavailable');
+      return backing.getAllKeys();
+    },
+  } });
+  await assert.rejects(withOfflineCache(cache, key,
+    () => Promise.reject(new ApiError(403, 'Forbidden')), { invalidateOn: [403] }), ApiError);
+  assert.equal(await backing.getItem(cache.entryKey(key)), null);
+  failEnumeration = false;
+  await assert.rejects(withOfflineCache(cache, key, () => Promise.reject(ApiError.offline())), ApiError);
+});
+
+
+it('serves a healthy offline payload when LRU enumeration is unavailable', async () => {
+  const backing = createMemoryStorage();
+  await new ContentCache({ storage: backing }).put('good', { value: 'cached' });
+  const cache = new ContentCache({ storage: {
+    ...backing,
+    async getAllKeys() { throw new Error('index unavailable'); },
+  } });
+  assert.deepEqual(await withOfflineCache(cache, 'good', () => Promise.reject(ApiError.offline())), { value: 'cached' });
+});
+
+
+it('missing and corrupt reads remain null when metadata enumeration fails', async () => {
+  const backing = createMemoryStorage({ 'qz:content:bad': 'broken' });
+  const cache = new ContentCache({ storage: {
+    ...backing,
+    async getAllKeys() { throw new Error('index unavailable'); },
+  } });
+  assert.equal(await cache.get('missing'), null);
+  assert.equal(await cache.get('bad'), null);
+});
+
+it('exact-key removal by a cold owner preserves other entries persisted recency', async () => {
+  const storage = createMemoryStorage();
+  const old = new ContentCache({ storage, maxEntries: 3 });
+  await old.put('a', 'a');
+  await old.put('b', 'b');
+  await old.put('private', 'private');
+  await old.get('a');
+  const fresh = new ContentCache({ storage, maxEntries: 2 });
+  await fresh.remove('private');
+  await fresh.put('c', 'c');
+  assert.equal(await fresh.get('a'), 'a');
+  assert.equal(await fresh.get('b'), null);
 });

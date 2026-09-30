@@ -10,7 +10,7 @@ namespace QueenZone.Web;
 
 /// <summary>Stores Apple refresh tokens encrypted and revokes them after account deletion.</summary>
 public sealed class AppleAccountTokenService(
-    IMemberAccountRepository accounts,
+    IAppleRevocationRepository accounts,
     IDataProtectionProvider protectionProvider,
     IHttpClientFactory httpClientFactory,
     IOptions<MemberAuthenticationOptions> authenticationOptions,

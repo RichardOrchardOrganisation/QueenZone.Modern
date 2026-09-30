@@ -16,6 +16,7 @@ export {
   clearOfflineQueueRetryTimer,
   configureOfflineQueueAuth,
   flushOfflineQueue,
+  invalidateOfflineQueueFlush,
   setOfflineQueueSendersForTests,
 } from './flusher';
 export { newOperationId } from './ids';
@@ -23,6 +24,7 @@ export {
   countPendingOfflineItems,
   discardOfflineQueue,
   listOfflineQueue,
+  prepareOfflineQueueDiscard,
   removeOfflineItem,
   setOfflineQueueStorageForTests,
   subscribeOfflineQueue,
