@@ -135,6 +135,55 @@ Representative UTF-8 JSON sizes from the in-memory Testing fixtures / WAF sample
 
 Do not cache watch state, poll viewer/vote state, attachment bytes, or fan-performance audio in this store.
 
+### Device-cache lifecycle and maintenance (#1948 / #1951)
+
+One `ContentCache` instance owns a storage prefix (the process singleton in
+`defaultCache.ts`). It serializes payload/index changes and purges. Network work
+holds a short-lived lease: a prefix purge invalidates matching leases immediately,
+then removes stored entries behind any already-started storage operation. New
+requests join after that purge. Leases are released on completion; no historical
+member-key generation dictionary accumulates. Foreground fetch, background SWR,
+LRU reads, and request deduplication obey the same boundary. A late 401 from a
+previous session cannot delete a newer session's snapshot.
+
+A compact `$lru-v1` record stores only key/access metadata. Hits update that
+record, not the complete payload envelope. A warm capacity insertion uses the
+in-memory index and reads **zero payloads**, down from 81 at the 80-entry cap.
+A warm hit reads its one payload. A restarted cache with valid metadata reads
+one compact index plus the requested payload; missing/corrupt metadata triggers
+one recoverable payload scan, not a scan for every eviction. Existing version-1
+payload envelopes remain readable; unversioned/unsupported payloads still
+self-delete. Ties use access sequence then key for deterministic eviction.
+
+The operation-count regressions in `contentCache.test.ts` use instrumented
+storage and deferred promises, not elapsed-time thresholds. Read/metadata-write
+failures do not make an otherwise available offline payload inaccessible.
+These are storage-operation measurements, not native latency measurements.
+
+Measured against baseline `f932aaab` and this implementation with the same
+80-entry instrumented in-memory adapter:
+
+| Operation | Before | After |
+| --- | --- | --- |
+| Capacity insertion | 81 payload reads, 1 key enumeration, 1 payload write, 1 batch removal | 0 reads/enumerations, 1 payload + 1 compact-index write, 1 batch removal |
+| Warm read | 1 payload read + full-envelope rewrite | 1 payload read + compact-index write |
+| First read after owner restart | 1 payload read + full-envelope rewrite | 1 key enumeration + 1 compact-index read + 1 payload read + compact-index write |
+
+Cold initialization now pays one metadata read/enumeration; its purpose is to
+remove the recurring payload scan at capacity, not to claim every operation is
+cheaper. The warm-read write count is unchanged, but its bytes are metadata only.
+
+
+Byte-budget decision: retain the existing 80-entry cap for this change. The
+representative measurements above (about 230 B per topic header, 5 KB per short
+posts page, 14 KB per short conversation) support the existing typical mix under
+1 MB; they do **not** establish worst-case sizes for long bodies. Introducing a
+hard byte threshold from these short fixtures alone could unpredictably remove
+useful offline conversations. No new byte-limit claim is made. Measure long-body
+and native iOS/Android workloads before choosing a byte cap/oversize-entry policy;
+large payloads remain a documented limit of the entry-only budget.
+
+
 ## Related docs
 
 - [`azure-hosting-plan.md`](azure-hosting-plan.md) — overall Azure shape  

@@ -3,8 +3,17 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IMemberAccountRepository
+public sealed class EfMemberAccountRepository : IMemberAccountRepository
 {
+    private readonly QueenZoneDbContext dbContext;
+    private readonly IAppleRevocationRepository appleRevocations;
+
+    public EfMemberAccountRepository(QueenZoneDbContext dbContext)
+    {
+        this.dbContext = dbContext;
+        appleRevocations = new EfAppleRevocationRepository(dbContext);
+    }
+
     public async Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default) =>
         await dbContext.MemberAccounts
             .AsNoTracking()
@@ -87,34 +96,15 @@ public sealed class EfMemberAccountRepository(QueenZoneDbContext dbContext) : IM
         string providerKey,
         string protectedToken,
         CancellationToken cancellationToken = default) =>
-        dbContext.MemberExternalLogins
-            .Where(login => login.MemberAccountId == memberAccountId
-                && login.Provider == "Apple"
-                && login.ProviderKey == providerKey)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(login => login.AppleRefreshTokenProtected, protectedToken), cancellationToken);
+        appleRevocations.SaveAppleRefreshTokenAsync(memberAccountId, providerKey, protectedToken, cancellationToken);
 
-    public async Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
+    public Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
         int limit,
         CancellationToken cancellationToken = default) =>
-        await dbContext.MemberExternalLogins
-            .AsNoTracking()
-            .Where(login => login.Provider == "Apple"
-                && login.AppleRefreshTokenProtected != null
-                && dbContext.MemberAccounts.Any(account =>
-                    account.Id == login.MemberAccountId && account.PersonalDataPurgedAt != null))
-            .OrderBy(login => login.LinkedAt)
-            .Take(limit)
-            .Select(login => new PendingAppleRevocation(login.Id, login.AppleRefreshTokenProtected!))
-            .ToListAsync(cancellationToken);
+        appleRevocations.ListPendingAppleRevocationsAsync(limit, cancellationToken);
 
     public Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default) =>
-        dbContext.MemberExternalLogins
-            .Where(login => login.Id == externalLoginId
-                && login.Provider == "Apple"
-                && dbContext.MemberAccounts.Any(account =>
-                    account.Id == login.MemberAccountId && account.PersonalDataPurgedAt != null))
-            .ExecuteDeleteAsync(cancellationToken);
+        appleRevocations.CompleteAppleRevocationAsync(externalLoginId, cancellationToken);
 
     public async Task<IReadOnlyList<string>> ListExternalProvidersAsync(Guid memberAccountId, CancellationToken cancellationToken = default) =>
         await dbContext.MemberExternalLogins

@@ -1,7 +1,10 @@
+using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
+using QueenZone.Web.Tests;
 
 namespace QueenZone.SqlServerTests;
 
@@ -9,7 +12,8 @@ namespace QueenZone.SqlServerTests;
 /// Runs <see cref="EfMobileAuthGrantRepository.TryRotateRefreshTokenAsync"/> on SQL Server
 /// under the production retrying execution strategy (#1929): revoke, store and link commit
 /// together, a failed store rolls the revoke back, and concurrent rotations of one grant
-/// produce exactly one winner.
+/// produce exactly one winner. Injected transient commit faults exercise rollback/retry
+/// and lost-acknowledgement recovery (#1953).
 /// </summary>
 public sealed class MobileAuthGrantRepositorySqlServerTests : IAsyncLifetime
 {
@@ -101,6 +105,58 @@ public sealed class MobileAuthGrantRepositorySqlServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TryRotate_TransientFailureBeforeCommitRollsBackAndRetriesOneSuccessor()
+    {
+        await new EfMobileAuthGrantRepository(NewContext()).StoreRefreshTokenAsync(Grant("old"));
+        var replacement = Grant("new");
+        var fault = new FailOnceCommitInterceptor("old", replacement, afterCommit: false);
+        var repository = new EfMobileAuthGrantRepository(NewContext(fault));
+
+        var rotated = await repository.TryRotateRefreshTokenAsync("old", replacement, Now);
+
+        Assert.Equal(1, fault.InjectedFaultCount);
+        Assert.Equal(2, fault.CommitAttemptIds.Count);
+        Assert.NotEqual(fault.CommitAttemptIds[0], fault.CommitAttemptIds[1]);
+        Assert.Equal(1, fault.CommitCount);
+        Assert.Equal(1, fault.RollbackCount);
+        await AssertSingleRotationAsync(NewContext(), "old", replacement);
+        Assert.True(rotated);
+    }
+
+    [Fact]
+    public async Task TryRotate_LostCommitAcknowledgementRetriesWithoutDuplicatingAndReturnsSuccess()
+    {
+        await new EfMobileAuthGrantRepository(NewContext()).StoreRefreshTokenAsync(Grant("old"));
+        var replacement = Grant("new");
+        var fault = new FailOnceCommitInterceptor("old", replacement, afterCommit: true);
+        var repository = new EfMobileAuthGrantRepository(NewContext(fault));
+
+        var rotated = await repository.TryRotateRefreshTokenAsync("old", replacement, Now);
+
+        Assert.Equal(1, fault.InjectedFaultCount);
+        Assert.Equal(2, fault.CommitAttemptIds.Count);
+        Assert.NotEqual(fault.CommitAttemptIds[0], fault.CommitAttemptIds[1]);
+        Assert.Equal(2, fault.CommitCount);
+        Assert.Equal(0, fault.RollbackCount);
+        await AssertSingleRotationAsync(NewContext(), "old", replacement);
+        // The original transaction committed. Returning false would contradict the
+        // repository contract that false stores nothing, despite the persisted successor.
+        Assert.True(rotated);
+    }
+
+    [Fact]
+    public async Task TryRotate_SeparateReplayWithSameReplacementStillFails()
+    {
+        var repository = new EfMobileAuthGrantRepository(NewContext());
+        await repository.StoreRefreshTokenAsync(Grant("old"));
+        var replacement = Grant("new");
+
+        Assert.True(await repository.TryRotateRefreshTokenAsync("old", replacement, Now));
+        Assert.False(await repository.TryRotateRefreshTokenAsync("old", replacement, Now));
+        await AssertSingleRotationAsync(NewContext(), "old", replacement);
+    }
+
+    [Fact]
     public async Task TryRotate_ConcurrentRotationsOfOneGrantHaveOneWinner()
     {
         await new EfMobileAuthGrantRepository(NewContext()).StoreRefreshTokenAsync(Grant("contended"));
@@ -122,6 +178,95 @@ public sealed class MobileAuthGrantRepositorySqlServerTests : IAsyncLifetime
             (await new EfMobileAuthGrantRepository(reader).FindRefreshTokenByHashAsync("contended"))!.ReplacedByTokenHash);
     }
 
+    private static async Task AssertSingleRotationAsync(
+        QueenZoneDbContext context,
+        string oldTokenHash,
+        MobileAuthRefreshTokenEntity replacement,
+        CancellationToken cancellationToken = default)
+    {
+        var stored = await context.MobileAuthRefreshTokens.AsNoTracking().ToListAsync(cancellationToken);
+        var old = Assert.Single(stored, token => token.TokenHash == oldTokenHash);
+        var successor = Assert.Single(stored, token => token.TokenHash != oldTokenHash);
+        Assert.Equal(Now, old.RevokedAt);
+        Assert.Equal(replacement.TokenHash, old.ReplacedByTokenHash);
+        Assert.Equal(replacement.Id, successor.Id);
+        Assert.Equal(replacement.TokenHash, successor.TokenHash);
+        Assert.Equal(replacement.MemberAccountId, successor.MemberAccountId);
+        Assert.Equal(replacement.ClientId, successor.ClientId);
+        Assert.Equal(replacement.CreatedAt, successor.CreatedAt);
+        Assert.Equal(replacement.ExpiresAt, successor.ExpiresAt);
+        Assert.Null(successor.RevokedAt);
+        Assert.Null(successor.ReplacedByTokenHash);
+    }
+
+    private sealed class FailOnceCommitInterceptor(
+        string oldTokenHash,
+        MobileAuthRefreshTokenEntity replacement,
+        bool afterCommit) : DbTransactionInterceptor
+    {
+        public List<Guid> CommitAttemptIds { get; } = [];
+
+        public int CommitCount { get; private set; }
+
+        public int RollbackCount { get; private set; }
+
+        public int InjectedFaultCount { get; private set; }
+
+        public override async ValueTask<InterceptionResult> TransactionCommittingAsync(
+            DbTransaction transaction,
+            TransactionEventData eventData,
+            InterceptionResult result,
+            CancellationToken cancellationToken = default)
+        {
+            CommitAttemptIds.Add(eventData.TransactionId);
+            // Query the real rows inside this transaction, after both revoke and insert.
+            // The second attempt must still contain exactly the same single successor.
+            await AssertSingleRotationAsync(
+                Assert.IsType<QueenZoneDbContext>(eventData.Context),
+                oldTokenHash,
+                replacement,
+                cancellationToken);
+            if (!afterCommit && InjectedFaultCount == 0)
+            {
+                ThrowTransientFault();
+            }
+
+            return result;
+        }
+
+        public override Task TransactionCommittedAsync(
+            DbTransaction transaction,
+            TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            CommitCount++;
+            // EF invokes this only after the underlying SQL transaction has committed.
+            // Throwing here models a lost acknowledgement, not a rolled-back commit.
+            if (afterCommit && InjectedFaultCount == 0)
+            {
+                ThrowTransientFault();
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public override Task TransactionRolledBackAsync(
+            DbTransaction transaction,
+            TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            RollbackCount++;
+            return Task.CompletedTask;
+        }
+
+        private void ThrowTransientFault()
+        {
+            InjectedFaultCount++;
+            // 40613 is transient in the production SQL Server execution strategy.
+            throw SqlExceptionFactory.Create(40613, "Injected transient rotation commit failure.");
+        }
+    }
+
     private static MobileAuthRefreshTokenEntity Grant(string hash) =>
         new()
         {
@@ -133,7 +278,7 @@ public sealed class MobileAuthGrantRepositorySqlServerTests : IAsyncLifetime
             ExpiresAt = Now.AddDays(30),
         };
 
-    private QueenZoneDbContext NewContext()
+    private QueenZoneDbContext NewContext(params IInterceptor[] interceptors)
     {
         var context = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlServer(
@@ -142,6 +287,7 @@ public sealed class MobileAuthGrantRepositorySqlServerTests : IAsyncLifetime
                     QueenZoneSqlServerOptions.MaxRetryCount,
                     QueenZoneSqlServerOptions.MaxRetryDelay,
                     errorNumbersToAdd: null))
+            .AddInterceptors(interceptors)
             .Options);
         contexts.Add(context);
         return context;

@@ -181,3 +181,30 @@ describe('fetchJsonWithOfflineCache', () => {
     assert.equal(fetchJsonMock.mock.calls.length, 2);
   });
 });
+
+
+it('does not share a previous session flight after purge, even for the same member key', async () => {
+  const cache = new ContentCache({ storage: createMemoryStorage() });
+  const response = Promise.withResolvers<{ value: string }>();
+  fetchJsonMock.mock.mockImplementationOnce(() => response.promise);
+  fetchJsonMock.mock.mockImplementation(async () => ({ value: 'new session' }));
+  const old = fetchJsonWithOfflineCache('/private', { cacheKey: 'private:member-a', cache });
+  await cache.purgePrefix('private:');
+  const fresh = await fetchJsonWithOfflineCache('/private', { cacheKey: 'private:member-a', cache });
+  assert.deepEqual(fresh, { value: 'new session' });
+  response.resolve({ value: 'old session' });
+  await old;
+  assert.deepEqual(await cache.get('private:member-a'), { value: 'new session' });
+});
+
+it('does not share requests between separate cache owners', async () => {
+  const a = new ContentCache({ storage: createMemoryStorage() });
+  const b = new ContentCache({ storage: createMemoryStorage() });
+  const response = Promise.withResolvers<{ value: string }>();
+  fetchJsonMock.mock.mockImplementationOnce(() => response.promise);
+  fetchJsonMock.mock.mockImplementation(async () => ({ value: 'second cache' }));
+  const first = fetchJsonWithOfflineCache('/item', { cacheKey: 'same', cache: a });
+  assert.deepEqual(await fetchJsonWithOfflineCache('/item', { cacheKey: 'same', cache: b }), { value: 'second cache' });
+  response.resolve({ value: 'first cache' });
+  await first;
+});

@@ -274,7 +274,7 @@ public sealed class MaintenanceJobsTests
         services.AddDataProtection().UseEphemeralDataProtectionProvider();
         services.AddHttpClient();
         services.AddOptions<MemberAuthenticationOptions>();
-        services.AddSingleton<IMemberAccountRepository, InMemoryMemberAccountRepository>();
+        services.AddSingleton<IAppleRevocationRepository, InMemoryMemberAccountRepository>();
         services.AddScoped<AppleAccountTokenService>();
         await using var provider = services.BuildServiceProvider();
         var clock = new TimerAwareFakeTimeProvider();
