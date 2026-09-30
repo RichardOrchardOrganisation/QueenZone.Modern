@@ -7214,3 +7214,49 @@ select.qz-input {
   background: var(--qz-black);
   color: var(--qz-white);
 }
+
+/* Forum-only, first-party video cards reserve a >=200px player viewport on phones. */
+.qz-forum-video {
+  display: block;
+  max-width: 640px;
+  margin-block: var(--space-4);
+  font-style: normal;
+  font-weight: normal;
+  overflow-wrap: anywhere;
+}
+.qz-forum-video__viewport {
+  display: block;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 200px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+.qz-forum-video__placeholder {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.qz-forum-video__placeholder[hidden] { display: none; }
+.qz-forum-video__player {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.qz-forum-video__disclosure,
+.qz-forum-video__status,
+.qz-forum-video__fallback,
+.qz-forum-video__original {
+  display: block;
+  margin-block: 0.5rem;
+}
+.qz-forum-video__original { font-size: 0.875em; }
+.qz-forum-video__load[hidden] { display: none; }

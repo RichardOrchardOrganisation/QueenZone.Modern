@@ -57,7 +57,8 @@ public sealed record ForumPostDto(
     Guid? AuthorMemberId,
     DateTimeOffset? EditedAt,
     int EditCount,
-    IReadOnlyList<ForumAttachmentDto> Attachments);
+    IReadOnlyList<ForumAttachmentDto> Attachments,
+    IReadOnlyList<ForumYoutubeVideo>? YoutubeVideos = null);
 
 /// <summary>
 /// Attachment card for a forum post. <see cref="Url"/> is the existing

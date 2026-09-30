@@ -62,12 +62,12 @@ else
           {
             <details class="qz-forum-post__blocked">
               <summary>Post from a blocked member. Show this post</summary>
-              <div class="qz-forum-post__body article-body">@Html.Raw(UgcHtml.FormatForDisplay(post.Body))</div>
+              <div class="qz-forum-post__body article-body"><partial name="_ForumVideoBody" model="post.Body" /></div>
             </details>
           }
           else
           {
-            <div class="qz-forum-post__body article-body">@Html.Raw(UgcHtml.FormatForDisplay(post.Body))</div>
+            <div class="qz-forum-post__body article-body"><partial name="_ForumVideoBody" model="post.Body" /></div>
           }
           @if (post.Attachments is { Count: > 0 })
           {
