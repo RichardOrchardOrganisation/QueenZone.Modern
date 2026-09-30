@@ -212,7 +212,9 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
         var inbox = await repository.GetInboxAsync(carolId, page: 1, pageSize: 10);
         var archived = await repository.GetArchivedInboxAsync(carolId, page: 1, pageSize: 10);
         Assert.Equal(2, inbox.TotalCount);
-        Assert.Equal([withBob.ConversationId, withAlice.ConversationId], inbox.Items.Select(i => i.ConversationId));
+        Assert.Equal(
+            [withBob.ConversationId!.Value, withAlice.ConversationId!.Value],
+            inbox.Items.Select(i => i.ConversationId).ToArray());
         Assert.Equal(withDave.ConversationId, Assert.Single(archived.Items).ConversationId);
 
         var strangerId = Guid.NewGuid();
@@ -261,8 +263,8 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
         await repository.ReplyAsync(
             sent.ConversationId.Value, bobId, "Second", DateTimeOffset.Parse("2026-08-07T09:01:00Z"));
         var both = await repository.GetConversationAsync(sent.ConversationId.Value, aliceId);
-        Assert.Equal([1L, 2L], both!.Messages.Select(m => m.SortKey));
-        Assert.Equal(["First", "Second"], both.Messages.Select(m => m.Body));
+        Assert.Equal([1L, 2L], both!.Messages.Select(m => m.SortKey).ToArray());
+        Assert.Equal(["First", "Second"], both.Messages.Select(m => m.Body).ToArray());
     }
 
     [Fact]
@@ -302,7 +304,9 @@ public sealed class PrivateMessagingAggregateQueriesTests : IAsyncLifetime
         var stillOpen = await moderation.ListReportsAsync(PrivateMessageReportStatus.Open, 1, 10);
         Assert.Equal(older.ReportId, Assert.Single(dismissed.Items).Id);
         Assert.Equal(2, stillOpen.TotalCount);
-        Assert.Equal([newer.ReportId, middle.ReportId], stillOpen.Items.Select(i => i.Id));
+        Assert.Equal(
+            [newer.ReportId!.Value, middle.ReportId!.Value],
+            stillOpen.Items.Select(i => i.Id).ToArray());
         Assert.Equal(2, await moderation.CountOpenReportsAsync());
     }
 
