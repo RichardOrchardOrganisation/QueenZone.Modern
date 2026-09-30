@@ -134,6 +134,139 @@ public sealed class EfNewsForumDiscussionLookupTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task GetDiscussionAsync_WhenNoThreadExists_ReturnsMissingWithoutUsingPosts()
+    {
+        var now = new DateTime(2026, 8, 1, 10, 0, 0, DateTimeKind.Utc);
+        var category = new ModernForumCategoryEntity
+        {
+            LegacyForumId = 11,
+            Name = NewsForumDiscussion.CategoryName,
+            SortOrder = 110,
+            LegacyPostCount = 2,
+            ImportedAt = now,
+            UpdatedAt = now,
+        };
+        dbContext.ModernForumCategories.Add(category);
+        await dbContext.SaveChangesAsync();
+
+        var otherThread = new ModernForumThreadEntity
+        {
+            LegacyTopicId = 79,
+            LegacyForumId = 11,
+            CategoryId = category.Id,
+            Title = "Unrelated topic",
+            StartedByDisplayName = NewsForumDiscussion.SystemMemberDisplayName,
+            StartedAt = now,
+            LastActivityAt = now,
+            ReplyCount = 1,
+            ImportedAt = now,
+            UpdatedAt = now,
+        };
+        dbContext.ModernForumThreads.Add(otherThread);
+        await dbContext.SaveChangesAsync();
+        var orphanReply = Post(otherThread, 22, "Orphan", now.AddHours(1), "must not be used for a missing topic");
+        orphanReply.LegacyThreadTopicId = 1175833020;
+        dbContext.ModernForumPosts.AddRange(
+            Post(otherThread, 21, NewsForumDiscussion.SystemMemberDisplayName, now, "Opening"),
+            orphanReply);
+        await dbContext.SaveChangesAsync();
+
+        var discussion = await lookup.GetDiscussionAsync(1175833020, NewsForumDiscussion.PreviewReplyCount);
+
+        Assert.False(discussion.ThreadFound);
+        Assert.Null(discussion.ReplyCount);
+        Assert.Empty(discussion.Preview);
+    }
+
+    [Fact]
+    public async Task GetDiscussionAsync_WhenThreadIsHidden_ReturnsMissingWithoutUsingPosts()
+    {
+        var topicId = 80;
+        var now = new DateTime(2026, 8, 1, 10, 0, 0, DateTimeKind.Utc);
+        var category = new ModernForumCategoryEntity
+        {
+            LegacyForumId = 12,
+            Name = NewsForumDiscussion.CategoryName,
+            SortOrder = 120,
+            LegacyPostCount = 2,
+            ImportedAt = now,
+            UpdatedAt = now,
+        };
+        dbContext.ModernForumCategories.Add(category);
+        await dbContext.SaveChangesAsync();
+
+        var thread = new ModernForumThreadEntity
+        {
+            LegacyTopicId = topicId,
+            LegacyForumId = 12,
+            CategoryId = category.Id,
+            Title = "Hidden discussion",
+            StartedByDisplayName = NewsForumDiscussion.SystemMemberDisplayName,
+            StartedAt = now,
+            LastActivityAt = now.AddHours(1),
+            ReplyCount = 1,
+            IsHidden = true,
+            ImportedAt = now,
+            UpdatedAt = now,
+        };
+        dbContext.ModernForumThreads.Add(thread);
+        await dbContext.SaveChangesAsync();
+        dbContext.ModernForumPosts.AddRange(
+            Post(thread, 31, NewsForumDiscussion.SystemMemberDisplayName, now, "Opening excerpt plus link"),
+            Post(thread, 32, "HiddenReply", now.AddHours(1), "must not become a preview"));
+        await dbContext.SaveChangesAsync();
+
+        var discussion = await lookup.GetDiscussionAsync(topicId, NewsForumDiscussion.PreviewReplyCount);
+
+        Assert.False(discussion.ThreadFound);
+        Assert.Null(discussion.ReplyCount);
+        Assert.Empty(discussion.Preview);
+    }
+
+    [Fact]
+    public async Task GetDiscussionAsync_WhenVisibleThreadHasZeroReplies_ReturnsZeroReplyCount()
+    {
+        var topicId = 81;
+        var now = new DateTime(2026, 8, 1, 10, 0, 0, DateTimeKind.Utc);
+        var category = new ModernForumCategoryEntity
+        {
+            LegacyForumId = 13,
+            Name = NewsForumDiscussion.CategoryName,
+            SortOrder = 130,
+            LegacyPostCount = 1,
+            ImportedAt = now,
+            UpdatedAt = now,
+        };
+        dbContext.ModernForumCategories.Add(category);
+        await dbContext.SaveChangesAsync();
+
+        var thread = new ModernForumThreadEntity
+        {
+            LegacyTopicId = topicId,
+            LegacyForumId = 13,
+            CategoryId = category.Id,
+            Title = "Opening post only",
+            StartedByDisplayName = NewsForumDiscussion.SystemMemberDisplayName,
+            StartedAt = now,
+            LastActivityAt = now,
+            ReplyCount = 0,
+            ImportedAt = now,
+            UpdatedAt = now,
+        };
+        dbContext.ModernForumThreads.Add(thread);
+        await dbContext.SaveChangesAsync();
+        dbContext.ModernForumPosts.Add(
+            Post(thread, 41, NewsForumDiscussion.SystemMemberDisplayName, now, "Opening excerpt plus link"));
+        await dbContext.SaveChangesAsync();
+
+        var discussion = await lookup.GetDiscussionAsync(topicId, NewsForumDiscussion.PreviewReplyCount);
+
+        Assert.True(discussion.ThreadFound);
+        Assert.Equal(0, discussion.ReplyCount);
+        Assert.Empty(discussion.Preview);
+    }
+
+    [Fact]
     public async Task GetReplyCountsAsync_EmptyInput_ReturnsEmpty()
     {
         var counts = await lookup.GetReplyCountsAsync([]);

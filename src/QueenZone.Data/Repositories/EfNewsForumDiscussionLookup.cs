@@ -21,7 +21,7 @@ public sealed class EfNewsForumDiscussionLookup(QueenZoneDbContext dbContext) : 
             .ToDictionaryAsync(thread => thread.LegacyTopicId, thread => thread.ReplyCount, cancellationToken);
     }
 
-    public async Task<(int ReplyCount, IReadOnlyList<NewsDiscussionPreview> Preview)> GetDiscussionAsync(
+    public async Task<NewsForumDiscussionLookupResult> GetDiscussionAsync(
         int topicId,
         int previewCount,
         CancellationToken cancellationToken = default)
@@ -30,12 +30,16 @@ public sealed class EfNewsForumDiscussionLookup(QueenZoneDbContext dbContext) : 
             .AsNoTracking()
             .Where(thread => thread.LegacyTopicId == topicId && !thread.IsHidden)
             .Select(thread => (int?)thread.ReplyCount)
-            .FirstOrDefaultAsync(cancellationToken) ?? 0;
+            .FirstOrDefaultAsync(cancellationToken);
+        if (replyCount is null)
+        {
+            return NewsForumDiscussionLookupResult.Missing;
+        }
 
         var take = Math.Max(previewCount, 0);
         if (take == 0)
         {
-            return (replyCount, []);
+            return NewsForumDiscussionLookupResult.Found(replyCount.Value, []);
         }
 
         var starterId = await dbContext.ModernForumPosts
@@ -48,7 +52,7 @@ public sealed class EfNewsForumDiscussionLookup(QueenZoneDbContext dbContext) : 
 
         if (starterId is null)
         {
-            return (replyCount, []);
+            return NewsForumDiscussionLookupResult.Found(replyCount.Value, []);
         }
 
         var replies = await dbContext.ModernForumPosts
@@ -75,6 +79,6 @@ public sealed class EfNewsForumDiscussionLookup(QueenZoneDbContext dbContext) : 
                 post.PostedAt ?? DateTime.MinValue,
                 NewsForumDiscussion.TruncatePlain(post.BodyHtml, NewsForumDiscussion.PreviewExcerptMaxLength)))
             .ToList();
-        return (replyCount, preview);
+        return NewsForumDiscussionLookupResult.Found(replyCount.Value, preview);
     }
 }
