@@ -73,7 +73,7 @@ Before submission, confirm the release candidate visibly supports:
 
 - Sign in with Apple must be offered wherever equivalent third-party consumer sign-in is offered, unless a guideline exception clearly applies.
 - Account deletion is available in-app and at `https://www.queenzone.org/data-deletion`.
-- Verify the deletion flow in the release build and describe the 30-day cooling-off period accurately.
+- Verify immediate deletion in the release build. Explain that outstanding blob deletion and Sign in with Apple token revocation are retried by the backend, and that older scheduled requests remain cancellable until their due date.
 
 ## Export compliance
 

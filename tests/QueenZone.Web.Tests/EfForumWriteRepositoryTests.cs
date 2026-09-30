@@ -47,6 +47,30 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task EnsureCategoryAsync_SkipsSyntheticCategoryLegacyIds()
+    {
+        await SeedCategoryAsync();
+        dbContext.ModernForumCategories.Add(new ModernForumCategoryEntity
+        {
+            LegacyForumId = 2,
+            Name = "Synthetic archive grouping",
+            SortOrder = 2,
+            IsSynthetic = true,
+            ImportedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        });
+        await dbContext.SaveChangesAsync();
+
+        var categoryId = await repository.EnsureCategoryAsync(
+            NewsForumDiscussion.CategorySlug,
+            NewsForumDiscussion.CategoryName);
+
+        Assert.Equal(3, categoryId);
+        Assert.Equal(NewsForumDiscussion.CategoryName,
+            (await dbContext.ModernForumCategories.SingleAsync(category => category.LegacyForumId == categoryId)).Name);
+    }
+
+    [Fact]
     public async Task EnsureCategoryAsync_PrefersSlugMatch_ThenCreatesWhenNameDoesNotMatch()
     {
         await SeedCategoryAsync();
@@ -287,16 +311,6 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public void HideAndUnhide_SourceDoesNotCallRefreshReadStats()
-    {
-        var path = Path.Combine(FindRepoRoot(), "src", "QueenZone.Data", "Repositories", "EfForumWriteRepository.cs");
-        var source = File.ReadAllText(path);
-        Assert.DoesNotContain("ExecuteSqlRaw", source);
-        Assert.DoesNotContain("RefreshReadStatsIfSqlServer", source);
-        Assert.DoesNotContain("ModernForum_RefreshReadStats", source);
-    }
-
-    [Fact]
     public async Task CreateThreadAsync_TruncatesBodyToLegacyColumnLimit()
     {
         var member = await SeedMemberAsync();
@@ -534,22 +548,6 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
                 FOREIGN KEY (ThreadId) REFERENCES ModernForumThread (Id)
             );
             """);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "QueenZone.sln")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("Could not find QueenZone.sln from the test output directory.");
     }
 
     private sealed class RecordingCommandInterceptor(List<string> commands) : DbCommandInterceptor

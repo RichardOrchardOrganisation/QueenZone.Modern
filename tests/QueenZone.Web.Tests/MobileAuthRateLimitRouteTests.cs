@@ -1,20 +1,30 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MobileAuthRateLimitRouteTests
+public sealed class MobileAuthRateLimitRouteTests : IClassFixture<WebHostVariantCache>
 {
+    private readonly VariantWebApplicationFactory ipAuthorize;
+    private readonly VariantWebApplicationFactory ipPassword;
+    private readonly VariantWebApplicationFactory accountLimit;
+
+    public MobileAuthRateLimitRouteTests(WebHostVariantCache variants)
+    {
+        ipAuthorize = variants.Get(WebHostVariants.ExternalCookieMobilePkceAuthRateLimitIp1);
+        ipPassword = variants.Get(WebHostVariants.ExternalCookieMobilePkceAuthRateLimitIp1Password);
+        accountLimit = variants.Get(WebHostVariants.ExternalCookieMobilePkceAuthRateLimitAccount1);
+    }
+
     [Fact]
     public async Task Authorize_ReturnsRfc6749TooManyRequests_AfterIpLimit()
     {
-        using var factory = CreateFactory(ipPermitLimit: 1);
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var client = ipAuthorize.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var pair = MobileAuthPkceTestData.CreatePair();
 
         var first = await client.GetAsync(AuthorizeUrl(pair.Challenge));
@@ -31,8 +41,7 @@ public sealed class MobileAuthRateLimitRouteTests
     [Fact]
     public async Task Refresh_ReturnsRfc6749TooManyRequests_AfterAccountLimit()
     {
-        using var factory = CreateFactory(accountPermitLimit: 1);
-        var issued = await CompletePkceAsync(factory);
+        var issued = await CompletePkceAsync(accountLimit);
 
         using var refreshRequest = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -49,11 +58,50 @@ public sealed class MobileAuthRateLimitRouteTests
         Assert.DoesNotContain(issued.AccessToken, body, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("/account/logout", "203.0.113.81")]
+    [InlineData("/account/link-external-login?handler=Confirm", "203.0.113.82")]
+    [InlineData("/account/link-external-login?handler=Password", "203.0.113.83")]
+    [InlineData("/account/link-external-login?handler=Cancel", "203.0.113.84")]
+    public async Task BrowserAuthPost_ExhaustedIpAllowance_Returns429(string path, string ip)
+    {
+        using var client = ipAuthorize.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", ip);
+
+        using var contact = await client.GetAsync("/contact");
+        var token = ExtractAntiforgeryToken(await contact.Content.ReadAsStringAsync());
+        var pair = MobileAuthPkceTestData.CreatePair();
+        using var exhaust = await client.GetAsync(AuthorizeUrl(pair.Challenge));
+        using var rejected = await client.PostAsync(
+            path,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, contact.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, exhaust.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+    }
+
+    [Fact]
+    public async Task BrowserLogoutGet_ExhaustedIpAllowance_Returns429()
+    {
+        using var client = ipAuthorize.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", "203.0.113.85");
+
+        var pair = MobileAuthPkceTestData.CreatePair();
+        using var exhaust = await client.GetAsync(AuthorizeUrl(pair.Challenge));
+        using var rejected = await client.GetAsync("/account/logout");
+
+        Assert.Equal(HttpStatusCode.Redirect, exhaust.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+    }
+
     [Fact]
     public async Task PasswordGrant_ReturnsRfc6749TooManyRequests_AfterIpLimit()
     {
-        using var factory = CreateFactory(ipPermitLimit: 1);
-        using (var scope = factory.Services.CreateScope())
+        using (var scope = ipPassword.Services.CreateScope())
         {
             var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
             var seeded = await members.RegisterAsync(
@@ -63,7 +111,7 @@ public sealed class MobileAuthRateLimitRouteTests
             Assert.True(seeded.Succeeded, seeded.Error);
         }
 
-        using var client = factory.CreateAnonymousClient();
+        using var client = ipPassword.CreateAnonymousClient();
         using var firstRequest = PasswordForm();
         var first = await client.PostAsync(MobileAuthEndpoints.TokenPath, firstRequest);
         using var secondRequest = PasswordForm();
@@ -77,30 +125,6 @@ public sealed class MobileAuthRateLimitRouteTests
         Assert.DoesNotContain("auth-password-rate@example.com", await second.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.DoesNotContain("correct horse battery staple", await second.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
-
-    private static QueenZoneWebApplicationFactory CreateFactory(
-        int ipPermitLimit = 30,
-        int accountPermitLimit = 10) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.Configure<AuthRateLimitingOptions>(opts =>
-            {
-                opts.IpPermitLimit = ipPermitLimit;
-                opts.IpWindowMinutes = 60;
-                opts.AccountPermitLimit = accountPermitLimit;
-                opts.AccountWindowMinutes = 60;
-            });
-
-            services.AddAuthentication()
-                .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                    MemberAuthenticationSchemes.ExternalCookie, _ => { });
-
-            foreach (var provider in MemberAuthenticationSchemes.ExternalProviders)
-            {
-                services.AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, TestOAuthProviderHandler>(provider, _ => { });
-            }
-        });
 
     private static async Task<(HttpClient Client, string AccessToken, string RefreshToken)> CompletePkceAsync(
         QueenZoneWebApplicationFactory factory)
@@ -144,6 +168,16 @@ public sealed class MobileAuthRateLimitRouteTests
             ["username"] = "auth-password-rate@example.com",
             ["password"] = "correct horse battery staple",
         });
+
+    private static string ExtractAntiforgeryToken(string html)
+    {
+        var match = Regex.Match(
+            html,
+            """name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""",
+            RegexOptions.IgnoreCase);
+        Assert.True(match.Success, "Antiforgery token was not found.");
+        return match.Groups["token"].Value;
+    }
 
     private static string AuthorizeUrl(string challenge, string state = "st") =>
         $"{MobileAuthEndpoints.AuthorizePath}?response_type=code" +

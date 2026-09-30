@@ -46,25 +46,12 @@ public sealed class DetailModel(
             cancellationToken);
         if (navigation is null)
         {
-            // Active filter that excludes this photo: fall back to unfiltered navigation so deep links work.
-            if (SizeFilter.IsActive)
-            {
-                navigation = await photoRepository.GetDetailNavigationAsync(
-                    category.CatId,
-                    picId,
-                    PhotoListFilter.None,
-                    cancellationToken);
-                if (navigation is null)
-                {
-                    return NotFound();
-                }
+            return NotFound();
+        }
 
-                SizeFilter = PhotoListFilter.None;
-            }
-            else
-            {
-                return NotFound();
-            }
+        if (SizeFilter.IsActive && !navigation.MatchedRequestedFilter)
+        {
+            SizeFilter = PhotoListFilter.None;
         }
 
         Category = category;

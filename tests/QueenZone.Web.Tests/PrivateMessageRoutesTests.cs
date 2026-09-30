@@ -1,9 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -11,14 +9,25 @@ using QueenZone.Web.Pages.Members;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class PrivateMessageRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class PrivateMessageRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory activityFactory;
 
-    public PrivateMessageRoutesTests(WebApplicationFactory<Program> factory)
+    public PrivateMessageRoutesTests(
+        QueenZoneWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
+        activityFactory = variants.Get(WebHostVariants.TestingSeedableMemberPageActivity);
     }
+
+    public async Task InitializeAsync() => await activityFactory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Get_Messages_RedirectsUnauthenticatedUsersToLogin()
@@ -52,6 +61,8 @@ public sealed class PrivateMessageRoutesTests : IClassFixture<WebApplicationFact
 
         var composePage = await aliceClient.GetStringAsync($"/messages/compose?to={bob.Id}");
         Assert.Contains("PM Bob", composePage);
+        Assert.Contains("<span>To</span>", composePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("<label>To</label>", composePage, StringComparison.Ordinal);
 
         var sendResponse = await aliceClient.PostAsync("/messages/compose", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -703,12 +714,8 @@ public sealed class PrivateMessageRoutesTests : IClassFixture<WebApplicationFact
                 ParentId: 1000 + index,
                 Slug: $"topic-{index}"))
             .ToList();
-        using var profileFactory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-        {
-            services.RemoveAll<IMemberPublicActivityRepository>();
-            services.AddSingleton<IMemberPublicActivityRepository>(new StubMemberPublicActivityRepository(activity));
-        }));
-        var members = profileFactory.Services.GetRequiredService<IMemberAccountRepository>();
+        activityFactory.MemberPageActivity!.Seed(activity);
+        var members = activityFactory.Services.GetRequiredService<IMemberAccountRepository>();
         await members.CreateAsync(new MemberAccount
         {
             Id = memberId,
@@ -716,7 +723,7 @@ public sealed class PrivateMessageRoutesTests : IClassFixture<WebApplicationFact
             DisplayName = "Active Member",
             CreatedAt = DateTime.UtcNow,
         });
-        var client = profileFactory.CreateClient();
+        var client = activityFactory.CreateClient();
 
         var firstPage = await client.GetStringAsync($"/members/{memberId}");
         Assert.Contains("Public contributions", firstPage);
@@ -779,27 +786,5 @@ public sealed class PrivateMessageRoutesTests : IClassFixture<WebApplicationFact
 
         var start = Math.Max(0, idx - 80);
         return html.Substring(start, Math.Min(500, html.Length - start));
-    }
-
-    private sealed class StubMemberPublicActivityRepository(IReadOnlyList<MemberPublicActivityItem> items)
-        : IMemberPublicActivityRepository
-    {
-        public Task<MemberPublicActivityPage> GetPageAsync(
-            Guid memberId,
-            int? linkedLegacyUserId,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken = default)
-        {
-            var pageItems = items.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-            return Task.FromResult(new MemberPublicActivityPage(pageItems, items.Count, page, pageSize));
-        }
-
-        public Task<MemberPublicActivityPage> GetFeedPageAsync(
-            IReadOnlyCollection<Guid> memberIds,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Following feed should not N+1 through GetPageAsync.");
     }
 }

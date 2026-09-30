@@ -183,8 +183,14 @@ public sealed class ContentApiPhotosTests : IClassFixture<QueenZoneWebApplicatio
         Assert.Equal(3, photo.Count);
         Assert.Equal(101, photo.Previous!.PicId);
         Assert.Equal($"/photography/{BrianMaySlug}/101", photo.Previous.DetailPath);
+        Assert.Equal(PhotoImageUrl.Build("/Brian_May/img-101.jpg"), photo.Previous.ImageUrl);
+        Assert.Equal(1920, photo.Previous.PictureWidth);
+        Assert.Equal(1080, photo.Previous.PictureHeight);
         Assert.Equal(103, photo.Next!.PicId);
         Assert.Equal($"/photography/{BrianMaySlug}/103", photo.Next.DetailPath);
+        Assert.Equal(PhotoImageUrl.Build("/Brian_May/img-103.jpg"), photo.Next.ImageUrl);
+        Assert.Equal(0, photo.Next.PictureWidth);
+        Assert.Equal(0, photo.Next.PictureHeight);
         Assert.Equal("RedSpecial", photo.SubmittedByDisplayName);
         Assert.Equal("1600 x 1200", photo.PictureDimensionsLabel);
         Assert.Equal($"/photography/{BrianMaySlug}", photo.CategoryPath);
@@ -200,11 +206,13 @@ public sealed class ContentApiPhotosTests : IClassFixture<QueenZoneWebApplicatio
         Assert.NotNull(firstPhoto);
         Assert.Null(firstPhoto!.Previous);
         Assert.Equal(102, firstPhoto.Next!.PicId);
+        Assert.Equal(PhotoImageUrl.Build("/Brian_May/img-102.jpg"), firstPhoto.Next.ImageUrl);
 
         using var last = await client.GetAsync($"{PhotosRoot}/categories/{BrianMaySlug}/items/103");
         var lastPhoto = await last.Content.ReadFromJsonAsync<PhotoDetailDto>();
         Assert.NotNull(lastPhoto);
         Assert.Equal(102, lastPhoto!.Previous!.PicId);
+        Assert.Equal(PhotoImageUrl.Build("/Brian_May/img-102.jpg"), lastPhoto.Previous.ImageUrl);
         Assert.Null(lastPhoto.Next);
         Assert.Null(lastPhoto.PictureDimensionsLabel);
     }
@@ -292,7 +300,7 @@ public sealed class ContentApiPhotosTests : IClassFixture<QueenZoneWebApplicatio
     }
 
     [Fact]
-    public void ToPhotoDetail_maps_neighbors_without_loading_adjacent_originals()
+    public void ToPhotoDetail_maps_neighbor_cdn_urls_from_legacy_file_paths()
     {
         var category = new PhotoCategory(9, "Brian May", BrianMaySlug, 3, "https://cdn.queenzone.org/brian-may/img-101-t.jpg");
         var photo = new PhotoItem(
@@ -310,7 +318,14 @@ public sealed class ContentApiPhotosTests : IClassFixture<QueenZoneWebApplicatio
             1986,
             new DateTime(1986, 7, 11),
             "RedSpecial");
-        var navigation = new PhotoDetailNavigation(photo, 1, 3, 101, 103);
+        var navigation = new PhotoDetailNavigation(
+            photo,
+            1,
+            3,
+            101,
+            103,
+            PreviousMedia: new PhotoNeighborMedia("/Brian_May/img-101.jpg", 1920, 1080),
+            NextMedia: new PhotoNeighborMedia("/Brian_May/img-103.jpg", 0, 0));
 
         var dto = ContentApiMapper.ToPhotoDetail(category, navigation);
 
@@ -318,7 +333,12 @@ public sealed class ContentApiPhotosTests : IClassFixture<QueenZoneWebApplicatio
         Assert.Equal($"/photography/{BrianMaySlug}", dto.CategoryPath);
         Assert.Equal(101, dto.Previous!.PicId);
         Assert.Equal($"/photography/{BrianMaySlug}/101", dto.Previous.DetailPath);
+        Assert.Equal(PhotoImageUrl.Build("/Brian_May/img-101.jpg"), dto.Previous.ImageUrl);
+        Assert.Equal(1920, dto.Previous.PictureWidth);
+        Assert.Equal(1080, dto.Previous.PictureHeight);
         Assert.Equal(103, dto.Next!.PicId);
-        Assert.Null(dto.Previous.GetType().GetProperty("ImageUrl"));
+        Assert.Equal(PhotoImageUrl.Build("/Brian_May/img-103.jpg"), dto.Next.ImageUrl);
+        Assert.Equal(0, dto.Next.PictureWidth);
+        Assert.Equal(0, dto.Next.PictureHeight);
     }
 }

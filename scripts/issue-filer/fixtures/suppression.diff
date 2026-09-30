@@ -1,0 +1,25 @@
+commit aaaaaaa111111111111111111111111111111111
+Author: Dev <dev@example.com>
+Date:   Sat Sep 20 12:00:00 2026 +0000
+
+    silence analyzer
+
+diff --git a/src/QueenZone.Web/Services/NewsSlugService.cs b/src/QueenZone.Web/Services/NewsSlugService.cs
+--- a/src/QueenZone.Web/Services/NewsSlugService.cs
++++ b/src/QueenZone.Web/Services/NewsSlugService.cs
+@@
++#pragma warning disable SYSLIB1045
++        var regex = new Regex(".*");
+
+commit bbbbbbb222222222222222222222222222222222
+Author: Dev <dev@example.com>
+Date:   Sun Sep 21 12:00:00 2026 +0000
+
+    more silence
+
+diff --git a/src/QueenZone.Web/Services/NewsService.cs b/src/QueenZone.Web/Services/NewsService.cs
+--- a/src/QueenZone.Web/Services/NewsService.cs
++++ b/src/QueenZone.Web/Services/NewsService.cs
+@@
++#pragma warning disable SYSLIB1045 // NOSONAR
++        return true;

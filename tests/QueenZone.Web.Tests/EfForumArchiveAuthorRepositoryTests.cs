@@ -144,7 +144,24 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task ArchiveAuthorPageData_UsesOneSummaryAndOnePageQuery()
+    public async Task GetPostsPageAsync_UsesDescendingIdToBreakTimestampTies()
+    {
+        SeedThread(1, "Thread one");
+        var postedAt = DateTime.Parse("2020-01-01T00:00:00Z");
+        SeedPost(1, 1, LegacyUserId, "Author", "First", postedAt);
+        SeedPost(2, 1, LegacyUserId, "Author", "Second", postedAt);
+        SeedPost(3, 1, LegacyUserId, "Author", "Third", postedAt);
+        await dbContext.SaveChangesAsync();
+
+        var page1 = await repository.GetPostsPageAsync(LegacyUserId, 1, 2, 3);
+        var page2 = await repository.GetPostsPageAsync(LegacyUserId, 2, 2, 3);
+
+        Assert.Equal(["Third", "Second"], page1.Items.Select(item => item.Summary));
+        Assert.Equal(["First"], page2.Items.Select(item => item.Summary));
+    }
+
+    [Fact]
+    public async Task ArchiveAuthorPageData_PagesIdsBeforeLoadingPostBodies()
     {
         SeedThread(1, "Thread one");
         SeedPost(1, 1, LegacyUserId, "John S Stuart", "First post", DateTime.Parse("2020-01-01T00:00:00Z"));
@@ -160,7 +177,9 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
             pageSize: 20,
             totalCount: summary!.PostCount);
 
-        Assert.Equal(2, commandCounter.ReaderCount);
+        Assert.Equal(3, commandCounter.ReaderCount);
+        Assert.DoesNotContain("BodyHtml", commandCounter.ReaderCommands[1], StringComparison.Ordinal);
+        Assert.Contains("BodyHtml", commandCounter.ReaderCommands[2], StringComparison.Ordinal);
         Assert.Equal(2, page.TotalCount);
     }
 
@@ -214,9 +233,13 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
 
     private sealed class CommandCounter : DbCommandInterceptor
     {
-        public int ReaderCount { get; private set; }
+        private readonly List<string> readerCommands = [];
 
-        public void Reset() => ReaderCount = 0;
+        public int ReaderCount => readerCommands.Count;
+
+        public IReadOnlyList<string> ReaderCommands => readerCommands;
+
+        public void Reset() => readerCommands.Clear();
 
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command,
@@ -224,7 +247,7 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
             InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
         {
-            ReaderCount++;
+            readerCommands.Add(command.CommandText);
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }

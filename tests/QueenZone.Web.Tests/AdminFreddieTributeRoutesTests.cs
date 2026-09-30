@@ -1,20 +1,25 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web.Pages.Admin.FreddieTributes;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminFreddieTributeRoutesTests
+public sealed class AdminFreddieTributeRoutesTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
+    private readonly VariantWebApplicationFactory factory;
+
+    public AdminFreddieTributeRoutesTests(WebHostVariantCache variants)
+    {
+        factory = variants.Get(WebHostVariants.IsolatedAdminFreddieTributes);
+    }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     [Fact]
     public async Task AdminFreddieTributesIndex_RendersDuplicateModerationControls()
     {
-        await using var factory = CreateFactory();
         var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
 
         var response = await client.GetAsync("/admin/freddie-tributes?duplicatesOnly=true");
@@ -31,7 +36,6 @@ public sealed class AdminFreddieTributeRoutesTests
     [Fact]
     public async Task AdminFreddieTributes_HideRestoreAndDelete_RoundTrip()
     {
-        await using var factory = CreateFactory();
         var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
 
         var publicBefore = await client.GetStringAsync("/freddie-mercury-tribute");
@@ -64,7 +68,6 @@ public sealed class AdminFreddieTributeRoutesTests
     [Fact]
     public async Task Hide_with_stale_visibility_token_does_not_change_the_row()
     {
-        await using var factory = CreateFactory();
         var client = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
         var indexPage = await client.GetStringAsync("/admin/freddie-tributes");
         var fields = new Dictionary<string, string>
@@ -91,26 +94,6 @@ public sealed class AdminFreddieTributeRoutesTests
         Assert.Throws<OptimisticConcurrencyException>(() => store.Delete(1, expectedIsVisible: false));
         Assert.NotNull(store.GetById(1));
     }
-
-    private static WebApplicationFactory<Program> CreateFactory() =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<SharedFreddieTributeStore>();
-                services.RemoveAll<IFreddieTributeRepository>();
-                services.RemoveAll<IAdminFreddieTributeRepository>();
-                services.AddSingleton(_ => new SharedFreddieTributeStore(
-                [
-                    new FreddieTribute(9003, "Duplicate", "Repeated tribute", "UK", "24 November 2001", "09:03"),
-                    new FreddieTribute(9002, "Duplicate", "Repeated tribute", "UK", "24 November 2001", "09:02"),
-                    new FreddieTribute(9001, "Moderator", "Prune me from the public page", "US", "24 November 2001", "09:01"),
-                ]));
-                services.AddSingleton<IFreddieTributeRepository, InMemoryFreddieTributeRepository>();
-                services.AddSingleton<IAdminFreddieTributeRepository, InMemoryAdminFreddieTributeRepository>();
-            });
-        });
 
     private static async Task<HttpResponseMessage> PostActionAsync(HttpClient client, string actionPath)
     {

@@ -1,5 +1,7 @@
 # QueenZone public-web verification map
 
+The machine-readable map of every public and member page lives in [`docs/feature-map/`](../../../../docs/feature-map/README.md). Read that index to resolve a vague request to an `id`, sources, selectors, and E2E specs. This folder keeps the prose recipes those entries point at via `recipe`.
+
 This directory is the maintained source for verifying visitor-facing QueenZone.Web behavior. Read this index before driving the app, then use the matching feature file as the recipe.
 
 ## Baseline preconditions
@@ -18,6 +20,7 @@ This directory is the maintained source for verifying visitor-facing QueenZone.W
 - Browser actions go through Cursor browser tools or Playwright MCP against the helper URL.
 - Supporting HTTP checks may use `Invoke-WebRequest` against that same URL only.
 - Do not remove proof artifacts during cleanup.
+- Capture PR proof with `control-queenzone.ps1 capture-proof -Feature <map-id>` after launch.
 
 ## Proof and skip reporting
 

@@ -1,0 +1,127 @@
+{
+  "area": "news",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [
+        "news list",
+        "news archive"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/News/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/SmokeTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/news.md",
+      "id": "web.news.index",
+      "name": "News archive",
+      "page": "Pages/News/Index.cshtml",
+      "url": "/news",
+      "entry": "Header News, or open /news"
+    },
+    {
+      "aliases": [
+        "news pagination"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/News/Page.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/news.md",
+      "id": "web.news.page",
+      "name": "News archive page",
+      "page": "Pages/News/Page.cshtml",
+      "url": "/news/page/{pageNumber}",
+      "entry": "News archive → next page"
+    },
+    {
+      "aliases": [
+        "news story",
+        "article 1003",
+        "modernisation begins"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/News/Detail.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/SmokeTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/news.md",
+      "id": "web.news.detail",
+      "name": "News article",
+      "page": "Pages/News/Detail.cshtml",
+      "url": "/news/{id}/{slug}",
+      "entry": "News archive or homepage card → article"
+    },
+    {
+      "aliases": [
+        "search news archive"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/News/Search.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/search.md",
+      "id": "web.news.search",
+      "name": "News search",
+      "page": "Pages/News/Search.cshtml",
+      "url": "/news/search",
+      "entry": "News archive search box, or /news/search"
+    },
+    {
+      "aliases": [
+        "submit news"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/News.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CommunitySubmissionWorkflowTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.news.submit",
+      "name": "Suggest news",
+      "page": "Pages/Submit/News.cshtml",
+      "url": "/submit/news",
+      "entry": "Open /submit/news"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/NewsConfirmation.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.news.submitConfirmation",
+      "name": "News suggestion confirmation",
+      "page": "Pages/Submit/NewsConfirmation.cshtml",
+      "url": "/submit/news/confirmation",
+      "entry": "Submit news → confirmation"
+    }
+  ]
+}

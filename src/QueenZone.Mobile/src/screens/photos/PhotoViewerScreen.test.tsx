@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { Image } from 'expo-image';
 import { AccessibilityInfo, Platform } from 'react-native';
 import { fetchPhotoDetail } from '../../api';
 import { ApiError } from '../../api/client';
@@ -8,6 +9,7 @@ import { deferred } from '../../test/fixtures';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
 import { testIds } from '../../test/testIds';
 import { PhotoViewerScreen, photoViewerStatusTiming } from './PhotoViewerScreen';
+import { photoImageLoadOverlayDelayMs } from './ZoomableArchiveImage';
 import { saveGalleryPhoto, saveGalleryPhotoCopy } from './saveGalleryPhoto';
 import { setAndroidGalleryWallpaper } from './setGalleryWallpaper';
 import { claimsWallpaperSet, wallpaperCopy } from './wallpaperMeta';
@@ -33,6 +35,7 @@ jest.mock('./setGalleryWallpaper', () => ({
 }));
 
 const fetchPhoto = fetchPhotoDetail as jest.MockedFunction<typeof fetchPhotoDetail>;
+const prefetchImage = Image.prefetch as jest.MockedFunction<typeof Image.prefetch>;
 const savePhoto = saveGalleryPhoto as jest.MockedFunction<typeof saveGalleryPhoto>;
 const setWallpaper = setAndroidGalleryWallpaper as jest.MockedFunction<
   typeof setAndroidGalleryWallpaper
@@ -144,6 +147,8 @@ async function withFakeTimers<T>(run: () => Promise<T>): Promise<T> {
 describe('PhotoViewerScreen', () => {
   beforeEach(() => {
     fetchPhoto.mockReset();
+    prefetchImage.mockReset();
+    prefetchImage.mockResolvedValue(true);
     savePhoto.mockReset();
     savePhoto.mockResolvedValue(undefined);
     setWallpaper.mockReset();
@@ -376,6 +381,174 @@ describe('PhotoViewerScreen', () => {
     expect(navigation.setParams).not.toHaveBeenCalled();
     pendingNext.resolve(photoDetail({ picId: 102, title: 'Wembley', index: 1 }));
     await waitFor(() => expect(screen.getByText('Wembley')).toBeOnTheScreen());
+  });
+
+  it('prefetches neighbour originals after the current image loads', async () => {
+    await loadPhoto(
+      photoDetail({
+        previous: {
+          picId: 100,
+          detailPath: '/photography/brian-may/100',
+          imageUrl: 'https://cdn.queenzone.org/brian-may/img-100.jpg',
+          pictureWidth: 800,
+          pictureHeight: 600,
+        },
+        next: {
+          picId: 102,
+          detailPath: '/photography/brian-may/102',
+          imageUrl: 'https://cdn.queenzone.org/brian-may/img-102.jpg',
+          pictureWidth: 1200,
+          pictureHeight: 800,
+        },
+      }),
+    );
+    expect(prefetchImage).not.toHaveBeenCalled();
+    act(() => {
+      screen.getByLabelText('Live Aid').props.onLoad?.();
+    });
+    expect(prefetchImage).toHaveBeenCalledTimes(1);
+    expect(prefetchImage).toHaveBeenCalledWith(
+      [
+        'https://cdn.queenzone.org/brian-may/img-100.jpg',
+        'https://cdn.queenzone.org/brian-may/img-102.jpg',
+      ],
+      'memory-disk',
+    );
+  });
+
+  it('does not prefetch a missing neighbour', async () => {
+    await loadPhoto(
+      photoDetail({
+        previous: null,
+        next: {
+          picId: 102,
+          detailPath: '/photography/brian-may/102',
+          imageUrl: 'https://cdn.queenzone.org/brian-may/img-102.jpg',
+        },
+      }),
+    );
+    act(() => {
+      screen.getByLabelText('Live Aid').props.onLoad?.();
+    });
+    expect(prefetchImage).toHaveBeenCalledWith(
+      ['https://cdn.queenzone.org/brian-may/img-102.jpg'],
+      'memory-disk',
+    );
+  });
+
+  it('uses the neighbour imageUrl as source before the next detail arrives', async () => {
+    const pendingNext = deferred<PhotoDetail>();
+    fetchPhoto.mockResolvedValueOnce(
+      photoDetail({
+        next: {
+          picId: 102,
+          detailPath: '/photography/brian-may/102',
+          imageUrl: 'https://cdn.queenzone.org/brian-may/img-102.jpg',
+          pictureWidth: 1200,
+          pictureHeight: 800,
+        },
+      }),
+    ).mockReturnValueOnce(pendingNext.promise);
+    const navigation = fakeNavigation();
+    const view = renderWithProviders(
+      <PhotoViewerScreen
+        navigation={navigation as never}
+        route={
+          {
+            key: 'viewer',
+            name: 'PhotoViewer',
+            params: { slug: 'brian-may', picId: 101 },
+          } as never
+        }
+      />,
+      { navigation: false },
+    );
+    await waitFor(() => expect(screen.getByTestId(testIds.photoViewerScreen)).toBeOnTheScreen());
+    act(() => {
+      screen.getByLabelText('Live Aid').props.onLoad?.();
+    });
+
+    jest.useFakeTimers();
+    try {
+      view.rerender(
+        <PhotoViewerScreen
+          navigation={navigation as never}
+          route={
+            {
+              key: 'viewer',
+              name: 'PhotoViewer',
+              params: { slug: 'brian-may', picId: 102 },
+            } as never
+          }
+        />,
+      );
+      const image = screen.getByLabelText('Live Aid');
+      expect(image.props.source).toEqual({
+        uri: 'https://cdn.queenzone.org/brian-may/img-102.jpg',
+      });
+      expect(screen.getByText('Live Aid')).toBeOnTheScreen();
+      act(() => {
+        image.props.onLoad?.();
+      });
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('shows the load overlay while pending after a swipe', async () => {
+    const pendingNext = deferred<PhotoDetail>();
+    fetchPhoto.mockResolvedValueOnce(photoDetail()).mockReturnValueOnce(pendingNext.promise);
+    const navigation = fakeNavigation();
+    const view = renderWithProviders(
+      <PhotoViewerScreen
+        navigation={navigation as never}
+        route={
+          {
+            key: 'viewer',
+            name: 'PhotoViewer',
+            params: { slug: 'brian-may', picId: 101 },
+          } as never
+        }
+      />,
+      { navigation: false },
+    );
+    await waitFor(() => expect(screen.getByTestId(testIds.photoViewerScreen)).toBeOnTheScreen());
+    act(() => {
+      screen.getByLabelText('Live Aid').props.onLoad?.();
+    });
+    expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+
+    jest.useFakeTimers();
+    try {
+      view.rerender(
+        <PhotoViewerScreen
+          navigation={navigation as never}
+          route={
+            {
+              key: 'viewer',
+              name: 'PhotoViewer',
+              params: { slug: 'brian-may', picId: 102 },
+            } as never
+          }
+        />,
+      );
+      expect(screen.getByText('Live Aid')).toBeOnTheScreen();
+      expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
+      act(() => {
+        jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+      });
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay)).toBeOnTheScreen();
+      expect(screen.getByLabelText('Loading photograph…')).toBeOnTheScreen();
+      expect(screen.getByTestId(testIds.photoViewerImageOverlay).props.pointerEvents).toBe(
+        'none',
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('saves the full imageUrl from the viewer chrome, not the thumbnail', async () => {
@@ -662,6 +835,8 @@ describe('PhotoViewerScreen Android wallpaper', () => {
   beforeEach(() => {
     Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
     fetchPhoto.mockReset();
+    prefetchImage.mockReset();
+    prefetchImage.mockResolvedValue(true);
     savePhoto.mockReset();
     savePhoto.mockResolvedValue(undefined);
     setWallpaper.mockReset();

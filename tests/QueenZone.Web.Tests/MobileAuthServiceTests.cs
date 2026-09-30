@@ -120,6 +120,7 @@ public sealed class MobileAuthServiceTests
             "gh-subject-1",
             "fan@example.com",
             "Fan",
+            true,
             CancellationToken.None);
 
         Assert.True(completed.Success);
@@ -171,6 +172,7 @@ public sealed class MobileAuthServiceTests
             "ms-subject-1",
             "msfan@example.com",
             "MS Fan",
+            true,
             CancellationToken.None);
 
         var tokens = await service.ExchangeAuthorizationCodeAsync(
@@ -205,6 +207,7 @@ public sealed class MobileAuthServiceTests
             "suspended-subject",
             "suspended@example.com",
             "Suspended",
+            true,
             CancellationToken.None);
         Assert.True(first.Success);
 
@@ -226,11 +229,97 @@ public sealed class MobileAuthServiceTests
             "suspended-subject",
             "suspended@example.com",
             "Suspended",
+            true,
             CancellationToken.None);
 
         Assert.False(completed.Success);
         Assert.Equal("access_denied", completed.Error);
         Assert.Equal("account_suspended", completed.ErrorDescription);
+    }
+
+    [Fact]
+    public async Task CompleteExternalLogin_DoesNotIssueCode_WhenVerifiedEmailNeedsConfirmation()
+    {
+        var members = new InMemoryMemberAccountRepository();
+        var account = await SeedPasswordAccountAsync(members, "confirm-mobile@example.com", "S3curePass!");
+        var service = CreateService(members);
+        var pair = MobileAuthPkceTestData.CreatePair();
+        var started = service.StartAuthorization(
+            "code",
+            MobileAuthOptions.DefaultClientId,
+            MobileAuthPkceTestData.RedirectUri,
+            pair.Challenge,
+            MobileAuthPkce.MethodS256,
+            "csrf-state",
+            MemberAuthenticationSchemes.Google);
+
+        var pending = await service.CompleteExternalLoginAsync(
+            started.Session!.RequestId,
+            MemberAuthenticationSchemes.Google,
+            "google-mobile-confirm",
+            "confirm-mobile@example.com",
+            "Confirm Fan",
+            emailVerified: true,
+            CancellationToken.None);
+
+        Assert.True(pending.RequiresConfirmation);
+        Assert.False(pending.Success);
+        Assert.Null(pending.Code);
+        Assert.Null(await members.FindByExternalLoginAsync(MemberAuthenticationSchemes.Google, "google-mobile-confirm"));
+
+        var linker = CreateMemberAccountService(members);
+        var linked = await linker.LinkExternalLoginAsync(
+            account.Id,
+            MemberAuthenticationSchemes.Google,
+            "google-mobile-confirm",
+            "confirm-mobile@example.com");
+        Assert.True(linked.Succeeded);
+
+        var completed = await service.CompleteConfirmedLoginAsync(
+            started.Session.RequestId,
+            linked.Account!,
+            CancellationToken.None);
+        Assert.True(completed.Success);
+        Assert.False(string.IsNullOrWhiteSpace(completed.Code));
+
+        var tokens = await service.ExchangeAuthorizationCodeAsync(
+            "authorization_code",
+            MobileAuthOptions.DefaultClientId,
+            MobileAuthPkceTestData.RedirectUri,
+            completed.Code,
+            pair.Verifier,
+            CancellationToken.None);
+        Assert.True(tokens.Success);
+    }
+
+    [Fact]
+    public async Task CompleteExternalLogin_RejectsUnverifiedEmail_WithoutCreatingAnAccount()
+    {
+        var members = new InMemoryMemberAccountRepository();
+        var service = CreateService(members);
+        var started = service.StartAuthorization(
+            "code",
+            MobileAuthOptions.DefaultClientId,
+            MobileAuthPkceTestData.RedirectUri,
+            MobileAuthPkceTestData.CreatePair().Challenge,
+            MobileAuthPkce.MethodS256,
+            "csrf-state",
+            MemberAuthenticationSchemes.Google);
+
+        var completed = await service.CompleteExternalLoginAsync(
+            started.Session!.RequestId,
+            MemberAuthenticationSchemes.Google,
+            "google-mobile-unverified",
+            "unverified-mobile@example.com",
+            "Unverified",
+            emailVerified: false,
+            CancellationToken.None);
+
+        Assert.False(completed.Success);
+        Assert.False(completed.RequiresConfirmation);
+        Assert.Equal(ExternalLoginMessages.UnverifiedEmail, completed.ErrorDescription);
+        Assert.Null(await members.FindByEmailAsync("unverified-mobile@example.com"));
+        Assert.Null(await members.FindByExternalLoginAsync(MemberAuthenticationSchemes.Google, "google-mobile-unverified"));
     }
 
     [Fact]
@@ -242,6 +331,7 @@ public sealed class MobileAuthServiceTests
             "subject",
             "fan@example.com",
             "Fan",
+            true,
             CancellationToken.None);
 
         Assert.False(completed.Success);
@@ -265,7 +355,7 @@ public sealed class MobileAuthServiceTests
     }
 
     [Fact]
-    public async Task ExchangeRefreshToken_RotatesAndRejectsReuseAfterTheGraceWindow()
+    public async Task ExchangeRefreshToken_RotatesAndRejectsReuseOnceTheChainHasMovedOn()
     {
         var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
         var issued = await IssueTokensAsync(timeProvider: time);
@@ -281,9 +371,10 @@ public sealed class MobileAuthServiceTests
         Assert.NotEqual(issued.RefreshToken, refreshed.RefreshToken);
         Assert.DoesNotContain(issued.RefreshToken!, refreshed.ErrorDescription ?? string.Empty);
 
-        // Past the reuse grace window, a replay of the rotated-away token is
-        // theft, not a lost rotation response.
-        time.Advance(TimeSpan.FromSeconds(31));
+        // Past the reuse grace window, and after someone used the successor, a
+        // replay of the rotated-away token is theft, not a lost rotation response.
+        await RotateAsync(issued.Service, refreshed.RefreshToken);
+        time.Advance(TimeSpan.FromSeconds(301));
         var reused = await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
             issued.RefreshToken,
@@ -306,12 +397,10 @@ public sealed class MobileAuthServiceTests
         var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
         var log = new RecordingServiceLogger();
         var issued = await IssueTokensAsync(serviceLogger: log, timeProvider: time);
-        await issued.Service.ExchangeRefreshTokenAsync(
-            MobileAuthOptions.DefaultClientId,
-            issued.RefreshToken,
-            CancellationToken.None);
+        var successor = await RotateAsync(issued.Service, issued.RefreshToken);
+        await RotateAsync(issued.Service, successor);
 
-        time.Advance(TimeSpan.FromSeconds(31));
+        time.Advance(TimeSpan.FromSeconds(301));
         var reused = await issued.Service.ExchangeRefreshTokenAsync(
             MobileAuthOptions.DefaultClientId,
             issued.RefreshToken,
@@ -360,6 +449,230 @@ public sealed class MobileAuthServiceTests
             retried.RefreshToken,
             CancellationToken.None);
         Assert.True(next.Success);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AtGraceBoundary_StillRecoversInsteadOfRevoking()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var issued = await IssueTokensAsync(timeProvider: time);
+        var firstRotation = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+        Assert.True(firstRotation.Success);
+
+        time.Advance(TimeSpan.FromSeconds(300));
+        var retried = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.True(retried.Success);
+        Assert.False(string.IsNullOrWhiteSpace(retried.RefreshToken));
+        Assert.NotEqual(firstRotation.RefreshToken, retried.RefreshToken);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AfterGraceWindow_TwoHopReplayRevokesEveryGrantTheMemberHolds()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var accounts = new InMemoryMemberAccountRepository();
+        var grants = new InMemoryMobileAuthGrantRepository(new SharedMobileAuthGrantStore());
+        var first = await IssueTokensAsync(accounts: accounts, grants: grants, timeProvider: time);
+        var second = await IssueTokensAsync(accounts: accounts, grants: grants, timeProvider: time);
+        Assert.NotEqual(first.RefreshToken, second.RefreshToken);
+
+        var successor = await RotateAsync(first.Service, first.RefreshToken);
+        var current = await RotateAsync(first.Service, successor);
+
+        time.Advance(TimeSpan.FromSeconds(301));
+        var reused = await first.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            first.RefreshToken,
+            CancellationToken.None);
+
+        Assert.False(reused.Success);
+        Assert.Equal("invalid_grant", reused.Error);
+
+        var sibling = await second.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            second.RefreshToken,
+            CancellationToken.None);
+        Assert.False(sibling.Success);
+        Assert.Equal("invalid_grant", sibling.Error);
+
+        var chainTip = await first.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            current,
+            CancellationToken.None);
+        Assert.False(chainTip.Success);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AfterGraceWindow_RotatesAnUnusedSuccessorInsteadOfRevoking()
+    {
+        // The client refreshed, then iOS suspended it (or the connection dropped)
+        // before the response landed. Days later it retries the old token. Nobody
+        // has used the successor, so this is a lost response, not theft.
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var log = new RecordingServiceLogger();
+        var issued = await IssueTokensAsync(serviceLogger: log, timeProvider: time);
+        var lostSuccessor = await RotateAsync(issued.Service, issued.RefreshToken);
+
+        time.Advance(TimeSpan.FromDays(8));
+        var retried = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.True(retried.Success);
+        Assert.False(string.IsNullOrWhiteSpace(retried.AccessToken));
+        Assert.NotEqual(lostSuccessor, retried.RefreshToken);
+        Assert.DoesNotContain(
+            log.Entries,
+            entry => entry.Message.Contains("reuse detected", StringComparison.OrdinalIgnoreCase));
+        var recovery = Assert.Single(
+            log.Entries,
+            entry =>
+                entry.Level == LogLevel.Information
+                && entry.Message.Contains("successor was never used", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(((long)TimeSpan.FromDays(8).TotalSeconds).ToString(), recovery.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(issued.RefreshToken!, recovery.Message, StringComparison.Ordinal);
+
+        // The recovered pair works going forward.
+        await RotateAsync(issued.Service, retried.RefreshToken);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AfterGraceWindow_RevokesWhenTheUnusedSuccessorExpired()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var issued = await IssueTokensAsync(timeProvider: time);
+        await RotateAsync(issued.Service, issued.RefreshToken);
+
+        time.Advance(TimeSpan.FromDays(31));
+        var replayed = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.False(replayed.Success);
+        Assert.Equal("invalid_grant", replayed.Error);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AfterGraceWindow_RevokesWhenTheSuccessorBelongsToAnotherClient()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var store = new SharedMobileAuthGrantStore();
+        var issued = await IssueTokensAsync(
+            grants: new InMemoryMobileAuthGrantRepository(store),
+            timeProvider: time);
+        var successor = await RotateAsync(issued.Service, issued.RefreshToken);
+        lock (store.Gate)
+        {
+            store.RefreshTokens
+                .Single(token => token.TokenHash == MobileAuthPkce.Sha256Hex(successor))
+                .ClientId = "another-client";
+        }
+
+        time.Advance(TimeSpan.FromSeconds(301));
+        var replayed = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.False(replayed.Success);
+        Assert.Equal("invalid_grant", replayed.Error);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_AfterGraceWindow_RevokesWhenUnusedSuccessorRecoveryIsOff()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var issued = await IssueTokensAsync(
+            timeProvider: time,
+            mobileOptions: new MobileAuthOptions { RefreshTokenUnusedSuccessorRecovery = false });
+        var successor = await RotateAsync(issued.Service, issued.RefreshToken);
+
+        time.Advance(TimeSpan.FromSeconds(301));
+        var replayed = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.False(replayed.Success);
+        Assert.Equal("invalid_grant", replayed.Error);
+        var afterRevokeAll = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            successor,
+            CancellationToken.None);
+        Assert.False(afterRevokeAll.Success);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_SwapBackPastTheDailyRecoveryLimit_RevokesEveryGrant()
+    {
+        // A thief replays T and gets S; the real client replays S' later, and so
+        // on. Each step alone looks like a lost response, so the run is capped.
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var log = new RecordingServiceLogger();
+        var issued = await IssueTokensAsync(
+            serviceLogger: log,
+            timeProvider: time,
+            mobileOptions: new MobileAuthOptions { RefreshTokenUnusedSuccessorRecoveryDailyLimit = 2 });
+        var held = issued.RefreshToken;
+        var successor = await RotateAsync(issued.Service, held);
+
+        for (var recovery = 0; recovery < 2; recovery++)
+        {
+            time.Advance(TimeSpan.FromSeconds(301));
+            var swapped = await RotateAsync(issued.Service, held);
+            held = successor;
+            successor = swapped;
+        }
+
+        time.Advance(TimeSpan.FromSeconds(301));
+        var overLimit = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            held,
+            CancellationToken.None);
+
+        Assert.False(overLimit.Success);
+        Assert.Equal("invalid_grant", overLimit.Error);
+        Assert.Contains(
+            log.Entries,
+            entry =>
+                entry.Level == LogLevel.Warning
+                && entry.Message.Contains("recovery limit", StringComparison.OrdinalIgnoreCase));
+        var afterRevokeAll = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            successor,
+            CancellationToken.None);
+        Assert.False(afterRevokeAll.Success);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_RaceLoser_RecoversOntoTheWinnersGrant()
+    {
+        var log = new RecordingServiceLogger();
+        var grants = new RotationRaceLoserGrantRepository(
+            new InMemoryMobileAuthGrantRepository(new SharedMobileAuthGrantStore()));
+        var issued = await IssueTokensAsync(serviceLogger: log, grants: grants);
+
+        grants.WinnerRefreshToken = "concurrent-winner-refresh-token";
+        var loser = await issued.Service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            issued.RefreshToken,
+            CancellationToken.None);
+
+        Assert.True(loser.Success);
+        Assert.NotEqual("concurrent-winner-refresh-token", loser.RefreshToken);
+        Assert.DoesNotContain(
+            log.Entries,
+            entry => entry.Message.Contains("reuse detected", StringComparison.OrdinalIgnoreCase));
+        await RotateAsync(issued.Service, loser.RefreshToken);
     }
 
     [Fact]
@@ -412,10 +725,33 @@ public sealed class MobileAuthServiceTests
             log.Entries,
             e => e.Message.Contains("no grant matches", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain("grant-from-another-origin", entry.Message, StringComparison.Ordinal);
+        Assert.Contains(MobileAuthOptions.DefaultClientId, entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ExchangeRefreshToken_RejectsAndLogsTheLoserOfARotationRace()
+    public async Task ExchangeRefreshToken_UnknownGrant_LogsConfiguredClientIdNotRequestParameter()
+    {
+        var log = new RecordingServiceLogger();
+        const string configuredClientId = "configured-mobile-client";
+        var service = CreateService(
+            serviceLogger: log,
+            mobileOptions: new MobileAuthOptions { ClientId = configuredClientId });
+
+        var result = await service.ExchangeRefreshTokenAsync(
+            configuredClientId,
+            "grant-from-another-origin",
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        var entry = Assert.Single(
+            log.Entries,
+            e => e.Message.Contains("no grant matches", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(configuredClientId, entry.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("grant-from-another-origin", entry.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExchangeRefreshToken_TellsTheLoserOfARotationRaceToRetry()
     {
         var log = new RecordingServiceLogger();
         var grants = new RotationRaceLoserGrantRepository(
@@ -428,8 +764,9 @@ public sealed class MobileAuthServiceTests
             issued.RefreshToken,
             CancellationToken.None);
 
+        // Not invalid_grant: the client reads that as a dead grant and signs out.
         Assert.False(lost.Success);
-        Assert.Equal("invalid_grant", lost.Error);
+        Assert.Equal("temporarily_unavailable", lost.Error);
         Assert.Null(lost.RefreshToken);
         var warning = Assert.Single(
             log.Entries,
@@ -469,7 +806,7 @@ public sealed class MobileAuthServiceTests
         Assert.Equal("invalid_grant", result.Error);
         Assert.Single(
             log.Entries,
-            entry => entry.Message.Contains("missing or suspended", StringComparison.OrdinalIgnoreCase));
+            entry => entry.Message.Contains("missing, suspended, or pending deletion", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -508,6 +845,7 @@ public sealed class MobileAuthServiceTests
             "expired-refresh-subject",
             "expired-refresh@example.com",
             "Expired Refresh",
+            true,
             CancellationToken.None);
         var issued = await service.ExchangeAuthorizationCodeAsync(
             "authorization_code",
@@ -573,6 +911,7 @@ public sealed class MobileAuthServiceTests
             "discord-subject-1",
             "mix@example.com",
             "Mix",
+            true,
             CancellationToken.None);
 
         Assert.False(completed.Success);
@@ -720,8 +1059,53 @@ public sealed class MobileAuthServiceTests
 
         Assert.False(tokens.Success);
         Assert.Equal("invalid_grant", tokens.Error);
-        Assert.Equal(MemberAccountService.SuspendedSignInError, tokens.ErrorDescription);
+        Assert.Equal(MobileAuthService.PasswordGrantInvalidDescription, tokens.ErrorDescription);
+        Assert.DoesNotContain("suspended", tokens.ErrorDescription, StringComparison.OrdinalIgnoreCase);
         Assert.Null(tokens.AccessToken);
+    }
+
+    [Fact]
+    public async Task ExchangePasswordGrant_SharesTheAccountFailureCounterWithPasswordSignIn()
+    {
+        var repository = new InMemoryMemberAccountRepository();
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero));
+        var accounts = new MemberAccountService(
+            repository,
+            new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
+            new MemberUploadQuotaService(
+                new Microsoft.Extensions.Caching.Memory.MemoryCache(
+                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+                clock,
+                Options.Create(new UploadQuotaOptions { Enabled = false })),
+            clock,
+            Options.Create(new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 }));
+        var registered = await accounts.RegisterAsync("shared-lock@example.com", "S3curePass!", "Shared");
+        Assert.True(registered.Succeeded, registered.Error);
+
+        var fromWebsite = await accounts.SignInAsync("shared-lock@example.com", "wrong-password");
+        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, fromWebsite.Error);
+
+        var service = CreateService(repository, timeProvider: clock, memberAccountService: accounts);
+        var fromMobile = await service.ExchangePasswordGrantAsync(
+            MobileAuthOptions.DefaultClientId,
+            "shared-lock@example.com",
+            "still-wrong",
+            CancellationToken.None);
+        Assert.Equal(MobileAuthService.PasswordGrantInvalidDescription, fromMobile.ErrorDescription);
+
+        var locked = await service.ExchangePasswordGrantAsync(
+            MobileAuthOptions.DefaultClientId,
+            "shared-lock@example.com",
+            "S3curePass!",
+            CancellationToken.None);
+        Assert.False(locked.Success);
+        Assert.Equal(MobileAuthService.PasswordGrantInvalidDescription, locked.ErrorDescription);
+
+        clock.Advance(TimeSpan.FromMinutes(15));
+        var unlocked = await accounts.SignInAsync("shared-lock@example.com", "S3curePass!");
+        Assert.True(unlocked.Succeeded);
+        Assert.Equal(0, (await repository.FindByEmailAsync("shared-lock@example.com"))!.PasswordFailureCount);
     }
 
     [Fact]
@@ -788,6 +1172,7 @@ public sealed class MobileAuthServiceTests
             "rate-subject",
             "rate@example.com",
             "Rate Fan",
+            true,
             CancellationToken.None);
 
         Assert.True(first.Success);
@@ -841,6 +1226,7 @@ public sealed class MobileAuthServiceTests
             subject,
             email,
             "Rate Fan",
+            true,
             CancellationToken.None);
     }
 
@@ -849,7 +1235,8 @@ public sealed class MobileAuthServiceTests
         ILogger<MobileAuthService>? serviceLogger = null,
         InMemoryMemberAccountRepository? accounts = null,
         IMobileAuthGrantRepository? grants = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        MobileAuthOptions? mobileOptions = null)
     {
         var pair = MobileAuthPkceTestData.CreatePair();
         var service = CreateService(
@@ -857,7 +1244,8 @@ public sealed class MobileAuthServiceTests
             timeProvider: timeProvider,
             authLimits: authLimits,
             serviceLogger: serviceLogger,
-            grants: grants);
+            grants: grants,
+            mobileOptions: mobileOptions);
         var started = service.StartAuthorization(
             "code",
             MobileAuthOptions.DefaultClientId,
@@ -872,6 +1260,7 @@ public sealed class MobileAuthServiceTests
             "refresh-subject-1",
             "refresh@example.com",
             "Refresh Fan",
+            true,
             CancellationToken.None);
         var tokens = await service.ExchangeAuthorizationCodeAsync(
             "authorization_code",
@@ -884,21 +1273,34 @@ public sealed class MobileAuthServiceTests
         return (service, tokens.RefreshToken!);
     }
 
-    private static async Task<MemberAccount> SeedPasswordAccountAsync(
-        InMemoryMemberAccountRepository members,
-        string email,
-        string password)
+    /// <summary>Refreshes and asserts success, returning the new refresh token.</summary>
+    private static async Task<string> RotateAsync(MobileAuthService service, string? refreshToken)
     {
-        var clock = TimeProvider.System;
-        var accounts = new MemberAccountService(
+        var rotated = await service.ExchangeRefreshTokenAsync(
+            MobileAuthOptions.DefaultClientId,
+            refreshToken,
+            CancellationToken.None);
+        Assert.True(rotated.Success, rotated.Error);
+        return rotated.RefreshToken!;
+    }
+
+    private static MemberAccountService CreateMemberAccountService(InMemoryMemberAccountRepository members) =>
+        new(
             members,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
             new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
             new MemberUploadQuotaService(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(
                     new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
-                clock,
+                TimeProvider.System,
                 Options.Create(new UploadQuotaOptions { Enabled = false })));
+
+    private static async Task<MemberAccount> SeedPasswordAccountAsync(
+        InMemoryMemberAccountRepository members,
+        string email,
+        string password)
+    {
+        var accounts = CreateMemberAccountService(members);
         var registered = await accounts.RegisterAsync(email, password, "Reviewer");
         Assert.True(registered.Succeeded, registered.Error);
         Assert.NotNull(registered.Account);
@@ -912,13 +1314,15 @@ public sealed class MobileAuthServiceTests
         AuthRateLimitingOptions? authLimits = null,
         ILogger<MobileAuthAccountRateLimiter>? logger = null,
         ILogger<MobileAuthService>? serviceLogger = null,
-        IMobileAuthGrantRepository? grants = null)
+        IMobileAuthGrantRepository? grants = null,
+        MobileAuthOptions? mobileOptions = null,
+        MemberAccountService? memberAccountService = null)
     {
         var clock = timeProvider ?? TimeProvider.System;
-        var options = Options.Create(new MobileAuthOptions());
+        var options = Options.Create(mobileOptions ?? new MobileAuthOptions());
         var site = Options.Create(new SiteOptions());
         var environment = new FakeHostEnvironment(environmentName);
-        var members = new MemberAccountService(
+        var members = memberAccountService ?? new MemberAccountService(
             accounts ?? new InMemoryMemberAccountRepository(),
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
             new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
@@ -939,6 +1343,11 @@ public sealed class MobileAuthServiceTests
                 clock,
                 Options.Create(authLimits ?? new AuthRateLimitingOptions()),
                 logger ?? NullLogger<MobileAuthAccountRateLimiter>.Instance),
+            new MobileAuthReplayRecoveryLimiter(
+                new Microsoft.Extensions.Caching.Memory.MemoryCache(
+                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
+                clock,
+                options),
             options,
             clock,
             serviceLogger ?? NullLogger<MobileAuthService>.Instance);
@@ -976,13 +1385,20 @@ public sealed class MobileAuthServiceTests
 
     /// <summary>
     /// Rotation loser: the grant is readable and unrevoked, but a concurrent
-    /// refresh claims it first, so <c>TryRevokeRefreshTokenAsync</c> comes back
+    /// refresh claims it first, so <c>TryRotateRefreshTokenAsync</c> comes back
     /// false. Forcing it beats racing two real refreshes in a test.
     /// </summary>
     private sealed class RotationRaceLoserGrantRepository(IMobileAuthGrantRepository inner)
         : IMobileAuthGrantRepository
     {
+        /// <summary>Fail the next rotation without touching the grant (the winner hasn't committed yet).</summary>
         public bool LoseNextRotation { get; set; }
+
+        /// <summary>
+        /// Let a concurrent winner rotate the grant into this raw token first, then fail
+        /// the caller's rotation, as the conditional UPDATE does once the winner commits.
+        /// </summary>
+        public string? WinnerRefreshToken { get; set; }
 
         public Task StoreAuthorizationCodeAsync(
             MobileAuthAuthorizationCodeEntity code,
@@ -1008,15 +1424,38 @@ public sealed class MobileAuthServiceTests
         public Task<bool> TryRevokeRefreshTokenAsync(
             string tokenHash,
             DateTime utcNow,
+            CancellationToken cancellationToken = default) =>
+            inner.TryRevokeRefreshTokenAsync(tokenHash, utcNow, cancellationToken);
+
+        public async Task<bool> TryRotateRefreshTokenAsync(
+            string oldTokenHash,
+            MobileAuthRefreshTokenEntity replacement,
+            DateTime utcNow,
             CancellationToken cancellationToken = default)
         {
             if (LoseNextRotation)
             {
                 LoseNextRotation = false;
-                return Task.FromResult(false);
+                return false;
             }
 
-            return inner.TryRevokeRefreshTokenAsync(tokenHash, utcNow, cancellationToken);
+            if (WinnerRefreshToken is { } winner)
+            {
+                WinnerRefreshToken = null;
+                var winnerGrant = new MobileAuthRefreshTokenEntity
+                {
+                    Id = Guid.NewGuid(),
+                    TokenHash = MobileAuthPkce.Sha256Hex(winner),
+                    MemberAccountId = replacement.MemberAccountId,
+                    ClientId = replacement.ClientId,
+                    CreatedAt = utcNow,
+                    ExpiresAt = replacement.ExpiresAt,
+                };
+                Assert.True(await inner.TryRotateRefreshTokenAsync(oldTokenHash, winnerGrant, utcNow, cancellationToken));
+                return false;
+            }
+
+            return await inner.TryRotateRefreshTokenAsync(oldTokenHash, replacement, utcNow, cancellationToken);
         }
 
         public Task<int> RevokeAllRefreshTokensForMemberAsync(
@@ -1024,12 +1463,6 @@ public sealed class MobileAuthServiceTests
             DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             inner.RevokeAllRefreshTokensForMemberAsync(memberAccountId, utcNow, cancellationToken);
-
-        public Task<bool> LinkRefreshTokenRotationAsync(
-            string oldTokenHash,
-            string newTokenHash,
-            CancellationToken cancellationToken = default) =>
-            inner.LinkRefreshTokenRotationAsync(oldTokenHash, newTokenHash, cancellationToken);
     }
 
     private sealed class RecordingServiceLogger : ILogger<MobileAuthService>

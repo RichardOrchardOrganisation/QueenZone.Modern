@@ -1,0 +1,327 @@
+using QueenZone.Data.Entities;
+
+namespace QueenZone.Data;
+
+public sealed class InMemoryQuizQuestionSubmissionRepository : IQuizQuestionSubmissionRepository
+{
+    private readonly object sync = new();
+    private readonly List<QuizQuestionSubmissionEntity> submissions = [];
+    private readonly List<QuizQuestionSubmissionAuditLogEntity> auditLogs = [];
+    private readonly Func<Guid, MemberAccount?>? resolveMember;
+    private long nextAuditId = 1;
+
+    public InMemoryQuizQuestionSubmissionRepository(Func<Guid, MemberAccount?>? resolveMember = null)
+    {
+        this.resolveMember = resolveMember;
+    }
+
+    public Task<QuizQuestionSubmission> CreateAsync(
+        NewQuizQuestionSubmission submission,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(submission);
+
+        var errors = QuizQuestionSubmissionValidation.ValidateSubmission(
+            submission.QuestionText,
+            submission.Options,
+            submission.SourceNote);
+        if (errors.Count > 0)
+        {
+            throw new ArgumentException(string.Join(" ", errors), nameof(submission));
+        }
+
+        lock (sync)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var entity = QuizQuestionSubmissionRecords.NewEntity(submission, now);
+
+            submissions.Add(entity);
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted a quiz question for review.")));
+
+            return Task.FromResult(Map(entity));
+        }
+    }
+
+    public Task<IReadOnlyList<QuizQuestionSubmissionListItem>> GetPendingAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+
+        lock (sync)
+        {
+            IReadOnlyList<QuizQuestionSubmissionListItem> result = submissions
+                .Where(row => row.Status == QuizQuestionSubmissionStatus.Pending)
+                .OrderByDescending(row => row.SubmittedAt)
+                .Skip(skip)
+                .Take(take)
+                .Select(ToListItem)
+                .ToList();
+
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<IReadOnlyList<QuizQuestionSubmissionListItem>> GetApprovedAndAvailableAsync(
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            IReadOnlyList<QuizQuestionSubmissionListItem> result = submissions
+                .Where(row => row.Status == QuizQuestionSubmissionStatus.Approved && row.AddedToQuizId is null)
+                .OrderByDescending(row => row.ReviewedAt)
+                .Select(ToListItem)
+                .ToList();
+
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<QuizQuestionSubmission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            var entity = submissions.SingleOrDefault(row => row.Id == id);
+            return Task.FromResult(entity is null ? null : Map(entity));
+        }
+    }
+
+    public Task<SubmissionListPage<QuizQuestionSubmission>> GetBySubmitterAsync(
+        Guid submitterMemberId,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+
+        lock (sync)
+        {
+            var owned = submissions
+                .Where(row => row.SubmitterMemberId == submitterMemberId)
+                .OrderByDescending(row => row.SubmittedAt)
+                .ToList();
+
+            IReadOnlyList<QuizQuestionSubmission> items = owned
+                .Skip(skip)
+                .Take(take)
+                .Select(Map)
+                .ToList();
+
+            return Task.FromResult(new SubmissionListPage<QuizQuestionSubmission>(items, owned.Count));
+        }
+    }
+
+    public Task<QuizQuestionSubmission?> ApproveAsync(
+        Guid id,
+        QuizQuestionSubmissionEdit edit,
+        string reviewerEmail,
+        string? reviewNotes,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            var entity = submissions.SingleOrDefault(row => row.Id == id);
+            if (entity is null)
+            {
+                return Task.FromResult<QuizQuestionSubmission?>(null);
+            }
+
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                QuizQuestionSubmissionStatus.Approved,
+                QuizQuestionSubmissionWorkflow.TryValidateStatusChange);
+
+            var errors = QuizQuestionSubmissionValidation.ValidateSubmission(
+                edit.QuestionText,
+                edit.Options,
+                entity.SourceNote);
+            if (errors.Count > 0)
+            {
+                throw new ArgumentException(string.Join(" ", errors), nameof(edit));
+            }
+
+            entity.QuestionText = edit.QuestionText.Trim();
+            var options = QuizQuestionSubmissionValidation.NormalizeOptions(edit.Options);
+            entity.Options = options
+                .Select((option, index) => new QuizQuestionSubmissionOptionEntity
+                {
+                    Id = Guid.NewGuid(),
+                    QuizQuestionSubmissionId = entity.Id,
+                    OptionText = option.Text,
+                    DisplayOrder = index,
+                    IsCorrect = option.IsCorrect,
+                })
+                .ToList();
+
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                QuizQuestionSubmissionStatus.Approved,
+                reviewerEmail,
+                reviewNotes);
+
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    QuizQuestionSubmissionStatus.Approved,
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Approved for the quiz builder's question bank. Notes: {entity.ReviewNotes ?? "(none)"}")));
+
+            return Task.FromResult<QuizQuestionSubmission?>(Map(entity));
+        }
+    }
+
+    public Task<QuizQuestionSubmission?> RejectAsync(
+        Guid id,
+        string reviewerEmail,
+        string rejectionReason,
+        string? reviewNotes,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            var entity = submissions.SingleOrDefault(row => row.Id == id);
+            if (entity is null)
+            {
+                return Task.FromResult<QuizQuestionSubmission?>(null);
+            }
+
+            var now = QuizQuestionSubmissionRecords.ApplyRejection(entity, reviewerEmail, rejectionReason, reviewNotes);
+
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    QuizQuestionSubmissionStatus.Rejected,
+                    entity.ReviewerEmail,
+                    now,
+                    QuizQuestionSubmissionRecords.RejectionAuditDetails(entity))));
+
+            return Task.FromResult<QuizQuestionSubmission?>(Map(entity));
+        }
+    }
+
+    public Task<QuizQuestionSubmission?> MarkAddedToQuizAsync(
+        Guid id,
+        Guid quizId,
+        string actorEmail,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            var entity = submissions.SingleOrDefault(row => row.Id == id);
+            if (entity is null)
+            {
+                return Task.FromResult<QuizQuestionSubmission?>(null);
+            }
+
+            if (!string.Equals(entity.Status, QuizQuestionSubmissionStatus.Approved, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Only approved submissions can be added to a quiz.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            entity.AddedToQuizId = quizId;
+            entity.AddedToQuizAt = now;
+
+            auditLogs.Add(SubmissionReview.Copy(
+                new QuizQuestionSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    QuizQuestionSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    "AddedToQuiz",
+                    SubmissionInput.NormalizeOptional(actorEmail, 256),
+                    now,
+                    $"Added to quiz {quizId} via the builder.")));
+
+            return Task.FromResult<QuizQuestionSubmission?>(Map(entity));
+        }
+    }
+
+    public Task<SubmissionTypeCounts> GetDashboardCountsAsync(
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            var rows = submissions.Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == QuizQuestionSubmissionStatus.Pending,
+                IsApproved = row.Status == QuizQuestionSubmissionStatus.Approved,
+                IsRejected = row.Status == QuizQuestionSubmissionStatus.Rejected,
+                IsStillPending = row.Status == QuizQuestionSubmissionStatus.Pending,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.CountRows(rows, utcNow));
+        }
+    }
+
+    /// <summary>Test helper: audit entries written for a submission.</summary>
+    public IReadOnlyList<QuizQuestionSubmissionAuditLogEntity> GetAuditLogs(Guid submissionId)
+    {
+        lock (sync)
+        {
+            return auditLogs.Where(log => log.QuizQuestionSubmissionId == submissionId).ToList();
+        }
+    }
+
+    private QuizQuestionSubmissionListItem ToListItem(QuizQuestionSubmissionEntity row)
+    {
+        var member = resolveMember?.Invoke(row.SubmitterMemberId);
+        return new QuizQuestionSubmissionListItem(
+            row.Id,
+            row.QuestionText,
+            member?.DisplayName ?? "Unknown member",
+            row.SubmittedAt,
+            row.Status);
+    }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            submissions.Clear();
+            auditLogs.Clear();
+            nextAuditId = 1;
+        }
+    }
+
+    private QuizQuestionSubmission Map(QuizQuestionSubmissionEntity entity)
+    {
+        var member = resolveMember?.Invoke(entity.SubmitterMemberId);
+        return new QuizQuestionSubmission(
+            entity.Id,
+            entity.SubmitterMemberId,
+            entity.QuestionText,
+            entity.Options
+                .OrderBy(option => option.DisplayOrder)
+                .Select(option => new QuizQuestionSubmissionOptionView(option.Id, option.OptionText, option.DisplayOrder, option.IsCorrect))
+                .ToList(),
+            entity.SourceNote,
+            entity.Status,
+            entity.SubmittedAt,
+            entity.ReviewedAt,
+            entity.ReviewerEmail,
+            entity.ReviewNotes,
+            entity.RejectionReason,
+            entity.AddedToQuizId,
+            member?.DisplayName,
+            member?.Email);
+    }
+}

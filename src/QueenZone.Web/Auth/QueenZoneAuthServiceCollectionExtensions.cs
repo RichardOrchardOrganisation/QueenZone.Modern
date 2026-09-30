@@ -41,6 +41,11 @@ public static class QueenZoneAuthServiceCollectionExtensions
                     options.LoginPath = "/account/login";
                     options.LogoutPath = "/account/logout";
                     options.Events = MemberCookieEvents;
+                })
+                .AddCookie(MemberAuthenticationSchemes.ExternalLinkCookie, options =>
+                {
+                    options.Cookie.Name = ExternalLoginLinkCookie.CookieName;
+                    options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
                 });
             ConfigureMobileBearer(configuration, environment, services.AddAuthentication());
             return services;
@@ -212,6 +217,14 @@ public static class QueenZoneAuthServiceCollectionExtensions
             options.Cookie.SameSite = SameSiteMode.Lax;
         });
 
+        authenticationBuilder.AddCookie(MemberAuthenticationSchemes.ExternalLinkCookie, options =>
+        {
+            options.Cookie.Name = ExternalLoginLinkCookie.CookieName;
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+        });
+
         var memberAuth = configuration
             .GetSection(MemberAuthenticationOptions.SectionName)
             .Get<MemberAuthenticationOptions>();
@@ -223,6 +236,9 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 options.ClientId = memberAuth.Google.ClientId!;
                 options.ClientSecret = memberAuth.Google.ClientSecret!;
                 options.SignInScheme = MemberAuthenticationSchemes.ExternalCookie;
+                options.ClaimActions.MapCustomJson(
+                    ExternalLoginEmail.EmailVerifiedClaimType,
+                    user => ExternalLoginEmail.ReadJsonBoolean(user, ExternalLoginEmail.EmailVerifiedClaimType));
             });
         }
 
@@ -233,6 +249,21 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 options.ClientId = memberAuth.Microsoft.ClientId!;
                 options.ClientSecret = memberAuth.Microsoft.ClientSecret!;
                 options.SignInScheme = MemberAuthenticationSchemes.ExternalCookie;
+                // Graph /me does not include email_verified. openid+email yield an id token
+                // whose email_verified claim is copied when the provider sends it.
+                options.Scope.Add("openid");
+                options.Scope.Add("email");
+                options.ClaimActions.MapCustomJson(
+                    ExternalLoginEmail.EmailVerifiedClaimType,
+                    user => ExternalLoginEmail.ReadJsonBoolean(user, ExternalLoginEmail.EmailVerifiedClaimType));
+                options.Events.OnCreatingTicket = context =>
+                {
+                    var idToken = context.TokenResponse.Response?.RootElement.TryGetProperty("id_token", out var token) == true
+                        ? token.GetString()
+                        : null;
+                    ExternalLoginEmail.ApplyIdTokenEmailVerified(context.Identity!, idToken);
+                    return Task.CompletedTask;
+                };
             });
         }
 
@@ -244,6 +275,9 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 options.ClientSecret = memberAuth.Discord.ClientSecret!;
                 options.SignInScheme = MemberAuthenticationSchemes.ExternalCookie;
                 options.Scope.Add("email");
+                options.ClaimActions.MapCustomJson(
+                    ExternalLoginEmail.DiscordVerifiedClaimType,
+                    user => ExternalLoginEmail.ReadJsonBoolean(user, ExternalLoginEmail.DiscordVerifiedClaimType));
             });
         }
 
@@ -255,6 +289,13 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 options.ClientSecret = memberAuth.GitHub.ClientSecret!;
                 options.SignInScheme = MemberAuthenticationSchemes.ExternalCookie;
                 options.Scope.Add("user:email");
+                options.Events.OnCreatingTicket = context => GitHubVerifiedEmail.ApplyAsync(
+                    context.Identity!,
+                    context.Backchannel,
+                    context.AccessToken,
+                    options.UserEmailsEndpoint,
+                    options.ClaimsIssuer,
+                    context.HttpContext.RequestAborted);
             });
         }
 
@@ -271,6 +312,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 options.GenerateClientSecret = true;
                 options.PrivateKey = (_, _) =>
                     Task.FromResult<ReadOnlyMemory<char>>(privateKey.AsMemory());
+                options.SaveTokens = true;
                 options.Events.OnCreatingTicket = async context =>
                 {
                     if (!context.Request.HasFormContentType)
@@ -302,9 +344,11 @@ public static class QueenZoneAuthServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Re-checks suspension status on every request that carries the members cookie, so a
-    /// suspension takes effect immediately rather than waiting for the 30-day cookie to expire.
-    /// Shared between the test-auth and Entra branches so both sign out a newly suspended member.
+    /// Re-checks the account on every request that carries the members cookie. Suspension,
+    /// a missing account, or a credential issued before a deletion request ends the session
+    /// immediately rather than waiting for the 30-day cookie to expire. A sign-in after the
+    /// deletion request is left in place so the member can cancel during the cooling-off period.
+    /// Shared between the test-auth and Entra branches.
     /// </summary>
     private static CookieAuthenticationEvents MemberCookieEvents { get; } = new()
     {
@@ -318,7 +362,8 @@ public static class QueenZoneAuthServiceCollectionExtensions
 
             var repository = context.HttpContext.RequestServices.GetRequiredService<IMemberAccountRepository>();
             var account = await repository.FindByIdAsync(memberId, context.HttpContext.RequestAborted);
-            if (account is null || account.IsSuspended)
+            var issuedAt = MemberSessionGate.ResolveIssuedAt(context.Principal, context.Properties.IssuedUtc);
+            if (MemberSessionGate.Reject(account, issuedAt))
             {
                 context.RejectPrincipal();
                 await context.HttpContext.SignOutAsync(MemberAuthenticationSchemes.MembersCookie);

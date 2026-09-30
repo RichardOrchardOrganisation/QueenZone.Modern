@@ -35,6 +35,11 @@ import {
 }
 
 import {
+  to = module.azure_web_target.azurerm_monitor_action_group.alerts[0]
+  id = "${local.azure_monitor_base_id}/actionGroups/queenzone-alerts"
+}
+
+import {
   to = module.azure_data.azapi_resource.sql_server[0]
   id = "${local.azure_sql_base_id}/servers/queenzone-sql-server"
 }

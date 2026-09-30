@@ -2,6 +2,35 @@ const { defineConfig, globalIgnores } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 const globals = require('globals');
 
+const screenErrorRules = {
+  rules: {
+    'no-swallowed-promise-error': {
+      meta: {
+        type: 'problem',
+        messages: {
+          swallowed: 'Handle failed screen work with an error state or an explicit fallback (#1840).',
+        },
+      },
+      create(context) {
+        return {
+          CallExpression(node) {
+            if (node.callee.type !== 'MemberExpression' || node.callee.property.name !== 'catch') return;
+            const handler = node.arguments[0];
+            if (handler?.type !== 'ArrowFunctionExpression') return;
+            const body = handler.body;
+            if (
+              (body.type === 'Identifier' && body.name === 'undefined') ||
+              (body.type === 'BlockStatement' && body.body.length === 0)
+            ) {
+              context.report({ node: handler, messageId: 'swallowed' });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 module.exports = defineConfig([
   globalIgnores([
     'ios/**',
@@ -46,22 +75,21 @@ module.exports = defineConfig([
           ],
         },
       ],
-      // eslint-plugin-react-hooks@7 recommended also ships React Compiler rules.
-      // Those would force SessionContext / query-hook rewrites (#1143). Out of this PR.
-      'react-hooks/static-components': 'off',
-      'react-hooks/use-memo': 'off',
-      'react-hooks/preserve-manual-memoization': 'off',
-      'react-hooks/incompatible-library': 'off',
-      'react-hooks/immutability': 'off',
-      'react-hooks/globals': 'off',
+      'react-hooks/preserve-manual-memoization': 'error',
+      'react-hooks/immutability': 'error',
+      'react-hooks/globals': 'error',
+      // Latest-value refs and gesture refs span the query hooks and screens (#1821).
       'react-hooks/refs': 'off',
+      // Existing effect-driven resets and loads need state-flow refactors (#1821).
       'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/error-boundaries': 'off',
+      'react-hooks/purity': 'error',
+    },
+  },
+  {
+    files: ['src/widgets/OnThisDayWidget.ios.tsx'],
+    rules: {
+      // Expo serializes this JSC widget view, which selects a four-hour face from the clock (#1821).
       'react-hooks/purity': 'off',
-      'react-hooks/set-state-in-render': 'off',
-      'react-hooks/unsupported-syntax': 'off',
-      'react-hooks/config': 'off',
-      'react-hooks/gating': 'off',
     },
   },
   {
@@ -84,6 +112,14 @@ module.exports = defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    files: ['src/screens/forum/**/*.{ts,tsx}', 'src/screens/photos/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.ts', '**/*.test.tsx'],
+    plugins: { 'screen-errors': screenErrorRules },
+    rules: {
+      'screen-errors/no-swallowed-promise-error': 'error',
     },
   },
 ]);

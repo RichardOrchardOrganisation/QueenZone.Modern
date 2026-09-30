@@ -61,9 +61,18 @@ internal sealed class RecordingPushTransport : IPushTransport
 
     public Exception? ThrowOnSend { get; set; }
 
+    public IReadOnlyList<PushDeviceToken> UnregisteredTokens { get; set; } = [];
+
     public int TokenSendCount => Sends.Sum(send => send.Tokens.Count);
 
-    public Task SendAsync(
+    public void Reset()
+    {
+        Sends.Clear();
+        ThrowOnSend = null;
+        UnregisteredTokens = [];
+    }
+
+    public Task<IReadOnlyList<PushDeviceToken>> SendAsync(
         IReadOnlyList<PushDeviceToken> tokens,
         PushNotificationPayload payload,
         CancellationToken cancellationToken = default)
@@ -74,13 +83,15 @@ internal sealed class RecordingPushTransport : IPushTransport
         }
 
         Sends.Add(([.. tokens], payload));
-        return Task.CompletedTask;
+        return Task.FromResult(UnregisteredTokens);
     }
 }
 
 internal sealed class FakeTopicWatchLookup : ITopicWatchLookup
 {
     public Dictionary<int, IReadOnlyList<Guid>> Watchers { get; } = [];
+
+    public void Reset() => Watchers.Clear();
 
     public Task<IReadOnlyList<Guid>> ListMemberIdsAsync(
         int topicId,
@@ -126,6 +137,18 @@ internal sealed class AlwaysWatchLookup(Guid memberId) : ITopicWatchLookup
         int topicId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Guid>>([memberId]);
+}
+
+internal sealed class ConfigurableAlwaysWatchLookup : ITopicWatchLookup
+{
+    public Guid MemberId { get; set; }
+
+    public void Reset() => MemberId = Guid.Empty;
+
+    public Task<IReadOnlyList<Guid>> ListMemberIdsAsync(
+        int topicId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>(MemberId == Guid.Empty ? [] : [MemberId]);
 }
 
 internal static class DeviceTokenTestData

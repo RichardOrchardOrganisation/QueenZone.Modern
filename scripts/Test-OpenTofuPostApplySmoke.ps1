@@ -15,22 +15,46 @@
       safety-critical contract that fan-performance audio never leaks through
       the public Worker proxy (AGENTS.md "Media Serving",
       docs/architecture/azure-hosting-plan.md).
+    - cdn2.queenzone.org/attachments/* must return 404 — legacy forum
+      attachments are streamed by the member-gated app proxy (#1656).
     - cdn.queenzone.org must still be proxied by Cloudflare (CF-Ray header
       present) — checked generically rather than against a specific photo
       blob, which could be deleted later and cause a false failure.
+    - Every blob container the azure-data module requires to stay private
+      (attachments, songfiles, databasebackup, ugc-*) must read
+      publicAccess = None on the live account (#1833). Pass
+      -StorageAccountName / -ResourceGroup for queenzonedev or queenzoneprod.
 
   The Application Insights freshness check is best-effort and never fails the
   script: it is evidence for a human reviewing the apply, not a release gate.
 
 .EXAMPLE
   ./scripts/Test-OpenTofuPostApplySmoke.ps1
+
+.EXAMPLE
+  ./scripts/Test-OpenTofuPostApplySmoke.ps1 -SelfTest
+
+.EXAMPLE
+  ./scripts/Test-OpenTofuPostApplySmoke.ps1 -PrivateContainersOnly `
+    -StorageAccountName queenzonedev -ResourceGroup Queenzone-Dev-RG
 #>
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = "Check")]
 param(
+    [Parameter(ParameterSetName = "Check")]
     [string]$BaseUrl = "https://www.queenzone.org",
+    [Parameter(ParameterSetName = "Check")]
     [string]$DirectOriginUrl = "https://queenzone-prod.azurewebsites.net",
+    [Parameter(ParameterSetName = "Check")]
     [string]$ApplicationInsightsName = "queenzone-prod-ai",
-    [string]$ResourceGroup = "Queenzone-RG"
+    [Parameter(ParameterSetName = "Check")]
+    [string]$ResourceGroup = "Queenzone-RG",
+    [Parameter(ParameterSetName = "Check")]
+    [ValidateSet("queenzonedev", "queenzoneprod")]
+    [string]$StorageAccountName = "queenzoneprod",
+    [Parameter(ParameterSetName = "Check")]
+    [switch]$PrivateContainersOnly,
+    [Parameter(Mandatory = $true, ParameterSetName = "SelfTest")]
+    [switch]$SelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -104,6 +128,116 @@ function Invoke-StatusProbe {
     }
 }
 
+# Mirrors the azure-data module validation in
+# infra/modules/azure-data/variables.tf: backup, modern UGC, songfiles,
+# and legacy attachments containers must remain private (#1687, #1833).
+function Get-RequiredPrivateBlobContainerNames {
+    param([string]$AccountName)
+
+    $common = @(
+        "attachments",
+        "songfiles",
+        "databasebackup",
+        "ugc-avatars",
+        "ugc-forum"
+    )
+    if ($AccountName -eq "queenzonedev") {
+        return $common
+    }
+    return @($common) + @("ugc-articles", "ugc-photos")
+}
+
+function Test-IsPrivateBlobContainerAccess {
+    param($PublicAccess)
+
+    return $PublicAccess -in @($null, "", "None")
+}
+
+# $Containers is a list of { name, publicAccess } objects from the
+# management plane. A missing required container is a failure.
+function Get-PrivateBlobContainerAccessFailures {
+    param(
+        [Parameter(Mandatory = $true)]$Containers,
+        [string[]]$RequiredNames = (Get-RequiredPrivateBlobContainerNames)
+    )
+
+    $failures = [System.Collections.Generic.List[string]]::new()
+    $byName = @{}
+    foreach ($container in @($Containers)) {
+        if ($null -eq $container -or [string]::IsNullOrWhiteSpace([string]$container.name)) {
+            continue
+        }
+        $byName[[string]$container.name] = $container
+    }
+
+    foreach ($name in $RequiredNames) {
+        if (-not $byName.ContainsKey($name)) {
+            $failures.Add("${name} is missing (expected publicAccess None)")
+            continue
+        }
+
+        $access = $byName[$name].publicAccess
+        if (-not (Test-IsPrivateBlobContainerAccess -PublicAccess $access)) {
+            $failures.Add("${name} publicAccess is '$access' (expected None)")
+        }
+    }
+
+    return @($failures)
+}
+
+if ($SelfTest) {
+    $selfTestFailures = [System.Collections.Generic.List[string]]::new()
+    $required = @(Get-RequiredPrivateBlobContainerNames)
+    foreach ($name in @("attachments", "songfiles", "databasebackup", "ugc-articles", "ugc-avatars", "ugc-forum", "ugc-photos")) {
+        if ($required -notcontains $name) {
+            $selfTestFailures.Add("Expected required-private list to include '$name'.")
+        }
+    }
+
+    if (-not (Test-IsPrivateBlobContainerAccess -PublicAccess $null)) {
+        $selfTestFailures.Add("Expected null publicAccess to count as None.")
+    }
+    if (-not (Test-IsPrivateBlobContainerAccess -PublicAccess "None")) {
+        $selfTestFailures.Add("Expected 'None' publicAccess to pass.")
+    }
+    if (Test-IsPrivateBlobContainerAccess -PublicAccess "Blob") {
+        $selfTestFailures.Add("Expected 'Blob' publicAccess to fail.")
+    }
+
+    $allPrivate = @(
+        [pscustomobject]@{ name = "attachments"; publicAccess = "None" },
+        [pscustomobject]@{ name = "songfiles"; publicAccess = $null },
+        [pscustomobject]@{ name = "databasebackup"; publicAccess = "None" },
+        [pscustomobject]@{ name = "ugc-avatars"; publicAccess = "None" },
+        [pscustomobject]@{ name = "ugc-forum"; publicAccess = "None" }
+    )
+    $ok = @(Get-PrivateBlobContainerAccessFailures -Containers $allPrivate -RequiredNames (Get-RequiredPrivateBlobContainerNames -AccountName "queenzonedev"))
+    if ($ok.Count -ne 0) {
+        $selfTestFailures.Add("Expected a queenzonedev-shaped inventory with missing ugc-articles/ugc-photos to pass.")
+    }
+
+    $drift = @(Get-PrivateBlobContainerAccessFailures -Containers @(
+            [pscustomobject]@{ name = "attachments"; publicAccess = "Blob" },
+            [pscustomobject]@{ name = "songfiles"; publicAccess = "None" }
+        ) -RequiredNames @("attachments", "songfiles"))
+    if ($drift.Count -ne 1 -or $drift[0] -notmatch "attachments") {
+        $selfTestFailures.Add("Expected attachments Blob drift to be detected.")
+    }
+    $missing = @(Get-PrivateBlobContainerAccessFailures -Containers @() -RequiredNames @("attachments"))
+    if ($missing.Count -ne 1 -or $missing[0] -notmatch "missing") {
+        $selfTestFailures.Add("Expected a missing attachments container to fail.")
+    }
+
+    if ($selfTestFailures.Count -gt 0) {
+        $selfTestFailures | ForEach-Object { Write-Error $_ }
+        exit 1
+    }
+
+    Write-Output "Test-OpenTofuPostApplySmoke self-test passed."
+    exit 0
+}
+
+if (-not $PrivateContainersOnly) {
 Write-Host "== General route suite (Smoke-LiveSite.ps1) =="
 & (Join-Path $PSScriptRoot "Smoke-LiveSite.ps1") -BaseUrl $BaseUrl
 
@@ -155,6 +289,22 @@ else {
 }
 
 Write-Host ""
+Write-Host "== cdn2 attachments must stay blocked (404) =="
+$attachmentsUrl = "https://cdn2.queenzone.org/attachments/probe-object-does-not-need-to-exist"
+$probe = Invoke-StatusProbe -Uri $attachmentsUrl
+if ($probe.Error) {
+    Write-Host "FAIL  $attachmentsUrl -> $($probe.Error)"
+    $failed++
+}
+elseif ($probe.StatusCode -eq 404) {
+    Write-Host "OK    $attachmentsUrl -> HTTP 404 (blocked, as expected)"
+}
+else {
+    Write-Host "FAIL  $attachmentsUrl -> HTTP $($probe.StatusCode) (expected 404)"
+    $failed++
+}
+
+Write-Host ""
 Write-Host "== cdn must still be proxied by Cloudflare =="
 $cdnUrl = "https://cdn.queenzone.org/"
 $probe = Invoke-StatusProbe -Uri $cdnUrl
@@ -200,9 +350,54 @@ catch {
     Write-Host "INFO  Skipping Application Insights check: $($_.Exception.Message) (non-blocking)."
     $global:LASTEXITCODE = 0
 }
+}
+
+Write-Host ""
+Write-Host "== Required-private containers must stay None ($StorageAccountName) =="
+try {
+    $az = Get-Command az -ErrorAction Stop
+    $accountJson = & $az.Source storage account show `
+        --name $StorageAccountName `
+        --resource-group $ResourceGroup `
+        --output json
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$accountJson)) {
+        throw "az storage account show failed for $StorageAccountName in $ResourceGroup."
+    }
+    $account = $accountJson | ConvertFrom-Json
+    $containersUrl = "$($account.id)/blobServices/default/containers?api-version=2023-05-01"
+    $listJson = & $az.Source rest --method get --url $containersUrl --output json
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$listJson)) {
+        throw "az rest failed listing containers for $StorageAccountName."
+    }
+    $list = $listJson | ConvertFrom-Json
+    $live = @($list.value | ForEach-Object {
+            [pscustomobject]@{
+                name         = $_.name
+                publicAccess = $_.properties.publicAccess
+            }
+        })
+    $requiredNames = @(Get-RequiredPrivateBlobContainerNames -AccountName $StorageAccountName)
+    $accessFailures = @(Get-PrivateBlobContainerAccessFailures -Containers $live -RequiredNames $requiredNames)
+    if ($accessFailures.Count -eq 0) {
+        $checked = @($live | Where-Object { $requiredNames -contains $_.name } | ForEach-Object { $_.name })
+        Write-Host "OK    $($checked -join ', ') publicAccess is None"
+    }
+    else {
+        foreach ($accessFailure in $accessFailures) {
+            Write-Host "FAIL  $accessFailure"
+            $failed++
+        }
+    }
+    $global:LASTEXITCODE = 0
+}
+catch {
+    Write-Host "FAIL  private-container check: $($_.Exception.Message)"
+    $failed++
+    $global:LASTEXITCODE = 0
+}
 
 if ($failed -gt 0) {
-    throw "OpenTofu post-apply smoke failed: $failed check(s) against $BaseUrl / $DirectOriginUrl."
+    throw "OpenTofu post-apply smoke failed: $failed check(s) against $BaseUrl / $DirectOriginUrl / $StorageAccountName."
 }
 
 Write-Host ""

@@ -98,8 +98,7 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
         int pageSize = 10,
         CancellationToken ct = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -109,8 +108,8 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
                 .ToList();
 
             var items = owned
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(a =>
                 {
                     a.Author = resolveMember?.Invoke(a.AuthorMemberId);
@@ -124,8 +123,7 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
 
     public Task<IReadOnlyList<ArticleSubmissionListItem>> GetPendingAsync(int page, int pageSize, CancellationToken ct = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -134,8 +132,8 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
                     or ArticleSubmissionStatus.UnderReview
                     or ArticleSubmissionStatus.ApprovedForPublishing)
                 .OrderByDescending(a => a.SubmittedAt ?? DateTimeOffset.MinValue)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(a => new ArticleSubmissionListItem(
                     a.Id,
                     a.Title,
@@ -248,31 +246,17 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
         DateTimeOffset utcNow,
         CancellationToken ct = default)
     {
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-        var monthAgo = utcNow.AddDays(-30);
-
         lock (sync)
         {
-            var pending = submissions.Count(a =>
-                a.Status is ArticleSubmissionStatus.Submitted
-                    or ArticleSubmissionStatus.UnderReview
-                    or ArticleSubmissionStatus.ApprovedForPublishing);
-
-            var submitted = submissions.Where(a => a.SubmittedAt.HasValue).ToList();
-            var receivedToday = submitted.Count(a => a.SubmittedAt!.Value.UtcDateTime.Date >= today);
-            var receivedThisWeek = submitted.Count(a => a.SubmittedAt!.Value.UtcDateTime.Date >= weekAgo);
-
-            var last30 = submitted.Where(a => a.SubmittedAt!.Value >= monthAgo).ToList();
-            var approvedLast30 = last30.Count(a =>
-                a.Status is ArticleSubmissionStatus.Published or ArticleSubmissionStatus.ApprovedForPublishing);
-            var rejectedLast30 = last30.Count(a =>
-                a.Status is ArticleSubmissionStatus.Rejected or ArticleSubmissionStatus.RequiresRevision);
-            var pendingLast30 = last30.Count(a =>
-                a.Status is ArticleSubmissionStatus.Submitted or ArticleSubmissionStatus.UnderReview);
-
-            return Task.FromResult(new SubmissionTypeCounts(
-                pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30));
+            var rows = submissions.Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status is ArticleSubmissionStatus.Submitted or ArticleSubmissionStatus.UnderReview or ArticleSubmissionStatus.ApprovedForPublishing,
+                IsApproved = row.Status is ArticleSubmissionStatus.Published or ArticleSubmissionStatus.ApprovedForPublishing,
+                IsRejected = row.Status is ArticleSubmissionStatus.Rejected or ArticleSubmissionStatus.RequiresRevision,
+                IsStillPending = row.Status is ArticleSubmissionStatus.Submitted or ArticleSubmissionStatus.UnderReview,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.CountRows(rows, utcNow));
         }
     }
 
@@ -283,19 +267,12 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
     {
         lock (sync)
         {
-            IReadOnlyList<SubmissionContributor> result = submissions
-                .Where(a => a.SubmittedAt.HasValue && a.SubmittedAt!.Value >= monthStart)
-                .GroupBy(a => a.AuthorMemberId)
-                .Select(g =>
-                {
-                    var member = resolveMember?.Invoke(g.Key);
-                    return new SubmissionContributor(g.Key, member?.DisplayName ?? "Unknown member", g.Count());
-                })
-                .OrderByDescending(c => c.Count)
-                .Take(maxCount)
-                .ToList();
-
-            return Task.FromResult(result);
+            var rows = submissions.Select(row => new SubmissionContributorRow
+            {
+                MemberId = row.AuthorMemberId,
+                SubmittedAt = row.SubmittedAt,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.TopContributors(rows, monthStart, maxCount, id => resolveMember?.Invoke(id)?.DisplayName));
         }
     }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
 import type { ApiPagedResponse } from '../api/types';
+import { waitForMinimumRefreshVisibility } from './refreshVisibility';
 
 export type PagedFetchMode = 'load' | 'refresh' | 'more';
 
@@ -120,13 +121,14 @@ export function usePagedContent<T>(
   const refreshingRef = useRef(false);
   const loadingMoreRef = useRef(false);
 
-  const applyPageMeta = (response: ApiPagedResponse<T>) => {
+  // Refs and state setters only, so its identity is stable and the effect/callbacks below can list it.
+  const applyPageMeta = useCallback((response: ApiPagedResponse<T>) => {
     pageRef.current = response.page;
     totalPagesRef.current = response.totalPages;
     setPage(response.page);
     setTotalPages(response.totalPages);
     setTotalCount(response.totalCount);
-  };
+  }, []);
 
   useEffect(() => {
     const { generation, signal } = coordinator.begin();
@@ -166,42 +168,53 @@ export function usePagedContent<T>(
       });
 
     return () => coordinator.invalidate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- generation-guard omit: applyPageMeta is a local helper; listing it would retrigger the load effect.
-  }, [coordinator, reloadToken, pageSize, resetKey]);
+  }, [applyPageMeta, coordinator, reloadToken, pageSize, resetKey]);
 
   const refresh = useCallback(() => {
     const { generation, signal } = coordinator.begin();
+    const startedAt = Date.now();
     refreshingRef.current = true;
     loadingMoreRef.current = false;
     setRefreshing(true);
     setLoadingMore(false);
     setError(null);
+
+    const finishRefresh = (apply: () => void) => {
+      apply();
+      void waitForMinimumRefreshVisibility(startedAt, signal).then(() => {
+        if (!coordinator.isCurrent(generation) || signal.aborted) {
+          return;
+        }
+        refreshingRef.current = false;
+        setRefreshing(false);
+      });
+    };
+
     fetcherRef
       .current(1, signal, 'refresh')
       .then((response) => {
         if (!coordinator.isCurrent(generation) || signal.aborted) {
           return;
         }
-        setItems(response.items);
-        applyPageMeta(response);
-        loadingRef.current = false;
-        refreshingRef.current = false;
-        setLoading(false);
-        setRefreshing(false);
+        finishRefresh(() => {
+          setItems(response.items);
+          applyPageMeta(response);
+          loadingRef.current = false;
+          setLoading(false);
+        });
       })
       .catch((err: unknown) => {
         if (!coordinator.isCurrent(generation) || signal.aborted || isAbortError(err)) {
           return;
         }
-        const message = err instanceof ApiError ? err.message : 'Something went wrong.';
-        setError(message);
-        loadingRef.current = false;
-        refreshingRef.current = false;
-        setLoading(false);
-        setRefreshing(false);
+        finishRefresh(() => {
+          const message = err instanceof ApiError ? err.message : 'Something went wrong.';
+          setError(message);
+          loadingRef.current = false;
+          setLoading(false);
+        });
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- generation-guard omit: applyPageMeta is a local helper; listing it would recreate refresh each render.
-  }, [coordinator]);
+  }, [applyPageMeta, coordinator]);
 
   const loadMore = useCallback(() => {
     if (loadingRef.current || refreshingRef.current || loadingMoreRef.current) {
@@ -232,8 +245,7 @@ export function usePagedContent<T>(
         loadingMoreRef.current = false;
         setLoadingMore(false);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- generation-guard omit: applyPageMeta is a local helper; listing it would recreate loadMore each render.
-  }, [coordinator]);
+  }, [applyPageMeta, coordinator]);
 
   return {
     items,

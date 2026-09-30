@@ -1,22 +1,24 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumWriteRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory lockedFactory;
 
-    public ForumWriteRoutesTests(WebApplicationFactory<Program> factory)
+    public ForumWriteRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
+        lockedFactory = variants.Get(WebHostVariants.TestingLockedForumTopic1002);
     }
 
     [Fact]
@@ -41,6 +43,39 @@ public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<
         Assert.Contains("validation-summary-valid", page);
         Assert.Contains(".validation-summary-valid", css);
         Assert.Matches(@"\.validation-summary-valid\s*\{\s*display:\s*none;\s*\}", css);
+    }
+
+    [Fact]
+    public async Task NewThreadGet_UsesSharedFormFieldClasses()
+    {
+        var client = CreateMemberClient(factory, Guid.NewGuid());
+
+        var page = await client.GetStringAsync("/forum/c/the-music/new-thread");
+        var css = await client.GetStringAsync("/css/site.css");
+
+        Assert.DoesNotContain("qz-form__field", page);
+        Assert.DoesNotContain(".qz-form__field", css);
+        Assert.Contains("qz-field qz-field--spaced", page);
+        Assert.Contains("class=\"qz-label\"", page);
+        Assert.Contains("class=\"qz-input\"", page);
+        Assert.Contains("qz-error qz-error--text", page);
+    }
+
+    [Fact]
+    public async Task NewThreadGet_LabelsEachPollOptionAndTheOptionsGroup()
+    {
+        var client = CreateMemberClient(factory, Guid.NewGuid());
+
+        var page = await client.GetStringAsync("/forum/c/the-music/new-thread");
+
+        Assert.Contains("id=\"poll-options-label\"", page);
+        Assert.Contains("role=\"group\"", page);
+        Assert.Contains("aria-labelledby=\"poll-options-label\"", page);
+        Assert.Contains("id=\"Poll_Option_0\"", page);
+        Assert.Contains("aria-label=\"Option 1\"", page);
+        Assert.Contains("id=\"Poll_Option_1\"", page);
+        Assert.Contains("aria-label=\"Option 2\"", page);
+        Assert.DoesNotContain("<label class=\"qz-label\">Options</label>", page);
     }
 
     [Fact]
@@ -255,15 +290,6 @@ public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<
     [Fact]
     public async Task LockedTopicPost_ReturnsForbidden()
     {
-        var lockedFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IForumWriteRepository>();
-                services.AddSingleton<IForumWriteRepository>(new LockedForumWriteRepository());
-            });
-        });
         var client = CreateMemberClient(lockedFactory, Guid.NewGuid());
         var page = await client.GetStringAsync("/forum/topic/1002/ranking-every-studio-album");
         var token = ExtractAntiforgeryToken(page);
@@ -316,55 +342,5 @@ public sealed class ForumWriteRoutesTests : IClassFixture<WebApplicationFactory<
         var value = Regex.Match(input.Value, "value=\"(?<token>[^\"]+)\"", RegexOptions.IgnoreCase);
         Assert.True(value.Success, "Antiforgery token value was not found in the form.");
         return value.Groups["token"].Value;
-    }
-
-    private sealed class LockedForumWriteRepository : IForumWriteRepository
-    {
-        public Task<ForumThreadCreateResult> CreateThreadAsync(NewForumThread thread, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ForumThreadCreateResult(200_001, 2_000_001));
-
-        public Task<int> CreatePostAsync(NewForumPost post, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("Locked.");
-
-        public Task<ForumEditablePost?> GetPostAsync(int postId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ForumEditablePost?>(null);
-
-        public Task<ForumPostUpdateResult> UpdatePostAsync(
-            int postId,
-            Guid editorMemberId,
-            string sanitisedBody,
-            bool isAdmin,
-            int editWindowMinutes,
-            DateTimeOffset? expectedUpdatedAt = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ForumPostUpdateResult(ForumPostUpdateStatus.Forbidden));
-
-        public Task<ForumWriteThread?> GetThreadAsync(int topicId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ForumWriteThread?>(new ForumWriteThread(
-                topicId,
-                1,
-                "Ranking every studio album",
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                1,
-                IsLocked: true));
-
-        public Task<int> CountPostsByMemberSinceAsync(Guid memberId, DateTimeOffset since, CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task<int> CountApprovedPostsByMemberAsync(Guid memberId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task HideAuthorForumContentAsync(Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task UnhideAuthorForumContentAsync(Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
-
-        public Task<int> EnsureCategoryAsync(
-            string slug,
-            string name,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(1);
     }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, type LayoutChangeEvent, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, type LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   cancelAnimation,
@@ -28,7 +28,18 @@ import {
   photoZoomMinScale,
   photoZoomSpringConfig,
 } from './photoZoomMeta';
+import { testIds } from '../../test/testIds';
+import { fonts, radius, space, type, useTheme } from '../../theme';
 import { ArchiveImage } from '../../ui/ArchiveImage';
+import { LoadingBlock } from '../../ui/ScreenStates';
+
+/** Delay before the spinner so a cached hit does not flicker (AC4). */
+export const photoImageLoadOverlayDelayMs = 150;
+
+export const photoImageLoadErrorMessage = 'This photograph could not be loaded.';
+
+type LoadStatus = 'loading' | 'loaded' | 'error';
+type LoadState = { uri: string; attempt: number; status: LoadStatus };
 
 type Props = {
   source: { uri: string };
@@ -42,6 +53,10 @@ type Props = {
   canSwipeNext: boolean;
   onGallerySwipe: (direction: PhotoSwipeDirection) => void;
   onToggleChrome: () => void;
+  /** True while the screen is still showing the previous picture's metadata. */
+  pending?: boolean;
+  /** Fires only for the current uri after a successful load. */
+  onLoaded?: (uri: string) => void;
 };
 
 export function ZoomableArchiveImage({
@@ -55,7 +70,10 @@ export function ZoomableArchiveImage({
   canSwipeNext,
   onGallerySwipe,
   onToggleChrome,
+  pending = false,
+  onLoaded,
 }: Props) {
+  const { c } = useTheme();
   const scale = useSharedValue(photoZoomMinScale);
   const savedScale = useSharedValue(photoZoomMinScale);
   const translateX = useSharedValue(0);
@@ -70,6 +88,12 @@ export function ZoomableArchiveImage({
   const imageWidthValue = useSharedValue(imageWidth);
   const imageHeightValue = useSharedValue(imageHeight);
   const [zoomed, setZoomed] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>({
+    uri: source.uri,
+    attempt: 0,
+    status: 'loading',
+  });
+  const [spinnerVisible, setSpinnerVisible] = useState(false);
 
   const canSwipePreviousRef = useRef(canSwipePrevious);
   const canSwipeNextRef = useRef(canSwipeNext);
@@ -81,20 +105,20 @@ export function ZoomableArchiveImage({
   onToggleChromeRef.current = onToggleChrome;
 
   useEffect(() => {
-    imageWidthValue.value = imageWidth;
-    imageHeightValue.value = imageHeight;
+    imageWidthValue.set(imageWidth);
+    imageHeightValue.set(imageHeight);
   }, [imageHeight, imageHeightValue, imageWidth, imageWidthValue]);
 
   useEffect(() => {
     cancelAnimation(scale);
     cancelAnimation(translateX);
     cancelAnimation(translateY);
-    scale.value = photoZoomMinScale;
-    savedScale.value = photoZoomMinScale;
-    translateX.value = 0;
-    translateY.value = 0;
-    savedTranslateX.value = 0;
-    savedTranslateY.value = 0;
+    scale.set(photoZoomMinScale);
+    savedScale.set(photoZoomMinScale);
+    translateX.set(0);
+    translateY.set(0);
+    savedTranslateX.set(0);
+    savedTranslateY.set(0);
     setZoomed(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Reanimated shared values are refs, not render deps.
   }, [resetKey]);
@@ -125,21 +149,73 @@ export function ZoomableArchiveImage({
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      containerWidth.value = event.nativeEvent.layout.width;
-      containerHeight.value = event.nativeEvent.layout.height;
+      containerWidth.set(event.nativeEvent.layout.width);
+      containerHeight.set(event.nativeEvent.layout.height);
     },
     [containerHeight, containerWidth],
   );
 
+  const attempt = loadState.uri === source.uri ? loadState.attempt : 0;
+  const imageStatus: LoadStatus =
+    loadState.uri === source.uri ? loadState.status : 'loading';
+  const waiting = pending || imageStatus === 'loading';
+  const showError = !pending && imageStatus === 'error';
+
+  useEffect(() => {
+    if (!waiting) {
+      setSpinnerVisible(false);
+      return;
+    }
+
+    setSpinnerVisible(false);
+    const timer = setTimeout(() => {
+      setSpinnerVisible(true);
+    }, photoImageLoadOverlayDelayMs);
+    return () => clearTimeout(timer);
+  }, [attempt, source.uri, waiting]);
+
+  const currentUriRef = useRef(source.uri);
+  const currentAttemptRef = useRef(attempt);
+  const onLoadedRef = useRef(onLoaded);
+  currentUriRef.current = source.uri;
+  currentAttemptRef.current = attempt;
+  onLoadedRef.current = onLoaded;
+
+  const applyLoadStatus = useCallback((uri: string, nextAttempt: number, status: LoadStatus) => {
+    if (uri !== currentUriRef.current || nextAttempt !== currentAttemptRef.current) {
+      return;
+    }
+    setLoadState({ uri, attempt: nextAttempt, status });
+  }, []);
+
+  const handleLoadStart = useCallback(() => {
+    applyLoadStatus(source.uri, attempt, 'loading');
+  }, [applyLoadStatus, attempt, source.uri]);
+
+  const handleLoad = useCallback(() => {
+    applyLoadStatus(source.uri, attempt, 'loaded');
+    if (source.uri === currentUriRef.current && attempt === currentAttemptRef.current) {
+      onLoadedRef.current?.(source.uri);
+    }
+  }, [applyLoadStatus, attempt, source.uri]);
+
+  const handleError = useCallback(() => {
+    applyLoadStatus(source.uri, attempt, 'error');
+  }, [applyLoadStatus, attempt, source.uri]);
+
+  const handleRetry = useCallback(() => {
+    setLoadState({ uri: source.uri, attempt: attempt + 1, status: 'loading' });
+  }, [attempt, source.uri]);
+
   const composedGesture = useMemo(() => {
     const resetZoomAnimated = (announce: boolean) => {
       'worklet';
-      scale.value = withSpring(photoZoomMinScale, photoZoomSpringConfig);
-      savedScale.value = photoZoomMinScale;
-      translateX.value = withSpring(0, photoZoomSpringConfig);
-      translateY.value = withSpring(0, photoZoomSpringConfig);
-      savedTranslateX.value = 0;
-      savedTranslateY.value = 0;
+      scale.set(withSpring(photoZoomMinScale, photoZoomSpringConfig));
+      savedScale.set(photoZoomMinScale);
+      translateX.set(withSpring(0, photoZoomSpringConfig));
+      translateY.set(withSpring(0, photoZoomSpringConfig));
+      savedTranslateX.set(0);
+      savedTranslateY.set(0);
       if (announce) {
         runOnJS(announceAndTrackZoom)(photoZoomMinScale);
       }
@@ -170,17 +246,17 @@ export function ZoomableArchiveImage({
         containerSize(),
         imageSize(),
       );
-      translateX.value = clamped.x;
-      translateY.value = clamped.y;
+      translateX.set(clamped.x);
+      translateY.set(clamped.y);
     };
 
     // Pinch stays on the JS thread: same Reanimated 4 iOS worklet abort class
     // as gallery swipe. Shared-value writes from these JS handlers are allowed.
     const pinchGesture = runPhotoZoomOnJS(Gesture.Pinch())
       .onBegin(() => {
-        pinchStartScale.value = scale.value;
-        pinchStartTranslateX.value = translateX.value;
-        pinchStartTranslateY.value = translateY.value;
+        pinchStartScale.set(scale.value);
+        pinchStartTranslateX.set(translateX.value);
+        pinchStartTranslateY.set(translateY.value);
       })
       .onUpdate((event) => {
         const newScale = clampPhotoZoomScale(pinchStartScale.value * event.scale);
@@ -193,7 +269,7 @@ export function ZoomableArchiveImage({
           event.focalY,
           containerSize(),
         );
-        scale.value = newScale;
+        scale.set(newScale);
         applyPan(focal.x, focal.y, newScale);
       })
       .onEnd(() => {
@@ -202,9 +278,9 @@ export function ZoomableArchiveImage({
           return;
         }
 
-        savedScale.value = scale.value;
-        savedTranslateX.value = translateX.value;
-        savedTranslateY.value = translateY.value;
+        savedScale.set(scale.value);
+        savedTranslateX.set(translateX.value);
+        savedTranslateY.set(translateY.value);
         runOnJS(announceAndTrackZoom)(scale.value);
       });
 
@@ -239,8 +315,8 @@ export function ZoomableArchiveImage({
         );
       })
       .onEnd(() => {
-        savedTranslateX.value = translateX.value;
-        savedTranslateY.value = translateY.value;
+        savedTranslateX.set(translateX.value);
+        savedTranslateY.set(translateY.value);
       });
 
     const doubleTapGesture = runPhotoZoomOnJS(
@@ -268,12 +344,12 @@ export function ZoomableArchiveImage({
         containerSize(),
         imageSize(),
       );
-      scale.value = withSpring(newScale, photoZoomSpringConfig);
-      savedScale.value = newScale;
-      translateX.value = withSpring(clamped.x, photoZoomSpringConfig);
-      translateY.value = withSpring(clamped.y, photoZoomSpringConfig);
-      savedTranslateX.value = clamped.x;
-      savedTranslateY.value = clamped.y;
+      scale.set(withSpring(newScale, photoZoomSpringConfig));
+      savedScale.set(newScale);
+      translateX.set(withSpring(clamped.x, photoZoomSpringConfig));
+      translateY.set(withSpring(clamped.y, photoZoomSpringConfig));
+      savedTranslateX.set(clamped.x);
+      savedTranslateY.set(clamped.y);
       runOnJS(announceAndTrackZoom)(newScale);
     });
 
@@ -306,34 +382,101 @@ export function ZoomableArchiveImage({
     ],
   }));
 
+  const showOverlay = showError || (spinnerVisible && waiting);
+
   return (
-    <GestureDetector gesture={composedGesture}>
-      <View
-        style={styles.container}
-        collapsable={false}
-        onLayout={onLayout}
-        accessibilityHint="Pinch or double tap to zoom. Swipe left or right to change photograph."
-      >
-        <Animated.View style={[styles.imageWrap, animatedStyle]}>
-          <ArchiveImage
-            source={source}
-            label={label}
-            contentFit="contain"
-            recyclingKey={recyclingKey}
-            priority="high"
-            style={styles.image}
-          />
-        </Animated.View>
-      </View>
-    </GestureDetector>
+    <View style={styles.frame}>
+      <GestureDetector gesture={composedGesture}>
+        <View
+          style={styles.container}
+          collapsable={false}
+          onLayout={onLayout}
+          accessibilityHint="Pinch or double tap to zoom. Swipe left or right to change photograph."
+        >
+          <Animated.View style={[styles.imageWrap, animatedStyle]}>
+            <ArchiveImage
+              key={`${source.uri}#${attempt}`}
+              source={source}
+              label={label}
+              contentFit="contain"
+              recyclingKey={recyclingKey}
+              priority="high"
+              style={styles.image}
+              onLoadStart={handleLoadStart}
+              onLoad={handleLoad}
+              onError={handleError}
+            />
+          </Animated.View>
+        </View>
+      </GestureDetector>
+      {showOverlay ? (
+        <View
+          testID={testIds.photoViewerImageOverlay}
+          pointerEvents={showError ? 'box-none' : 'none'}
+          style={[StyleSheet.absoluteFill, styles.overlay]}
+        >
+          {showError ? (
+            <>
+              <View pointerEvents="none" style={styles.errorCopy}>
+                <Text style={[type.cardTitle, { color: c.textPrimary, textAlign: 'center' }]}>
+                  Unable to load
+                </Text>
+                <Text
+                  style={[type.body, { color: c.textSecondary, textAlign: 'center', marginTop: space.sm }]}
+                >
+                  {photoImageLoadErrorMessage}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Tap to retry"
+                testID={testIds.photoViewerImageRetry}
+                onPress={handleRetry}
+                style={({ pressed }) => [
+                  styles.retry,
+                  { borderColor: c.border, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={[type.button, { color: c.accentPrimary, fontFamily: fonts.bodyMedium }]}>
+                  Tap to retry
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <LoadingBlock label="Loading photograph…" />
+          )}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  frame: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     width: '100%',
     overflow: 'hidden',
+  },
+  overlay: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorCopy: {
+    alignItems: 'center',
+    paddingHorizontal: space.xl,
+  },
+  retry: {
+    marginTop: space.base,
+    minHeight: 44,
+    minWidth: 44,
+    paddingHorizontal: space.base,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: radius.xs,
   },
   imageWrap: {
     flex: 1,

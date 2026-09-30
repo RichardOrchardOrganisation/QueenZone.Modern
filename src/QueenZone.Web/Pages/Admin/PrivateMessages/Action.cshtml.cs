@@ -3,7 +3,7 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Admin.PrivateMessages;
 
-public sealed class ActionModel(IPrivateMessageRepository privateMessageRepository) : AdminPrivateMessageReportsPageModel
+public sealed class ActionModel(IPrivateMessageModerationRepository privateMessageRepository) : AdminPrivateMessageReportsPageModel
 {
     [BindProperty]
     public string? Status { get; set; }

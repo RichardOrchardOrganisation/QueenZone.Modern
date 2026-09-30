@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using System.Data;
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using QueenZone.Data.Entities;
@@ -196,11 +195,11 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             row.BodyHtml,
             row.AuthorMemberId,
             row.AuthorDisplayName,
-            ToOffset(row.PostedAt),
-            row.EditedAt.HasValue ? ToOffset(row.EditedAt) : null,
+            LegacyDateTime.ToOffset(row.PostedAt),
+            row.EditedAt.HasValue ? LegacyDateTime.ToOffset(row.EditedAt) : null,
             row.EditCount,
             Math.Max(1, position),
-            ToOffset(row.UpdatedAt));
+            LegacyDateTime.ToOffset(row.UpdatedAt));
     }
 
     public async Task<ForumPostUpdateResult> UpdatePostAsync(
@@ -220,7 +219,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             return new ForumPostUpdateResult(ForumPostUpdateStatus.NotFound);
         }
 
-        var postedAt = ToOffset(post.PostedAt);
+        var postedAt = LegacyDateTime.ToOffset(post.PostedAt);
         var canEdit = ForumPostEditRules.CanEdit(
             post.AuthorMemberId,
             editorMemberId,
@@ -250,7 +249,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
         }
 
         if (expectedUpdatedAt is DateTimeOffset expected
-            && ToOffset(post.UpdatedAt) != expected)
+            && LegacyDateTime.ToOffset(post.UpdatedAt) != expected)
         {
             return new ForumPostUpdateResult(
                 ForumPostUpdateStatus.ConcurrencyConflict,
@@ -523,7 +522,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             .Select(member => member.DisplayName)
             .SingleOrDefaultAsync(cancellationToken);
 
-    [ExcludeFromCodeCoverage(Justification = "SQL Server read-stat maintenance is covered by manual/production smoke checks; SQLite tests exercise the write flow.")]
     private async Task ApplyCreateThreadStatsAsync(
         long threadId,
         int legacyTopicId,
@@ -565,7 +563,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             """, cancellationToken);
     }
 
-    [ExcludeFromCodeCoverage(Justification = "SQL Server read-stat maintenance is covered by manual/production smoke checks; SQLite tests exercise the write flow.")]
     private async Task ApplyCreatePostStatsAsync(
         long threadId,
         int legacyTopicId,
@@ -594,7 +591,8 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
                         CONVERT(int, COUNT_BIG(*)),
                         {updatedAt}
                     FROM dbo.ModernForumPost
-                    WHERE ThreadId = {threadId};
+                    WHERE ThreadId = {threadId}
+                      AND IsHidden = 0;
                 END;
             END;
             """, cancellationToken);
@@ -605,11 +603,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
 
     private static DateTime ToUtcDateTime(DateTimeOffset value) =>
         value.UtcDateTime;
-
-    private static DateTimeOffset ToOffset(DateTime? value) =>
-        value.HasValue
-            ? new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc))
-            : DateTimeOffset.MinValue;
 
     public async Task<int> EnsureCategoryAsync(
         string slug,
@@ -624,7 +617,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
 
         var now = DateTime.UtcNow;
         var categories = await dbContext.ModernForumCategories
-            .Where(category => !category.IsSynthetic)
             .ToListAsync(cancellationToken);
         var nextLegacyId = categories.Select(category => category.LegacyForumId).DefaultIfEmpty(0).Max() + 1;
         if (nextLegacyId < 2)

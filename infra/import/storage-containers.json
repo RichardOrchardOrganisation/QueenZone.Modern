@@ -7,7 +7,7 @@
   "customDomain": "cdn.queenzone.org",
   "containers": [
     { "name": "album-or-single-covers", "publicAccess": "blob", "opentofuTreatment": "import" },
-    { "name": "attachments", "publicAccess": "blob", "opentofuTreatment": "import", "notes": "Public ACL; app auth is not ACL. Relates to #177" },
+    { "name": "attachments", "publicAccess": "blob", "desiredPublicAccess": null, "opentofuTreatment": "import", "notes": "Live ACL recorded here is still public blob. OpenTofu desired state is None (#1656). App streams via /forum/attachment/legacy/{postId}; do not redirect to cdn2. Live ACL changes only on a reviewed apply." },
     { "name": "avatars", "publicAccess": "blob", "opentofuTreatment": "import" },
     { "name": "brian-may", "publicAccess": "blob", "opentofuTreatment": "import" },
     { "name": "css", "publicAccess": "container", "opentofuTreatment": "import" },
@@ -37,5 +37,5 @@
     { "name": "us-convention-2001", "publicAccess": "blob", "opentofuTreatment": "import" }
   ],
   "documentedButMissing": [],
-  "relatedIssues": [177, 583, 584, 624, 1482]
+  "relatedIssues": [177, 583, 584, 624, 1482, 1656]
 }

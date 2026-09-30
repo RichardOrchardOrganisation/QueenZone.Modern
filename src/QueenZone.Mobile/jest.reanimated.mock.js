@@ -1,7 +1,16 @@
 const { View } = require('react-native');
 
 function useSharedValue(init) {
-  return { value: init };
+  const shared = {
+    value: init,
+    get() {
+      return shared.value;
+    },
+    set(next) {
+      shared.value = typeof next === 'function' ? next(shared.value) : next;
+    },
+  };
+  return shared;
 }
 
 function useAnimatedStyle(updater) {

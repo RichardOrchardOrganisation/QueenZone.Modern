@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
 
@@ -6,6 +7,41 @@ namespace QueenZone.Data;
 public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) : IArticleSubmissionRepository
 {
     public const int MinBodyVisibleChars = 300;
+
+    private static readonly NewestFirstOrder<ArticleSubmissionEntity> NewestFirst =
+        new(a => a.SubmittedAt ?? DateTimeOffset.MinValue, a => a.Id);
+
+    private static readonly Expression<Func<ArticleSubmissionEntity, ArticleSubmissionListItem>> ListItemProjection =
+        a => new ArticleSubmissionListItem(
+            a.Id,
+            a.Title,
+            a.Status,
+            a.Author != null ? a.Author.DisplayName : "Unknown member",
+            a.SubmittedAt,
+            a.PublishedAt,
+            a.WordCount);
+
+    private static readonly Expression<Func<ArticleSubmissionEntity, ArticleSubmission>> SubmissionProjection =
+        a => new ArticleSubmission(
+            a.Id,
+            a.AuthorMemberId,
+            a.Title,
+            a.Slug,
+            a.Excerpt,
+            a.Body,
+            a.CoverImageBlobPath,
+            a.Tags,
+            a.Status,
+            a.SubmittedAt,
+            a.PublishedAt,
+            a.ReviewerEmail,
+            a.ReviewNotes,
+            a.RejectionReason,
+            a.Author != null ? a.Author.DisplayName : null,
+            a.Author != null ? a.Author.Email : null);
+
+    // Map(entity) and the SQL projection must stay identical; compiling the projection keeps one copy.
+    private static readonly Func<ArticleSubmissionEntity, ArticleSubmission> MapEntity = SubmissionProjection.Compile();
 
     public async Task<ArticleSubmission> UpsertDraftAsync(ArticleSubmissionDraft draft, CancellationToken ct = default)
     {
@@ -27,10 +63,11 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
 
             entity.Title = Normalize(draft.Title, 300);
             entity.Slug = GenerateSlug(draft.Title);
-            entity.Excerpt = NormalizeOptional(draft.Excerpt, 500);
+            entity.Excerpt = SubmissionInput.NormalizeOptional(draft.Excerpt, 500);
             entity.Body = draft.Body ?? string.Empty;
-            entity.CoverImageBlobPath = NormalizeOptional(draft.CoverImageBlobPath, 512);
-            entity.Tags = NormalizeOptional(draft.Tags, 500);
+            entity.CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512);
+            entity.Tags = SubmissionInput.NormalizeOptional(draft.Tags, 500);
+            entity.WordCount = EstimateWordCount(entity.Body);
         }
         else
         {
@@ -40,10 +77,11 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 AuthorMemberId = draft.AuthorMemberId,
                 Title = Normalize(draft.Title, 300),
                 Slug = GenerateSlug(draft.Title),
-                Excerpt = NormalizeOptional(draft.Excerpt, 500),
+                Excerpt = SubmissionInput.NormalizeOptional(draft.Excerpt, 500),
                 Body = draft.Body ?? string.Empty,
-                CoverImageBlobPath = NormalizeOptional(draft.CoverImageBlobPath, 512),
-                Tags = NormalizeOptional(draft.Tags, 500),
+                CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512),
+                Tags = SubmissionInput.NormalizeOptional(draft.Tags, 500),
+                WordCount = EstimateWordCount(draft.Body),
                 Status = ArticleSubmissionStatus.Draft,
             };
             dbContext.ArticleSubmissions.Add(entity);
@@ -83,73 +121,15 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         return Map(entity);
     }
 
-    public async Task<SubmissionListPage<ArticleSubmission>> GetDraftsForMemberAsync(
+    public Task<SubmissionListPage<ArticleSubmission>> GetDraftsForMemberAsync(
         Guid memberId,
         int page = 1,
         int pageSize = 10,
         CancellationToken ct = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var query = dbContext.ArticleSubmissions
-            .AsNoTracking()
-            .Where(a => a.AuthorMemberId == memberId);
-
-        var totalCount = await query.CountAsync(ct);
-        var skip = (page - 1) * pageSize;
-
-        if (IsSqliteDatabase())
-        {
-            var sqliteRows = await query
-                .Select(a => new
-                {
-                    a.Id,
-                    a.AuthorMemberId,
-                    a.Title,
-                    a.Slug,
-                    a.Excerpt,
-                    a.Body,
-                    a.CoverImageBlobPath,
-                    a.Tags,
-                    a.Status,
-                    a.SubmittedAt,
-                    a.PublishedAt,
-                    a.ReviewerEmail,
-                    a.ReviewNotes,
-                    a.RejectionReason,
-                    DisplayName = a.Author != null ? a.Author.DisplayName : null,
-                    Email = a.Author != null ? a.Author.Email : null,
-                })
-                .ToListAsync(ct);
-            var sqliteItems = sqliteRows
-                .OrderByDescending(a => a.SubmittedAt ?? DateTimeOffset.MinValue)
-                .ThenBy(a => a.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(a => new ArticleSubmission(
-                    a.Id,
-                    a.AuthorMemberId,
-                    a.Title,
-                    a.Slug,
-                    a.Excerpt,
-                    a.Body,
-                    a.CoverImageBlobPath,
-                    a.Tags,
-                    a.Status,
-                    a.SubmittedAt,
-                    a.PublishedAt,
-                    a.ReviewerEmail,
-                    a.ReviewNotes,
-                    a.RejectionReason,
-                    a.DisplayName,
-                    a.Email))
-                .ToList();
-            return new SubmissionListPage<ArticleSubmission>(sqliteItems, totalCount);
-        }
-
-        var items = await MemberDraftsSqlQuery(skip, pageSize, memberId).ToListAsync(ct);
-        return new SubmissionListPage<ArticleSubmission>(items, totalCount);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return SubmittedBy(memberId).ToNewestFirstListPageAsync(
+            NewestFirst, SubmissionProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), ct);
     }
 
     public async Task<IReadOnlyList<ArticleSubmissionListItem>> GetPendingAsync(
@@ -157,49 +137,9 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         int pageSize,
         CancellationToken ct = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-
-        var skip = (page - 1) * pageSize;
-        var filtered = dbContext.ArticleSubmissions
-            .AsNoTracking()
-            .Where(a =>
-                a.Status == ArticleSubmissionStatus.Submitted
-                || a.Status == ArticleSubmissionStatus.UnderReview
-                || a.Status == ArticleSubmissionStatus.ApprovedForPublishing);
-
-        if (IsSqliteDatabase())
-        {
-            var sqliteRows = await filtered
-                .Select(a => new
-                {
-                    a.Id,
-                    a.Title,
-                    a.Status,
-                    a.SubmittedAt,
-                    a.PublishedAt,
-                    BodyLength = a.Body.Length,
-                    DisplayName = a.Author != null ? a.Author.DisplayName : string.Empty,
-                })
-                .ToListAsync(ct);
-
-            return sqliteRows
-                .OrderByDescending(a => a.SubmittedAt ?? DateTimeOffset.MinValue)
-                .ThenBy(a => a.Id)
-                .Skip(skip)
-                .Take(pageSize)
-                .Select(a => new ArticleSubmissionListItem(
-                    a.Id,
-                    a.Title,
-                    a.Status,
-                    string.IsNullOrWhiteSpace(a.DisplayName) ? "Unknown member" : a.DisplayName,
-                    a.SubmittedAt,
-                    a.PublishedAt,
-                    a.BodyLength / 5))
-                .ToList();
-        }
-
-        return await PendingQueueQuery(skip, pageSize).ToListAsync(ct);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        return await PendingQueue().ToNewestFirstPageAsync(
+            NewestFirst, ListItemProjection, skip, take, pageInSql: !dbContext.Database.IsSqliteProvider(), ct);
     }
 
     public async Task<ArticleSubmission?> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -232,12 +172,12 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         }
 
         entity.Status = status;
-        entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-        entity.ReviewNotes = NormalizeOptional(notes, 1000);
+        entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+        entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 1000);
 
         if (!string.IsNullOrWhiteSpace(rejectionReason))
         {
-            entity.RejectionReason = NormalizeOptional(rejectionReason, 1000);
+            entity.RejectionReason = SubmissionInput.NormalizeOptional(rejectionReason, 1000);
         }
 
         if (!string.IsNullOrWhiteSpace(slug))
@@ -247,17 +187,18 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
 
         if (excerpt is not null)
         {
-            entity.Excerpt = NormalizeOptional(excerpt, 500);
+            entity.Excerpt = SubmissionInput.NormalizeOptional(excerpt, 500);
         }
 
         if (tags is not null)
         {
-            entity.Tags = NormalizeOptional(tags, 500);
+            entity.Tags = SubmissionInput.NormalizeOptional(tags, 500);
         }
 
         if (status == ArticleSubmissionStatus.Published)
         {
             entity.PublishedAt = DateTimeOffset.UtcNow;
+            entity.WordCount = EstimateWordCount(entity.Body);
         }
 
         await dbContext.SaveChangesAsync(ct);
@@ -280,6 +221,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 a.Tags,
                 a.PublishedAt,
                 a.AuthorMemberId,
+                a.WordCount,
                 DisplayName = a.Author != null ? a.Author.DisplayName : string.Empty,
             })
             .ToListAsync(ct);
@@ -296,7 +238,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
                 a.Tags,
                 a.PublishedAt!.Value,
                 string.IsNullOrWhiteSpace(a.DisplayName) ? null : a.DisplayName,
-                EstimateWordCount(a.Body),
+                a.WordCount,
                 a.AuthorMemberId))
             .ToList();
     }
@@ -304,151 +246,36 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
     public Task<SubmissionTypeCounts> GetDashboardCountsAsync(
         DateTimeOffset utcNow,
         CancellationToken ct = default) =>
-        IsSqliteDatabase()
-            ? GetDashboardCountsInMemoryAsync(utcNow, ct)
-            : GetDashboardCountsViaSqlAggregateAsync(utcNow, ct);
-
-    // SQLite fallback (also exercised in tests): the provider cannot translate DateTimeOffset?
-    // comparisons inside conditional aggregates, so materialise then count in memory.
-    private async Task<SubmissionTypeCounts> GetDashboardCountsInMemoryAsync(
-        DateTimeOffset utcNow,
-        CancellationToken ct)
-    {
-        var monthAgo = utcNow.AddDays(-30);
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-
-        var rows = await dbContext.ArticleSubmissions
+        dbContext.ArticleSubmissions
             .AsNoTracking()
-            .Select(a => new { a.Status, a.SubmittedAt })
-            .ToListAsync(ct);
-
-        var pending = rows.Count(a =>
-            a.Status is ArticleSubmissionStatus.Submitted
-                or ArticleSubmissionStatus.UnderReview
-                or ArticleSubmissionStatus.ApprovedForPublishing);
-
-        var submitted = rows.Where(a => a.SubmittedAt.HasValue).ToList();
-        var receivedToday = submitted.Count(a => a.SubmittedAt!.Value.UtcDateTime.Date >= today);
-        var receivedThisWeek = submitted.Count(a => a.SubmittedAt!.Value.UtcDateTime.Date >= weekAgo);
-
-        var last30 = submitted.Where(a => a.SubmittedAt!.Value >= monthAgo).ToList();
-        var approvedLast30 = last30.Count(a =>
-            a.Status is ArticleSubmissionStatus.Published or ArticleSubmissionStatus.ApprovedForPublishing);
-        var rejectedLast30 = last30.Count(a =>
-            a.Status is ArticleSubmissionStatus.Rejected or ArticleSubmissionStatus.RequiresRevision);
-        var pendingLast30 = last30.Count(a =>
-            a.Status is ArticleSubmissionStatus.Submitted or ArticleSubmissionStatus.UnderReview);
-
-        return new SubmissionTypeCounts(
-            pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30);
-    }
-
-    // SQL Server only: the EF Core SQLite provider cannot translate DateTimeOffset? comparisons
-    // inside conditional aggregates, so this path has no coverage from the default SQLite-backed
-    // QueenZone.Web.Tests suite. Covered instead by tests/QueenZone.SqlServerTests against a
-    // real SQL Server (Docker in CI, LocalDB locally) — see docs/architecture/testing-policy.md.
-    private async Task<SubmissionTypeCounts> GetDashboardCountsViaSqlAggregateAsync(
-        DateTimeOffset utcNow,
-        CancellationToken ct)
-    {
-        var monthAgo = utcNow.AddDays(-30);
-        var todayUtc = new DateTimeOffset(utcNow.UtcDateTime.Date, TimeSpan.Zero);
-        var weekAgoUtc = todayUtc.AddDays(-6);
-
-        var counts = await dbContext.ArticleSubmissions
-            .AsNoTracking()
-            .GroupBy(_ => 1)
-            .Select(g => new SubmissionTypeCounts(
-                g.Count(a => a.Status == ArticleSubmissionStatus.Submitted
-                    || a.Status == ArticleSubmissionStatus.UnderReview
-                    || a.Status == ArticleSubmissionStatus.ApprovedForPublishing),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= todayUtc),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= weekAgoUtc),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthAgo
-                    && (a.Status == ArticleSubmissionStatus.Published
-                        || a.Status == ArticleSubmissionStatus.ApprovedForPublishing)),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthAgo
-                    && (a.Status == ArticleSubmissionStatus.Rejected
-                        || a.Status == ArticleSubmissionStatus.RequiresRevision)),
-                g.Count(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthAgo
-                    && (a.Status == ArticleSubmissionStatus.Submitted
-                        || a.Status == ArticleSubmissionStatus.UnderReview))))
-            .SingleOrDefaultAsync(ct);
-
-        return counts ?? SubmissionTypeCounts.Empty;
-    }
+            .Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == ArticleSubmissionStatus.Submitted
+                    || row.Status == ArticleSubmissionStatus.UnderReview
+                    || row.Status == ArticleSubmissionStatus.ApprovedForPublishing,
+                IsApproved = row.Status == ArticleSubmissionStatus.Published
+                    || row.Status == ArticleSubmissionStatus.ApprovedForPublishing,
+                IsRejected = row.Status == ArticleSubmissionStatus.Rejected
+                    || row.Status == ArticleSubmissionStatus.RequiresRevision,
+                IsStillPending = row.Status == ArticleSubmissionStatus.Submitted
+                    || row.Status == ArticleSubmissionStatus.UnderReview,
+            })
+            .ToDashboardCountsAsync(utcNow, aggregateInSql: !dbContext.Database.IsSqliteProvider(), ct);
 
     public Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsThisMonthAsync(
         DateTimeOffset monthStart,
         int maxCount,
         CancellationToken ct = default) =>
-        IsSqliteDatabase()
-            ? GetTopContributorsInMemoryAsync(monthStart, maxCount, ct)
-            : GetTopContributorsViaSqlAggregateAsync(monthStart, maxCount, ct);
-
-    // SQLite fallback (also exercised in tests): the provider cannot translate DateTimeOffset?
-    // comparisons.
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsInMemoryAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken ct)
-    {
-        var rows = await dbContext.ArticleSubmissions
+        dbContext.ArticleSubmissions
             .AsNoTracking()
-            .Select(a => new
+            .Select(row => new SubmissionContributorRow
             {
-                MemberId = a.AuthorMemberId,
-                DisplayName = a.Author != null ? a.Author.DisplayName : string.Empty,
-                a.SubmittedAt,
+                MemberId = row.AuthorMemberId,
+                DisplayName = row.Author != null ? row.Author.DisplayName : null,
+                SubmittedAt = row.SubmittedAt,
             })
-            .ToListAsync(ct);
-
-        return rows
-            .Where(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthStart)
-            .GroupBy(a => a.MemberId)
-            .Select(g => new SubmissionContributor(
-                g.Key,
-                g.FirstOrDefault(a => !string.IsNullOrWhiteSpace(a.DisplayName))?.DisplayName ?? "Unknown member",
-                g.Count()))
-            .OrderByDescending(c => c.Count)
-            .Take(maxCount)
-            .ToList();
-    }
-
-    // SQL Server only: see the note on GetDashboardCountsViaSqlAggregateAsync.
-    private async Task<IReadOnlyList<SubmissionContributor>> GetTopContributorsViaSqlAggregateAsync(
-        DateTimeOffset monthStart,
-        int maxCount,
-        CancellationToken ct)
-    {
-        var aggregated = await dbContext.ArticleSubmissions
-            .AsNoTracking()
-            .Where(a => a.SubmittedAt.HasValue && a.SubmittedAt.Value >= monthStart)
-            .GroupBy(a => a.AuthorMemberId)
-            .Select(g => new
-            {
-                MemberId = g.Key,
-                DisplayName = g.Max(a => a.Author != null ? a.Author.DisplayName : null),
-                Count = g.Count(),
-            })
-            .OrderByDescending(c => c.Count)
-            .Take(maxCount)
-            .ToListAsync(ct);
-
-        return aggregated
-            .Select(c => new SubmissionContributor(
-                c.MemberId,
-                string.IsNullOrWhiteSpace(c.DisplayName) ? "Unknown member" : c.DisplayName,
-                c.Count))
-            .ToList();
-    }
-
-    private bool IsSqliteDatabase() =>
-        string.Equals(
-            dbContext.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.Sqlite",
-            StringComparison.Ordinal);
+            .ToTopContributorsAsync(monthStart, maxCount, aggregateInSql: !dbContext.Database.IsSqliteProvider(), ct);
 
     internal static int CountVisibleChars(string? html)
     {
@@ -458,7 +285,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         }
 
         // Strip HTML tags; collapse whitespace; count remaining chars.
-        var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var stripped = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ", System.Text.RegularExpressions.RegexOptions.None, RegexDefaults.MatchTimeout);
         var decoded = System.Net.WebUtility.HtmlDecode(stripped);
         var collapsed = string.Join(" ", decoded.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return collapsed.Length;
@@ -467,7 +294,7 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
     internal static int EstimateWordCount(string? body) =>
         string.IsNullOrWhiteSpace(body)
             ? 0
-            : System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", " ")
+            : System.Text.RegularExpressions.Regex.Replace(body, "<[^>]+>", " ", System.Text.RegularExpressions.RegexOptions.None, RegexDefaults.MatchTimeout)
                 .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
     private static string GenerateSlug(string title)
@@ -487,79 +314,24 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
-    }
-
     internal IQueryable<ArticleSubmissionListItem> PendingQueueQuery(int skip, int take) =>
+        PendingQueue().NewestFirstPage(NewestFirst, ListItemProjection, skip, take);
+
+    private IQueryable<ArticleSubmissionEntity> PendingQueue() =>
         dbContext.ArticleSubmissions
             .AsNoTracking()
             .Where(a =>
                 a.Status == ArticleSubmissionStatus.Submitted
                 || a.Status == ArticleSubmissionStatus.UnderReview
-                || a.Status == ArticleSubmissionStatus.ApprovedForPublishing)
-            .OrderByDescending(a => a.SubmittedAt ?? DateTimeOffset.MinValue)
-            .ThenBy(a => a.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(a => new ArticleSubmissionListItem(
-                a.Id,
-                a.Title,
-                a.Status,
-                a.Author != null ? a.Author.DisplayName : "Unknown member",
-                a.SubmittedAt,
-                a.PublishedAt,
-                a.Body.Length / 5));
+                || a.Status == ArticleSubmissionStatus.ApprovedForPublishing);
 
     internal IQueryable<ArticleSubmission> MemberDraftsSqlQuery(int skip, int take, Guid memberId) =>
+        SubmittedBy(memberId).NewestFirstPage(NewestFirst, SubmissionProjection, skip, take);
+
+    private IQueryable<ArticleSubmissionEntity> SubmittedBy(Guid memberId) =>
         dbContext.ArticleSubmissions
             .AsNoTracking()
-            .Where(a => a.AuthorMemberId == memberId)
-            .OrderByDescending(a => a.SubmittedAt ?? DateTimeOffset.MinValue)
-            .ThenBy(a => a.Id)
-            .Skip(skip)
-            .Take(take)
-            .Select(a => new ArticleSubmission(
-                a.Id,
-                a.AuthorMemberId,
-                a.Title,
-                a.Slug,
-                a.Excerpt,
-                a.Body,
-                a.CoverImageBlobPath,
-                a.Tags,
-                a.Status,
-                a.SubmittedAt,
-                a.PublishedAt,
-                a.ReviewerEmail,
-                a.ReviewNotes,
-                a.RejectionReason,
-                a.Author != null ? a.Author.DisplayName : null,
-                a.Author != null ? a.Author.Email : null));
+            .Where(a => a.AuthorMemberId == memberId);
 
-    private static ArticleSubmission Map(ArticleSubmissionEntity entity) =>
-        new(
-            entity.Id,
-            entity.AuthorMemberId,
-            entity.Title,
-            entity.Slug,
-            entity.Excerpt,
-            entity.Body,
-            entity.CoverImageBlobPath,
-            entity.Tags,
-            entity.Status,
-            entity.SubmittedAt,
-            entity.PublishedAt,
-            entity.ReviewerEmail,
-            entity.ReviewNotes,
-            entity.RejectionReason,
-            entity.Author?.DisplayName,
-            entity.Author?.Email);
+    private static ArticleSubmission Map(ArticleSubmissionEntity entity) => MapEntity(entity);
 }

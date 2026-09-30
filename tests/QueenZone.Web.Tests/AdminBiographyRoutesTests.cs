@@ -1,20 +1,26 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class AdminBiographyRoutesTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory writes;
 
-    public AdminBiographyRoutesTests(QueenZoneWebApplicationFactory factory)
+    public AdminBiographyRoutesTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        writes = variants.Get(WebHostVariants.IsolatedAdminBiography);
     }
+
+    public Task InitializeAsync() => writes.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AnonymousUserCannotAccessAdminBiography()
@@ -54,8 +60,8 @@ public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task AuthorizedAdminCanCreateAndEditChapterWithRichText()
     {
-        var store = new SharedBiographyStore();
-        var client = CreateClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
 
         var createResponse = await AdminHttpTestHelpers.PostArticleAsync(
             client,
@@ -107,8 +113,8 @@ public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task ValidationFailuresAreReturnedForInvalidChapter()
     {
-        var store = new SharedBiographyStore();
-        var client = CreateClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
 
         var response = await AdminHttpTestHelpers.PostArticleAsync(
             client,
@@ -133,11 +139,11 @@ public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task EditValidationFailuresAreReturnedOnPost()
     {
-        var store = new SharedBiographyStore(
+        WriteStore.Seed(
         [
             new BiographyChapterItem(8, "1977", "Summary", "<p>Body</p>", 1, DateTime.UtcNow)
         ]);
-        var client = CreateClient(store);
+        var client = CreateWriteClient();
 
         var response = await AdminHttpTestHelpers.PostArticleAsync(
             client,
@@ -161,8 +167,8 @@ public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task EditMissingChapterReturnsNotFound()
     {
-        var store = new SharedBiographyStore();
-        var client = CreateClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
 
         var response = await client.GetAsync("/admin/biography/9999/edit");
 
@@ -172,8 +178,8 @@ public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task EditPostMissingChapterReturnsNotFound()
     {
-        var store = new SharedBiographyStore();
-        var client = CreateClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
 
         var response = await AdminHttpTestHelpers.PostArticleAsync(
             client,
@@ -193,8 +199,8 @@ public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplic
     [Fact]
     public async Task HtmlIsSanitizedOnSave()
     {
-        var store = new SharedBiographyStore();
-        var client = CreateClient(store);
+        var store = WriteStore;
+        var client = CreateWriteClient();
 
         var createResponse = await AdminHttpTestHelpers.PostArticleAsync(
             client,
@@ -215,17 +221,8 @@ public sealed class AdminBiographyRoutesTests : IClassFixture<QueenZoneWebApplic
         Assert.Contains("<p>Hello</p>", chapter.Body);
     }
 
-    private HttpClient CreateClient(SharedBiographyStore store)
-    {
-        var appFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<SharedBiographyStore>();
-                services.RemoveAll<IBiographyRepository>();
-                services.AddSingleton(store);
-                services.AddSingleton<IBiographyRepository>(_ => new InMemoryBiographyRepository(store));
-            }));
+    private SharedBiographyStore WriteStore => writes.AdminBiography!;
 
-        return AdminHttpTestHelpers.CreateClient(appFactory, AdminHttpTestHelpers.AdminEmail);
-    }
+    private HttpClient CreateWriteClient() =>
+        AdminHttpTestHelpers.CreateClient(writes, AdminHttpTestHelpers.AdminEmail);
 }

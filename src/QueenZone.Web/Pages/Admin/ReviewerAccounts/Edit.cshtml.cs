@@ -43,7 +43,6 @@ public sealed class EditModel(AdminReviewerAccountService reviewerAccounts) : Ad
             Input.Email,
             Input.DisplayName,
             Input.NewPassword,
-            EditorEmail,
             cancellationToken);
         if (result.WasNotFound)
         {
@@ -62,7 +61,7 @@ public sealed class EditModel(AdminReviewerAccountService reviewerAccounts) : Ad
 
     public async Task<IActionResult> OnPostDeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        if (!await reviewerAccounts.RemovePasswordAsync(id, EditorEmail, cancellationToken))
+        if (!await reviewerAccounts.RemovePasswordAsync(id, cancellationToken))
         {
             return NotFound();
         }

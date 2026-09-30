@@ -1,0 +1,59 @@
+@page "/admin/quizzes/{id:guid}/question-bank"
+@model QuestionBankModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+  var antiforgeryToken = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+  var quiz = Model.Quiz!;
+}
+
+<div class="admin-shell">
+<partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+<h1>Question bank</h1>
+<p>Approved member question suggestions you can add to <strong>@quiz.Title</strong>. Approving a suggestion never publishes it on its own — adding it here is the only way it reaches this quiz.</p>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+  <p class="admin-status admin-status--@Model.StatusMessageKind">@Model.StatusMessage</p>
+}
+
+@if (quiz.AttemptCount > 0)
+{
+  <p>This quiz has results, so no new questions can be added.</p>
+}
+else if (Model.AvailableSubmissions.Count == 0)
+{
+  <p>No approved suggestions are available right now.</p>
+}
+else
+{
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Question</th>
+        <th>Submitter</th>
+        <th>Submitted</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach (var item in Model.AvailableSubmissions)
+      {
+        <tr>
+          <td>@item.QuestionText</td>
+          <td>@item.SubmitterDisplayName</td>
+          <td>@item.SubmittedAt.ToString("u")</td>
+          <td>
+            <form method="post" action="/admin/quizzes/@quiz.Id/question-bank?handler=Add" style="display:inline">
+              <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryToken">
+              <input type="hidden" name="submissionId" value="@item.Id">
+              <button type="submit">Add to this quiz</button>
+            </form>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}
+
+<p><a href="/admin/quizzes/@quiz.Id/edit">Back to quiz</a></p>
+</div>

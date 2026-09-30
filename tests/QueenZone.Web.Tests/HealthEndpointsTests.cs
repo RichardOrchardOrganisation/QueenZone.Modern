@@ -1,12 +1,9 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using QueenZone.Data;
 using QueenZone.Storage;
@@ -14,13 +11,19 @@ using QueenZone.Web.Health;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HealthEndpointsTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory warmupFail;
+    private readonly VariantWebApplicationFactory strictHost;
 
-    public HealthEndpointsTests(WebApplicationFactory<Program> factory)
+    public HealthEndpointsTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
+        warmupFail = variants.Get(WebHostVariants.WarmupThrowingNewsLatest);
+        strictHost = variants.Get(WebHostVariants.StrictHostFiltering);
     }
 
     [Fact]
@@ -81,13 +84,7 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
     [Fact]
     public async Task Warmup_failure_returns_minimal_unhealthy_response()
     {
-        var appFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<INewsRepository>();
-                services.AddSingleton<INewsRepository>(new ThrowingNewsRepository());
-            }));
-        var client = appFactory.CreateClient();
+        var client = warmupFail.CreateClient();
 
         using var response = await client.GetAsync("/warmup");
 
@@ -132,8 +129,7 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
     [Fact]
     public async Task Liveness_probe_bypasses_host_filter_for_azure_internal_host()
     {
-        using var strictFactory = CreateStrictHostFactory();
-        var client = strictFactory.CreateClient();
+        var client = strictHost.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/health");
         request.Headers.Host = "169.254.130.4:8080";
 
@@ -146,8 +142,7 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
     [Fact]
     public async Task Non_probe_path_rejects_azure_internal_host()
     {
-        using var strictFactory = CreateStrictHostFactory();
-        var client = strictFactory.CreateClient();
+        var client = strictHost.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/news");
         request.Headers.Host = "169.254.130.4:8080";
 
@@ -160,8 +155,7 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
     [Fact]
     public async Task Non_probe_path_accepts_configured_wildcard_host()
     {
-        using var strictFactory = CreateStrictHostFactory();
-        var client = strictFactory.CreateClient();
+        var client = strictHost.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/news");
         request.Headers.Host = "queenzone-dev.azurewebsites.net";
 
@@ -320,14 +314,6 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
         return services.BuildServiceProvider();
     }
 
-    private WebApplicationFactory<Program> CreateStrictHostFactory() =>
-        factory.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["QueenZoneHostFiltering:AllowedHosts"] =
-                    "www.queenzone.org;queenzone.org;*.azurewebsites.net",
-            })));
-
     [Fact]
     public async Task BlobReadyHealthCheck_with_null_service_is_healthy()
     {
@@ -386,36 +372,4 @@ public sealed class HealthEndpointsTests : IClassFixture<WebApplicationFactory<P
             throw new NotSupportedException();
     }
 
-    private sealed class ThrowingNewsRepository : INewsRepository
-    {
-        public Task<IReadOnlyList<NewsItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("simulated repository failure");
-
-        public Task<IReadOnlyList<NewsItem>> GetArchivePageAsync(
-            int page,
-            int pageSize,
-            NewsArchiveFilter filter = default,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<NewsItem>>([]);
-
-        public Task<int> GetPublishedCountAsync(NewsArchiveFilter filter = default, CancellationToken cancellationToken = default) =>
-            Task.FromResult(0);
-
-        public Task<NewsArchiveYearRange> GetArchiveYearRangeAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new NewsArchiveYearRange(null, null));
-
-        public Task<NewsItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<NewsItem?>(null);
-
-        public Task<IReadOnlyList<NewsItem>> GetByIdsAsync(
-            IReadOnlyCollection<int> ids,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<NewsItem>>([]);
-
-        public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<SitemapContentEntry>>([]);
-
-        public Task<NewsSearchPage> SearchAsync(string query, int page, int pageSize, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new NewsSearchPage([], 0, page, pageSize));
-    }
 }

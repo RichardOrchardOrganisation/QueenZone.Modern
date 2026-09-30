@@ -1,0 +1,19 @@
+appId: org.queenzone.mobile
+---
+- tapOn:
+    id: tab-home
+- tapOn:
+    id: home-profile
+- extendedWaitUntil:
+    visible:
+      id: profile-signed-out
+    timeout: 15000
+- tapOn: Contact
+- extendedWaitUntil:
+    visible:
+      id: contact-screen
+    timeout: 15000
+- tapOn:
+    id: contact-message
+- assertVisible:
+    id: contact-send

@@ -6,10 +6,7 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: read
-  pull-requests: read
+permissions: {}
 
 env:
   SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
@@ -27,10 +24,15 @@ concurrency:
 # here.
 #
 # Reuse-first: when the matching PR ci.yml run still has a non-expired
-# web-publish-{run_id} artifact, download and ship that zip. No rebuild.
-# Fallback: if resolve cannot find web-publish (mobile-only CI skip,
-# retention prune, no PR run) *and* a website Deploy is still required,
-# publish from the checked-out main/tag SHA, stamp that SHA, and deploy.
+# web-publish-{run_id} artifact AND that PR head's git tree equals the
+# tagged/dispatched release commit's tree, download and ship that zip.
+# Same tree means the squash/merge is byte-identical to the PR build
+# (commit SHAs may differ). A stale PR head (different tree) is never
+# reused — that shipped #1826's zip (10 commits behind main).
+# Fallback: if resolve cannot find a tree-matching web-publish
+# (mobile-only CI skip, retention prune, trees differ, no PR run)
+# *and* a website Deploy is still required, publish from the checked-out
+# main/tag SHA, stamp that SHA, and deploy.
 # Skip (do not walk back): workflow_dispatch classifies tip vs previous
 # main commit; v* tags classify the previous-tag…this-tag span. Mobile-only
 # / docs-only / workflow-only → code=false → skip resolve/migrate/deploy/
@@ -49,12 +51,14 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     outputs:
       code: ${{ steps.check.outputs.code }}
       migrations: ${{ steps.check.outputs.migrations }}
       mobile: ${{ steps.check.outputs.mobile }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Self-test change classifier
@@ -88,26 +92,33 @@ jobs:
             | bash ./scripts/classify-pipeline-changes.sh \
             >> "$GITHUB_OUTPUT"
 
-  # Finds the ci.yml run that built+tested this exact code, so `deploy` can
-  # download its publish artifact instead of rebuilding. Soft-miss (found=false)
-  # is not a hard fail: deploy then publishes from the checked-out SHA.
-  # A tag checkout resolves to its target commit; that commit on main is not
-  # always the PR head that ci.yml ran against:
+  # Finds the ci.yml run that built+tested this exact tree, so `deploy`
+  # can download its publish artifact instead of rebuilding. Soft-miss
+  # (found=false) is not a hard fail: deploy then publishes from the
+  # checked-out SHA. A tag checkout resolves to its target commit; that
+  # commit on main is not always the PR head that ci.yml ran against:
   #   - merge commits (2 parents): second parent is the PR head
   #   - squash/rebase merges (1 parent): look up the associated PR head via API
   #   - direct pushes with no PR: fall back to github.sha itself
+  # Reuse that PR-head zip only when its git tree equals the release
+  # commit's tree. Otherwise found=false (fresh publish).
   resolve-ci-run:
     runs-on: ubuntu-latest
     needs: changes
     if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && needs.changes.outputs.code == 'true'
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     outputs:
       found: ${{ steps.find.outputs.found }}
       run_id: ${{ steps.find.outputs.run_id }}
       head_sha: ${{ steps.sha.outputs.head_sha }}
+      run_head_sha: ${{ steps.find.outputs.run_head_sha }}
       expect_build_version: ${{ steps.stamp.outputs.expect_build_version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -134,7 +145,19 @@ jobs:
               echo "No associated PR — falling back to commit SHA itself."
             fi
           fi
+          # Squash-merge checkouts of main do not contain the PR-head
+          # object. Fetch it (and the release commit if needed) so
+          # ^{tree} rev-parse can compare them.
+          for sha in "$TARGET_SHA" "$HEAD_SHA"; do
+            if ! git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+              echo "Fetching ${sha} for tree compare."
+              git fetch --no-tags origin "$sha" \
+                || echo "Fetch of ${sha} failed; tree compare will refuse reuse."
+            fi
+          done
+          echo "Release SHA: $TARGET_SHA"
           echo "Resolved PR head SHA: $HEAD_SHA"
+          echo "release_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
           echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
       # Prefer web-publish artifact presence over overall workflow conclusion.
@@ -149,7 +172,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ steps.sha.outputs.head_sha }}
+          RELEASE_SHA: ${{ steps.sha.outputs.release_sha }}
         run: |
+          echo "Looking up ci.yml web-publish for PR head ${HEAD_SHA} vs release ${RELEASE_SHA}."
           bash ./scripts/Resolve-CiPublishRun.sh >> "$GITHUB_OUTPUT"
 
       - name: Choose build stamp
@@ -157,12 +182,17 @@ jobs:
         run: |
           FOUND="${{ steps.find.outputs.found }}"
           HEAD_SHA="${{ steps.sha.outputs.head_sha }}"
+          RUN_ID="${{ steps.find.outputs.run_id }}"
+          RUN_HEAD_SHA="${{ steps.find.outputs.run_head_sha }}"
+          HEAD_TREE="${{ steps.find.outputs.head_tree }}"
+          RELEASE_TREE="${{ steps.find.outputs.release_tree }}"
           CHECKOUT_SHA=$(git rev-parse HEAD)
+          echo "Tree compare: PR-head ${HEAD_TREE:-unknown} vs release ${RELEASE_TREE:-unknown} (found=${FOUND})."
           if [ "$FOUND" = "true" ]; then
-            echo "Reuse CI web-publish; smoke expects PR-head stamp ${HEAD_SHA}."
+            echo "Reuse CI web-publish run ${RUN_ID} at PR-head SHA ${RUN_HEAD_SHA:-$HEAD_SHA} (trees match)."
             echo "expect_build_version=$HEAD_SHA" >> "$GITHUB_OUTPUT"
           else
-            echo "No web-publish; fallback publish will stamp checkout ${CHECKOUT_SHA}."
+            echo "No tree-matching web-publish; fallback publish will stamp checkout ${CHECKOUT_SHA}."
             echo "expect_build_version=$CHECKOUT_SHA" >> "$GITHUB_OUTPUT"
           fi
 
@@ -181,13 +211,15 @@ jobs:
     # Production migrate + zip deploy share prod-release (issue #1377 Option B).
     # Custom policy: branch main + tags v*. Do not use legacy environment "dev".
     environment: prod-release
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
           cache: true
@@ -202,7 +234,7 @@ jobs:
 
       - name: Fetch Bitwarden deploy secrets
         id: bitwarden-secrets
-        uses: bitwarden/sm-action@v3.0.1
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
         with:
           access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
           secrets: ${{ vars.BITWARDEN_APP_SERVICE_DEPLOY_SECRETS }}
@@ -270,13 +302,13 @@ jobs:
     steps:
       - name: Fetch Bitwarden runtime secrets
         id: bitwarden-secrets
-        uses: bitwarden/sm-action@v3.0.1
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
         with:
           access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
           secrets: ${{ vars.BITWARDEN_APP_SERVICE_DEPLOY_SECRETS }}
 
       - name: Azure login (OIDC)
-        uses: azure/login@v3
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.ARM_CLIENT_ID }}
           tenant-id: ${{ vars.ARM_TENANT_ID }}
@@ -292,9 +324,15 @@ jobs:
         id: apply-settings
         env:
           MOBILE_AUTH_SIGNING_KEY: ${{ steps.bitwarden-secrets.outputs.MOBILE_AUTH_SIGNING_KEY }}
+          GMAIL_APP_USERNAME: ${{ steps.bitwarden-secrets.outputs.GMAIL_APP_USERNAME }}
+          GMAIL_APP_PASSWORD: ${{ steps.bitwarden-secrets.outputs.GMAIL_APP_PASSWORD }}
         run: |
           if [ "${#MOBILE_AUTH_SIGNING_KEY}" -lt 32 ]; then
             echo "::error::MOBILE_AUTH_SIGNING_KEY must map to a Bitwarden secret of at least 32 characters."
+            exit 1
+          fi
+          if [ -z "$GMAIL_APP_USERNAME" ] || [ -z "$GMAIL_APP_PASSWORD" ]; then
+            echo "::error::Gmail SMTP Bitwarden mappings are missing."
             exit 1
           fi
 
@@ -326,6 +364,16 @@ jobs:
             --resource-group Queenzone-RG \
             --query "[?name=='MobileAuth__SigningKey'].value | [0]" \
             -o tsv | tr -d '\r')
+
+          desired_smtp=$(printf '%s\n' \
+            "SmtpEmail__Username=$GMAIL_APP_USERNAME" \
+            "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
+            "SmtpEmail__FromAddress=support@queenzone.org" | sort)
+          current_smtp=$(az webapp config appsettings list \
+            --name queenzone-prod \
+            --resource-group Queenzone-RG \
+            --query "[?name=='SmtpEmail__Username' || name=='SmtpEmail__AppPassword' || name=='SmtpEmail__FromAddress'].[join('=', [name, value])]" \
+            -o tsv | tr -d '\r' | sort)
 
           changed=false
           if [ -n "$strict_warmup_status" ]; then
@@ -360,6 +408,18 @@ jobs:
               --name queenzone-prod \
               --resource-group Queenzone-RG \
               --settings "MobileAuth__SigningKey=$MOBILE_AUTH_SIGNING_KEY" \
+              --output none
+            changed=true
+          fi
+
+          if [ "$current_smtp" != "$desired_smtp" ]; then
+            az webapp config appsettings set \
+              --name queenzone-prod \
+              --resource-group Queenzone-RG \
+              --settings \
+                "SmtpEmail__Username=$GMAIL_APP_USERNAME" \
+                "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
+                "SmtpEmail__FromAddress=support@queenzone.org" \
               --output none
             changed=true
           fi
@@ -404,15 +464,19 @@ jobs:
     # manual cancel on the #666 rollout run. Fail loudly instead.
     # Fallback publish adds restore+compile, so keep headroom above the reuse path.
     timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Reuse-first: exact binary ci.yml built and tested on the PR.
+      # Reuse-first: PR-head zip whose git tree matches the release commit.
       - name: Download publish artifact from CI run
         if: needs.resolve-ci-run.outputs.found == 'true'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: web-publish-${{ needs.resolve-ci-run.outputs.run_id }}
           run-id: ${{ needs.resolve-ci-run.outputs.run_id }}
@@ -423,7 +487,7 @@ jobs:
       # checked-out SHA and stamp that SHA — do not walk back to an older tip.
       - name: Setup .NET
         if: needs.resolve-ci-run.outputs.found != 'true'
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
           cache: true
@@ -445,13 +509,52 @@ jobs:
 
       - name: Fetch Bitwarden deploy secrets
         id: bitwarden-secrets
-        uses: bitwarden/sm-action@v3.0.1
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
         with:
           access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
           secrets: ${{ vars.BITWARDEN_APP_SERVICE_DEPLOY_SECRETS }}
 
+      - name: Azure login for temporary SCM access
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Allow this runner to reach SCM
+        id: open-scm
+        env:
+          SCM_RULE_NAME: github-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          ip=$(curl --fail --silent --show-error --retry 3 https://api.ipify.org)
+          python3 - "$ip" <<'PY'
+          import ipaddress
+          import sys
+
+          if ipaddress.ip_address(sys.argv[1]).version != 4:
+              raise SystemExit("Expected a single IPv4 address for this GitHub runner")
+          PY
+          az webapp config access-restriction add \
+            --name queenzone-prod --resource-group Queenzone-RG \
+            --scm-site true --rule-name "$SCM_RULE_NAME" \
+            --action Allow --ip-address "$ip/32" --priority 100 \
+            --only-show-errors --output none
+          echo "rule-name=$SCM_RULE_NAME" >> "$GITHUB_OUTPUT"
+          for attempt in {1..30}; do
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              https://queenzone-prod.scm.azurewebsites.net/api/settings || true)
+            if [ "$status" = 401 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "::error::SCM did not become reachable from this runner (last HTTP $status)."
+              exit 1
+            fi
+            sleep 2
+          done
+
       - name: Deploy
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@02a81bead70021f5284939794bcec79c271ab383 # v3.0.8
         with:
           app-name: queenzone-prod
           publish-profile: ${{ steps.bitwarden-secrets.outputs.AZURE_WEBAPP_PUBLISH_PROFILE_CANADA_EAST }}
@@ -465,6 +568,16 @@ jobs:
         env:
           AZURE_WEBAPP_PUBLISH_PROFILE: ${{ steps.bitwarden-secrets.outputs.AZURE_WEBAPP_PUBLISH_PROFILE_CANADA_EAST }}
         run: python3 ./scripts/Invoke-AppServiceKudu.py --restart
+
+      - name: Remove temporary SCM access
+        if: always() && steps.open-scm.outputs.rule-name != ''
+        env:
+          SCM_RULE_NAME: ${{ steps.open-scm.outputs.rule-name }}
+        run: |
+          az webapp config access-restriction remove \
+            --name queenzone-prod --resource-group Queenzone-RG \
+            --scm-site true --rule-name "$SCM_RULE_NAME" \
+            --only-show-errors --output none
 
       - name: Warm up custom domain
         run: |
@@ -487,10 +600,12 @@ jobs:
       needs.deploy.result == 'success'
     # Allow retry loop (~8 min) plus request time; avoid false fails during App Service recycle.
     timeout-minutes: 12
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Smoke the public custom domain (Site:PublicBaseUrl), not only the App Service hostname.
       # /health alone is liveness only — content pages can still 500 during recycle/warmup.

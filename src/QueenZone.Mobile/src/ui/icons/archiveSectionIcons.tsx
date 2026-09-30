@@ -15,6 +15,7 @@ export const ARCHIVE_ICON_NAMES = [
   'fan-performances',
   'restored',
   'trivia',
+  'quiz',
   'old-site',
 ] as const;
 
@@ -83,6 +84,17 @@ export const archiveIconShapes: Record<ArchiveIconName, ReactElement> = {
       <Path d="M7 6.5V3.5h13.5V17" />
       <Path d="M8.2 11.6a1.9 1.9 0 1 1 2.7 1.8c-.7.4-.9.9-.9 1.8" />
       <Path d="M10 18h.01" />
+    </>
+  ),
+  quiz: (
+    <>
+      <Rect x={3} y={3.5} width={18} height={17} />
+      <Circle cx={7.2} cy={8.4} r={1.4} />
+      <Path d="M11.5 8.4h8.5" />
+      <Path d="M6 12.6l1 1 2-2" />
+      <Path d="M11.5 12.6h8.5" />
+      <Path d="M11.5 16.8h8.5" />
+      <Circle cx={7.2} cy={16.8} r={1.4} />
     </>
   ),
   'old-site': (

@@ -16,7 +16,9 @@ const predecessorKeys = {
 
 type ScopedKeys = {
   grant: string;
+  grantNext: string;
   identity: string;
+  identityNext: string;
   access: string;
   refresh: string;
   expiry: string;
@@ -44,7 +46,9 @@ function scopedKeys(): ScopedKeys {
   const scope = apiScope();
   return {
     grant: `queenzone.mobile.${scope}.grant`,
+    grantNext: `queenzone.mobile.${scope}.grant.next`,
     identity: `queenzone.mobile.${scope}.identityShell`,
+    identityNext: `queenzone.mobile.${scope}.identityShell.next`,
     access: `queenzone.mobile.${scope}.accessToken`,
     refresh: `queenzone.mobile.${scope}.refreshToken`,
     expiry: `queenzone.mobile.${scope}.accessExpiresAt`,
@@ -109,10 +113,69 @@ function rethrowKeychainError(error: unknown): never {
   throw error;
 }
 
-/** Delete then set — SecItemUpdate cannot change accessibility (expo/expo#23924). */
+/**
+ * Persist a session value without clearing the live primary first.
+ * Write-new-then-swap: staging (`<key>.next`) → confirm readable → promote →
+ * drop staging. A kill between any two steps leaves either the previous primary
+ * or readable staging — never an empty Keychain hole.
+ *
+ * Delete-then-set (expo/expo#23924) is reserved for an intentional Keychain
+ * accessibility change via {@link replaceSessionItemChangingAccessibility}.
+ * Ordinary grant updates under AFTER_FIRST_UNLOCK must not delete-before-set
+ * on the live primary key.
+ */
 async function writeSessionItem(key: string, value: string): Promise<void> {
+  const nextKey = `${key}.next`;
+  await SecureStore.setItemAsync(nextKey, value, sessionStoreOptions);
+  const confirmed = await SecureStore.getItemAsync(nextKey, sessionStoreOptions);
+  if (confirmed !== value) {
+    throw new Error('SecureStore staging write could not be confirmed');
+  }
+  await SecureStore.setItemAsync(key, value, sessionStoreOptions);
+  await SecureStore.deleteItemAsync(nextKey, sessionStoreOptions);
+}
+
+/**
+ * Delete then set — SecItemUpdate cannot change accessibility (expo/expo#23924).
+ * Use only when intentionally changing Keychain accessibility, not for ordinary
+ * grant or identity updates under the same AFTER_FIRST_UNLOCK options.
+ */
+export async function replaceSessionItemChangingAccessibility(
+  key: string,
+  value: string,
+): Promise<void> {
   await SecureStore.deleteItemAsync(key, sessionStoreOptions);
   await SecureStore.setItemAsync(key, value, sessionStoreOptions);
+}
+
+/**
+ * Recover a grant written to staging when the process died before promote.
+ * The staged grant can be newer than an existing primary after a killed refresh.
+ */
+async function adoptStagingGrant(keys: ScopedKeys, stagingRaw: string, staging: StoredGrant): Promise<StoredGrant> {
+  try {
+    await SecureStore.setItemAsync(keys.grant, stagingRaw, sessionStoreOptions);
+    await SecureStore.deleteItemAsync(keys.grantNext, sessionStoreOptions);
+  } catch {
+    // Staging is readable; a failed promote repeats on the next launch.
+  }
+  return staging;
+}
+
+async function adoptStagingIdentity(keys: ScopedKeys): Promise<StoredIdentityShell | null> {
+  const stagingRaw = await SecureStore.getItemAsync(keys.identityNext, sessionStoreOptions);
+  const staging = parseIdentityShell(stagingRaw);
+  if (!staging || !stagingRaw) {
+    return null;
+  }
+
+  try {
+    await SecureStore.setItemAsync(keys.identity, stagingRaw, sessionStoreOptions);
+    await SecureStore.deleteItemAsync(keys.identityNext, sessionStoreOptions);
+  } catch {
+    // Identity is usable from staging; a failed promote repeats on the next launch.
+  }
+  return staging;
 }
 
 function parseGrant(raw: string | null): StoredGrant | null {
@@ -229,16 +292,26 @@ export async function readStoredSession(): Promise<StoredSession | null> {
       SecureStore.getItemAsync(keys.identity, sessionStoreOptions),
     ]);
 
-    const grant = parseGrant(grantRaw) ?? (await adoptPredecessorGrant());
+    const stagingRaw = await SecureStore.getItemAsync(keys.grantNext, sessionStoreOptions);
+    const staged = parseGrant(stagingRaw);
+    // A refresh rotates its token before this write begins. If iOS kills the
+    // process after staging but before promotion, the primary is already spent.
+    // Its reuse may revoke every device after the server's short grace window.
+    const grant =
+      staged && stagingRaw
+        ? await adoptStagingGrant(keys, stagingRaw, staged)
+        : (parseGrant(grantRaw) ?? (await adoptPredecessorGrant()));
     if (!grant) {
       return null;
     }
 
     // Identity may have been copied onto the scoped key during adopt, after
-    // the first parallel read. Re-read the scoped key before falling back.
+    // the first parallel read. Re-read the scoped key, then staging (kill
+    // mid-swap), then the unscoped predecessor.
     const identity =
       parseIdentityShell(identityRaw) ??
       parseIdentityShell(await SecureStore.getItemAsync(keys.identity, sessionStoreOptions)) ??
+      (await adoptStagingIdentity(keys)) ??
       parseIdentityShell(
         await SecureStore.getItemAsync(predecessorKeys.unscopedIdentity, sessionStoreOptions),
       );
@@ -306,6 +379,12 @@ async function clearPredecessorKeys(): Promise<void> {
 
 export async function clearStoredSession(): Promise<void> {
   const keys = scopedKeys();
+  // Remove staging before the primary: a kill during sign-out must not leave a
+  // staged grant that can be adopted after the primary has been deleted.
+  await Promise.all([
+    SecureStore.deleteItemAsync(keys.grantNext, sessionStoreOptions),
+    SecureStore.deleteItemAsync(keys.identityNext, sessionStoreOptions),
+  ]);
   await Promise.all([
     SecureStore.deleteItemAsync(keys.grant, sessionStoreOptions),
     SecureStore.deleteItemAsync(keys.identity, sessionStoreOptions),

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -8,8 +7,9 @@ namespace QueenZone.Data;
 
 /// <summary>
 /// Admin writes against legacy <c>PIC_FILES_T</c> / <c>PIC_CAT_T</c>, plus modern audit rows.
+/// Covered by <c>AdminPhotoRepositorySqlServerTests</c> (CI SQL Server) and the read-only
+/// <c>EfAdminPhotoRepositoryLegacyProbeTests</c> mirror probe (#1672).
 /// </summary>
-[ExcludeFromCodeCoverage] // Requires SQL Server legacy picture tables; covered via in-memory admin tests.
 public sealed class EfAdminPhotoRepository(QueenZoneDbContext dbContext) : IAdminPhotoRepository
 {
     public async Task<AdminPhotoPage> GetPageAsync(

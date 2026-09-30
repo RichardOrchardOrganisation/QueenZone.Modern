@@ -1,0 +1,526 @@
+using Microsoft.EntityFrameworkCore;
+using QueenZone.Data.Entities;
+
+namespace QueenZone.Data;
+
+public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider timeProvider) : IQuizRepository
+{
+    public async Task<IReadOnlyList<QuizAdminItem>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        var quizzes = await dbContext.Quizzes
+            .AsNoTracking()
+            .Include(quiz => quiz.Questions)
+            .OrderByDescending(quiz => quiz.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var attemptCounts = await dbContext.QuizAttempts
+            .AsNoTracking()
+            .GroupBy(attempt => attempt.QuizId)
+            .Select(group => new { QuizId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(row => row.QuizId, row => row.Count, cancellationToken);
+
+        return quizzes
+            .Select(quiz => new QuizAdminItem(
+                quiz.Id,
+                quiz.Title,
+                quiz.IsPublished,
+                quiz.PublishedAt,
+                quiz.CreatedAt,
+                quiz.Questions.Count,
+                attemptCounts.GetValueOrDefault(quiz.Id)))
+            .ToList();
+    }
+
+    public async Task<QuizAdminDetail?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .AsNoTracking()
+            .Include(item => item.Questions)
+                .ThenInclude(question => question.Options)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (quiz is null)
+        {
+            return null;
+        }
+
+        var attemptCount = await dbContext.QuizAttempts
+            .AsNoTracking()
+            .CountAsync(attempt => attempt.QuizId == id, cancellationToken);
+
+        return ToDetail(quiz, attemptCount);
+    }
+
+    public async Task<Guid> CreateAsync(
+        AdminQuizDraft draft,
+        Guid createdByMemberId,
+        CancellationToken cancellationToken = default)
+    {
+        var errors = QuizValidation.ValidateDraft(draft);
+        if (errors.Count > 0)
+        {
+            throw new ArgumentException(string.Join(" ", errors), nameof(draft));
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var entity = BuildEntity(draft, createdByMemberId, now);
+        dbContext.Quizzes.Add(entity);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return entity.Id;
+    }
+
+    public async Task UpdateAsync(Guid id, AdminQuizDraft draft, CancellationToken cancellationToken = default)
+    {
+        var errors = QuizValidation.ValidateDraft(draft);
+        if (errors.Count > 0)
+        {
+            throw new ArgumentException(string.Join(" ", errors), nameof(draft));
+        }
+
+        var quiz = await dbContext.Quizzes
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new QuizException(QuizException.NotFound, "Quiz was not found.");
+
+        await EnsureNoResultsAsync(id, "Questions and options cannot be changed after a quiz has results.", cancellationToken);
+
+        quiz.Title = draft.Title.Trim();
+        quiz.Description = string.IsNullOrWhiteSpace(draft.Description) ? null : draft.Description.Trim();
+
+        // Manage questions and options as independent rows rather than through the Questions/
+        // Options navigation properties: mixing an explicit RemoveRange with navigation-collection
+        // mutation on the same tracked entities confuses EF's relationship fixup on these required
+        // FKs and throws a spurious DbUpdateConcurrencyException on SaveChanges.
+        var existingQuestionIds = await dbContext.QuizQuestions
+            .Where(question => question.QuizId == quiz.Id)
+            .Select(question => question.Id)
+            .ToListAsync(cancellationToken);
+        var existingOptions = await dbContext.QuizOptions
+            .Where(option => existingQuestionIds.Contains(option.QuestionId))
+            .ToListAsync(cancellationToken);
+        dbContext.QuizOptions.RemoveRange(existingOptions);
+
+        var existingQuestions = await dbContext.QuizQuestions
+            .Where(question => question.QuizId == quiz.Id)
+            .ToListAsync(cancellationToken);
+        dbContext.QuizQuestions.RemoveRange(existingQuestions);
+
+        dbContext.QuizQuestions.AddRange(BuildQuestions(quiz.Id, draft.Questions));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task PublishAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new QuizException(QuizException.NotFound, "Quiz was not found.");
+
+        quiz.IsPublished = true;
+        quiz.PublishedAt ??= timeProvider.GetUtcNow();
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UnpublishAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new QuizException(QuizException.NotFound, "Quiz was not found.");
+
+        quiz.IsPublished = false;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new QuizException(QuizException.NotFound, "Quiz was not found.");
+
+        await EnsureNoResultsAsync(id, "This quiz has results and cannot be deleted.", cancellationToken);
+        dbContext.Quizzes.Remove(quiz);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RecordAttemptAsync(
+        Guid quizId,
+        Guid memberAccountId,
+        int score,
+        int correctCount,
+        int questionCount,
+        CancellationToken cancellationToken = default)
+    {
+        dbContext.QuizAttempts.Add(new QuizAttemptEntity
+        {
+            Id = Guid.NewGuid(),
+            QuizId = quizId,
+            MemberAccountId = memberAccountId,
+            Score = score,
+            CorrectCount = correctCount,
+            QuestionCount = questionCount,
+            CompletedAt = timeProvider.GetUtcNow(),
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<QuizListItem>> GetPublishedAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.Quizzes
+            .AsNoTracking()
+            .Where(quiz => quiz.IsPublished)
+            .OrderByDescending(quiz => quiz.PublishedAt)
+            .Select(quiz => new QuizListItem(quiz.Id, quiz.Title, quiz.Description, quiz.Questions.Count))
+            .ToListAsync(cancellationToken);
+
+    public async Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .AsNoTracking()
+            .Include(item => item.Questions)
+                .ThenInclude(question => question.Options)
+            .SingleOrDefaultAsync(item => item.Id == id && item.IsPublished, cancellationToken);
+
+        return quiz is null ? null : ToPlayView(quiz);
+    }
+
+    public async Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var quizzes = await dbContext.Quizzes
+            .AsNoTracking()
+            .Where(quiz => quiz.IsPublished)
+            .Include(quiz => quiz.Questions)
+                .ThenInclude(question => question.Options)
+            .ToListAsync(cancellationToken);
+
+        return quizzes
+            .SelectMany(quiz => quiz.Questions)
+            .Select(question => new QuizSprintQuestion(
+                question.Id,
+                question.QuestionText,
+                question.Options
+                    .OrderBy(option => option.DisplayOrder)
+                    .Select(option => new QuizSprintOption(option.Id, option.OptionText, option.IsCorrect))
+                    .ToList()))
+            .ToList();
+    }
+
+    public async Task<QuizSubmissionResult?> SubmitAsync(
+        Guid quizId,
+        Guid? memberAccountId,
+        IReadOnlyList<QuizAnswerSubmission> answers,
+        CancellationToken cancellationToken = default)
+    {
+        var quiz = await dbContext.Quizzes
+            .AsNoTracking()
+            .Include(item => item.Questions)
+                .ThenInclude(question => question.Options)
+            .SingleOrDefaultAsync(item => item.Id == quizId && item.IsPublished, cancellationToken);
+        if (quiz is null)
+        {
+            return null;
+        }
+
+        var recorded = memberAccountId is Guid memberId;
+        var result = QuizScoring.Score(quiz, answers, recorded);
+        if (recorded)
+        {
+            await RecordAttemptAsync(
+                quizId,
+                memberAccountId!.Value,
+                result.Score,
+                result.CorrectCount,
+                result.QuestionCount,
+                cancellationToken);
+        }
+
+        return result;
+    }
+
+    public async Task<QuizLeaderboardResult> GetLeaderboardAsync(
+        QuizLeaderboardScope scope,
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.QuizAttempts.AsNoTracking();
+        if (scope == QuizLeaderboardScope.Week)
+        {
+            var weekStart = QuizScoring.GetCurrentWeekStartUtc(timeProvider.GetUtcNow());
+            query = query.Where(attempt => attempt.CompletedAt >= weekStart);
+        }
+
+        var attempts = await query.ToListAsync(cancellationToken);
+        return QuizScoring.BuildLeaderboard(attempts, viewerMemberId, top);
+    }
+
+    private static QuizPlayView ToPlayView(QuizEntity quiz) =>
+        new(
+            quiz.Id,
+            quiz.Title,
+            quiz.Description,
+            quiz.Questions
+                .OrderBy(question => question.DisplayOrder)
+                .Select(question => new QuizPlayQuestion(
+                    question.Id,
+                    question.QuestionText,
+                    question.DisplayOrder,
+                    question.Points,
+                    question.Options
+                        .OrderBy(option => option.DisplayOrder)
+                        .Select(option => new QuizPlayOption(option.Id, option.OptionText))
+                        .ToList()))
+                .ToList());
+
+    internal static QuizEntity BuildEntity(AdminQuizDraft draft, Guid createdByMemberId, DateTimeOffset createdAt)
+    {
+        var quizId = Guid.NewGuid();
+        return new QuizEntity
+        {
+            Id = quizId,
+            Title = draft.Title.Trim(),
+            Description = string.IsNullOrWhiteSpace(draft.Description) ? null : draft.Description.Trim(),
+            IsPublished = false,
+            CreatedAt = createdAt,
+            PublishedAt = null,
+            CreatedByMemberId = createdByMemberId,
+            Questions = BuildQuestions(quizId, draft.Questions),
+        };
+    }
+
+    private static List<QuizQuestionEntity> BuildQuestions(Guid quizId, IReadOnlyList<QuizQuestionDraft> questions) =>
+        questions
+            .Select((question, questionIndex) =>
+            {
+                var questionId = Guid.NewGuid();
+                var options = QuizValidation.NormalizeOptions(question.Options);
+                return new QuizQuestionEntity
+                {
+                    Id = questionId,
+                    QuizId = quizId,
+                    QuestionText = question.Text.Trim(),
+                    DisplayOrder = questionIndex,
+                    Points = question.Points,
+                    Category = string.IsNullOrWhiteSpace(question.Category) ? null : question.Category.Trim(),
+                    Difficulty = question.Difficulty,
+                    Options = options
+                        .Select((option, optionIndex) => new QuizOptionEntity
+                        {
+                            Id = Guid.NewGuid(),
+                            QuestionId = questionId,
+                            OptionText = option.Text,
+                            DisplayOrder = optionIndex,
+                            IsCorrect = option.IsCorrect,
+                        })
+                        .ToList(),
+                };
+            })
+            .ToList();
+
+    private static QuizAdminDetail ToDetail(QuizEntity quiz, int attemptCount) =>
+        new(
+            quiz.Id,
+            quiz.Title,
+            quiz.Description,
+            quiz.IsPublished,
+            quiz.PublishedAt,
+            quiz.CreatedAt,
+            attemptCount,
+            quiz.Questions
+                .OrderBy(question => question.DisplayOrder)
+                .Select(question => new QuizQuestionView(
+                    question.Id,
+                    question.QuestionText,
+                    question.DisplayOrder,
+                    question.Points,
+                    question.Options
+                        .OrderBy(option => option.DisplayOrder)
+                        .Select(option => new QuizOptionView(option.Id, option.OptionText, option.DisplayOrder, option.IsCorrect))
+                        .ToList(),
+                    question.Category,
+                    question.Difficulty))
+                .ToList());
+
+    private async Task EnsureNoResultsAsync(Guid quizId, string message, CancellationToken cancellationToken)
+    {
+        var hasResults = await dbContext.QuizAttempts
+            .AsNoTracking()
+            .AnyAsync(attempt => attempt.QuizId == quizId, cancellationToken);
+        if (hasResults)
+        {
+            throw new QuizException(QuizException.HasResults, message);
+        }
+    }
+
+    public async Task<bool> ClaimSprintRunAsync(
+        Guid runId,
+        Guid memberAccountId,
+        QuizSprintScore score,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken = default)
+    {
+        if (await dbContext.QuizSprintRuns.AnyAsync(run => run.Id == runId, cancellationToken))
+        {
+            return false;
+        }
+
+        dbContext.QuizSprintRuns.Add(new QuizSprintRunEntity
+        {
+            Id = runId,
+            MemberAccountId = memberAccountId,
+            Score = score.Points,
+            CorrectCount = score.Correct,
+            AnsweredCount = score.Answered,
+            BestStreak = score.BestStreak,
+            CompletedAt = completedAt,
+        });
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent claim of the same run won the race on the primary key.
+            dbContext.ChangeTracker.Clear();
+            return false;
+        }
+    }
+
+    public async Task RecordSprintRunAsync(
+        Guid memberAccountId,
+        QuizSprintScore score,
+        CancellationToken cancellationToken = default)
+    {
+        dbContext.QuizSprintRuns.Add(new QuizSprintRunEntity
+        {
+            Id = Guid.NewGuid(),
+            MemberAccountId = memberAccountId,
+            Score = score.Points,
+            CorrectCount = score.Correct,
+            AnsweredCount = score.Answered,
+            BestStreak = score.BestStreak,
+            CompletedAt = timeProvider.GetUtcNow(),
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<QuizSprintBoardResult> GetSprintBoardAsync(
+        QuizSprintBoardScope scope,
+        Guid? viewerMemberId,
+        int top = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (scope == QuizSprintBoardScope.Daily)
+        {
+            var dayStart = QuizScoring.GetCurrentDayStartUtc(timeProvider.GetUtcNow());
+            var runs = await dbContext.QuizSprintRuns
+                .AsNoTracking()
+                .Where(run => run.CompletedAt >= dayStart)
+                .ToListAsync(cancellationToken);
+            return QuizScoring.BuildSprintBoard(runs, viewerMemberId, top);
+        }
+
+        return scope == QuizSprintBoardScope.Total
+            ? await GetTotalSprintBoardAsync(viewerMemberId, top, cancellationToken)
+            : await GetAllTimeSprintBoardAsync(viewerMemberId, top, cancellationToken);
+    }
+
+    /// <summary>
+    /// Cumulative board: one grouped row per member (sum of points over every run), ranked in memory.
+    /// Bounded by member count, not run count. Ties on points fall back to member id.
+    /// </summary>
+    private async Task<QuizSprintBoardResult> GetTotalSprintBoardAsync(
+        Guid? viewerMemberId,
+        int top,
+        CancellationToken cancellationToken)
+    {
+        var totals = await dbContext.QuizSprintRuns
+            .AsNoTracking()
+            .GroupBy(run => run.MemberAccountId)
+            .Select(group => new
+            {
+                MemberAccountId = group.Key,
+                Points = group.Sum(run => run.Score),
+                BestStreak = group.Max(run => run.BestStreak),
+                Answered = group.Sum(run => run.AnsweredCount),
+                Runs = group.Count(),
+            })
+            .ToListAsync(cancellationToken);
+
+        var ranked = totals
+            .OrderByDescending(row => row.Points)
+            .ThenBy(row => row.MemberAccountId)
+            .Select((row, index) => new QuizSprintLeaderboardEntry(
+                index + 1,
+                row.MemberAccountId,
+                row.Points,
+                row.BestStreak,
+                row.Answered,
+                default,
+                row.Runs))
+            .ToList();
+        var viewer = viewerMemberId is Guid viewerId
+            ? ranked.SingleOrDefault(entry => entry.MemberAccountId == viewerId)
+            : null;
+        return new QuizSprintBoardResult(ranked.Take(top).ToList(), viewer, ranked.Count);
+    }
+
+    /// <summary>
+    /// All-time board without loading every run: one grouped row per member (their best score),
+    /// then only the top page and the viewer's own runs are read to fill in streak and time.
+    /// Ties on score fall back to member id so the order is stable.
+    /// </summary>
+    private async Task<QuizSprintBoardResult> GetAllTimeSprintBoardAsync(
+        Guid? viewerMemberId,
+        int top,
+        CancellationToken cancellationToken)
+    {
+        var bests = await dbContext.QuizSprintRuns
+            .AsNoTracking()
+            .GroupBy(run => run.MemberAccountId)
+            .Select(group => new { MemberAccountId = group.Key, Best = group.Max(run => run.Score), Runs = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        var ranked = bests
+            .OrderByDescending(row => row.Best)
+            .ThenBy(row => row.MemberAccountId)
+            .Select((row, index) => (Rank: index + 1, row.MemberAccountId, row.Best, row.Runs))
+            .ToList();
+
+        var wanted = ranked.Take(top).ToList();
+        var viewerRank = viewerMemberId is Guid viewerId
+            ? ranked.FirstOrDefault(row => row.MemberAccountId == viewerId)
+            : default;
+        if (viewerRank.MemberAccountId != Guid.Empty && wanted.All(row => row.MemberAccountId != viewerRank.MemberAccountId))
+        {
+            wanted.Add(viewerRank);
+        }
+
+        var memberIds = wanted.Select(row => row.MemberAccountId).ToList();
+        var runs = await dbContext.QuizSprintRuns
+            .AsNoTracking()
+            .Where(run => memberIds.Contains(run.MemberAccountId))
+            .ToListAsync(cancellationToken);
+
+        QuizSprintLeaderboardEntry ToEntry((int Rank, Guid MemberAccountId, int Best, int Runs) row)
+        {
+            var bestRun = runs
+                .Where(run => run.MemberAccountId == row.MemberAccountId && run.Score == row.Best)
+                .OrderBy(run => run.CompletedAt)
+                .First();
+            return new QuizSprintLeaderboardEntry(
+                row.Rank,
+                row.MemberAccountId,
+                bestRun.Score,
+                bestRun.BestStreak,
+                bestRun.AnsweredCount,
+                bestRun.CompletedAt,
+                row.Runs);
+        }
+
+        var entries = wanted.Select(ToEntry).ToList();
+        var topEntries = entries.Where(entry => entry.Rank <= top).OrderBy(entry => entry.Rank).ToList();
+        var viewerEntry = viewerRank.MemberAccountId == Guid.Empty
+            ? null
+            : entries.Single(entry => entry.MemberAccountId == viewerRank.MemberAccountId);
+        return new QuizSprintBoardResult(topEntries, viewerEntry, ranked.Count);
+    }
+}

@@ -18,6 +18,17 @@ public sealed class MemberAccount
 
     public string? PasswordHash { get; set; }
 
+    /// <summary>
+    /// Failed password attempts in the current lockout window. Shared by the website
+    /// form and the mobile password grant.
+    /// </summary>
+    public int PasswordFailureCount { get; set; }
+
+    /// <summary>
+    /// Start of the current password-failure window. Null when the counter is clear.
+    /// </summary>
+    public DateTime? PasswordFailureWindowStartedAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime? LastLoginAt { get; set; }

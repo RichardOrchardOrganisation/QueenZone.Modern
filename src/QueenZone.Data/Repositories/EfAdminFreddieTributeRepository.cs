@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -10,7 +9,6 @@ public sealed class EfAdminFreddieTributeRepository : IAdminFreddieTributeReposi
     private readonly string countSql;
     private readonly string byIdSql;
 
-    [ExcludeFromCodeCoverage]
     public EfAdminFreddieTributeRepository(QueenZoneDbContext dbContext)
         : this(
             dbContext,

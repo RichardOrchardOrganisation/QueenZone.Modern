@@ -1,10 +1,14 @@
 using Microsoft.Extensions.Options;
+using QueenZone.Storage;
 
 namespace QueenZone.Web;
 
-public sealed class ForumAttachmentValidator(IOptions<ForumAttachmentOptions> options)
+public sealed class ForumAttachmentValidator(
+    IOptions<ForumAttachmentOptions> options,
+    IOptions<BlobUploadOptions> blobUploadOptions)
 {
     private readonly ForumAttachmentOptions options = options.Value;
+    private readonly BlobUploadValidator blobUploadValidator = new(blobUploadOptions.Value);
 
     public ForumAttachmentValidationResult Validate(IReadOnlyList<IFormFile> files)
     {
@@ -51,16 +55,25 @@ public sealed class ForumAttachmentValidator(IOptions<ForumAttachmentOptions> op
                 break;
             }
 
-            var headerType = string.IsNullOrWhiteSpace(file.ContentType)
-                ? string.Empty
-                : file.ContentType.Trim();
+            // Extension is the allow-list gate. Client Content-Type is not enough: a
+            // declared PDF whose bytes are HTML must fail the same sniff as storage.
             var guessedType = GuessContentType(name);
-            var allowedByHeader = !string.IsNullOrEmpty(headerType) && allowed.Contains(headerType);
-            var allowedByExtension = allowed.Contains(guessedType);
-            if (!allowedByHeader && !allowedByExtension)
+            if (!allowed.Contains(guessedType))
             {
-                var shown = !string.IsNullOrEmpty(headerType) ? headerType : guessedType;
-                errors.Add($"'{name}' has a type that is not allowed ({shown}).");
+                errors.Add($"'{name}' has a type that is not allowed ({guessedType}).");
+                continue;
+            }
+
+            try
+            {
+                blobUploadValidator.ResolveAndValidateContentType(
+                    name,
+                    ReadHeader(file),
+                    BlobUploadContainers.Forum);
+            }
+            catch (BlobUploadException ex)
+            {
+                errors.Add($"'{name}' {ex.Message}");
                 continue;
             }
 
@@ -68,6 +81,19 @@ public sealed class ForumAttachmentValidator(IOptions<ForumAttachmentOptions> op
         }
 
         return new ForumAttachmentValidationResult(accepted, errors);
+    }
+
+    private static byte[] ReadHeader(IFormFile file)
+    {
+        using var stream = file.OpenReadStream();
+        var buffer = new byte[64];
+        var read = stream.Read(buffer, 0, buffer.Length);
+        if (stream.CanSeek)
+        {
+            stream.Position = 0;
+        }
+
+        return read == buffer.Length ? buffer : buffer[..read];
     }
 
     public static string FormatBytes(long bytes) => bytes switch

@@ -318,12 +318,23 @@ export function parseCobertura(contents, { repoRoot = defaultRepoRoot } = {}) {
     const repoPath = toRepoPath(decodeXml(filenameMatch[1]), sources, repoRoot);
     const coverage = fileCoverage(store, repoPath);
 
-    for (const method of block.matchAll(/<method\s+name="([^"]+)"[^>]*hits="(\d+)"[\s\S]*?<line number="(\d+)"/g)) {
-      addHit(coverage.functions, `${Number(method[3])}:${decodeXml(method[1])}`, Number(method[2]));
+    for (const methodBlock of block.split('<method ').slice(1)) {
+      const headerEnd = methodBlock.indexOf('>');
+      const header = methodBlock.slice(0, headerEnd);
+      const name = /name="([^"]+)"/.exec(header)?.[1];
+      const hits = /hits="(\d+)"/.exec(header)?.[1];
+      const line = /<line number="(\d+)"/.exec(methodBlock)?.[1];
+      if (headerEnd !== -1 && name && hits && line) {
+        addHit(coverage.functions, `${Number(line)}:${decodeXml(name)}`, Number(hits));
+      }
     }
 
-    for (const line of block.matchAll(/<line\s+([^>]+)\/>/g)) {
-      const attrs = line[1];
+    for (const lineBlock of block.split(/<line\s+/).slice(1)) {
+      const tagEnd = lineBlock.indexOf('/>');
+      if (tagEnd === -1) {
+        throw new Error(`Malformed Cobertura report: line tag is not closed in ${repoPath}.`);
+      }
+      const attrs = lineBlock.slice(0, tagEnd);
       const number = Number(/number="(\d+)"/.exec(attrs)?.[1]);
       const hits = Number(/hits="(\d+)"/.exec(attrs)?.[1]);
       if (!Number.isFinite(number)) {
@@ -332,7 +343,7 @@ export function parseCobertura(contents, { repoRoot = defaultRepoRoot } = {}) {
       addHit(coverage.lines, number, hits);
       addHit(coverage.statements, String(number), hits);
 
-      const condition = /condition-coverage="[^"]*\((\d+)\/(\d+)\)"/.exec(attrs);
+      const condition = /condition-coverage="[^"(]*\((\d+)\/(\d+)\)"/.exec(attrs);
       if (condition) {
         const covered = Number(condition[1]);
         const total = Number(condition[2]);
@@ -915,6 +926,17 @@ function runSelfTest() {
       const summary = summarizeStore(merged, { coverableOnly: false });
       if (summary.lines.total !== 3 || summary.lines.covered !== 1) {
         throw new Error(JSON.stringify(summary.lines));
+      }
+    });
+
+    assert('Cobertura methods keep their own line and hit count', () => {
+      const report = parseCobertura('<coverage><class filename="src/api/text.ts"><methods>' +
+        '<method name="first" hits="2"><lines><line number="4" hits="2"/></lines></method>' +
+        '<method name="second" hits="0"><lines><line number="9" hits="0"/></lines></method>' +
+        '</methods></class></coverage>');
+      const functions = report.get('src/QueenZone.Mobile/src/api/text.ts')?.functions;
+      if (functions?.get('4:first') !== 2 || functions?.get('9:second') !== 0) {
+        throw new Error(JSON.stringify([...functions || []]));
       }
     });
 

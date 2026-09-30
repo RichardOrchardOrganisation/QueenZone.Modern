@@ -30,23 +30,21 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                     : Guid.NewGuid(),
                 SubmitterMemberId = submission.SubmitterMemberId,
                 Text = submission.Text.Trim(),
-                Category = NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
-                Difficulty = NormalizeDifficulty(submission.Difficulty),
-                SourceNote = NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
+                Category = SubmissionInput.NormalizeOptional(submission.Category, TriviaValidation.MaxCategoryLength),
+                Difficulty = TriviaValidation.NormalizeDifficulty(submission.Difficulty, TriviaValidation.MaxDifficultyLength),
+                SourceNote = SubmissionInput.NormalizeOptional(submission.SourceNote, TriviaValidation.MaxSourceNoteLength),
                 Status = TriviaFactSubmissionStatus.Pending,
                 SubmittedAt = DateTimeOffset.UtcNow,
             };
 
             submissions.Add(entity);
-            auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                TriviaFactSubmissionId = entity.Id,
-                Action = "Submitted",
-                ActorEmail = string.Empty,
-                OccurredAt = entity.SubmittedAt,
-                Details = "Member submitted a trivia fact for review.",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new TriviaFactSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    TriviaFactSubmissionId = entity.Id,
+                },
+                SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted a trivia fact for review.")));
 
             return Task.FromResult(Map(entity));
         }
@@ -57,16 +55,15 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
             IReadOnlyList<TriviaFactSubmissionListItem> result = submissions
                 .Where(row => row.Status == TriviaFactSubmissionStatus.Pending)
                 .OrderByDescending(row => row.SubmittedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(row =>
                 {
                     var member = resolveMember?.Invoke(row.SubmitterMemberId);
@@ -99,8 +96,7 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -110,8 +106,8 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 .ToList();
 
             IReadOnlyList<TriviaFactSubmission> items = owned
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(Map)
                 .ToList();
 
@@ -134,29 +130,29 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 return Task.FromResult<TriviaFactSubmission?>(null);
             }
 
-            if (!TriviaFactSubmissionWorkflow.TryValidateStatusChange(
-                    entity.Status,
-                    TriviaFactSubmissionStatus.Approved,
-                    out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                TriviaFactSubmissionStatus.Approved,
+                TriviaFactSubmissionWorkflow.TryValidateStatusChange);
 
-            entity.Status = TriviaFactSubmissionStatus.Approved;
             entity.PromotedTriviaId = promotedTriviaId;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                TriviaFactSubmissionStatus.Approved,
+                reviewerEmail,
+                reviewNotes);
 
-            auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                TriviaFactSubmissionId = entity.Id,
-                Action = TriviaFactSubmissionStatus.Approved,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = $"Approved and published as trivia fact #{promotedTriviaId}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new TriviaFactSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    TriviaFactSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    TriviaFactSubmissionStatus.Approved,
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Approved and published as trivia fact #{promotedTriviaId}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<TriviaFactSubmission?>(Map(entity));
         }
@@ -177,30 +173,29 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
                 return Task.FromResult<TriviaFactSubmission?>(null);
             }
 
-            if (!TriviaFactSubmissionWorkflow.TryValidateStatusChange(
-                    entity.Status,
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                TriviaFactSubmissionStatus.Rejected,
+                TriviaFactSubmissionWorkflow.TryValidateStatusChange);
+
+            entity.RejectionReason = SubmissionReview.RequireRejectionReason(rejectionReason);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                TriviaFactSubmissionStatus.Rejected,
+                reviewerEmail,
+                reviewNotes);
+
+            auditLogs.Add(SubmissionReview.Copy(
+                new TriviaFactSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    TriviaFactSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
                     TriviaFactSubmissionStatus.Rejected,
-                    out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
-
-            entity.Status = TriviaFactSubmissionStatus.Rejected;
-            entity.RejectionReason = NormalizeOptional(rejectionReason, 500)
-                ?? throw new InvalidOperationException("A rejection reason is required.");
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
-
-            auditLogs.Add(new TriviaFactSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                TriviaFactSubmissionId = entity.Id,
-                Action = TriviaFactSubmissionStatus.Rejected,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<TriviaFactSubmission?>(Map(entity));
         }
@@ -210,23 +205,17 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default)
     {
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-        var monthAgo = utcNow.AddDays(-30);
-
         lock (sync)
         {
-            var pending = submissions.Count(row => row.Status == TriviaFactSubmissionStatus.Pending);
-            var receivedToday = submissions.Count(row => row.SubmittedAt.UtcDateTime.Date >= today);
-            var receivedThisWeek = submissions.Count(row => row.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-            var last30 = submissions.Where(row => row.SubmittedAt >= monthAgo).ToList();
-            var approvedLast30 = last30.Count(row => row.Status == TriviaFactSubmissionStatus.Approved);
-            var rejectedLast30 = last30.Count(row => row.Status == TriviaFactSubmissionStatus.Rejected);
-            var pendingLast30 = last30.Count(row => row.Status == TriviaFactSubmissionStatus.Pending);
-
-            return Task.FromResult(new SubmissionTypeCounts(
-                pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30));
+            var rows = submissions.Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status == TriviaFactSubmissionStatus.Pending,
+                IsApproved = row.Status == TriviaFactSubmissionStatus.Approved,
+                IsRejected = row.Status == TriviaFactSubmissionStatus.Rejected,
+                IsStillPending = row.Status == TriviaFactSubmissionStatus.Pending,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.CountRows(rows, utcNow));
         }
     }
 
@@ -258,22 +247,5 @@ public sealed class InMemoryTriviaFactSubmissionRepository : ITriviaFactSubmissi
             entity.PromotedTriviaId,
             member?.DisplayName,
             member?.Email);
-    }
-
-    private static string? NormalizeDifficulty(string? value)
-    {
-        var trimmed = NormalizeOptional(value, TriviaValidation.MaxDifficultyLength);
-        return trimmed?.ToLowerInvariant();
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 }

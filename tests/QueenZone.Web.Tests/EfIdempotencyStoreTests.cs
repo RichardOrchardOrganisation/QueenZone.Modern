@@ -196,16 +196,6 @@ public sealed class EfIdempotencyStoreTests : IAsyncDisposable
         Assert.Equal(1, writes);
     }
 
-    [Fact]
-    public void UniqueConstraintDetector_RecognizesSqliteAndSqlServerMessages()
-    {
-        Assert.True(EfIdempotencyStore.IsUniqueConstraintViolation(
-            new InvalidOperationException("UNIQUE constraint failed: IdempotencyReceipts.MemberId")));
-        Assert.True(EfIdempotencyStore.IsUniqueConstraintViolation(
-            new InvalidOperationException("Violation of UNIQUE KEY constraint. Cannot insert duplicate key.")));
-        Assert.False(EfIdempotencyStore.IsUniqueConstraintViolation(new InvalidOperationException("timeout")));
-    }
-
     public async ValueTask DisposeAsync()
     {
         await dbContext.DisposeAsync();

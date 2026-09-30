@@ -10,6 +10,7 @@ public sealed class MobileAuthService(
     MobileAuthTokenIssuer tokens,
     MemberAccountService memberAccountService,
     MobileAuthAccountRateLimiter accountRateLimiter,
+    MobileAuthReplayRecoveryLimiter replayRecoveryLimiter,
     IOptions<MobileAuthOptions> options,
     TimeProvider timeProvider,
     ILogger<MobileAuthService> logger)
@@ -89,7 +90,93 @@ public sealed class MobileAuthService(
         string providerKey,
         string email,
         string displayName,
+        bool emailVerified,
         CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(requestId))
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Missing authorization request.");
+        }
+
+        var session = sessions.Peek(requestId);
+        if (session is null)
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Authorization request expired.");
+        }
+
+        if (!string.Equals(session.Provider, provider, StringComparison.OrdinalIgnoreCase))
+        {
+            sessions.Take(requestId);
+            return MobileAuthCallbackResult.Failed(
+                "access_denied",
+                "Provider mismatch.",
+                session.RedirectUri,
+                session.State);
+        }
+
+        var resolution = await memberAccountService.FindOrCreateFromExternalLoginAsync(
+            session.Provider,
+            providerKey,
+            email,
+            displayName,
+            emailVerified,
+            cancellationToken);
+
+        switch (resolution.Status)
+        {
+            case ExternalLoginStatus.LinkConfirmationRequired:
+                return MobileAuthCallbackResult.ConfirmationRequired(session.RedirectUri, session.State);
+            case ExternalLoginStatus.Suspended:
+                sessions.Take(requestId);
+                return MobileAuthCallbackResult.Failed(
+                    "access_denied",
+                    "account_suspended",
+                    session.RedirectUri,
+                    session.State);
+            case ExternalLoginStatus.SignedIn when resolution.Account is not null:
+                sessions.Take(requestId);
+                return await IssueAuthorizationCodeAsync(session, resolution.Account, cancellationToken);
+            default:
+                sessions.Take(requestId);
+                return MobileAuthCallbackResult.Failed(
+                    "access_denied",
+                    ExternalLoginMessages.UnverifiedEmail,
+                    session.RedirectUri,
+                    session.State);
+        }
+    }
+
+    public async Task<MobileAuthCallbackResult> CompleteConfirmedLoginAsync(
+        string? requestId,
+        MemberAccount account,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        if (string.IsNullOrWhiteSpace(requestId))
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Missing authorization request.");
+        }
+
+        var session = sessions.Take(requestId);
+        if (session is null)
+        {
+            return MobileAuthCallbackResult.Failed("invalid_request", "Authorization request expired.");
+        }
+
+        if (account.IsSuspended)
+        {
+            return MobileAuthCallbackResult.Failed(
+                "access_denied",
+                "account_suspended",
+                session.RedirectUri,
+                session.State);
+        }
+
+        return await IssueAuthorizationCodeAsync(session, account, cancellationToken);
+    }
+
+    public MobileAuthCallbackResult CancelPendingAuthorization(string? requestId)
     {
         if (string.IsNullOrWhiteSpace(requestId))
         {
@@ -102,57 +189,11 @@ public sealed class MobileAuthService(
             return MobileAuthCallbackResult.Failed("invalid_request", "Authorization request expired.");
         }
 
-        if (!string.Equals(session.Provider, provider, StringComparison.OrdinalIgnoreCase))
-        {
-            return MobileAuthCallbackResult.Failed(
-                "access_denied",
-                "Provider mismatch.",
-                session.RedirectUri,
-                session.State);
-        }
-
-        var account = await memberAccountService.FindOrCreateFromExternalLoginAsync(
-            session.Provider,
-            providerKey,
-            email,
-            displayName,
-            cancellationToken);
-
-        if (account.IsSuspended)
-        {
-            return MobileAuthCallbackResult.Failed(
-                "access_denied",
-                "account_suspended",
-                session.RedirectUri,
-                session.State);
-        }
-
-        if (!accountRateLimiter.IsAllowed(account.Id))
-        {
-            return MobileAuthCallbackResult.Failed(
-                "temporarily_unavailable",
-                MobileAuthAccountRateLimiter.ClientMessage,
-                session.RedirectUri,
-                session.State);
-        }
-
-        var rawCode = MobileAuthPkce.CreateOpaqueToken();
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        await grants.StoreAuthorizationCodeAsync(
-            new MobileAuthAuthorizationCodeEntity
-            {
-                Id = Guid.NewGuid(),
-                CodeHash = MobileAuthPkce.Sha256Hex(rawCode),
-                MemberAccountId = account.Id,
-                ClientId = session.ClientId,
-                RedirectUri = session.RedirectUri,
-                CodeChallenge = session.CodeChallenge,
-                CreatedAt = now,
-                ExpiresAt = now.AddMinutes(options.Value.AuthorizationCodeLifetimeMinutes),
-            },
-            cancellationToken);
-
-        return MobileAuthCallbackResult.Succeeded(session.RedirectUri, session.State, rawCode);
+        return MobileAuthCallbackResult.Failed(
+            "access_denied",
+            "Sign-in was cancelled.",
+            session.RedirectUri,
+            session.State);
     }
 
     public async Task<MobileAuthTokenResult> ExchangeAuthorizationCodeAsync(
@@ -231,49 +272,22 @@ public sealed class MobileAuthService(
             // ships staging and production under one bundle id.
             logger.LogInformation(
                 "Mobile auth refresh rejected: no grant matches the presented token for client {ClientId}.",
-                clientId);
+                mobile.ClientId);
             return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
         }
 
         if (stored.RevokedAt is not null)
         {
             // Refresh-token reuse: the presented grant was already rotated away.
-            // Within a short grace window this is usually a client that never saw
-            // its rotation response (killed mid launch, dropped connection, ...),
-            // not a stolen token — trace forward to whatever grant replaced it and
-            // rotate that instead of nuking every device. Outside the window, or
-            // when the chain doesn't lead anywhere live, treat it as theft: revoke
-            // everything and make that visible.
-            var withinGraceWindow = mobile.RefreshTokenReuseGraceSeconds > 0
-                && now - stored.RevokedAt.Value <= TimeSpan.FromSeconds(mobile.RefreshTokenReuseGraceSeconds);
-
-            var active = withinGraceWindow
-                ? await FindActiveDescendantAsync(stored, clientId!, now, cancellationToken)
-                : null;
-
-            if (active is not null)
+            // Usually a client that never saw its rotation response (killed mid
+            // launch, suspended in the background, dropped connection, ...), which
+            // is recovered by rotating the grant that replaced it. When the chain
+            // has moved on without this token's holder, two parties share it:
+            // treat it as theft, revoke everything and make that visible.
+            var recovered = await TryRecoverReplayedGrantAsync(stored, now, cancellationToken);
+            if (recovered is not null)
             {
-                logger.LogInformation(
-                    "Mobile auth refresh replayed an already-rotated token within the reuse grace window "
-                        + "for member {MemberId}; rotating the current grant instead of revoking all grants.",
-                    stored.MemberAccountId);
-
-                if (!await grants.TryRevokeRefreshTokenAsync(active.TokenHash, now, cancellationToken))
-                {
-                    // Lost this rotation race too; let the caller retry.
-                    return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
-                }
-
-                var recoveredAccount = await memberAccountService.FindByIdAsync(
-                    active.MemberAccountId,
-                    cancellationToken);
-                if (recoveredAccount is null || recoveredAccount.IsSuspended)
-                {
-                    await grants.RevokeAllRefreshTokensForMemberAsync(active.MemberAccountId, now, cancellationToken);
-                    return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
-                }
-
-                return await IssueTokenPairAsync(recoveredAccount, now, cancellationToken, active.TokenHash);
+                return recovered;
             }
 
             logger.LogWarning(
@@ -301,28 +315,118 @@ public sealed class MobileAuthService(
             return MobileAuthTokenResult.RateLimited();
         }
 
-        if (!await grants.TryRevokeRefreshTokenAsync(tokenHash, now, cancellationToken))
-        {
-            // A concurrent refresh rotated this grant between the read above and
-            // here. The loser gets invalid_grant and signs out locally.
-            logger.LogWarning(
-                "Mobile auth refresh lost the rotation race for member {MemberId}; concurrent refresh in flight.",
-                stored.MemberAccountId);
-            return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
-        }
-
         var account = await memberAccountService.FindByIdAsync(stored.MemberAccountId, cancellationToken);
-        if (account is null || account.IsSuspended)
+        if (account is not MemberAccount liveAccount || RefreshAccountRejected(liveAccount))
         {
             logger.LogInformation(
-                "Mobile auth refresh rejected for member {MemberId}: account missing or suspended; revoking all grants.",
+                "Mobile auth refresh rejected for member {MemberId}: account missing, suspended, or pending deletion; revoking all grants.",
                 stored.MemberAccountId);
             await grants.RevokeAllRefreshTokensForMemberAsync(stored.MemberAccountId, now, cancellationToken);
             return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
         }
 
-        return await IssueTokenPairAsync(account, now, cancellationToken, tokenHash);
+        var rotated = await TryRotateTokenPairAsync(liveAccount, tokenHash, now, cancellationToken);
+        if (rotated is not null)
+        {
+            return rotated;
+        }
+
+        // A concurrent refresh rotated this grant between the read above and here.
+        // Recover onto the winner's grant like any other lost rotation response;
+        // if that isn't possible yet, the grant is not dead, so say retry rather
+        // than invalid_grant (which signs the client out).
+        var current = await grants.FindRefreshTokenByHashAsync(tokenHash, cancellationToken);
+        if (current?.RevokedAt is not null
+            && await TryRecoverReplayedGrantAsync(current, now, cancellationToken) is { } recoveredFromRace)
+        {
+            return recoveredFromRace;
+        }
+
+        logger.LogWarning(
+            "Mobile auth refresh lost the rotation race for member {MemberId}; concurrent refresh in flight.",
+            stored.MemberAccountId);
+        return RotationConflict();
     }
+
+    /// <summary>
+    /// Recovers a replay of an already-rotated grant by rotating the grant that
+    /// replaced it. Within the reuse grace window the chain is followed to its live
+    /// end (a double-rotation race). After it, only a direct successor that has
+    /// never been used qualifies: nobody advanced the chain, so the legitimate
+    /// client almost certainly never received that successor. Returns null when
+    /// neither applies, which callers treat as reuse.
+    /// </summary>
+    private async Task<MobileAuthTokenResult?> TryRecoverReplayedGrantAsync(
+        MobileAuthRefreshTokenEntity replayed,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var mobile = options.Value;
+        var replayAge = now - replayed.RevokedAt!.Value;
+        MobileAuthRefreshTokenEntity? active;
+        if (mobile.RefreshTokenReuseGraceSeconds > 0
+            && replayAge <= TimeSpan.FromSeconds(mobile.RefreshTokenReuseGraceSeconds))
+        {
+            active = await FindActiveDescendantAsync(replayed, mobile.ClientId, now, cancellationToken);
+            if (active is null)
+            {
+                return null;
+            }
+
+            logger.LogInformation(
+                "Mobile auth refresh replayed an already-rotated token within the reuse grace window "
+                    + "for member {MemberId}; rotating the current grant instead of revoking all grants.",
+                replayed.MemberAccountId);
+        }
+        else if (mobile.RefreshTokenUnusedSuccessorRecovery)
+        {
+            active = await FindUnusedSuccessorAsync(replayed, mobile.ClientId, now, cancellationToken);
+            if (active is null)
+            {
+                return null;
+            }
+
+            if (!replayRecoveryLimiter.TryConsume(replayed.MemberAccountId))
+            {
+                logger.LogWarning(
+                    "Mobile auth refresh for member {MemberId} is over the daily unused-successor recovery limit; "
+                        + "treating the replay as reuse.",
+                    replayed.MemberAccountId);
+                return null;
+            }
+
+            // Information, not Debug: a thief and the real client swapping one chain
+            // back and forth shows up as a run of these for one member.
+            logger.LogInformation(
+                "Mobile auth refresh replayed a token rotated {ReplayAgeSeconds}s ago whose successor was never used "
+                    + "for member {MemberId}; rotating the unused successor (issued {SuccessorCreatedAt:o}) "
+                    + "instead of revoking all grants.",
+                (long)replayAge.TotalSeconds,
+                replayed.MemberAccountId,
+                active.CreatedAt);
+        }
+        else
+        {
+            return null;
+        }
+
+        var account = await memberAccountService.FindByIdAsync(active.MemberAccountId, cancellationToken);
+        if (account is not MemberAccount recovered || RefreshAccountRejected(recovered))
+        {
+            await grants.RevokeAllRefreshTokensForMemberAsync(active.MemberAccountId, now, cancellationToken);
+            return MobileAuthTokenResult.Failed("invalid_grant", "The refresh token grant is invalid.");
+        }
+
+        // Losing this rotation too means another refresh is mid-flight on the same
+        // chain; the client keeps its token and retries.
+        return await TryRotateTokenPairAsync(recovered, active.TokenHash, now, cancellationToken)
+            ?? RotationConflict();
+    }
+
+    private static MobileAuthTokenResult RotationConflict() =>
+        MobileAuthTokenResult.Failed(
+            "temporarily_unavailable",
+            "Another refresh of this grant is in progress. Try again.");
 
     public async Task<MobileAuthTokenResult> ExchangePasswordGrantAsync(
         string? clientId,
@@ -346,11 +450,7 @@ public sealed class MobileAuthService(
         var signIn = await memberAccountService.SignInAsync(username, password, cancellationToken);
         if (!signIn.Succeeded || signIn.Account is null)
         {
-            return MobileAuthTokenResult.Failed(
-                "invalid_grant",
-                string.Equals(signIn.Error, MemberAccountService.SuspendedSignInError, StringComparison.Ordinal)
-                    ? MemberAccountService.SuspendedSignInError
-                    : PasswordGrantInvalidDescription);
+            return MobileAuthTokenResult.Failed("invalid_grant", PasswordGrantInvalidDescription);
         }
 
         if (!accountRateLimiter.IsAllowed(signIn.Account.Id))
@@ -362,6 +462,9 @@ public sealed class MobileAuthService(
     }
 
     public const string PasswordGrantInvalidDescription = "The password grant is invalid.";
+
+    private static bool RefreshAccountRejected(MemberAccount? account) =>
+        account is null || account.IsSuspended || account.DeletionRequestedAt is not null;
 
     public async Task RevokeRefreshTokenAsync(string? refreshToken, CancellationToken cancellationToken)
     {
@@ -385,38 +488,87 @@ public sealed class MobileAuthService(
             timeProvider.GetUtcNow().UtcDateTime,
             cancellationToken);
 
-    private async Task<MobileAuthTokenResult> IssueTokenPairAsync(
+    private async Task<MobileAuthCallbackResult> IssueAuthorizationCodeAsync(
+        MobileAuthAuthorizationSession session,
         MemberAccount account,
-        DateTime utcNow,
-        CancellationToken cancellationToken,
-        string? rotatedFromTokenHash = null)
+        CancellationToken cancellationToken)
     {
-        var mobile = options.Value;
-        var accessToken = tokens.IssueAccessToken(account.Id, account.Email, account.DisplayName);
-        var refreshToken = MobileAuthPkce.CreateOpaqueToken();
-        var refreshTokenHash = MobileAuthPkce.Sha256Hex(refreshToken);
-        await grants.StoreRefreshTokenAsync(
-            new MobileAuthRefreshTokenEntity
+        if (!accountRateLimiter.IsAllowed(account.Id))
+        {
+            return MobileAuthCallbackResult.Failed(
+                "temporarily_unavailable",
+                MobileAuthAccountRateLimiter.ClientMessage,
+                session.RedirectUri,
+                session.State);
+        }
+
+        var rawCode = MobileAuthPkce.CreateOpaqueToken();
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        await grants.StoreAuthorizationCodeAsync(
+            new MobileAuthAuthorizationCodeEntity
             {
                 Id = Guid.NewGuid(),
-                TokenHash = refreshTokenHash,
+                CodeHash = MobileAuthPkce.Sha256Hex(rawCode),
                 MemberAccountId = account.Id,
-                ClientId = mobile.ClientId,
-                CreatedAt = utcNow,
-                ExpiresAt = utcNow.AddDays(mobile.RefreshTokenLifetimeDays),
+                ClientId = session.ClientId,
+                RedirectUri = session.RedirectUri,
+                CodeChallenge = session.CodeChallenge,
+                CreatedAt = now,
+                ExpiresAt = now.AddMinutes(options.Value.AuthorizationCodeLifetimeMinutes),
             },
             cancellationToken);
 
-        if (rotatedFromTokenHash is not null)
-        {
-            await grants.LinkRefreshTokenRotationAsync(rotatedFromTokenHash, refreshTokenHash, cancellationToken);
-        }
+        return MobileAuthCallbackResult.Succeeded(session.RedirectUri, session.State, rawCode);
+    }
 
-        return MobileAuthTokenResult.Succeeded(
-            accessToken,
+    private async Task<MobileAuthTokenResult> IssueTokenPairAsync(
+        MemberAccount account,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        var (refreshToken, grant) = NewRefreshGrant(account, utcNow);
+        await grants.StoreRefreshTokenAsync(grant, cancellationToken);
+        return TokenPair(account, refreshToken);
+    }
+
+    /// <summary>
+    /// Rotates <paramref name="rotatedFromTokenHash"/> into a new pair in one
+    /// transaction. Returns null when another refresh rotated it first.
+    /// </summary>
+    private async Task<MobileAuthTokenResult?> TryRotateTokenPairAsync(
+        MemberAccount account,
+        string rotatedFromTokenHash,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        var (refreshToken, grant) = NewRefreshGrant(account, utcNow);
+        return await grants.TryRotateRefreshTokenAsync(rotatedFromTokenHash, grant, utcNow, cancellationToken)
+            ? TokenPair(account, refreshToken)
+            : null;
+    }
+
+    private (string RefreshToken, MobileAuthRefreshTokenEntity Grant) NewRefreshGrant(
+        MemberAccount account,
+        DateTime utcNow)
+    {
+        var mobile = options.Value;
+        var refreshToken = MobileAuthPkce.CreateOpaqueToken();
+        return (refreshToken, new MobileAuthRefreshTokenEntity
+        {
+            Id = Guid.NewGuid(),
+            TokenHash = MobileAuthPkce.Sha256Hex(refreshToken),
+            MemberAccountId = account.Id,
+            ClientId = mobile.ClientId,
+            CreatedAt = utcNow,
+            ExpiresAt = utcNow.AddDays(mobile.RefreshTokenLifetimeDays),
+        });
+    }
+
+    private MobileAuthTokenResult TokenPair(MemberAccount account, string refreshToken) =>
+        MobileAuthTokenResult.Succeeded(
+            tokens.IssueAccessToken(account.Id, account.Email, account.DisplayName),
             refreshToken,
             tokens.AccessTokenLifetimeSeconds);
-    }
 
     /// <summary>
     /// Walks a chain of <see cref="MobileAuthRefreshTokenEntity.ReplacedByTokenHash"/>
@@ -452,6 +604,32 @@ public sealed class MobileAuthService(
     }
 
     private const int MaxReuseChainHops = 5;
+
+    /// <summary>
+    /// The grant that directly replaced <paramref name="token"/>, when it is still
+    /// live and has never itself been rotated. Deliberately one hop only: a chain
+    /// that moved on past the successor means two parties are using it.
+    /// </summary>
+    private async Task<MobileAuthRefreshTokenEntity?> FindUnusedSuccessorAsync(
+        MobileAuthRefreshTokenEntity token,
+        string clientId,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        if (token.ReplacedByTokenHash is null)
+        {
+            return null;
+        }
+
+        var successor = await grants.FindRefreshTokenByHashAsync(token.ReplacedByTokenHash, cancellationToken);
+        return successor is not null
+            && successor.RevokedAt is null
+            && successor.ExpiresAt > utcNow
+            && successor.MemberAccountId == token.MemberAccountId
+            && string.Equals(successor.ClientId, clientId, StringComparison.Ordinal)
+                ? successor
+                : null;
+    }
 
     public static bool IsRegisteredRedirectUri(MobileAuthOptions mobile, string? redirectUri)
     {
@@ -494,7 +672,8 @@ public sealed record MobileAuthCallbackResult(
     string? ErrorDescription,
     string? RedirectUri,
     string? State,
-    string? Code)
+    string? Code,
+    bool RequiresConfirmation = false)
 {
     public static MobileAuthCallbackResult Succeeded(string redirectUri, string state, string code) =>
         new(true, null, null, redirectUri, state, code);
@@ -505,6 +684,9 @@ public sealed record MobileAuthCallbackResult(
         string? redirectUri = null,
         string? state = null) =>
         new(false, error, description, redirectUri, state, null);
+
+    public static MobileAuthCallbackResult ConfirmationRequired(string redirectUri, string state) =>
+        new(false, null, null, redirectUri, state, null, RequiresConfirmation: true);
 }
 
 public sealed record MobileAuthTokenResult(

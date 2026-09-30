@@ -41,6 +41,8 @@ public sealed class AdminDashboardSectionLinksTests : IClassFixture<QueenZoneWeb
         Assert.Contains("href=\"/admin/photo-submissions\"", body);
         Assert.Contains("href=\"/admin/fan-performance-submissions\"", body);
         Assert.Contains("href=\"/admin/news-suggestions\"", body);
+        Assert.Contains("href=\"/admin/trivia-submissions\"", body);
+        Assert.Contains("href=\"/admin/quiz-question-submissions\"", body);
         Assert.Contains("href=\"/admin/help\"", body);
         Assert.Contains("href=\"/admin/private-messages\"", body);
         Assert.Contains("href=\"/admin/fan-performance-reports\"", body);

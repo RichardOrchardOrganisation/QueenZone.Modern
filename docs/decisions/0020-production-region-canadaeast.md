@@ -7,7 +7,7 @@ Accepted and implemented on **10 September 2026**. Supersedes [ADR 0017](0017-pr
 ## Context
 
 ADR 0017 selected `eastus`, with `eastus2` as its capacity fallback, for the
-production migration in [#1272](https://github.com/richardorchard/QueenZone.Modern/issues/1272).
+production migration in [#1272](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1272).
 The choice was a pre-launch hypothesis based on the site's historical US and
 European audience rather than current telemetry.
 
@@ -72,6 +72,6 @@ Tradeoffs:
 ## Related
 
 - [ADR 0017](0017-production-region-eastus.md) — superseded East US decision
-- [#1271](https://github.com/richardorchard/QueenZone.Modern/issues/1271) — original region decision
-- [#1272](https://github.com/richardorchard/QueenZone.Modern/issues/1272) — production migration
+- [#1271](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1271) — original region decision
+- [#1272](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1272) — production migration
 - [`production-region-migration.md`](../architecture/production-region-migration.md) — staged migration and cleanup gates

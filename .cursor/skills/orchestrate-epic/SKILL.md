@@ -20,7 +20,7 @@ Parent model: **Grok 4.6** at **high** (xhigh only if the split is messy). Leave
 
 ## QueenZone overlay
 
-- Issues live in `richardorchard/QueenZone.Modern`.
+- Issues live in `RichardOrchardOrganisation/QueenZone.Modern`.
 - Agent slug is `cursor/` unless the user named another (`grok/`, `claude/`, …). Never push to `main`.
 - One PR per issue unless the user asked to batch. `Closes #<n>`; `Relates to #<epic>` when there is a parent. Fill `.github/pull_request_template.md`.
 - Do **not** isolate git worktrees. `.cursor/worktrees.json` runs `dotnet restore QueenZone.sln` and dominates wall-clock.
@@ -44,8 +44,8 @@ Same as issue-queue. Sequential only. Scoreboard in this chat; drop child logs.
 3. **Implementer** (no PR). Wait.
 4. **Verifier**. Wait. Fail → one retry implementer, then pause.
 5. **Reviewer** once.
-   - Approve / nits → PR (nits in Follow-up).
-   - Request changes → one implementer response (blocking list verbatim) → verifier once → **do not review again**. Verifier pass → PR. Verifier fail → pause.
+   - Approve / nits → PR (nits in Follow-up). Paste the reviewer's visible finding lines and `qz-finding` tags verbatim into `## Review findings`.
+   - Request changes → one implementer response (blocking list verbatim) → verifier once → **do not review again**. Verifier pass → PR (same `## Review findings` paste). Verifier fail → pause.
 6. `gh pr create` after merging `origin/main` into the branch.
 7. Repeat until the queue is empty or paused.
 

@@ -23,39 +23,16 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
 
         lock (sync)
         {
-            var entity = new PhotoSubmissionEntity
-            {
-                Id = submission.Id is { } preferredId && preferredId != Guid.Empty
-                    ? preferredId
-                    : Guid.NewGuid(),
-                SubmitterMemberId = submission.SubmitterMemberId,
-                Title = submission.Title.Trim(),
-                Description = NormalizeOptional(submission.Description, 1000),
-                SuggestedCategory = NormalizeOptional(submission.SuggestedCategory, 100),
-                ApproximateYear = submission.ApproximateYear,
-                ApproximateDate = submission.ApproximateDate,
-                BlobPath = submission.BlobPath.Trim(),
-                WebOptimizedBlobPath = submission.WebOptimizedBlobPath.Trim(),
-                ThumbnailBlobPath = submission.ThumbnailBlobPath.Trim(),
-                OriginalFileName = submission.OriginalFileName.Trim(),
-                FileSizeBytes = submission.FileSizeBytes,
-                MimeType = submission.MimeType.Trim(),
-                ImageWidthPx = submission.ImageWidthPx,
-                ImageHeightPx = submission.ImageHeightPx,
-                Status = PhotoSubmissionStatus.Pending,
-                SubmittedAt = DateTimeOffset.UtcNow,
-            };
+            var entity = PhotoSubmissionRecords.NewEntity(submission);
 
             submissions.Add(entity);
-            auditLogs.Add(new PhotoSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                PhotoSubmissionId = entity.Id,
-                Action = "Submitted",
-                ActorEmail = string.Empty,
-                OccurredAt = entity.SubmittedAt,
-                Details = "Member submitted photo for review.",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new PhotoSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    PhotoSubmissionId = entity.Id,
+                },
+                SubmissionReview.Submitted(entity.SubmittedAt, "Member submitted photo for review.")));
 
             return Task.FromResult(Map(entity));
         }
@@ -66,8 +43,7 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -77,8 +53,8 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                         or PhotoSubmissionStatus.UnderReview
                         or PhotoSubmissionStatus.NeedsInfo)
                 .OrderByDescending(row => row.SubmittedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(row =>
                 {
                     var member = resolveMember?.Invoke(row.SubmitterMemberId);
@@ -113,8 +89,7 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -124,8 +99,8 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                 .ToList();
 
             IReadOnlyList<PhotoSubmission> items = owned
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(Map)
                 .ToList();
 
@@ -150,57 +125,20 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                 return Task.FromResult<PhotoSubmission?>(null);
             }
 
-            if (!PhotoSubmissionWorkflow.TryValidateStatusChange(entity.Status, status, out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
+            var next = PhotoSubmissionRecords.ApplyStatusChange(
+                entity, status, reviewerEmail, reviewNotes, rejectionReason, approvedCategory);
 
-            var next = PhotoSubmissionStatus.Normalize(status);
-            entity.Status = next;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
-
-            if (next == PhotoSubmissionStatus.Rejected)
-            {
-                entity.RejectionReason = NormalizeOptional(rejectionReason, 500)
-                    ?? throw new InvalidOperationException("A rejection reason is required.");
-            }
-            else if (!string.IsNullOrWhiteSpace(rejectionReason))
-            {
-                entity.RejectionReason = NormalizeOptional(rejectionReason, 500);
-            }
-
-            if (next == PhotoSubmissionStatus.Approved)
-            {
-                var category = NormalizeOptional(approvedCategory, 100)
-                    ?? NormalizeOptional(entity.SuggestedCategory, 100);
-                entity.ApprovedCategory = category
-                    ?? throw new InvalidOperationException("An approved gallery category is required.");
-            }
-            else if (!string.IsNullOrWhiteSpace(approvedCategory))
-            {
-                entity.ApprovedCategory = NormalizeOptional(approvedCategory, 100);
-            }
-
-            auditLogs.Add(new PhotoSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                PhotoSubmissionId = entity.Id,
-                Action = next,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = next switch
+            auditLogs.Add(SubmissionReview.Copy(
+                new PhotoSubmissionAuditLogEntity
                 {
-                    PhotoSubmissionStatus.Approved =>
-                        $"Approved for category '{entity.ApprovedCategory}'. Notes: {entity.ReviewNotes ?? "(none)"}",
-                    PhotoSubmissionStatus.Rejected =>
-                        $"Rejected. Reason: {entity.RejectionReason}. Notes: {entity.ReviewNotes ?? "(none)"}",
-                    PhotoSubmissionStatus.NeedsInfo =>
-                        $"Needs info. Notes: {entity.ReviewNotes ?? "(none)"}",
-                    _ => entity.ReviewNotes,
+                    Id = nextAuditId++,
+                    PhotoSubmissionId = entity.Id,
                 },
-            });
+                SubmissionReview.ForStatus(
+                    next,
+                    entity.ReviewerEmail,
+                    entity.ReviewedAt!.Value,
+                    PhotoSubmissionRecords.AuditDetails(next, entity))));
 
             return Task.FromResult<PhotoSubmission?>(Map(entity));
         }
@@ -222,28 +160,32 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
                 return Task.FromResult<PhotoSubmission?>(null);
             }
 
-            if (!PhotoSubmissionWorkflow.TryValidateStatusChange(entity.Status, PhotoSubmissionStatus.Approved, out var error))
-            {
-                throw new InvalidOperationException(error);
-            }
+            SubmissionReview.EnsureTransition(
+                entity.Status,
+                PhotoSubmissionStatus.Approved,
+                PhotoSubmissionWorkflow.TryValidateStatusChange);
 
             entity.Status = PhotoSubmissionStatus.Approved;
-            entity.ApprovedCategory = NormalizeOptional(approvedCategory, 100)
+            entity.ApprovedCategory = SubmissionInput.NormalizeOptional(approvedCategory, 100)
                 ?? throw new InvalidOperationException("An approved gallery category is required.");
             entity.PromotedPicId = promotedPicId;
-            entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            var reviewedAt = SubmissionReview.Stamp(
+                entity,
+                PhotoSubmissionStatus.Approved,
+                reviewerEmail,
+                reviewNotes);
 
-            auditLogs.Add(new PhotoSubmissionAuditLogEntity
-            {
-                Id = nextAuditId++,
-                PhotoSubmissionId = entity.Id,
-                Action = PhotoSubmissionStatus.Approved,
-                ActorEmail = entity.ReviewerEmail ?? string.Empty,
-                OccurredAt = entity.ReviewedAt.Value,
-                Details = $"Approved for category '{entity.ApprovedCategory}' and published to gallery as photo #{promotedPicId}. Notes: {entity.ReviewNotes ?? "(none)"}",
-            });
+            auditLogs.Add(SubmissionReview.Copy(
+                new PhotoSubmissionAuditLogEntity
+                {
+                    Id = nextAuditId++,
+                    PhotoSubmissionId = entity.Id,
+                },
+                SubmissionReview.ForStatus(
+                    PhotoSubmissionStatus.Approved,
+                    entity.ReviewerEmail,
+                    reviewedAt,
+                    $"Approved for category '{entity.ApprovedCategory}' and published to gallery as photo #{promotedPicId}. Notes: {entity.ReviewNotes ?? "(none)"}")));
 
             return Task.FromResult<PhotoSubmission?>(Map(entity));
         }
@@ -253,30 +195,17 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default)
     {
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-        var monthAgo = utcNow.AddDays(-30);
-
         lock (sync)
         {
-            var pending = submissions.Count(r =>
-                r.Status is PhotoSubmissionStatus.Pending
-                    or PhotoSubmissionStatus.UnderReview
-                    or PhotoSubmissionStatus.NeedsInfo);
-
-            var receivedToday = submissions.Count(r => r.SubmittedAt.UtcDateTime.Date >= today);
-            var receivedThisWeek = submissions.Count(r => r.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-            var last30 = submissions.Where(r => r.SubmittedAt >= monthAgo).ToList();
-            var approvedLast30 = last30.Count(r => r.Status == PhotoSubmissionStatus.Approved);
-            var rejectedLast30 = last30.Count(r => r.Status == PhotoSubmissionStatus.Rejected);
-            var pendingLast30 = last30.Count(r =>
-                r.Status is PhotoSubmissionStatus.Pending
-                    or PhotoSubmissionStatus.UnderReview
-                    or PhotoSubmissionStatus.NeedsInfo);
-
-            return Task.FromResult(new SubmissionTypeCounts(
-                pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30));
+            var rows = submissions.Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status is PhotoSubmissionStatus.Pending or PhotoSubmissionStatus.UnderReview or PhotoSubmissionStatus.NeedsInfo,
+                IsApproved = row.Status == PhotoSubmissionStatus.Approved,
+                IsRejected = row.Status == PhotoSubmissionStatus.Rejected,
+                IsStillPending = row.Status is PhotoSubmissionStatus.Pending or PhotoSubmissionStatus.UnderReview or PhotoSubmissionStatus.NeedsInfo,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.CountRows(rows, utcNow));
         }
     }
 
@@ -287,19 +216,12 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
     {
         lock (sync)
         {
-            IReadOnlyList<SubmissionContributor> result = submissions
-                .Where(r => r.SubmittedAt >= monthStart)
-                .GroupBy(r => r.SubmitterMemberId)
-                .Select(g =>
-                {
-                    var member = resolveMember?.Invoke(g.Key);
-                    return new SubmissionContributor(g.Key, member?.DisplayName ?? "Unknown member", g.Count());
-                })
-                .OrderByDescending(c => c.Count)
-                .Take(maxCount)
-                .ToList();
-
-            return Task.FromResult(result);
+            var rows = submissions.Select(row => new SubmissionContributorRow
+            {
+                MemberId = row.SubmitterMemberId,
+                SubmittedAt = row.SubmittedAt,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.TopContributors(rows, monthStart, maxCount, id => resolveMember?.Invoke(id)?.DisplayName));
         }
     }
 
@@ -341,16 +263,5 @@ public sealed class InMemoryPhotoSubmissionRepository : IPhotoSubmissionReposito
             entity.PromotedPicId,
             member?.DisplayName,
             member?.Email);
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 }

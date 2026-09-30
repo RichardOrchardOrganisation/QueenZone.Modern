@@ -38,6 +38,25 @@ public sealed class EfDeviceTokenRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task DeleteIfTokenMatchesAsync_PreservesRefreshedRegistration()
+    {
+        var member = await SeedAccountAsync("stale-token@example.com");
+        const string deviceId = "e3c869b0-f770-4ee4-be4a-46c63ccba90f";
+        var stale = await repository.UpsertAsync(
+            DeviceTokenTestData.Token(member.Id, DevicePushPlatform.Fcm, "old", deviceId));
+        var staleUpdatedAt = stale.UpdatedAt;
+        var refreshedToken = DeviceTokenTestData.Token(member.Id, DevicePushPlatform.Fcm, "new", deviceId);
+        refreshedToken.UpdatedAt = staleUpdatedAt.AddMinutes(1);
+        var fresh = await repository.UpsertAsync(refreshedToken);
+
+        Assert.False(await repository.DeleteIfTokenMatchesAsync(
+            stale.Id, staleUpdatedAt, member.Id, DevicePushPlatform.Fcm, "old"));
+        Assert.True(await repository.DeleteIfTokenMatchesAsync(
+            fresh.Id, fresh.UpdatedAt, member.Id, DevicePushPlatform.Fcm, "new"));
+        Assert.Empty(await repository.ListByMemberIdsAsync([member.Id]));
+    }
+
+    [Fact]
     public async Task UpsertAsync_SameDeviceId_SameMember_UpdatesTokenPlatformAndUpdatedAt()
     {
         var alice = await SeedAccountAsync("alice-reregister@example.com");
@@ -156,21 +175,6 @@ public sealed class EfDeviceTokenRepositoryTests : IAsyncDisposable
         Assert.Equal("bob-tok", updated.Token);
         Assert.Equal(DevicePushPlatform.Fcm, updated.Platform);
         Assert.Equal(1, await dbContext.DeviceTokens.CountAsync());
-    }
-
-    [Fact]
-    public void IsUniqueConstraintViolation_DetectsSqliteAndSqlServerMessages()
-    {
-        var sqlite = new DbUpdateException(
-            "conflict",
-            new Exception("UNIQUE constraint failed: DeviceTokens.DeviceId"));
-        var sqlServer = new DbUpdateException(
-            "conflict",
-            new Exception("Cannot insert duplicate key row in object 'dbo.DeviceTokens' with unique index 'IX_DeviceTokens_DeviceId'. The duplicate key value is (e3c869b0-f770-4ee4-be4a-46c63ccba90f)."));
-
-        Assert.True(EfDeviceTokenRepository.IsUniqueConstraintViolation(sqlite));
-        Assert.True(EfDeviceTokenRepository.IsUniqueConstraintViolation(sqlServer));
-        Assert.False(EfDeviceTokenRepository.IsUniqueConstraintViolation(new DbUpdateException("other", new Exception("timeout"))));
     }
 
     [Fact]

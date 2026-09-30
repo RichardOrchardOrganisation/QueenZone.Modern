@@ -13,7 +13,8 @@ public sealed class PublicQueryCacheOptionsValidator : IValidateOptions<PublicQu
             || options.PhotoCacheDuration <= TimeSpan.Zero
             || options.FanPerformanceCacheDuration <= TimeSpan.Zero
             || options.LiveActivityCacheDuration <= TimeSpan.Zero
-            || options.CatalogCacheDuration <= TimeSpan.Zero)
+            || options.CatalogCacheDuration <= TimeSpan.Zero
+            || options.FreddieSampleCacheDuration <= TimeSpan.Zero)
         {
             return ValidateOptionsResult.Fail(
                 $"{PublicQueryCacheOptions.SectionName} durations must be greater than zero.");

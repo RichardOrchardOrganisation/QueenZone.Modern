@@ -8,8 +8,6 @@ namespace QueenZone.Data;
 /// </summary>
 public sealed class InMemorySiteSearchService(SharedSearchIndexStore store) : ISiteSearchService
 {
-    private const int MaxPageSize = 100;
-
     public Task<SiteSearchPage> SearchAsync(
         string query,
         string? contentType,
@@ -17,16 +15,17 @@ public sealed class InMemorySiteSearchService(SharedSearchIndexStore store) : IS
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        if (SiteSearchLimits.IsBelowMinimumLength(query))
         {
             return Task.FromResult(new SiteSearchPage([], 0, page, pageSize));
         }
 
-        var normalizedPage = Math.Max(page, 1);
-        var take = Math.Clamp(pageSize, 1, MaxPageSize);
+        var normalizedPage = SiteSearchLimits.NormalizePage(page);
+        var take = SiteSearchLimits.NormalizePageSize(pageSize);
         var trimmedQuery = query.Trim();
 
         var matches = store.GetAll()
+            .Where(document => !SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey))
             .Where(document => contentType is null || document.ContentType == contentType)
             .Select(document => new
             {
@@ -42,6 +41,11 @@ public sealed class InMemorySiteSearchService(SharedSearchIndexStore store) : IS
             .ToList();
 
         var totalCount = matches.Count;
+        if (SiteSearchLimits.IsBeyondMaxPage(normalizedPage))
+        {
+            return Task.FromResult(new SiteSearchPage([], totalCount, normalizedPage, take));
+        }
+
         var pageItems = matches
             .Skip((normalizedPage - 1) * take)
             .Take(take)

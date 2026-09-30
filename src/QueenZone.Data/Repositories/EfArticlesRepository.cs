@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -19,7 +18,6 @@ public sealed class EfArticlesRepository : IArticlesRepository
     private readonly string sitemapSql;
     private readonly IEditorialArticleRepository? editorialArticles;
 
-    [ExcludeFromCodeCoverage]
     public EfArticlesRepository(QueenZoneDbContext dbContext, IEditorialArticleRepository editorialArticles)
     {
         this.dbContext = dbContext;
@@ -65,7 +63,7 @@ public sealed class EfArticlesRepository : IArticlesRepository
             .SqlQueryRaw<int>(countSql)
             .ToListAsync(cancellationToken);
         if (editorialArticles is null) return values.FirstOrDefault();
-        var hidden = (await editorialArticles.GetAllAsync(cancellationToken)).Count(x => x.LegacyArticleId is not null && x.HasPublishedVersion && x.Status == EditorialArticleStatus.Unpublished);
+        var hidden = await editorialArticles.GetUnpublishedLegacyOverlayCountAsync(cancellationToken);
         return Math.Max(0, values.FirstOrDefault() - hidden);
     }
 

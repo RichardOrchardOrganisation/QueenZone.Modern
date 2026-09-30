@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,10 +14,12 @@ import {
   fallbackContactLimits,
   parseContactForm,
   parseContactSubmitResult,
-  readProblemDetail,
   type ContactForm,
 } from '../../api/contact';
+import { readProblemDetail } from '../../api/problemDetail';
 import { radius, space, type, useTheme } from '../../theme';
+import { FormFieldLabel, FormScreenLayout } from '../../ui/FormScreenLayout';
+import { testIds } from '../../test/testIds';
 
 const defaultTopic = 'Other';
 
@@ -115,18 +114,30 @@ export function ContactScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: c.surfacePage }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <FormScreenLayout
+      testID={testIds.contactScreen}
+      backgroundColor={c.surfacePage}
+      bottomInset={insets.bottom}
+      footer={confirmation ? null : (
+        <Pressable
+          testID={testIds.contactSend}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          accessibilityState={{ disabled: submitting || !form }}
+          disabled={submitting || !form}
+          onPress={() => void onSubmit()}
+          style={({ pressed }) => [
+            styles.submit,
+            { backgroundColor: c.accentPrimary, opacity: submitting || !form ? 0.6 : 1 },
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[type.button, { color: c.textOnAccent }]}>
+            {submitting ? 'Sending' : 'Send message'}
+          </Text>
+        </Pressable>
+      )}
     >
-      <ScrollView
-        style={styles.flex}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + space.xxl },
-        ]}
-      >
         <Text style={[type.eyebrow, { color: c.accentPrimary }]}>Contact</Text>
         <Text style={[type.pageTitle, { color: c.textPrimary }]} maxFontSizeMultiplier={1.4} allowFontScaling>
           Contact us
@@ -168,7 +179,7 @@ export function ContactScreen() {
           </View>
         ) : (
           <View style={styles.fields}>
-            <FieldLabel color={c.textMuted}>Topic</FieldLabel>
+            <FormFieldLabel color={c.textMuted}>Topic</FormFieldLabel>
             <View style={styles.topics}>
               {(form?.topics ?? [{ value: defaultTopic, label: 'Other' }]).map((item) => {
                 const selected = item.value === topic;
@@ -196,7 +207,7 @@ export function ContactScreen() {
               })}
             </View>
 
-            <FieldLabel color={c.textMuted}>Subject</FieldLabel>
+            <FormFieldLabel color={c.textMuted}>Subject</FormFieldLabel>
             <TextInput
               value={subject}
               onChangeText={setSubject}
@@ -209,7 +220,7 @@ export function ContactScreen() {
 
             {requiresContactDetails ? (
               <>
-                <FieldLabel color={c.textMuted}>Your name</FieldLabel>
+                <FormFieldLabel color={c.textMuted}>Your name</FormFieldLabel>
                 <TextInput
                   value={name}
                   onChangeText={setName}
@@ -221,7 +232,7 @@ export function ContactScreen() {
                   style={[styles.input, { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard }]}
                 />
 
-                <FieldLabel color={c.textMuted}>Email address</FieldLabel>
+                <FormFieldLabel color={c.textMuted}>Email address</FormFieldLabel>
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
@@ -238,8 +249,9 @@ export function ContactScreen() {
               </>
             ) : null}
 
-            <FieldLabel color={c.textMuted}>Your message</FieldLabel>
+            <FormFieldLabel color={c.textMuted}>Your message</FormFieldLabel>
             <TextInput
+              testID={testIds.contactMessage}
               value={message}
               onChangeText={setMessage}
               maxLength={limits.maxMessageLength}
@@ -260,43 +272,13 @@ export function ContactScreen() {
                 {submitError}
               </Text>
             ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Send message"
-              accessibilityState={{ disabled: submitting || !form }}
-              disabled={submitting || !form}
-              onPress={() => void onSubmit()}
-              style={({ pressed }) => [
-                styles.submit,
-                { backgroundColor: c.accentPrimary, opacity: submitting || !form ? 0.6 : 1 },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[type.button, { color: c.textOnAccent }]}>
-                {submitting ? 'Sending' : 'Send message'}
-              </Text>
-            </Pressable>
           </View>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </FormScreenLayout>
   );
 }
 
-function FieldLabel({ color, children }: { color: string; children: string }) {
-  return <Text style={[type.listTitle, { color }]}>{children}</Text>;
-}
-
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: space.xl,
-    paddingTop: space.base,
-    gap: space.md,
-  },
   fields: {
     gap: space.sm,
   },

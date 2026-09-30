@@ -13,21 +13,19 @@ public sealed class EditModel(IQuoteRepository quoteRepository) : AdminQuotePage
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
-    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
-    {
-        var quote = await quoteRepository.GetByIdAsync(id, cancellationToken);
-        if (quote is null)
-        {
-            return NotFound();
-        }
-
-        StatusMessage = TempData[MessageKey] as string;
-        StatusMessageKind = TempData[MessageKindKey] as string;
-        ViewData["Title"] = "Edit quote";
-        Breadcrumbs = AdminBreadcrumbs.Page("Quotes", "/admin/quotes", "Edit quote");
-        Form = BuildForm(quote, ToDraft(quote), null);
-        return Page();
-    }
+    public Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken) =>
+        LoadEditAsync(
+            id,
+            quoteRepository.GetByIdAsync,
+            quote =>
+            {
+                StatusMessage = TempData[MessageKey] as string;
+                StatusMessageKind = TempData[MessageKindKey] as string;
+                ViewData["Title"] = "Edit quote";
+                Breadcrumbs = AdminBreadcrumbs.Page("Quotes", "/admin/quotes", "Edit quote");
+                Form = BuildForm(quote, ToDraft(quote), null);
+            },
+            cancellationToken);
 
     public static QuoteFormViewModel BuildForm(
         QuoteItem quote,

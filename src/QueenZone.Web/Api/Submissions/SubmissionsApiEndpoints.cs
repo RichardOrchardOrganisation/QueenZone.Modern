@@ -24,150 +24,146 @@ public static class SubmissionsApiEndpoints
 
     public static void MapSubmissionsApiEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup(RootPath)
-            .WithGroupName(ApiV1.OpenApiDocumentName)
-            .WithTags("Submissions")
+        var group = app.MapApiV1Group(RootPath, "Submissions")
             .RequireAuthorization(MemberAuthenticationSchemes.MobileMemberPolicy)
             .DisableAntiforgery();
 
-        group.MapGet("/photos", GetPhotosAsync)
-            .WithName("GetMyPhotoSubmissions")
-            .WithSummary("Paged list of the signed-in member's photo submissions and review status.")
-            .Produces<ApiPagedResponse<PhotoSubmissionItemDto>>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapAuthorizedPagedList<PhotoSubmissionItemDto>(
+            "/photos",
+            GetPhotosAsync,
+            "GetMyPhotoSubmissions",
+            "Paged list of the signed-in member's photo submissions and review status.");
 
-        group.MapGet("/news", GetNewsAsync)
-            .WithName("GetMyNewsSuggestions")
-            .WithSummary("Paged list of the signed-in member's news suggestions and review status.")
-            .Produces<ApiPagedResponse<NewsSuggestionItemDto>>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapAuthorizedPagedList<NewsSuggestionItemDto>(
+            "/news",
+            GetNewsAsync,
+            "GetMyNewsSuggestions",
+            "Paged list of the signed-in member's news suggestions and review status.");
 
-        group.MapGet("/articles", GetArticlesAsync)
-            .WithName("GetMyArticleSubmissions")
-            .WithSummary("Paged list of the signed-in member's article submissions and review status.")
-            .Produces<ApiPagedResponse<ArticleSubmissionItemDto>>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapAuthorizedPagedList<ArticleSubmissionItemDto>(
+            "/articles",
+            GetArticlesAsync,
+            "GetMyArticleSubmissions",
+            "Paged list of the signed-in member's article submissions and review status.");
 
-        group.MapGet("/fan-performances", GetFanPerformancesAsync)
-            .WithName("GetMyFanPerformanceSubmissions")
-            .WithSummary("Paged list of the signed-in member's fan-performance submissions and review status.")
-            .Produces<ApiPagedResponse<FanPerformanceSubmissionItemDto>>()
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+        group.MapAuthorizedPagedList<FanPerformanceSubmissionItemDto>(
+            "/fan-performances",
+            GetFanPerformancesAsync,
+            "GetMyFanPerformanceSubmissions",
+            "Paged list of the signed-in member's fan-performance submissions and review status.");
     }
 
-    internal static async Task<IResult> GetPhotosAsync(
+    internal static Task<IResult> GetPhotosAsync(
         HttpContext httpContext,
         [FromServices] IPhotoSubmissionRepository photoSubmissionRepository,
         int? page,
         int? pageSize,
-        CancellationToken cancellationToken)
-    {
-        var unauthorized = UnauthorizedIfMissingMember(httpContext, out var memberId);
-        if (unauthorized is not null)
-        {
-            return unauthorized;
-        }
+        CancellationToken cancellationToken) =>
+        GetMemberSubmissionPageAsync(
+            httpContext,
+            page,
+            pageSize,
+            async (memberId, request, ct) =>
+            {
+                var result = await photoSubmissionRepository.GetBySubmitterAsync(
+                    memberId, request.Page, request.PageSize, ct);
+                return (SubmissionsApiMapper.ToPhotos(result.Items), result.TotalCount);
+            },
+            cancellationToken);
 
-        var request = ApiPagination.Normalize(page, pageSize);
-        var result = await photoSubmissionRepository.GetBySubmitterAsync(
-            memberId, request.Page, request.PageSize, cancellationToken);
-
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(ApiPagedResponse<PhotoSubmissionItemDto>.Create(
-            SubmissionsApiMapper.ToPhotos(result.Items),
-            request.Page,
-            request.PageSize,
-            result.TotalCount));
-    }
-
-    internal static async Task<IResult> GetNewsAsync(
+    internal static Task<IResult> GetNewsAsync(
         HttpContext httpContext,
         [FromServices] INewsSuggestionRepository newsSuggestionRepository,
         [FromServices] INewsRepository newsRepository,
         int? page,
         int? pageSize,
-        CancellationToken cancellationToken)
-    {
-        var unauthorized = UnauthorizedIfMissingMember(httpContext, out var memberId);
-        if (unauthorized is not null)
-        {
-            return unauthorized;
-        }
-
-        var request = ApiPagination.Normalize(page, pageSize);
-        var result = await newsSuggestionRepository.GetBySubmitterAsync(
-            memberId, request.Page, request.PageSize, cancellationToken);
-
-        var promotedNewsIds = result.Items
-            .Where(suggestion => suggestion.Status == NewsSuggestionStatus.Promoted
-                && suggestion.PromotedNewsId is not null)
-            .Select(suggestion => suggestion.PromotedNewsId!.Value)
-            .Distinct()
-            .ToArray();
-
-        IReadOnlyDictionary<int, NewsItem> newsById;
-        if (promotedNewsIds.Length == 0)
-        {
-            newsById = new Dictionary<int, NewsItem>();
-        }
-        else
-        {
-            var newsItems = await newsRepository.GetByIdsAsync(promotedNewsIds, cancellationToken);
-            newsById = newsItems.ToDictionary(item => item.Id);
-        }
-
-        var items = new List<NewsSuggestionItemDto>(result.Items.Count);
-        foreach (var suggestion in result.Items)
-        {
-            NewsItem? news = null;
-            if (suggestion.PromotedNewsId is int newsId)
+        CancellationToken cancellationToken) =>
+        GetMemberSubmissionPageAsync(
+            httpContext,
+            page,
+            pageSize,
+            async (memberId, request, ct) =>
             {
-                newsById.TryGetValue(newsId, out news);
-            }
+                var result = await newsSuggestionRepository.GetBySubmitterAsync(
+                    memberId, request.Page, request.PageSize, ct);
 
-            items.Add(SubmissionsApiMapper.ToNews(
-                suggestion,
-                SubmissionsApiMapper.ResolvePublishedNewsPath(suggestion, news)));
-        }
+                var promotedNewsIds = result.Items
+                    .Where(suggestion => suggestion.Status == NewsSuggestionStatus.Promoted
+                        && suggestion.PromotedNewsId is not null)
+                    .Select(suggestion => suggestion.PromotedNewsId!.Value)
+                    .Distinct()
+                    .ToArray();
 
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(ApiPagedResponse<NewsSuggestionItemDto>.Create(
-            items,
-            request.Page,
-            request.PageSize,
-            result.TotalCount));
-    }
+                IReadOnlyDictionary<int, NewsItem> newsById;
+                if (promotedNewsIds.Length == 0)
+                {
+                    newsById = new Dictionary<int, NewsItem>();
+                }
+                else
+                {
+                    var newsItems = await newsRepository.GetByIdsAsync(promotedNewsIds, ct);
+                    newsById = newsItems.ToDictionary(item => item.Id);
+                }
 
-    internal static async Task<IResult> GetArticlesAsync(
+                var items = new List<NewsSuggestionItemDto>(result.Items.Count);
+                foreach (var suggestion in result.Items)
+                {
+                    NewsItem? news = null;
+                    if (suggestion.PromotedNewsId is int newsId)
+                    {
+                        newsById.TryGetValue(newsId, out news);
+                    }
+
+                    items.Add(SubmissionsApiMapper.ToNews(
+                        suggestion,
+                        SubmissionsApiMapper.ResolvePublishedNewsPath(suggestion, news)));
+                }
+
+                return ((IReadOnlyList<NewsSuggestionItemDto>)items, result.TotalCount);
+            },
+            cancellationToken);
+
+    internal static Task<IResult> GetArticlesAsync(
         HttpContext httpContext,
         [FromServices] IArticleSubmissionRepository articleSubmissionRepository,
         int? page,
         int? pageSize,
-        CancellationToken cancellationToken)
-    {
-        var unauthorized = UnauthorizedIfMissingMember(httpContext, out var memberId);
-        if (unauthorized is not null)
-        {
-            return unauthorized;
-        }
+        CancellationToken cancellationToken) =>
+        GetMemberSubmissionPageAsync(
+            httpContext,
+            page,
+            pageSize,
+            async (memberId, request, ct) =>
+            {
+                var result = await articleSubmissionRepository.GetDraftsForMemberAsync(
+                    memberId, request.Page, request.PageSize, ct);
+                return (SubmissionsApiMapper.ToArticles(result.Items), result.TotalCount);
+            },
+            cancellationToken);
 
-        var request = ApiPagination.Normalize(page, pageSize);
-        var result = await articleSubmissionRepository.GetDraftsForMemberAsync(
-            memberId, request.Page, request.PageSize, cancellationToken);
-
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(ApiPagedResponse<ArticleSubmissionItemDto>.Create(
-            SubmissionsApiMapper.ToArticles(result.Items),
-            request.Page,
-            request.PageSize,
-            result.TotalCount));
-    }
-
-    internal static async Task<IResult> GetFanPerformancesAsync(
+    internal static Task<IResult> GetFanPerformancesAsync(
         HttpContext httpContext,
         [FromServices] IFanPerformanceSubmissionRepository fanPerformanceSubmissionRepository,
         int? page,
         int? pageSize,
+        CancellationToken cancellationToken) =>
+        GetMemberSubmissionPageAsync(
+            httpContext,
+            page,
+            pageSize,
+            async (memberId, request, ct) =>
+            {
+                var result = await fanPerformanceSubmissionRepository.GetBySubmitterAsync(
+                    memberId, request.Page, request.PageSize, ct);
+                return (SubmissionsApiMapper.ToFanPerformances(result.Items), result.TotalCount);
+            },
+            cancellationToken);
+
+    private static async Task<IResult> GetMemberSubmissionPageAsync<TItem>(
+        HttpContext httpContext,
+        int? page,
+        int? pageSize,
+        Func<Guid, ApiPageRequest, CancellationToken, Task<(IReadOnlyList<TItem> Items, int TotalCount)>> load,
         CancellationToken cancellationToken)
     {
         var unauthorized = UnauthorizedIfMissingMember(httpContext, out var memberId);
@@ -177,15 +173,13 @@ public static class SubmissionsApiEndpoints
         }
 
         var request = ApiPagination.Normalize(page, pageSize);
-        var result = await fanPerformanceSubmissionRepository.GetBySubmitterAsync(
-            memberId, request.Page, request.PageSize, cancellationToken);
-
-        httpContext.Response.Headers.CacheControl = "no-store";
-        return Results.Ok(ApiPagedResponse<FanPerformanceSubmissionItemDto>.Create(
-            SubmissionsApiMapper.ToFanPerformances(result.Items),
+        var (items, totalCount) = await load(memberId, request, cancellationToken);
+        return ApiV1EndpointHelpers.OkNoStorePaged(
+            httpContext,
+            items,
             request.Page,
             request.PageSize,
-            result.TotalCount));
+            totalCount);
     }
 
     internal static IResult? UnauthorizedIfMissingMember(HttpContext httpContext, out Guid memberId)

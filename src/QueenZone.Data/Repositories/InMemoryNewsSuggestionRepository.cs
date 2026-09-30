@@ -27,8 +27,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
                 SubmitterMemberId = suggestion.SubmitterMemberId,
                 Url = suggestion.Url.Trim(),
                 UrlHash = suggestion.UrlHash,
-                Title = NormalizeOptional(suggestion.Title, 300),
-                Notes = NormalizeOptional(suggestion.Notes, 1000),
+                Title = SubmissionInput.NormalizeOptional(suggestion.Title, 300),
+                Notes = SubmissionInput.NormalizeOptional(suggestion.Notes, 1000),
                 Status = NewsSuggestionStatus.Pending,
                 SubmittedAt = suggestion.SubmittedAt == default ? DateTimeOffset.UtcNow : suggestion.SubmittedAt,
             };
@@ -43,8 +43,7 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -53,8 +52,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
                     row.Status is NewsSuggestionStatus.Pending
                         or NewsSuggestionStatus.UnderReview)
                 .OrderByDescending(row => row.SubmittedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(row =>
                 {
                     var member = resolveMember?.Invoke(row.SubmitterMemberId);
@@ -117,8 +116,7 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
 
         lock (sync)
         {
@@ -128,8 +126,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
                 .ToList();
 
             IReadOnlyList<NewsSuggestion> items = owned
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip(skip)
+                .Take(take)
                 .Select(Map)
                 .ToList();
 
@@ -154,8 +152,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
 
             entity.Status = NewsSuggestionStatus.Normalize(status);
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(notes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 500);
 
             return Task.FromResult<NewsSuggestion?>(Map(entity));
         }
@@ -204,8 +202,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
             entity.Status = NewsSuggestionStatus.Promoted;
             entity.PromotedNewsId = promotedNewsId;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             return Task.FromResult<NewsSuggestion?>(Map(entity));
         }
@@ -229,8 +227,8 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
             entity.Status = NewsSuggestionStatus.Duplicate;
             entity.DuplicateCandidateId = duplicateCandidateId;
             entity.ReviewedAt = DateTimeOffset.UtcNow;
-            entity.ReviewerEmail = NormalizeOptional(reviewerEmail, 256);
-            entity.ReviewNotes = NormalizeOptional(reviewNotes, 500);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
 
             return Task.FromResult<NewsSuggestion?>(Map(entity));
         }
@@ -240,27 +238,17 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
         DateTimeOffset utcNow,
         CancellationToken cancellationToken = default)
     {
-        var today = utcNow.UtcDateTime.Date;
-        var weekAgo = today.AddDays(-6);
-        var monthAgo = utcNow.AddDays(-30);
-
         lock (sync)
         {
-            var pending = suggestions.Count(r =>
-                r.Status is NewsSuggestionStatus.Pending or NewsSuggestionStatus.UnderReview);
-
-            var receivedToday = suggestions.Count(r => r.SubmittedAt.UtcDateTime.Date >= today);
-            var receivedThisWeek = suggestions.Count(r => r.SubmittedAt.UtcDateTime.Date >= weekAgo);
-
-            var last30 = suggestions.Where(r => r.SubmittedAt >= monthAgo).ToList();
-            var approvedLast30 = last30.Count(r => r.Status == NewsSuggestionStatus.Promoted);
-            var rejectedLast30 = last30.Count(r =>
-                r.Status is NewsSuggestionStatus.Rejected or NewsSuggestionStatus.Duplicate);
-            var pendingLast30 = last30.Count(r =>
-                r.Status is NewsSuggestionStatus.Pending or NewsSuggestionStatus.UnderReview);
-
-            return Task.FromResult(new SubmissionTypeCounts(
-                pending, receivedToday, receivedThisWeek, approvedLast30, rejectedLast30, pendingLast30));
+            var rows = suggestions.Select(row => new SubmissionCountRow
+            {
+                SubmittedAt = row.SubmittedAt,
+                IsOpen = row.Status is NewsSuggestionStatus.Pending or NewsSuggestionStatus.UnderReview,
+                IsApproved = row.Status == NewsSuggestionStatus.Promoted,
+                IsRejected = row.Status is NewsSuggestionStatus.Rejected or NewsSuggestionStatus.Duplicate,
+                IsStillPending = row.Status is NewsSuggestionStatus.Pending or NewsSuggestionStatus.UnderReview,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.CountRows(rows, utcNow));
         }
     }
 
@@ -271,19 +259,12 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
     {
         lock (sync)
         {
-            IReadOnlyList<SubmissionContributor> result = suggestions
-                .Where(r => r.SubmittedAt >= monthStart)
-                .GroupBy(r => r.SubmitterMemberId)
-                .Select(g =>
-                {
-                    var member = resolveMember?.Invoke(g.Key);
-                    return new SubmissionContributor(g.Key, member?.DisplayName ?? "Unknown member", g.Count());
-                })
-                .OrderByDescending(c => c.Count)
-                .Take(maxCount)
-                .ToList();
-
-            return Task.FromResult(result);
+            var rows = suggestions.Select(row => new SubmissionContributorRow
+            {
+                MemberId = row.SubmitterMemberId,
+                SubmittedAt = row.SubmittedAt,
+            });
+            return Task.FromResult(SubmissionDashboardQueries.TopContributors(rows, monthStart, maxCount, id => resolveMember?.Invoke(id)?.DisplayName));
         }
     }
 
@@ -306,16 +287,5 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
             entity.DuplicateCandidateId,
             member?.DisplayName,
             member?.Email);
-    }
-
-    private static string? NormalizeOptional(string? value, int maxLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 }

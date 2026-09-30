@@ -26,7 +26,35 @@ public sealed record NewsAgentRunRequest(
     DateTime? StartedAtUtc,
     DateTime? CompletedAtUtc,
     string? Summary,
-    string? ErrorMessage);
+    string? ErrorMessage) : IRunRequestRecord<NewsAgentRunRequest>
+{
+    bool IRunRequestRecord<NewsAgentRunRequest>.IsPending => Status == NewsAgentRunRequestStatus.Pending;
+
+    bool IRunRequestRecord<NewsAgentRunRequest>.IsRunning => Status == NewsAgentRunRequestStatus.Running;
+
+    NewsAgentRunRequest IRunRequestRecord<NewsAgentRunRequest>.AsPending() =>
+        this with { Status = NewsAgentRunRequestStatus.Pending, RunnerId = null, StartedAtUtc = null };
+
+    NewsAgentRunRequest IRunRequestRecord<NewsAgentRunRequest>.AsRunning(string runnerId, DateTime startedAtUtc) =>
+        this with { Status = NewsAgentRunRequestStatus.Running, RunnerId = runnerId, StartedAtUtc = startedAtUtc };
+
+    NewsAgentRunRequest IRunRequestRecord<NewsAgentRunRequest>.AsCompleted(DateTime completedAtUtc, string summary) =>
+        this with
+        {
+            Status = NewsAgentRunRequestStatus.Completed,
+            CompletedAtUtc = completedAtUtc,
+            Summary = summary,
+            ErrorMessage = null
+        };
+
+    NewsAgentRunRequest IRunRequestRecord<NewsAgentRunRequest>.AsFailed(DateTime completedAtUtc, string errorMessage) =>
+        this with
+        {
+            Status = NewsAgentRunRequestStatus.Failed,
+            CompletedAtUtc = completedAtUtc,
+            ErrorMessage = errorMessage
+        };
+}
 
 public sealed record NewsAgentRunRequestCreate(
     string RequestedBy,

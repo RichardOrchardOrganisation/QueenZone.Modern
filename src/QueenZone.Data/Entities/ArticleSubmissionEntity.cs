@@ -17,6 +17,8 @@ public sealed class ArticleSubmissionEntity
 
     public string Body { get; set; } = string.Empty;
 
+    public int WordCount { get; set; }
+
     public string? CoverImageBlobPath { get; set; }
 
     public string? Tags { get; set; }

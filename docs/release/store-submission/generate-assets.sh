@@ -17,7 +17,7 @@ for required in magick git; do
 done
 
 for required_file in "$icon_source" "$cinzel_semibold" "$cinzel_medium" "$inter_medium"; do
-  test -f "$required_file" || {
+  [[ -f "$required_file" ]] || {
     echo "Missing $required_file. Run npm ci in src/QueenZone.Mobile first." >&2
     exit 1
   }

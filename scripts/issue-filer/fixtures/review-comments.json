@@ -1,0 +1,53 @@
+{
+  "pulls": [
+    {
+      "number": 10,
+      "title": "Slug timeout",
+      "html_url": "https://github.com/example/repo/pull/10",
+      "updated_at": "2026-09-20T12:00:00Z",
+      "body": "## Review findings\n\n[L2 · csharp.regex-timeout · repeat] NewsSlugService.cs:42\n<!-- qz-finding v=1 level=L2 rule=csharp.regex-timeout repeat=yes file=src/QueenZone.Web/Services/NewsSlugService.cs:42 verdict=blocking -->\n"
+    },
+    {
+      "number": 11,
+      "title": "Another slug",
+      "html_url": "https://github.com/example/repo/pull/11",
+      "updated_at": "2026-09-22T12:00:00Z",
+      "body": "Looks fine."
+    },
+    {
+      "number": 12,
+      "title": "Broken tag",
+      "html_url": "https://github.com/example/repo/pull/12",
+      "updated_at": "2026-09-23T12:00:00Z",
+      "body": "<!-- qz-finding v=1 level=L2 rule=not-a-rule repeat=yes file=src/QueenZone.Web/Services/NewsSlugService.cs verdict=blocking -->"
+    }
+  ],
+  "issueComments": {
+    "11": [
+      {
+        "body": "<!-- qz-finding v=1 level=L2 rule=csharp.regex-timeout repeat=no file=src/QueenZone.Web/Services/NewsSlugService.cs:10 verdict=nit -->",
+        "html_url": "https://github.com/example/repo/pull/11#issuecomment-1",
+        "created_at": "2026-09-22T13:00:00Z"
+      }
+    ]
+  },
+  "reviewComments": {
+    "10": [
+      {
+        "body": "Please add a timeout.\n<!-- qz-finding v=1 verdict=blocking file=src/QueenZone.Web/Services/NewsSlugService.cs:42 repeat=yes rule=csharp.regex-timeout level=L2 -->",
+        "html_url": "https://github.com/example/repo/pull/10#discussion_r1",
+        "created_at": "2026-09-20T12:30:00Z",
+        "path": "src/QueenZone.Web/Services/NewsSlugService.cs"
+      }
+    ]
+  },
+  "reviews": {
+    "11": [
+      {
+        "body": "<!-- qz-finding v=1 level=L3 rule=docs.agents-md-drift repeat=no file=AGENTS.md verdict=nit -->",
+        "html_url": "https://github.com/example/repo/pull/11#pullrequestreview-1",
+        "submitted_at": "2026-09-22T14:00:00Z"
+      }
+    ]
+  }
+}

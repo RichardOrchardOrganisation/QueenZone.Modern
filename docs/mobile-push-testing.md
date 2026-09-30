@@ -175,7 +175,7 @@ guide is not required to receive an internal-testing push.
 The Android Google Play internal-testing build is a signed release build.
 Sign-in registers an FCM token with the live API.
 The live API must send with the real FCM credentials from
-[#847](https://github.com/richardorchard/QueenZone.Modern/issues/847).
+[#847](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/847).
 
 | What | Value |
 | --- | --- |

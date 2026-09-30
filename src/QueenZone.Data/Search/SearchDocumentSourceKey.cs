@@ -16,6 +16,22 @@ public static class SearchDocumentSourceKey
 
     public static string ForForumThread(int topicId) => $"forum-thread:{topicId}";
 
+    /// <summary>Stable identity for a Freddie tribute row, e.g. <c>tribute:187</c>.</summary>
+    public static string ForTribute(int tributeId) => $"tribute:{tributeId}";
+
+    /// <summary>
+    /// True for tribute source keys, including the historical <c>freddie-tribute:</c> prefix.
+    /// </summary>
+    public static bool IsTribute(string? sourceKey)
+    {
+        if (string.IsNullOrWhiteSpace(sourceKey))
+        {
+            return false;
+        }
+
+        return SiteSearchExclusion.IsExcludedSourceKey(sourceKey);
+    }
+
     /// <summary>
     /// Returns the numeric id after the last colon when the suffix is an integer; otherwise
     /// <see langword="null"/> (slug keys such as <c>article:some-slug</c>).

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -8,14 +7,29 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
-    private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory recording;
+    private readonly VariantWebApplicationFactory recordingFakeWatch;
+    private readonly VariantWebApplicationFactory recordingAlwaysWatch;
+    private readonly VariantWebApplicationFactory throwingDispatcher;
 
-    public NotificationDispatchWritePathTests(QueenZoneWebApplicationFactory factory)
+    public NotificationDispatchWritePathTests(WebHostVariantCache variants)
     {
-        this.factory = factory;
+        recording = variants.Get(WebHostVariants.TestingRecordingPushDispatch);
+        recordingFakeWatch = variants.Get(WebHostVariants.TestingRecordingPushDispatchFakeWatch);
+        recordingAlwaysWatch = variants.Get(WebHostVariants.TestingRecordingPushDispatchAlwaysWatch);
+        throwingDispatcher = variants.Get(WebHostVariants.TestingThrowingNotificationDispatcher);
     }
+
+    public async Task InitializeAsync()
+    {
+        await recording.ResetAsync();
+        await recordingFakeWatch.ResetAsync();
+        await recordingAlwaysWatch.ResetAsync();
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Compose_DispatchesOnce_ToRecipientOnly()
@@ -112,6 +126,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
         var logger = new CollectingLogger<PrivateMessageService>();
         var service = new PrivateMessageService(
             messages,
+            messages,
             members,
             follows,
             rateLimiter,
@@ -135,22 +150,15 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
     [Fact]
     public async Task ForumReply_DispatchesOnce_WhenWatchersExist()
     {
-        var transport = new RecordingPushTransport();
-        var watch = new FakeTopicWatchLookup();
+        var transport = recordingFakeWatch.PushTransport!;
+        var watch = recordingFakeWatch.TopicWatch!;
         var author = Guid.NewGuid();
         var watcher = Guid.NewGuid();
-        using var scopedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IPushTransport>();
-            services.AddSingleton<IPushTransport>(transport);
-            services.RemoveAll<ITopicWatchLookup>();
-            services.AddSingleton<ITopicWatchLookup>(watch);
-        });
 
-        await SeedFactoryTokenAsync(scopedFactory, watcher, "watcher-tok");
-        await SeedFactoryTokenAsync(scopedFactory, author, "author-tok");
+        await SeedFactoryTokenAsync(recordingFakeWatch, watcher, "watcher-tok");
+        await SeedFactoryTokenAsync(recordingFakeWatch, author, "author-tok");
 
-        using (var scope = scopedFactory.Services.CreateScope())
+        using (var scope = recordingFakeWatch.Services.CreateScope())
         {
             var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
             var topic = await write.CreateTopicAsync(
@@ -183,17 +191,10 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
     [Fact]
     public async Task ForumReply_DispatcherThrow_DoesNotFailTheReply()
     {
-        using var scopedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<INotificationDispatcher>();
-            services.AddSingleton<INotificationDispatcher>(
-                new ThrowingNotificationDispatcher(new InvalidOperationException("dispatcher down")));
-        });
-
         var author = Guid.NewGuid();
-        await SeedFactoryTokenAsync(scopedFactory, author, "author-tok");
+        await SeedFactoryTokenAsync(throwingDispatcher, author, "author-tok");
 
-        using var scope = scopedFactory.Services.CreateScope();
+        using var scope = throwingDispatcher.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
         var topic = await write.CreateTopicAsync(
             author,
@@ -218,21 +219,15 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
     [Fact]
     public async Task ForumReply_PersistedWatch_DispatchesOnce_ExcludingAuthor()
     {
-        var transport = new RecordingPushTransport();
-        using var scopedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IPushTransport>();
-            services.AddSingleton<IPushTransport>(transport);
-        });
-
+        var transport = recording.PushTransport!;
         var author = Guid.NewGuid();
         var watcher = Guid.NewGuid();
         var lurker = Guid.NewGuid();
-        await SeedFactoryTokenAsync(scopedFactory, watcher, "watcher-tok");
-        await SeedFactoryTokenAsync(scopedFactory, author, "author-tok");
-        await SeedFactoryTokenAsync(scopedFactory, lurker, "lurker-tok");
+        await SeedFactoryTokenAsync(recording, watcher, "watcher-tok");
+        await SeedFactoryTokenAsync(recording, author, "author-tok");
+        await SeedFactoryTokenAsync(recording, lurker, "lurker-tok");
 
-        using var scope = scopedFactory.Services.CreateScope();
+        using var scope = recording.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
         var watches = scope.ServiceProvider.GetRequiredService<ITopicWatchRepository>();
         var topic = await write.CreateTopicAsync(
@@ -279,14 +274,9 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
     [Fact]
     public async Task ForumReply_EmptyWatchers_SendsNothing()
     {
-        var transport = new RecordingPushTransport();
-        using var scopedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IPushTransport>();
-            services.AddSingleton<IPushTransport>(transport);
-        });
+        var transport = recording.PushTransport!;
 
-        using var scope = scopedFactory.Services.CreateScope();
+        using var scope = recording.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
         var topic = await write.CreateTopicAsync(
             Guid.NewGuid(),
@@ -312,20 +302,12 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
     [Fact]
     public async Task CreateTopic_DoesNotDispatch()
     {
-        var transport = new RecordingPushTransport();
-        var watch = new FakeTopicWatchLookup();
+        var transport = recordingAlwaysWatch.PushTransport!;
         var watcher = Guid.NewGuid();
-        watch.Watchers[-1] = [watcher];
-        using var scopedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IPushTransport>();
-            services.AddSingleton<IPushTransport>(transport);
-            services.RemoveAll<ITopicWatchLookup>();
-            services.AddSingleton<ITopicWatchLookup>(new AlwaysWatchLookup(watcher));
-        });
+        recordingAlwaysWatch.AlwaysWatch!.MemberId = watcher;
 
-        await SeedFactoryTokenAsync(scopedFactory, watcher, "watcher-tok");
-        using var scope = scopedFactory.Services.CreateScope();
+        await SeedFactoryTokenAsync(recordingAlwaysWatch, watcher, "watcher-tok");
+        using var scope = recordingAlwaysWatch.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
         var outcome = await write.CreateTopicAsync(
             Guid.NewGuid(),
@@ -343,22 +325,13 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
     [Fact]
     public async Task ProviderThrow_DoesNotFailForumReplyWrite()
     {
-        var transport = new RecordingPushTransport
-        {
-            ThrowOnSend = new InvalidOperationException("FCM down"),
-        };
-        var watch = new FakeTopicWatchLookup();
+        var transport = recordingFakeWatch.PushTransport!;
+        transport.ThrowOnSend = new InvalidOperationException("FCM down");
+        var watch = recordingFakeWatch.TopicWatch!;
         var watcher = Guid.NewGuid();
-        using var scopedFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<IPushTransport>();
-            services.AddSingleton<IPushTransport>(transport);
-            services.RemoveAll<ITopicWatchLookup>();
-            services.AddSingleton<ITopicWatchLookup>(watch);
-        });
 
-        await SeedFactoryTokenAsync(scopedFactory, watcher, "watcher-tok");
-        using var scope = scopedFactory.Services.CreateScope();
+        await SeedFactoryTokenAsync(recordingFakeWatch, watcher, "watcher-tok");
+        using var scope = recordingFakeWatch.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
         var topic = await write.CreateTopicAsync(
             Guid.NewGuid(),
@@ -524,6 +497,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<QueenZone
             transport,
             NullLogger<NotificationDispatcher>.Instance);
         var service = new PrivateMessageService(
+            messages,
             messages,
             members,
             follows,

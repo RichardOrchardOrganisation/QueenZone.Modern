@@ -13,8 +13,6 @@ public sealed class EfSiteSearchService(
     QueenZoneDbContext dbContext,
     ILogger<EfSiteSearchService> logger) : ISiteSearchService
 {
-    private const int MaxPageSize = 100;
-
     public async Task<SiteSearchPage> SearchAsync(
         string query,
         string? contentType,
@@ -22,16 +20,35 @@ public sealed class EfSiteSearchService(
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        if (SiteSearchLimits.IsBelowMinimumLength(query))
         {
             return new SiteSearchPage([], 0, page, pageSize);
         }
 
-        var normalizedPage = Math.Max(page, 1);
-        var take = Math.Clamp(pageSize, 1, MaxPageSize);
-        var offset = (normalizedPage - 1) * take;
+        var normalizedPage = SiteSearchLimits.NormalizePage(page);
+        var take = SiteSearchLimits.NormalizePageSize(pageSize);
         var trimmed = query.Trim();
 
+        if (SiteSearchLimits.IsBeyondMaxPage(normalizedPage))
+        {
+            return await SiteSearchSqlTimeout.ExecuteAsync(
+                async ct =>
+                {
+                    var counted = await ExecuteSearchAsync(
+                        trimmed,
+                        contentType,
+                        offset: 0,
+                        take: 1,
+                        normalizedPage: 1,
+                        ct);
+                    return EmptyPageWithTotal(counted.TotalCount, normalizedPage, take);
+                },
+                logger,
+                trimmed,
+                cancellationToken);
+        }
+
+        var offset = (normalizedPage - 1) * take;
         return await SiteSearchSqlTimeout.ExecuteAsync(
             ct => ExecuteSearchAsync(trimmed, contentType, offset, take, normalizedPage, ct),
             logger,
@@ -60,6 +77,7 @@ public sealed class EfSiteSearchService(
                 command.Parameters.Add(EfSql.Input("@Offset", offset));
                 command.Parameters.Add(EfSql.Input("@PageSize", take));
                 command.Parameters.Add(EfSql.Input("@RankLimit", SiteSearchLimits.MaxRankedMatches));
+                command.Parameters.Add(EfSql.Input("@TypedRankLimit", SiteSearchLimits.TypedMatchScanLimit));
                 command.Parameters.Add(totalRecords);
             },
             cancellationToken: cancellationToken);
@@ -71,6 +89,9 @@ public sealed class EfSiteSearchService(
             normalizedPage,
             take);
     }
+
+    internal static SiteSearchPage EmptyPageWithTotal(int totalCount, int page, int pageSize) =>
+        new([], totalCount, page, pageSize);
 
     internal static SiteSearchResult Map(SiteSearchRow row) =>
         new(

@@ -1,0 +1,87 @@
+@page "/admin/quizzes"
+@model IndexModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+  var antiforgeryToken = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+}
+
+<div class="admin-shell">
+<partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+@if (Model.CreateForm is not null)
+{
+  ViewData["AntiforgeryToken"] = antiforgeryToken;
+  <partial name="_QuizForm" model="Model.CreateForm" />
+}
+else
+{
+  <h1>Quizzes</h1>
+
+  @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+  {
+    <p class="admin-status admin-status--@Model.StatusMessageKind">@Model.StatusMessage</p>
+  }
+
+  <p>
+    <a href="/admin/quizzes/new">Add quiz</a>
+  </p>
+
+  @if (Model.Quizzes.Count == 0)
+  {
+    <p>No quizzes yet. New quizzes stay unpublished until you publish them.</p>
+  }
+  else
+  {
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Questions</th>
+          <th>Attempts</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var quiz in Model.Quizzes)
+        {
+          <tr>
+            <td class="admin-title-cell">@quiz.Title</td>
+            <td>@AdminQuizPageModel.StatusLabel(quiz)</td>
+            <td>@quiz.QuestionCount</td>
+            <td>@quiz.AttemptCount</td>
+            <td>@quiz.CreatedAt.UtcDateTime.ToString("dd MMMM yyyy")</td>
+            <td class="admin-actions">
+              <a href="/admin/quizzes/@quiz.Id/edit">@(quiz.AttemptCount == 0 ? "Edit" : "View")</a>
+              @if (!quiz.IsPublished)
+              {
+                <form method="post" action="/admin/quizzes?handler=Publish" style="display:inline">
+                  <input type="hidden" name="@AdminQuizPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
+                  <input type="hidden" name="id" value="@quiz.Id">
+                  <button type="submit">Publish</button>
+                </form>
+              }
+              else
+              {
+                <form method="post" action="/admin/quizzes?handler=Unpublish" style="display:inline">
+                  <input type="hidden" name="@AdminQuizPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
+                  <input type="hidden" name="id" value="@quiz.Id">
+                  <button type="submit">Unpublish</button>
+                </form>
+              }
+              @if (quiz.AttemptCount == 0)
+              {
+                <form method="post" action="/admin/quizzes?handler=Delete" style="display:inline" onsubmit="return confirm('Delete this quiz?');">
+                  <input type="hidden" name="@AdminQuizPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
+                  <input type="hidden" name="id" value="@quiz.Id">
+                  <button type="submit">Delete</button>
+                </form>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+}
+</div>

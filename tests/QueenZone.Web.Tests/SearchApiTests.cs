@@ -4,7 +4,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QueenZone.Data;
@@ -13,13 +12,17 @@ using QueenZone.Web.Pages;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class SearchApiTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory timeoutHost;
 
-    public SearchApiTests(QueenZoneWebApplicationFactory factory)
+    public SearchApiTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        timeoutHost = variants.Get(WebHostVariants.SiteSearchTimeout);
     }
 
     [Fact]
@@ -82,6 +85,8 @@ public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactor
     [InlineData("")]
     [InlineData("?q=")]
     [InlineData("?q=%20%20")]
+    [InlineData("?q=a")]
+    [InlineData("?q=%20Q%20")]
     public async Task Search_empty_or_whitespace_query_returns_empty_page(string query)
     {
         using var client = factory.CreateAnonymousClient();
@@ -211,6 +216,28 @@ public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactor
     }
 
     [Fact]
+    public async Task Search_beyond_max_page_returns_empty_items_with_true_total()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        using var firstResponse = await client.GetAsync($"{SearchApiEndpoints.Path}?q=archive&page=1");
+        using var deepResponse = await client.GetAsync(
+            $"{SearchApiEndpoints.Path}?q=archive&page={SiteSearchLimits.MaxPage + 1}");
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deepResponse.StatusCode);
+        var first = await firstResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SearchResultDto>>();
+        var deep = await deepResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SearchResultDto>>();
+        Assert.NotNull(first);
+        Assert.NotNull(deep);
+        Assert.True(first!.TotalCount > 0);
+        Assert.Equal(first.TotalCount, deep!.TotalCount);
+        Assert.Empty(deep.Items);
+        Assert.Equal(SiteSearchLimits.MaxPage + 1, deep.Page);
+        Assert.Equal(SearchModel.PageSize, deep.PageSize);
+    }
+
+    [Fact]
     public async Task Search_clamps_invalid_paging_query_values()
     {
         using var client = factory.CreateAnonymousClient();
@@ -229,12 +256,7 @@ public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactor
     [Fact]
     public async Task Search_sql_timeout_returns_problem_details_504_not_empty_page()
     {
-        using var timeoutFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ISiteSearchService>();
-            services.AddSingleton<ISiteSearchService>(new TimeoutSiteSearchService());
-        });
-        using var client = timeoutFactory.CreateAnonymousClient();
+        using var client = timeoutHost.CreateAnonymousClient();
 
         using var response = await client.GetAsync($"{SearchApiEndpoints.Path}?q=Bohemian+Rhapsody");
 
@@ -253,7 +275,7 @@ public sealed class SearchApiTests : IClassFixture<QueenZoneWebApplicationFactor
     {
         var logger = new CollectingLogger<object>();
         var loggerFactory = new CollectingLoggerFactory(logger);
-        var timeout = SiteSearchSqlTimeoutTests.CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
 

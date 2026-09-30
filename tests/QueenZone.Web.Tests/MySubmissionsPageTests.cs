@@ -1,44 +1,28 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
-using QueenZone.Routing;
-using QueenZone.Storage;
 using QueenZone.Web;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class MySubmissionsPageTests :
+    IClassFixture<InspectableBlobWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
-    private readonly InMemoryBlobStorageBackend blobBackend = new();
+    private readonly WebHostVariantCache variants;
 
-    public MySubmissionsPageTests(WebApplicationFactory<Program> factory)
+    public MySubmissionsPageTests(
+        InspectableBlobWebApplicationFactory factory,
+        WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-
-                services.RemoveAll<IBlobUploadService>();
-                services.AddSingleton<IBlobUploadService>(_ =>
-                    new AzureBlobUploadService(blobBackend, Options.Create(new BlobUploadOptions())));
-            });
-        });
+        this.factory = factory;
+        this.variants = variants;
     }
 
     [Fact]
@@ -79,12 +63,14 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         await SubmitNewsAsync(owner, "https://example.com/owner-exclusive-news-story", "Owner news");
         await SubmitArticleAsync(owner, "Owner exclusive article");
         await SubmitTriviaAsync(owner, "Owner exclusive trivia fact about Queen.");
+        await SubmitQuizQuestionAsync(owner, "Owner exclusive quiz question about Queen?");
         await SubmitFanPerformanceAsync(owner, "Owner exclusive performance");
 
         await SubmitPhotoAsync(other, "Other member photo secret");
         await SubmitNewsAsync(other, "https://example.com/other-member-news-secret", "Other news");
         await SubmitArticleAsync(other, "Other member article secret");
         await SubmitTriviaAsync(other, "Other member trivia secret about a rumour.");
+        await SubmitQuizQuestionAsync(other, "Other member quiz question secret?");
         await SubmitFanPerformanceAsync(other, "Other member performance secret");
 
         var ownerPhotos = await owner.GetStringAsync("/account/my-submissions?tab=photos");
@@ -105,6 +91,12 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         Assert.Contains("Owner exclusive trivia fact about Queen.", ownerTrivia);
         Assert.DoesNotContain("Other member trivia secret about a rumour.", ownerTrivia);
 
+        var ownerQuiz = await owner.GetStringAsync("/account/my-submissions?tab=quiz");
+        Assert.Contains("Owner exclusive quiz question about Queen?", ownerQuiz);
+        Assert.DoesNotContain("Other member quiz question secret?", ownerQuiz);
+        Assert.Contains("/submit/quiz-question", ownerQuiz);
+        Assert.Contains("quiz questions", ownerQuiz);
+
         var ownerPerformances = await owner.GetStringAsync("/account/my-submissions?tab=performances");
         Assert.Contains("Owner exclusive performance", ownerPerformances);
         Assert.DoesNotContain("Other member performance secret", ownerPerformances);
@@ -118,31 +110,12 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
     [Fact]
     public async Task Get_NewsTab_ResolvesPromotedArticlesInSingleBatch()
     {
-        var firstArticle = new NewsItem(
-            1002,
-            "First promoted story",
-            "First excerpt",
-            "First body",
-            new DateTime(2026, 9, 13, 9, 0, 0, DateTimeKind.Utc),
-            null,
-            true,
-            "first-promoted-story");
-        var secondArticle = new NewsItem(
-            1003,
-            "Second promoted story",
-            "Second excerpt",
-            "Second body",
-            new DateTime(2026, 9, 14, 9, 0, 0, DateTimeKind.Utc),
-            null,
-            true,
-            "second-promoted-story");
-        var trackingNews = new TrackingNewsRepository(new FixedNewsRepository([firstArticle, secondArticle]));
-        using var testFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<INewsRepository>();
-                services.AddSingleton<INewsRepository>(trackingNews);
-            }));
+        var firstArticle = WebHostVariants.TrackingPromotedNewsItems()[0];
+        var secondArticle = WebHostVariants.TrackingPromotedNewsItems()[1];
+        var testFactory = variants.Get(WebHostVariants.TrackingPromotedNews);
+        await testFactory.ResetAsync();
+        var trackingNews = testFactory.TrackingNews;
+        Assert.NotNull(trackingNews);
         const string email = "mysubs-news-batch@example.com";
         var client = await CreateSignedInMemberClientAsync(
             email,
@@ -207,6 +180,78 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         var editPage = await client.GetStringAsync($"/submit/article/{draftId:D}");
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/submit/article/{draftId:D}")).StatusCode);
         Assert.Contains("Draft link target article", editPage);
+    }
+
+    [Fact]
+    public async Task Get_QuizTab_EmptyState_LinksToSuggestAQuizQuestion()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "mysubs-quiz-empty@example.com",
+            displayName: "Empty Quiz Fan",
+            subject: "google-mysubs-quiz-empty",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        var page = await client.GetStringAsync("/account/my-submissions?tab=quiz");
+
+        Assert.Contains("You have not suggested any quiz questions yet.", page);
+        Assert.Contains("href=\"/submit/quiz-question\"", page);
+        Assert.Contains("Suggest a quiz question", page);
+        Assert.Contains("aria-current=\"page\"", page);
+        Assert.Contains(">Quiz</a>", page);
+        Assert.DoesNotContain("You have not suggested any trivia facts yet.", page);
+    }
+
+    [Fact]
+    public async Task Get_QuizTab_ShowsPendingApprovedAndRejectedReason()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "mysubs-quiz-status@example.com",
+            displayName: "Quiz Status Fan",
+            subject: "google-mysubs-quiz-status",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        await SubmitQuizQuestionAsync(client, "Pending quiz question about Live Aid?");
+        var approvedId = await SubmitQuizQuestionAsync(client, "Approved quiz question about the Red Special?");
+        var rejectedId = await SubmitQuizQuestionAsync(client, "Rejected quiz question about a rumour?");
+
+        var repository = factory.Services.GetRequiredService<IQuizQuestionSubmissionRepository>();
+        var approved = await repository.GetByIdAsync(approvedId);
+        Assert.NotNull(approved);
+        await repository.ApproveAsync(
+            approvedId,
+            new QuizQuestionSubmissionEdit(
+                approved.QuestionText,
+                approved.Options
+                    .Select(option => new QuizQuestionSubmissionOptionDraft(option.Text, option.IsCorrect))
+                    .ToList()),
+            "admin@test.local",
+            "internal quiz approve note");
+        await repository.RejectAsync(
+            rejectedId,
+            "admin@test.local",
+            "Could not verify this quiz claim.",
+            "keep this quiz reject internal");
+
+        var page = await client.GetStringAsync("/account/my-submissions?tab=quiz");
+
+        Assert.Contains("Pending quiz question about Live Aid?", page);
+        Assert.Contains("Approved quiz question about the Red Special?", page);
+        Assert.Contains("Rejected quiz question about a rumour?", page);
+        Assert.Contains(QuizQuestionSubmissionStatus.Pending, page);
+        Assert.Contains(QuizQuestionSubmissionStatus.Approved, page);
+        Assert.Contains(QuizQuestionSubmissionStatus.Rejected, page);
+        Assert.Contains("Could not verify this quiz claim.", page);
+        Assert.DoesNotContain("internal quiz approve note", page);
+        Assert.DoesNotContain("keep this quiz reject internal", page);
+        Assert.DoesNotContain("Withdraw", page);
     }
 
     [Fact]
@@ -322,6 +367,23 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
+    private async Task<Guid> SubmitQuizQuestionAsync(HttpClient client, string questionText)
+    {
+        var formPage = await client.GetStringAsync("/submit/quiz-question");
+        using var content = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("__RequestVerificationToken", ExtractAntiforgeryToken(formPage)),
+            new KeyValuePair<string, string>("QuestionText", questionText),
+            new KeyValuePair<string, string>("OptionTexts", "Freddie Mercury"),
+            new KeyValuePair<string, string>("OptionTexts", "Brian May"),
+            new KeyValuePair<string, string>("CorrectOptionIndex", "0"),
+        ]);
+
+        var response = await client.PostAsync("/submit/quiz-question", content);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        return Guid.Parse(response.Headers.Location!.OriginalString.Split('/').Last());
+    }
+
     private async Task SubmitTriviaAsync(HttpClient client, string text)
     {
         var formPage = await client.GetStringAsync("/submit/trivia");
@@ -424,59 +486,4 @@ public sealed partial class MySubmissionsPageTests : IClassFixture<WebApplicatio
 
     [GeneratedRegex("""name="DraftId"[^>]*value="(?<id>[^"]+)""", RegexOptions.IgnoreCase)]
     private static partial Regex DraftIdRegex();
-
-    private sealed class TrackingNewsRepository(INewsRepository inner) : INewsRepository
-    {
-        public int GetByIdCallCount { get; private set; }
-
-        public int GetByIdsCallCount { get; private set; }
-
-        public IReadOnlyList<int> LastRequestedIds { get; private set; } = [];
-
-        public Task<IReadOnlyList<NewsItem>> GetLatestAsync(
-            int count,
-            CancellationToken cancellationToken = default) =>
-            inner.GetLatestAsync(count, cancellationToken);
-
-        public Task<IReadOnlyList<NewsItem>> GetArchivePageAsync(
-            int page,
-            int pageSize,
-            NewsArchiveFilter filter = default,
-            CancellationToken cancellationToken = default) =>
-            inner.GetArchivePageAsync(page, pageSize, filter, cancellationToken);
-
-        public Task<int> GetPublishedCountAsync(
-            NewsArchiveFilter filter = default,
-            CancellationToken cancellationToken = default) =>
-            inner.GetPublishedCountAsync(filter, cancellationToken);
-
-        public Task<NewsArchiveYearRange> GetArchiveYearRangeAsync(CancellationToken cancellationToken = default) =>
-            inner.GetArchiveYearRangeAsync(cancellationToken);
-
-        public Task<NewsItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        {
-            GetByIdCallCount++;
-            return inner.GetByIdAsync(id, cancellationToken);
-        }
-
-        public Task<IReadOnlyList<NewsItem>> GetByIdsAsync(
-            IReadOnlyCollection<int> ids,
-            CancellationToken cancellationToken = default)
-        {
-            GetByIdsCallCount++;
-            LastRequestedIds = ids.ToArray();
-            return inner.GetByIdsAsync(ids, cancellationToken);
-        }
-
-        public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(
-            CancellationToken cancellationToken = default) =>
-            inner.GetPublishedSitemapEntriesAsync(cancellationToken);
-
-        public Task<NewsSearchPage> SearchAsync(
-            string query,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken = default) =>
-            inner.SearchAsync(query, page, pageSize, cancellationToken);
-    }
 }

@@ -29,7 +29,23 @@ public sealed class MobileAuthOptions
     /// dropped connection, ...) rather than a stolen token. Set to 0 to disable
     /// and revoke on first reuse, as before.
     /// </summary>
-    public int RefreshTokenReuseGraceSeconds { get; init; } = 30;
+    public int RefreshTokenReuseGraceSeconds { get; init; } = 300;
+
+    /// <summary>
+    /// After the grace window, a replayed token whose direct successor has never
+    /// been used is still treated as a lost rotation response, for as long as that
+    /// successor is valid: nobody else has advanced the chain, so the legitimate
+    /// client most likely never received it. Set to false to revoke all grants on
+    /// any replay outside the grace window.
+    /// </summary>
+    public bool RefreshTokenUnusedSuccessorRecovery { get; init; } = true;
+
+    /// <summary>
+    /// Maximum unused-successor recoveries per member in 24 hours before the next
+    /// one is treated as theft. Bounds a thief and the real client swapping one
+    /// chain back and forth. Counted per process.
+    /// </summary>
+    public int RefreshTokenUnusedSuccessorRecoveryDailyLimit { get; init; } = 10;
 
     /// <summary>HMAC-SHA256 key, at least 32 characters. Never commit a production value.</summary>
     public string SigningKey { get; init; } = string.Empty;

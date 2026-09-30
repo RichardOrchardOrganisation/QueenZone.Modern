@@ -38,10 +38,10 @@
     <fieldset class="qz-fieldset"><legend class="qz-legend">Image</legend>
       <input type="hidden" asp-for="Form.ImageBlobKey" data-article-image-blob-key /><input type="hidden" asp-for="Form.ImageGalleryPicId" data-article-image-gallery-id />
       <div class="qz-field" data-article-image-crop data-aspect-width="3" data-aspect-height="2" data-min-crop-width="600" data-min-crop-height="400" data-max-bytes="10485760">
-        <label class="qz-label">Article image</label><div class="qz-dropzone" data-gallery-picker>
+        <label class="qz-label" for="article-image-file">Article image</label><div class="qz-dropzone" data-gallery-picker>
           <figure class="admin-article-image qz-dropzone-media"><img src="@NewsArticleImage.ResolveDisplayUrl(f.ImageBlobKey, null)" alt="Article image preview" width="600" height="400" data-article-image-preview /></figure>
           <div class="qz-dropzone-body"><div class="qz-dropzone-actions"><button type="button" class="qz-button qz-button--outline qz-button--sm" data-article-image-choose>Choose file</button><button type="button" class="qz-button qz-button--ghost qz-button--sm" data-gallery-picker-open data-gallery-picker-url="/admin/news/gallery-picker">Choose from gallery</button></div><p class="qz-help">JPEG, PNG or WebP, cropped to 3:2.</p></div>
-          <input type="file" asp-for="Form.ArticleImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" data-article-image-input class="visually-hidden" />
+          <input id="article-image-file" type="file" asp-for="Form.ArticleImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" data-article-image-input class="visually-hidden" />
         </div><p class="qz-error" data-article-image-error hidden></p>
         <input type="hidden" asp-for="Form.CropX" data-crop-x /><input type="hidden" asp-for="Form.CropY" data-crop-y /><input type="hidden" asp-for="Form.CropWidth" data-crop-width /><input type="hidden" asp-for="Form.CropHeight" data-crop-height />
         <partial name="_ArticleImageCropDialog" />

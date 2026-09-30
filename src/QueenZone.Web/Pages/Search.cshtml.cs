@@ -47,10 +47,19 @@ public sealed class SearchModel(ISiteSearchService siteSearchService) : PageMode
         }
 
         CurrentPage = Math.Max(1, CurrentPage);
+
+        if (SiteSearchLimits.IsBelowMinimumLength(Query))
+        {
+            Results = new SiteSearchPage([], 0, CurrentPage, PageSize);
+            return;
+        }
+
         try
         {
             Results = await siteSearchService.SearchAsync(Query, ActiveContentType, CurrentPage, PageSize, cancellationToken);
-            TotalPages = ArchivePagination.GetTotalPages(Results.TotalCount, PageSize);
+            TotalPages = Math.Min(
+                ArchivePagination.GetTotalPages(Results.TotalCount, PageSize),
+                SiteSearchLimits.MaxPage);
         }
         catch (Exception ex) when (ex is SiteSearchTimeoutException || SiteSearchSqlTimeout.IsCommandTimeout(ex))
         {

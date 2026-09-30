@@ -32,7 +32,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 is_zero_sha() {
   local value="${1:-}"
-  [ -n "${value}" ] && [[ "${value}" =~ ^0+$ ]]
+  [[ -n "${value}" ]] && [[ "${value}" =~ ^0+$ ]]
 }
 
 peel_commit() {
@@ -47,7 +47,7 @@ resolve_range() {
   local head
   head="$(peel_commit "${sha}")"
 
-  if [ "${ref_type}" = "tag" ]; then
+  if [[ "${ref_type}" = "tag" ]]; then
     local prev
     if prev="$(git describe --tags --abbrev=0 --match 'v*' "${head}^" 2>/dev/null)"; then
       echo "Classifying tag span ${prev}...${head}." >&2
@@ -63,10 +63,10 @@ resolve_range() {
     return 0
   fi
 
-  if [ "${event_name}" != "push" ] || [ -z "${before}" ] || is_zero_sha "${before}"; then
+  if [[ "${event_name}" != "push" ]] || [[ -z "${before}" ]] || is_zero_sha "${before}"; then
     local -a parents
     parents=($(git rev-list --parents -n 1 "${head}"))
-    if [ "${#parents[@]}" -lt 2 ]; then
+    if [[ "${#parents[@]}" -lt 2 ]]; then
       echo "No parent commit — failing closed as a website deploy." >&2
       echo "base_sha="
       echo "head_sha=${head}"
@@ -90,7 +90,7 @@ assert_eq() {
   local name="$1"
   local expected="$2"
   local got="$3"
-  if [ "${got}" != "${expected}" ]; then
+  if [[ "${got}" != "${expected}" ]]; then
     echo "FAIL ${name}" >&2
     echo " expected: ${expected}" >&2
     echo " got:      ${got}" >&2
@@ -99,7 +99,7 @@ assert_eq() {
   echo "PASS ${name}" >&2
 }
 
-if [ "${1:-}" = "--self-test" ]; then
+if [[ "${1:-}" = "--self-test" ]]; then
   fail=0
   tmp="$(mktemp -d)"
   trap 'rm -rf "${tmp}"' EXIT
@@ -194,7 +194,7 @@ if [ "${1:-}" = "--self-test" ]; then
 
   popd >/dev/null
 
-  if [ "${fail}" -ne 0 ]; then
+  if [[ "${fail}" -ne 0 ]]; then
     echo "Resolve-DeployChangeRange self-test failed." >&2
     exit 1
   fi

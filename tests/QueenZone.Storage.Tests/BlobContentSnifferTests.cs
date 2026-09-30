@@ -40,9 +40,25 @@ public sealed class BlobContentSnifferTests
     public void Rejects_non_audio_bytes_and_does_not_treat_jpeg_as_mpeg()
     {
         Assert.Equal("image/jpeg", BlobContentSniffer.TryDetectContentType([0xFF, 0xD8, 0xFF, 0xE0]));
-        Assert.Null(BlobContentSniffer.TryDetectContentType("not-an-mp3"u8.ToArray()));
-        Assert.Null(BlobContentSniffer.TryDetectContentType("ftypM4A "u8.ToArray()));
+        Assert.Equal("text/plain", BlobContentSniffer.TryDetectContentType("not-an-mp3"u8.ToArray()));
+        Assert.Equal("text/plain", BlobContentSniffer.TryDetectContentType("ftypM4A "u8.ToArray()));
         Assert.Null(BlobContentSniffer.TryDetectContentType([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70]));
+    }
+
+    [Fact]
+    public void Detects_zip_ole_and_plain_text_signatures()
+    {
+        Assert.Equal(
+            "application/zip",
+            BlobContentSniffer.TryDetectContentType([0x50, 0x4B, 0x03, 0x04, 0x14, 0x00]));
+        Assert.Equal(
+            BlobContentSniffer.OleCompoundContentType,
+            BlobContentSniffer.TryDetectContentType(
+                [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0x00]));
+        Assert.Equal("text/plain", BlobContentSniffer.TryDetectContentType("hello"u8.ToArray()));
+        Assert.Equal("text/plain", BlobContentSniffer.TryDetectContentType([0x80, 0x41]));
+        Assert.Null(BlobContentSniffer.TryDetectContentType([0x68, 0x69, 0x00]));
+        Assert.Null(BlobContentSniffer.TryDetectContentType([0x81]));
     }
 
     [Theory]

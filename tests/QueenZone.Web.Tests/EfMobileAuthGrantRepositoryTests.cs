@@ -134,27 +134,53 @@ public sealed class EfMobileAuthGrantRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task LinkRefreshTokenRotation_RecordsSuccessorOnce()
+    public async Task TryRotateRefreshToken_RevokesStoresAndLinksOnce()
     {
         var member = await SeedMemberAsync();
         var now = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
-        await repository.StoreRefreshTokenAsync(new MobileAuthRefreshTokenEntity
+        await repository.StoreRefreshTokenAsync(CreateRefresh("ef-old-hash", member.Id, now));
+
+        Assert.True(await repository.TryRotateRefreshTokenAsync("ef-old-hash", CreateRefresh("ef-new-hash", member.Id, now), now));
+        var old = await repository.FindRefreshTokenByHashAsync("ef-old-hash");
+        Assert.Equal(now, old!.RevokedAt);
+        Assert.Equal("ef-new-hash", old.ReplacedByTokenHash);
+        Assert.Null((await repository.FindRefreshTokenByHashAsync("ef-new-hash"))!.RevokedAt);
+
+        Assert.False(await repository.TryRotateRefreshTokenAsync("ef-old-hash", CreateRefresh("ef-another-hash", member.Id, now), now));
+        Assert.False(await repository.TryRotateRefreshTokenAsync("ef-missing-hash", CreateRefresh("ef-orphan-hash", member.Id, now), now));
+        Assert.Equal("ef-new-hash", (await repository.FindRefreshTokenByHashAsync("ef-old-hash"))!.ReplacedByTokenHash);
+        Assert.Null(await repository.FindRefreshTokenByHashAsync("ef-another-hash"));
+        Assert.Null(await repository.FindRefreshTokenByHashAsync("ef-orphan-hash"));
+    }
+
+    [Fact]
+    public async Task TryRotateRefreshToken_RollsBackTheRevokeWhenTheStoreFails()
+    {
+        // A failed insert must not leave the presented grant revoked with no
+        // replacement, or the client's retry lands in reuse detection.
+        var member = await SeedMemberAsync();
+        var now = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc);
+        await repository.StoreRefreshTokenAsync(CreateRefresh("ef-keep-hash", member.Id, now));
+        await repository.StoreRefreshTokenAsync(CreateRefresh("ef-taken-hash", member.Id, now));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            repository.TryRotateRefreshTokenAsync("ef-keep-hash", CreateRefresh("ef-taken-hash", member.Id, now), now));
+
+        var kept = await repository.FindRefreshTokenByHashAsync("ef-keep-hash");
+        Assert.Null(kept!.RevokedAt);
+        Assert.Null(kept.ReplacedByTokenHash);
+    }
+
+    private static MobileAuthRefreshTokenEntity CreateRefresh(string hash, Guid memberId, DateTime createdAt) =>
+        new()
         {
             Id = Guid.NewGuid(),
-            TokenHash = "ef-old-hash",
-            MemberAccountId = member.Id,
+            TokenHash = hash,
+            MemberAccountId = memberId,
             ClientId = MobileAuthOptions.DefaultClientId,
-            CreatedAt = now,
-            ExpiresAt = now.AddDays(30),
-        });
-
-        Assert.True(await repository.LinkRefreshTokenRotationAsync("ef-old-hash", "ef-new-hash"));
-        Assert.Equal(
-            "ef-new-hash",
-            (await repository.FindRefreshTokenByHashAsync("ef-old-hash"))!.ReplacedByTokenHash);
-        Assert.False(await repository.LinkRefreshTokenRotationAsync("ef-old-hash", "ef-another-hash"));
-        Assert.False(await repository.LinkRefreshTokenRotationAsync("ef-missing-hash", "ef-new-hash"));
-    }
+            CreatedAt = createdAt,
+            ExpiresAt = createdAt.AddDays(30),
+        };
 
     private async Task<MemberAccount> SeedMemberAsync()
     {

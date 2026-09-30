@@ -1,31 +1,30 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class StaticAssetCacheHeadersTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(ProductionHostCollection.Name)]
+public sealed class StaticAssetCacheHeadersTests :
+    IClassFixture<DevelopmentWebApplicationFactory>,
+    IAsyncLifetime
 {
+    private readonly ProductionHostFixture production;
     private readonly WebApplicationFactory<Program> productionFactory;
     private readonly WebApplicationFactory<Program> developmentFactory;
 
-    public StaticAssetCacheHeadersTests(WebApplicationFactory<Program> factory)
+    public StaticAssetCacheHeadersTests(
+        ProductionHostFixture production,
+        DevelopmentWebApplicationFactory developmentFactory)
     {
-        productionFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Production");
-            ResponseCompressionTests.ApplyProductionHostTestSettings(builder);
-        });
-        developmentFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Development");
-            // testhost already skips Local.json; pin the flag so a runner that is not named
-            // testhost still cannot inherit a half-configured Analytics pair.
-            builder.UseSetting(QueenZoneDevelopmentHost.SkipLocalSettingsKey, "true");
-        });
+        this.production = production;
+        productionFactory = production.Factory;
+        this.developmentFactory = developmentFactory;
     }
+
+    public Task InitializeAsync() => production.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task VersionedCss_HasLongLivedImmutableCacheControlInProduction()

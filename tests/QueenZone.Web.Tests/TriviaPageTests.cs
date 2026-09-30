@@ -1,23 +1,36 @@
 using System.Net;
 using System.Net.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class TriviaPageTests : IClassFixture<QueenZoneWebApplicationFactory>
+public sealed class TriviaPageTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>,
+    IAsyncLifetime
 {
     private const string UnpublishedText = "Unpublished draft fact must never render";
     private const string FirstPublishedText = "First published Queen trivia fact";
-    private const string SecondPublishedText = "Second published Queen trivia fact";
 
     private readonly QueenZoneWebApplicationFactory factory;
+    private readonly VariantWebApplicationFactory isolatedTrivia;
+    private readonly VariantWebApplicationFactory sequentialTrivia;
 
-    public TriviaPageTests(QueenZoneWebApplicationFactory factory)
+    public TriviaPageTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
         this.factory = factory;
+        isolatedTrivia = variants.Get(WebHostVariants.IsolatedTrivia);
+        sequentialTrivia = variants.Get(WebHostVariants.SequentialTrivia);
     }
+
+    public async Task InitializeAsync()
+    {
+        await isolatedTrivia.ResetAsync();
+        await sequentialTrivia.ResetAsync();
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task Trivia_page_renders_a_published_fact_and_next_fact_form()
@@ -41,9 +54,9 @@ public sealed class TriviaPageTests : IClassFixture<QueenZoneWebApplicationFacto
     [Fact]
     public async Task Trivia_page_does_not_render_unpublished_facts()
     {
-        using var isolated = IsolatedTrivia(
-            new TriviaFactItem(31, UnpublishedText, DateTime.UtcNow, false, "Band", TriviaDifficulty.Hard, "Draft"));
-        using var client = isolated.CreateAnonymousClient();
+        var trivia = isolatedTrivia.Services.GetRequiredService<ITriviaRepository>();
+        await trivia.CreateAsync(new AdminTriviaDraft(UnpublishedText, false, "Band", TriviaDifficulty.Hard, "Draft"));
+        using var client = isolatedTrivia.CreateAnonymousClient();
 
         var body = await client.GetStringAsync("/trivia");
 
@@ -53,21 +66,13 @@ public sealed class TriviaPageTests : IClassFixture<QueenZoneWebApplicationFacto
     }
 
     [Fact]
-    public async Task Next_fact_is_a_distinct_post_that_loads_another_published_fact()
+    public async Task Next_fact_reuses_the_published_pool_without_random_repository_reads()
     {
-        using var isolated = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ITriviaRepository>();
-            services.AddSingleton<ITriviaRepository>(new SequentialTriviaRepository(
-                new TriviaFactItem(41, FirstPublishedText, DateTime.UtcNow, true, "Band", TriviaDifficulty.Easy, null),
-                new TriviaFactItem(42, SecondPublishedText, DateTime.UtcNow, true, "Albums", TriviaDifficulty.Medium, null),
-                new TriviaFactItem(43, UnpublishedText, DateTime.UtcNow, false, "Band", TriviaDifficulty.Hard, "Draft")));
-        });
-        using var client = isolated.CreateAnonymousClient();
+        var repository = sequentialTrivia.SequentialTrivia!;
+        using var client = sequentialTrivia.CreateAnonymousClient();
 
         var first = await client.GetStringAsync("/trivia");
         Assert.Contains(FirstPublishedText, first);
-        Assert.DoesNotContain(SecondPublishedText, first);
         Assert.DoesNotContain(UnpublishedText, first);
 
         using var next = await client.PostAsync(
@@ -79,52 +84,9 @@ public sealed class TriviaPageTests : IClassFixture<QueenZoneWebApplicationFacto
 
         Assert.Equal(HttpStatusCode.OK, next.StatusCode);
         var second = await next.Content.ReadAsStringAsync();
-        Assert.Contains(SecondPublishedText, second);
-        Assert.DoesNotContain(FirstPublishedText, second);
+        Assert.Contains(FirstPublishedText, second);
         Assert.DoesNotContain(UnpublishedText, second);
-        Assert.Contains("Next fact", second);
-    }
-
-    private static QueenZoneWebApplicationFactory IsolatedTrivia(params TriviaFactItem[] facts) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ITriviaRepository>();
-            services.AddSingleton<ITriviaRepository>(new InMemoryTriviaRepository(facts));
-        });
-
-    private sealed class SequentialTriviaRepository(params TriviaFactItem[] facts) : ITriviaRepository
-    {
-        private int nextPublishedIndex;
-
-        public Task<IReadOnlyList<TriviaFactItem>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<TriviaFactItem>>(facts);
-
-        public Task<TriviaFactItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
-            Task.FromResult(facts.SingleOrDefault(fact => fact.Id == id));
-
-        public Task<TriviaFactItem?> GetRandomPublishedAsync(CancellationToken cancellationToken = default)
-        {
-            var published = facts.Where(fact => fact.IsPublished).ToArray();
-            if (published.Length == 0)
-            {
-                return Task.FromResult<TriviaFactItem?>(null);
-            }
-
-            var fact = published[Math.Min(nextPublishedIndex, published.Length - 1)];
-            nextPublishedIndex++;
-            return Task.FromResult<TriviaFactItem?>(fact);
-        }
-
-        public Task<int> CreateAsync(AdminTriviaDraft draft, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task UpdateAsync(int id, AdminTriviaDraft draft, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task DeleteAsync(int id, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task SetPublishedAsync(int id, bool isPublished, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        Assert.Equal(1, repository.AllCallCount);
+        Assert.Equal(0, repository.RandomCallCount);
     }
 }

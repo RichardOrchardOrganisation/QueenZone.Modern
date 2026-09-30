@@ -1,0 +1,55 @@
+@page "/submit/quiz-question"
+@model QuizQuestionModel
+@using QueenZone.Data
+
+<partial name="_PageHero" model='@(("Community", "Suggest a quiz question", "Share a multiple-choice question for the quiz section. An admin reviews every suggestion before it can be added to a quiz.", ""))' />
+
+<section class="qz-section">
+  <div class="qz-container qz-prose">
+    <p>
+      Suggestions are reviewed by an admin before they can be added to a live quiz.
+      <a href="/account/my-submissions?tab=quiz">View your submissions</a>
+    </p>
+
+    @if (Model.Errors is { Count: > 0 })
+    {
+      <ul class="qz-account-notice qz-account-notice--error">
+        @foreach (var error in Model.Errors)
+        {
+          <li>@error</li>
+        }
+      </ul>
+    }
+
+    <form method="post" class="qz-account-form">
+      @Html.AntiForgeryToken()
+
+      <label class="qz-account-form__field">
+        <span>Question</span>
+        <textarea asp-for="QuestionText" rows="3" maxlength="@QuizValidation.QuestionMaxLength" required></textarea>
+      </label>
+
+      <fieldset>
+        <legend>Answer options (2–4) — mark the correct one</legend>
+        @for (var index = 0; index < Model.OptionTexts.Count; index++)
+        {
+          <label class="qz-account-form__field">
+            <span>
+              <input type="radio" name="CorrectOptionIndex" value="@index" checked="@(Model.CorrectOptionIndex == index ? "checked" : null)">
+              Option @(index + 1)@(index < 2 ? " (required)" : " (optional)")
+            </span>
+            <input type="text" name="OptionTexts[@index]" value="@Model.OptionTexts[index]" maxlength="@QuizValidation.OptionMaxLength">
+          </label>
+        }
+      </fieldset>
+
+      <label class="qz-account-form__field">
+        <span>Explanation or source note <span class="qz-account-form__optional">(optional)</span></span>
+        <textarea asp-for="SourceNote" rows="3" maxlength="@QuizQuestionSubmissionValidation.MaxSourceNoteLength"></textarea>
+        <span class="qz-account-form__help">Context for the admin reviewing this suggestion.</span>
+      </label>
+
+      <button type="submit" class="qz-button">Submit for review</button>
+    </form>
+  </div>
+</section>

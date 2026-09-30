@@ -19,7 +19,11 @@ END;
 
 IF OBJECT_ID(N'dbo.ModernForumPost', N'U') IS NOT NULL
 BEGIN
-    DELETE FROM dbo.ModernForumArchiveAuthorSummary;
+    -- A failed refresh must leave the previous summary available.
+    SET XACT_ABORT ON;
+    BEGIN TRANSACTION;
+
+    TRUNCATE TABLE dbo.ModernForumArchiveAuthorSummary;
 
     ;WITH VisibleCounts AS
     (
@@ -50,6 +54,8 @@ BEGIN
           AND post.IsHidden = 0
         ORDER BY post.PostedAt DESC, post.Id DESC
     ) AS latest;
+
+    COMMIT TRANSACTION;
 END;
 GO
 

@@ -1,24 +1,24 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
-using QueenZone.Web;
 using QueenZone.Web.Pages.Admin.NewsDiscovery;
 
 namespace QueenZone.Web.Tests;
 
-public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
     private const string AdminEmail = "admin@test.local";
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory factory;
 
-    public AdminNewsAgentGuidanceRoutesTests(WebApplicationFactory<Program> factory)
+    public AdminNewsAgentGuidanceRoutesTests(WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        factory = variants.Get(WebHostVariants.IsolatedAdminGuidance);
     }
+
+    public Task InitializeAsync() => factory.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task AnonymousUserCannotAccessPromptSettings()
@@ -55,9 +55,8 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
     [Fact]
     public async Task AuthorizedAdminCanSavePublishRollbackAndRestoreDefault()
     {
-        var store = new SharedNewsAgentGuidanceStore();
-        var repository = new InMemoryNewsAgentGuidanceRepository(store);
-        var client = CreateClient(AdminEmail, store);
+        var repository = factory.Services.GetRequiredService<INewsAgentGuidanceRepository>();
+        var client = CreateClient(AdminEmail);
 
         var indexBody = await client.GetStringAsync("/admin/news-discovery");
         Assert.Contains("/admin/news-discovery/prompt-settings", indexBody, StringComparison.Ordinal);
@@ -150,9 +149,8 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
     [Fact]
     public async Task AuthorizedAdminCanEditAndPublishBothOverlays()
     {
-        var store = new SharedNewsAgentGuidanceStore();
-        var repository = new InMemoryNewsAgentGuidanceRepository(store);
-        var client = CreateClient(AdminEmail, store);
+        var repository = factory.Services.GetRequiredService<INewsAgentGuidanceRepository>();
+        var client = CreateClient(AdminEmail);
 
         foreach (var (type, content) in new[]
         {
@@ -186,7 +184,7 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
     [Fact]
     public async Task SaveDraft_rejects_oversized_content()
     {
-        var client = CreateClient(AdminEmail, new SharedNewsAgentGuidanceStore());
+        var client = CreateClient(AdminEmail);
 
         var response = await PostAsync(client, "/admin/news-discovery/prompt-settings?handler=SaveDraft", new Dictionary<string, string>
         {
@@ -202,7 +200,7 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
     [Fact]
     public async Task Publish_without_antiforgery_is_rejected()
     {
-        var client = CreateClient(AdminEmail, new SharedNewsAgentGuidanceStore());
+        var client = CreateClient(AdminEmail);
 
         var response = await client.PostAsync(
             "/admin/news-discovery/prompt-settings?handler=Publish",
@@ -218,8 +216,7 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
     [Fact]
     public async Task ReviewPage_shows_guidance_revision_and_hash()
     {
-        var discoveryStore = new SharedNewsDiscoveryStore();
-        var discoveryRepository = new InMemoryNewsDiscoveryRepository(discoveryStore);
+        var discoveryRepository = factory.Services.GetRequiredService<INewsDiscoveryRepository>();
         var candidateId = await NewsDiscoveryTestSeeder.SeedDraftedCandidateAsync(discoveryRepository);
         await discoveryRepository.CreateAiRunAsync(new NewsAiRunCreateRequest(
             candidateId,
@@ -231,7 +228,7 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
             44,
             2,
             "abc123hash"));
-        var client = CreateClient(AdminEmail, new SharedNewsAgentGuidanceStore(), discoveryStore);
+        var client = CreateClient(AdminEmail);
 
         var body = await client.GetStringAsync($"/admin/news-discovery/{candidateId}");
 
@@ -241,43 +238,8 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
         Assert.Contains("abc123hash", body, StringComparison.Ordinal);
     }
 
-    private HttpClient CreateClient(
-        string? email = null,
-        SharedNewsAgentGuidanceStore? guidanceStore = null,
-        SharedNewsDiscoveryStore? discoveryStore = null)
-    {
-        guidanceStore ??= new SharedNewsAgentGuidanceStore();
-        discoveryStore ??= new SharedNewsDiscoveryStore();
-        var appFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<SharedNewsAgentGuidanceStore>();
-                services.RemoveAll<INewsAgentGuidanceRepository>();
-                services.RemoveAll<SharedNewsDiscoveryStore>();
-                services.RemoveAll<INewsDiscoveryRepository>();
-                services.AddSingleton(guidanceStore);
-                services.AddSingleton<INewsAgentGuidanceRepository>(_ =>
-                    new InMemoryNewsAgentGuidanceRepository(guidanceStore));
-                services.AddSingleton(discoveryStore);
-                services.AddSingleton<INewsDiscoveryRepository>(_ =>
-                    new InMemoryNewsDiscoveryRepository(discoveryStore));
-            });
-        });
-
-        var client = appFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            HandleCookies = true,
-            AllowAutoRedirect = false
-        });
-        if (!string.IsNullOrWhiteSpace(email))
-        {
-            client.DefaultRequestHeaders.Add(TestAuthHandler.UserEmailHeader, email);
-        }
-
-        return client;
-    }
+    private HttpClient CreateClient(string? email = null) =>
+        AdminHttpTestHelpers.CreateClient(factory, email);
 
     private static async Task<HttpResponseMessage> PostAsync(
         HttpClient client,

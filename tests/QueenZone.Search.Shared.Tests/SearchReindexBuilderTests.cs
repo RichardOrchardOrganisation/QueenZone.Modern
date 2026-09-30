@@ -1,4 +1,5 @@
 using QueenZone.Data;
+using QueenZone.Data.Entities;
 using QueenZone.Search.Shared;
 
 namespace QueenZone.Search.Shared.Tests;
@@ -354,6 +355,38 @@ public sealed class SearchReindexBuilderTests
         var documents = store.GetAll().Where(d => d.ContentType == SiteSearchContentType.FanPerformance).ToList();
         Assert.Equal(SampleFanPerformanceData.CreateSeedPerformances().Count, documents.Count);
         Assert.Contains(documents, doc => doc.Title == "Reaching Out" && doc.AuthorDisplayName == "Mike Ryde");
+    }
+
+    [Fact]
+    public async Task ReindexAllAsync_NeverWritesFreddieTributeDocuments()
+    {
+        var (builder, store) = CreateBuilder();
+        store.Upsert(new SearchDocumentEntity
+        {
+            SourceKey = SearchDocumentSourceKey.ForTribute(1),
+            ContentType = SiteSearchContentType.Tribute,
+            Title = "Leftover tribute",
+            Body = "Should be ignored by reindex, not rewritten.",
+            Summary = "Leftover",
+            Url = "/freddie-mercury-tribute",
+        });
+        store.Upsert(new SearchDocumentEntity
+        {
+            SourceKey = "freddie-tribute:2",
+            ContentType = SiteSearchContentType.FreddieTribute,
+            Title = "Leftover alias",
+            Body = "Historical alias must be cleared too.",
+            Summary = "Leftover",
+            Url = "/freddie-mercury-tribute",
+        });
+
+        await builder.ReindexAllAsync();
+
+        Assert.DoesNotContain(
+            store.GetAll(),
+            document => SiteSearchContentType.IsExcludedFromSiteSearch(document.ContentType)
+                || SearchDocumentSourceKey.IsTribute(document.SourceKey));
+        Assert.DoesNotContain(SiteSearchContentType.All, SiteSearchContentType.IsExcludedFromSiteSearch);
     }
 
     [Fact]

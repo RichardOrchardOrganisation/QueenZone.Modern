@@ -18,9 +18,12 @@ public sealed class HideAuthorModel(
 
     public async Task<IActionResult> OnGetAsync(int postId, CancellationToken cancellationToken)
     {
-        var access = await GetAccessAsync();
-        if (!access.Authenticated) return Challenge(MemberAuthenticationSchemes.MembersCookie);
-        if (!access.IsAdmin) return Forbid();
+        var gate = await GateAdminAsync();
+        if (gate is not null)
+        {
+            return gate;
+        }
+
         Post = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
         if (Post is null) return NotFound();
         Summary = await forumWriteRepository.GetAuthorForumContentSummaryAsync(
@@ -31,9 +34,11 @@ public sealed class HideAuthorModel(
 
     public async Task<IActionResult> OnPostAsync(int postId, CancellationToken cancellationToken)
     {
-        var access = await GetAccessAsync();
-        if (!access.Authenticated) return Challenge(MemberAuthenticationSchemes.MembersCookie);
-        if (!access.IsAdmin) return Forbid();
+        var gate = await GateAdminAsync();
+        if (gate is not null)
+        {
+            return gate;
+        }
 
         var post = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
         if (post is null) return NotFound();
@@ -43,13 +48,21 @@ public sealed class HideAuthorModel(
             post.TopicId, NewsSlug.Slugify(post.TopicSubject)));
     }
 
-    private async Task<(bool Authenticated, bool IsAdmin)> GetAccessAsync()
+    private async Task<IActionResult?> GateAdminAsync()
     {
+        if (await ForumAdminAccess.IsAdminAsync(HttpContext, adminOptions.Value))
+        {
+            return null;
+        }
+
+        // Signed-in members, including allowlisted addresses, are not forum admins.
+        // Anonymous callers are sent to Entra, not the member login page.
         var memberAuth = await HttpContext.AuthenticateMemberAsync();
-        return (
-            User.Identity?.IsAuthenticated == true || memberAuth.Succeeded,
-            ForumPollEndpoints.IsAdmin(User, adminOptions.Value)
-                || (memberAuth.Principal is not null
-                    && ForumPollEndpoints.IsAdmin(memberAuth.Principal, adminOptions.Value)));
+        if (memberAuth.Succeeded || User.Identity?.IsAuthenticated == true)
+        {
+            return Forbid();
+        }
+
+        return Challenge(AdminAuthenticationSchemes.CompositeScheme);
     }
 }

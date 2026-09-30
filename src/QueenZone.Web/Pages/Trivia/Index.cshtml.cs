@@ -3,7 +3,7 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Trivia;
 
-public sealed class IndexModel(ITriviaRepository triviaRepository) : PageModel
+public sealed class IndexModel(PublicQueryCacheService publicQueryCache) : PageModel
 {
     public TriviaFactItem? Fact { get; private set; }
 
@@ -19,7 +19,7 @@ public sealed class IndexModel(ITriviaRepository triviaRepository) : PageModel
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        Fact = await triviaRepository.GetRandomPublishedAsync(cancellationToken);
+        Fact = await publicQueryCache.GetRandomPublishedTriviaAsync(cancellationToken);
 
         ViewData["Title"] = "Queen Trivia | QueenZone";
         ViewData["CanonicalPath"] = "/trivia";

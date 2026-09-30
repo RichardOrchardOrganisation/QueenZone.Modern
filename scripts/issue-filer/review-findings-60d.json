@@ -1,0 +1,194 @@
+{
+  "lookbackDays": 60,
+  "findings": [
+    {
+      "level": "L1",
+      "rule": "mobile.swallowed-error-state",
+      "repeat": "yes",
+      "file": "src/QueenZone.Mobile/src/screens/forum/CategoryScreen.tsx",
+      "verdict": "blocking",
+      "pr": 822,
+      "at": "2026-08-22T06:56:48Z"
+    },
+    {
+      "level": "L1",
+      "rule": "mobile.swallowed-error-state",
+      "repeat": "yes",
+      "file": "src/QueenZone.Mobile/src/screens/forum/ThreadScreen.tsx",
+      "verdict": "blocking",
+      "pr": 826,
+      "at": "2026-08-22T06:59:12Z"
+    },
+    {
+      "level": "L1",
+      "rule": "mobile.swallowed-error-state",
+      "repeat": "yes",
+      "file": "src/QueenZone.Mobile/src/screens/forum/ComposerScreen.tsx",
+      "verdict": "blocking",
+      "pr": 825,
+      "at": "2026-08-22T06:56:03Z"
+    },
+    {
+      "level": "L1",
+      "rule": "mobile.swallowed-error-state",
+      "repeat": "yes",
+      "file": "src/QueenZone.Mobile/src/screens/photos/PhotoCategoryScreen.tsx",
+      "verdict": "nit",
+      "pr": 1182,
+      "at": "2026-08-31T12:21:27Z"
+    },
+    {
+      "level": "L1",
+      "rule": "app.lost-update-race",
+      "repeat": "yes",
+      "file": "src/QueenZone.Data/Repositories/EfPrivateMessageRepository.cs",
+      "verdict": "blocking",
+      "pr": 482,
+      "at": "2026-08-02T06:11:51Z"
+    },
+    {
+      "level": "L1",
+      "rule": "app.lost-update-race",
+      "repeat": "yes",
+      "file": "src/QueenZone.Web/Admin/FanPerformanceSubmissionPromotionService.cs",
+      "verdict": "blocking",
+      "pr": 1314,
+      "at": "2026-09-04T16:41:38Z"
+    },
+    {
+      "level": "L1",
+      "rule": "app.lost-update-race",
+      "repeat": "yes",
+      "file": "src/QueenZone.Mobile/src/session/SessionContext.tsx",
+      "verdict": "blocking",
+      "pr": 1194,
+      "at": "2026-09-01T01:11:18Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.in-memory-not-sql",
+      "repeat": "yes",
+      "file": "src/QueenZone.Data/Repositories/EfArticlesRepository.cs",
+      "verdict": "blocking",
+      "pr": 1211,
+      "at": "2026-09-02T01:59:15Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.in-memory-not-sql",
+      "repeat": "yes",
+      "file": "tests/QueenZone.Web.Tests/DashboardAggregateQueriesTests.cs",
+      "verdict": "blocking",
+      "pr": 1692,
+      "at": "2026-09-22T07:20:51Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.in-memory-not-sql",
+      "repeat": "yes",
+      "file": "src/QueenZone.Data/Repositories/InMemoryForumRepository.cs",
+      "verdict": "nit",
+      "pr": 822,
+      "at": "2026-08-22T06:56:48Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.in-memory-not-sql",
+      "repeat": "yes",
+      "file": "src/QueenZone.Data/Repositories/InMemoryMemberPublicActivityRepository.cs",
+      "verdict": "nit",
+      "pr": 1083,
+      "at": "2026-08-29T14:44:52Z"
+    },
+    {
+      "level": "L2",
+      "rule": "data.unbounded-or-nplus1",
+      "repeat": "yes",
+      "file": "src/QueenZone.Data/Repositories/EfPrivateMessageRepository.cs",
+      "verdict": "blocking",
+      "pr": 482,
+      "at": "2026-08-02T06:11:52Z"
+    },
+    {
+      "level": "L2",
+      "rule": "data.unbounded-or-nplus1",
+      "repeat": "yes",
+      "file": "src/QueenZone.Web/Pages/Following.cshtml.cs",
+      "verdict": "nit",
+      "pr": 1083,
+      "at": "2026-08-29T14:44:51Z"
+    },
+    {
+      "level": "L2",
+      "rule": "data.unbounded-or-nplus1",
+      "repeat": "yes",
+      "file": "src/QueenZone.Web/Pages/Admin/FanPerformanceSubmissions/Index.cshtml.cs",
+      "verdict": "nit",
+      "pr": 1314,
+      "at": "2026-09-04T16:41:38Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.weak-contract-assertion",
+      "repeat": "yes",
+      "file": "tests/QueenZone.Web.Tests/EfQuizRepositoryTests.cs",
+      "verdict": "blocking",
+      "pr": 1581,
+      "at": "2026-09-17T08:11:12Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.weak-contract-assertion",
+      "repeat": "yes",
+      "file": "src/QueenZone.Mobile/src/session/SessionContext.test.tsx",
+      "verdict": "blocking",
+      "pr": 1194,
+      "at": "2026-09-01T01:11:19Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.weak-contract-assertion",
+      "repeat": "yes",
+      "file": "src/QueenZone.Mobile/src/config/maestroDeviceFlows.test.ts",
+      "verdict": "blocking",
+      "pr": 1806,
+      "at": "2026-09-25T12:39:52Z"
+    },
+    {
+      "level": "L2",
+      "rule": "test.weak-contract-assertion",
+      "repeat": "yes",
+      "file": "tests/QueenZone.Web.Tests/AdminNewsRoutesTests.cs",
+      "verdict": "nit",
+      "pr": 1440,
+      "at": "2026-09-09T04:24:29Z"
+    },
+    {
+      "level": "L2",
+      "rule": "host.activity-spans-delay",
+      "repeat": "no",
+      "file": "src/QueenZone.Web/Admin/GalleryOrphanSweepHostedService.cs",
+      "verdict": "blocking",
+      "pr": 1193,
+      "at": "2026-09-01T00:04:38Z"
+    },
+    {
+      "level": "L2",
+      "rule": "mobile.hidden-testid",
+      "repeat": "no",
+      "file": "src/QueenZone.Mobile/maestro/flows/12-masthead-unread.yaml",
+      "verdict": "blocking",
+      "pr": 1075,
+      "at": "2026-08-29T10:01:50Z"
+    },
+    {
+      "level": "L2",
+      "rule": "ci.workflow-input-interpolation",
+      "repeat": "no",
+      "file": ".github/workflows/mobile-device-smoke.yml",
+      "verdict": "blocking",
+      "pr": 1806,
+      "at": "2026-09-25T12:39:52Z"
+    }
+  ]
+}

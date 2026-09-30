@@ -33,7 +33,7 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             row.BodyHtml,
             authorMemberId,
             row.AuthorDisplayName,
-            ToOffset(row.PostedAt));
+            LegacyDateTime.ToOffset(row.PostedAt));
     }
 
     public async Task<ForumPostReportResult> CreateAsync(
@@ -65,16 +65,6 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             return new ForumPostReportResult(false, null, ForumPostReportText.CannotReportOwn);
         }
 
-        var contextRows = await VisiblePosts()
-            .Where(item => item.LegacyThreadTopicId == post.TopicId && item.LegacyPostId < postId)
-            .OrderByDescending(item => item.LegacyPostId)
-            .Take(ForumPostReportLimits.ContextPostCount)
-            .OrderBy(item => item.LegacyPostId)
-            .Select(item => new { item.LegacyPostId, item.AuthorDisplayName, item.BodyHtml, item.PostedAt })
-            .ToListAsync(cancellationToken);
-        var context = contextRows.Select(item => new ForumPostReportContextItem(
-            item.LegacyPostId, item.AuthorDisplayName, item.BodyHtml, ToOffset(item.PostedAt))).ToList();
-
         var entity = new ForumPostReportEntity
         {
             Id = Guid.NewGuid(),
@@ -89,14 +79,15 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             AuthorDisplayNameSnapshot = post.AuthorDisplayName,
             PostCreatedAtSnapshot = post.PostedAt,
             ThreadTitleSnapshot = post.ThreadTitle,
-            ContextJson = ForumPostReportContextSerializer.Serialize(context),
+            // Hydrated on admin GetAsync. Create must not wait on this SELECT (#1604).
+            ContextJson = null,
         };
         dbContext.ForumPostReports.Add(entity);
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (EfPrivateMessageRepository.IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
         {
             dbContext.Entry(entity).State = EntityState.Detached;
             existing = await dbContext.ForumPostReports
@@ -148,7 +139,7 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
         var previous = reportedMemberId is Guid memberId
             ? await dbContext.ForumPostReports.CountAsync(item => item.ReportedMemberId == memberId && item.Id != reportId, cancellationToken)
             : await dbContext.ForumPostReports.CountAsync(item => item.AuthorDisplayNameSnapshot == report.AuthorDisplayNameSnapshot && item.Id != reportId, cancellationToken);
-        return Map(report, reportedMemberId, previous);
+        return Map(report, reportedMemberId, previous, await ResolveContextAsync(report, cancellationToken));
     }
 
     public async Task<ForumPostReportListPage> ListAsync(string? status, int page, int pageSize, CancellationToken cancellationToken = default)
@@ -241,11 +232,44 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
         report.AuthorDisplayNameSnapshot, report.PostCreatedAtSnapshot, report.ThreadTitleSnapshot,
         ForumPostReportContextSerializer.Deserialize(report.ContextJson), previous);
 
-    private static ForumPostReport Map(ForumPostReportEntity report, Guid? reportedMemberId, int previous) => new(
+    private static ForumPostReport Map(
+        ForumPostReportEntity report,
+        Guid? reportedMemberId,
+        int previous,
+        IReadOnlyList<ForumPostReportContextItem> context) => new(
         report.Id, report.PostId, report.TopicId, report.ReporterMemberId, reportedMemberId,
         report.Category, report.Details, report.CreatedAt, report.Status, report.PostBodySnapshot,
         report.AuthorDisplayNameSnapshot, report.PostCreatedAtSnapshot, report.ThreadTitleSnapshot,
-        ForumPostReportContextSerializer.Deserialize(report.ContextJson), previous);
+        context, previous);
+
+    private async Task<IReadOnlyList<ForumPostReportContextItem>> ResolveContextAsync(
+        ForumPostReportEntity report,
+        CancellationToken cancellationToken)
+    {
+        var stored = ForumPostReportContextSerializer.Deserialize(report.ContextJson);
+        if (stored.Count > 0)
+        {
+            return stored;
+        }
+
+        return await LoadPriorContextAsync(report.TopicId, report.PostId, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<ForumPostReportContextItem>> LoadPriorContextAsync(
+        int topicId,
+        int postId,
+        CancellationToken cancellationToken)
+    {
+        var contextRows = await VisiblePosts()
+            .Where(item => item.LegacyThreadTopicId == topicId && item.LegacyPostId < postId)
+            .OrderByDescending(item => item.LegacyPostId)
+            .Take(ForumPostReportLimits.ContextPostCount)
+            .OrderBy(item => item.LegacyPostId)
+            .Select(item => new { item.LegacyPostId, item.AuthorDisplayName, item.BodyHtml, item.PostedAt })
+            .ToListAsync(cancellationToken);
+        return contextRows.Select(item => new ForumPostReportContextItem(
+            item.LegacyPostId, item.AuthorDisplayName, item.BodyHtml, LegacyDateTime.ToOffset(item.PostedAt))).ToList();
+    }
 
     private async Task<Guid?> ResolveAuthorMemberIdAsync(
         Guid? authorMemberId,
@@ -262,7 +286,4 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             .Select(account => (Guid?)account.Id)
             .SingleOrDefaultAsync(cancellationToken);
     }
-
-    private static DateTimeOffset ToOffset(DateTime? value) =>
-        new(DateTime.SpecifyKind(value ?? DateTime.MinValue, DateTimeKind.Utc));
 }

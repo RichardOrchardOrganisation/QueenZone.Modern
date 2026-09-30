@@ -1,15 +1,20 @@
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using QueenZone.Data;
+using QueenZone.Data.Migrations;
 
 namespace QueenZone.Web.Tests;
 
+// The search SQL is a hand-written script that only runs on SQL Server, which these tests can't reach.
+// Its text is therefore the contract: each test slices one branch of the script and pins its shape.
 public sealed class SearchDocumentSearchSqlTests
 {
     [Fact]
     public void Rank_cap_matches_the_sql_source_of_truth()
     {
         Assert.Equal(1000, SiteSearchLimits.MaxRankedMatches);
+        Assert.Equal(5000, SiteSearchLimits.TypedMatchScanLimit);
         Assert.Contains(
-            "@RankLimit    INT = 1000",
+            "@RankLimit      INT = 1000",
             ReadSqlSourceOfTruth(),
             StringComparison.Ordinal);
     }
@@ -25,6 +30,8 @@ public sealed class SearchDocumentSearchSqlTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("SELECT TOP (@MatchLimit)", untypedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("d.ContentType = @ContentType", untypedBranch, StringComparison.Ordinal);
+        Assert.Contains(SiteSearchExclusion.SqlIsSearchable("d"), untypedBranch, StringComparison.Ordinal);
+        Assert.Contains("INNER JOIN dbo.SearchDocument d ON d.Id = ft.[KEY]", untypedBranch, StringComparison.Ordinal);
         Assert.Equal(
             1,
             CountOccurrences(
@@ -44,7 +51,7 @@ public sealed class SearchDocumentSearchSqlTests
 
         Assert.Contains("SELECT TOP (@MatchLimit)", typedBranch, StringComparison.Ordinal);
         Assert.Contains(
-            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query)",
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit)",
             typedBranch,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -54,8 +61,26 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.True(joinIndex >= 0, "Typed search must join SearchDocument before capping.");
         Assert.True(filterIndex > joinIndex, "Typed search must filter ContentType after the join.");
         Assert.True(orderIndex > filterIndex, "Typed search must apply TOP after the ContentType filter.");
+        Assert.Contains(SiteSearchExclusion.SqlIsSearchable("d"), typedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("[RANK] *", typedBranch, StringComparison.Ordinal);
         Assert.DoesNotContain("CONTAINSTABLE", typedBranch, StringComparison.Ordinal);
+        Assert.Contains("SELECT TOP (@MatchLimit)", typedBranch, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Typed_search_candidate_scan_has_a_finite_independent_cap()
+    {
+        var sql = ReadSqlSourceOfTruth();
+
+        Assert.Contains("@TypedRankLimit INT = 5000", sql, StringComparison.Ordinal);
+        Assert.Contains("DECLARE @TypedMatchLimit INT = CASE", sql, StringComparison.Ordinal);
+        Assert.Contains("WHEN @TypedRankLimit > 5000 THEN 5000", sql, StringComparison.Ordinal);
+        Assert.Contains(
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit)",
+            ReadTypedMatchInsert(),
+            StringComparison.Ordinal);
+        Assert.Contains("SiteSearchLimits.TypedMatchScanLimit", ReadRepoFile(
+            Path.Combine("src", "QueenZone.Data", "Repositories", "EfSiteSearchService.cs")));
     }
 
     [Fact]
@@ -152,6 +177,97 @@ public sealed class SearchDocumentSearchSqlTests
         Assert.DoesNotContain("START FULL POPULATION", migration, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Latest_migration_embeds_the_finite_typed_candidate_cap()
+    {
+        var migration = ReadRepoFile(Path.Combine(
+            "src", "QueenZone.Data", "Migrations", "20260922140000_CapTypedSearchFullTextCandidates.cs"));
+        var upStart = migration.IndexOf("protected override void Up", StringComparison.Ordinal);
+        var downStart = migration.IndexOf("protected override void Down", StringComparison.Ordinal);
+        Assert.True(upStart >= 0 && downStart > upStart, "Expected Up before Down.");
+
+        var up = migration[upStart..downStart];
+        Assert.Contains("@TypedRankLimit INT = 5000", up, StringComparison.Ordinal);
+        Assert.Contains("WHEN @TypedRankLimit > 5000 THEN 5000", up, StringComparison.Ordinal);
+        Assert.Contains("@Query, @TypedMatchLimit", up, StringComparison.Ordinal);
+        Assert.Contains("OPTION (RECOMPILE)", up, StringComparison.Ordinal);
+        Assert.DoesNotContain("@TypedRankLimit", migration[downStart..], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Latest_migration_excludes_tributes_at_matches_insert()
+    {
+        var migration = ReadRepoFile(Path.Combine(
+            "src", "QueenZone.Data", "Migrations", "20260929140000_ExcludeTributesFromSiteSearch.cs"));
+        var upStart = migration.IndexOf("protected override void Up", StringComparison.Ordinal);
+        var downStart = migration.IndexOf("protected override void Down", StringComparison.Ordinal);
+        Assert.True(upStart >= 0 && downStart > upStart, "Expected Up before Down.");
+
+        var up = migration[upStart..downStart];
+        Assert.Contains("DELETE FROM dbo.SearchDocument", up, StringComparison.Ordinal);
+        Assert.Contains("SiteSearchExclusion.SqlIsExcluded", up, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(up, "SiteSearchExclusion.SqlIsSearchable"));
+        Assert.Equal(2, CountOccurrences(up, "OPTION (RECOMPILE)"));
+        Assert.Contains(
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @MatchLimit)",
+            up,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "FREETEXTTABLE(dbo.SearchDocument, (Title, Body), @Query, @TypedMatchLimit)",
+            up,
+            StringComparison.Ordinal);
+        Assert.Contains("@RankLimit      INT = 1000", up, StringComparison.Ordinal);
+        Assert.Contains("@TypedRankLimit INT = 5000", up, StringComparison.Ordinal);
+        Assert.Contains("CREATE TABLE #Page", up, StringComparison.Ordinal);
+        Assert.Contains("INSERT INTO #Matches (DocumentId, SearchRank, ContentType, PublishedAt)", up, StringComparison.Ordinal);
+        Assert.Contains("SELECT @TotalRecords = COUNT(*)", up, StringComparison.Ordinal);
+        Assert.Contains("FROM   #Matches;", up, StringComparison.Ordinal);
+        Assert.DoesNotContain("@ContentType IS NULL OR", up, StringComparison.Ordinal);
+        Assert.DoesNotContain("INNER JOIN #Matches", up, StringComparison.Ordinal);
+
+        var generated = string.Join(
+            "\n",
+            new ExcludeTributesFromSiteSearch().UpOperations
+                .OfType<SqlOperation>()
+                .Select(operation => operation.Sql));
+        Assert.Contains(SiteSearchExclusion.SqlIsExcluded("ContentType", "SourceKey"), generated, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(generated, SiteSearchExclusion.SqlIsSearchable("d")));
+
+        var sql = ReadSqlSourceOfTruth();
+        Assert.Equal(2, CountOccurrences(sql, SiteSearchExclusion.SqlIsSearchable("d")));
+        Assert.Contains(SiteSearchExclusion.SqlIsSearchable("d"), sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("d.ContentType <> N'tribute'", migration[downStart..], StringComparison.Ordinal);
+        Assert.DoesNotContain("d.ContentType <> N'tribute'", sql, StringComparison.Ordinal);
+        Assert.Contains("Tribute rows", migration[downStart..], StringComparison.Ordinal);
+        Assert.Contains("are not reinserted", migration[downStart..], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Search_tail_pages_from_matches_then_joins_only_the_page()
+    {
+        var sql = ReadSqlSourceOfTruth();
+        var tail = ReadSearchTail();
+
+        Assert.Contains("ContentType NVARCHAR(50) NOT NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("PublishedAt DATETIMEOFFSET NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("CREATE TABLE #Page", tail, StringComparison.Ordinal);
+        Assert.Contains(
+            "ORDER BY SearchRank DESC, PublishedAt DESC, DocumentId DESC",
+            tail,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ORDER BY p.SearchRank DESC, p.PublishedAt DESC, p.DocumentId DESC",
+            tail,
+            StringComparison.Ordinal);
+        Assert.Contains("FROM   #Page p", tail, StringComparison.Ordinal);
+        Assert.Contains("INNER JOIN dbo.SearchDocument d ON d.Id = p.DocumentId", tail, StringComparison.Ordinal);
+        Assert.Contains("SELECT @TotalRecords = COUNT(*)", tail, StringComparison.Ordinal);
+        Assert.Contains("FROM   #Matches;", tail, StringComparison.Ordinal);
+        Assert.DoesNotContain("@ContentType IS NULL OR", tail, StringComparison.Ordinal);
+        Assert.DoesNotContain("INNER JOIN #Matches", tail, StringComparison.Ordinal);
+        Assert.DoesNotContain("OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;", sql.Replace(tail, string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
+    }
+
     private static string ReadSqlSourceOfTruth() =>
         ReadRepoFile(Path.Combine("docs", "sql", "010-search-document-full-text-search.sql"));
 
@@ -176,27 +292,19 @@ public sealed class SearchDocumentSearchSqlTests
         return sql[elseIndex..endIndex];
     }
 
-    private static string ReadRepoFile(string relativePath)
+    private static string ReadSearchTail()
     {
-        var path = Path.Combine(FindRepoRoot(), relativePath);
-        Assert.True(File.Exists(path), $"Expected {relativePath} at {path}");
-        return File.ReadAllText(path);
+        var sql = ReadSqlSourceOfTruth();
+        var pageIndex = sql.IndexOf("CREATE TABLE #Page", StringComparison.Ordinal);
+        Assert.True(pageIndex >= 0, "Expected a #Page materialization after the match inserts.");
+        return sql[pageIndex..];
     }
 
-    private static string FindRepoRoot()
+    private static string ReadRepoFile(string relativePath)
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "QueenZone.sln")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("Could not find QueenZone.sln above the test output directory.");
+        var path = RepoPaths.Combine(relativePath);
+        Assert.True(File.Exists(path), $"Expected {relativePath} at {path}");
+        return File.ReadAllText(path);
     }
 
     private static int CountOccurrences(string haystack, string needle)

@@ -12,6 +12,8 @@ public sealed class QueenHistoryEventEntity
 
     public DateTime EventDate { get; set; }
 
+    public int EventMonthDay { get; private set; }
+
     public QueenHistoryDatePrecision DatePrecision { get; set; }
 
     public QueenHistoryEventCategory Category { get; set; }

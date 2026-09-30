@@ -1,0 +1,180 @@
+@model QueenZone.Web.Pages.Admin.Quizzes.QuizFormViewModel
+@using QueenZone.Data
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+  var antiforgeryToken = (ViewData["AntiforgeryToken"] as string)
+    ?? Antiforgery.GetAndStoreTokens(Context).RequestToken;
+}
+
+<div class="admin-form-panel">
+<h1>@Model.Title</h1>
+
+@if (Model.Errors is { Count: > 0 })
+{
+  <ul class="admin-errors">
+    @foreach (var error in Model.Errors)
+    {
+      <li>@error</li>
+    }
+  </ul>
+}
+
+@if (Model.QuestionsLocked)
+{
+  <p>This quiz has results. Questions and options are locked. You can still publish or unpublish it.</p>
+}
+
+<form method="post" action="@Model.Action" class="admin-form admin-quiz-form" data-max-options="@QuizValidation.MaxOptions" data-max-questions="@QuizValidation.MaxQuestions">
+  <input type="hidden" name="@AdminQuizPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
+  <label>
+    Title
+    <input type="text" name="title" value="@Model.Draft.Title" maxlength="@QuizValidation.TitleMaxLength" required @(Model.QuestionsLocked ? "readonly" : null)>
+  </label>
+  <label>
+    Description (optional)
+    <textarea name="description" maxlength="@QuizValidation.DescriptionMaxLength" @(Model.QuestionsLocked ? "readonly" : null)>@Model.Draft.Description</textarea>
+  </label>
+
+  <div class="admin-quiz-form__questions" data-quiz-questions>
+    @for (var questionIndex = 0; questionIndex < Model.Draft.Questions.Count; questionIndex++)
+    {
+      var question = Model.Draft.Questions[questionIndex];
+      var optionSlots = new List<QuizOptionDraft>(question.Options);
+      while (optionSlots.Count < QuizValidation.MinOptions)
+      {
+        optionSlots.Add(new QuizOptionDraft(string.Empty, false));
+      }
+
+      <fieldset class="admin-quiz-form__question" data-quiz-question>
+        <legend>Question @(questionIndex + 1)</legend>
+        <label>
+          Question text
+          <input type="text" name="questions[@questionIndex].text" value="@question.Text" maxlength="@QuizValidation.QuestionMaxLength" @(Model.QuestionsLocked ? "readonly" : null)>
+        </label>
+        <label class="admin-quiz-form__points">
+          Points
+          <input type="number" name="questions[@questionIndex].points" value="@question.Points" min="@QuizValidation.MinPoints" max="@QuizValidation.MaxPoints" @(Model.QuestionsLocked ? "readonly" : null)>
+        </label>
+        <label>
+          Category (optional)
+          <input type="text" name="questions[@questionIndex].category" value="@question.Category" maxlength="@QuizValidation.CategoryMaxLength" @(Model.QuestionsLocked ? "readonly" : null)>
+        </label>
+        <label>
+          Difficulty (optional)
+          <select name="questions[@questionIndex].difficulty" @(Model.QuestionsLocked ? "disabled" : null)>
+            <option value="" selected="@(string.IsNullOrEmpty(question.Difficulty) ? "selected" : null)">-</option>
+            @foreach (var difficulty in QuizValidation.AllowedDifficulties)
+            {
+              <option value="@difficulty" selected="@(question.Difficulty == difficulty ? "selected" : null)">@difficulty</option>
+            }
+          </select>
+        </label>
+
+        <div class="admin-quiz-form__options" data-quiz-options>
+          @for (var optionIndex = 0; optionIndex < optionSlots.Count; optionIndex++)
+          {
+            var option = optionSlots[optionIndex];
+            <div class="admin-quiz-form__option" data-quiz-option>
+              <label class="admin-quiz-form__correct">
+                Correct
+                <input type="radio" name="questions[@questionIndex].correctOptionIndex" value="@optionIndex" checked="@(option.IsCorrect ? "checked" : null)" @(Model.QuestionsLocked ? "disabled" : null)>
+              </label>
+              <label>
+                Option @(optionIndex + 1)
+                <input type="text" name="questions[@questionIndex].optionTexts" value="@option.Text" maxlength="@QuizValidation.OptionMaxLength" @(Model.QuestionsLocked ? "readonly" : null)>
+              </label>
+            </div>
+          }
+        </div>
+
+        @if (!Model.QuestionsLocked)
+        {
+          <button type="button" class="admin-quiz-form__add-option" data-add-option>Add option</button>
+        }
+      </fieldset>
+    }
+  </div>
+
+  @if (!Model.QuestionsLocked)
+  {
+    <button type="button" class="admin-quiz-form__add-question" data-add-question>Add question</button>
+  }
+
+  <div class="admin-form-actions">
+    @if (!Model.QuestionsLocked)
+    {
+      <button type="submit">Save</button>
+    }
+    <a href="/admin/quizzes">Back to quizzes</a>
+  </div>
+</form>
+</div>
+
+@if (!Model.QuestionsLocked)
+{
+  <template data-question-template>
+    <fieldset class="admin-quiz-form__question" data-quiz-question>
+      <legend>Question</legend>
+      <label>
+        Question text
+        <input type="text" name="questions[__Q__].text" maxlength="@QuizValidation.QuestionMaxLength">
+      </label>
+      <label class="admin-quiz-form__points">
+        Points
+        <input type="number" name="questions[__Q__].points" value="@QuizValidation.DefaultPoints" min="@QuizValidation.MinPoints" max="@QuizValidation.MaxPoints">
+      </label>
+      <label>
+        Category (optional)
+        <input type="text" name="questions[__Q__].category" maxlength="@QuizValidation.CategoryMaxLength">
+      </label>
+      <label>
+        Difficulty (optional)
+        <select name="questions[__Q__].difficulty">
+          <option value="" selected>-</option>
+          @foreach (var difficulty in QuizValidation.AllowedDifficulties)
+          {
+            <option value="@difficulty">@difficulty</option>
+          }
+        </select>
+      </label>
+      <div class="admin-quiz-form__options" data-quiz-options>
+        <div class="admin-quiz-form__option" data-quiz-option>
+          <label class="admin-quiz-form__correct">
+            Correct
+            <input type="radio" name="questions[__Q__].correctOptionIndex" value="0">
+          </label>
+          <label>
+            Option 1
+            <input type="text" name="questions[__Q__].optionTexts" maxlength="@QuizValidation.OptionMaxLength">
+          </label>
+        </div>
+        <div class="admin-quiz-form__option" data-quiz-option>
+          <label class="admin-quiz-form__correct">
+            Correct
+            <input type="radio" name="questions[__Q__].correctOptionIndex" value="1">
+          </label>
+          <label>
+            Option 2
+            <input type="text" name="questions[__Q__].optionTexts" maxlength="@QuizValidation.OptionMaxLength">
+          </label>
+        </div>
+      </div>
+      <button type="button" class="admin-quiz-form__add-option" data-add-option>Add option</button>
+    </fieldset>
+  </template>
+
+  <template data-option-template>
+    <div class="admin-quiz-form__option" data-quiz-option>
+      <label class="admin-quiz-form__correct">
+        Correct
+        <input type="radio" name="questions[__Q__].correctOptionIndex" value="__O__">
+      </label>
+      <label>
+        Option __LABEL__
+        <input type="text" name="questions[__Q__].optionTexts" maxlength="@QuizValidation.OptionMaxLength">
+      </label>
+    </div>
+  </template>
+
+  <script src="~/js/admin-quiz-form.js" asp-append-version="true"></script>
+}

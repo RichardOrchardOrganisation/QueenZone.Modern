@@ -115,23 +115,39 @@ resource "cloudflare_ruleset" "bot_blocking" {
   kind        = "zone"
   phase       = "http_request_firewall_custom"
 
-  rules = [{
-    ref         = "block_expensive_archive_crawlers"
-    description = "Block crawlers proven to overload the forum archive"
-    expression  = <<-EOT
-      (http.host in {"queenzone.org" "www.queenzone.org"}) and (
-        http.user_agent contains "ClaudeBot" or
-        http.user_agent contains "Claude-SearchBot" or
-        http.user_agent contains "AionBot" or
-        http.user_agent contains "Amazonbot" or
-        http.user_agent contains "SemrushBot" or
-        http.user_agent contains "MJ12bot" or
-        http.user_agent contains "serpstatbot"
-      )
-    EOT
-    action      = "block"
-    enabled     = true
-  }]
+  rules = [
+    {
+      ref         = "skip_azure_availability_health"
+      description = "Skip Browser Integrity Check, security level, and managed WAF on GET /health for Azure availability probes"
+      expression  = <<-EOT
+        (http.host in {"queenzone.org" "www.queenzone.org"}) and
+        (http.request.method eq "GET") and
+        (http.request.uri.path eq "/health")
+      EOT
+      action      = "skip"
+      enabled     = true
+      action_parameters = {
+        products = ["bic", "securityLevel", "waf"]
+      }
+    },
+    {
+      ref         = "block_expensive_archive_crawlers"
+      description = "Block crawlers proven to overload the forum archive"
+      expression  = <<-EOT
+        (http.host in {"queenzone.org" "www.queenzone.org"}) and (
+          http.user_agent contains "ClaudeBot" or
+          http.user_agent contains "Claude-SearchBot" or
+          http.user_agent contains "AionBot" or
+          http.user_agent contains "Amazonbot" or
+          http.user_agent contains "SemrushBot" or
+          http.user_agent contains "MJ12bot" or
+          http.user_agent contains "serpstatbot"
+        )
+      EOT
+      action      = "block"
+      enabled     = true
+    },
+  ]
 }
 
 # Archive-author pages perform database-backed lookups for each distinct legacy

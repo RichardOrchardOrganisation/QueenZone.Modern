@@ -61,7 +61,7 @@ public sealed class AdminMemberSuspendServiceTests
     {
         var members = new InMemoryMemberAccountRepository();
         var account = await SeedMemberAsync(members);
-        var timeout = SiteSearchSqlTimeoutTests.CreateSqlException(
+        var timeout = SqlExceptionFactory.Create(
             SiteSearchSqlTimeout.SqlErrorNumber,
             "Execution Timeout Expired. The timeout period elapsed prior to completion of the operation or the server is not responding.");
         var forum = new RecordingForumWriteRepository { HideException = timeout };
@@ -235,9 +235,10 @@ public sealed class AdminMemberSuspendServiceTests
             return Task.FromResult(0);
         }
 
-        public Task<bool> LinkRefreshTokenRotationAsync(
+        public Task<bool> TryRotateRefreshTokenAsync(
             string oldTokenHash,
-            string newTokenHash,
+            QueenZone.Data.Entities.MobileAuthRefreshTokenEntity replacement,
+            DateTime utcNow,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
     }

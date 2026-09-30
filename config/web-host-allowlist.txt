@@ -1,0 +1,6 @@
+# Shrink-only allowlist of Web.Tests classes that still construct a host per test.
+# Format: ClassName: one-line reason
+# Adding an entry needs architect or reviewer sign-off. Later slices only remove rows.
+# Permanent private-host exception (stays after slice 4 unless the reason changes):
+#   AdminSearchIndexTests owns SearchReindexJobService / the in-process job singleton.
+AdminSearchIndexTests: owns the in-process job singleton

@@ -7,6 +7,16 @@ namespace QueenZone.Web.Tests;
 public sealed class PhotoSubmissionImageProcessorTests
 {
     [Fact]
+    public void AllowedContentTypes_is_a_fixed_image_allowlist()
+    {
+        IReadOnlySet<string> allowed = PhotoSubmissionImageProcessor.AllowedContentTypes;
+        Assert.Equal(
+            ["image/jpeg", "image/png", "image/tiff", "image/webp"],
+            allowed.OrderBy(type => type, StringComparer.Ordinal));
+        Assert.Contains("IMAGE/JPEG", allowed);
+    }
+
+    [Fact]
     public async Task ProcessAsync_rejects_oversized_payload_before_blob_upload()
     {
         var bytes = new byte[PhotoSubmissionImageProcessor.MaxUploadBytes + 1];

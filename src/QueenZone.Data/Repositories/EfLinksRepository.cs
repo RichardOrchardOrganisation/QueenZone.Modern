@@ -1,10 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-[ExcludeFromCodeCoverage(Justification = "Thin SQL-backed legacy read path; route behavior is covered with the in-memory repository.")]
 public sealed class EfLinksRepository : ILinksRepository
 {
     private readonly QueenZoneDbContext dbContext;

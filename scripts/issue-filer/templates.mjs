@@ -1,0 +1,277 @@
+import { isGuardrail } from './core.mjs';
+import { parseFilerMarker } from './finding.mjs';
+import { redact, telemetrySourceLabels } from './telemetry.mjs';
+
+export function buildMarker({ keys, source }) {
+  const safeKeys = (keys || []).filter((key) => key && !/\s/.test(key));
+  return `<!-- qz-filer v=1 keys=${safeKeys.join(',')} source=${source || 'unknown'} -->`;
+}
+
+export function labelsFor(candidate, config, loop = 'gardener') {
+  const labels = [];
+  if (loop === 'telemetry') {
+    labels.push(...(config.labels.telemetry || ['bug', 'from-telemetry']));
+    labels.push(...telemetrySourceLabels(candidate));
+    if (candidate.area && candidate.area !== 'unknown') {
+      labels.push(candidate.area);
+    } else {
+      labels.push(config.labels.needsTriage || 'needs-triage');
+    }
+  } else {
+    labels.push(config.labels.gardener);
+    if (isGuardrail(candidate)) {
+      labels.push(config.labels.guardrail);
+    }
+  }
+  return [...new Set(labels.filter(Boolean))];
+}
+
+export function replaceFilerMarker(body, { keys, source }) {
+  const next = buildMarker({ keys, source });
+  const current = String(body || '');
+  if (!/<!-- qz-filer v=1 /.test(current)) {
+    return `${current.trim()}\n\n${next}\n`;
+  }
+  return current.replace(/<!-- qz-filer v=1 [^>]*-->/, next);
+}
+
+export function mergedMarkerKeys(existingBody, candidate) {
+  const previous = parseFilerMarker(existingBody)?.keys || [];
+  const next = [...previous];
+  for (const key of candidate?.keys || []) {
+    if (key && !next.includes(key)) {
+      next.push(key);
+    }
+  }
+  return next;
+}
+
+export function escapeMarkdown(text) {
+  return String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/@/g, '\\@')
+    .replace(/\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi, (_, verb, number) => `${verb} ticket ${number}`)
+    .replace(/#(\d+)/g, '#\u200b$1');
+}
+
+export function safeTitle(text) {
+  return escapeMarkdown(redact(text));
+}
+
+function safeUrl(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      return parsed.href;
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+function evidenceLines(evidence = []) {
+  if (evidence.length === 0) {
+    return '- No linked evidence was supplied.';
+  }
+  return evidence
+    .slice(0, 20)
+    .map((item) => {
+      const label = escapeMarkdown(redact(item.text || item.url || 'evidence'));
+      const url = safeUrl(item.url);
+      return url ? `- [${label}](${url})` : `- ${label}`;
+    })
+    .join('\n');
+}
+
+function proposedCheck(candidate) {
+  if (candidate.proposedCheck) {
+    return candidate.proposedCheck;
+  }
+  if (candidate.level === 'L1') {
+    return `Make \`${candidate.rule || candidate.keys?.[0]}\` impossible in code.`;
+  }
+  return `Add an L1/L2 check (analyzer, lint, CI script, or Sonar rule) for \`${candidate.rule || candidate.keys?.[0]}\`.`;
+}
+
+function stormList(candidates = []) {
+  return candidates
+    .map((item) => `- **${safeTitle(item.title)}** (${item.count}) keys: \`${(item.keys || []).join(', ')}\``)
+    .join('\n');
+}
+
+function telemetryIssueBody(candidate, { previousIssue } = {}) {
+  const marker = buildMarker({ keys: candidate.keys, source: candidate.source });
+  const previous = previousIssue ? `\nPreviously closed as #${previousIssue}.\n` : '';
+  const storm = candidate.storm
+    ? `\n## Ranked signals\n\n${stormList(candidate.stormCandidates)}\n`
+    : '';
+  const frames = (candidate.frames || []).slice(0, 5);
+  const frameLines = frames.length > 0
+    ? frames.map((frame) => `- \`${escapeMarkdown(redact(frame, { maxLength: 200 }))}\``).join('\n')
+    : '- No in-app frames were supplied.';
+  const featureId = candidate.featureId || 'unmapped';
+  const proof = candidate.captureProof || 'Not mapped: add a feature-map id before running capture-proof.';
+  return `## User story
+
+As a QueenZone maintainer, I want production telemetry key \`${escapeMarkdown(redact(candidate.keys?.[0] || candidate.title))}\` diagnosed so the failure stops reaching visitors or members.
+
+## Acceptance criteria
+
+1. The root cause is fixed.
+2. A regression test reproduces the failure, or the issue explains why that is not practical.
+3. No new events for this key for 7 days after deploy.
+
+## Evidence
+
+- Event count: ${candidate.count}
+- Release / deployed tip: ${escapeMarkdown(redact(candidate.release || candidate.deployedTip || 'unknown', { maxLength: 80 }))}
+- First seen: ${candidate.firstSeen || 'unknown'}
+- Last seen: ${candidate.lastSeen || 'unknown'}
+- Feature-map id: ${escapeMarkdown(featureId)}
+${evidenceLines(candidate.evidence)}
+
+## Stack summary
+
+${frameLines}
+${storm}
+## Reproduction (AC5)
+
+The repro runs when Bob or Dinesh picks up this issue. There is no automatic agent run in v1.
+
+\`${escapeMarkdown(proof)}\`
+${previous}
+${marker}
+`;
+}
+
+export function buildIssue({ candidate, config, previousIssue, loop = 'gardener' }) {
+  const labels = labelsFor(candidate, config, loop);
+  if (loop === 'telemetry') {
+    return {
+      title: safeTitle(candidate.title),
+      body: telemetryIssueBody(candidate, { previousIssue }).replace(/\n{3,}/g, '\n\n').trim() + '\n',
+      labels,
+    };
+  }
+  const marker = buildMarker({ keys: candidate.keys, source: candidate.source });
+  const previous = previousIssue ? `\nPreviously closed as #${previousIssue}.\n` : '';
+  const storm = candidate.storm
+    ? `\n## Ranked signals\n\n${stormList(candidate.stormCandidates)}\n`
+    : '';
+  const body = `## User story
+
+As a QueenZone maintainer, I want repeated ${candidate.source} signal \`${candidate.keys?.[0] || candidate.title}\` cleaned up so the paved path stays narrow for agents.
+
+## Acceptance criteria
+
+1. The repeated signal is fixed, or an ignore.json entry is added with a reason and expiry.
+2. The proposed check below is added at L1 or L2, or the issue explains why a higher level is the lowest practical fix.
+3. Linked evidence is addressed or explicitly deferred.
+
+## Evidence
+
+- Area: ${candidate.area || 'unknown'}
+- Count: ${candidate.count}
+- First seen: ${candidate.firstSeen || 'unknown'}
+- Last seen: ${candidate.lastSeen || 'unknown'}
+${evidenceLines(candidate.evidence)}
+${storm}
+## Proposed check
+
+${proposedCheck(candidate)}
+${previous}
+${marker}
+`;
+  return {
+    title: candidate.title,
+    body: body.replace(/\n{3,}/g, '\n\n').trim() + '\n',
+    labels,
+  };
+}
+
+export function buildComment({ candidate, kind }) {
+  const heading = kind === 'regression' ? 'Reopened as a regression' : 'Seen again';
+  const lines = [
+    `## ${heading}`,
+    '',
+    `Count is now **${candidate.count}** for \`${escapeMarkdown(redact(candidate.keys?.[0] || candidate.title))}\`.`,
+    '',
+    evidenceLines(candidate.evidence),
+    '',
+    '<!-- qz-filer v=1 -->',
+  ];
+  return lines.join('\n') + '\n';
+}
+
+export function buildLogComment({ create, reopen, mention }) {
+  const filed = (create || []).map((item) => `- create: ${safeTitle(item.candidate.title)}`).join('\n');
+  const reopened = (reopen || []).map((item) => `- reopen: #${item.issueNumber} ${safeTitle(item.candidate.title)}`).join('\n');
+  return [
+    `${mention} Issue filer wrote ${create.length} issue(s) and reopened ${reopen.length}.`,
+    filed,
+    reopened,
+    '',
+    '<!-- qz-filer v=1 -->',
+  ]
+    .filter(Boolean)
+    .join('\n') + '\n';
+}
+
+export function buildRankedReport(candidates) {
+  if (!candidates.length) {
+    return 'No ranked gardener candidates in this lookback.\n';
+  }
+  const lines = ['## Ranked gardener candidates', ''];
+  candidates.forEach((item, index) => {
+    lines.push(`${index + 1}. **${item.title}** — ${item.count} hits, level ${item.level || 'n/a'}, keys \`${(item.keys || []).join(', ')}\``);
+    if (item.proposedCheck) {
+      lines.push(`   Proposed check: ${item.proposedCheck}`);
+    }
+  });
+  lines.push('', '<!-- qz-filer v=1 -->', '');
+  return lines.join('\n');
+}
+
+export function formatPlanSummary(plan, extras = {}) {
+  const lines = [
+    '## Issue filer plan',
+    '',
+    `- create: ${plan.create.length}`,
+    `- comment: ${plan.comment.length}`,
+    `- reopen: ${plan.reopen.length}`,
+    `- skipped: ${plan.skipped.length}`,
+    `- expired ignore entries: ${plan.expiredIgnores.length}`,
+  ];
+  if (extras.malformed?.length) {
+    lines.push(`- malformed qz-finding tags: ${extras.malformed.length}`);
+  }
+  if (extras.unregistered?.length) {
+    lines.push(`- unregistered rules: ${extras.unregistered.join(', ')}`);
+  }
+  if (extras.warnings?.length) {
+    lines.push(`- warnings: ${extras.warnings.join('; ')}`);
+  }
+  if (plan.create.length === 0 && plan.comment.length === 0 && plan.reopen.length === 0) {
+    if (extras.warnings?.length) {
+      lines.push('', 'Collect warnings were recorded; this is not a clean zero-alert no-op.');
+    } else {
+      lines.push('', 'Silent run: nothing to file.');
+    }
+  }
+  for (const item of plan.create) {
+    lines.push(`- will create: ${safeTitle(item.candidate.title)}`);
+  }
+  for (const item of plan.skipped.filter((row) => row.suggestIgnore)) {
+    lines.push(`- suggest ignore for closed-as-not-planned #${item.issue} (${safeTitle(item.candidate.title)})`);
+  }
+  for (const entry of plan.expiredIgnores) {
+    lines.push(`- expired ignore: ${entry.reason}`);
+  }
+  return lines.join('\n') + '\n';
+}

@@ -23,6 +23,9 @@ This repository is the modern QueenZone rebuild. The project is archive-first: i
 - `docs/sql/data-api-builder-mcp.md` explains the local SQL MCP setup for read-only legacy database investigation.
 - `docs/agent-bitwarden-secrets.md` is the multi-machine Bitwarden Secrets Manager (`bws`) setup for local agents (Windows vs macOS).
 - `.cursor/agents/` and `.cursor/skills/orchestrate-epic/` are the **Cursor-only** issue-queue overlay (planner / implementer / verifier / reviewer). Pin `/orchestrate-epic` as a Custom Mode in Cursor. Grok and other non-Cursor agents do not use that loop — they stay a single agent in the current chat (see [Grok and other non-Cursor agents](#grok-and-other-non-cursor-agents)). The portable protocol is the **issue-queue** Cursor plugin (`~/.cursor/plugins/local/issue-queue`, skill `/orchestrate-issues`). This repo keeps copies so a clone works without the plugin.
+- `docs/feature-map/` is the maintained mobile + web feature map (entry points, sources, test IDs, Maestro flows, E2E specs). Both verify skills read it. `node scripts/check-feature-map.mjs` (also `npm run preflight` in `src/QueenZone.Mobile`) fails CI when a screen or public/member page is unmapped.
+- `docs/architecture/workaround-audit.md` lists every known workaround, suppression, and version pin with a keep / remove decision. `config/suppression-baseline.json` is its CI ratchet (see [Workarounds and suppressions](#workarounds-and-suppressions)).
+- `docs/architecture/mutation-rate-limiting.md` is the mutation abuse-control contract (named policies, read-only classifications, and the endpoint inventory guard).
 
 Keep durable workflow guidance in this file and keep user-facing setup guidance in `README.md`.
 
@@ -35,6 +38,8 @@ Do not build visitor-facing or admin pages by streaming inline HTML from minimal
 The React Native client lives at `src/QueenZone.Mobile/` as an Expo development-build project (TypeScript, `expo-dev-client`, Continuous Native Generation). Keep it out of `QueenZone.sln`. Expo Go is not a supported runtime. Native `ios/` and `android/` output is generated at build time and is not committed. Navigation is React Navigation (bottom tabs + native stacks per tab); signed-out vs signed-in surfaces follow ADR 0012. See `src/QueenZone.Mobile/README.md`.
 
 Mobile server state uses the in-repo hooks, not a query library: `useHomeSection` for home sections, `useDetailQuery` for a single resource, `usePagedContent` for paginated and infinite lists, all fetching through `src/cache/fetchCached.ts` with a key from `src/cache/keys.ts` (same `cacheKey` shares one in-flight promise). Cross-screen invalidation uses `src/cache/externalStore.ts` (prefix subscribe/invalidate via `useSyncExternalStore`). Do not add `@tanstack/react-query` or another server-state library, and do not add a new bespoke pub/sub module for cache invalidation — see ADR 0018 for the decision and its revisit trigger.
+
+`design/tokens/*.css` (colors, typography, spacing/shadows/motion) is the **canonical** source for design-token CSS custom properties, documented in `design/README.md`. `src/QueenZone.Web/wwwroot/design-system/tokens/` and every `design/design_handoff_*/tokens/` folder are generated copies — never hand-edit them. After changing anything under `design/tokens/`, run `pwsh ./scripts/Sync-DesignTokens.ps1` to propagate the change, or CI's "Design token sync check" (`pwsh ./scripts/Sync-DesignTokens.ps1 -Check`) will fail the PR. `site.css` itself (`src/QueenZone.Web/wwwroot/css/site.css`) consumes these tokens via `var(--...)` and is edited directly as normal.
 
 ## Branch And Pull Request Policy
 
@@ -72,21 +77,15 @@ When an agent finishes a task that changed tracked files, commit the work, push 
 
 Exceptions: skip auto-opening a PR when the user says they'll commit or push themselves, when work is explicitly a draft/spike not meant for review, or when repo/session instructions say not to. If a git identity, push access, or `gh` auth isn't available, say so instead of silently skipping.
 
-### Update from `main` before opening a pull request
+### Check `main` before opening a pull request
 
-The default branch is **`main`** (not `master`). `main` is protected: required CI checks and merge gates evaluate the PR against the current tip of `main`. If a feature branch was cut hours or days earlier, `main` may have moved — an outdated PR base can block or confuse checks (coverage vs `origin/main`, migration jobs, mergeability) until the branch is updated.
-
-**Before creating a PR** (and before asking for review on a long-lived branch), always:
+The default branch is **`main`** (not `master`). Fetch it before opening a PR so coverage and conflict checks use the current base:
 
 ```powershell
 git fetch origin main
-git merge origin/main
-# or: git rebase origin/main
 ```
 
-Prefer a merge of `origin/main` into the feature branch unless the user or stack workflow asks for a rebase. Resolve any conflicts, re-run the default verification (or the subset relevant to the conflicted files), then push and open or update the PR.
-
-Do this even when the branch was originally created from `main` — time between branch creation and PR open is when `main` usually changes.
+If there is a conflict, stale changed-line coverage result, or another concrete reason to update the branch, merge `origin/main` (or rebase when the stack workflow calls for it), resolve conflicts, and rerun relevant verification. A moving `main` alone does not require an update: the merge queue tests the candidate against the latest base. Updating a queued branch removes it from the queue and starts its checks again.
 
 Before merging to `main`, open a pull request and fill in `.github/pull_request_template.md`. The pull request should include:
 
@@ -95,12 +94,30 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 - Tests run.
 - Whether real legacy database checks were run.
 - Any skipped checks or known follow-up work.
+- A `## Verification` section when the PR changes mobile screens/navigation/UI or web Pages/Views/wwwroot: feature-map ids, the `capture-proof` command, platform, result, and proof links (or `Not verified:` naming the remaining check). Cloud agents cannot run the Android emulator; write `NOT RUN` and dispatch `mobile-device-smoke.yml` with `suite: proof`. Opt out only with the `no-ui-verification` label plus `Verification-skip-reason:`. Expo web is not mobile proof.
+- An Issue line as plain text (never inside backticks or a code block): Closes #N, Fixes #N, Resolves #N, Part of #N, or Relates to #N. Always include it. N must be an issue, not a pull request.
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
 
+### Merge queue on `main`
+
+Every merge to `main` goes through GitHub's merge queue with squash. After opening a PR, use `gh pr merge --auto --squash` to enable auto-merge while checks are pending; when checks are ready, `gh pr merge --squash` adds it to the queue. GitHub tests the temporary merge-group commit and merges only after all required checks pass. To withdraw a queued PR, use the PR's **Remove from queue** control in GitHub. A failed or timed-out merge group is removed automatically; inspect its CI run and PR timeline, fix the cause, then enqueue again. Do not bypass the queue or remove required checks to force a merge. On PRs the `coverage` job diffs against the PR event's base SHA, so a `main` that moved after the push should not fail it; only merge groups require `origin/main` as an ancestor. See `docs/architecture/testing-policy.md` for the queue CI contract.
+
 ### Linking issues so merge auto-closes them
 
-Fill in the template's `## Issues` section with a real GitHub closing keyword — `Closes #123`, `Fixes #123`, or `Resolves #123` — for every issue the PR fully resolves. GitHub only auto-closes an issue on merge when one of those keywords appears; a prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else in the PR body (including `## Summary`) does not trigger it and leaves the issue open after merge. Use `Relates to #123` for issues the PR only touches without resolving. The `pr-issue-link-check` CI job fails the PR if it references an issue number without a recognized closing or relating keyword, so use the correct keyword up front rather than fixing it after the check fails.
+Every PR description must include at least one **plain-text** line matching Closes #N, Fixes #N, Resolves #N, Part of #N, or Relates to #N (case-insensitive). Always include that line. Never wrap it in backticks or a fenced code block: `check-issue-link` strips those, and GitHub will not auto-close an issue from a code span.
+
+Correct:
+
+Relates to #1863
+
+Wrong: wrapping the same phrase in backticks or a fenced code block.
+
+N must be an existing issue, not a pull request. The check fails if any keyword line (for example Relates to #N) references a PR. To mention a related PR, write it without a link keyword:
+
+Related PR: #1788
+
+The template's Issue section lists those options. Closes / Fixes / Resolves close the issue on merge; Part of and Relates to do not. A prose mention like "Implements #123" or a bare `[#123](...)` link anywhere else does not close the issue. Each N must be an existing issue in this repository, not a pull request. The `check-issue-link` job fails without that line, or if N is not an issue. Dependabot and the `no-issue` label are exempt; the check says which one applied. Editing the description re-runs the check.
 
 ## Grok and other non-Cursor agents
 
@@ -122,6 +139,37 @@ In that Custom Mode, use `/orchestrate-epic` for **one issue** (`work on #757`),
 
 Grok 4.6 effort when that Cursor mode is pinned: parent high (xhigh only if the split is messy), planner high, implementer medium, verifier high, reviewer high.
 
+## Correction hierarchy
+
+When correcting an agent, fix the mistake at the lowest-numbered level that is practical:
+
+- `L1` code: make the mistake impossible.
+- `L2` static: analyzer, lint, CI script or Sonar rule.
+- `L3` rule: `AGENTS.md`, `.cursor/rules` or Bugbot.
+- `L4` skill.
+- `L5` review: style guide or human review.
+
+#1789 is the worked example: the coverage-gate base-ref problem was fixed in the check itself (`L2`), not by telling agents to remember a different `git` ref.
+
+The second time a rule id is seen, it becomes an `L1`/`L2` check, tracked with the `guardrail` label.
+
+This section is the single source for the hierarchy. Other docs should link here rather than copy it. The `qz-finding` tag format (one hidden HTML comment per finding) is defined in [`.cursor/agents/reviewer.md`](.cursor/agents/reviewer.md). Known rule ids live in [`.github/issue-filer/finding-rules.json`](.github/issue-filer/finding-rules.json).
+
+## Workarounds and suppressions
+
+The codebase is agents' memory, so a workaround copied once becomes the pattern. `docs/architecture/workaround-audit.md` is the inventory; these are the rules.
+
+- Do not add a lint, analyzer, or coverage suppression (`eslint-disable`, `#pragma warning disable`, `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `[SuppressMessage]`, `[ExcludeFromCodeCoverage]`, `NuGetAuditSuppress`, `istanbul ignore`) to get a change through. Fix the code. If a suppression is truly needed, give the reason and the issue that removes it on the same line: `// eslint-disable-next-line some/rule -- reason (#1234)`.
+- `node scripts/check-suppressions.mjs` (the `Suppression check` workflow) fails when a file gains an unlinked suppression, and when a file drops below `config/suppression-baseline.json`. After removing suppressions, run `node scripts/check-suppressions.mjs --write` and commit the lower baseline. Never raise it by hand.
+- Do not copy these existing exceptions into new code. Each is kept for a reason that doesn't carry over:
+  - `[ExcludeFromCodeCoverage]` on SQL Server-only repository paths, EF entities, and `QueenZone.Tools` commands. Cover new code with SQLite or in-memory tests instead.
+  - `#pragma warning disable EF1003` in `EfAdminNewsRepository` (SQL from fixed schema branches). Never do this for SQL built from request data.
+  - `#pragma warning disable CS8509` in `MemberApiEndpoints.MapNewsSuggestionOutcome`. Use an `is` check when failures share a result.
+  - `react-hooks/exhaustive-deps` disables. Destructure the function you call (`const { refresh } = paged;`) and list it, or make helpers stable with `useCallback`. Reanimated shared values in `ZoomableArchiveImage` are the only kept case.
+  - The two React Compiler rules still globally `off` (`refs`, `set-state-in-effect`) in `src/QueenZone.Mobile/eslint.config.js`, plus `purity` for the serialized iOS widget (#1821). Don't turn off more rules.
+  - The mobile `react-native-reanimated` / `react-native-worklets` pins, the JS-thread pinch/double-tap in `ZoomableArchiveImage`, and the `image-size` override (#1782).
+- Before writing a small private helper (normalise, truncate, tag-strip, rowversion check, unique-violation check), search for a shared one: `SubmissionInput`, `TriviaValidation`, `HtmlTags`, `LegacyDateTime`, `QueenZoneConcurrency`, or `DbUpdateExceptionExtensions`. #1822 consolidated the known duplicates; don't add another copy.
+
 ## Testing Expectations
 
 Follow `docs/architecture/testing-policy.md`.
@@ -137,7 +185,11 @@ dotnet test QueenZone.sln --configuration Release --no-build
 
 Use deterministic sample or fake data for normal unit and web integration tests. Real legacy database tests must be opt-in and clearly reported.
 
-When changing EF `SqlQueryRaw` projections over legacy tables, check the real SQL Server column types or cast projections to the C# row model types explicitly. Many legacy IDs and counts are `smallint`, which SQL Server materializes as `System.Int16`; in-memory route tests will not catch `Int16`-to-`Int32` mapping failures. Prefer a deterministic SQL-shape test plus an opt-in read-only legacy DB probe for new public legacy read surfaces.
+When adding a `POST`, `PUT`, `PATCH`, or `DELETE`, classify it in `docs/architecture/mutation-rate-limiting.md`. `MutationEndpointInventoryTests` fails CI unless the non-admin route has named rate-limit metadata, an exact reviewed read-only classification, or a typed persistent-control exception. Authentication, antiforgery, and idempotency are not enough.
+
+If a PR touches any file under `design/tokens/`, also run `pwsh ./scripts/Sync-DesignTokens.ps1` before committing (see UI Architecture above) — CI's "Design token sync check" gate fails otherwise.
+
+When changing EF `SqlQueryRaw` projections over legacy tables, check the real SQL Server column types or cast projections to the C# row model types explicitly. Many legacy IDs and counts are `smallint`, which SQL Server materializes as `System.Int16`; in-memory route tests will not catch `Int16`-to-`Int32` mapping failures. Prefer a deterministic SQL-shape test plus an opt-in read-only legacy DB probe for new public legacy read surfaces. Do not add new `IsSqliteDatabase()` branches for production SQL; use the SQL Server test + mirror probe pair in `docs/architecture/testing-policy.md` (#1672).
 
 Legacy read probes and self-cleaning write probes run automatically every night via `.github/workflows/nightly-legacy-checks.yml`. They use a same-day SQL Express mirror synced from the live Azure SQL DB, never the live database. The read probes run on macOS over the LAN; write probes run locally on the Windows SQL Express host. This is continuous signal, not a PR gate. See `docs/architecture/testing-policy.md` ("Data Integration Tests").
 
@@ -155,7 +207,9 @@ Run the E2E-suite locally or on demand with `scripts/Run-E2E.ps1`:
 # Same as the PR merge gate (Testing environment, in-memory, Deterministic category):
 powershell -File ./scripts/Run-E2E.ps1 -Mode Deterministic
 
-# Nightly real-data suite against the SQL Express mirror (E2E environment):
+# Nightly real-data suite against the SQL Express mirror (E2E environment).
+# RealData applies pending EF migrations to Express before start (sync/skip_sync
+# can omit modern tables such as QuizSprintRuns).
 $env:ConnectionStrings__QueenZoneLegacy = "Server=localhost\SQLEXPRESS;Database=queenzone_legacy_sync;Integrated Security=True;TrustServerCertificate=True"
 powershell -File ./scripts/Run-E2E.ps1 -Mode RealData
 
@@ -207,7 +261,7 @@ $env:RUN_MEMBER_ACCOUNT_PROBE = "true"
 powershell -File .\scripts\Probe-MemberAccounts.ps1
 ```
 
-When a change touches the member public activity feed (`EfMemberPublicActivityRepository`, `/members/{id}`, `/following`) or the timestamp mapping of any source it reads, prefer the read-only activity probe. The SQLite unit tests cannot cover production ordering here — SQLite has no `ORDER BY` for `DateTimeOffset`, so it sorts client-side while SQL Server pages the `UNION ALL` server-side:
+When a change touches the member public activity feed (`EfMemberPublicActivityRepository`, `/members/{id}`, `/following`) or the timestamp mapping of any source it reads, run `MemberPublicActivitySqlServerTests` for deterministic production ordering and prefer the read-only activity probe for real mirror rows. SQLite has no `ORDER BY` for `DateTimeOffset`, so its unit tests sort client-side while SQL Server pages the `UNION ALL` server-side:
 
 ```powershell
 $env:RUN_MEMBER_ACTIVITY_PROBE = "true"
@@ -245,7 +299,7 @@ GitHub Actions workflow `.github/workflows/ci.yml` blocks merge when these fail:
 | **Formatting** | `dotnet format QueenZone.sln --verify-no-changes` (matches root `.editorconfig`; CRLF via `.gitattributes`) — runs as its own job in parallel with Build/Test, not a Build step | Yes |
 | **Test (sharded)** | Mixed `QueenZone.Web.Tests` shards (Release, Coverlet) | Yes |
 | **Small test projects** | `Tools`/`Storage`/`NewsAgent` test projects, in parallel with the Web.Tests shards | Yes |
-| **Global line coverage** | At least **51%** across the union of deterministic suite reports | Yes |
+| **Global line coverage** | At least **91%** across the union of deterministic suite reports | Yes |
 | **Changed-line coverage** | At least **70%** of changed, coverable `.cs` lines in the PR diff vs `main` | Yes |
 | **Smoke test** | Published app responds on `/health`, `/`, `/news` (starts after `build`, overlaps coverage) | Yes |
 | **EF migrations (SQL Express mirror)** | When migration-related paths change: `has-pending-model-changes` + `database update` against the SQL Express mirror (no production Azure SQL, no prod GitHub Environment) | Yes (job runs only for those PRs) |
@@ -256,7 +310,7 @@ GitHub Actions workflow `.github/workflows/ci.yml` blocks merge when these fail:
 
 PRs that only change `src/QueenZone.Mobile/` (or docs/infra/design) skip the .NET build, tests, coverage, smoke, e2e, and the App Service deploy. Mixed web + mobile PRs run both. See `scripts/classify-pipeline-changes.sh` and `docs/architecture/testing-policy.md`.
 
-There are two separate deploy workflows, not one: `deploy-dev.yml` auto-deploys every merge to `main` against the `dev` environment (Australia East App Service `queenzone-devbox`, `dev.queenzone.org`); `deploy.yml` deploys **production** to the Canada East App Service `queenzone-prod` and only triggers on a `v*` tag push (or manual dispatch from `main`) — see [epic #1264](https://github.com/richardorchard/QueenZone.Modern/issues/1264) Phase 4/5. Promote a change to production by tagging the already-merged, already-dev-verified commit: `git tag vX.Y.Z <sha> && git push --tags`. The previous Australia East production app `queenzone-dev` was retired on **14 September 2026**; do not target it for deployment or rollback. See `docs/architecture/azure-hosting-plan.md` ("Environments") for the full picture.
+There are two separate deploy workflows, not one: `deploy-dev.yml` auto-deploys every merge to `main` against the `dev` environment (Australia East App Service `queenzone-devbox`, `dev.queenzone.org`); `deploy.yml` deploys **production** to the Canada East App Service `queenzone-prod` and only triggers on a `v*` tag push (or manual dispatch from `main`) — see [epic #1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264) Phase 4/5. Promote a change to production by tagging the already-merged, already-dev-verified commit: `git tag vX.Y.Z <sha> && git push --tags`. The previous Australia East production app `queenzone-dev` was retired on **14 September 2026**; do not target it for deployment or rollback. See `docs/architecture/azure-hosting-plan.md` ("Environments") for the full picture.
 
 Coverage exclusions are configured in `coverlet.runsettings`. EF Core files under `**/Migrations/**/*.cs` are excluded from coverage metrics.
 
@@ -267,7 +321,7 @@ The changed-line gate compares `git diff origin/main...HEAD` for `*.cs` files. L
 CI parallelizes `QueenZone.Web.Tests` with **mixed** shards (light unit tests + `WebApplicationFactory` tests in every shard). Scripts: `scripts/Get-WebTestShardFilter.ps1`, `scripts/Invoke-WebTestsShard.ps1`. Full policy and anti-patterns: `docs/architecture/testing-policy.md` (section **CI test sharding**).
 
 - Local default remains `dotnet test QueenZone.sln` (no filter).
-- **Do not** split CI/jobs as unit-only vs WAF-only for speed — measured regression in [#442](https://github.com/richardorchard/QueenZone.Modern/issues/442).
+- **Do not** split CI/jobs as unit-only vs WAF-only for speed — measured regression in [#442](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/442).
 - No shard manifest to maintain when adding tests; discovery is automatic from `*Tests` classes.
 
 ### EF migration PRs (required before merge)
@@ -307,7 +361,7 @@ Run the [default verification](#default-verification-before-a-pull-request) firs
 git fetch origin main
 # After default restore/build/format, collect coverage and gate:
 dotnet test QueenZone.sln --configuration Release --no-build --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 51 -ChangedLineThreshold 70 -BaseRef origin/main
+powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef origin/main
 ```
 
 On Linux or GitHub Actions, use `pwsh` instead of `powershell` for the last command.
@@ -324,7 +378,7 @@ npm run preflight
 
 `npm run typecheck` is `tsc --noEmit && tsc --noEmit -p tsconfig.test.json` (app sources plus test files, `src/test/`, `jest.setup.ts`, and `contracts/**/*.ts`). `npm run preflight` is that combined typecheck + lint + unit tests + Expo Doctor. Doctor's package-version check consults Expo's current SDK list, so a lockfile that passed this morning can fail CI the same afternoon when Expo publishes a patch (`npx expo install <package>`). Do not skip Doctor on mobile PRs.
 
-When the PR also changes production TypeScript/TSX, run the mobile coverage gate (floors in `scripts/mobile-coverage-floors.json`; do not copy the web C# 51%/70% numbers):
+When the PR also changes production TypeScript/TSX, run the mobile coverage gate (floors in `scripts/mobile-coverage-floors.json`; do not copy the web C# 91%/70% numbers):
 
 ```powershell
 cd src/QueenZone.Mobile
@@ -399,11 +453,13 @@ Two Cloudflare hostnames serve Azure Blob Storage content. They are **not interc
 | Hostname | Type | Can set response headers? | Use for |
 | --- | --- | --- | --- |
 | `cdn.queenzone.org` | Straight CDN proxy | No | Photos and images (`PhotoImageUrl`) |
-| `cdn2.queenzone.org` | Cloudflare Worker proxy (script `pictures-queenzone-org` on `cdn2.queenzone.org/*`) | Yes (cache/CORS/nosniff) | Legacy forum attachment redirect target. Returns 404 for `/songfiles/*`. |
+| `cdn2.queenzone.org` | Cloudflare Worker proxy (script `pictures-queenzone-org` on `cdn2.queenzone.org/*`) | Yes (cache/CORS/nosniff) | Returns 404 for `/songfiles/*` and `/attachments/*`. |
 
 Fan-performance audio is **not** a public CDN object. Signed-in members stream through `/fan-performances/{id}/audio`, which reads the private `songfiles` container and sets `Content-Disposition`. Do not emit `cdn2.queenzone.org/songfiles/…` or raw blob URLs in HTML.
 
-`pictures-queenzone-org` is the Worker **script name**, not a DNS hostname. The public host is `cdn2.queenzone.org`. Retired `pictures.queenzone.org` is a compatibility hostname only (Worker `pictures-legacy-redirect` → `cdn`); do not use it for new media URLs. Legacy forum attachments use `cdn2` after a member-auth gate (`/forum/attachment/legacy/{postId}`). New forum uploads live in private `ugc-forum` and download via `/forum/attachment/{postId}/{attachmentId}` (member-only, app-streamed).
+Legacy forum attachments are **not** a public CDN object. Signed-in members download through `/forum/attachment/legacy/{postId}`, which reads the private `attachments` container and sets `Content-Disposition: attachment`. Do not emit `cdn2.queenzone.org/attachments/…` or raw blob URLs.
+
+`pictures-queenzone-org` is the Worker **script name**, not a DNS hostname. The public host is `cdn2.queenzone.org`. Retired `pictures.queenzone.org` is a compatibility hostname only (Worker `pictures-legacy-redirect` → `cdn`); do not use it for new media URLs. New forum uploads live in private `ugc-forum` and download via `/forum/attachment/{postId}/{attachmentId}` (member-only, app-streamed).
 
 ## Migration Principles
 

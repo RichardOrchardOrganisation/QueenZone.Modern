@@ -1,7 +1,7 @@
 import type { BadgeRole } from '../ui/Badge';
 import type { ArchiveIconName } from '../ui/icons/archiveSectionIcons';
 
-/** Spec §4.3b Archive hub destinations, plus Trivia (#1101). */
+/** Spec §4.3b Archive hub destinations, plus Trivia (#1101) and Quiz (#1104). */
 export const ARCHIVE_HUB_IDS = [
   'stories',
   'timeline',
@@ -11,6 +11,7 @@ export const ARCHIVE_HUB_IDS = [
   'fan-performances',
   'recently-restored',
   'trivia',
+  'quiz',
   'about',
 ] as const;
 
@@ -90,6 +91,14 @@ export const archiveDestinations: ArchiveDestination[] = [
     kickerRole: 'archive',
     meta: ['Random facts'],
     icon: 'trivia',
+  },
+  {
+    id: 'quiz',
+    title: 'Quiz Sprint',
+    kicker: 'Test yourself',
+    kickerRole: 'archive',
+    meta: ['60-second timed quiz', 'Daily leaderboard'],
+    icon: 'quiz',
   },
   {
     id: 'about',

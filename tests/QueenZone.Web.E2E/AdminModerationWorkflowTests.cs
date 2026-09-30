@@ -214,8 +214,7 @@ public class AdminModerationWorkflowTests : RealDataPageTest
             Does.Contain($"Saved \"{updatedTitle}\"."),
             $"Unexpected status after save. URL={adminPage.Url}");
 
-        await adminPage.ReloadAsync();
-        await Expect(adminPage.GetByLabel("Title")).ToHaveValueAsync(updatedTitle);
+        await ReloadAndAssertTitlePersistedAsync(adminPage, updatedTitle);
     }
 
     [Test]
@@ -248,8 +247,7 @@ public class AdminModerationWorkflowTests : RealDataPageTest
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Save changes" }).ClickAsync();
         await Expect(adminPage.GetByText("Photo updated.")).ToBeVisibleAsync();
 
-        await adminPage.ReloadAsync();
-        await Expect(adminPage.GetByLabel("Title")).ToHaveValueAsync(updatedTitle);
+        await ReloadAndAssertTitlePersistedAsync(adminPage, updatedTitle);
 
         adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Hard delete" })
@@ -268,16 +266,18 @@ public class AdminModerationWorkflowTests : RealDataPageTest
         Assert.That(response?.Status, Is.EqualTo(200));
         await Expect(adminPage.GetByRole(AriaRole.Heading, new() { Name = "Dashboard", Level = 1 })).ToBeVisibleAsync();
         await Expect(adminPage.Locator(".admin-dashboard__stat-value").First).ToBeVisibleAsync();
-        await Expect(adminPage.Locator(".admin-dashboard__queue-tile")).ToHaveCountAsync(8);
+        await Expect(adminPage.Locator(".admin-dashboard__queue-tile")).ToHaveCountAsync(10);
         await Expect(adminPage.Locator(".admin-dashboard__queue-tile-label")).ToHaveTextAsync(
             [
                 "Help requests",
                 "Reported messages",
+                "Reported forum posts",
                 "Fan performance reports",
                 "Photos",
                 "News suggestions",
                 "Articles",
                 "Trivia suggestions",
+                "Quiz question suggestions",
                 "Fan performances",
             ]);
         await Expect(adminPage.Locator(".admin-dashboard__queue-tile-count").First).ToBeVisibleAsync();
@@ -471,6 +471,97 @@ public class AdminModerationWorkflowTests : RealDataPageTest
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Reloads after save without waiting on subresources (CDN preview images). The Title
+    /// input after <c>DOMContentLoaded</c> is the persistence signal (#1934).
+    /// </summary>
+    private async Task ReloadAndAssertTitlePersistedAsync(IPage page, string expectedTitle)
+    {
+        IResponse? response = null;
+        try
+        {
+            response = await page.ReloadAsync(new PageReloadOptions
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+            });
+            await Expect(page.GetByLabel("Title"))
+                .ToHaveValueAsync(expectedTitle, new() { Timeout = 15_000 });
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await DumpReloadFailureAsync(page, response, expectedTitle, ex);
+            }
+            catch (Exception dumpEx)
+            {
+                TestContext.Out.WriteLine($"Reload diagnostic dump failed: {dumpEx.Message}");
+            }
+
+            throw;
+        }
+    }
+
+    private static async Task DumpReloadFailureAsync(
+        IPage page,
+        IResponse? response,
+        string expectedTitle,
+        Exception ex)
+    {
+        var titleValue = await ReadTitleInputValueAsync(page);
+        var previewSrc = await ReadPreviewImageSrcAsync(page);
+        var dump = AdminEditReloadDiagnostics.FormatDump(
+            url: page.Url,
+            status: response?.Status,
+            titleValue: titleValue,
+            previewImageSrc: previewSrc,
+            expectedTitle: expectedTitle,
+            exceptionMessage: ex.Message);
+        var path = AdminEditReloadDiagnostics.WriteDump(dump);
+        TestContext.Out.WriteLine(dump);
+        TestContext.Out.WriteLine($"Reload diagnostic written to {path}");
+    }
+
+    private static async Task<string?> ReadTitleInputValueAsync(IPage page)
+    {
+        try
+        {
+            return await page.GetByLabel("Title").InputValueAsync();
+        }
+        catch (Exception ex)
+        {
+            TestContext.Out.WriteLine($"Title input lookup failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static async Task<string?> ReadPreviewImageSrcAsync(IPage page)
+    {
+        foreach (var selector in new[] { "figure.admin-photo-preview img", "img[src]" })
+        {
+            try
+            {
+                var locator = page.Locator(selector);
+                if (await locator.CountAsync() == 0)
+                {
+                    continue;
+                }
+
+                var src = await locator.First.GetAttributeAsync("src");
+                if (!string.IsNullOrWhiteSpace(src))
+                {
+                    return src;
+                }
+            }
+            catch (Exception ex)
+            {
+                TestContext.Out.WriteLine($"Preview img lookup failed for {selector}: {ex.Message}");
+            }
+        }
+
+        return null;
     }
 
     private static byte[] GeneratePngBytes(int width, int height)

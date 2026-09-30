@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { SearchResult } from '../../api/types';
-import { applySearchTarget, targetForSearchResult } from './searchNavigation.ts';
+import { applySearchTarget, targetForSearchResult, websiteUrl } from './searchNavigation.ts';
 
 function hit(overrides: Partial<SearchResult>): SearchResult {
   return {
@@ -18,6 +18,27 @@ function hit(overrides: Partial<SearchResult>): SearchResult {
     ...overrides,
   };
 }
+
+describe('websiteUrl', () => {
+  it('joins a relative path onto a slash-trimmed origin', () => {
+    assert.equal(websiteUrl('https://www.queenzone.org', '/articles/x'), 'https://www.queenzone.org/articles/x');
+    assert.equal(websiteUrl('https://www.queenzone.org/', '/articles/x'), 'https://www.queenzone.org/articles/x');
+    assert.equal(websiteUrl('https://www.queenzone.org///', 'articles/x'), 'https://www.queenzone.org/articles/x');
+    assert.equal(websiteUrl('https://www.queenzone.org', 'https://cdn.example/x'), 'https://cdn.example/x');
+    assert.equal(websiteUrl('https://www.queenzone.org', 'http://cdn.example/x'), 'http://cdn.example/x');
+    assert.equal(websiteUrl('https://www.queenzone.org', ''), null);
+    assert.equal(websiteUrl('', '/articles/x'), '/articles/x');
+  });
+
+  it('finishes quickly when the origin is a long slash run', () => {
+    const started = performance.now();
+    assert.equal(
+      websiteUrl(`https://www.queenzone.org${'/'.repeat(40_000)}`, '/articles/x'),
+      'https://www.queenzone.org/articles/x',
+    );
+    assert.ok(performance.now() - started < 100);
+  });
+});
 
 describe('targetForSearchResult', () => {
   const origin = 'https://www.queenzone.org';

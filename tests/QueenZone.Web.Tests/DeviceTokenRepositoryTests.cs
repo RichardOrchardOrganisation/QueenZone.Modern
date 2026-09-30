@@ -34,6 +34,26 @@ public sealed class DeviceTokenRepositoryTests
     }
 
     [Fact]
+    public async Task DeleteIfTokenMatchesAsync_PreservesRefreshedRegistration()
+    {
+        var repository = new InMemoryDeviceTokenRepository(new SharedDeviceTokenStore());
+        var memberId = Guid.NewGuid();
+        const string deviceId = "e3c869b0-f770-4ee4-be4a-46c63ccba90f";
+        var stale = await repository.UpsertAsync(
+            DeviceTokenTestData.Token(memberId, DevicePushPlatform.Apns, "old", deviceId));
+        var staleUpdatedAt = stale.UpdatedAt;
+        var refreshedToken = DeviceTokenTestData.Token(memberId, DevicePushPlatform.Apns, "new", deviceId);
+        refreshedToken.UpdatedAt = staleUpdatedAt.AddMinutes(1);
+        var fresh = await repository.UpsertAsync(refreshedToken);
+
+        Assert.False(await repository.DeleteIfTokenMatchesAsync(
+            stale.Id, staleUpdatedAt, memberId, DevicePushPlatform.Apns, "old"));
+        Assert.True(await repository.DeleteIfTokenMatchesAsync(
+            fresh.Id, fresh.UpdatedAt, memberId, DevicePushPlatform.Apns, "new"));
+        Assert.Empty(await repository.ListByMemberIdsAsync([memberId]));
+    }
+
+    [Fact]
     public async Task UpsertAsync_SameDeviceId_SameMember_UpdatesTokenPlatformAndUpdatedAt()
     {
         var store = new SharedDeviceTokenStore();

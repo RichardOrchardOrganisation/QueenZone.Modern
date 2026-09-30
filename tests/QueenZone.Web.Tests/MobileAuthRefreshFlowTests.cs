@@ -5,41 +5,56 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MobileAuthRefreshFlowTests
+public sealed class MobileAuthRefreshFlowTests : IClassFixture<WebHostVariantCache>, IAsyncLifetime
 {
-    private static QueenZoneWebApplicationFactory CreateFactory(TimeProvider? timeProvider = null) =>
-        QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.AddAuthentication()
-                .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                    MemberAuthenticationSchemes.ExternalCookie, _ => { });
+    private readonly VariantWebApplicationFactory pkce;
+    private readonly VariantWebApplicationFactory clocked;
 
-            foreach (var provider in MemberAuthenticationSchemes.ExternalProviders)
-            {
-                services.AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, TestOAuthProviderHandler>(provider, _ => { });
-            }
+    public MobileAuthRefreshFlowTests(WebHostVariantCache variants)
+    {
+        pkce = variants.Get(WebHostVariants.ExternalCookieMobilePkce);
+        clocked = variants.Get(WebHostVariants.ExternalCookieMobilePkceMutableClock);
+    }
 
-            if (timeProvider is not null)
-            {
-                services.AddSingleton(timeProvider);
-            }
-        });
+    public async Task InitializeAsync() => await clocked.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
-    public async Task RefreshGrant_IssuesNewAccessToken_AndRejectsReuseAfterTheGraceWindow()
+    public async Task RefreshGrant_DaysLaterReplayWithAnUnusedSuccessor_RecoversInsteadOfSigningOut()
     {
-        var time = new ManualTimeProvider(DateTimeOffset.UtcNow);
-        using var factory = CreateFactory(time);
-        var issued = await CompletePkceAsync(factory, "refresh-fan@example.com", "google-refresh-1");
+        // The app refreshed, iOS suspended it before the response landed, and the
+        // member didn't open it again for over a week.
+        clocked.Clock!.SetUtcNow(DateTimeOffset.UtcNow);
+        var issued = await CompletePkceAsync(clocked, "idle-fan@example.com", "google-idle-1");
+        using var lostRequest = RefreshForm(issued.RefreshToken);
+        var lost = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, lostRequest);
+        Assert.Equal(HttpStatusCode.OK, lost.StatusCode);
+
+        clocked.Clock.Advance(TimeSpan.FromDays(8));
+        using var retriedRequest = RefreshForm(issued.RefreshToken);
+        var retried = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, retriedRequest);
+
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        var recovered = await ReadTokenPayloadAsync(retried);
+        Assert.False(string.IsNullOrWhiteSpace(recovered.AccessToken));
+
+        using var nextRequest = RefreshForm(recovered.RefreshToken);
+        var next = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, nextRequest);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+    }
+
+    [Fact]
+    public async Task RefreshGrant_IssuesNewAccessToken_AndRejectsReuseOnceTheChainHasMovedOn()
+    {
+        clocked.Clock!.SetUtcNow(DateTimeOffset.UtcNow);
+        var issued = await CompletePkceAsync(clocked, "refresh-fan@example.com", "google-refresh-1");
 
         using var refreshRequest = RefreshForm(issued.RefreshToken);
         var refreshResponse = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, refreshRequest);
@@ -49,15 +64,18 @@ public sealed class MobileAuthRefreshFlowTests
         Assert.NotEqual(issued.RefreshToken, refreshed.RefreshToken);
         Assert.DoesNotContain(issued.RefreshToken, await refreshResponse.Content.ReadAsStringAsync());
 
-        using var sessionClient = factory.CreateClient();
+        using var sessionClient = clocked.CreateClient();
         sessionClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", refreshed.AccessToken);
         var session = await sessionClient.GetAsync(MobileAuthEndpoints.SessionPath);
         Assert.Equal(HttpStatusCode.OK, session.StatusCode);
 
-        // Past the reuse grace window, replaying the rotated-away token is theft,
-        // not a client that lost its rotation response.
-        time.Advance(TimeSpan.FromSeconds(31));
+        // Someone used the successor, so past the reuse grace window replaying the
+        // rotated-away token is theft, not a client that lost its rotation response.
+        using var advanceRequest = RefreshForm(refreshed.RefreshToken);
+        var advanced = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, advanceRequest);
+        Assert.Equal(HttpStatusCode.OK, advanced.StatusCode);
+        clocked.Clock.Advance(TimeSpan.FromSeconds(301));
         using var reusedRequest = RefreshForm(issued.RefreshToken);
         var reused = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, reusedRequest);
         Assert.Equal(HttpStatusCode.BadRequest, reused.StatusCode);
@@ -74,8 +92,7 @@ public sealed class MobileAuthRefreshFlowTests
         // refresh response arrives: the client never sees the new refresh token
         // and retries with the one it already rotated away. That must recover a
         // fresh, working pair rather than revoke every device.
-        using var factory = CreateFactory();
-        var issued = await CompletePkceAsync(factory, "lost-response-fan@example.com", "google-lost-response-1");
+        var issued = await CompletePkceAsync(pkce, "lost-response-fan@example.com", "google-lost-response-1");
 
         using var firstRequest = RefreshForm(issued.RefreshToken);
         var first = await issued.Client.PostAsync(MobileAuthEndpoints.TokenPath, firstRequest);
@@ -87,7 +104,7 @@ public sealed class MobileAuthRefreshFlowTests
         var recovered = await ReadTokenPayloadAsync(retried);
         Assert.False(string.IsNullOrWhiteSpace(recovered.AccessToken));
 
-        using var sessionClient = factory.CreateClient();
+        using var sessionClient = pkce.CreateClient();
         sessionClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", recovered.AccessToken);
         var session = await sessionClient.GetAsync(MobileAuthEndpoints.SessionPath);
@@ -97,8 +114,7 @@ public sealed class MobileAuthRefreshFlowTests
     [Fact]
     public async Task Revoke_ThenRefresh_ReturnsInvalidGrantWithoutEchoingToken()
     {
-        using var factory = CreateFactory();
-        var issued = await CompletePkceAsync(factory, "revoke-fan@example.com", "google-revoke-1");
+        var issued = await CompletePkceAsync(pkce, "revoke-fan@example.com", "google-revoke-1");
 
         using var revokeRequest = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -119,10 +135,9 @@ public sealed class MobileAuthRefreshFlowTests
     [Fact]
     public async Task Logout_RevokesAllRefreshTokensForMember()
     {
-        using var factory = CreateFactory();
-        var issued = await CompletePkceAsync(factory, "logout-fan@example.com", "google-logout-1");
+        var issued = await CompletePkceAsync(pkce, "logout-fan@example.com", "google-logout-1");
 
-        using var logoutClient = factory.CreateClient();
+        using var logoutClient = pkce.CreateClient();
         logoutClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", issued.AccessToken);
         var logout = await logoutClient.PostAsync(MobileAuthEndpoints.LogoutPath, null);
@@ -136,8 +151,7 @@ public sealed class MobileAuthRefreshFlowTests
     [Fact]
     public async Task ExpiredAccessToken_IsRejectedBySessionEndpoint()
     {
-        using var factory = CreateFactory();
-        using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = pkce.CreateAnonymousClient(allowAutoRedirect: false);
         var expired = CreateExpiredAccessToken(Guid.NewGuid(), "expired@example.com", "Expired");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", expired);
 
@@ -149,16 +163,15 @@ public sealed class MobileAuthRefreshFlowTests
     [Fact]
     public async Task AdminSuspend_RevokesRefreshTokensImmediately()
     {
-        using var factory = CreateFactory();
-        var issued = await CompletePkceAsync(factory, "suspend-fan@example.com", "google-suspend-1");
+        var issued = await CompletePkceAsync(pkce, "suspend-fan@example.com", "google-suspend-1");
 
-        using var sessionClient = factory.CreateClient();
+        using var sessionClient = pkce.CreateClient();
         sessionClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", issued.AccessToken);
         var session = await sessionClient.GetFromJsonAsync<JsonElement>(MobileAuthEndpoints.SessionPath);
         var memberId = Guid.Parse(session.GetProperty("memberId").GetString()!);
 
-        var admin = AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);
+        var admin = AdminHttpTestHelpers.CreateClient(pkce, AdminHttpTestHelpers.AdminEmail);
         var detail = await admin.GetStringAsync($"/admin/members/{memberId}");
         var tokenMatch = System.Text.RegularExpressions.Regex.Match(
             detail, """name="__RequestVerificationToken"[^>]*value="(?<token>[^"]+)""");
@@ -232,15 +245,6 @@ public sealed class MobileAuthRefreshFlowTests
         return (
             payload.GetProperty("access_token").GetString()!,
             payload.GetProperty("refresh_token").GetString()!);
-    }
-
-    private sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
-    {
-        private DateTimeOffset now = start;
-
-        public override DateTimeOffset GetUtcNow() => now;
-
-        public void Advance(TimeSpan delta) => now += delta;
     }
 
     private static string CreateExpiredAccessToken(Guid memberId, string email, string displayName)

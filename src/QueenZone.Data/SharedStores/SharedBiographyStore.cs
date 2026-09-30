@@ -73,4 +73,23 @@ public sealed class SharedBiographyStore
             return true;
         }
     }
+
+    internal void Clear()
+    {
+        lock (sync)
+        {
+            chapters.Clear();
+            nextId = 1;
+        }
+    }
+
+    internal void Seed(IEnumerable<BiographyChapterItem> seedChapters)
+    {
+        lock (sync)
+        {
+            chapters.Clear();
+            chapters.AddRange(seedChapters);
+            nextId = chapters.Count == 0 ? 1 : chapters.Max(chapter => chapter.Id) + 1;
+        }
+    }
 }

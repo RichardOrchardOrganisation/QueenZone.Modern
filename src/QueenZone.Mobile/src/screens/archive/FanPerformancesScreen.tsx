@@ -216,6 +216,7 @@ export function FanPerformancesScreen({ navigation }: Props) {
       ListHeaderComponent={header}
       ListEmptyComponent={<EmptyBlock message="No fan performances are available yet." />}
       ListFooterComponent={<ListFooterLoading visible={paged.loadingMore} />}
+      alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={paged.refresh} />
       }

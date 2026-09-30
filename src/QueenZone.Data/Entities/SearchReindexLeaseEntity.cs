@@ -1,6 +1,6 @@
 namespace QueenZone.Data.Entities;
 
-public sealed class SearchReindexLeaseEntity
+public sealed class SearchReindexLeaseEntity : ILeaseEntity
 {
     public string LeaseName { get; set; } = string.Empty;
 

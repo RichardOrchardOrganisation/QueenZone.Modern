@@ -8,6 +8,11 @@ public interface IMemberAccountRepository
 
     Task<MemberAccount?> FindByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Display names for the requested member ids, loaded in one query.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> ListDisplayNamesAsync(
+        IReadOnlyCollection<Guid> memberIds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// The subset of <paramref name="memberIds"/> that exist and have not requested deletion.
     /// Batch form of <see cref="FindByIdAsync"/> for callers filtering a list of member ids.
@@ -23,6 +28,18 @@ public interface IMemberAccountRepository
     Task<MemberAccount> CreateAsync(MemberAccount account, CancellationToken cancellationToken = default);
 
     Task AddExternalLoginAsync(Guid memberAccountId, string provider, string providerKey, string email, CancellationToken cancellationToken = default);
+
+    Task SaveAppleRefreshTokenAsync(
+        Guid memberAccountId,
+        string providerKey,
+        string protectedToken,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PendingAppleRevocation>> ListPendingAppleRevocationsAsync(
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteAppleRevocationAsync(Guid externalLoginId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates <see cref="MemberAccount.DisplayName"/> for the given member.
@@ -62,6 +79,25 @@ public interface IMemberAccountRepository
     Task<MemberAccount?> UnlinkLegacyUserIdAsync(Guid memberId, CancellationToken cancellationToken = default);
 
     Task RecordLoginAsync(Guid memberId, DateTime loginAt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores the password-failure counter for the current lockout window.
+    /// </summary>
+    Task RecordPasswordFailureAsync(
+        Guid memberId,
+        int failureCount,
+        DateTime windowStartedAt,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records a successful password sign-in: last login, a cleared failure counter,
+    /// and an optional rewritten password hash.
+    /// </summary>
+    Task RecordPasswordSignInAsync(
+        Guid memberId,
+        DateTime loginAt,
+        string? rehashedPassword,
+        CancellationToken cancellationToken = default);
 
     Task<MemberStats> GetStatsAsync(DateTime utcNow, CancellationToken cancellationToken = default);
 
@@ -135,7 +171,8 @@ public interface IMemberAccountRepository
     Task<MemberAccountDeletionRequestResult?> RequestDeletionAsync(
         Guid memberId,
         DateTime requestedAt,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool immediate = false);
 
     /// <summary>
     /// Cancels a pending deletion request before personal data has been purged.
@@ -147,12 +184,20 @@ public interface IMemberAccountRepository
 
     /// <summary>
     /// Irreversibly removes personal and authentication data for deletion requests at or before
-    /// <paramref name="purgeBefore"/>. The member tombstone and linked legacy id are retained.
+    /// <paramref name="purgeBefore"/>. A non-personal member tombstone remains.
     /// </summary>
     Task<MemberAccountDeletionPurgeResult> PurgeDeletedAccountsAsync(
         DateTime purgeBefore,
         DateTime purgedAt,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PendingMemberDeletionBlob>> ListPendingDeletionBlobsAsync(
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteDeletionBlobAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<MemberDeletionProgress?> GetDeletionProgressAsync(Guid memberId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<MemberSocialLink>> ListSocialLinksAsync(
         Guid memberId,

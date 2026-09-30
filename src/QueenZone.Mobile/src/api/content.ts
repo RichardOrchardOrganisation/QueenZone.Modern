@@ -19,6 +19,17 @@ import type {
   PhotoDetail,
   PhotoListItem,
   FanPerformance,
+  QuizAnswerSubmission,
+  QuizDetail,
+  QuizLeaderboard,
+  QuizListItem,
+  QuizResult,
+  QuizSprintAnswerCheck,
+  QuizSprintBoard,
+  QuizSprintClaimResult,
+  QuizSprintDailyBoard,
+  QuizSprintResult,
+  QuizSprintRound,
   RandomQuote,
   RandomTrivia,
   TimelineEvent,
@@ -135,6 +146,14 @@ export function fetchTimelinePage(
   return fetchJson('/content/timeline', { query: pageParams(query), signal: query.signal });
 }
 
+/** The chronological page containing a published event. 404 when the id is unknown. */
+export function fetchTimelineAnchor(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ApiPagedResponse<TimelineEvent>> {
+  return fetchJson(`/content/timeline/anchor/${id}`, { query: { pageSize: 100 }, signal });
+}
+
 /** A published timeline event by id. 404 when missing or unpublished. */
 export function fetchTimelineEventById(id: number, signal?: AbortSignal): Promise<TimelineEvent> {
   return fetchJson(`/content/timeline/${id}`, { signal });
@@ -219,6 +238,116 @@ export function voteHomePoll(
     accessToken,
     signal,
   });
+}
+
+export function fetchQuizzesPage(query: PageQuery = {}): Promise<ApiPagedResponse<QuizListItem>> {
+  return fetchJson('/content/quizzes', { query: pageParams(query), signal: query.signal });
+}
+
+/** Options only — the correct-answer flag is never sent to the client before submit. */
+export function fetchQuizDetail(id: string, signal?: AbortSignal): Promise<QuizDetail> {
+  return fetchJson(`/content/quizzes/${id}`, { signal });
+}
+
+/** Scores server-side and records the attempt. Caller must be signed in. */
+export function submitQuizAttempt(
+  id: string,
+  answers: QuizAnswerSubmission[],
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<QuizResult> {
+  return sendJson(`/content/quizzes/${id}/attempts`, {
+    method: 'POST',
+    body: { answers },
+    accessToken,
+    signal,
+  });
+}
+
+/**
+ * Ranked by summed attempt score. Optional Bearer includes the viewer's own rank even
+ * outside the top page.
+ */
+export function fetchQuizLeaderboard(
+  scope: 'week' | 'all',
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizLeaderboard> {
+  return fetchJson('/content/quizzes/leaderboard', { query: { scope }, signal, accessToken });
+}
+
+/** Starts a 60-second Quiz Sprint round. Open to anonymous callers. */
+export function startQuizSprint(signal?: AbortSignal): Promise<QuizSprintRound> {
+  return sendJson('/content/quizzes/sprint/start', { method: 'POST', signal });
+}
+
+/** Reveals whether one pick was right while the round is live (the ticket keeps the key server-side). */
+export function checkQuizSprintAnswer(
+  ticket: string,
+  questionId: string,
+  optionId: string,
+  signal?: AbortSignal,
+): Promise<QuizSprintAnswerCheck> {
+  return sendJson('/content/quizzes/sprint/answer', {
+    method: 'POST',
+    body: { ticket, questionId, optionId },
+    signal,
+  });
+}
+
+/**
+ * Scores the round server-side. With a Bearer token the run is recorded on today's
+ * leaderboard; without one it is scored but not recorded.
+ */
+export function finishQuizSprint(
+  ticket: string,
+  answers: QuizAnswerSubmission[],
+  accessToken?: string | null,
+  signal?: AbortSignal,
+): Promise<QuizSprintResult> {
+  return sendJson('/content/quizzes/sprint/finish', {
+    method: 'POST',
+    body: { ticket, answers },
+    accessToken,
+    signal,
+  });
+}
+
+/**
+ * Adds a guest's finished run to the signed-in member's record. Needs the `claimToken` from that
+ * run's finish response; valid for one hour and claimable once (410 once expired).
+ */
+export function claimQuizSprintRun(
+  claimToken: string,
+  accessToken: string,
+  signal?: AbortSignal,
+): Promise<QuizSprintClaimResult> {
+  return sendJson('/content/quizzes/sprint/claim', {
+    method: 'POST',
+    body: { claimToken },
+    accessToken,
+    signal,
+  });
+}
+
+/** Today's Quiz Sprint standings. Optional Bearer includes the viewer's own entry. */
+export function fetchQuizSprintDaily(
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizSprintDailyBoard> {
+  return fetchJson('/content/quizzes/sprint/daily', { signal, accessToken });
+}
+
+/**
+ * Quiz Sprint standings: best run today (`daily`), best run ever (`all`), or points summed over
+ * every run (`total`). Optional Bearer includes the viewer.
+ */
+export function fetchQuizSprintLeaderboard(
+  scope: 'daily' | 'all' | 'total',
+  signal?: AbortSignal,
+  accessToken?: string | null,
+): Promise<QuizSprintBoard> {
+  return fetchJson('/content/quizzes/sprint/leaderboard', { query: { scope }, signal, accessToken });
 }
 
 export function fetchFreddieTributePage(

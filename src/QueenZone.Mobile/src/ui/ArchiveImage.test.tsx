@@ -41,4 +41,26 @@ describe('ArchiveImage', () => {
     );
     expect(screen.getByLabelText('Live Aid').props.priority).toBe('normal');
   });
+
+  it('forwards load callbacks to expo-image', () => {
+    const onLoadStart = jest.fn();
+    const onLoad = jest.fn();
+    const onError = jest.fn();
+    renderWithProviders(
+      <ArchiveImage
+        source={{ uri: 'https://cdn.queenzone.org/photos/101.jpg' }}
+        label="Live Aid"
+        style={{ width: 100, height: 100 }}
+        onLoadStart={onLoadStart}
+        onLoad={onLoad}
+        onError={onError}
+      />,
+      { navigation: false },
+    );
+
+    const image = screen.getByLabelText('Live Aid');
+    expect(image.props.onLoadStart).toBe(onLoadStart);
+    expect(image.props.onLoad).toBe(onLoad);
+    expect(image.props.onError).toBe(onError);
+  });
 });

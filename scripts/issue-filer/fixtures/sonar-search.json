@@ -1,0 +1,25 @@
+{
+  "issues": [
+    {
+      "key": "A1",
+      "rule": "javascript:S3776",
+      "message": "Refactor this function to reduce its Cognitive Complexity",
+      "component": "ExampleOrg_ExampleRepo:scripts/check-feature-map.mjs",
+      "creationDate": "2026-09-20T00:00:00+0000"
+    },
+    {
+      "key": "A2",
+      "rule": "javascript:S3776",
+      "message": "Refactor this function to reduce its Cognitive Complexity",
+      "component": "ExampleOrg_ExampleRepo:scripts/check-pr-verification.mjs",
+      "creationDate": "2026-09-21T00:00:00+0000"
+    },
+    {
+      "key": "B1",
+      "rule": "javascript:S1135",
+      "message": "Complete the task associated to this TODO comment.",
+      "component": "ExampleOrg_ExampleRepo:scripts/issue-filer/run.mjs",
+      "creationDate": "2026-09-22T00:00:00+0000"
+    }
+  ]
+}

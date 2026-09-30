@@ -1,15 +1,12 @@
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-
 namespace QueenZone.Web.Tests;
 
-public sealed class SecurityHeadersTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SecurityHeadersTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> factory;
+    private readonly QueenZoneWebApplicationFactory factory;
 
-    public SecurityHeadersTests(WebApplicationFactory<Program> factory)
+    public SecurityHeadersTests(QueenZoneWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
     }
 
     [Theory]

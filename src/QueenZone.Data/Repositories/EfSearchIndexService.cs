@@ -19,6 +19,12 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(document.SourceKey);
 
+        if (SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey))
+        {
+            await RemoveAsync(document.SourceKey, cancellationToken);
+            return;
+        }
+
         var existing = await dbContext.SearchDocuments
             .SingleOrDefaultAsync(d => d.SourceKey == document.SourceKey, cancellationToken);
 
@@ -63,6 +69,13 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         ArgumentException.ThrowIfNullOrWhiteSpace(contentType);
         ArgumentNullException.ThrowIfNull(documents);
 
+        if (SiteSearchExclusion.IsExcludedContentType(contentType))
+        {
+            await SiteSearchExclusion.WhereExcluded(dbContext.SearchDocuments)
+                .ExecuteDeleteAsync(cancellationToken);
+            return;
+        }
+
         // Explicit transactions under EnableRetryOnFailure must run inside the execution strategy
         // so Azure SQL transient failures can retry the whole unit of work (see QueenZoneSqlServerOptions).
         // Without this wrapper, ExecuteDelete/SaveChanges under a user-initiated transaction throws
@@ -87,6 +100,11 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
             var now = DateTimeOffset.UtcNow;
             foreach (var document in documents)
             {
+                if (SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey))
+                {
+                    continue;
+                }
+
                 document.Id = document.Id == Guid.Empty ? Guid.NewGuid() : document.Id;
                 document.ContentType = contentType;
                 document.IndexedAt = now;
@@ -103,4 +121,5 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
             .GroupBy(d => d.ContentType)
             .Select(g => new { ContentType = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.ContentType, g => g.Count, cancellationToken);
+
 }

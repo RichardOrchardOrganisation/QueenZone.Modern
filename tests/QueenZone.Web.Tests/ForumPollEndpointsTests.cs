@@ -9,23 +9,13 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumPollEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ForumPollEndpointsTests : IClassFixture<ExternalCookieWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ForumPollEndpointsTests(WebApplicationFactory<Program> factory)
+    public ForumPollEndpointsTests(ExternalCookieWebApplicationFactory factory)
     {
-        this.factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureTestServices(services =>
-            {
-                services
-                    .AddAuthentication()
-                    .AddScheme<AuthenticationSchemeOptions, ExternalCookieTestHandler>(
-                        MemberAuthenticationSchemes.ExternalCookie, _ => { });
-            });
-        });
+        this.factory = factory;
     }
 
     [Fact]

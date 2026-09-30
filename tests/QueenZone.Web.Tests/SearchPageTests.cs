@@ -1,23 +1,25 @@
 using System.Net;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using QueenZone.Data;
 using QueenZone.Web.Pages;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class SearchPageTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class SearchPageTests :
+    IClassFixture<QueenZoneWebApplicationFactory>,
+    IClassFixture<WebHostVariantCache>
 {
     private readonly WebApplicationFactory<Program> factory;
+    private readonly VariantWebApplicationFactory timeoutHost;
 
-    public SearchPageTests(WebApplicationFactory<Program> factory)
+    public SearchPageTests(QueenZoneWebApplicationFactory factory, WebHostVariantCache variants)
     {
-        this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        this.factory = factory;
+        timeoutHost = variants.Get(WebHostVariants.SiteSearchTimeout);
     }
 
     [Fact]
@@ -59,12 +61,7 @@ public sealed class SearchPageTests : IClassFixture<WebApplicationFactory<Progra
     [Fact]
     public async Task SearchPage_sql_timeout_renders_in_page_unavailable_not_not_found()
     {
-        using var timeoutFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ISiteSearchService>();
-            services.AddSingleton<ISiteSearchService>(new TimeoutSiteSearchService());
-        });
-        using var client = timeoutFactory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = timeoutHost.CreateAnonymousClient(allowAutoRedirect: false);
 
         using var response = await client.GetAsync("/search?q=Bohemian+Rhapsody");
         var body = await response.Content.ReadAsStringAsync();
@@ -76,6 +73,62 @@ public sealed class SearchPageTests : IClassFixture<WebApplicationFactory<Progra
         Assert.DoesNotContain("Page Not Found", body, StringComparison.Ordinal);
         Assert.DoesNotContain("No results found", body, StringComparison.Ordinal);
         Assert.DoesNotContain("Something went wrong", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SearchPage_beyond_max_page_caps_total_pages_and_is_not_unavailable()
+    {
+        var model = new SearchModel(new FixedCountSiteSearchService(500))
+        {
+            Query = "queen",
+            CurrentPage = SiteSearchLimits.MaxPage + 1,
+            PageContext = new PageContext
+            {
+                ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()),
+            },
+        };
+
+        await model.OnGetAsync(CancellationToken.None);
+
+        Assert.False(model.SearchUnavailable);
+        Assert.NotNull(model.Results);
+        Assert.Empty(model.Results.Results);
+        Assert.Equal(500, model.Results.TotalCount);
+        Assert.Equal(SiteSearchLimits.MaxPage, model.TotalPages);
+    }
+
+    [Fact]
+    public async Task SearchPage_beyond_max_page_returns_empty_without_unavailable()
+    {
+        var client = factory.CreateClient();
+
+        using var response = await client.GetAsync($"/search?q=archive&page={SiteSearchLimits.MaxPage + 1}");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain(SearchModel.UnavailableMessage, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Page Not Found", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Something went wrong", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SearchPage_one_character_query_does_not_call_search_or_set_unavailable()
+    {
+        var model = new SearchModel(new TimeoutSiteSearchService())
+        {
+            Query = "a",
+            PageContext = new PageContext
+            {
+                ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()),
+            },
+        };
+
+        await model.OnGetAsync(CancellationToken.None);
+
+        Assert.False(model.SearchUnavailable);
+        Assert.NotNull(model.Results);
+        Assert.Empty(model.Results.Results);
+        Assert.Equal(0, model.Results.TotalCount);
     }
 
     [Fact]
@@ -94,6 +147,18 @@ public sealed class SearchPageTests : IClassFixture<WebApplicationFactory<Progra
 
         Assert.True(model.SearchUnavailable);
         Assert.Null(model.Results);
+    }
+
+    [Fact]
+    public async Task SearchPage_one_character_query_returns_empty_without_unavailable()
+    {
+        var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/search?q=a");
+
+        Assert.Contains("No results found", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(SearchModel.UnavailableMessage, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("role=\"alert\"", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -134,12 +199,7 @@ public sealed class SearchPageTests : IClassFixture<WebApplicationFactory<Progra
     [Fact]
     public async Task SearchPage_sql_timeout_renders_unavailable_under_chips_with_u_mt_4()
     {
-        using var timeoutFactory = QueenZoneWebApplicationFactory.WithServices(services =>
-        {
-            services.RemoveAll<ISiteSearchService>();
-            services.AddSingleton<ISiteSearchService>(new TimeoutSiteSearchService());
-        });
-        using var client = timeoutFactory.CreateAnonymousClient(allowAutoRedirect: false);
+        using var client = timeoutHost.CreateAnonymousClient(allowAutoRedirect: false);
 
         var body = await client.GetStringAsync("/search?q=Bohemian+Rhapsody");
         var section = AssertSingleSearchSection(body);
@@ -280,5 +340,16 @@ public sealed class SearchPageTests : IClassFixture<WebApplicationFactory<Progra
         var body = await client.GetStringAsync(path);
 
         Assert.DoesNotContain("""<meta name="robots" content="noindex""", body);
+    }
+
+    private sealed class FixedCountSiteSearchService(int totalCount) : ISiteSearchService
+    {
+        public Task<SiteSearchPage> SearchAsync(
+            string query,
+            string? contentType,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SiteSearchPage([], totalCount, page, pageSize));
     }
 }

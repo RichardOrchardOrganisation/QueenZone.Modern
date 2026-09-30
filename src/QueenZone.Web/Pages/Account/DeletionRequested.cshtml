@@ -3,6 +3,15 @@
   ViewData["Title"] = "Account deletion requested";
 }
 
+@if (ViewContext.HttpContext.Request.Query["immediate"] == "1")
+{
+  <partial name="_PageHero" model='@(("Members", "Account deletion requested", "Your account has been disabled and deletion is being processed.", ""))' />
+  <section class="qz-section"><div class="qz-container qz-prose">
+    <p>You have been signed out. Your account cannot be restored. Your personal data is being removed now.</p>
+  </div></section>
+}
+else
+{
 <partial name="_PageHero" model='@(("Members", "Account deletion scheduled", "Your 30-day cooling-off period has started.", ""))' />
 
 <section class="qz-section">
@@ -12,3 +21,4 @@
     <p>Cancelling within <strong>30 days</strong> restores your identity and attribution. After 30 days, your sign-in data and stored avatar are permanently removed.</p>
   </div>
 </section>
+}

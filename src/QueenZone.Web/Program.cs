@@ -3,10 +3,13 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.FileProviders.Physical;
+using QueenZone.Data;
 using QueenZone.Web;
 using QueenZone.Web.Health;
 using QueenZone.Web.Sitemap;
 
+// Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
+RegexDefaults.ApplyProcessDefault();
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -67,7 +70,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AddFolderApplicationModelConvention(
         "/Submit",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
-            QueenZoneRateLimitPolicies.MemberWrite)));
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
     options.Conventions.AddPageApplicationModelConvention(
         "/Account/ExternalLogin",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
@@ -77,13 +80,56 @@ builder.Services.AddRazorPages(options =>
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
             QueenZoneRateLimitPolicies.Auth)));
     options.Conventions.AddPageApplicationModelConvention(
+        "/Account/LinkExternalLogin",
+        model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+            QueenZoneRateLimitPolicies.Auth)));
+    options.Conventions.AddPageApplicationModelConvention(
+        "/Account/Logout",
+        model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+            QueenZoneRateLimitPolicies.Auth)));
+    options.Conventions.AddPageApplicationModelConvention(
         "/Account/Settings",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
-            QueenZoneRateLimitPolicies.Upload)));
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
     options.Conventions.AddPageApplicationModelConvention(
         "/Search",
         model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
             QueenZoneRateLimitPolicies.Search)));
+
+    foreach (var page in new[]
+    {
+        "/Index",
+        "/Account/Delete",
+        "/Account/MySubmissions",
+        "/Forum/Block",
+        "/Forum/EditPost",
+        "/Forum/HideAuthor",
+        "/Forum/NewThread",
+        "/Forum/Report",
+        "/Forum/Topic",
+        "/Forum/TopicPage",
+        "/Members/Profile",
+        "/Quizzes/Play",
+    })
+    {
+        options.Conventions.AddPageApplicationModelConvention(
+            page,
+            model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+                QueenZoneRateLimitPolicies.AuthenticatedWrite)));
+    }
+
+    options.Conventions.AddFolderApplicationModelConvention(
+        "/Messages",
+        model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+            QueenZoneRateLimitPolicies.AuthenticatedWrite)));
+
+    foreach (var page in new[] { "/Help/Index", "/Quizzes/Sprint" })
+    {
+        options.Conventions.AddPageApplicationModelConvention(
+            page,
+            model => model.EndpointMetadata.Add(new Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute(
+                QueenZoneRateLimitPolicies.AnonymousWrite)));
+    }
 });
 
 var app = builder.Build();
@@ -112,18 +158,12 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// Azure App Service (and CDN/proxy, e.g. Cloudflare) terminates TLS and forwards plain HTTP.
-// Without forwarded headers, OAuth redirect_uri values use the internal host/scheme.
-// KnownIPNetworks/Proxies are cleared (edge IP is not fixed). Trust boundary: App Service/
-// Cloudflare as only public ingress. IP-based rate limits are soft if the edge is bypassed.
-// See docs/architecture/azure-hosting-plan.md (forwarded-headers trust).
-var forwardedHeadersOptions = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-};
-forwardedHeadersOptions.KnownIPNetworks.Clear();
-forwardedHeadersOptions.KnownProxies.Clear();
-app.UseForwardedHeaders(forwardedHeadersOptions);
+// Azure App Service (and Cloudflare) terminates TLS and forwards plain HTTP. Without forwarded
+// headers, OAuth redirect_uri values use the internal scheme and IP partitions see the proxy.
+// Only the platform front end and Cloudflare's published ranges (config/cloudflare-ip-ranges.json,
+// shared with the App Service ingress rules) may set the client IP and scheme. X-Forwarded-Host
+// is not honored. See docs/architecture/azure-hosting-plan.md (forwarded-headers trust), #1654.
+app.UseForwardedHeaders(QueenZoneForwardedHeaders.CreateOptions());
 // ASP.NET Core's automatic AllowedHosts filter runs outside this visible pipeline,
 // before the probe short-circuit above. App Service startup pings use an internal
 // link-local Host header, so that automatic filter returned 400 before /health could
@@ -141,13 +181,18 @@ if (ResponseCompressionBootstrap.IsEnabled(app.Environment))
     app.UseResponseCompression();
 }
 
-app.UseApiV1ExceptionHandler();
+// HTML exception re-execute must stay on the main pipeline. Nesting
+// UseExceptionHandler("/error") inside UseWhen breaks re-execution, and
+// UseStatusCodePagesWithReExecute then turns the failed /error path into
+// 404 (same class of bug as ApiV1ErrorHandling.UseApiV1StatusCodePages).
+// Register this before the API handler so /api/v1 still gets JSON Problem
+// Details from the inner UseWhen exception handler.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseWhen(
-        static context => !ApiV1.IsApiPath(context.Request.Path),
-        branch => branch.UseExceptionHandler("/error"));
+    app.UseExceptionHandler("/error");
 }
+
+app.UseApiV1ExceptionHandler();
 
 // PhysicalFileProvider excludes dot-prefixed files/folders by default, so the generic
 // UseStaticFiles() below would 404 on /.well-known/* (used for Microsoft's domain
@@ -286,7 +331,7 @@ app.MapNotificationPreferencesApiEndpoints();
 app.MapRazorPages().CacheOutput(PublicOutputCachePolicies.PublicHtml);
 app.MapFallbackToPage("/NotFound");
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;
 

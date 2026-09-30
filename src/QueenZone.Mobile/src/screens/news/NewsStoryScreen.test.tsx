@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
+import { Alert, Linking } from 'react-native';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { fetchNewsDetail } from '../../api';
 import { ApiError } from '../../api/client';
 import { deferred, newsDetailFixture } from '../../test/fixtures';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
 import { testIds } from '../../test/testIds';
+import { openExternalUrlCopy } from '../../ui/openExternalUrl';
 import { NewsStoryScreen } from './NewsStoryScreen';
 
 jest.mock('../../api', () => {
@@ -45,6 +47,12 @@ describe('NewsStoryScreen', () => {
         title: "Roger Taylor Releases New Single and Video 'I See You Now'",
       }),
     );
+    jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    jest.spyOn(Alert, 'alert');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('installs a back control that returns to Home when opened from the Home stack', async () => {
@@ -237,5 +245,41 @@ describe('NewsStoryScreen', () => {
     expect(screen.getByText('Only')).toBeOnTheScreen();
     expect(screen.getByText('Sole reply excerpt')).toBeOnTheScreen();
     expect(screen.queryByText('Start the discussion')).toBeNull();
+  });
+
+  it('opens a source URL from the news story', async () => {
+    const youtube = 'https://www.youtube.com/watch?v=1GfZoSuG8WY';
+    fetchDetail.mockResolvedValue(
+      newsDetailFixture({
+        title: 'Story with source',
+        sourceUrl: youtube,
+      }),
+    );
+    renderStory();
+    await waitFor(() => expect(screen.getByLabelText('Open source')).toBeOnTheScreen());
+
+    const user = userEvent.setup();
+    await user.press(screen.getByLabelText('Open source'));
+    expect(Linking.openURL).toHaveBeenCalledWith(youtube);
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('alerts when the news source URL cannot be opened and does not throw', async () => {
+    const youtube = 'https://www.youtube.com/watch?v=1GfZoSuG8WY';
+    fetchDetail.mockResolvedValue(
+      newsDetailFixture({
+        title: 'Story with source',
+        sourceUrl: youtube,
+      }),
+    );
+    jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error(`Unable to open URL: ${youtube}`));
+    renderStory();
+    await waitFor(() => expect(screen.getByLabelText('Open source')).toBeOnTheScreen());
+
+    const user = userEvent.setup();
+    await user.press(screen.getByLabelText('Open source'));
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith(openExternalUrlCopy.title, openExternalUrlCopy.body),
+    );
   });
 });

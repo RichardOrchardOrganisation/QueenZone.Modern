@@ -124,15 +124,16 @@ function InboxList({ navigation }: Pick<Props, 'navigation'>) {
     accessToken ?? '',
   );
 
+  const { refresh: refreshPaged } = paged;
+
   useFocusEffect(
     useCallback(() => {
       if (skipNextFocusRefresh.current) {
         skipNextFocusRefresh.current = false;
         return;
       }
-      paged.refresh();
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- omit the whole paged object; refresh identity is the listed dep.
-    }, [paged.refresh]),
+      refreshPaged();
+    }, [refreshPaged]),
   );
 
   const usingCachedPage = cachedPage !== null && paged.items.length === 0 && (paged.loading || paged.error !== null);
@@ -151,15 +152,14 @@ function InboxList({ navigation }: Pick<Props, 'navigation'>) {
       setArchivingId(conversationId);
       try {
         await archiveConversation(accessToken, conversationId);
-        paged.refresh();
+        refreshPaged();
       } catch {
         setActionError('Unable to archive this conversation. Try again.');
       } finally {
         setArchivingId(null);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit the whole paged object; refresh identity is the listed dep.
-    [accessToken, paged.refresh],
+    [accessToken, refreshPaged],
   );
 
   const openConversation = useCallback(

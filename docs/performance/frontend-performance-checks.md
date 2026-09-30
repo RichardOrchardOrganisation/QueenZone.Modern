@@ -1,6 +1,6 @@
 # Frontend performance checks
 
-Issue: <https://github.com/richardorchard/QueenZone.Modern/issues/170>
+Issue: <https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/170>
 
 Repeatable, documented workflow for measuring end-user performance on the public pages people actually hit. Use it to capture a **before** baseline, make a change, then capture an **after** result for PR comparison.
 

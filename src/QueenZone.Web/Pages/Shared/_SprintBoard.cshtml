@@ -1,0 +1,35 @@
+@model (SprintBoard Board, bool Dark, string EmptyText)
+@{
+  var rows = Model.Board.Rows.ToList();
+  if (Model.Board.Viewer is { } viewer && rows.All(row => row.Rank != viewer.Rank))
+  {
+    rows.Add(viewer);
+  }
+}
+@if (rows.Count == 0)
+{
+  <p class="qz-sprint-board__empty@(Model.Dark ? " qz-sprint-board__empty--dark" : "")">@Model.EmptyText</p>
+}
+else
+{
+  <ol class="qz-sprint-board@(Model.Dark ? " qz-sprint-board--dark" : "")">
+    @foreach (var row in rows)
+    {
+      <li class="qz-sprint-board__row@(row.IsViewer ? " qz-sprint-board__row--you" : "")">
+        <span class="qz-sprint-board__rank">@row.Rank.ToString("00")</span>
+        <span class="qz-sprint-board__who">
+          <span class="qz-sprint-board__name">@(row.IsViewer ? "You" : row.DisplayName)</span>
+          @if (Model.Board.Scope == QueenZone.Data.QuizSprintBoardScope.Total)
+          {
+            <span class="qz-sprint-board__meta">@row.Runs run@(row.Runs == 1 ? "" : "s") &middot; best streak @row.BestStreak</span>
+          }
+          else
+          {
+            <span class="qz-sprint-board__meta">60 sec &middot; @row.BestStreak streak</span>
+          }
+        </span>
+        <span class="qz-sprint-board__score">@row.Score</span>
+      </li>
+    }
+  </ol>
+}

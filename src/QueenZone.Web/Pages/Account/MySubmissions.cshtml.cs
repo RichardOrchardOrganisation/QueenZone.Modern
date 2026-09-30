@@ -13,6 +13,7 @@ public sealed class MySubmissionsModel(
     INewsSuggestionRepository newsSuggestionRepository,
     IArticleSubmissionRepository articleSubmissionRepository,
     ITriviaFactSubmissionRepository triviaFactSubmissionRepository,
+    IQuizQuestionSubmissionRepository quizQuestionSubmissionRepository,
     IFanPerformanceSubmissionRepository fanPerformanceSubmissionRepository,
     FanPerformanceSubmissionService fanPerformanceSubmissionService,
     INewsRepository newsRepository) : PageModel
@@ -23,6 +24,7 @@ public sealed class MySubmissionsModel(
     public const string TabNews = "news";
     public const string TabArticles = "articles";
     public const string TabTrivia = "trivia";
+    public const string TabQuiz = "quiz";
     public const string TabPerformances = "performances";
 
     public string ActiveTab { get; private set; } = TabPhotos;
@@ -37,13 +39,15 @@ public sealed class MySubmissionsModel(
 
     public IReadOnlyList<TriviaFactSubmission> TriviaSubmissions { get; private set; } = [];
 
+    public IReadOnlyList<QuizQuestionSubmission> QuizSubmissions { get; private set; } = [];
+
     public IReadOnlyList<FanPerformanceSubmission> FanPerformanceSubmissions { get; private set; } = [];
 
     public ArchivePaginationViewModel? Pagination { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(string? tab, int? page, CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -56,7 +60,7 @@ public sealed class MySubmissionsModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -80,7 +84,7 @@ public sealed class MySubmissionsModel(
         string? reply,
         CancellationToken cancellationToken)
     {
-        var memberId = await GetCurrentMemberIdAsync();
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
         if (memberId is null)
         {
             return Redirect("/account/login");
@@ -182,6 +186,14 @@ public sealed class MySubmissionsModel(
                     Pagination = BuildPagination(result.TotalCount);
                     break;
                 }
+            case TabQuiz:
+                {
+                    var result = await quizQuestionSubmissionRepository.GetBySubmitterAsync(
+                        memberId, CurrentPage, PageSize, cancellationToken);
+                    QuizSubmissions = result.Items;
+                    Pagination = BuildPagination(result.TotalCount);
+                    break;
+                }
             case TabPerformances:
                 {
                     var result = await fanPerformanceSubmissionRepository.GetBySubmitterAsync(
@@ -210,21 +222,10 @@ public sealed class MySubmissionsModel(
             TabNews => TabNews,
             TabArticles => TabArticles,
             TabTrivia => TabTrivia,
+            TabQuiz => TabQuiz,
             TabPerformances => TabPerformances,
             _ => TabPhotos,
         };
-
-    private async Task<Guid?> GetCurrentMemberIdAsync()
-    {
-        var authResult = await HttpContext.AuthenticateMemberAsync();
-        if (!authResult.Succeeded || authResult.Principal is null)
-        {
-            return null;
-        }
-
-        var idValue = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(idValue, out var id) ? id : null;
-    }
 
     public sealed record NewsSuggestionRow(NewsSuggestion Suggestion, string? PublishedArticlePath);
 }

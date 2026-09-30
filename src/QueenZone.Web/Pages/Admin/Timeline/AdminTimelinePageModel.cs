@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Admin.Timeline;
 
-public abstract class AdminTimelinePageModel : PageModel
+public abstract class AdminTimelinePageModel : AdminEditPageModel
 {
     public const string AntiforgeryTokenFieldName = "__RequestVerificationToken";
 

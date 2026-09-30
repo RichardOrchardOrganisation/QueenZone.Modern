@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError, forumPostReportCategories, reportForumPost, type ForumPostReportCategory } from '../../api';
 import { getAppConfig } from '../../config';
@@ -7,6 +8,7 @@ import type { ForumStackParamList } from '../../navigation/types';
 import { MemberGate } from '../../session/MemberGate';
 import { useSession } from '../../session/SessionContext';
 import { Button } from '../../ui/Button';
+import { openExternalUrl } from '../../ui/openExternalUrl';
 import { radius, space, type, useTheme } from '../../theme';
 
 type Props = NativeStackScreenProps<ForumStackParamList, 'ForumReport'>;
@@ -16,6 +18,7 @@ export function ForumReportScreen(props: Props) {
 }
 
 function ForumReportForm({ navigation, route }: Props) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const { accessToken } = useSession();
   const [category, setCategory] = useState<ForumPostReportCategory | null>(null);
@@ -44,7 +47,12 @@ function ForumReportForm({ navigation, route }: Props) {
     </View>;
   }
 
-  return <ScrollView style={{ backgroundColor: c.surfacePage }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <KeyboardAvoidingView
+    style={{ flex: 1, backgroundColor: c.surfacePage }}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+  >
+  <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Text style={[type.body, { color: c.textSecondary }]}>{`Report ${route.params.authorUsername}'s post. Your identity is not shown to the author.`}</Text>
     <Text style={[type.listTitle, { color: c.textPrimary, marginTop: space.xl }]}>Reason</Text>
     {forumPostReportCategories.map((item) => <Pressable key={item} accessibilityRole="radio" accessibilityState={{ checked: category === item }} onPress={() => setCategory(item)} style={[styles.option, { borderColor: category === item ? c.accentPrimary : c.hairline }]}>
@@ -56,10 +64,11 @@ function ForumReportForm({ navigation, route }: Props) {
     {error ? <Text accessibilityRole="alert" style={[type.body, { color: c.danger, marginTop: space.md }]}>{error}</Text> : null}
     <View style={{ marginTop: space.xl }}><Button label={submitting ? 'Submitting…' : 'Submit report'} disabled={!category || submitting} onPress={() => void submit()} /></View>
     <View style={styles.helpLinks}>
-      <Button label="Community rules" variant="ghost" size="sm" onPress={() => void Linking.openURL(`${websiteUrl}/terms`)} />
-      <Button label="Contact support" variant="ghost" size="sm" onPress={() => void Linking.openURL(`${websiteUrl}/contact`)} />
+      <Button label="Community rules" variant="ghost" size="sm" onPress={() => void openExternalUrl(`${websiteUrl}/terms`)} />
+      <Button label="Contact support" variant="ghost" size="sm" onPress={() => void openExternalUrl(`${websiteUrl}/contact`)} />
     </View>
-  </ScrollView>;
+  </ScrollView>
+  </KeyboardAvoidingView>;
 }
 
 const styles = StyleSheet.create({

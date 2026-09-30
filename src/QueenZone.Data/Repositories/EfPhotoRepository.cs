@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -13,7 +12,6 @@ public sealed class EfPhotoRepository : IPhotoRepository
     private readonly QueenZoneDbContext dbContext;
     private readonly PhotoSqlQueries sql;
 
-    [ExcludeFromCodeCoverage]
     public EfPhotoRepository(QueenZoneDbContext dbContext)
         : this(dbContext, PhotoSqlQueries.CreateProduction())
     {
@@ -89,15 +87,25 @@ public sealed class EfPhotoRepository : IPhotoRepository
         PhotoListFilter? filter = null,
         CancellationToken cancellationToken = default)
     {
-        var activeFilter = filter ?? PhotoListFilter.None;
-        // Single SQL round-trip: photo fields + total + index + prev/next (see DetailNavigationSql).
-        var rows = await dbContext.Database
-            .SqlQueryRaw<DetailNavigationRow>(
-                sql.ApplyFilter(sql.DetailNavigationSql, activeFilter),
-                catId,
-                picId)
-            .ToListAsync(cancellationToken);
-        var row = rows.FirstOrDefault();
+        var requested = filter ?? PhotoListFilter.None;
+        var effective = requested;
+        if (requested.IsActive)
+        {
+            // Point lookup decides the filter before the category count runs, so a miss
+            // issues the unfiltered navigation query only.
+            var dimensions = await LoadDimensionsAsync(catId, picId, cancellationToken);
+            if (dimensions is null)
+            {
+                return null;
+            }
+
+            if (!requested.Matches(dimensions.PIC_WIDTH, dimensions.PIC_HEIGHT))
+            {
+                effective = PhotoListFilter.None;
+            }
+        }
+
+        var row = await LoadNavigationRowAsync(catId, picId, effective, cancellationToken);
         if (row is null)
         {
             return null;
@@ -106,13 +114,16 @@ public sealed class EfPhotoRepository : IPhotoRepository
         var categoryName = row.category_name ?? string.Empty;
         var categorySlug = NewsSlug.Slugify(categoryName);
         var photo = MapDetailItem(row, catId, categoryName, categorySlug);
-
+        var matched = !requested.IsActive || effective.IsActive;
         return new PhotoDetailNavigation(
             photo,
             row.IndexBefore,
             row.TotalCount,
             row.PreviousPicId,
-            row.NextPicId);
+            row.NextPicId,
+            matched,
+            NeighborMedia(row.PreviousPicId, row.PreviousUrl, row.PreviousWidth, row.PreviousHeight),
+            NeighborMedia(row.NextPicId, row.NextUrl, row.NextWidth, row.NextHeight));
     }
 
     public async Task<IReadOnlyList<PhotoItem>> GetCategoryAllAsync(
@@ -140,7 +151,52 @@ public sealed class EfPhotoRepository : IPhotoRepository
         int take,
         CancellationToken cancellationToken = default)
     {
-        var safeTake = Math.Clamp(take, 1, 100);
+        var ids = await PickRandomPublishedPhotoIdsAsync(catId, take, cancellationToken);
+        return await GetPublishedByIdsAsync(catId, ids, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<int>> PickRandomPublishedPhotoIdsAsync(
+        int catId,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var safeTake = Math.Clamp(take, 1, 8);
+        var bounds = await dbContext.Database
+            .SqlQueryRaw<IdBoundsRow>(sql.RandomIdBoundsSql, catId)
+            .ToListAsync(cancellationToken);
+        var range = bounds.FirstOrDefault();
+        if (range?.MinId is not int minId || range.MaxId is not int maxId)
+        {
+            return [];
+        }
+
+        var ids = new List<int>(safeTake);
+        var seen = new HashSet<int>();
+        var attempts = safeTake * 8;
+        for (var attempt = 0; attempt < attempts && ids.Count < safeTake; attempt++)
+        {
+            var target = IndexedIdRange.NextTarget(minId, maxId);
+            var picked = await SeekPublishedPicIdAsync(sql.RandomIdSeekAtOrAfterSql, catId, target, cancellationToken)
+                ?? await SeekPublishedPicIdAsync(sql.RandomIdSeekBeforeSql, catId, target, cancellationToken);
+            if (picked is int picId && seen.Add(picId))
+            {
+                ids.Add(picId);
+            }
+        }
+
+        return ids;
+    }
+
+    public async Task<IReadOnlyList<PhotoItem>> GetPublishedByIdsAsync(
+        int catId,
+        IReadOnlyList<int> picIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (picIds.Count == 0)
+        {
+            return [];
+        }
+
         var nameRows = await dbContext.Database
             .SqlQueryRaw<NameRow>(sql.CategoryNameSql, catId)
             .ToListAsync(cancellationToken);
@@ -148,13 +204,57 @@ public sealed class EfPhotoRepository : IPhotoRepository
         var categorySlug = NewsSlug.Slugify(categoryName);
 
         var rows = await dbContext.Database
-            .SqlQueryRaw<CategoryPageRow>(sql.RandomInCategorySql, catId, safeTake)
+            .SqlQueryRaw<CategoryPageRow>(PhotoSqlQueries.ApplyIdList(sql.PublishedByIdsSql, picIds), catId)
             .ToListAsync(cancellationToken);
+        var byId = rows.ToDictionary(row => row.pic_id);
+        var items = new List<PhotoItem>(picIds.Count);
+        foreach (var picId in picIds.Distinct())
+        {
+            if (byId.TryGetValue(picId, out var row))
+            {
+                items.Add(MapItem(row, catId, categoryName, categorySlug));
+            }
+        }
 
-        IReadOnlyList<PhotoItem> items = rows
-            .Select(row => MapItem(row, catId, categoryName, categorySlug))
-            .ToList();
         return items;
+    }
+
+    private async Task<DimensionRow?> LoadDimensionsAsync(
+        int catId,
+        int picId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.Database
+            .SqlQueryRaw<DimensionRow>(sql.PhotoDimensionsSql, catId, picId)
+            .ToListAsync(cancellationToken);
+        return rows.FirstOrDefault();
+    }
+
+    private async Task<DetailNavigationRow?> LoadNavigationRowAsync(
+        int catId,
+        int picId,
+        PhotoListFilter filter,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.Database
+            .SqlQueryRaw<DetailNavigationRow>(
+                sql.ApplyFilter(sql.DetailNavigationSql, filter),
+                catId,
+                picId)
+            .ToListAsync(cancellationToken);
+        return rows.FirstOrDefault();
+    }
+
+    private async Task<int?> SeekPublishedPicIdAsync(
+        string seekSql,
+        int catId,
+        int targetPicId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.Database
+            .SqlQueryRaw<IntValueRow>(seekSql, catId, targetPicId)
+            .ToListAsync(cancellationToken);
+        return rows.FirstOrDefault() is { } row && row.Value > 0 ? row.Value : null;
     }
 
     public async Task<IReadOnlyList<PhotoSitemapCategory>> GetPublishedSitemapCategoriesAsync(
@@ -196,24 +296,22 @@ public sealed class EfPhotoRepository : IPhotoRepository
             Year: row.DATE_TIME.Year,
             DateTime: row.DATE_TIME);
 
+    private static PhotoNeighborMedia? NeighborMedia(
+        int? picId,
+        string? filePath,
+        int? width,
+        int? height) =>
+        picId is null
+            ? null
+            : new PhotoNeighborMedia(filePath, width ?? 0, height ?? 0);
+
     private static PhotoItem MapDetailItem(DetailNavigationRow row, int catId, string categoryName, string categorySlug) =>
-        new(
-            PicId: row.pic_id,
-            CatId: catId,
-            CategoryName: categoryName,
-            CategorySlug: categorySlug,
-            Title: row.NAME,
-            ImageUrl: PhotoImageUrl.Build(row.URL),
-            ThumbnailUrl: PhotoImageUrl.Build(row.THUMB_URL),
-            ThumbWidth: row.T_WIDTH,
-            ThumbHeight: row.T_HEIGHT,
-            PictureWidth: row.PIC_WIDTH,
-            PictureHeight: row.PIC_HEIGHT,
-            Year: row.DATE_TIME.Year,
-            DateTime: row.DATE_TIME,
-            SubmittedByDisplayName: string.IsNullOrWhiteSpace(row.submitted_by_display_name)
+        MapItem(row, catId, categoryName, categorySlug) with
+        {
+            SubmittedByDisplayName = string.IsNullOrWhiteSpace(row.submitted_by_display_name)
                 ? null
-                : row.submitted_by_display_name.Trim());
+                : row.submitted_by_display_name.Trim(),
+        };
 
     private interface IPhotoRow
     {
@@ -303,6 +401,18 @@ public sealed class EfPhotoRepository : IPhotoRepository
         public int? PreviousPicId { get; set; }
 
         public int? NextPicId { get; set; }
+
+        public string? PreviousUrl { get; set; }
+
+        public int? PreviousWidth { get; set; }
+
+        public int? PreviousHeight { get; set; }
+
+        public string? NextUrl { get; set; }
+
+        public int? NextWidth { get; set; }
+
+        public int? NextHeight { get; set; }
     }
 
     private sealed class NameRow
@@ -313,6 +423,20 @@ public sealed class EfPhotoRepository : IPhotoRepository
     private sealed class IntValueRow
     {
         public int Value { get; set; }
+    }
+
+    private sealed class IdBoundsRow
+    {
+        public int? MinId { get; set; }
+
+        public int? MaxId { get; set; }
+    }
+
+    private sealed class DimensionRow
+    {
+        public int PIC_WIDTH { get; set; }
+
+        public int PIC_HEIGHT { get; set; }
     }
 
     private sealed class SitemapRow

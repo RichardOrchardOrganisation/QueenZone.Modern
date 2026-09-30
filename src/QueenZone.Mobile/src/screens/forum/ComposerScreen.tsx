@@ -1,3 +1,4 @@
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -76,6 +77,7 @@ export function ComposerScreen({ navigation, route }: Props) {
 }
 
 function ComposerForm({ navigation, route }: Props) {
+  const headerHeight = useHeaderHeight();
   const { c } = useTheme();
   const { accessToken, profile } = useSession();
   const mode = composerMode(route.params);
@@ -322,9 +324,8 @@ function ComposerForm({ navigation, route }: Props) {
     categoryId,
     mode,
     navigation,
-    profile?.memberId,
-    route.params?.isLocked,
-    route.params?.threadId,
+    profile,
+    route.params,
     title,
   ]);
 
@@ -349,6 +350,7 @@ function ComposerForm({ navigation, route }: Props) {
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: c.surfacePage }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <ScrollView
         contentContainerStyle={styles.content}

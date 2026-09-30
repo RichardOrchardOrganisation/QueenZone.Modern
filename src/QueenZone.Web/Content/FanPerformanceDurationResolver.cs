@@ -5,19 +5,20 @@ using QueenZone.Storage;
 namespace QueenZone.Web;
 
 /// <summary>
-/// Resolves track duration for the mobile JSON API. Prefers MPEG headers from
-/// the private <c>songfiles</c> blob (cached), then the optional domain value
-/// used by sample data. Never throws: missing blobs stay <c>null</c>.
+/// Lazy single-track fallback for legacy rows without a stored duration.
 /// </summary>
 public sealed class FanPerformanceDurationResolver(
     IBlobUploadService blobUploadService,
     IMemoryCache cache)
 {
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromHours(24);
-    private const int MaxConcurrentBlobReads = 4;
-
     public async Task<int?> ResolveAsync(FanPerformance performance, CancellationToken cancellationToken)
     {
+        if (performance.DurationSeconds is int seconds)
+        {
+            return seconds;
+        }
+
         var cacheKey =
             $"fan-performance-duration:{performance.Id}:{performance.FileSizeBytes}:{performance.AudioFileName}";
         if (cache.TryGetValue(cacheKey, out CachedDuration cached))
@@ -26,50 +27,8 @@ public sealed class FanPerformanceDurationResolver(
         }
 
         var fromBlob = await TryReadFromBlobAsync(performance, cancellationToken);
-        var value = fromBlob ?? performance.DurationSeconds;
-        cache.Set(cacheKey, new CachedDuration(value), CacheLifetime);
-        return value;
-    }
-
-    public async Task<IReadOnlyList<int?>> ResolveManyAsync(
-        IReadOnlyList<FanPerformance> items,
-        CancellationToken cancellationToken)
-    {
-        if (items.Count == 0)
-        {
-            return [];
-        }
-
-        var results = new int?[items.Count];
-        using var gate = new SemaphoreSlim(MaxConcurrentBlobReads);
-        var tasks = new Task[items.Count];
-        for (var i = 0; i < items.Count; i++)
-        {
-            var index = i;
-            var item = items[i];
-            tasks[i] = ResolveIndexedAsync(gate, results, index, item, cancellationToken);
-        }
-
-        await Task.WhenAll(tasks);
-        return results;
-    }
-
-    private async Task ResolveIndexedAsync(
-        SemaphoreSlim gate,
-        int?[] results,
-        int index,
-        FanPerformance item,
-        CancellationToken cancellationToken)
-    {
-        await gate.WaitAsync(cancellationToken);
-        try
-        {
-            results[index] = await ResolveAsync(item, cancellationToken);
-        }
-        finally
-        {
-            gate.Release();
-        }
+        cache.Set(cacheKey, new CachedDuration(fromBlob), CacheLifetime);
+        return fromBlob;
     }
 
     private async Task<int?> TryReadFromBlobAsync(

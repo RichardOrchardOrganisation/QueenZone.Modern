@@ -6,6 +6,8 @@ namespace QueenZone.Web.Tests;
 
 internal static class AdminNewsSqliteTestHarness
 {
+    internal const string PagingSuffix = " ORDER BY PublishedAt DESC, NewsId DESC LIMIT {1} OFFSET {0}";
+
     internal const string LatestNewsSql = """
         SELECT
             NEWS_ID,

@@ -3,7 +3,7 @@
 @using QueenZone.Data
 @using QueenZone.Storage
 
-<partial name="_PageHero" model='@(("Members", "My submissions", "Track photos, news suggestions, articles, trivia facts, and fan performances you have submitted.", ""))' />
+<partial name="_PageHero" model='@(("Members", "My submissions", "Track photos, news suggestions, articles, trivia facts, quiz questions, and fan performances you have submitted.", ""))' />
 
 <section class="qz-section">
   <div class="qz-container qz-prose">
@@ -15,6 +15,8 @@
       <a href="/submit/article">Write an article</a>
       ·
       <a href="/submit/trivia">Suggest trivia</a>
+      ·
+      <a href="/submit/quiz-question">Suggest a quiz question</a>
       ·
       <a href="/submit/fan-performance">Submit a performance</a>
       ·
@@ -36,6 +38,9 @@
       <a class="qz-submissions-tabs__tab @(Model.ActiveTab == MySubmissionsModel.TabTrivia ? "is-active" : null)"
          href="@Model.GetTabHref(MySubmissionsModel.TabTrivia)"
          aria-current="@(Model.ActiveTab == MySubmissionsModel.TabTrivia ? "page" : null)">Trivia</a>
+      <a class="qz-submissions-tabs__tab @(Model.ActiveTab == MySubmissionsModel.TabQuiz ? "is-active" : null)"
+         href="@Model.GetTabHref(MySubmissionsModel.TabQuiz)"
+         aria-current="@(Model.ActiveTab == MySubmissionsModel.TabQuiz ? "page" : null)">Quiz</a>
       <a class="qz-submissions-tabs__tab @(Model.ActiveTab == MySubmissionsModel.TabPerformances ? "is-active" : null)"
          href="@Model.GetTabHref(MySubmissionsModel.TabPerformances)"
          aria-current="@(Model.ActiveTab == MySubmissionsModel.TabPerformances ? "page" : null)">Fan performances</a>
@@ -184,6 +189,44 @@
                 <td>@item.SubmittedAt.ToString("u")</td>
                 <td>
                   @if (item.Status == TriviaFactSubmissionStatus.Rejected
+                       && !string.IsNullOrWhiteSpace(item.RejectionReason))
+                  {
+                    <span>@item.RejectionReason</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    }
+    else if (Model.ActiveTab == MySubmissionsModel.TabQuiz)
+    {
+      <h2 class="visually-hidden">Quiz</h2>
+      @if (Model.QuizSubmissions.Count == 0)
+      {
+        <p>You have not suggested any quiz questions yet. <a href="/submit/quiz-question">Suggest a quiz question</a></p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var item in Model.QuizSubmissions)
+            {
+              <tr>
+                <td>@item.QuestionText</td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@item.SubmittedAt.ToString("u")</td>
+                <td>
+                  @if (item.Status == QuizQuestionSubmissionStatus.Rejected
                        && !string.IsNullOrWhiteSpace(item.RejectionReason))
                   {
                     <span>@item.RejectionReason</span>

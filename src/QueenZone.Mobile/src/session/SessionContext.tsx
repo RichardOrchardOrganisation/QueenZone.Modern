@@ -124,6 +124,19 @@ function releaseSmokeEmbedEnabled(): boolean {
   return config.appEnv === 'development' && config.smokeEmbed === true;
 }
 
+/**
+ * iOS launches the whole app for a BGTask (the home widget refresh, #990) and
+ * suspends it as soon as that task completes. A /token rotation started there
+ * can land on the server while the app never receives or persists the new
+ * grant; the next launch then replays the spent token outside the server's
+ * reuse grace window, and reuse detection revokes every grant the member has.
+ * Only rotate from the foreground. iOS reports `unknown` before the first
+ * activation of a normal launch, so only a definite `background` defers.
+ */
+function appIsInBackground(): boolean {
+  return AppState.currentState === 'background';
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session>({ ...signedOut, isRestoring: true });
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
@@ -207,11 +220,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       try {
         stored = await writeStoredSession(tokens);
         pendingSessionWriteRef.current = null;
-      } catch (error) {
-        if (!isKeychainLockedError(error)) {
-          throw error;
-        }
-        // Persist later — a locked Keychain must not unhandled-reject a background refresh.
+      } catch {
+        // Keep the new grant in memory whatever the write failure (locked
+        // Keychain or otherwise) and persist it on the next foreground. The
+        // server has already spent the previous refresh token, so dropping this
+        // one would replay a dead grant on the next refresh.
         pendingSessionWriteRef.current = tokens;
         stored = {
           ...tokens,
@@ -252,6 +265,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const refresh = refreshTokenRef.current;
     if (!refresh) {
       return Promise.resolve(sessionRef.current.accessToken);
+    }
+
+    if (appIsInBackground()) {
+      // Deferred, not failed: the foreground listener refreshes on `active`.
+      return Promise.resolve(null);
     }
 
     const flight = (async () => {
@@ -379,12 +397,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // instead of presenting the same single-use refresh token twice.
         refreshTokenRef.current = stored.refreshToken;
         expiresAtRef.current = stored.expiresAt;
-        const pendingRefresh = stored.expiresAt <= Date.now() ? refreshWithStoredGrant() : null;
+        const expired = stored.expiresAt <= Date.now();
+        const deferRefresh = appIsInBackground();
+        const pendingRefresh = expired && !deferRefresh ? refreshWithStoredGrant() : null;
 
         applyTokenState(stored, {
           displayName: stored.identity?.displayName ?? null,
           profile: shell,
         });
+
+        if (expired && deferRefresh) {
+          // Background launch: keep the stored grant untouched. The foreground
+          // listener refreshes it (and loads /me) when the member opens the app.
+          return;
+        }
 
         try {
           if (pendingRefresh) {
@@ -407,6 +433,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
             const canRetryRefresh =
               err instanceof ApiError && err.status === 401 && stored.expiresAt > Date.now();
+            if (canRetryRefresh && appIsInBackground()) {
+              return;
+            }
             if (canRetryRefresh) {
               const next = await refreshWithStoredGrant();
               if (!next && !cancelled && !sessionRef.current.accessToken && !memberIdRef.current) {
@@ -467,7 +496,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    const retryLockedWrite = () => {
+    const retryPendingWrite = () => {
       const pending = pendingSessionWriteRef.current;
       if (!pending) {
         return;
@@ -478,16 +507,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             pendingSessionWriteRef.current = null;
           }
         })
-        .catch((error) => {
-          if (!isKeychainLockedError(error)) {
-            throw error;
-          }
+        .catch(() => {
+          // Still pending; the next foreground or refresh tries again.
         });
     };
 
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        retryLockedWrite();
+        retryPendingWrite();
         if (refreshTokenRef.current) {
           flushIfSignedIn();
         }
@@ -789,10 +816,10 @@ function profileFromIdentityShell(identity: StoredIdentityShell | null | undefin
     limits: fallbackProfileLimits,
     deletion: {
       confirmationPhrase: 'DELETE',
-      confirmationHint: 'Type DELETE to schedule deletion of the account.',
-      requestedTitle: 'Account deletion scheduled',
+      confirmationHint: 'Type DELETE to delete the account.',
+      requestedTitle: 'Account deletion requested',
       requestedMessage:
-        'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.',
+        'Your account has been disabled and your personal data is being removed.',
       whatHappens: [],
     },
   };

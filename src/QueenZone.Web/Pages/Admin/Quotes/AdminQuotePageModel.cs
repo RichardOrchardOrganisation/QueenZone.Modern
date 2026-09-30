@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Admin.Quotes;
 
-public abstract class AdminQuotePageModel : PageModel
+public abstract class AdminQuotePageModel : AdminEditPageModel
 {
     public const string AntiforgeryTokenFieldName = "__RequestVerificationToken";
 

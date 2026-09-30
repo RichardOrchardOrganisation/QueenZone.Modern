@@ -110,6 +110,29 @@ bws secret list "1c16fd2d-4bfb-4eb7-8357-b49400233490"
 
 When copying settings from Bitwarden to local app settings, keep App Service setting names as canonical (`ConnectionStrings__QueenZoneLegacy`, `AzureAd__ClientSecret`, `OPENROUTER_API_KEY`, etc.) and translate to JSON sections only in ignored local files. Azure App Service settings and GitHub environment secrets remain separate runtime/deploy stores; Bitwarden mirrors them for local development and recovery, but changing Bitwarden alone does not update Azure or GitHub.
 
+### Startup option ranges and APNs environment
+
+`AddQueenZoneWebOptions` validates these settings at process start (`ValidateOnStart`). Invalid values fail startup and name the configuration key in the error.
+
+| Key | Range |
+| --- | --- |
+| `NewsSuggestions:MaxSubmissionsPerMemberPerDay` | 1–10,000 |
+| `FanPerformanceSubmissions:StaleAfterDays` | 1–365 |
+| `HelpRequests:MaxAnonymousPerIpPerHour`, `MaxPerMemberPerMinute`, `MaxPerEmailPerDay`, `MaxPerMemberPerDay` | 1–10,000 |
+| `HelpRequests:MinimumDwellSeconds` | 0–3,600 (`0` disables the dwell check; Testing uses this) |
+| `RateLimiting:PrivateMessages:WindowMinutes` | 1–1,440 |
+| `RateLimiting:PrivateMessages` message and recipient caps | 1–10,000 |
+| `RateLimiting:PrivateMessages:NewAccountAgeDays` | 1–365 |
+
+APNs environment:
+
+- Configuration key: `PushNotifications:Apns:Environment`
+- Environment variable: `PushNotifications__Apns__Environment`
+- Accepted values are exactly `sandbox` or `production` (lowercase, no surrounding whitespace)
+- When the setting is absent, Development defaults to `sandbox` and every other host environment defaults to `production`
+- An explicit value always wins over the host default
+- Do not add this key to shared `appsettings.json`; that would make it explicit in Development and defeat the absent-setting sandbox default
+
 ### Google Analytics dashboard traffic
 
 The admin dashboard can show GA4 traffic data when server-side credentials are configured. Local development works without these values; the dashboard shows an unavailable state instead of calling Google Analytics.

@@ -118,6 +118,42 @@ public sealed class DirectPushTransportTests
     }
 
     [Fact]
+    public async Task ApnsUnregistered_ReturnsTokenForRemoval()
+    {
+        var logger = new CollectingLogger<DirectPushTransport>();
+        var handler = new RecordingHttpMessageHandler
+        {
+            StatusCode = HttpStatusCode.Gone,
+            ResponseBody = """{"reason":"Unregistered"}""",
+        };
+        var transport = CreateTransport(handler, CreateConfiguredOptions(), logger: logger);
+        var token = DeviceTokenTestData.PushToken(Guid.NewGuid(), PushDevicePlatform.Apns, "retired-apns");
+
+        var unregistered = await transport.SendAsync([token], PushNotificationPayload.News(1, "Title"));
+
+        Assert.Equal(token, Assert.Single(unregistered));
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 1501);
+    }
+
+    [Fact]
+    public async Task FcmUnregistered_ReturnsTokenForRemoval()
+    {
+        var logger = new CollectingLogger<DirectPushTransport>();
+        var handler = new RecordingHttpMessageHandler
+        {
+            StatusCode = HttpStatusCode.NotFound,
+            ResponseBody = """{"error":{"details":[{"errorCode":"UNREGISTERED"}]}}""",
+        };
+        var transport = CreateTransport(handler, CreateConfiguredOptions(), accessToken: "ya29.test", logger);
+        var token = DeviceTokenTestData.PushToken(Guid.NewGuid(), PushDevicePlatform.Fcm, "retired-fcm");
+
+        var unregistered = await transport.SendAsync([token], PushNotificationPayload.News(1, "Title"));
+
+        Assert.Equal(token, Assert.Single(unregistered));
+        Assert.DoesNotContain(logger.Entries, entry => entry.EventId.Id == 1505);
+    }
+
+    [Fact]
     public async Task ProviderError_LogsMemberAndCategory_NotToken()
     {
         var logger = new CollectingLogger<DirectPushTransport>();

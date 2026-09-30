@@ -4,12 +4,28 @@ locals {
     cloudflare_zone      = var.cloudflare_zone_name
     environment          = var.environment
   }
+
+  # Taken from the managed web app. These are not hand-entered ranges.
+  production_app_service_sql_firewall_rules = {
+    for ip in toset(module.azure_web_target.possible_outbound_ip_addresses) :
+    "AppService-${replace(replace(ip, ".", "-"), ":", "-")}" => {
+      start_ip_address = ip
+      end_ip_address   = ip
+    }
+  }
 }
 
 check "production_scale_contract" {
   assert {
     condition     = var.app_service_sku == "B1" && var.app_service_worker_count == 1
     error_message = "Production must remain B1 with one worker unless the accepted hosting decision changes."
+  }
+}
+
+check "production_sql_firewall_covers_app_service" {
+  assert {
+    condition     = length(module.azure_web_target.possible_outbound_ip_addresses) > 0
+    error_message = "queenzone-prod must publish possible outbound IP addresses before SQL firewall rules can replace AllowAllWindowsAzureIps."
   }
 }
 
@@ -32,8 +48,14 @@ module "azure_data" {
   # The logical server remains because the dev environment uses
   # queenzone-dev-db. Its old production database and Storage sibling are
   # retired separately.
-  manage_sql_database    = false
-  manage_storage_account = false
+  #
+  # AllowAllWindowsAzureIps stays on this server. queenzone-devbox reaches
+  # queenzone-dev-db through it, and this root does not know that app's
+  # outbound addresses. Dropping the rule here would cut dev off.
+  manage_sql_database           = false
+  manage_storage_account        = false
+  sql_extended_auditing_enabled = true
+  log_analytics_workspace_id    = module.azure_web_target.log_analytics_workspace_id
 }
 
 # Phase 7 (#1272), Canada East production target.
@@ -71,7 +93,11 @@ module "azure_data_target" {
   sql_server_administrator_password_wo       = var.target_sql_admin_password
   # The copied database was admitted only after exact source/target row-count
   # verification. Its declarative imports are in imports.tf.
-  manage_sql_database = true
+  manage_sql_database                 = true
+  create_azure_services_firewall_rule = false
+  sql_firewall_rules                  = local.production_app_service_sql_firewall_rules
+  sql_extended_auditing_enabled       = true
+  log_analytics_workspace_id          = module.azure_web_target.log_analytics_workspace_id
 }
 
 # azure-data can also attach a database to an existing logical server for the

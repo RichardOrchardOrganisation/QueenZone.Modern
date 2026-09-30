@@ -2,11 +2,13 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.NewsAgent;
 using QueenZone.Storage;
 using QueenZone.Web.Health;
+using QueenZone.Web.Search;
 using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web;
@@ -83,21 +85,37 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<BlobUploadOptions>, BlobUploadOptionsValidator>();
 
         services.AddOptions<NewsSuggestionOptions>()
-            .Bind(configuration.GetSection(NewsSuggestionOptions.SectionName));
+            .Bind(configuration.GetSection(NewsSuggestionOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<NewsSuggestionOptions>, NewsSuggestionOptionsValidator>();
 
         services.AddOptions<FanPerformanceSubmissionOptions>()
-            .Bind(configuration.GetSection(FanPerformanceSubmissionOptions.SectionName));
+            .Bind(configuration.GetSection(FanPerformanceSubmissionOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<FanPerformanceSubmissionOptions>, FanPerformanceSubmissionOptionsValidator>();
 
         services.AddOptions<HelpRequestOptions>()
-            .Bind(configuration.GetSection(HelpRequestOptions.SectionName));
+            .Bind(configuration.GetSection(HelpRequestOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<HelpRequestOptions>, HelpRequestOptionsValidator>();
+
+        services.AddOptions<SmtpEmailOptions>()
+            .Bind(configuration.GetSection(SmtpEmailOptions.SectionName));
 
         services.AddOptions<PrivateMessageRateLimitOptions>()
-            .Bind(configuration.GetSection(PrivateMessageRateLimitOptions.SectionName));
+            .Bind(configuration.GetSection(PrivateMessageRateLimitOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<PrivateMessageRateLimitOptions>, PrivateMessageRateLimitOptionsValidator>();
 
         services.AddOptions<MobileAuthOptions>()
             .Bind(configuration.GetSection(MobileAuthOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<MobileAuthOptions>, MobileAuthOptionsValidator>();
+
+        services.AddOptions<PasswordSignInLockoutOptions>()
+            .Bind(configuration.GetSection(PasswordSignInLockoutOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<PasswordSignInLockoutOptions>, PasswordSignInLockoutOptionsValidator>();
 
         services.AddOptions<GalleryOrphanSweepOptions>()
             .Bind(configuration.GetSection(GalleryOrphanSweepOptions.SectionName))
@@ -105,7 +123,16 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<GalleryOrphanSweepOptions>, GalleryOrphanSweepOptionsValidator>();
 
         services.AddOptions<PushNotificationOptions>()
-            .Bind(configuration.GetSection(PushNotificationOptions.SectionName));
+            .Configure<IHostEnvironment>((options, environment) =>
+            {
+                options.Apns.Environment =
+                    environment.IsDevelopment() ? "sandbox" : "production";
+            })
+            .Bind(configuration.GetSection(PushNotificationOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            IValidateOptions<PushNotificationOptions>,
+            PushNotificationOptionsValidator>();
 
         return services;
     }
@@ -122,12 +149,45 @@ public static class QueenZoneWebServiceCollectionExtensions
             .Bind(configuration.GetSection(AuthRateLimitingOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AuthRateLimitingOptions>, AuthRateLimitingOptionsValidator>();
+        services.AddOptions<MutationRateLimitingOptions>()
+            .Bind(configuration.GetSection(MutationRateLimitingOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<
+            IValidateOptions<MutationRateLimitingOptions>,
+            MutationRateLimitingOptionsValidator>();
         services.AddSingleton<MobileAuthAccountRateLimiter>();
+        services.AddSingleton<MobileAuthReplayRecoveryLimiter>();
 
         services.AddRateLimiter(limiter =>
         {
             limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             limiter.OnRejected = AuthRateLimitRejection.WriteAsync;
+
+            // ASP.NET Core composes the global limiter with an endpoint policy.
+            // Return a no-op partition for every route except an endpoint that has
+            // explicitly opted into AuthenticatedWrite. This provides a coarse
+            // cross-account IP safety net while the named endpoint policy remains
+            // member-partitioned for fairness.
+            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AuthenticatedIpSafetyNet(context, opts);
+            });
+
+            limiter.AddPolicy(QueenZoneRateLimitPolicies.AnonymousWrite, context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AnonymousWrite(context, opts);
+            });
+
+            limiter.AddPolicy(QueenZoneRateLimitPolicies.AuthenticatedWrite, context =>
+            {
+                var opts = context.RequestServices
+                    .GetRequiredService<IOptions<MutationRateLimitingOptions>>().Value;
+                return MutationRateLimitPartitions.AuthenticatedWrite(context, opts);
+            });
 
             limiter.AddPolicy(FanPerformanceRateLimitingOptions.AudioPolicy, context =>
             {
@@ -235,7 +295,7 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .With(context => PublicOutputCachePolicies.IsCacheablePublicHtmlRequest(context.HttpContext))
                 .Expire(PublicOutputCachePolicies.HtmlDuration)
                 .SetVaryByRouteValue("*")
-                .SetVaryByQuery("*")
+                .SetVaryByQuery(PublicOutputCachePolicies.PublicHtmlQueryKeys)
                 .Tag(PublicOutputCachePolicies.PublicHtmlTag));
         });
         services.AddScoped<PublicQueryCacheService>();
@@ -256,10 +316,12 @@ public static class QueenZoneWebServiceCollectionExtensions
     public static IServiceCollection AddQueenZoneWebAppServices(this IServiceCollection services)
     {
         services.AddScoped<MemberAccountService>();
-        services.AddHostedService<MemberAccountDeletionHostedService>();
+        services.AddScoped<AppleAccountTokenService>();
+        services.AddScoped<MemberDeletionReceiptService>();
+        services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
+            client.Timeout = TimeSpan.FromSeconds(15));
         services.AddScoped<PrivateMessageRateLimiter>();
         services.AddScoped<PrivateMessageService>();
-        services.AddHostedService<PrivateMessageReportPurgeHostedService>();
         services.AddScoped<MemberFollowService>();
         services.AddScoped<TopicWatchService>();
         services.AddScoped<PhotoSubmissionService>();
@@ -271,12 +333,12 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<PhotoSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPurgeService>();
-        services.AddHostedService<FanPerformanceSubmissionPurgeHostedService>();
         services.AddScoped<GalleryOrphanSweepService>();
-        services.AddHostedService<GalleryOrphanSweepHostedService>();
         services.AddScoped<NewsSuggestionService>();
         services.AddSingleton<HelpRequestFormStamp>();
         services.AddSingleton<HelpRequestRateLimiter>();
+        services.AddSingleton<ISmtpTransport, GmailSmtpTransport>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<HelpRequestService>();
         services.AddScoped<PublicWarmupService>();
         services.AddScoped<UgcHtml>();
@@ -289,6 +351,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<ForumPostWriteService>();
         services.AddScoped<ForumPostReportService>();
         services.AddScoped<HomePollVoteService>();
+        services.AddScoped<QuizSprintService>();
         services.AddSingleton<IFcmAccessTokenProvider, GoogleFcmAccessTokenProvider>();
         services.AddHttpClient(DirectPushTransport.ApnsClientName, client =>
         {
@@ -348,6 +411,7 @@ public static class QueenZoneWebServiceCollectionExtensions
             services.AddQueenZoneInMemoryData();
             services.AddHostedService<Search.SearchIndexSeedHostedService>();
             services.AddHostedService<SampleGalleryImageSeedHostedService>();
+            services.AddHostedService<SampleLegacyForumAttachmentSeedHostedService>();
             return services;
         }
 
@@ -364,6 +428,13 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .Get<ForumDataOptions>() ?? new ForumDataOptions();
 
             services.AddQueenZoneLegacyData(legacyConnectionString, forumDataOptions);
+            if (environment.IsEnvironment(QueenZoneEnvironments.E2E))
+            {
+                // Sync/skip_sync copies production Azure SQL, which may not yet have
+                // modern tables such as QuizSprintRuns. Apply pending EF migrations to
+                // the disposable Express mirror before the RealData host serves GET /.
+                services.AddHostedService<E2EMirrorMigrationHostedService>();
+            }
         }
         else
         {
@@ -385,6 +456,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddQueenZoneRateLimiting(configuration);
         services.AddQueenZoneSitemaps();
         services.AddQueenZoneWebAppServices();
+        services.AddQueenZoneMaintenanceHostedServices(configuration);
 
         if (ResponseCompressionBootstrap.IsEnabled(environment))
         {
@@ -392,6 +464,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         }
 
         services.AddQueenZoneData(configuration, environment);
+        services.AddSiteSearchResultCache();
         if (QueenZoneEnvironments.UsesInMemoryBlobStorage(environment))
         {
             services.AddQueenZoneFunctionalInMemoryStorage(configuration);
@@ -410,6 +483,83 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddMobileApiContractHost(environment);
 
         return services;
+    }
+
+    /// <summary>
+    /// Wraps the already-registered <see cref="ISiteSearchService"/> with a size-bounded
+    /// in-process result cache. Dedicated <see cref="SiteSearchResultCache"/> so search
+    /// entries do not share the app-wide memory cache.
+    /// </summary>
+    public static IServiceCollection AddSiteSearchResultCache(this IServiceCollection services)
+    {
+        services.AddHttpContextAccessor();
+        services.TryAddSingleton<SiteSearchResultCache>();
+
+        var existing = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(ISiteSearchService));
+        if (existing is null)
+        {
+            throw new InvalidOperationException("ISiteSearchService must be registered before the search result cache.");
+        }
+
+        services.Remove(existing);
+        RegisterUnwrappedInner(services, existing);
+        services.Add(new ServiceDescriptor(
+            typeof(ISiteSearchService),
+            provider => new CachingSiteSearchService(
+                CreateSiteSearchInner(provider, existing),
+                provider.GetRequiredService<SiteSearchResultCache>(),
+                provider.GetRequiredService<IHttpContextAccessor>(),
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                scopedProvider => CreateSiteSearchInner(scopedProvider, existing),
+                provider.GetService<TimeProvider>()),
+            existing.Lifetime));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Keep the concrete/undecorated inner resolvable from a dedicated scope without
+    /// going through <see cref="ISiteSearchService"/> — that slot is the caching
+    /// decorator and would recurse.
+    /// </summary>
+    private static void RegisterUnwrappedInner(IServiceCollection services, ServiceDescriptor existing)
+    {
+        if (existing.ImplementationType is not { } innerType
+            || innerType.IsInterface
+            || innerType == typeof(ISiteSearchService)
+            || innerType == typeof(CachingSiteSearchService))
+        {
+            return;
+        }
+
+        services.TryAdd(new ServiceDescriptor(innerType, innerType, existing.Lifetime));
+    }
+
+    private static ISiteSearchService CreateSiteSearchInner(IServiceProvider provider, ServiceDescriptor existing)
+    {
+        ISiteSearchService inner;
+        if (existing.ImplementationInstance is ISiteSearchService instance)
+        {
+            inner = instance;
+        }
+        else if (existing.ImplementationFactory is not null)
+        {
+            inner = (ISiteSearchService)existing.ImplementationFactory(provider);
+        }
+        else
+        {
+            var innerType = existing.ImplementationType
+                ?? throw new InvalidOperationException("ISiteSearchService registration has no implementation.");
+            inner = (ISiteSearchService)provider.GetRequiredService(innerType);
+        }
+
+        if (inner is CachingSiteSearchService)
+        {
+            throw new InvalidOperationException(
+                "Shared search fetch must resolve the unwrapped inner service, not ISiteSearchService.");
+        }
+
+        return inner;
     }
 
     /// <summary>

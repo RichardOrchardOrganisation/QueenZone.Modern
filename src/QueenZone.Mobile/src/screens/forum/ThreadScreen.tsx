@@ -19,7 +19,7 @@ import { resolvePushMemberId } from '../../notifications/pushMemberId';
 import { type OfflineQueueItem, useOfflineQueue } from '../../offlineQueue';
 import { useSession } from '../../session/SessionContext';
 import { openForumComposer, openSignIn } from '../../session/signInNavigation';
-import { EmptyBlock, ErrorBlock, LoadingBlock, OfflineBanner } from '../../ui/ScreenStates';
+import { EmptyBlock, ErrorBlock, LoadingBlock, OfflineBanner, SectionErrorBlock } from '../../ui/ScreenStates';
 import { ThemedRefreshControl } from '../../ui/ThemedRefreshControl';
 import { testIds } from '../../test/testIds';
 import { space, type, useTheme } from '../../theme';
@@ -47,6 +47,8 @@ export function ThreadScreen({ navigation, route }: Props) {
   const [postsCachedAt, setPostsCachedAt] = useState<string | null>(null);
   const [reportedPostIds, setReportedPostIds] = useState<Set<number>>(() => new Set());
   const [blockedMemberIds, setBlockedMemberIds] = useState<Set<string>>(() => new Set());
+  const [moderationError, setModerationError] = useState<string | null>(null);
+  const [moderationReloadToken, setModerationReloadToken] = useState(0);
 
   useEffect(() => {
     if (route.params.reportedPostId) {
@@ -87,13 +89,19 @@ export function ThreadScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (!accessToken || paged.items.length === 0) return;
+    let cancelled = false;
     const postIds = paged.items.map((post) => post.id);
     const authorMemberIds = [...new Set(paged.items.map((post) => post.authorMemberId).filter((authorId): authorId is string => Boolean(authorId)))];
     void fetchForumPostModerationState(accessToken, postIds, authorMemberIds).then((state) => {
+      if (cancelled) return;
       setReportedPostIds(new Set(state.reportedPostIds));
       setBlockedMemberIds(new Set(state.blockedMemberIds));
-    }).catch(() => undefined);
-  }, [accessToken, paged.items]);
+      setModerationError(null);
+    }).catch(() => {
+      if (!cancelled) setModerationError('Could not load report and block status. Try again.');
+    });
+    return () => { cancelled = true; };
+  }, [accessToken, paged.items, moderationReloadToken]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -241,6 +249,12 @@ export function ThreadScreen({ navigation, route }: Props) {
       {stats ? (
         <Text style={[type.meta, { color: c.textMuted, marginTop: space.md }]}>{stats}</Text>
       ) : null}
+      {moderationError ? (
+        <SectionErrorBlock
+          message={moderationError}
+          onRetry={() => setModerationReloadToken((current) => current + 1)}
+        />
+      ) : null}
       <ForumWatchControl
         isSignedIn={isSignedIn}
         watching={forumThread.watching}
@@ -287,6 +301,7 @@ export function ThreadScreen({ navigation, route }: Props) {
           onReply={openReply}
         />
       }
+      alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={refresh} />
       }
