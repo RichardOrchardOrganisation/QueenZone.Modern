@@ -477,7 +477,7 @@ public class AdminModerationWorkflowTests : RealDataPageTest
     /// Reloads after save without waiting on subresources (CDN preview images). The Title
     /// input after <c>DOMContentLoaded</c> is the persistence signal (#1934).
     /// </summary>
-    private static async Task ReloadAndAssertTitlePersistedAsync(IPage page, string expectedTitle)
+    private async Task ReloadAndAssertTitlePersistedAsync(IPage page, string expectedTitle)
     {
         IResponse? response = null;
         try
