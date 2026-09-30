@@ -27,6 +27,8 @@ There are none of these: `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `HACK` / 
 | Article, forum, trivia, news-agent, and idempotency code ([#1822](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1822)) | Private `HtmlTagRegex`, `ToOffset`, `EnsureRowVersion`, trivia normalisation, and unique-violation helpers | [#1843](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/pull/1843) consolidated them into shared helpers while preserving the intentional row-version and null-handling differences. |
 | `ModernForumRepository` 14 × `[ExcludeFromCodeCoverage]` (13 methods + `ForumSearchRow`) | SQL Server stored-procedure reads | #1892 covers them with `ModernForumRepositorySqlServerTests` plus `ModernForumRepositoryLiveProbeTests`. |
 | `EfForumWriteRepository` 2 × `[ExcludeFromCodeCoverage]` (`ApplyCreateThreadStatsAsync`, `ApplyCreatePostStatsAsync`) | SQL Server read-stat maintenance | #1892 covers them with `EfForumWriteReadStatsSqlServerTests`. |
+| `EfSql` class-level `[ExcludeFromCodeCoverage]` | SQL Server-only ADO.NET glue | #1896 covers remaining helpers with `EfSqlSqlServerTests`; existing photo/biography/news/forum SqlServerTests already hit query/scalar/non-query/procedure paths. |
+| `EfProductionSql` class-level `[ExcludeFromCodeCoverage]` | Production SQL Server query text | #1896: existing `*RepositorySqlServerTests` plus `EfPublicReadRepositoryTests` string-shape facts exercise the factories; `EfSqlSqlServerTests` covers unused `CreatePhotoQueries`. |
 | `LegacyForumRepository` 13 × `[ExcludeFromCodeCoverage]` | SQL Server legacy forum reads | #1891 covers them with `LegacyForumRepositorySqlServerTests` plus `EfLegacyForumRepositoryLegacyProbeTests`. |
 
 ### Remove with a linked issue

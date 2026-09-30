@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +12,6 @@ namespace QueenZone.Data;
 /// Helpers for invoking SQL Server stored procedures (including output parameters)
 /// through the EF-managed connection without Dapper.
 /// </summary>
-[ExcludeFromCodeCoverage] // SQL Server-only ADO.NET glue; not exercised by SQLite unit tests.
 internal static class EfSql
 {
     public static async Task<IReadOnlyList<T>> QueryProcAsync<T>(

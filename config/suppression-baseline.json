@@ -112,12 +112,6 @@
     "src/QueenZone.Data/Repositories/EfAdminNewsRepository.cs": {
       "pragma-warning-disable": 3
     },
-    "src/QueenZone.Data/Sql/EfProductionSql.cs": {
-      "exclude-from-code-coverage": 1
-    },
-    "src/QueenZone.Data/Sql/EfSql.cs": {
-      "exclude-from-code-coverage": 1
-    },
     "src/QueenZone.Mobile/app.config.ts": {
       "eslint-disable": 2
     },
