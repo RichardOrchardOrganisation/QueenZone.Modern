@@ -43,12 +43,27 @@ grants and insert-failure rollback. `MobileAuthServiceTests` covers losing refre
 races, retry guidance, and recovery within the replacement-token grace window.
 No duplicate implementation or tests are added here.
 
-Remaining SQL-specific gap, owned by **#1953**: these existing tests enable retry
-but do not inject a transient SQL failure or ambiguous commit acknowledgement to
-prove a replayed execution-strategy delegate remains safe. That is distinct from
-SQLite rollback and from simply running with `EnableRetryOnFailure`. Add a
-controlled fault-injection case in the existing SQL Server test project when that
-fixture is available; do not replace it with a SQLite-only claim.
+The #1953 follow-on adds two real-SQL fault-injection regressions to that fixture:
+
+- `TryRotate_TransientFailureBeforeCommitRollsBackAndRetriesOneSuccessor`: injects SQL error
+  40613 before commit after verifying the revoke/insert/link within the transaction;
+  requires two distinct attempts, one rollback, one commit and one linked successor
+- `TryRotate_LostCommitAcknowledgementRetriesWithoutDuplicatingAndReturnsSuccess`:
+  injects the same transient error after the real commit; requires two distinct
+  attempts, exactly one linked successor and a truthful successful result
+
+Both retain the production SQL Server retry strategy and reuse the existing
+`SqlExceptionFactory`. Retry/count/data assertions precede the result assertion.
+They are not SQLite substitutes or fault-free retry-configuration checks.
+
+Execution status: added but **not run in the cloud** (no .NET/SQL Server). Source
+inspection predicts the lost-acknowledgement test fails at its final `Assert.True`:
+the retried conditional revoke sees the committed old grant as already revoked and
+returns false, although the original attempt stored the successor. The repository
+interface says false stores nothing; existing service-level recovery may mask that
+result, so no user-facing failure is claimed without execution. Real SQL Server
+verification and any resulting narrow correction remain required before #1953 is
+complete.
 
 ## Verification boundaries
 
