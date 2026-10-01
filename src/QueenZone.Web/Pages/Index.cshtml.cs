@@ -37,16 +37,15 @@ public sealed class IndexModel(
 
     public NewsArchiveItem? LeadNews => Latest.Count > 0 ? Latest[0] : null;
 
-    public IReadOnlyList<NewsArchiveItem> SecondaryNews => Latest.Skip(1).Take(2).ToList();
+    public IReadOnlyList<NewsArchiveItem> SecondaryNews { get; private set; } = [];
 
-    public IReadOnlyList<NewsArchiveItem> NewsList => Latest.Skip(3).ToList();
+    public IReadOnlyList<NewsArchiveItem> NewsList { get; private set; } = [];
 
     public IReadOnlyList<ForumRecentThreadSummary> ForumThreads { get; private set; } = [];
 
-    public IReadOnlyList<ForumRecentThreadSummary> ForumNow => ForumThreads.Take(ForumNowCount).ToList();
+    public IReadOnlyList<ForumRecentThreadSummary> ForumNow { get; private set; } = [];
 
-    public IReadOnlyList<ForumRecentThreadSummary> ForumBand =>
-        ForumThreads.Skip(ForumNowCount).Take(ForumBandCount).ToList();
+    public IReadOnlyList<ForumRecentThreadSummary> ForumBand { get; private set; } = [];
 
     /// <summary>Forum replies posted today, or null when the count could not be loaded.</summary>
     public int? ForumRepliesToday { get; private set; }
@@ -93,8 +92,12 @@ public sealed class IndexModel(
         Now = timeProvider.GetUtcNow();
         var latest = await publicQueryCache.GetLatestNewsAsync(HomeNewsCount, cancellationToken);
         Latest = await newsDiscussion.ToArchiveItemsAsync(latest, cancellationToken);
+        SecondaryNews = Latest.Skip(1).Take(2).ToList();
+        NewsList = Latest.Skip(3).ToList();
         var threads = await publicQueryCache.GetForumRecentThreadsAsync(ForumRoutes.RecentThreadsCount, cancellationToken);
         ForumThreads = PublicContentMapper.ToForumRecentThreadSummaries(threads);
+        ForumNow = ForumThreads.Take(ForumNowCount).ToList();
+        ForumBand = ForumThreads.Skip(ForumNowCount).Take(ForumBandCount).ToList();
         ForumRepliesToday = await LoadForumRepliesTodayAsync(cancellationToken);
         LatestPhotos = await publicQueryCache.GetLatestPhotosAsync(LatestPhotoCount, cancellationToken);
         var today = DateOnly.FromDateTime(Now.UtcDateTime);

@@ -16,7 +16,7 @@
   let paused = false;
 
   const prefersReducedMotion = () =>
-    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   function show(index) {
     items[current].classList.remove(ACTIVE);

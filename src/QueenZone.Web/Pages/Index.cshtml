@@ -7,9 +7,20 @@
     var eraConfig = eraSlides.Select(slide => new { slide.Year, slide.Label, slide.Glow });
     var eraConfigJson = JsonSerializer.Serialize(eraConfig, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
     var now = Model.Now;
-    var repliesToday = Model.ForumRepliesToday is int count
-        ? $"{count:N0} new forum {(count == 1 ? "reply" : "replies")} today"
-        : null;
+    string? repliesToday = null;
+    if (Model.ForumRepliesToday is int count)
+    {
+        var repliesNoun = count == 1 ? "reply" : "replies";
+        repliesToday = $"{count:N0} new forum {repliesNoun} today";
+    }
+
+    var sprintPlayers = Model.SprintBoard.Players;
+    var sprintPlayersNote = "";
+    if (sprintPlayers > 0)
+    {
+        var playedVerb = sprintPlayers == 1 ? " has" : "s have";
+        sprintPlayersNote = $" {sprintPlayers:N0} member{playedVerb} played today.";
+    }
 }
 
 <h1 class="visually-hidden">QueenZone: Queen news, community and archive</h1>
@@ -205,11 +216,11 @@
         <a href="/photography">All photos &rarr;</a>
       </div>
       <div class="qz-home-photos__grid">
-        @foreach (var photo in Model.LatestPhotos)
+        @foreach (var tile in Model.LatestPhotos)
         {
-          <a class="qz-home-photos__tile" href="@PhotoRoutes.GetDetailPath(photo.CategorySlug, photo.PicId)">
-            <img src="@photo.ThumbnailUrl" alt="@photo.Title" loading="lazy">
-            <span class="qz-home-photos__caption">@photo.CategoryName</span>
+          <a class="qz-home-photos__tile" href="@PhotoRoutes.GetDetailPath(tile.CategorySlug, tile.PicId)">
+            <img src="@tile.ThumbnailUrl" alt="@tile.Title" loading="lazy">
+            <span class="qz-home-photos__caption">@tile.CategoryName</span>
           </a>
         }
       </div>
@@ -285,7 +296,7 @@
       <p class="qz-home-eyebrow qz-home-eyebrow--archive">The daily challenge &middot; 60 seconds</p>
       <h2 class="qz-home-sprint__title">The sixty-second Queen quiz</h2>
       <p class="qz-home-sprint__body">
-        A new run every day, drawn from the archive. One minute, one streak, one place on the leaderboard.@(Model.SprintBoard.Players > 0 ? $" {Model.SprintBoard.Players:N0} member{(Model.SprintBoard.Players == 1 ? " has" : "s have")} played today." : "")
+        A new run every day, drawn from the archive. One minute, one streak, one place on the leaderboard.@sprintPlayersNote
       </p>
       <p class="qz-home-sprint__board-label">Today's top three</p>
       <partial name="_SprintBoard" model='@((new SprintBoard(Model.SprintBoard.Rows.Take(3).ToList(), null, Model.SprintBoard.Players), false, "No scores yet today. Be the first on the board."))' />
