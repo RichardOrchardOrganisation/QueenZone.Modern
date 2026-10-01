@@ -6,116 +6,302 @@
     var eraSlides = HomeEraMontage.GetSlides(FileVersionProvider, HttpContext.Request.PathBase);
     var eraConfig = eraSlides.Select(slide => new { slide.Year, slide.Label, slide.Glow });
     var eraConfigJson = JsonSerializer.Serialize(eraConfig, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    var now = Model.Now;
+    var repliesToday = Model.ForumRepliesToday is int count
+        ? $"{count:N0} new forum {(count == 1 ? "reply" : "replies")} today"
+        : null;
 }
 
-<section class="qz-hero-archive" id="qz-hero-archive" aria-label="Homepage hero">
-  <div class="qz-hero-archive__glow" id="qz-era-glow" aria-hidden="true"></div>
-  <partial name="_PictureImage" model="@("/design-system/assets/crest-white.png", "", false, "qz-hero-archive__crest")" />
+<h1 class="visually-hidden">QueenZone: Queen news, community and archive</h1>
 
-  <div class="qz-container qz-hero-archive__inner">
-
-    <!-- Editorial column -->
-    <div class="qz-hero-archive__editorial">
-      <div class="qz-eyebrow qz-hero-archive__badge">The Archive</div>
-      <h1 class="qz-hero-archive__title">Twenty-five years of the Queen internet zone</h1>
-      <p class="qz-hero-archive__standfirst">From hand-coded HTML in 1999 to the community&#8217;s final form &#8212; every era of Queenzone.com, restored and morphed into one living home.</p>
-      <div class="qz-hero-archive__actions">
-        <a class="qz-button qz-button--cta" href="/about">Read More</a>
-        <span class="qz-hero-archive__meta">Est. 1999 &middot; queenzone.com</span>
-      </div>
-      <a class="qz-hero-archive__mobile-link" href="/mobile-apps">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-          <rect x="7" y="2" width="10" height="20" rx="2"></rect>
-          <path d="M10 5h4M11 19h2"></path>
-        </svg>
-        <span>Try out the Mobile Apps</span>
-        <span class="qz-hero-archive__platforms" aria-hidden="true">Android &middot; iOS</span>
-      </a>
-    </div>
-
-    <!-- Morphing site-window stage -->
-    <div class="qz-hero-archive__stage">
-      <!-- Archive-stack ghost frames -->
-      <div class="qz-hero-archive__ghost qz-hero-archive__ghost--far" aria-hidden="true"></div>
-      <div class="qz-hero-archive__ghost qz-hero-archive__ghost--near" aria-hidden="true"></div>
-
-      <!-- macOS-style browser window -->
-      <div class="qz-hero-archive__window" aria-hidden="true">
-        <div class="qz-hero-archive__titlebar">
-          <span class="qz-hero-archive__dot"></span>
-          <span class="qz-hero-archive__dot"></span>
-          <span class="qz-hero-archive__dot"></span>
-          <span class="qz-hero-archive__era-label" id="qz-era-label">The Queen Internet Zone</span>
-          <span class="qz-hero-archive__era-year" id="qz-era-year">1999</span>
-        </div>
-        <div class="qz-hero-archive__viewport">
-          @for (var index = 0; index < eraSlides.Count; index++)
-          {
-            var slide = eraSlides[index];
-            var screenshotClass = index == 0
-                ? "qz-hero-archive__screenshot qz-hero-archive__screenshot--active"
-                : "qz-hero-archive__screenshot";
-            <img class="@screenshotClass"
-                 src="@slide.Img"
-                 alt="Queenzone.com in @slide.Year"
-                 loading="@(index == 0 ? "eager" : "lazy")"
-                 fetchpriority="@(index == 0 ? "high" : "auto")"
-                 width="787" height="518">
-          }
-          <div class="qz-hero-archive__overlay"></div>
-        </div>
-      </div>
-
-      <!-- Era ticker -->
-      <div class="qz-hero-archive__ticker" role="group" aria-label="Browse Queenzone eras">
-        <button class="qz-era-btn qz-era-btn--active" data-era="0" aria-pressed="true">1999<span class="qz-era-btn__pip"></span></button>
-        <button class="qz-era-btn" data-era="1" aria-pressed="false">2000<span class="qz-era-btn__pip"></span></button>
-        <button class="qz-era-btn" data-era="2" aria-pressed="false">2002<span class="qz-era-btn__pip"></span></button>
-        <button class="qz-era-btn" data-era="3" aria-pressed="false">2004<span class="qz-era-btn__pip"></span></button>
-        <button class="qz-era-btn" data-era="4" aria-pressed="false">2020<span class="qz-era-btn__pip"></span></button>
-      </div>
-    </div>
-
-  </div>
-</section>
-<script type="application/json" id="qz-era-config">@Html.Raw(eraConfigJson)</script>
-
-<section class="qz-section qz-section--warm">
-  <div class="qz-container">
-    <partial name="_SectionHeader" model="@(("Explore the Archive", "Five ways into Queenzone", false, (string?)null, (string?)null))" />
-    <div class="qz-grid qz-grid--five">
-      <a class="qz-card" href="/news"><div class="qz-card__kicker">News archive</div><h3>4,000+ articles</h3><p>Chronological archive entries and newly approved editorial news.</p></a>
-      <a class="qz-card" href="/articles"><div class="qz-card__kicker">Articles</div><h3>Features and essays</h3><p>Restored editorial features and long-form archive packages from Queenzone.com.</p></a>
-      <a class="qz-card" href="/biography"><div class="qz-card__kicker">Biography</div><h3>The Queen story</h3><p>Year-marked chapters from the preserved Queenzone biography archive.</p></a>
-      <a class="qz-card" href="/photography"><div class="qz-card__kicker">Photography</div><h3>Restored images</h3><p>A cinematic gallery pattern for the future photographic archive.</p></a>
-      <a class="qz-card" href="/forum"><div class="qz-card__kicker">Forum history</div><h3>100,000+ posts</h3><p>Read-only community history prepared for modern browsing.</p></a>
-    </div>
-  </div>
-</section>
-
-<partial name="_SprintCallout" model="Model.SprintBoard" />
-
-@if (Model.FeaturedQuote is not null)
+@if (Model.Ticker.Count > 0)
 {
-  <section class="qz-section" aria-label="Queen quote">
+  <div class="qz-home-live" aria-label="Happening now">
+    <div class="qz-container qz-home-live__inner">
+      <span class="qz-home-live__label"><span class="qz-home-live__dot" aria-hidden="true"></span>Happening now</span>
+      <ul class="qz-home-live__items" data-home-ticker>
+        @for (var index = 0; index < Model.Ticker.Count; index++)
+        {
+          var item = Model.Ticker[index];
+          <li class="qz-home-live__item@(index == 0 ? " qz-home-live__item--active" : "")">
+            <a href="@item.Href">@item.Text</a>
+            @if (item.When is not null)
+            {
+              <span class="qz-home-live__when">&middot; @item.When</span>
+            }
+          </li>
+        }
+      </ul>
+      @if (repliesToday is not null)
+      {
+        <a class="qz-home-live__count" href="/forum">@repliesToday</a>
+      }
+    </div>
+  </div>
+}
+
+<section class="qz-home-front" id="news" aria-label="Latest from Queenzone">
+  <div class="qz-container qz-home-front__row">
+
+    <div class="qz-home-front__lead">
+      @if (Model.LeadNews is { } lead)
+      {
+        <a class="qz-home-lead" href="@lead.DetailPath">
+          @if (lead.ImageUrl is not null)
+          {
+            <div class="qz-home-lead__media">
+              <img src="@lead.ImageUrl" alt="" fetchpriority="high">
+              <span class="qz-home-lead__badge">Latest</span>
+            </div>
+          }
+          <div class="qz-home-kicker">@(lead.SubmitterDisplayName is null ? "News" : "Community news")</div>
+          <h2 class="qz-home-lead__title">@lead.Title</h2>
+          @if (!string.IsNullOrWhiteSpace(lead.Excerpt))
+          {
+            <p class="qz-home-lead__excerpt">@lead.Excerpt</p>
+          }
+          <div class="qz-home-meta">
+            <time datetime="@lead.PublishedAt.ToString("yyyy-MM-dd")">@HomeRelativeTime.Format(lead.PublishedAt, now)</time>
+            @if (lead.ReplyCount is > 0)
+            {
+              <span class="qz-home-meta__comments">@lead.ReplyCount.Value.ToString("N0") comment@(lead.ReplyCount == 1 ? "" : "s")</span>
+            }
+          </div>
+        </a>
+      }
+      else
+      {
+        <p>No published news is available yet.</p>
+      }
+
+      @if (Model.SecondaryNews.Count > 0)
+      {
+        <div class="qz-home-secondary">
+          @foreach (var story in Model.SecondaryNews)
+          {
+            <a class="qz-home-secondary__item@(story.ThumbnailUrl is null ? " qz-home-secondary__item--text" : "")" href="@story.DetailPath">
+              @if (story.ThumbnailUrl is not null)
+              {
+                <div class="qz-home-secondary__thumb"><img src="@story.ThumbnailUrl" alt="" loading="lazy"></div>
+              }
+              <div>
+                <div class="qz-home-kicker qz-home-kicker--editorial">@(story.SubmitterDisplayName is null ? "News" : "Community news")</div>
+                <h3 class="qz-home-secondary__title">@story.Title</h3>
+                <div class="qz-home-meta"><time datetime="@story.PublishedAt.ToString("yyyy-MM-dd")">@HomeRelativeTime.Format(story.PublishedAt, now)</time></div>
+              </div>
+            </a>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="qz-home-front__list">
+      <div class="qz-home-rule-head">
+        <h2>Latest news</h2>
+        <a href="/news">All news &rarr;</a>
+      </div>
+      @if (Model.NewsList.Count == 0)
+      {
+        <p class="qz-home-empty">More stories will appear here as news is published.</p>
+      }
+      else
+      {
+        <ol class="qz-home-newslist">
+          @foreach (var item in Model.NewsList)
+          {
+            <li>
+              <a href="@item.DetailPath">
+                <span class="qz-home-newslist__meta">
+                  <time datetime="@item.PublishedAt.ToString("yyyy-MM-dd")">@HomeRelativeTime.Format(item.PublishedAt, now)</time>
+                  @if (item.ReplyCount is > 0)
+                  {
+                    <span>@item.ReplyCount.Value.ToString("N0") comment@(item.ReplyCount == 1 ? "" : "s")</span>
+                  }
+                </span>
+                <span class="qz-home-newslist__title">@item.Title</span>
+              </a>
+            </li>
+          }
+        </ol>
+      }
+    </div>
+
+    <div class="qz-home-front__side">
+      <div class="qz-home-forum-now">
+        <div class="qz-home-forum-now__head">
+          <h2>Forum now<span class="qz-home-live__dot" aria-hidden="true"></span></h2>
+          @if (Model.ForumRepliesToday is int replies)
+          {
+            <span>@replies.ToString("N0") @(replies == 1 ? "reply" : "replies") today</span>
+          }
+        </div>
+        @if (Model.ForumNow.Count == 0)
+        {
+          <p class="qz-home-forum-now__empty">No recent forum activity yet.</p>
+        }
+        else
+        {
+          <ul>
+            @foreach (var thread in Model.ForumNow)
+            {
+              var live = HomeRelativeTime.IsLive(thread.LastActivityAt, now);
+              <li>
+                <a href="@thread.DetailPath">
+                  <span class="qz-home-forum-now__title">@thread.Title</span>
+                  <span class="qz-home-forum-now__meta">
+                    <span class="@(live ? "qz-home-is-live" : "")">@(live ? "Live · " : "")@HomeRelativeTime.Format(thread.LastActivityAt, now)</span>
+                    <span>@thread.ReplyCount.ToString("N0") @(thread.ReplyCount == 1 ? "reply" : "replies")</span>
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+        <a class="qz-home-forum-now__more" href="/forum">Join the conversation &rarr;</a>
+      </div>
+
+      <div class="qz-home-teasers">
+        <a class="qz-home-teaser" href="/quizzes/sprint">
+          <span class="qz-home-teaser__kicker qz-home-teaser__kicker--quiz">Daily challenge</span>
+          <span class="qz-home-teaser__title">The 60-second Queen sprint</span>
+          <span class="qz-home-teaser__cta">Play &rarr;</span>
+        </a>
+        @if (Model.HomePoll is { } teaserPoll)
+        {
+          <a class="qz-home-teaser" href="#home-poll">
+            <span class="qz-home-teaser__kicker qz-home-teaser__kicker--poll">@(teaserPoll.IsClosed ? "Poll results" : "Members' poll")</span>
+            <span class="qz-home-teaser__title">@teaserPoll.Question</span>
+            <span class="qz-home-teaser__cta">@(teaserPoll.IsClosed || teaserPoll.ViewerHasVoted ? "See results" : "Vote") &rarr;</span>
+          </a>
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="qz-home-apps" aria-label="Queenzone mobile apps">
+  <div class="qz-container qz-home-apps__inner">
+    <span class="qz-home-apps__icon" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+        <path d="M10 5h4M11 19h2"></path>
+      </svg>
+    </span>
+    <div class="qz-home-apps__copy">
+      <p class="qz-home-apps__eyebrow">Android &middot; iOS</p>
+      <h2 class="qz-home-apps__title">Queenzone in your pocket</h2>
+      <p class="qz-home-apps__body">News, the forum, the photo galleries and home-screen widgets for trivia, quotes and On This Day.</p>
+    </div>
+    <a class="qz-button qz-button--cta qz-home-apps__cta" href="/mobile-apps">Try out the Mobile Apps</a>
+  </div>
+</section>
+
+@if (Model.LatestPhotos.Count > 0)
+{
+  <section class="qz-home-photos" aria-labelledby="home-photos-heading">
     <div class="qz-container">
-      <blockquote class="qz-quote">
-        <p class="qz-quote__text">&ldquo;@Model.FeaturedQuote.Text&rdquo;</p>
-        <footer class="qz-quote__attribution">&mdash; @Model.FeaturedQuote.WhoSaid</footer>
-      </blockquote>
+      <div class="qz-home-rule-head qz-home-rule-head--top">
+        <h2 id="home-photos-heading">Just added to the gallery</h2>
+        <a href="/photography">All photos &rarr;</a>
+      </div>
+      <div class="qz-home-photos__grid">
+        @foreach (var photo in Model.LatestPhotos)
+        {
+          <a class="qz-home-photos__tile" href="@PhotoRoutes.GetDetailPath(photo.CategorySlug, photo.PicId)">
+            <img src="@photo.ThumbnailUrl" alt="@photo.Title" loading="lazy">
+            <span class="qz-home-photos__caption">@photo.CategoryName</span>
+          </a>
+        }
+      </div>
     </div>
   </section>
 }
 
-@if (Model.HomePoll is not null)
+@if (Model.ForumBand.Count > 0)
 {
-  var poll = Model.HomePoll;
-  <section class="qz-section" id="home-poll" aria-label="QueenZone poll">
-    <div class="qz-container">
-      <div class="qz-poll-frame">
-        <section class="qz-poll">
+  <section class="qz-home-forum" id="forum" aria-labelledby="home-forum-heading">
+    <partial name="_PictureImage" model="@("/design-system/assets/crest-white.png", "", true, "qz-home-forum__crest")" />
+    <div class="qz-container qz-home-forum__inner">
+      <div class="qz-home-section-head">
+        <div>
+          <div class="qz-home-eyebrow qz-home-eyebrow--gold">The community</div>
+          <h2 id="home-forum-heading" class="qz-home-section-title">Live from the forum</h2>
+        </div>
+        <a class="qz-home-section-head__link" href="/forum">All boards &rarr;</a>
+      </div>
+      <div class="qz-home-forum__grid">
+        @foreach (var thread in Model.ForumBand)
+        {
+          var live = HomeRelativeTime.IsLive(thread.LastActivityAt, now);
+          <a class="qz-home-forum__thread" href="@thread.DetailPath">
+            <span class="qz-home-forum__board">
+              <span>@thread.CategoryName</span>
+              <span class="@(live ? "qz-home-is-live" : "")">@(live ? "Live · " : "")@HomeRelativeTime.Format(thread.LastActivityAt, now)</span>
+            </span>
+            <span class="qz-home-forum__title">@thread.Title</span>
+            <span class="qz-home-forum__stats">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              @thread.ReplyCount.ToString("N0") @(thread.ReplyCount == 1 ? "reply" : "replies")
+            </span>
+          </a>
+        }
+      </div>
+      <div class="qz-home-forum__foot">
+        <span>@(repliesToday ?? "Join thousands of Queen fans in conversation.")</span>
+        <a class="qz-button qz-button--cta" href="/forum">Join the conversation</a>
+      </div>
+    </div>
+  </section>
+}
+
+<section class="qz-home-articles" id="articles" aria-labelledby="home-articles-heading">
+  <div class="qz-container">
+    <div class="qz-home-section-head">
+      <div>
+        <div class="qz-home-eyebrow qz-home-eyebrow--editorial">Latest reads</div>
+        <h2 id="home-articles-heading" class="qz-home-section-title">Articles &amp; features</h2>
+      </div>
+      <a class="qz-home-section-head__link" href="/articles">All articles &rarr;</a>
+    </div>
+    @if (Model.FeaturedArticles.Count == 0)
+    {
+      <p>No published articles are available yet.</p>
+    }
+    else
+    {
+      <div class="qz-grid qz-grid--three">
+        @foreach (var article in Model.FeaturedArticles)
+        {
+          <partial name="_ArticleCard" model="@(article.Image, article.Category, article.Title, article.Excerpt, article.Meta, article.Href, false)" />
+        }
+      </div>
+    }
+  </div>
+</section>
+
+<section class="qz-home-play" id="play" aria-label="Quiz and poll">
+  <div class="qz-container qz-home-play__grid">
+    <div class="qz-home-sprint" id="quiz-sprint">
+      <p class="qz-home-eyebrow qz-home-eyebrow--archive">The daily challenge &middot; 60 seconds</p>
+      <h2 class="qz-home-sprint__title">The sixty-second Queen quiz</h2>
+      <p class="qz-home-sprint__body">
+        A new run every day, drawn from the archive. One minute, one streak, one place on the leaderboard.@(Model.SprintBoard.Players > 0 ? $" {Model.SprintBoard.Players:N0} member{(Model.SprintBoard.Players == 1 ? " has" : "s have")} played today." : "")
+      </p>
+      <p class="qz-home-sprint__board-label">Today's top three</p>
+      <partial name="_SprintBoard" model='@((new SprintBoard(Model.SprintBoard.Rows.Take(3).ToList(), null, Model.SprintBoard.Players), false, "No scores yet today. Be the first on the board."))' />
+      <div class="qz-home-sprint__actions">
+        <a class="qz-button qz-button--cta" href="/quizzes/sprint">Play the sprint</a>
+        <a href="/quizzes/leaderboard">See the leaderboard &rarr;</a>
+      </div>
+    </div>
+
+    @if (Model.HomePoll is not null)
+    {
+      var poll = Model.HomePoll;
+      <div class="qz-home-poll" id="home-poll">
+        <section class="qz-poll qz-poll--dark" aria-label="QueenZone poll">
           <div class="qz-poll__header">
-            <p class="qz-poll__eyebrow">Community Poll</p>
+            <p class="qz-poll__eyebrow">Members' poll</p>
             @if (poll.IsClosed)
             {
               <span class="qz-poll__badge">Closed</span>
@@ -187,82 +373,102 @@
           </div>
         </section>
       </div>
+    }
+  </div>
+</section>
+
+@if (Model.FeaturedQuote is not null)
+{
+  <section class="qz-section qz-home-quote" aria-label="Queen quote">
+    <div class="qz-container">
+      <blockquote class="qz-quote">
+        <p class="qz-quote__text">&ldquo;@Model.FeaturedQuote.Text&rdquo;</p>
+        <footer class="qz-quote__attribution">&mdash; @Model.FeaturedQuote.WhoSaid</footer>
+      </blockquote>
     </div>
   </section>
 }
 
-<section class="qz-section qz-band-dark">
-  <partial name="_PictureImage" model="@("/design-system/assets/crest-white.png", "", false, "qz-band-dark__crest")" />
-  <div class="qz-container">
-    <partial name="_SectionHeader" model="@(("Featured", "Articles from the archive", true, "/articles", "View all"))" />
-    @if (Model.FeaturedArticles.Count == 0)
-    {
-      <p class="qz-on-dark">No published articles are available yet.</p>
-    }
-    else
-    {
-      <div class="qz-grid qz-grid--three">
-        @foreach (var article in Model.FeaturedArticles)
-        {
-          <partial name="_ArticleCard" model="@(article.Image, article.Category, article.Title, article.Excerpt, article.Meta, article.Href, true)" />
-        }
+<section class="qz-hero-archive qz-hero-archive--band" id="qz-hero-archive" aria-labelledby="home-archive-heading">
+  <div class="qz-hero-archive__glow" id="qz-era-glow" aria-hidden="true"></div>
+  <partial name="_PictureImage" model="@("/design-system/assets/crest-white.png", "", true, "qz-hero-archive__crest")" />
+
+  <div class="qz-container qz-hero-archive__inner" id="archive">
+
+    <!-- Editorial column -->
+    <div class="qz-hero-archive__editorial">
+      <div class="qz-eyebrow qz-hero-archive__badge">From the Queenzone.com archive</div>
+      <h2 class="qz-hero-archive__title" id="home-archive-heading">Twenty-five years of the Queen internet zone</h2>
+      <p class="qz-hero-archive__standfirst">From hand-coded HTML in 1999 to the community&#8217;s final form &#8212; every era of Queenzone.com, restored and morphed into one living home.</p>
+      <div class="qz-hero-archive__actions">
+        <a class="qz-button qz-button--cta" href="/about">Read More</a>
+        <span class="qz-hero-archive__meta">Est. 1999 &middot; queenzone.com</span>
       </div>
-    }
-  </div>
-</section>
+      <nav class="qz-home-archive-links" aria-label="Explore the archive">
+        <a href="/news">News archive</a>
+        <a href="/articles">Articles</a>
+        <a href="/biography">Biography</a>
+        <a href="/photography">Photo archive</a>
+        <a href="/forum">Forum history</a>
+        <a href="/timeline">Timeline</a>
+      </nav>
+    </div>
 
-<section class="qz-section">
-  <div class="qz-container">
-    <partial name="_SectionHeader" model="@(("Latest", "Latest news", false, "/news", "View all"))" />
-    @if (Model.Latest.Count == 0)
-    {
-      <p>No published news is available yet.</p>
-    }
-    else
-    {
-      <ol class="qz-news-list">
-        @foreach (var item in Model.Latest)
-        {
-          <li class="qz-news-row">
-            <div class="qz-meta"><time datetime="@item.PublishedAt.ToString("yyyy-MM-dd")">@item.PublishedAt.ToString("dd MMMM yyyy")</time></div>
-            <div>
-              <h3><a href="@item.DetailPath">@item.Title</a></h3>
-              <p>@item.Excerpt</p>
-            </div>
-          </li>
-        }
-      </ol>
-    }
-  </div>
-</section>
+    <!-- Morphing site-window stage -->
+    <div class="qz-hero-archive__stage">
+      <!-- Archive-stack ghost frames -->
+      <div class="qz-hero-archive__ghost qz-hero-archive__ghost--far" aria-hidden="true"></div>
+      <div class="qz-hero-archive__ghost qz-hero-archive__ghost--near" aria-hidden="true"></div>
 
-<section class="qz-section qz-section--warm">
-  <div class="qz-container">
-    <partial name="_SectionHeader" model="@(("Featured Photography", "A visual archive in progress", false, "/photography", "Browse gallery"))" />
-    @if (Model.FeaturedGalleryCategories.Count == 0)
-    {
-      <p>No published photography collections are available yet.</p>
-    }
-    else
-    {
-      var galleryTileClasses = new[] { "qz-gallery-tile qz-gallery-tile--tall", "qz-gallery-tile", "qz-gallery-tile qz-gallery-tile--wide", "qz-gallery-tile" };
-      <div class="qz-gallery-grid">
-        @for (var index = 0; index < Model.FeaturedGalleryCategories.Count; index++)
-        {
-          var category = Model.FeaturedGalleryCategories[index];
-          <a class="@galleryTileClasses[index % galleryTileClasses.Length]" href="@PhotoRoutes.GetCategoryPath(category.Slug)">
-            <img src="@category.CoverThumbnailUrl" alt="" loading="lazy">
-            <span class="qz-gallery-tile__caption"><span>@category.Name</span><span>@category.ImageCount.ToString("N0") @(category.ImageCount == 1 ? "image" : "images")</span></span>
-          </a>
-        }
+      <!-- macOS-style browser window -->
+      <div class="qz-hero-archive__window" aria-hidden="true">
+        <div class="qz-hero-archive__titlebar">
+          <span class="qz-hero-archive__dot"></span>
+          <span class="qz-hero-archive__dot"></span>
+          <span class="qz-hero-archive__dot"></span>
+          <span class="qz-hero-archive__era-label" id="qz-era-label">The Queen Internet Zone</span>
+          <span class="qz-hero-archive__era-year" id="qz-era-year">1999</span>
+        </div>
+        <div class="qz-hero-archive__viewport">
+          @for (var index = 0; index < eraSlides.Count; index++)
+          {
+            var slide = eraSlides[index];
+            var screenshotClass = index == 0
+                ? "qz-hero-archive__screenshot qz-hero-archive__screenshot--active"
+                : "qz-hero-archive__screenshot";
+            <img class="@screenshotClass"
+                 src="@slide.Img"
+                 alt="Queenzone.com in @slide.Year"
+                 loading="lazy"
+                 width="787" height="518">
+          }
+          <div class="qz-hero-archive__overlay"></div>
+        </div>
       </div>
-    }
+
+      <!-- Era ticker -->
+      <div class="qz-hero-archive__ticker" role="group" aria-label="Browse Queenzone eras">
+        <button class="qz-era-btn qz-era-btn--active" data-era="0" aria-pressed="true">1999<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="1" aria-pressed="false">2000<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="2" aria-pressed="false">2002<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="3" aria-pressed="false">2004<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="4" aria-pressed="false">2020<span class="qz-era-btn__pip"></span></button>
+      </div>
+    </div>
+
   </div>
 </section>
+<script type="application/json" id="qz-era-config">@Html.Raw(eraConfigJson)</script>
 
-<section class="qz-section qz-band-dark">
+<section class="qz-home-onthisday" aria-labelledby="home-onthisday-heading">
   <div class="qz-container">
-    <partial name="_SectionHeader" model="@(("On This Day", "This Day in Queen History", true, "/timeline", "View timeline"))" />
+    <div class="qz-home-section-head">
+      <div>
+        <div class="qz-home-eyebrow qz-home-eyebrow--gold">On this day &middot; @now.ToString("d MMMM", System.Globalization.CultureInfo.InvariantCulture)</div>
+        <h2 id="home-onthisday-heading" class="qz-home-section-title qz-home-section-title--sm">This Day in Queen History</h2>
+      </div>
+      <a class="qz-home-section-head__link" href="/timeline">View timeline &rarr;</a>
+    </div>
     @if (Model.OnThisDay.Count == 0)
     {
       <p>No exact Queen history records are available for today yet.</p>
@@ -271,25 +477,25 @@
     {
       @if (Model.IsOnThisDayFallback)
       {
-        <p class="qz-on-this-day-note">No exact match for today yet. Showing nearby dates from the archive.</p>
+        <p class="qz-home-onthisday__note">No exact match for today yet. Showing nearby dates from the archive.</p>
       }
-      <div class="qz-grid qz-grid--three qz-on-dark qz-on-this-day-grid">
+      <ol class="qz-home-onthisday__list">
         @foreach (var item in Model.OnThisDay)
         {
-          <article class="qz-on-this-day-item">
-            <div class="qz-card__kicker">
-              <time datetime="@item.EventDate.ToString("yyyy-MM-dd")">@item.FormattedDate</time>
+          <li>
+            <time datetime="@item.EventDate.ToString("yyyy-MM-dd")">@item.FormattedDate</time>
+            <div>
+              <h3>@item.Title</h3>
+              <p>@item.Summary</p>
             </div>
-            <h3>@item.Title</h3>
-            <p>@item.Summary</p>
-            <div class="qz-on-this-day-item__category">@item.Category</div>
-          </article>
+          </li>
         }
-      </div>
+      </ol>
     }
   </div>
 </section>
 
 @section Scripts {
   <script src="/js/home-archive-hero.js" asp-append-version="true" defer></script>
+  <script src="/js/home-live-ticker.js" asp-append-version="true" defer></script>
 }

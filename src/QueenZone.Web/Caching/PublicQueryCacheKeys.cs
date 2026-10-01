@@ -94,6 +94,9 @@ public static class PublicQueryCacheKeys
     public static string PhotoCategories(string version) =>
         $"{PhotoCategoriesSegment}:v{version}";
 
+    public static string LatestPhotos(string version, int count) =>
+        $"{Prefix}:photo:latest:v{version}:{count}";
+
     public static string FreddiePhotoSample(string version, int catId) =>
         $"{Prefix}:freddie:photo-sample:v{version}:{catId}";
 

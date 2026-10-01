@@ -263,6 +263,17 @@ public sealed class PublicQueryCacheService(
             cancellationToken);
     }
 
+    /// <summary>Newest displayed photos across all categories, for the homepage gallery strip.</summary>
+    public Task<IReadOnlyList<PhotoItem>> GetLatestPhotosAsync(int count, CancellationToken cancellationToken = default)
+    {
+        var version = GetPhotoCacheVersion();
+        return GetOrCreateAsync(
+            PublicQueryCacheKeys.LatestPhotos(version, count),
+            options.Value.PhotoCacheDuration,
+            () => photoRepository.GetLatestPublishedAsync(count, cancellationToken),
+            cancellationToken);
+    }
+
     public async Task<PhotoCategory?> GetPhotoCategoryBySlugAsync(
         string slug,
         CancellationToken cancellationToken = default)

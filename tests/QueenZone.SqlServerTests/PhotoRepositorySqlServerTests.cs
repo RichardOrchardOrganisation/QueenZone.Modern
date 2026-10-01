@@ -209,6 +209,20 @@ public sealed class PhotoRepositorySqlServerTests : IAsyncLifetime
         Assert.Equal(BaseTime, sitemap[0].Photos[0].DateTime);
     }
 
+    [Fact]
+    public async Task Latest_published_spans_categories_newest_insert_first_and_skips_hidden()
+    {
+        var latest = await repository.GetLatestPublishedAsync(3);
+
+        Assert.Equal([roger, noSize, portrait], latest.Select(item => item.PicId));
+        Assert.Equal((11, "Roger Taylor", "roger-taylor"), (latest[0].CatId, latest[0].CategoryName, latest[0].CategorySlug));
+        Assert.Equal(PhotoImageUrl.Build(Thumb("Drums")), latest[0].ThumbnailUrl);
+        Assert.Equal(9, latest[1].CatId);
+
+        var all = await repository.GetLatestPublishedAsync(50);
+        Assert.Equal([roger, noSize, portrait, tieHigh, tieLow], all.Select(item => item.PicId));
+    }
+
     private async Task AssertFilterAsync(PhotoSizePreset preset, params int[] expected)
     {
         var page = await repository.GetCategoryPageAsync(9, 1, 10, new PhotoListFilter(preset));

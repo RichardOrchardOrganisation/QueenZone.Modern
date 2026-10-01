@@ -20,7 +20,7 @@ public sealed class HomePageRoutesTests :
     }
 
     private static readonly Regex HomepageHeading = new(
-        @"<h1\b[^>]*>\s*Twenty-five years of the Queen internet zone\s*</h1>",
+        @"<h1\b[^>]*>\s*QueenZone: Queen news, community and archive\s*</h1>",
         RegexOptions.CultureInvariant | RegexOptions.Singleline);
 
     [Fact]
@@ -40,6 +40,59 @@ public sealed class HomePageRoutesTests :
         Assert.Equal(HttpStatusCode.OK, about.StatusCode);
         Assert.Equal(HttpStatusCode.Redirect, quizzes.StatusCode);
         Assert.Equal("/quizzes/sprint", quizzes.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
+    public async Task Home_leads_with_live_content_and_keeps_the_archive_and_apps()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        var html = await client.GetStringAsync("/");
+
+        // New content first: live strip, news, forum, gallery, articles, sprint.
+        Assert.Contains("data-home-ticker", html, StringComparison.Ordinal);
+        Assert.Contains("<h2>Latest news</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("Forum now", html, StringComparison.Ordinal);
+        Assert.Contains("Just added to the gallery", html, StringComparison.Ordinal);
+        Assert.Contains("Live from the forum", html, StringComparison.Ordinal);
+        Assert.Contains("Articles &amp; features", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/quizzes/sprint\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Weekly quiz", html, StringComparison.OrdinalIgnoreCase);
+
+        // The apps call to action sits directly under the front page, ahead of the feeds below it.
+        var apps = html.IndexOf("Try out the Mobile Apps", StringComparison.Ordinal);
+        Assert.InRange(apps, html.IndexOf("Forum now", StringComparison.Ordinal), html.IndexOf("Just added to the gallery", StringComparison.Ordinal));
+
+        // The Queenzone history montage moves below the fold as a section heading.
+        Assert.Matches(
+            new Regex(@"<h2\b[^>]*>\s*Twenty-five years of the Queen internet zone\s*</h2>"),
+            html);
+        Assert.True(html.IndexOf("id=\"qz-hero-archive\"", StringComparison.Ordinal) > html.IndexOf("id=\"play\"", StringComparison.Ordinal));
+        Assert.Contains("<script src=\"/js/home-live-ticker.js?v=", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0, "just now")]
+    [InlineData(20, "20 min ago")]
+    [InlineData(180, "3 hr ago")]
+    [InlineData(60 * 24, "1 day ago")]
+    [InlineData(60 * 48, "2 days ago")]
+    [InlineData(60 * 24 * 10, "22 Sep 2026")]
+    [InlineData(-30, "just now")]
+    public void Relative_time_matches_the_mobile_home_wording(int minutesAgo, string expected)
+    {
+        var now = new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(expected, HomeRelativeTime.Format(now.UtcDateTime.AddMinutes(-minutesAgo), now));
+    }
+
+    [Fact]
+    public void Forum_activity_inside_fifteen_minutes_counts_as_live()
+    {
+        var now = new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
+
+        Assert.True(HomeRelativeTime.IsLive(now.UtcDateTime.AddMinutes(-14), now));
+        Assert.False(HomeRelativeTime.IsLive(now.UtcDateTime.AddMinutes(-15), now));
     }
 
     [Fact]

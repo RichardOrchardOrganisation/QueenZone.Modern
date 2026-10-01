@@ -75,6 +75,19 @@ public sealed class SharedPhotoStore
         }
     }
 
+    public IReadOnlyList<AdminPhotoItem> GetLatestVisiblePhotos(int take)
+    {
+        lock (sync)
+        {
+            return photos
+                .Where(photo => photo.IsVisible)
+                .OrderByDescending(photo => photo.PicId)
+                .Take(take)
+                .Select(ToAdminItem)
+                .ToList();
+        }
+    }
+
     public AdminPhotoItem? GetPhoto(int picId)
     {
         lock (sync)

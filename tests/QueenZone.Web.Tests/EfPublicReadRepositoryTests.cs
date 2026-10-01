@@ -261,6 +261,10 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.False(page2.Items[0].HasPictureDimensions);
         Assert.Null(page2.Items[0].PictureDimensionsLabel);
 
+        var latest = await repository.GetLatestPublishedAsync(2);
+        Assert.Equal([11, 10], latest.Select(item => item.PicId));
+        Assert.Equal((3, "live-1986"), (latest[0].CatId, latest[0].CategorySlug));
+
         var middle = await repository.GetDetailNavigationAsync(3, 10);
         Assert.NotNull(middle);
         Assert.Equal(1, middle.Index);

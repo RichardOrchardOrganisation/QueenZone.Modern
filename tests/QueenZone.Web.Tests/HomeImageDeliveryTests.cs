@@ -24,7 +24,10 @@ public sealed class HomeImageDeliveryTests : IClassFixture<QueenZoneWebApplicati
         Assert.Contains("img-crowd.webp?v=", body);
         Assert.Contains("img-studio.webp?v=", body);
         Assert.Contains("loading=\"lazy\"", body);
-        Assert.Contains("fetchpriority=\"high\"", body);
+        // The era montage now sits below the fold, so every screenshot is lazy-loaded.
+        Assert.Equal(5, System.Text.RegularExpressions.Regex.Matches(
+            body,
+            @"class=""qz-hero-archive__screenshot[^""]*""\s+src=""[^""]+""\s+alt=""[^""]+""\s+loading=""lazy""").Count);
     }
 
     [Fact]

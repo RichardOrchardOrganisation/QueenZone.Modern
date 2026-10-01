@@ -219,6 +219,24 @@ public sealed class EfPhotoRepository : IPhotoRepository
         return items;
     }
 
+    public async Task<IReadOnlyList<PhotoItem>> GetLatestPublishedAsync(
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.Database
+            .SqlQueryRaw<LatestPhotoRow>(sql.LatestPublishedSql, Math.Clamp(take, 1, 24))
+            .ToListAsync(cancellationToken);
+
+        IReadOnlyList<PhotoItem> items = rows
+            .Select(row =>
+            {
+                var categoryName = row.category_name ?? string.Empty;
+                return MapItem(row, row.cat_id, categoryName, NewsSlug.Slugify(categoryName));
+            })
+            .ToList();
+        return items;
+    }
+
     private async Task<DimensionRow?> LoadDimensionsAsync(
         int catId,
         int picId,
@@ -366,6 +384,31 @@ public sealed class EfPhotoRepository : IPhotoRepository
         public int PIC_HEIGHT { get; set; }
 
         public int pic_id { get; set; }
+
+        public string? category_name { get; set; }
+    }
+
+    private sealed class LatestPhotoRow : IPhotoRow
+    {
+        public string NAME { get; set; } = string.Empty;
+
+        public DateTime DATE_TIME { get; set; }
+
+        public string URL { get; set; } = string.Empty;
+
+        public string THUMB_URL { get; set; } = string.Empty;
+
+        public int T_HEIGHT { get; set; }
+
+        public int T_WIDTH { get; set; }
+
+        public int PIC_WIDTH { get; set; }
+
+        public int PIC_HEIGHT { get; set; }
+
+        public int pic_id { get; set; }
+
+        public int cat_id { get; set; }
 
         public string? category_name { get; set; }
     }

@@ -591,19 +591,25 @@ public sealed class PublicQueryCacheServiceTests
         var secondCategories = await service.GetPhotoCategoriesAsync();
         var firstPage = await service.GetPhotoCategoryPageAsync(9, 1, 24);
         var secondPage = await service.GetPhotoCategoryPageAsync(9, 1, 24);
+        var firstLatest = await service.GetLatestPhotosAsync(8);
+        var secondLatest = await service.GetLatestPhotosAsync(8);
 
         Assert.Same(firstCategories, secondCategories);
         Assert.Same(firstPage, secondPage);
+        Assert.Same(firstLatest, secondLatest);
         Assert.Equal(1, photoRepository.CategoriesCallCount);
         Assert.Equal(1, photoRepository.PageCallCount);
+        Assert.Equal(1, photoRepository.LatestCallCount);
 
         service.InvalidatePhotoCache();
 
         _ = await service.GetPhotoCategoriesAsync();
         _ = await service.GetPhotoCategoryPageAsync(9, 1, 24);
+        _ = await service.GetLatestPhotosAsync(8);
 
         Assert.Equal(2, photoRepository.CategoriesCallCount);
         Assert.Equal(2, photoRepository.PageCallCount);
+        Assert.Equal(2, photoRepository.LatestCallCount);
     }
 
     [Fact]
@@ -1464,6 +1470,16 @@ public sealed class PublicQueryCacheServiceTests
         public Task<IReadOnlyList<PhotoSitemapCategory>> GetPublishedSitemapCategoriesAsync(
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public int LatestCallCount { get; private set; }
+
+        public Task<IReadOnlyList<PhotoItem>> GetLatestPublishedAsync(
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            LatestCallCount++;
+            return Task.FromResult<IReadOnlyList<PhotoItem>>([]);
+        }
     }
 
     private class CountingQuoteRepository(params QuoteItem[] quotes) : IQuoteRepository

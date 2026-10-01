@@ -74,7 +74,6 @@ public sealed class VersionedStaticImageTests : IClassFixture<QueenZoneWebApplic
         Assert.Contains("height=\"1000\"", body);
         Assert.Contains("width=\"787\"", body);
         Assert.Contains("height=\"518\"", body);
-        Assert.Contains("fetchpriority=\"high\"", body);
     }
 }
 
