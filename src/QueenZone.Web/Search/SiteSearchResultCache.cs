@@ -17,13 +17,20 @@ public sealed class SiteSearchResultCache : IDisposable
 
     public static readonly TimeSpan AbsoluteExpiration = TimeSpan.FromSeconds(60);
 
-    public SiteSearchResultCache()
+    public SiteSearchResultCache() : this(new SearchIndexRevision())
     {
+    }
+
+    public SiteSearchResultCache(SearchIndexRevision revision)
+    {
+        Revision = revision;
         Memory = new MemoryCache(new MemoryCacheOptions
         {
             SizeLimit = SizeLimit,
         });
     }
+
+    internal SearchIndexRevision Revision { get; }
 
     public IMemoryCache Memory { get; }
 

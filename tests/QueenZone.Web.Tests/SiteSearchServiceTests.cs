@@ -90,7 +90,7 @@ public sealed class SiteSearchServiceTests : IAsyncDisposable
     public async Task InMemoryIndex_does_not_write_tribute_documents()
     {
         var store = new SharedSearchIndexStore();
-        var index = new InMemorySearchIndexService(store);
+        var index = new InMemorySearchIndexService(store, new SearchIndexRevision());
         var leftover = new SearchDocumentEntity
         {
             SourceKey = SearchDocumentSourceKey.ForTribute(4),

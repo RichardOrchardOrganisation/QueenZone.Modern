@@ -80,6 +80,9 @@ internal sealed class ThrowingSprintBoardQuizRepository : IQuizRepository
     public Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default) =>
         Unsupported<QuizPlayView?>();
 
+    public Task<bool> HasPublishedSprintQuestionsAsync(CancellationToken cancellationToken = default) =>
+        Unsupported<bool>();
+
     public Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
         CancellationToken cancellationToken = default) =>
         Unsupported<IReadOnlyList<QuizSprintQuestion>>();

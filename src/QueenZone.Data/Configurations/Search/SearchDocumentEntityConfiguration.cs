@@ -26,8 +26,14 @@ public sealed class SearchDocumentEntityConfiguration : IEntityTypeConfiguration
             .IsUnique()
             .HasDatabaseName("UQ_SearchDocument_SourceKey");
 
+        // Candidate metadata stays on a narrow leaf instead of the body-bearing clustered row.
+        builder.HasIndex(document => document.Id)
+            .IncludeProperties(document => new { document.ContentType, document.PublishedAt, document.SourceKey })
+            .HasDatabaseName("IX_SearchDocument_CandidateMetadata");
+
         builder.HasIndex(document => new { document.ContentType, document.PublishedAt })
             .IsDescending(false, true)
+            .IncludeProperties(document => document.SourceKey)
             .HasDatabaseName("IX_SearchDocument_ContentType_PublishedAt");
     }
 }

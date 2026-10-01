@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace QueenZone.Data;
@@ -11,6 +12,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         string connectionString,
         ForumDataOptions? forumDataOptions = null)
     {
+        services.TryAddSingleton<SearchIndexRevision>();
         forumDataOptions ??= new ForumDataOptions();
 
         // IDbContextFactory first (singleton) for independent short-lived contexts used by
@@ -112,6 +114,7 @@ public static class QueenZoneDataServiceCollectionExtensions
 
     public static IServiceCollection AddQueenZoneInMemoryData(this IServiceCollection services)
     {
+        services.TryAddSingleton<SearchIndexRevision>();
         var store = new SharedNewsStore(SampleNewsData.CreateSeedArticles());
         services.AddSingleton(store);
         services.AddSingleton<INewsRepository, InMemoryNewsRepository>();

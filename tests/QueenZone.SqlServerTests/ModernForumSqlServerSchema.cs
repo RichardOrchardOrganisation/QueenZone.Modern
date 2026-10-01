@@ -230,7 +230,9 @@ public static class ModernForumSqlServerSchema
         """;
 
     public static string GetProcedureSql(string name) =>
-        new HideSuspendedMemberTopics().UpOperations
+        name == "ModernForum_GetTopicPostsPage"
+            ? OptimizePublicReadQueries.TopicPostsProcedureSql
+            : new HideSuspendedMemberTopics().UpOperations
             .OfType<SqlOperation>()
             .Single(operation => operation.Sql.Contains(
                 $"CREATE OR ALTER PROCEDURE dbo.{name}",
@@ -268,6 +270,7 @@ public static class ModernForumSqlServerSchema
             await schema.Database.ExecuteSqlRawAsync(batch, cancellationToken);
         }
 
+        await schema.Database.ExecuteSqlRawAsync(OptimizePublicReadQueries.ForumIndexesSql, cancellationToken);
         await schema.Database.ExecuteSqlRawAsync(GetCategoriesProcedureSql, cancellationToken);
         foreach (var name in new[]
         {

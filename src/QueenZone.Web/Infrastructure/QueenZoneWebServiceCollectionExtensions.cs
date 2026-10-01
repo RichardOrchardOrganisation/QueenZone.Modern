@@ -493,6 +493,7 @@ public static class QueenZoneWebServiceCollectionExtensions
     public static IServiceCollection AddSiteSearchResultCache(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
+        services.TryAddSingleton<SearchIndexRevision>();
         services.TryAddSingleton<SiteSearchResultCache>();
 
         var existing = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(ISiteSearchService));

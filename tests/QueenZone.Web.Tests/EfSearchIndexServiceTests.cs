@@ -10,6 +10,7 @@ public sealed class EfSearchIndexServiceTests : IAsyncDisposable
     private readonly SqliteConnection connection = new("DataSource=:memory:");
     private readonly QueenZoneDbContext dbContext;
     private readonly EfSearchIndexService service;
+    private readonly SearchIndexRevision revision = new();
 
     public EfSearchIndexServiceTests()
     {
@@ -19,13 +20,27 @@ public sealed class EfSearchIndexServiceTests : IAsyncDisposable
             .Options;
         dbContext = new QueenZoneDbContext(options);
         dbContext.Database.EnsureCreated();
-        service = new EfSearchIndexService(dbContext);
+        service = new EfSearchIndexService(dbContext, revision);
     }
 
     public async ValueTask DisposeAsync()
     {
         await dbContext.DisposeAsync();
         await connection.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Writes_AfterCommit_AdvanceSearchRevision()
+    {
+        var initial = revision.Value;
+        await service.UpsertAsync(Document("news:1", SiteSearchContentType.News, "Queen"));
+        Assert.Equal(initial + 1, revision.Value);
+        await service.RemoveAsync("news:1");
+        Assert.Equal(initial + 2, revision.Value);
+        await service.ReplaceContentTypeAsync(SiteSearchContentType.News, []);
+        Assert.Equal(initial + 3, revision.Value);
+        await Assert.ThrowsAsync<ArgumentException>(() => service.RemoveAsync(" "));
+        Assert.Equal(initial + 3, revision.Value);
     }
 
     [Fact]

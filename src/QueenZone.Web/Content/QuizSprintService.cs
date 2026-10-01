@@ -85,8 +85,8 @@ public sealed class QuizSprintService(
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("QueenZone.QuizSprint.v1");
     private readonly IDataProtector claimProtector = dataProtectionProvider.CreateProtector("QueenZone.QuizSprint.claim.v1");
 
-    public async Task<bool> HasQuestionsAsync(CancellationToken cancellationToken) =>
-        (await quizRepository.GetPublishedSprintQuestionsAsync(cancellationToken)).Count > 0;
+    public Task<bool> HasQuestionsAsync(CancellationToken cancellationToken) =>
+        quizRepository.HasPublishedSprintQuestionsAsync(cancellationToken);
 
     /// <summary>
     /// Starts a round, or returns null when no published questions exist. Questions whose

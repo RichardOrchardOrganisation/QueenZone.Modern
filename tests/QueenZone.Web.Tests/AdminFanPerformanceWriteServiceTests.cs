@@ -68,7 +68,7 @@ public sealed class AdminFanPerformanceWriteServiceTests
             queryCache,
             CreateSitemapService(outputCache, memoryCache),
             outputCache,
-            new InMemorySearchIndexService(searchStore),
+            new InMemorySearchIndexService(searchStore, new SearchIndexRevision()),
             NullLogger<AdminFanPerformanceWriteService>.Instance);
 
         _ = await queryCache.GetFanPerformanceVisibleCountAsync();
@@ -149,7 +149,7 @@ public sealed class AdminFanPerformanceWriteServiceTests
             CreateQueryCache(memoryCache, publicRepo),
             CreateSitemapService(outputCache, memoryCache),
             outputCache,
-            new InMemorySearchIndexService(searchStore),
+            new InMemorySearchIndexService(searchStore, new SearchIndexRevision()),
             NullLogger<AdminFanPerformanceWriteService>.Instance);
         return new WriteHarness(service, admin, publicRepo, searchStore, outputCache);
     }

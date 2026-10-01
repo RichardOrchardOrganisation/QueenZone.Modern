@@ -40,6 +40,8 @@ public interface IQuizRepository
     /// </summary>
     Task<QuizPlayView?> GetPublishedForPlayAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<bool> HasPublishedSprintQuestionsAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Server-only pool of questions from published quizzes for timed play.</summary>
     Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(CancellationToken cancellationToken = default);
 
