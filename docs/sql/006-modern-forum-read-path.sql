@@ -358,6 +358,15 @@ BEGIN
           AND p.IsHidden = 0;
     END;
 
+    -- Resolve visible page IDs on the narrow thread index before reading body/signature LOBs.
+    CREATE TABLE #PostPage (Id bigint NOT NULL PRIMARY KEY, LegacyPostId int NOT NULL);
+    INSERT INTO #PostPage (Id, LegacyPostId)
+    SELECT p.Id, p.LegacyPostId
+    FROM dbo.ModernForumPost p WITH (INDEX(IX_ModernForumPost_Thread_Posted))
+    WHERE p.ThreadId = @ThreadId AND p.IsHidden = 0
+    ORDER BY p.LegacyPostId ASC
+    OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
+
     SELECT
         p.BodyHtml AS TOPIC_MESSAGE,
         p.PostedAt AS TOPIC_DATE,
@@ -377,11 +386,10 @@ BEGIN
         p.AuthorMemberId,
         p.EditedAt,
         p.EditCount
-    FROM dbo.ModernForumPost p WITH (INDEX(IX_ModernForumPost_Thread_Posted))
-    WHERE p.ThreadId = @ThreadId
-      AND p.IsHidden = 0
-    ORDER BY p.LegacyPostId ASC
-    OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
+    FROM #PostPage page
+    INNER JOIN dbo.ModernForumPost p ON p.Id = page.Id
+    WHERE p.IsHidden = 0
+    ORDER BY page.LegacyPostId ASC;
 END;
 GO
 

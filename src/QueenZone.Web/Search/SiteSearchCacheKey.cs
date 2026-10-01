@@ -10,7 +10,8 @@ internal readonly record struct SiteSearchCacheKey(
     string Query,
     string? ContentType,
     int Page,
-    int PageSize)
+    int PageSize,
+    long Revision = 0)
 {
     public static SiteSearchCacheKey Normalize(string query, string? contentType, int page, int pageSize)
     {

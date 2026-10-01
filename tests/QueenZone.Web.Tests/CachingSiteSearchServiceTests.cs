@@ -21,6 +21,51 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchAsync_IndexChanges_InvalidatesCachedResults()
+    {
+        var services = new ServiceCollection();
+        services.AddQueenZoneInMemoryData();
+        services.AddSiteSearchResultCache();
+        await using var provider = services.BuildServiceProvider();
+        var index = provider.GetRequiredService<ISearchIndexService>();
+        var search = provider.GetRequiredService<ISiteSearchService>();
+        var document = new QueenZone.Data.Entities.SearchDocumentEntity
+        {
+            SourceKey = "news:777",
+            ContentType = SiteSearchContentType.News,
+            Title = "Unusual performance test",
+            Body = "Unusual performance test",
+            Url = "/news/777",
+        };
+        Assert.Empty((await search.SearchAsync("Unusual", null, 1, 20)).Results);
+        await index.UpsertAsync(document);
+        Assert.Single((await search.SearchAsync("Unusual", null, 1, 20)).Results);
+        await index.RemoveAsync(document.SourceKey);
+        Assert.Empty((await search.SearchAsync("Unusual", null, 1, 20)).Results);
+        await index.ReplaceContentTypeAsync(SiteSearchContentType.News, [document]);
+        Assert.Single((await search.SearchAsync("Unusual", null, 1, 20)).Results);
+        await index.ReplaceContentTypeAsync(SiteSearchContentType.News, []);
+        Assert.Empty((await search.SearchAsync("Unusual", null, 1, 20)).Results);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WriteDuringInflightRead_DoesNotReuseOldGeneration()
+    {
+        var revision = new SearchIndexRevision();
+        using var cache = new SiteSearchResultCache(revision);
+        var inner = new CountingSiteSearchService { HoldFirstCall = true };
+        var sut = Create(inner, anonymous: true, cache: cache);
+        var stale = sut.SearchAsync("Queen", null, 1, 20);
+        await inner.Entered.Task;
+        revision.Advance();
+        var fresh = await sut.SearchAsync("Queen", null, 1, 20);
+        inner.Release.SetResult();
+        await stale;
+        Assert.Same(fresh, await sut.SearchAsync("Queen", null, 1, 20));
+        Assert.Equal(2, inner.Calls);
+    }
+
+    [Fact]
     public async Task Anonymous_hit_reuses_cached_page()
     {
         var inner = new CountingSiteSearchService();

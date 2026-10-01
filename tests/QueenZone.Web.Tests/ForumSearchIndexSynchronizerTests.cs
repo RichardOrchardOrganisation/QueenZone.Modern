@@ -14,7 +14,7 @@ public sealed class ForumSearchIndexSynchronizerTests
         var store = new SharedSearchIndexStore();
         var lastActivity = new DateTimeOffset(2026, 8, 18, 12, 0, 0, TimeSpan.Zero);
         var synchronizer = new ForumSearchIndexSynchronizer(
-            new InMemorySearchIndexService(store),
+            new InMemorySearchIndexService(store, new SearchIndexRevision()),
             NullLogger<ForumSearchIndexSynchronizer>.Instance);
 
         await synchronizer.UpsertThreadAsync(4521, "  Live forum search title  ", lastActivity);
@@ -36,7 +36,7 @@ public sealed class ForumSearchIndexSynchronizerTests
     public async Task UpsertThreadAsync_RemovesDocument_WhenTitleIsBlank()
     {
         var store = new SharedSearchIndexStore();
-        var index = new InMemorySearchIndexService(store);
+        var index = new InMemorySearchIndexService(store, new SearchIndexRevision());
         await index.UpsertAsync(SearchReindexBuilder.MapForumThread(
             new ForumTopicSitemapItem(9, "Keep me", DateTime.UtcNow)));
         var synchronizer = new ForumSearchIndexSynchronizer(
@@ -66,7 +66,7 @@ public sealed class ForumSearchIndexSynchronizerTests
     public async Task RemoveThreadAsync_DeletesBySourceKey()
     {
         var store = new SharedSearchIndexStore();
-        var index = new InMemorySearchIndexService(store);
+        var index = new InMemorySearchIndexService(store, new SearchIndexRevision());
         await index.UpsertAsync(SearchReindexBuilder.MapForumThread(
             new ForumTopicSitemapItem(44, "Remove me", DateTime.UtcNow)));
         var synchronizer = new ForumSearchIndexSynchronizer(

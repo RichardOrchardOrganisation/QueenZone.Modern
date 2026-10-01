@@ -33,6 +33,12 @@ public sealed class ModernForumPostEntityConfiguration : IEntityTypeConfiguratio
         builder.HasIndex(post => post.PostedAt)
             .HasDatabaseName("IX_ModernForumPost_PostedAt_Visible")
             .HasFilter("[IsHidden] = 0");
+        builder.HasIndex(post => new { post.LegacyThreadTopicId, post.PostedAt, post.LegacyPostId })
+            .HasFilter("[IsHidden] = 0")
+            .HasDatabaseName("IX_ModernForumPost_VisibleDiscussion");
+        builder.HasIndex(post => new { post.ThreadId, post.LegacyPostId })
+            .IncludeProperties(post => new { post.PostedAt, post.AuthorDisplayName, post.IsHidden })
+            .HasDatabaseName("IX_ModernForumPost_Thread_Posted");
         builder.HasOne(post => post.Thread)
             .WithMany()
             .HasForeignKey(post => post.ThreadId)

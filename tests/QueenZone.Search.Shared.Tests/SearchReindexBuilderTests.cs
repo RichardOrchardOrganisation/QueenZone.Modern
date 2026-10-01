@@ -9,7 +9,7 @@ public sealed class SearchReindexBuilderTests
     private static (SearchReindexBuilder Builder, SharedSearchIndexStore Store) CreateBuilder()
     {
         var store = new SharedSearchIndexStore();
-        var indexService = new InMemorySearchIndexService(store);
+        var indexService = new InMemorySearchIndexService(store, new SearchIndexRevision());
 
         var newsStore = new SharedNewsStore(SampleNewsData.CreateSeedArticles());
         var newsRepository = new InMemoryNewsRepository(newsStore);
@@ -74,7 +74,7 @@ public sealed class SearchReindexBuilderTests
     public async Task ReindexForumAsync_KeepsThreadsCreatedAfterSeed()
     {
         var store = new SharedSearchIndexStore();
-        var indexService = new InMemorySearchIndexService(store);
+        var indexService = new InMemorySearchIndexService(store, new SearchIndexRevision());
         var forumWriteRepository = new InMemoryForumWriteRepository();
         var forumRepository = new InMemoryForumRepository(
             SampleForumData.CreateSeedCategories(),
@@ -114,7 +114,7 @@ public sealed class SearchReindexBuilderTests
     public async Task ReindexArticlesAsync_IndexesOnlyPublishedArticles()
     {
         var store = new SharedSearchIndexStore();
-        var indexService = new InMemorySearchIndexService(store);
+        var indexService = new InMemorySearchIndexService(store, new SearchIndexRevision());
         var newsRepository = new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles()));
         var forumRepository = new InMemoryForumRepository(
             SampleForumData.CreateSeedCategories(),
@@ -201,7 +201,7 @@ public sealed class SearchReindexBuilderTests
         var store = new SharedSearchIndexStore();
         var innerBiography = new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters());
         var builder = new SearchReindexBuilder(
-            new InMemorySearchIndexService(store),
+            new InMemorySearchIndexService(store, new SearchIndexRevision()),
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryForumRepository(
                 SampleForumData.CreateSeedCategories(),
@@ -256,7 +256,7 @@ public sealed class SearchReindexBuilderTests
     public async Task ReindexArticlesAsync_DoesNotAliasArticleTypeToLegacyArticle()
     {
         var store = new SharedSearchIndexStore();
-        var indexService = new InMemorySearchIndexService(store);
+        var indexService = new InMemorySearchIndexService(store, new SearchIndexRevision());
         var authorId = Guid.NewGuid();
         var articleSubmissionRepository = new InMemoryArticleSubmissionRepository();
         var longBody = "Full body about studio sessions and the making of the album. " +
@@ -318,7 +318,7 @@ public sealed class SearchReindexBuilderTests
     public async Task ReindexTimelineAsync_IndexesOnlyPublishedEvents()
     {
         var store = new SharedSearchIndexStore();
-        var indexService = new InMemorySearchIndexService(store);
+        var indexService = new InMemorySearchIndexService(store, new SearchIndexRevision());
         var seedEvents = SampleQueenHistoryData.CreateSeedEvents().ToList();
         var hiddenEvent = seedEvents[0] with { Id = 9001, Title = "Unpublished draft event", IsPublished = false };
         var queenHistoryRepository = new InMemoryQueenHistoryRepository([.. seedEvents, hiddenEvent]);

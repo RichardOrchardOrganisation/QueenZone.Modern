@@ -2,7 +2,7 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : ISearchIndexService
+public sealed class InMemorySearchIndexService(SharedSearchIndexStore store, SearchIndexRevision revision) : ISearchIndexService
 {
     public Task UpsertAsync(SearchDocumentEntity document, CancellationToken cancellationToken = default)
     {
@@ -11,10 +11,12 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
         if (SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey))
         {
             store.Remove(document.SourceKey);
+            revision.Advance();
             return Task.CompletedTask;
         }
 
         store.Upsert(document);
+        revision.Advance();
         return Task.CompletedTask;
     }
 
@@ -22,6 +24,7 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceKey);
         store.Remove(sourceKey);
+        revision.Advance();
         return Task.CompletedTask;
     }
 
@@ -42,12 +45,14 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store) : I
                 }
             }
 
+            revision.Advance();
             return Task.CompletedTask;
         }
 
         store.ReplaceContentType(
             contentType,
             documents.Where(document => !SiteSearchExclusion.IsExcluded(document.ContentType, document.SourceKey)).ToList());
+        revision.Advance();
         return Task.CompletedTask;
     }
 

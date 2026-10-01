@@ -35,7 +35,7 @@ public sealed class CachingSiteSearchService(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var key = SiteSearchCacheKey.Normalize(query, contentType, page, pageSize);
+        var key = SiteSearchCacheKey.Normalize(query, contentType, page, pageSize) with { Revision = cache.Revision.Value };
 
         if (SiteSearchLimits.IsBelowMinimumLength(key.Query)
             || SiteSearchLimits.IsBeyondMaxPage(key.Page)

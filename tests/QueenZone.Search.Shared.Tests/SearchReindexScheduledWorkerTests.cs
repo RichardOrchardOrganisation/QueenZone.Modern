@@ -127,7 +127,7 @@ public sealed class SearchReindexScheduledWorkerTests
         ISearchIndexService? searchIndexService = null)
     {
         var searchReindexBuilder = new SearchReindexBuilder(
-            searchIndexService ?? new InMemorySearchIndexService(new SharedSearchIndexStore()),
+            searchIndexService ?? new InMemorySearchIndexService(new SharedSearchIndexStore(), new SearchIndexRevision()),
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryForumRepository(
                 SampleForumData.CreateSeedCategories(),

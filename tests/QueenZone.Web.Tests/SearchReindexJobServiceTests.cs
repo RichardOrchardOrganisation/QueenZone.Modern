@@ -70,7 +70,7 @@ public sealed class SearchReindexJobServiceTests
         var store = new SharedSearchIndexStore();
         return new FlakySearchIndexService
         {
-            Inner = new InMemorySearchIndexService(store),
+            Inner = new InMemorySearchIndexService(store, new SearchIndexRevision()),
             Exception = exception,
         };
     }

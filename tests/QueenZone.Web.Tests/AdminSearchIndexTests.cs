@@ -47,7 +47,7 @@ public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicatio
                 services.RemoveAll<ISearchIndexService>();
                 services.AddSingleton<ISearchIndexService>(sp => new HangingCountsSearchIndexService
                 {
-                    Inner = new InMemorySearchIndexService(sp.GetRequiredService<SharedSearchIndexStore>()),
+                    Inner = new InMemorySearchIndexService(sp.GetRequiredService<SharedSearchIndexStore>(), sp.GetRequiredService<SearchIndexRevision>()),
                 });
             });
         });
@@ -122,7 +122,7 @@ public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicatio
                 services.RemoveAll<ISearchIndexService>();
                 services.AddSingleton<ISearchIndexService>(sp =>
                 {
-                    gate.Inner = new InMemorySearchIndexService(sp.GetRequiredService<SharedSearchIndexStore>());
+                    gate.Inner = new InMemorySearchIndexService(sp.GetRequiredService<SharedSearchIndexStore>(), sp.GetRequiredService<SearchIndexRevision>());
                     return gate;
                 });
             });

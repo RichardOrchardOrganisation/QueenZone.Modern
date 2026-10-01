@@ -18,6 +18,11 @@ public sealed class ModernForumThreadEntityConfiguration : IEntityTypeConfigurat
         builder.HasIndex(thread => thread.LegacyTopicId)
             .IsUnique()
             .HasDatabaseName("UQ_ModernForumThread_LegacyTopicId");
+        builder.HasIndex(thread => new { thread.LastActivityAt, thread.LegacyTopicId })
+            .IsDescending(true, true)
+            .HasFilter("[IsHidden] = 0 AND [IsLegacyTopicStarter] = 1 AND [StartedByUserValidated] = 1")
+            .IncludeProperties(thread => new { thread.CategoryId, thread.Title, thread.ReplyCount })
+            .HasDatabaseName("IX_ModernForumThread_PublicRecent");
         builder.HasOne(thread => thread.Category)
             .WithMany()
             .HasForeignKey(thread => thread.CategoryId)

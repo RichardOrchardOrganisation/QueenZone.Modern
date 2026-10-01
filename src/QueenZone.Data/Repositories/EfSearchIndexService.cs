@@ -12,7 +12,7 @@ namespace QueenZone.Data;
 /// <c>CHANGE_TRACKING AUTO</c> (background crawl), so these writes do not hold table
 /// locks or trigger a synchronous catalog rebuild.
 /// </remarks>
-public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearchIndexService
+public sealed class EfSearchIndexService(QueenZoneDbContext dbContext, SearchIndexRevision revision) : ISearchIndexService
 {
     public async Task UpsertAsync(SearchDocumentEntity document, CancellationToken cancellationToken = default)
     {
@@ -50,6 +50,7 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        revision.Advance();
     }
 
     public async Task RemoveAsync(string sourceKey, CancellationToken cancellationToken = default)
@@ -59,6 +60,7 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         await dbContext.SearchDocuments
             .Where(d => d.SourceKey == sourceKey)
             .ExecuteDeleteAsync(cancellationToken);
+        revision.Advance();
     }
 
     public async Task ReplaceContentTypeAsync(
@@ -73,6 +75,7 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
         {
             await SiteSearchExclusion.WhereExcluded(dbContext.SearchDocuments)
                 .ExecuteDeleteAsync(cancellationToken);
+            revision.Advance();
             return;
         }
 
@@ -114,6 +117,7 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext) : ISearch
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         });
+        revision.Advance();
     }
 
     public async Task<IReadOnlyDictionary<string, int>> GetContentTypeCountsAsync(CancellationToken cancellationToken = default) =>

@@ -155,6 +155,9 @@ public sealed class InMemoryQuizRepository(
             return quiz is null ? null : ToPlayView(quiz);
         }));
 
+    public Task<bool> HasPublishedSprintQuestionsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.Read((quizzes, _) => quizzes.Any(quiz => quiz.IsPublished && quiz.Questions.Count > 0)));
+
     public Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
         CancellationToken cancellationToken = default) =>
         Task.FromResult(store.Read((quizzes, _) =>
