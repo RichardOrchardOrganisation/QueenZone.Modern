@@ -59,9 +59,19 @@ public sealed class HomePageRoutesTests :
         Assert.Contains("href=\"/quizzes/sprint\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Weekly quiz", html, StringComparison.OrdinalIgnoreCase);
 
-        // The apps call to action sits directly under the front page, ahead of the feeds below it.
+        // The front page opens with the newest photos and a quiz callout, not a lead news story.
+        var gallery = html.IndexOf("Just added to the gallery", StringComparison.Ordinal);
+        var quiz = html.IndexOf("id=\"quiz-callout\"", StringComparison.Ordinal);
+        var latestNews = html.IndexOf("<h2>Latest news</h2>", StringComparison.Ordinal);
+        Assert.True(gallery > 0 && gallery < quiz && quiz < latestNews);
+
+        // The apps band sits directly under the front page, ahead of the feeds below it.
         var apps = html.IndexOf("Try out the Mobile Apps", StringComparison.Ordinal);
-        Assert.InRange(apps, html.IndexOf("Forum now", StringComparison.Ordinal), html.IndexOf("Just added to the gallery", StringComparison.Ordinal));
+        Assert.InRange(apps, html.IndexOf("Forum now", StringComparison.Ordinal), html.IndexOf("Live from the forum", StringComparison.Ordinal));
+
+        // On phones a compact card takes its place, straight after the photos and quiz.
+        var appsCard = html.IndexOf("class=\"qz-home-apps-card\" href=\"/mobile-apps\"", StringComparison.Ordinal);
+        Assert.InRange(appsCard, quiz, latestNews);
 
         // The Queenzone history montage moves below the fold as a section heading.
         Assert.Matches(

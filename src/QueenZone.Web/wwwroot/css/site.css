@@ -7267,7 +7267,6 @@ select.qz-input {
    quiz + poll, then the Queenzone.com archive montage below the fold.
    ========================================================================== */
 
-.qz-home-kicker,
 .qz-home-eyebrow,
 .qz-home-live__label,
 .qz-home-teaser__kicker {
@@ -7276,41 +7275,11 @@ select.qz-input {
   text-transform: uppercase;
 }
 
-.qz-home-kicker {
-  font-size: 11px;
-  line-height: 1;
-  letter-spacing: 0.22em;
-  color: var(--qz-blue);
-  margin-bottom: 10px;
-}
-
-.qz-home-kicker--editorial {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--qz-burgundy);
-  margin-bottom: 7px;
-}
-
-.qz-home-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  font: var(--fw-medium) 12px/1 var(--font-body);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.qz-home-meta__comments { color: var(--qz-blue); }
-
 .qz-home-is-live { color: var(--qz-gold); }
 
 .qz-home-empty { color: var(--text-secondary); }
 
 /* Greyscale imagery that eases to colour on hover, as in the DS gallery. */
-.qz-home-lead__media img,
-.qz-home-secondary__thumb img,
 .qz-home-photos__tile img {
   width: 100%;
   height: 100%;
@@ -7320,10 +7289,6 @@ select.qz-input {
   transition: transform 620ms var(--ease-out), filter 620ms var(--ease-out);
 }
 
-.qz-home-lead:hover img,
-.qz-home-lead:focus-visible img,
-.qz-home-secondary__item:hover img,
-.qz-home-secondary__item:focus-visible img,
 .qz-home-photos__tile:hover img,
 .qz-home-photos__tile:focus-visible img {
   filter: grayscale(0);
@@ -7429,91 +7394,6 @@ select.qz-input {
   gap: 16px;
 }
 
-.qz-home-lead {
-  display: flex;
-  flex-direction: column;
-  color: inherit;
-  text-decoration: none;
-}
-
-.qz-home-lead__media {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background: var(--qz-grey-200);
-  margin-bottom: 14px;
-}
-
-.qz-home-lead__badge {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  padding: 6px 10px;
-  border-radius: var(--radius-xs);
-  background: var(--qz-blue);
-  color: var(--qz-white);
-  font: var(--fw-semibold) 11px/1 var(--font-titling);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-.qz-home-lead__title {
-  font: var(--fw-semibold) clamp(28px, 3vw, 38px)/1.08 var(--font-display);
-  letter-spacing: -0.015em;
-  color: var(--text-primary);
-  margin: 0 0 10px;
-  text-wrap: balance;
-}
-
-.qz-home-lead:hover .qz-home-lead__title { color: var(--qz-blue); }
-
-.qz-home-lead__excerpt {
-  margin: 0 0 12px;
-  font: var(--fw-regular) 16px/1.55 var(--font-body);
-  color: var(--text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.qz-home-secondary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 20px;
-  border-top: 1px solid var(--border-default);
-  padding-top: 20px;
-}
-
-.qz-home-secondary__item {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 14px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.qz-home-secondary__item--text { grid-template-columns: minmax(0, 1fr); }
-
-.qz-home-secondary__thumb {
-  aspect-ratio: 1;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--qz-grey-200);
-}
-
-.qz-home-secondary__title {
-  margin: 0 0 8px;
-  font: var(--fw-semibold) 18px/1.22 var(--font-display);
-  color: var(--text-primary);
-  text-wrap: pretty;
-}
-
-.qz-home-secondary__item:hover .qz-home-secondary__title { color: var(--qz-blue); }
-
-.qz-home-secondary .qz-home-meta { font-size: 11px; letter-spacing: 0.06em; }
-
 .qz-home-rule-head {
   display: flex;
   justify-content: space-between;
@@ -7521,13 +7401,6 @@ select.qz-input {
   gap: 12px;
   border-bottom: 1px solid var(--qz-charcoal);
   padding-bottom: 10px;
-}
-
-.qz-home-rule-head--top {
-  border-bottom: 0;
-  border-top: 1px solid var(--qz-charcoal);
-  padding: 12px 0 0;
-  margin-bottom: 14px;
 }
 
 .qz-home-rule-head h2 {
@@ -7642,12 +7515,6 @@ select.qz-input {
 
 .qz-home-forum-now__more:hover { color: var(--qz-white); }
 
-.qz-home-teasers {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 12px;
-}
-
 .qz-home-teaser {
   display: flex;
   flex-direction: column;
@@ -7663,7 +7530,6 @@ select.qz-input {
 .qz-home-teaser:hover { box-shadow: var(--shadow-lift); }
 
 .qz-home-teaser__kicker { font-size: 10px; line-height: 1; letter-spacing: 0.2em; }
-.qz-home-teaser__kicker--quiz { color: var(--qz-purple); }
 .qz-home-teaser__kicker--poll { color: var(--qz-burgundy); }
 
 .qz-home-teaser__title {
@@ -7676,6 +7542,48 @@ select.qz-input {
   font: var(--fw-medium) 12px/1 var(--font-body);
   color: var(--qz-blue);
 }
+
+/* Front-page quiz callout */
+.qz-home-quiz-callout {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px 32px;
+  padding: 32px;
+  border-top: 3px solid var(--qz-gold);
+  border-radius: var(--radius-md);
+  background: var(--qz-black);
+  color: var(--qz-white);
+}
+
+.qz-home-quiz-callout__copy { flex: 1 1 320px; min-width: 0; }
+
+.qz-home-quiz-callout__title {
+  margin: 0 0 12px;
+  font: var(--fw-semibold) clamp(30px, 3.4vw, 42px)/1.05 var(--font-display);
+  letter-spacing: -0.015em;
+  color: var(--qz-white);
+}
+
+.qz-home-quiz-callout__body {
+  margin: 0;
+  max-width: 480px;
+  font: var(--fw-regular) 16px/1.55 var(--font-body);
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.qz-home-quiz-callout__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.qz-home-quiz-callout__link { font: var(--fw-medium) 14px/1 var(--font-body); color: var(--qz-gold); }
+.qz-home-quiz-callout__link:hover { color: var(--qz-white); }
 
 /* Mobile apps band */
 .qz-home-apps {
@@ -7729,31 +7637,60 @@ select.qz-input {
 
 .qz-home-apps__cta { flex: none; }
 
-/* Gallery strip */
-.qz-home-photos { padding: 40px 0 56px; }
-
-/* 2 / 4 / 8 columns so the eight latest photos always fill whole rows. */
-.qz-home-photos__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
+/* Compact apps card shown on phones in place of the full band. */
+.qz-home-apps-card { display: none; }
 
 @media (max-width: 640px) {
-  .qz-home-photos__tile:nth-child(n + 5) { display: none; }
+  .qz-home-apps { display: none; }
+
+  .qz-home-apps-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1 1 100%;
+    padding: 16px;
+    border: 1px solid var(--qz-gold);
+    border-radius: var(--radius-md);
+    background: var(--qz-warm-white);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .qz-home-apps-card .qz-home-apps__icon { width: 48px; height: 48px; }
+
+  .qz-home-apps-card__copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+  .qz-home-apps-card__title {
+    font: var(--fw-semibold) 20px/1.15 var(--font-display);
+    color: var(--text-primary);
+  }
+
+  .qz-home-apps-card__cta {
+    font: var(--fw-medium) 14px/1.3 var(--font-body);
+    color: var(--qz-blue);
+  }
 }
 
-@media (min-width: 641px) {
-  .qz-home-photos__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Front-page photo mosaic: one feature tile and five, filling a 3×3 grid. */
+.qz-home-photos__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: -8px;
 }
 
-@media (min-width: 1100px) {
-  .qz-home-photos__grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.qz-home-photos__tile:first-child { grid-column: span 2; grid-row: span 2; aspect-ratio: auto; }
+
+@media (max-width: 640px) {
+  .qz-home-photos__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .qz-home-photos__tile:first-child { grid-row: auto; }
+  .qz-home-photos__tile:nth-child(n + 6) { display: none; }
 }
 
 .qz-home-photos__tile {
   position: relative;
   display: block;
+  min-height: 0;
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: var(--radius-sm);
@@ -8031,6 +7968,7 @@ select.qz-input {
   .qz-home-articles,
   .qz-home-play { padding-top: 56px; padding-bottom: 56px; }
   .qz-home-sprint,
+  .qz-home-quiz-callout,
   .qz-home-poll .qz-poll { padding: 24px; }
   .qz-home-apps__cta { width: 100%; text-align: center; }
   .qz-hero-archive--band .qz-hero-archive__inner { padding-top: 56px; }
@@ -8038,7 +7976,5 @@ select.qz-input {
 
 @media (prefers-reduced-motion: reduce) {
   .qz-home-live__item--active { animation: none; }
-  .qz-home-lead__media img,
-  .qz-home-secondary__thumb img,
   .qz-home-photos__tile img { transition: none; }
 }

@@ -23,10 +23,10 @@ public sealed class IndexModel(
         "/design-system/assets/img-stage.jpg",
     ];
 
-    /// <summary>Lead + two secondary stories + the seven-row latest list.</summary>
-    private const int HomeNewsCount = 10;
+    private const int HomeNewsCount = 8;
 
-    private const int LatestPhotoCount = 8;
+    /// <summary>One feature tile plus five, filling the 3×3 front-page photo grid.</summary>
+    private const int LatestPhotoCount = 6;
 
     /// <summary>Threads in the above-the-fold "Forum now" card; the rest fill the forum band.</summary>
     public const int ForumNowCount = 5;
@@ -34,12 +34,6 @@ public sealed class IndexModel(
     private const int ForumBandCount = 6;
 
     public IReadOnlyList<NewsArchiveItem> Latest { get; private set; } = [];
-
-    public NewsArchiveItem? LeadNews => Latest.Count > 0 ? Latest[0] : null;
-
-    public IReadOnlyList<NewsArchiveItem> SecondaryNews { get; private set; } = [];
-
-    public IReadOnlyList<NewsArchiveItem> NewsList { get; private set; } = [];
 
     public IReadOnlyList<ForumRecentThreadSummary> ForumThreads { get; private set; } = [];
 
@@ -92,8 +86,6 @@ public sealed class IndexModel(
         Now = timeProvider.GetUtcNow();
         var latest = await publicQueryCache.GetLatestNewsAsync(HomeNewsCount, cancellationToken);
         Latest = await newsDiscussion.ToArchiveItemsAsync(latest, cancellationToken);
-        SecondaryNews = Latest.Skip(1).Take(2).ToList();
-        NewsList = Latest.Skip(3).ToList();
         var threads = await publicQueryCache.GetForumRecentThreadsAsync(ForumRoutes.RecentThreadsCount, cancellationToken);
         ForumThreads = PublicContentMapper.ToForumRecentThreadSummaries(threads);
         ForumNow = ForumThreads.Take(ForumNowCount).ToList();
@@ -197,8 +189,9 @@ public sealed class IndexModel(
                 HomeRelativeTime.Format(thread.LastActivityAt, Now))));
         }
 
-        if (LeadNews is { } news)
+        if (Latest.Count > 0)
         {
+            var news = Latest[0];
             items.Add((news.PublishedAt, new HomeTickerItem(
                 $"News: {news.Title}",
                 news.DetailPath,

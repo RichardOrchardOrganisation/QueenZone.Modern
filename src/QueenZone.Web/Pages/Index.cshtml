@@ -55,70 +55,64 @@
   <div class="qz-container qz-home-front__row">
 
     <div class="qz-home-front__lead">
-      @if (Model.LeadNews is { } lead)
+      @if (Model.LatestPhotos.Count > 0)
       {
-        <a class="qz-home-lead" href="@lead.DetailPath">
-          @if (lead.ImageUrl is not null)
+        <div class="qz-home-rule-head">
+          <h2>Just added to the gallery</h2>
+          <a href="/photography">All photos &rarr;</a>
+        </div>
+        <div class="qz-home-photos__grid">
+          @for (var index = 0; index < Model.LatestPhotos.Count; index++)
           {
-            <div class="qz-home-lead__media">
-              <img src="@lead.ImageUrl" alt="" fetchpriority="high">
-              <span class="qz-home-lead__badge">Latest</span>
-            </div>
-          }
-          <div class="qz-home-kicker">@(lead.SubmitterDisplayName is null ? "News" : "Community news")</div>
-          <h2 class="qz-home-lead__title">@lead.Title</h2>
-          @if (!string.IsNullOrWhiteSpace(lead.Excerpt))
-          {
-            <p class="qz-home-lead__excerpt">@lead.Excerpt</p>
-          }
-          <div class="qz-home-meta">
-            <time datetime="@lead.PublishedAt.ToString("yyyy-MM-dd")">@HomeRelativeTime.Format(lead.PublishedAt, now)</time>
-            @if (lead.ReplyCount is > 0)
-            {
-              <span class="qz-home-meta__comments">@lead.ReplyCount.Value.ToString("N0") comment@(lead.ReplyCount == 1 ? "" : "s")</span>
-            }
-          </div>
-        </a>
-      }
-      else
-      {
-        <p>No published news is available yet.</p>
-      }
-
-      @if (Model.SecondaryNews.Count > 0)
-      {
-        <div class="qz-home-secondary">
-          @foreach (var story in Model.SecondaryNews)
-          {
-            <a class="qz-home-secondary__item@(story.ThumbnailUrl is null ? " qz-home-secondary__item--text" : "")" href="@story.DetailPath">
-              @if (story.ThumbnailUrl is not null)
-              {
-                <div class="qz-home-secondary__thumb"><img src="@story.ThumbnailUrl" alt="" loading="lazy"></div>
-              }
-              <div>
-                <div class="qz-home-kicker qz-home-kicker--editorial">@(story.SubmitterDisplayName is null ? "News" : "Community news")</div>
-                <h3 class="qz-home-secondary__title">@story.Title</h3>
-                <div class="qz-home-meta"><time datetime="@story.PublishedAt.ToString("yyyy-MM-dd")">@HomeRelativeTime.Format(story.PublishedAt, now)</time></div>
-              </div>
+            var tile = Model.LatestPhotos[index];
+            <a class="qz-home-photos__tile" href="@PhotoRoutes.GetDetailPath(tile.CategorySlug, tile.PicId)">
+              <img src="@tile.ThumbnailUrl" alt="@tile.Title" loading="@(index == 0 ? "eager" : "lazy")" fetchpriority="@(index == 0 ? "high" : "auto")">
+              <span class="qz-home-photos__caption">@tile.CategoryName</span>
             </a>
           }
         </div>
       }
+
+      <div class="qz-home-quiz-callout" id="quiz-callout">
+        <div class="qz-home-quiz-callout__copy">
+          <p class="qz-home-eyebrow qz-home-eyebrow--gold">The daily challenge &middot; 60 seconds</p>
+          <h2 class="qz-home-quiz-callout__title">How well do you know Queen?</h2>
+          <p class="qz-home-quiz-callout__body">A new sixty-second quiz every day, drawn from the archive. Build a streak and claim a place on today's leaderboard.@sprintPlayersNote</p>
+        </div>
+        <div class="qz-home-quiz-callout__actions">
+          <a class="qz-button qz-button--cta" href="/quizzes/sprint">Play the sprint</a>
+          <a class="qz-home-quiz-callout__link" href="/quizzes/leaderboard">Today's leaderboard &rarr;</a>
+        </div>
+      </div>
     </div>
+
+    <!-- Phones: the apps call to action right after the photos and quiz (the full band below is hidden there). -->
+    <a class="qz-home-apps-card" href="/mobile-apps">
+      <span class="qz-home-apps__icon" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+          <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+          <path d="M10 5h4M11 19h2"></path>
+        </svg>
+      </span>
+      <span class="qz-home-apps-card__copy">
+        <span class="qz-home-apps-card__title">Queenzone in your pocket</span>
+        <span class="qz-home-apps-card__cta">Try the Android &amp; iOS apps &rarr;</span>
+      </span>
+    </a>
 
     <div class="qz-home-front__list">
       <div class="qz-home-rule-head">
         <h2>Latest news</h2>
         <a href="/news">All news &rarr;</a>
       </div>
-      @if (Model.NewsList.Count == 0)
+      @if (Model.Latest.Count == 0)
       {
         <p class="qz-home-empty">More stories will appear here as news is published.</p>
       }
       else
       {
         <ol class="qz-home-newslist">
-          @foreach (var item in Model.NewsList)
+          @foreach (var item in Model.Latest)
           {
             <li>
               <a href="@item.DetailPath">
@@ -171,21 +165,14 @@
         <a class="qz-home-forum-now__more" href="/forum">Join the conversation &rarr;</a>
       </div>
 
-      <div class="qz-home-teasers">
-        <a class="qz-home-teaser" href="/quizzes/sprint">
-          <span class="qz-home-teaser__kicker qz-home-teaser__kicker--quiz">Daily challenge</span>
-          <span class="qz-home-teaser__title">The 60-second Queen sprint</span>
-          <span class="qz-home-teaser__cta">Play &rarr;</span>
+      @if (Model.HomePoll is { } teaserPoll)
+      {
+        <a class="qz-home-teaser" href="#home-poll">
+          <span class="qz-home-teaser__kicker qz-home-teaser__kicker--poll">@(teaserPoll.IsClosed ? "Poll results" : "Members' poll")</span>
+          <span class="qz-home-teaser__title">@teaserPoll.Question</span>
+          <span class="qz-home-teaser__cta">@(teaserPoll.IsClosed || teaserPoll.ViewerHasVoted ? "See results" : "Vote") &rarr;</span>
         </a>
-        @if (Model.HomePoll is { } teaserPoll)
-        {
-          <a class="qz-home-teaser" href="#home-poll">
-            <span class="qz-home-teaser__kicker qz-home-teaser__kicker--poll">@(teaserPoll.IsClosed ? "Poll results" : "Members' poll")</span>
-            <span class="qz-home-teaser__title">@teaserPoll.Question</span>
-            <span class="qz-home-teaser__cta">@(teaserPoll.IsClosed || teaserPoll.ViewerHasVoted ? "See results" : "Vote") &rarr;</span>
-          </a>
-        }
-      </div>
+      }
     </div>
   </div>
 </section>
@@ -206,27 +193,6 @@
     <a class="qz-button qz-button--cta qz-home-apps__cta" href="/mobile-apps">Try out the Mobile Apps</a>
   </div>
 </section>
-
-@if (Model.LatestPhotos.Count > 0)
-{
-  <section class="qz-home-photos" aria-labelledby="home-photos-heading">
-    <div class="qz-container">
-      <div class="qz-home-rule-head qz-home-rule-head--top">
-        <h2 id="home-photos-heading">Just added to the gallery</h2>
-        <a href="/photography">All photos &rarr;</a>
-      </div>
-      <div class="qz-home-photos__grid">
-        @foreach (var tile in Model.LatestPhotos)
-        {
-          <a class="qz-home-photos__tile" href="@PhotoRoutes.GetDetailPath(tile.CategorySlug, tile.PicId)">
-            <img src="@tile.ThumbnailUrl" alt="@tile.Title" loading="lazy">
-            <span class="qz-home-photos__caption">@tile.CategoryName</span>
-          </a>
-        }
-      </div>
-    </div>
-  </section>
-}
 
 @if (Model.ForumBand.Count > 0)
 {
