@@ -375,6 +375,21 @@ public sealed class NewsRoutesTests : IClassFixture<QueenZoneWebApplicationFacto
     }
 
     [Fact]
+    public async Task HomePageLatestNewsShowsAThumbnailBesideTitlesThatHaveAnImage()
+    {
+        var client = variants.Get(WebHostVariants.UgcThumbnailNews).CreateClient();
+
+        var body = await client.GetStringAsync("/");
+
+        Assert.Single(Regex.Matches(body, "class=\"qz-home-newslist__thumb\""));
+        Assert.Contains(
+            "<img class=\"qz-home-newslist__thumb\" src=\"/ugc/articles/editors/me/hero.webp?size=thumb\"",
+            body);
+        Assert.Contains("Article without image", body);
+        Assert.DoesNotContain(NewsArticleImage.PlaceholderPath, body);
+    }
+
+    [Fact]
     public async Task HomePageLatestNewsDoesNotRenderArchiveListingThumbs()
     {
         var client = factory.CreateClient();

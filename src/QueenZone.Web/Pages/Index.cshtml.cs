@@ -23,17 +23,38 @@ public sealed class IndexModel(
         "/design-system/assets/img-stage.jpg",
     ];
 
-    private const int FeaturedGalleryCount = 4;
+    private const int HomeNewsCount = 8;
+
+    /// <summary>Equal square tiles in the front-page photo grid (4 × 2 on desktop).</summary>
+    private const int LatestPhotoCount = 8;
+
+    /// <summary>Threads in the above-the-fold "Forum now" card; the rest fill the forum band.</summary>
+    public const int ForumNowCount = 5;
+
+    private const int ForumBandCount = 6;
 
     public IReadOnlyList<NewsArchiveItem> Latest { get; private set; } = [];
+
+    public IReadOnlyList<ForumRecentThreadSummary> ForumThreads { get; private set; } = [];
+
+    public IReadOnlyList<ForumRecentThreadSummary> ForumNow { get; private set; } = [];
+
+    public IReadOnlyList<ForumRecentThreadSummary> ForumBand { get; private set; } = [];
+
+    /// <summary>Forum replies posted today, or null when the count could not be loaded.</summary>
+    public int? ForumRepliesToday { get; private set; }
+
+    public IReadOnlyList<PhotoItem> LatestPhotos { get; private set; } = [];
+
+    public IReadOnlyList<HomeTickerItem> Ticker { get; private set; } = [];
+
+    public DateTimeOffset Now { get; private set; }
 
     public IReadOnlyList<QueenHistoryEvent> OnThisDay { get; private set; } = [];
 
     public bool IsOnThisDayFallback { get; private set; }
 
     public IReadOnlyList<HomeArticleTeaser> FeaturedArticles { get; private set; } = [];
-
-    public IReadOnlyList<PhotoCategory> FeaturedGalleryCategories { get; private set; } = [];
 
     public QuoteItem? FeaturedQuote { get; private set; }
 
@@ -48,7 +69,7 @@ public sealed class IndexModel(
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         ViewData["Title"] = "QueenZone";
-        ViewData["Description"] = "The complete fan resource for Queen – music, news, history, photography and more, from the Queenzone.com archive.";
+        ViewData["Description"] = "The complete fan resource for Queen – the latest news, forum, photos, articles, daily quiz and poll, plus the Queenzone.com archive.";
         ViewData["CanonicalPath"] = "/";
         try
         {
@@ -62,9 +83,16 @@ public sealed class IndexModel(
             SprintBoard = new([], null, 0);
         }
 
-        var latest = await publicQueryCache.GetLatestNewsAsync(5, cancellationToken);
+        Now = timeProvider.GetUtcNow();
+        var latest = await publicQueryCache.GetLatestNewsAsync(HomeNewsCount, cancellationToken);
         Latest = await newsDiscussion.ToArchiveItemsAsync(latest, cancellationToken);
-        var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        var threads = await publicQueryCache.GetForumRecentThreadsAsync(ForumRoutes.RecentThreadsCount, cancellationToken);
+        ForumThreads = PublicContentMapper.ToForumRecentThreadSummaries(threads);
+        ForumNow = ForumThreads.Take(ForumNowCount).ToList();
+        ForumBand = ForumThreads.Skip(ForumNowCount).Take(ForumBandCount).ToList();
+        ForumRepliesToday = await LoadForumRepliesTodayAsync(cancellationToken);
+        LatestPhotos = await publicQueryCache.GetLatestPhotosAsync(LatestPhotoCount, cancellationToken);
+        var today = DateOnly.FromDateTime(Now.UtcDateTime);
         OnThisDay = await publicQueryCache.GetOnThisDayAsync(today, 3, cancellationToken);
 
         if (OnThisDay.Count == 0)
@@ -104,15 +132,10 @@ public sealed class IndexModel(
                 item.Href))
             .ToList();
 
-        var categories = await publicQueryCache.GetPhotoCategoriesAsync(cancellationToken);
-        FeaturedGalleryCategories = categories
-            .Where(category => !string.IsNullOrWhiteSpace(category.CoverThumbnailUrl))
-            .Take(FeaturedGalleryCount)
-            .ToList();
-
         FeaturedQuote = await publicQueryCache.GetRandomPublishedQuoteAsync(cancellationToken);
         await LoadHomePollAsync(cancellationToken);
         HomePollError = TempData["HomePollError"] as string;
+        Ticker = BuildTicker();
     }
 
     public async Task<IActionResult> OnPostVoteAsync(Guid optionId, CancellationToken cancellationToken)
@@ -136,6 +159,67 @@ public sealed class IndexModel(
         return Redirect("/#home-poll");
     }
 
+    private async Task<int?> LoadForumRepliesTodayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await publicQueryCache.GetLiveActivityNewForumRepliesTodayAsync(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // Optional chrome, like the sprint board: the strip simply drops the count.
+            logger.LogWarning(exception, "Homepage forum replies-today count failed to load.");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// "Happening now" lines: the newest item from each live feed, freshest first.
+    /// Photos carry no reliable upload time, so they rotate in without one.
+    /// </summary>
+    private List<HomeTickerItem> BuildTicker()
+    {
+        var items = new List<(DateTime? At, HomeTickerItem Item)>();
+        if (ForumThreads.Count > 0)
+        {
+            var thread = ForumThreads[0];
+            items.Add((thread.LastActivityAt, new HomeTickerItem(
+                $"Forum: {thread.Title}",
+                thread.DetailPath,
+                HomeRelativeTime.Format(thread.LastActivityAt, Now))));
+        }
+
+        if (Latest.Count > 0)
+        {
+            var news = Latest[0];
+            items.Add((news.PublishedAt, new HomeTickerItem(
+                $"News: {news.Title}",
+                news.DetailPath,
+                HomeRelativeTime.Format(news.PublishedAt, Now))));
+        }
+
+        if (LatestPhotos.Count > 0)
+        {
+            var photo = LatestPhotos[0];
+            var caption = string.IsNullOrWhiteSpace(photo.Title) ? photo.CategoryName : $"{photo.CategoryName}, {photo.Title}";
+            items.Add((null, new HomeTickerItem(
+                $"New photo: {caption}",
+                PhotoRoutes.GetDetailPath(photo.CategorySlug, photo.PicId),
+                null)));
+        }
+
+        if (FeaturedArticles.Count > 0)
+        {
+            var article = FeaturedArticles[0];
+            items.Add((null, new HomeTickerItem($"New article: {article.Title}", article.Href, null)));
+        }
+
+        return items
+            .OrderByDescending(entry => entry.At ?? DateTime.MinValue)
+            .Select(entry => entry.Item)
+            .ToList();
+    }
+
     private async Task LoadHomePollAsync(CancellationToken cancellationToken)
     {
         var memberAuth = await HttpContext.AuthenticateMemberAsync();
@@ -145,6 +229,8 @@ public sealed class IndexModel(
             && HomePoll is { IsClosed: false, ViewerHasVoted: false };
     }
 }
+
+public sealed record HomeTickerItem(string Text, string Href, string? When);
 
 public sealed record HomeArticleTeaser(
     string Image,

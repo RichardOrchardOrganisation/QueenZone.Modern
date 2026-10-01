@@ -57,6 +57,14 @@ public interface IPhotoRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns up to <paramref name="take"/> (capped at 24) of the most recently added
+    /// displayed photos across every category, newest first.
+    /// </summary>
+    Task<IReadOnlyList<PhotoItem>> GetLatestPublishedAsync(
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns visible categories and photo detail ids/dates in one repository pass
     /// for sitemap generation (avoids a second full category reload in the builder).
     /// </summary>

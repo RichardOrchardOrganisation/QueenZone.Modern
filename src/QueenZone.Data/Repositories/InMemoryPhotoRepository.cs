@@ -211,6 +211,16 @@ public sealed class InMemoryPhotoRepository(SharedPhotoStore store) : IPhotoRepo
         return Task.FromResult(categories);
     }
 
+    public Task<IReadOnlyList<PhotoItem>> GetLatestPublishedAsync(
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<PhotoItem> items = store.GetLatestVisiblePhotos(Math.Clamp(take, 1, 24))
+            .Select(ToPhotoItem)
+            .ToList();
+        return Task.FromResult(items);
+    }
+
     private static PhotoItem ToPhotoItem(AdminPhotoItem item) =>
         new(
             item.PicId,

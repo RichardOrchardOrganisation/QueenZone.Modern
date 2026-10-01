@@ -18,7 +18,7 @@ internal static class CuratedLayoutPages
     /// <summary>Visitor-facing archive and editorial chrome.</summary>
     public static readonly CuratedLayoutPage[] Public =
     [
-        new("/", "Twenty-five years of the Queen internet zone"),
+        new("/", "QueenZone: Queen news, community and archive"),
         new("/news", "News"),
         new("/news/1003/queenzone-modernisation-begins", "QueenZone modernisation begins"),
         new("/forum", "Forum"),

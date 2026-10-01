@@ -6,7 +6,11 @@
       "aliases": [
         "homepage",
         "front page",
-        "archive hero"
+        "archive hero",
+        "happening now strip",
+        "forum now",
+        "just added to the gallery",
+        "mobile apps call to action"
       ],
       "sources": [
         "src/QueenZone.Web/Pages/Index.cshtml"
@@ -18,7 +22,11 @@
         "tests/QueenZone.Web.E2E/CuratedPageLayoutSmokeTests.cs"
       ],
       "selectors": [
-        "#qz-hero-archive"
+        "#qz-hero-archive",
+        "#news",
+        "#forum",
+        "#play",
+        "#home-poll"
       ],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/homepage.md",

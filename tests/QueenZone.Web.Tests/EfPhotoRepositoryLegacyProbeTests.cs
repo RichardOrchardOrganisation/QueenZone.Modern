@@ -48,6 +48,10 @@ public sealed class EfPhotoRepositoryLegacyProbeTests
         var byIds = await repository.GetPublishedByIdsAsync(category.CatId, picked);
         Assert.Equal(picked, byIds.Select(item => item.PicId));
 
+        var latest = await repository.GetLatestPublishedAsync(6);
+        Assert.NotEmpty(latest);
+        Assert.Equal(latest.OrderByDescending(item => item.PicId).Select(item => item.PicId), latest.Select(item => item.PicId));
+
         var sitemap = await repository.GetPublishedSitemapCategoriesAsync();
         Assert.Equal(categories.Count, sitemap.Count);
     }

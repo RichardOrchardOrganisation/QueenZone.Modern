@@ -168,9 +168,8 @@ public sealed class BiographyRoutesTests : IClassFixture<QueenZoneWebApplication
 
         var body = await client.GetStringAsync("/");
 
-        Assert.Contains("href=\"/biography\"", body);
-        Assert.Contains("The Queen story", body);
-        Assert.Contains("Five ways into Queenzone", body);
+        Assert.Contains("aria-label=\"Explore the archive\"", body);
+        Assert.Contains("<a href=\"/biography\">Biography</a>", body);
     }
 
     [Theory]
