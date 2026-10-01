@@ -51,6 +51,23 @@
   </div>
 }
 
+<section class="qz-home-apps" aria-label="Queenzone mobile apps">
+  <div class="qz-container qz-home-apps__inner">
+    <span class="qz-home-apps__icon" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+        <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+        <path d="M10 5h4M11 19h2"></path>
+      </svg>
+    </span>
+    <div class="qz-home-apps__copy">
+      <p class="qz-home-apps__eyebrow">Android &middot; iOS</p>
+      <h2 class="qz-home-apps__title">Queenzone in your pocket</h2>
+      <p class="qz-home-apps__body">News, the forum, the photo galleries and home-screen widgets for trivia, quotes and On This Day.</p>
+    </div>
+    <a class="qz-button qz-button--cta qz-home-apps__cta" href="/mobile-apps">Try out the Mobile Apps</a>
+  </div>
+</section>
+
 <section class="qz-home-front" id="news" aria-label="Latest from Queenzone">
   <div class="qz-container qz-home-front__row">
 
@@ -85,20 +102,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Phones: the apps call to action right after the photos and quiz (the full band below is hidden there). -->
-    <a class="qz-home-apps-card" href="/mobile-apps">
-      <span class="qz-home-apps__icon" aria-hidden="true">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-          <rect x="7" y="2" width="10" height="20" rx="2"></rect>
-          <path d="M10 5h4M11 19h2"></path>
-        </svg>
-      </span>
-      <span class="qz-home-apps-card__copy">
-        <span class="qz-home-apps-card__title">Queenzone in your pocket</span>
-        <span class="qz-home-apps-card__cta">Try the Android &amp; iOS apps &rarr;</span>
-      </span>
-    </a>
 
     <div class="qz-home-front__list">
       <div class="qz-home-rule-head">
@@ -183,22 +186,6 @@
   </div>
 </section>
 
-<section class="qz-home-apps" aria-label="Queenzone mobile apps">
-  <div class="qz-container qz-home-apps__inner">
-    <span class="qz-home-apps__icon" aria-hidden="true">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-        <rect x="7" y="2" width="10" height="20" rx="2"></rect>
-        <path d="M10 5h4M11 19h2"></path>
-      </svg>
-    </span>
-    <div class="qz-home-apps__copy">
-      <p class="qz-home-apps__eyebrow">Android &middot; iOS</p>
-      <h2 class="qz-home-apps__title">Queenzone in your pocket</h2>
-      <p class="qz-home-apps__body">News, the forum, the photo galleries and home-screen widgets for trivia, quotes and On This Day.</p>
-    </div>
-    <a class="qz-button qz-button--cta qz-home-apps__cta" href="/mobile-apps">Try out the Mobile Apps</a>
-  </div>
-</section>
 
 @if (Model.ForumBand.Count > 0)
 {

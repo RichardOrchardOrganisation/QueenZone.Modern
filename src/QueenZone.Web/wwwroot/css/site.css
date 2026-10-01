@@ -7656,38 +7656,14 @@ select.qz-input {
 
 .qz-home-apps__cta { flex: none; }
 
-/* Compact apps card shown on phones in place of the full band. */
-.qz-home-apps-card { display: none; }
-
+/* Phones: keep the band near the top but compact — title, short line and a full-width button. */
 @media (max-width: 640px) {
-  .qz-home-apps { display: none; }
-
-  .qz-home-apps-card {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex: 1 1 100%;
-    padding: 16px;
-    border: 1px solid var(--qz-gold);
-    border-radius: var(--radius-md);
-    background: var(--qz-warm-white);
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .qz-home-apps-card .qz-home-apps__icon { width: 48px; height: 48px; }
-
-  .qz-home-apps-card__copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-
-  .qz-home-apps-card__title {
-    font: var(--fw-semibold) 20px/1.15 var(--font-display);
-    color: var(--text-primary);
-  }
-
-  .qz-home-apps-card__cta {
-    font: var(--fw-medium) 14px/1.3 var(--font-body);
-    color: var(--qz-blue);
-  }
+  .qz-home-apps__inner { gap: 12px 16px; padding-top: 16px; padding-bottom: 16px; }
+  .qz-home-apps__icon { width: 44px; height: 44px; }
+  .qz-home-apps__copy { flex: 1 1 0; }
+  .qz-home-apps__eyebrow { display: none; }
+  .qz-home-apps__title { font-size: 22px; }
+  .qz-home-apps__body { font-size: 14px; }
 }
 
 /* Front-page photo grid: equal square tiles, matching the 400×400 gallery thumbnails. */

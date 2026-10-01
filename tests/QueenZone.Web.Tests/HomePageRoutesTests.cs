@@ -65,13 +65,9 @@ public sealed class HomePageRoutesTests :
         var latestNews = html.IndexOf("<h2>Latest news</h2>", StringComparison.Ordinal);
         Assert.True(gallery > 0 && gallery < quiz && quiz < latestNews);
 
-        // The apps band sits directly under the front page, ahead of the feeds below it.
+        // The apps call to action sits at the top, straight under the live strip and above the front page.
         var apps = html.IndexOf("Try out the Mobile Apps", StringComparison.Ordinal);
-        Assert.InRange(apps, html.IndexOf("Forum now", StringComparison.Ordinal), html.IndexOf("Live from the forum", StringComparison.Ordinal));
-
-        // On phones a compact card takes its place, straight after the photos and quiz.
-        var appsCard = html.IndexOf("class=\"qz-home-apps-card\" href=\"/mobile-apps\"", StringComparison.Ordinal);
-        Assert.InRange(appsCard, quiz, latestNews);
+        Assert.InRange(apps, html.IndexOf("data-home-ticker", StringComparison.Ordinal), html.IndexOf("id=\"news\"", StringComparison.Ordinal));
 
         // The Queenzone history montage moves below the fold as a section heading.
         Assert.Matches(
