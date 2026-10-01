@@ -7429,6 +7429,25 @@ select.qz-input {
 
 .qz-home-newslist a:hover { background: var(--qz-warm-white); }
 
+/* News rows with an image: a small 3:2 thumbnail (news thumbs are ~600×400) beside the title. */
+.qz-home-newslist a.qz-home-newslist__item--thumb {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.qz-home-newslist__thumb {
+  display: block;
+  width: 72px;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--qz-grey-200);
+}
+
+.qz-home-newslist__text { display: block; min-width: 0; }
+
 .qz-home-newslist__meta {
   display: flex;
   gap: 10px;
@@ -7671,27 +7690,23 @@ select.qz-input {
   }
 }
 
-/* Front-page photo mosaic: one feature tile and five, filling a 3×3 grid. */
+/* Front-page photo grid: equal square tiles, matching the 400×400 gallery thumbnails. */
 .qz-home-photos__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-top: -8px;
 }
 
-.qz-home-photos__tile:first-child { grid-column: span 2; grid-row: span 2; aspect-ratio: auto; }
-
 @media (max-width: 640px) {
-  .qz-home-photos__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .qz-home-photos__tile:first-child { grid-row: auto; }
-  .qz-home-photos__tile:nth-child(n + 6) { display: none; }
+  .qz-home-photos__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .qz-home-photos__tile:nth-child(n + 7) { display: none; }
 }
 
 .qz-home-photos__tile {
   position: relative;
   display: block;
-  min-height: 0;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1;
   overflow: hidden;
   border-radius: var(--radius-sm);
   background: var(--qz-grey-200);

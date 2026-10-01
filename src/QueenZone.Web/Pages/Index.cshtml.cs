@@ -25,8 +25,8 @@ public sealed class IndexModel(
 
     private const int HomeNewsCount = 8;
 
-    /// <summary>One feature tile plus five, filling the 3×3 front-page photo grid.</summary>
-    private const int LatestPhotoCount = 6;
+    /// <summary>Equal square tiles in the front-page photo grid (4 × 2 on desktop).</summary>
+    private const int LatestPhotoCount = 8;
 
     /// <summary>Threads in the above-the-fold "Forum now" card; the rest fill the forum band.</summary>
     public const int ForumNowCount = 5;
