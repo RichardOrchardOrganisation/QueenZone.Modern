@@ -37,6 +37,33 @@ public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicatio
     }
 
     [Fact]
+    public async Task AdminSearchIndexPage_GetDoesNotWaitForContentTypeCounts()
+    {
+        await using var host = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ISearchIndexService>();
+                services.AddSingleton<ISearchIndexService>(sp => new HangingCountsSearchIndexService
+                {
+                    Inner = new InMemorySearchIndexService(sp.GetRequiredService<SharedSearchIndexStore>()),
+                });
+            });
+        });
+        var client = AdminHttpTestHelpers.CreateClient(host, AdminHttpTestHelpers.AdminEmail);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync("/admin/search", cts.Token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync(cts.Token);
+        Assert.Contains("id=\"search-index-admin\"", body);
+        Assert.Contains("Rebuild search index now", body);
+        Assert.Contains("No documents indexed yet.", body);
+    }
+
+    [Fact]
     public async Task AdminSearchIndexPage_StartsReindexInBackgroundOnPost()
     {
         // Dedicated host so this test owns the in-process job singleton.
@@ -191,5 +218,41 @@ public sealed class AdminSearchIndexTests : IClassFixture<QueenZoneWebApplicatio
 
         public Task<IReadOnlyDictionary<string, int>> GetContentTypeCountsAsync(CancellationToken cancellationToken = default) =>
             Inner.GetContentTypeCountsAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Parks <see cref="GetContentTypeCountsAsync"/> forever so GET /admin/search can prove
+    /// first paint no longer waits on counts (#1968). Other index methods pass through so
+    /// startup seed can finish.
+    /// </summary>
+    private sealed class HangingCountsSearchIndexService : ISearchIndexService
+    {
+        private readonly TaskCompletionSource<IReadOnlyDictionary<string, int>> hang =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ISearchIndexService Inner { get; set; } = null!;
+
+        public Task UpsertAsync(SearchDocumentEntity document, CancellationToken cancellationToken = default) =>
+            Inner.UpsertAsync(document, cancellationToken);
+
+        public Task RemoveAsync(string sourceKey, CancellationToken cancellationToken = default) =>
+            Inner.RemoveAsync(sourceKey, cancellationToken);
+
+        public Task ReplaceContentTypeAsync(
+            string contentType,
+            IReadOnlyList<SearchDocumentEntity> documents,
+            CancellationToken cancellationToken = default) =>
+            Inner.ReplaceContentTypeAsync(contentType, documents, cancellationToken);
+
+        public Task<IReadOnlyDictionary<string, int>> GetContentTypeCountsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            if (cancellationToken.CanBeCanceled)
+            {
+                cancellationToken.Register(() => hang.TrySetCanceled(cancellationToken));
+            }
+
+            return hang.Task;
+        }
     }
 }

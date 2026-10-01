@@ -61,6 +61,7 @@ public class E2ECategoryGuardTests
         {
             nameof(AccessibilitySmokeTests),
             nameof(AdminEditReloadDiagnosticsTests),
+            nameof(AdminSearchGotoDiagnosticsTests),
             nameof(AdminSmokeTests),
             nameof(AxeSeriousExceptionTests),
             nameof(CuratedPageLayoutSmokeTests),
