@@ -288,7 +288,7 @@ public class AdminModerationWorkflowTests : RealDataPageTest
     {
         var adminContext = await NewAdminContextAsync();
         var adminPage = await adminContext.NewPageAsync();
-        await adminPage.GotoAsync("/admin/search");
+        await OpenAdminSearchAsync(adminPage);
 
         await adminPage.GetByRole(AriaRole.Button, new() { NameRegex = new Regex("Rebuild search index now|Reindex in progress") }).ClickAsync();
 
@@ -471,6 +471,74 @@ public class AdminModerationWorkflowTests : RealDataPageTest
         }
 
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// Opens <c>/admin/search</c> without waiting on the full <c>load</c> event. Ready
+    /// locators after <c>DOMContentLoaded</c> are the navigation signal (#1968).
+    /// </summary>
+    private async Task OpenAdminSearchAsync(IPage page)
+    {
+        IResponse? response = null;
+        try
+        {
+            response = await page.GotoAsync("/admin/search", new()
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+            });
+            Assert.That(
+                response?.Ok,
+                Is.True,
+                $"GET /admin/search failed. status={response?.Status} url={page.Url}");
+            await Expect(page).ToHaveURLAsync(new Regex("/admin/search"));
+            await Expect(page.Locator("#search-index-admin")).ToBeVisibleAsync();
+            await Expect(page.GetByRole(AriaRole.Button, new()
+            {
+                NameRegex = new Regex("Rebuild search index now|Reindex in progress"),
+            })).ToBeVisibleAsync();
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await DumpSearchGotoFailureAsync(page, response, ex);
+            }
+            catch (Exception dumpEx)
+            {
+                TestContext.Out.WriteLine($"Search goto diagnostic dump failed: {dumpEx.Message}");
+            }
+
+            throw;
+        }
+    }
+
+    private static async Task DumpSearchGotoFailureAsync(
+        IPage page,
+        IResponse? response,
+        Exception ex)
+    {
+        var searchIndexAdminPresent = await ReadSearchIndexAdminPresentAsync(page);
+        var dump = AdminSearchGotoDiagnostics.FormatDump(
+            url: page.Url,
+            status: response?.Status,
+            searchIndexAdminPresent: searchIndexAdminPresent,
+            exceptionMessage: ex.Message);
+        var path = AdminSearchGotoDiagnostics.WriteDump(dump);
+        TestContext.Out.WriteLine(dump);
+        TestContext.Out.WriteLine($"Search goto diagnostic written to {path}");
+    }
+
+    private static async Task<bool?> ReadSearchIndexAdminPresentAsync(IPage page)
+    {
+        try
+        {
+            return await page.Locator("#search-index-admin").CountAsync() > 0;
+        }
+        catch (Exception ex)
+        {
+            TestContext.Out.WriteLine($"#search-index-admin lookup failed: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>

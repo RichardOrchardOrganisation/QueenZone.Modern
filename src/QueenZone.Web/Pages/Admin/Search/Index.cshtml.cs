@@ -18,10 +18,10 @@ public sealed class IndexModel(
     private const string MessageKey = "SearchIndexMessage";
     private const string MessageKindKey = "SearchIndexMessageKind";
 
-    public IReadOnlyDictionary<string, int> ContentTypeCounts { get; private set; } =
+    public IReadOnlyDictionary<string, int> ContentTypeCounts { get; } =
         new Dictionary<string, int>();
 
-    public int TotalCount { get; private set; }
+    public int TotalCount { get; }
 
     public string? StatusMessage { get; private set; }
 
@@ -38,13 +38,13 @@ public sealed class IndexModel(
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    public void OnGet()
     {
         StatusMessage = TempData[MessageKey] as string;
         StatusMessageKind = TempData[MessageKindKey] as string;
         Job = reindexJobService.GetSnapshot();
         Breadcrumbs = AdminBreadcrumbs.Section("Search index", "/admin/search");
-        await LoadCountsAsync(cancellationToken);
+        // Counts load via ?handler=Status so a slow index query cannot hold first paint (#1968).
     }
 
     public IActionResult OnPostReindex()
@@ -92,11 +92,5 @@ public sealed class IndexModel(
                 })
                 .ToList(),
         });
-    }
-
-    private async Task LoadCountsAsync(CancellationToken cancellationToken)
-    {
-        ContentTypeCounts = await searchIndexService.GetContentTypeCountsAsync(cancellationToken);
-        TotalCount = ContentTypeCounts.Values.Sum();
     }
 }
