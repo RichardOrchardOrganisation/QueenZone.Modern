@@ -14,11 +14,28 @@
   their source method name. Lambdas keep a `<Method>::lambda` name so they rank on their own.
 
   Writes crap-report.csv (every method, highest score first) and crap-summary.md (counts
-  plus the top -Top methods) to -OutputDirectory. This is a report, not a gate: it exits 0
-  regardless of how many methods exceed -Threshold.
+  plus the top -Top methods) to -OutputDirectory.
+
+  Ratchet (-Baseline): methods are keyed as file|type|method with compiler-generated type
+  segments (<>c__DisplayClass…, <M>d__N) dropped; overloads and lambdas keep their highest
+  score. A method above -Threshold that is not in the baseline is new debt; a baselined
+  method whose score rose by more than 0.1 got worse. Both are listed in the summary and,
+  with -Enforce, fail the run. Every -Baseline run also writes a proposed baseline next to
+  the report that only lowers or drops entries, so committing it can never hide new debt.
+  -WriteBaseline applies that proposal to the -Baseline file (or creates it when missing).
+
+  -FromCsv rebuilds from an earlier crap-report.csv, e.g. one downloaded from the CI
+  coverage-report artifact, because a local run without the SQL Server shard does not
+  match CI coverage.
 
 .EXAMPLE
   pwsh -File ./scripts/Get-CrapReport.ps1 -Reports ./TestResults -OutputDirectory ./coverage-report/crap
+
+.EXAMPLE
+  pwsh -File ./scripts/Get-CrapReport.ps1 -Reports ./TestResults -Baseline ./config/crap-baseline.dotnet.json -Enforce
+
+.EXAMPLE
+  pwsh -File ./scripts/Get-CrapReport.ps1 -FromCsv ./coverage-report/crap/crap-report.csv -Baseline ./config/crap-baseline.dotnet.json -WriteBaseline
 
 .EXAMPLE
   pwsh -File ./scripts/Get-CrapReport.ps1 -SelfTest
@@ -27,11 +44,19 @@ param(
     [Parameter()]
     [string]$Reports,
 
+    [string]$FromCsv,
+
     [string]$OutputDirectory = "./coverage-report/crap",
 
     [double]$Threshold = 30,
 
     [int]$Top = 20,
+
+    [string]$Baseline,
+
+    [switch]$Enforce,
+
+    [switch]$WriteBaseline,
 
     [switch]$SelfTest
 )
@@ -41,9 +66,16 @@ $ErrorActionPreference = "Stop"
 # keep a clean pipeline; Continue makes them visible in CI logs.
 $InformationPreference = "Continue"
 
-if (-not $SelfTest -and [string]::IsNullOrWhiteSpace($Reports)) {
-    throw "Reports is required unless -SelfTest is specified."
+if (-not $SelfTest -and [string]::IsNullOrWhiteSpace($Reports) -and [string]::IsNullOrWhiteSpace($FromCsv)) {
+    throw "Reports or FromCsv is required unless -SelfTest is specified."
 }
+
+if (($Enforce -or $WriteBaseline) -and [string]::IsNullOrWhiteSpace($Baseline)) {
+    throw "-Enforce and -WriteBaseline require -Baseline."
+}
+
+# Scores are rounded to 0.1, so a rise within this is rounding, not a regression.
+$RatchetTolerance = 0.1
 
 function Get-RepoRelativePath {
     param([string]$Path)
@@ -305,6 +337,251 @@ function Write-CrapReport {
     Write-Information "Wrote $mdPath"
 }
 
+function Get-BaselineKey {
+    param([object]$Row)
+
+    # Drop compiler-generated nesting (<>c__DisplayClass43_0, <M>d__5): the ordinals shift
+    # when unrelated members are added, which would churn the baseline.
+    $type = (@($Row.Class -split '/') | Where-Object { -not $_.StartsWith('<') }) -join '/'
+    return "$($Row.File)|$type|$($Row.Method)"
+}
+
+function Get-MethodScores {
+    param([object[]]$Rows)
+
+    $scores = @{}
+    foreach ($row in $Rows) {
+        $key = Get-BaselineKey -Row $row
+        $crap = [double]$row.Crap
+        if (-not $scores.ContainsKey($key) -or $crap -gt $scores[$key]) {
+            $scores[$key] = $crap
+        }
+    }
+
+    return $scores
+}
+
+function Read-CrapBaseline {
+    param([string]$Path)
+
+    $baseline = @{}
+    $json = Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json
+    foreach ($property in $json.hotspots.PSObject.Properties) {
+        $baseline[$property.Name] = [double]$property.Value
+    }
+
+    return $baseline
+}
+
+function Compare-CrapBaseline {
+    param(
+        [hashtable]$Scores,
+        [hashtable]$Baseline,
+        [double]$Threshold
+    )
+
+    $result = [pscustomobject]@{
+        New      = [System.Collections.Generic.List[object]]::new()
+        Worse    = [System.Collections.Generic.List[object]]::new()
+        Improved = [System.Collections.Generic.List[object]]::new()
+    }
+
+    foreach ($key in ($Scores.Keys | Sort-Object)) {
+        $score = $Scores[$key]
+        if (-not $Baseline.ContainsKey($key)) {
+            if ($score -gt $Threshold) { $result.New.Add([pscustomobject]@{ Key = $key; Score = $score }) }
+        }
+        elseif ($score -gt $Baseline[$key] + $RatchetTolerance) {
+            $result.Worse.Add([pscustomobject]@{ Key = $key; Baseline = $Baseline[$key]; Score = $score })
+        }
+    }
+
+    foreach ($key in ($Baseline.Keys | Sort-Object)) {
+        $score = if ($Scores.ContainsKey($key)) { $Scores[$key] } else { $null }
+        if ($null -eq $score -or $score -lt $Baseline[$key] - $RatchetTolerance) {
+            $result.Improved.Add([pscustomobject]@{ Key = $key; Baseline = $Baseline[$key]; Score = $score })
+        }
+    }
+
+    return $result
+}
+
+# Ratchet only: keep baselined keys still above the threshold at min(baseline, current) and
+# never add a key. With no baseline yet, every method above the threshold is recorded.
+function Get-ProposedBaseline {
+    param(
+        [hashtable]$Scores,
+        [hashtable]$Baseline,
+        [double]$Threshold
+    )
+
+    $proposed = [ordered]@{}
+    $keys = if ($null -eq $Baseline) { $Scores.Keys } else { $Baseline.Keys }
+    foreach ($key in ($keys | Sort-Object)) {
+        if (-not $Scores.ContainsKey($key) -or $Scores[$key] -le $Threshold) { continue }
+        $proposed[$key] = if ($null -eq $Baseline) { $Scores[$key] } else { [math]::Min($Baseline[$key], $Scores[$key]) }
+    }
+
+    return $proposed
+}
+
+function Write-CrapBaseline {
+    param(
+        [System.Collections.Specialized.OrderedDictionary]$Hotspots,
+        [double]$Threshold,
+        [string]$Path
+    )
+
+    $document = [ordered]@{
+        description = "CRAP ratchet baseline. Methods above the threshold that already existed. Lower or remove entries; never raise by hand. See AGENTS.md (Change risk)."
+        threshold   = if ($Threshold -eq [math]::Floor($Threshold)) { [int]$Threshold } else { $Threshold }
+        hotspots    = $Hotspots
+    }
+    $json = ($document | ConvertTo-Json -Depth 4) + "`n"
+    [System.IO.File]::WriteAllText($Path, $json, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Format-RatchetMarkdown {
+    param(
+        [object]$Comparison,
+        [string]$BaselinePath,
+        [double]$Threshold
+    )
+
+    $md = [System.Text.StringBuilder]::new()
+    [void]$md.AppendLine()
+    [void]$md.AppendLine("### CRAP ratchet (``$BaselinePath``)")
+    [void]$md.AppendLine()
+    if ($Comparison.New.Count -eq 0 -and $Comparison.Worse.Count -eq 0) {
+        [void]$md.AppendLine("No new or worsened hotspots above $Threshold.")
+    }
+    foreach ($item in $Comparison.New) {
+        [void]$md.AppendLine("- **New hotspot:** ``$($item.Key)`` scores $($item.Score). Add tests or split it until it is at most $Threshold.")
+    }
+    foreach ($item in $Comparison.Worse) {
+        [void]$md.AppendLine("- **Worse:** ``$($item.Key)`` rose from $($item.Baseline) to $($item.Score).")
+    }
+    if ($Comparison.Improved.Count -gt 0) {
+        [void]$md.AppendLine()
+        [void]$md.AppendLine("$($Comparison.Improved.Count) baselined hotspot(s) improved or were removed. Commit ``crap-baseline.proposed.json`` from this report as ``$BaselinePath`` to lock in the gain.")
+    }
+
+    return $md.ToString()
+}
+
+function Invoke-CrapRatchet {
+    param(
+        [object[]]$Rows,
+        [string]$BaselinePath,
+        [string]$OutputDirectory,
+        [double]$Threshold
+    )
+
+    $scores = Get-MethodScores -Rows $Rows
+    $hasBaseline = Test-Path -LiteralPath $BaselinePath
+    if (-not $hasBaseline -and -not $WriteBaseline) {
+        throw "CRAP baseline '$BaselinePath' does not exist. Create it with -WriteBaseline."
+    }
+
+    $existing = if ($hasBaseline) { Read-CrapBaseline -Path $BaselinePath } else { $null }
+    $proposed = Get-ProposedBaseline -Scores $scores -Baseline $existing -Threshold $Threshold
+    Write-CrapBaseline -Hotspots $proposed -Threshold $Threshold -Path (Join-Path $OutputDirectory "crap-baseline.proposed.json")
+
+    if ($WriteBaseline) {
+        Write-CrapBaseline -Hotspots $proposed -Threshold $Threshold -Path $BaselinePath
+        Write-Information "Wrote $BaselinePath ($($proposed.Count) hotspot(s))."
+    }
+
+    # A first -WriteBaseline run compares against what it just recorded, not an empty list.
+    $compareTo = if ($hasBaseline) { $existing } else { @{} + $proposed }
+    $comparison = Compare-CrapBaseline -Scores $scores -Baseline $compareTo -Threshold $Threshold
+    $markdown = Format-RatchetMarkdown -Comparison $comparison -BaselinePath $BaselinePath -Threshold $Threshold
+    Add-Content -LiteralPath (Join-Path $OutputDirectory "crap-summary.md") -Value $markdown -Encoding utf8NoBOM
+    Write-Information $markdown
+
+    return $comparison
+}
+
+function Import-CrapCsv {
+    param([string]$Path)
+
+    return @(Import-Csv -LiteralPath $Path | ForEach-Object {
+            [pscustomobject]@{
+                Crap         = [double]$_.Crap
+                Complexity   = [int]$_.Complexity
+                LineCoverage = [double]$_.LineCoverage
+                Lines        = [int]$_.Lines
+                Method       = $_.Method
+                Class        = $_.Class
+                File         = $_.File
+                Line         = [int]$_.Line
+            }
+        })
+}
+
+function New-SelfTestRow {
+    param([double]$Crap, [string]$Method, [string]$Class = "QueenZone.Web.Sample", [string]$File = "src/Sample.cs")
+
+    return [pscustomobject]@{ Crap = $Crap; Complexity = 1; LineCoverage = 0; Lines = 1; Method = $Method; Class = $Class; File = $File; Line = 1 }
+}
+
+function Invoke-RatchetSelfTest {
+    param([string]$TempRoot)
+
+    $key = Get-BaselineKey -Row (New-SelfTestRow -Crap 1 -Method "Run::lambda" -Class "QueenZone.Web.Sample/<>c__DisplayClass43_0")
+    if ($key -ne "src/Sample.cs|QueenZone.Web.Sample|Run::lambda") {
+        throw "Self-test failed: baseline keys must drop compiler-generated type segments (got '$key')."
+    }
+
+    $baseline = @{
+        "src/Sample.cs|QueenZone.Web.Sample|Stable"   = 100.0
+        "src/Sample.cs|QueenZone.Web.Sample|Worse"    = 40.0
+        "src/Sample.cs|QueenZone.Web.Sample|Better"   = 90.0
+        "src/Sample.cs|QueenZone.Web.Sample|Fixed"    = 50.0
+        "src/Sample.cs|QueenZone.Web.Sample|Deleted"  = 60.0
+    }
+    $rows = @(
+        (New-SelfTestRow -Crap 100.05 -Method "Stable"),
+        (New-SelfTestRow -Crap 45 -Method "Worse"),
+        (New-SelfTestRow -Crap 70 -Method "Better"),
+        (New-SelfTestRow -Crap 12 -Method "Fixed"),
+        (New-SelfTestRow -Crap 31 -Method "Brand"),
+        (New-SelfTestRow -Crap 20 -Method "Small"),
+        (New-SelfTestRow -Crap 35 -Method "Overload"),
+        (New-SelfTestRow -Crap 33 -Method "Overload")
+    )
+    $scores = Get-MethodScores -Rows $rows
+    if ($scores["src/Sample.cs|QueenZone.Web.Sample|Overload"] -ne 35) {
+        throw "Self-test failed: overloads sharing a key must keep the highest score."
+    }
+
+    $comparison = Compare-CrapBaseline -Scores $scores -Baseline $baseline -Threshold 30
+    $newKeys = @($comparison.New | ForEach-Object { $_.Key.Split('|')[-1] })
+    $worseKeys = @($comparison.Worse | ForEach-Object { $_.Key.Split('|')[-1] })
+    $improvedKeys = @($comparison.Improved | ForEach-Object { $_.Key.Split('|')[-1] })
+    if (($newKeys -join ',') -ne 'Brand,Overload' -or ($worseKeys -join ',') -ne 'Worse' -or ($improvedKeys -join ',') -ne 'Better,Deleted,Fixed') {
+        throw "Self-test failed: ratchet comparison (new=$($newKeys -join ','); worse=$($worseKeys -join ','); improved=$($improvedKeys -join ','))."
+    }
+
+    $proposed = Get-ProposedBaseline -Scores $scores -Baseline $baseline -Threshold 30
+    $proposedText = ($proposed.GetEnumerator() | ForEach-Object { "$($_.Key.Split('|')[-1])=$($_.Value)" }) -join ','
+    if ($proposedText -ne 'Better=70,Stable=100,Worse=40') {
+        throw "Self-test failed: the proposed baseline must only lower or drop entries and never add new ones (got '$proposedText')."
+    }
+
+    $bootstrap = Get-ProposedBaseline -Scores $scores -Baseline $null -Threshold 30
+    if ($bootstrap.Count -ne 5) {
+        throw "Self-test failed: a first baseline must record every method above the threshold."
+    }
+
+    $baselinePath = Join-Path $TempRoot "baseline.json"
+    Write-CrapBaseline -Hotspots $proposed -Threshold 30 -Path $baselinePath
+    $roundTrip = Read-CrapBaseline -Path $baselinePath
+    if ($roundTrip.Count -ne 3 -or $roundTrip["src/Sample.cs|QueenZone.Web.Sample|Better"] -ne 70) {
+        throw "Self-test failed: baseline JSON did not round-trip."
+    }
+}
+
 function Invoke-CrapReportSelfTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("crap-report-selftest-" + [Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
@@ -395,6 +672,8 @@ function Invoke-CrapReportSelfTest {
             throw "Self-test failed: report files did not match the scored rows."
         }
 
+        Invoke-RatchetSelfTest -TempRoot $tempRoot
+
         Write-Information "Get-CrapReport.ps1 self-test passed."
     }
     finally {
@@ -407,5 +686,13 @@ if ($SelfTest) {
     exit 0
 }
 
-$rows = Get-CrapRows -ReportsPath $Reports
+$rows = if ($FromCsv) { Import-CrapCsv -Path $FromCsv } else { Get-CrapRows -ReportsPath $Reports }
 Write-CrapReport -Rows $rows -OutputDirectory $OutputDirectory -Threshold $Threshold -Top $Top
+
+if ($Baseline) {
+    $comparison = Invoke-CrapRatchet -Rows $rows -BaselinePath $Baseline -OutputDirectory $OutputDirectory -Threshold $Threshold
+    $violations = $comparison.New.Count + $comparison.Worse.Count
+    if ($Enforce -and $violations -gt 0) {
+        throw "CRAP ratchet failed: $($comparison.New.Count) new and $($comparison.Worse.Count) worsened hotspot(s) above $Threshold. See crap-summary.md."
+    }
+}

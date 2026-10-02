@@ -39,7 +39,7 @@ set -euo pipefail
 
 skip_re='^(docs/|infra/|design/|[^/]*\.md$|LICENSE$|THIRD-PARTY-NOTICES\.md$|\.github/)'
 mobile_re='^src/QueenZone\.Mobile(/|$)'
-mobile_coverage_re='^scripts/(Test-MobileCoverageGate\.mjs|Get-MobileCrapReport\.mjs|mobile-coverage-floors\.json)$'
+mobile_coverage_re='^(scripts/(Test-MobileCoverageGate\.mjs|Get-MobileCrapReport\.mjs|mobile-coverage-floors\.json)|config/crap-baseline\.mobile\.json)$'
 mobile_native_re='^(src/QueenZone\.Mobile/(package(-lock)?\.json|app\.json|app\.config\.(js|cjs|mjs|ts)|google-services\.json|plugins/|assets/(icon|splash-icon|android-icon-(foreground|background|monochrome)|ic-notification)\.png|src/widgets/(OnThisDayWidget\.ios|OnThisDayAndroidWidget)\.tsx)|\.github/workflows/ci\.yml$)'
 migration_re='^(src/QueenZone\.Data/Migrations/|src/QueenZone\.Data/QueenZoneDbContext\.cs|src/QueenZone\.Data/QueenZoneDbContextFactory\.cs|src/QueenZone\.Data/Entities/)'
 design_tokens_re='^(design/tokens/|design/design_handoff_[^/]+/tokens/|src/QueenZone\.Web/wwwroot/design-system/tokens/|scripts/Sync-DesignTokens\.ps1$)'
@@ -253,6 +253,16 @@ if [[ "${1:-}" = "--self-test" ]]; then
   assert_classify mobile-crap-report \
     "code=true${nl}migrations=false${nl}mobile=true${nl}mobile_native=false${nl}mobile_api_contracts=false${nl}design_tokens=false" \
     "scripts/Get-MobileCrapReport.mjs" \
+    || fail=1
+
+  assert_classify mobile-crap-baseline \
+    "code=true${nl}migrations=false${nl}mobile=true${nl}mobile_native=false${nl}mobile_api_contracts=false${nl}design_tokens=false" \
+    "config/crap-baseline.mobile.json" \
+    || fail=1
+
+  assert_classify dotnet-crap-baseline \
+    "code=true${nl}migrations=false${nl}mobile=false${nl}mobile_native=false${nl}mobile_api_contracts=false${nl}design_tokens=false" \
+    "config/crap-baseline.dotnet.json" \
     || fail=1
 
   assert_classify mobile-coverage-floors \

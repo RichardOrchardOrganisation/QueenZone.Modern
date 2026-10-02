@@ -4,9 +4,15 @@ import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  baselineKey,
+  compareBaseline,
   crapScore,
   getCrapRows,
   main,
+  methodScores,
+  proposeBaseline,
+  readBaseline,
+  renderBaseline,
   parseEslintComplexity,
   parseLcovLineHits,
   renderCsv,
@@ -264,4 +270,82 @@ test('main reads coverage and precomputed ESLint output and writes both reports'
 test('main fails closed when Jest coverage is missing', async () => {
   const root = mkdtempSync(path.join(tmpdir(), 'mobile-crap-missing-'));
   await assert.rejects(main(['--repoRoot', root, '--reports', path.join(root, 'coverage')]), /Missing Jest coverage/);
+});
+
+function ratchetRow(Method, Crap, File = 'src/QueenZone.Mobile/src/Sample.tsx') {
+  return { Crap, Complexity: 1, LineCoverage: 0, Lines: 1, Method, Class: 'Sample', File, Line: 1 };
+}
+
+test('methodScores keys by file and function and keeps the highest score per key', () => {
+  const scores = methodScores([ratchetRow('Screen::lambda', 35), ratchetRow('Screen::lambda', 40), ratchetRow('Screen', 12)]);
+  assert.equal(baselineKey(ratchetRow('Screen', 1)), 'src/QueenZone.Mobile/src/Sample.tsx|Screen');
+  assert.equal(scores.get('src/QueenZone.Mobile/src/Sample.tsx|Screen::lambda'), 40);
+  assert.equal(scores.size, 2);
+});
+
+test('compareBaseline flags new and worsened hotspots and lists improvements', () => {
+  const key = (name) => `src/QueenZone.Mobile/src/Sample.tsx|${name}`;
+  const baseline = new Map([
+    [key('Stable'), 100],
+    [key('Worse'), 40],
+    [key('Better'), 90],
+    [key('Fixed'), 50],
+    [key('Deleted'), 60],
+  ]);
+  const scores = methodScores([
+    ratchetRow('Stable', 100.05),
+    ratchetRow('Worse', 45),
+    ratchetRow('Better', 70),
+    ratchetRow('Fixed', 12),
+    ratchetRow('Brand', 31),
+    ratchetRow('Small', 20),
+  ]);
+  const comparison = compareBaseline(scores, baseline, 30);
+  const names = (items) => items.map((item) => item.key.split('|')[1]);
+  assert.deepEqual(names(comparison.added), ['Brand']);
+  assert.deepEqual(names(comparison.worse), ['Worse']);
+  assert.deepEqual(names(comparison.improved), ['Better', 'Deleted', 'Fixed']);
+
+  const proposed = proposeBaseline(scores, baseline, 30);
+  assert.deepEqual(
+    [...proposed].map(([k, v]) => `${k.split('|')[1]}=${v}`),
+    ['Better=70', 'Stable=100', 'Worse=40'],
+    'the proposed baseline only lowers or drops entries and never adds new ones',
+  );
+  assert.equal(proposeBaseline(scores, null, 30).size, 4, 'a first baseline records every function above the threshold');
+});
+
+test('main enforces the baseline and writes a proposed one', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'mobile-crap-ratchet-'));
+  const mobileFile = path.join(root, 'src/QueenZone.Mobile/src/screens/Sample.tsx');
+  const istanbul = { [mobileFile]: { ...sampleIstanbul()[filePath], path: mobileFile } };
+  const eslint = sampleEslint().map((result) => ({ ...result, filePath: mobileFile }));
+  const reports = path.join(root, 'coverage');
+  mkdirSync(path.join(reports, 'jest'), { recursive: true });
+  writeFileSync(path.join(reports, 'jest', 'coverage-final.json'), JSON.stringify(istanbul));
+  const eslintPath = path.join(root, 'eslint.json');
+  writeFileSync(eslintPath, JSON.stringify(eslint));
+  const output = path.join(root, 'out');
+  const baselinePath = path.join(root, 'baseline.json');
+  const base = ['--repoRoot', root, '--reports', reports, '--complexity', eslintPath, '--output', output, '--baseline', baselinePath];
+
+  await assert.rejects(main([...base, '--enforce']), /does not exist/);
+
+  await main([...base, '--write-baseline']);
+  const written = readBaseline(baselinePath);
+  assert.deepEqual([...written.keys()], ['src/QueenZone.Mobile/src/screens/Sample.tsx|untested']);
+  assert.match(readFileSync(path.join(output, 'crap-summary.md'), 'utf8'), /No new or worsened hotspots above 30/);
+
+  await main([...base, '--enforce']);
+
+  writeFileSync(baselinePath, renderBaseline(new Map(), 30));
+  await assert.rejects(main([...base, '--enforce']), /1 new and 0 worsened/);
+  assert.match(readFileSync(path.join(output, 'crap-summary.md'), 'utf8'), /New hotspot:.*untested/);
+
+  writeFileSync(baselinePath, renderBaseline(new Map([['src/QueenZone.Mobile/src/screens/Sample.tsx|untested', 20]]), 30));
+  await assert.rejects(main([...base, '--enforce']), /0 new and 1 worsened/);
+});
+
+test('--enforce without --baseline is rejected', async () => {
+  await assert.rejects(main(['--enforce']), /require --baseline/);
 });
