@@ -113,6 +113,15 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: node scripts/Test-MobileCoverageGate.mjs
 
+      # Report-only (#1979): ranks functions by CRAP (ESLint complexity x
+      # uncovered statements). Mobile counterpart of scripts/Get-CrapReport.ps1.
+      - name: Mobile CRAP report
+        if: always() && steps.mobile-coverage-collect.outcome == 'success'
+        working-directory: ${{ github.workspace }}
+        run: |
+          node scripts/Get-MobileCrapReport.mjs
+          cat src/QueenZone.Mobile/coverage/crap/crap-summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Expo Doctor
         run: npm run doctor
 
@@ -126,6 +135,8 @@ jobs:
             src/QueenZone.Mobile/coverage/merged/summary.json
             src/QueenZone.Mobile/coverage/jest/coverage-summary.json
             src/QueenZone.Mobile/coverage/node/lcov.info
+            src/QueenZone.Mobile/coverage/crap/crap-report.csv
+            src/QueenZone.Mobile/coverage/crap/crap-summary.md
           retention-days: 3
           if-no-files-found: error
 
