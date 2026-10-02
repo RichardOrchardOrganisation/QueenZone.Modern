@@ -37,6 +37,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Progress lines use Write-Information (not Write-Host) so functions that return rows
+# keep a clean pipeline; Continue makes them visible in CI logs.
+$InformationPreference = "Continue"
 
 if (-not $SelfTest -and [string]::IsNullOrWhiteSpace($Reports)) {
     throw "Reports is required unless -SelfTest is specified."
@@ -103,7 +106,7 @@ function Read-CoberturaDocument {
         $document = [xml]$text
     }
     catch {
-        Write-Host "Skipping unreadable coverage file '${Path}': $($_.Exception.Message)"
+        Write-Information "Skipping unreadable coverage file '${Path}': $($_.Exception.Message)"
         return $null
     }
 
@@ -165,6 +168,78 @@ function Get-CrapScore {
     return [math]::Pow($Complexity, 2) * [math]::Pow(1 - $Coverage, 3) + $Complexity
 }
 
+function Get-MethodEntry {
+    param(
+        [hashtable]$Methods,
+        [string]$RepoPath,
+        [object]$Identity
+    )
+
+    $key = "$RepoPath|$($Identity.Key)"
+    if (-not $Methods.ContainsKey($key)) {
+        $Methods[$key] = [pscustomobject]@{
+            File       = $RepoPath
+            Class      = $Identity.Class
+            Method     = $Identity.Method
+            Complexity = 0
+            Lines      = [System.Collections.Generic.HashSet[int]]::new()
+            Covered    = [System.Collections.Generic.HashSet[int]]::new()
+        }
+    }
+
+    return $Methods[$key]
+}
+
+# Union line hits into the entry so methods split across shards score on combined coverage.
+function Add-MethodCoverage {
+    param(
+        [object]$Entry,
+        [System.Xml.XmlElement]$Method
+    )
+
+    $complexity = [int]$Method.complexity
+    if ($complexity -gt $Entry.Complexity) { $Entry.Complexity = $complexity }
+
+    foreach ($line in @($Method.lines.line | Where-Object { $null -ne $_ })) {
+        $number = [int]$line.number
+        $Entry.Lines.Add($number) | Out-Null
+        if ([int64]$line.hits -gt 0) { $Entry.Covered.Add($number) | Out-Null }
+    }
+}
+
+function Add-DocumentMethods {
+    param(
+        [hashtable]$Methods,
+        [xml]$Document
+    )
+
+    $sources = Get-CoberturaSources -Document $Document
+    foreach ($class in @($Document.coverage.packages.package.classes.class | Where-Object { $null -ne $_ })) {
+        $repoPath = Convert-ToRepoPath -Path $class.filename -Sources $sources
+        foreach ($method in @($class.methods.method | Where-Object { $null -ne $_ })) {
+            $identity = Get-MethodIdentity -ClassName $class.name -MethodName $method.name -Signature $method.signature
+            $entry = Get-MethodEntry -Methods $Methods -RepoPath $repoPath -Identity $identity
+            Add-MethodCoverage -Entry $entry -Method $method
+        }
+    }
+}
+
+function ConvertTo-CrapRow {
+    param([object]$Entry)
+
+    $coverage = $Entry.Covered.Count / $Entry.Lines.Count
+    return [pscustomobject]@{
+        Crap         = [math]::Round((Get-CrapScore -Complexity $Entry.Complexity -Coverage $coverage), 1)
+        Complexity   = $Entry.Complexity
+        LineCoverage = [math]::Round($coverage * 100, 1)
+        Lines        = $Entry.Lines.Count
+        Method       = $Entry.Method
+        Class        = $Entry.Class
+        File         = $Entry.File
+        Line         = ($Entry.Lines | Measure-Object -Minimum).Minimum
+    }
+}
+
 function Get-CrapRows {
     param([string]$ReportsPath)
 
@@ -173,42 +248,9 @@ function Get-CrapRows {
 
     foreach ($reportFile in @(Get-ChildItem -Path $ReportsPath -Recurse -Filter "coverage.cobertura.xml" -File)) {
         $document = Read-CoberturaDocument -Path $reportFile.FullName
-        if ($null -eq $document) { continue }
-        $reportCount++
-
-        $sources = Get-CoberturaSources -Document $document
-
-        foreach ($class in $document.coverage.packages.package.classes.class) {
-            if ($null -eq $class) { continue }
-            $repoPath = Convert-ToRepoPath -Path $class.filename -Sources $sources
-
-            foreach ($method in $class.methods.method) {
-                if ($null -eq $method) { continue }
-                $identity = Get-MethodIdentity -ClassName $class.name -MethodName $method.name -Signature $method.signature
-                $key = "$repoPath|$($identity.Key)"
-
-                if (-not $methods.ContainsKey($key)) {
-                    $methods[$key] = [pscustomobject]@{
-                        File       = $repoPath
-                        Class      = $identity.Class
-                        Method     = $identity.Method
-                        Complexity = 0
-                        Lines      = [System.Collections.Generic.HashSet[int]]::new()
-                        Covered    = [System.Collections.Generic.HashSet[int]]::new()
-                    }
-                }
-
-                $entry = $methods[$key]
-                $complexity = [int]$method.complexity
-                if ($complexity -gt $entry.Complexity) { $entry.Complexity = $complexity }
-
-                foreach ($line in $method.lines.line) {
-                    if ($null -eq $line) { continue }
-                    $number = [int]$line.number
-                    $entry.Lines.Add($number) | Out-Null
-                    if ([int64]$line.hits -gt 0) { $entry.Covered.Add($number) | Out-Null }
-                }
-            }
+        if ($null -ne $document) {
+            $reportCount++
+            Add-DocumentMethods -Methods $methods -Document $document
         }
     }
 
@@ -216,23 +258,11 @@ function Get-CrapRows {
         throw "No valid Cobertura coverage reports found under '$ReportsPath'."
     }
 
-    Write-Host "Loaded $reportCount Cobertura report(s); $($methods.Count) method(s)."
+    Write-Information "Loaded $reportCount Cobertura report(s); $($methods.Count) method(s)."
 
     return @($methods.Values |
         Where-Object { $_.Lines.Count -gt 0 } |
-        ForEach-Object {
-            $coverage = $_.Covered.Count / $_.Lines.Count
-            [pscustomobject]@{
-                Crap         = [math]::Round((Get-CrapScore -Complexity $_.Complexity -Coverage $coverage), 1)
-                Complexity   = $_.Complexity
-                LineCoverage = [math]::Round($coverage * 100, 1)
-                Lines        = $_.Lines.Count
-                Method       = $_.Method
-                Class        = $_.Class
-                File         = $_.File
-                Line         = ($_.Lines | Measure-Object -Minimum).Minimum
-            }
-        } |
+        ForEach-Object { ConvertTo-CrapRow -Entry $_ } |
         Sort-Object -Property @{ Expression = "Crap"; Descending = $true }, @{ Expression = "Complexity"; Descending = $true }, File, Line)
 }
 
@@ -270,9 +300,9 @@ function Write-CrapReport {
     $mdPath = Join-Path $OutputDirectory "crap-summary.md"
     [System.IO.File]::WriteAllText($mdPath, $md.ToString(), [System.Text.UTF8Encoding]::new($false))
 
-    Write-Host "Methods above CRAP ${Threshold}: $($over.Count) of $($Rows.Count) ($($uncovered.Count) with no line coverage)."
-    Write-Host "Wrote $csvPath"
-    Write-Host "Wrote $mdPath"
+    Write-Information "Methods above CRAP ${Threshold}: $($over.Count) of $($Rows.Count) ($($uncovered.Count) with no line coverage)."
+    Write-Information "Wrote $csvPath"
+    Write-Information "Wrote $mdPath"
 }
 
 function Invoke-CrapReportSelfTest {
@@ -365,7 +395,7 @@ function Invoke-CrapReportSelfTest {
             throw "Self-test failed: report files did not match the scored rows."
         }
 
-        Write-Host "Get-CrapReport.ps1 self-test passed."
+        Write-Information "Get-CrapReport.ps1 self-test passed."
     }
     finally {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
