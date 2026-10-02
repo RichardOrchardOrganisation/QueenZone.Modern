@@ -266,6 +266,28 @@ public sealed class BlobUploadValidatorTests
         Assert.Contains("does not match extension", fakeDoc.Message);
     }
 
+    [Theory]
+    [InlineData("deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", true)]
+    [InlineData("deck.PPT", "application/vnd.ms-powerpoint", false)]
+    public void PowerPoint_requires_matching_container_signature(string fileName, string expected, bool zip)
+    {
+        byte[] header = zip ? [0x50, 0x4B, 0x03, 0x04] : [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+        Assert.Equal(expected, validator.ResolveAndValidateContentType(fileName, header, BlobUploadContainers.Forum));
+
+        var html = Assert.Throws<BlobUploadException>(() => validator.ResolveAndValidateContentType(
+            fileName, "<html>not a presentation</html>"u8.ToArray(), BlobUploadContainers.Forum));
+        Assert.Contains("does not match extension", html.Message);
+        var unknown = Assert.Throws<BlobUploadException>(() => validator.ResolveAndValidateContentType(
+            fileName, [0x00, 0x01, 0x02], BlobUploadContainers.Forum));
+        Assert.Contains("not recognized", unknown.Message);
+        byte[] wrongContainer = zip ? [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1] : [0x50, 0x4B, 0x03, 0x04];
+        var mismatch = Assert.Throws<BlobUploadException>(() => validator.ResolveAndValidateContentType(
+            fileName, wrongContainer, BlobUploadContainers.Forum));
+        Assert.Contains("does not match extension", mismatch.Message);
+        Assert.Throws<BlobUploadException>(() => validator.ResolveAndValidateContentType(
+            fileName, header, BlobUploadContainers.Avatars));
+    }
+
     [Fact]
     public void Audio_mpeg_and_mp3_aliases_agree()
     {

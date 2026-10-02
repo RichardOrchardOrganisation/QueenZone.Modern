@@ -103,29 +103,10 @@ public sealed class ForumAttachmentValidator(
         _ => $"{bytes / (1024.0 * 1024.0):F1} MB",
     };
 
-    public static string GuessContentType(string fileName)
-    {
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        return ext switch
-        {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            ".pdf" => "application/pdf",
-            ".zip" => "application/zip",
-            ".mp3" => "audio/mpeg",
-            ".flac" => "audio/flac",
-            ".txt" => "text/plain",
-            ".doc" => "application/msword",
-            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xls" => "application/vnd.ms-excel",
-            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ".ppt" => "application/vnd.ms-powerpoint",
-            ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            _ => "application/octet-stream",
-        };
-    }
+    public static string GuessContentType(string fileName) =>
+        BlobContentSniffer.GuessContentTypeFromExtension(Path.GetExtension(fileName))
+        ?? "application/octet-stream";
+
 }
 
 public sealed record ForumAttachmentValidationResult(
