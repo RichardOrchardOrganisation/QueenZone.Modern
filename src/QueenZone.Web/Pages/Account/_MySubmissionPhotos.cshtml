@@ -1,0 +1,41 @@
+@model MySubmissionsModel
+@using QueenZone.Storage
+      <h2 class="visually-hidden">Photos</h2>
+      @if (Model.PhotoSubmissions.Count == 0)
+      {
+        <p>You have not submitted any photos yet. <a href="/submit/photo">Submit a photo</a></p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Title</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var item in Model.PhotoSubmissions)
+            {
+              var thumbUrl = UgcProxyPaths.GetPath(BlobUploadContainers.Photos, item.ThumbnailBlobPath);
+              <tr>
+                <td>
+                  <img class="qz-submissions-thumb" src="@thumbUrl" alt="" width="64" height="64" />
+                </td>
+                <td>@item.Title</td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@item.SubmittedAt.ToString("u")</td>
+                <td>
+                  @if (MySubmissionPresentation.PhotoNotes(item.Status, item.RejectionReason, item.ReviewNotes) is { } notes)
+                  {
+                    <span>@notes</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }

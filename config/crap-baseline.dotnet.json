@@ -51,7 +51,6 @@
     "src/QueenZone.Web/Notifications/DirectPushTransport.cs|QueenZone.Web.DirectPushTransport|IsUnregistered": 34.2,
     "src/QueenZone.Web/Pages/Account/ExternalLoginCallback.cshtml.cs|QueenZone.Web.Pages.Account.ExternalLoginCallbackModel|OnGetAsync": 33.1,
     "src/QueenZone.Web/Pages/Account/LinkExternalLogin.cshtml.cs|QueenZone.Web.Pages.Account.LinkExternalLoginModel|IsProviderEnabled": 72.0,
-    "src/QueenZone.Web/Pages/Account/MySubmissions.cshtml|QueenZone.Web.Pages.Account.Pages_Account_MySubmissions|ExecuteAsync": 125.2,
     "src/QueenZone.Web/Pages/Account/Settings.cshtml|QueenZone.Web.Pages.Account.Pages_Account_Settings|ExecuteAsync": 60.6,
     "src/QueenZone.Web/Pages/Admin/Articles/Detail.cshtml|QueenZone.Web.Pages.Admin.Articles.Pages_Admin_Articles_Detail|ExecuteAsync": 32.1,
     "src/QueenZone.Web/Pages/Admin/Articles/Edit.cshtml|QueenZone.Web.Pages.Admin.Articles.Pages_Admin_Articles_Edit|ExecuteAsync::lambda": 78.0,

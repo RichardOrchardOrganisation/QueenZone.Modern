@@ -1,0 +1,51 @@
+@model MySubmissionsModel
+@using QueenZone.Storage
+      <h2 class="visually-hidden">Articles</h2>
+      @if (Model.ArticleSubmissions.Count == 0)
+      {
+        <p>You have not submitted any articles yet. <a href="/submit/article">Write your first article</a></p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var item in Model.ArticleSubmissions)
+            {
+              var presentation = MySubmissionPresentation.Article(item);
+              <tr>
+                <td>@item.Title</td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@presentation.SubmittedLabel</td>
+                <td>
+                  @if (presentation.Notes is not null)
+                  {
+                    @if (presentation.IsRevisionNote)
+                    {
+                      <p class="qz-submissions-revision-note">@presentation.Notes</p>
+                    }
+                    else
+                    {
+                      <span>@presentation.Notes</span>
+                    }
+                  }
+                </td>
+                <td>
+                  @if (presentation.Action is not null)
+                  {
+                    <a href="@presentation.Action.Href">@presentation.Action.Label</a>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
