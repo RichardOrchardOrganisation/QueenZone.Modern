@@ -142,6 +142,64 @@ function displayName(fn, functions) {
   return `${parent?.name ?? '<module>'}::lambda`;
 }
 
+/** Returns how many ESLint heads had no matching Istanbul function. */
+function assignComplexity(functions, entries) {
+  let unmatched = 0;
+  for (const entry of entries) {
+    const fn = functionForHead(functions, entry);
+    if (fn) {
+      fn.complexity = Math.max(fn.complexity, entry.complexity);
+    } else {
+      unmatched += 1;
+    }
+  }
+  return unmatched;
+}
+
+function assignStatements(functions, file, lineHits) {
+  for (const [id, loc] of Object.entries(file.statementMap ?? {})) {
+    const fn = innermost(functions, loc.start);
+    if (!fn) {
+      continue;
+    }
+    fn.statements += 1;
+    if (Number(file.s?.[id] ?? 0) > 0 || (lineHits?.get(loc.start.line) ?? 0) > 0) {
+      fn.covered += 1;
+    }
+  }
+}
+
+function toRow(fn, functions, repoPath) {
+  const coverage = fn.covered / fn.statements;
+  return {
+    Crap: Math.round(crapScore(fn.complexity, coverage) * 10) / 10,
+    Complexity: fn.complexity,
+    LineCoverage: Math.round(coverage * 1000) / 10,
+    Lines: fn.statements,
+    Method: displayName(fn, functions),
+    Class: path.posix.basename(repoPath).replace(/\.(ts|tsx)$/, ''),
+    File: repoPath,
+    Line: fn.loc.start.line,
+  };
+}
+
+function scoreFile(file, repoPath, complexity, nodeHits) {
+  const functions = Object.values(file.fnMap ?? {}).map((fn) => ({
+    name: fn.name ?? '(anonymous)',
+    decl: fn.decl ?? fn.loc,
+    loc: fn.loc,
+    complexity: 0,
+    statements: 0,
+    covered: 0,
+  }));
+  const unmatched = assignComplexity(functions, complexity.get(repoPath) ?? []);
+  assignStatements(functions, file, nodeHits.get(repoPath));
+  const rows = functions
+    .filter((fn) => fn.statements > 0 && fn.complexity > 0)
+    .map((fn) => toRow(fn, functions, repoPath));
+  return { rows, unmatched };
+}
+
 /**
  * Score every function in Jest's coverage-final.json. `complexity` is the
  * output of parseEslintComplexity, `nodeHits` of parseLcovLineHits.
@@ -152,58 +210,10 @@ export function getCrapRows({ istanbul, complexity, nodeHits = new Map(), repoRo
 
   for (const [filePath, file] of Object.entries(istanbul)) {
     const repoPath = toRepoPath(file.path ?? filePath, [], repoRoot);
-    if (!isCoverableRepoPath(repoPath)) {
-      continue;
-    }
-
-    const functions = Object.values(file.fnMap ?? {}).map((fn) => ({
-      name: fn.name ?? '(anonymous)',
-      decl: fn.decl ?? fn.loc,
-      loc: fn.loc,
-      complexity: 0,
-      statements: 0,
-      covered: 0,
-    }));
-    if (functions.length === 0) {
-      continue;
-    }
-
-    for (const entry of complexity.get(repoPath) ?? []) {
-      const fn = functionForHead(functions, entry);
-      if (fn) {
-        fn.complexity = Math.max(fn.complexity, entry.complexity);
-      } else {
-        unmatched += 1;
-      }
-    }
-
-    const lineHits = nodeHits.get(repoPath);
-    for (const [id, loc] of Object.entries(file.statementMap ?? {})) {
-      const fn = innermost(functions, loc.start);
-      if (!fn) {
-        continue;
-      }
-      fn.statements += 1;
-      if (Number(file.s?.[id] ?? 0) > 0 || (lineHits?.get(loc.start.line) ?? 0) > 0) {
-        fn.covered += 1;
-      }
-    }
-
-    for (const fn of functions) {
-      if (fn.statements === 0 || fn.complexity === 0) {
-        continue;
-      }
-      const coverage = fn.covered / fn.statements;
-      rows.push({
-        Crap: Math.round(crapScore(fn.complexity, coverage) * 10) / 10,
-        Complexity: fn.complexity,
-        LineCoverage: Math.round(coverage * 1000) / 10,
-        Lines: fn.statements,
-        Method: displayName(fn, functions),
-        Class: path.posix.basename(repoPath).replace(/\.(ts|tsx)$/, ''),
-        File: repoPath,
-        Line: fn.loc.start.line,
-      });
+    if (isCoverableRepoPath(repoPath)) {
+      const scored = scoreFile(file, repoPath, complexity, nodeHits);
+      rows.push(...scored.rows);
+      unmatched += scored.unmatched;
     }
   }
 
@@ -214,7 +224,7 @@ export function getCrapRows({ istanbul, complexity, nodeHits = new Map(), repoRo
 }
 
 function csvCell(value) {
-  return `"${String(value).replace(/"/g, '""')}"`;
+  return `"${String(value).replaceAll('"', '""')}"`;
 }
 
 export function renderCsv(rows) {
@@ -318,8 +328,10 @@ export async function main(argv) {
 
 const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
-  main(process.argv.slice(2)).catch((error) => {
+  try {
+    await main(process.argv.slice(2));
+  } catch (error) {
     console.error(error.message);
     process.exit(1);
-  });
+  }
 }
