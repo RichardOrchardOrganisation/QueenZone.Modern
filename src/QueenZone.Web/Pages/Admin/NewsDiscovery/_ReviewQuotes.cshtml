@@ -1,0 +1,24 @@
+@model ReviewModel
+  @if (Model.PreservedQuotes.Count > 0)
+  {
+    <section class="admin-review-section">
+      <h2>Preserved quotes</h2>
+      <p class="admin-muted">Exact band-member quotations extracted for editor verification before promotion.</p>
+      <ul class="admin-review-list">
+        @foreach (var quote in Model.PreservedQuotes)
+        {
+          <li>
+            <strong>@quote.Speaker</strong>: “@quote.ExactText”
+            @if (!string.IsNullOrWhiteSpace(quote.SourceUrl))
+            {
+              <div><a href="@quote.SourceUrl" rel="noopener noreferrer" target="_blank">@quote.SourceUrl</a></div>
+            }
+            @if (!string.IsNullOrWhiteSpace(quote.SourceContext))
+            {
+              <p class="admin-muted">@quote.SourceContext</p>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }

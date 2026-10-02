@@ -1,0 +1,18 @@
+@model ReviewModel
+  <section class="admin-review-section">
+    <h2>Actions</h2>
+    <div class="admin-actions">
+      @if (Model.Actions!.CanPromote)
+      {
+        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{Model.Candidate!.Id}/promote", "Promote to admin news"))" />
+      }
+      @if (Model.Actions!.CanReject)
+      {
+        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{Model.Candidate!.Id}/reject", "Mark not relevant", Confirm: true))" />
+      }
+      @if (Model.Actions!.CanIgnoreDuplicate)
+      {
+        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{Model.Candidate!.Id}/ignoreduplicate", "Ignore duplicate", Confirm: true))" />
+      }
+    </div>
+  </section>
