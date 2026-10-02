@@ -1,6 +1,6 @@
 @model SiteHeaderViewModel
       <nav class="qz-mobile-nav" aria-label="Mobile primary navigation">
-        @foreach (var group in Model.NavigationGroups)
+        @foreach (var group in SiteHeaderNavigation.Groups)
         {
           <section class="qz-mobile-nav__section qz-nav-group--@group.Accent" aria-labelledby="qz-mobile-nav-@group.Id">
             <h2 id="qz-mobile-nav-@group.Id">@group.Label</h2>

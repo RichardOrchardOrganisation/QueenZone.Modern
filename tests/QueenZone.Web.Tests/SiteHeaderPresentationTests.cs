@@ -125,7 +125,7 @@ public sealed class SiteHeaderPresentationTests
     [Fact]
     public void Navigation_PreservesTheThreeGroupsAndAllTwelveDestinations()
     {
-        var groups = new SiteHeaderViewModel("/", true, null, null, false, 0, false, null).NavigationGroups;
+        var groups = SiteHeaderNavigation.Groups;
         Assert.Equal(new[] { "band", "archive", "community" }, groups.Select(group => group.Id));
         Assert.Equal(new[]
         {

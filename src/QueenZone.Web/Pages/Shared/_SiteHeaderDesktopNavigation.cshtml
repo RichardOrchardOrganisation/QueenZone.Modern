@@ -1,6 +1,6 @@
 @model SiteHeaderViewModel
     <nav class="qz-nav" aria-label="Primary navigation" data-masthead-nav>
-      @foreach (var group in Model.NavigationGroups)
+      @foreach (var group in SiteHeaderNavigation.Groups)
       {
         var panelId = $"qz-nav-panel-{group.Id}";
         <div class="qz-nav-group qz-nav-group--@group.Accent" data-nav-group>

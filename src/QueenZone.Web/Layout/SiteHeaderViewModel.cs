@@ -13,8 +13,6 @@ public sealed record SiteHeaderViewModel(
     bool ShowAdminNav,
     string? AdminEmail)
 {
-    public IReadOnlyList<SiteHeaderNavGroup> NavigationGroups => SiteHeaderNavigation.Groups;
-
     public string MessagesIconLabel => UnreadMessageCount > 0
         ? $"Messages, {UnreadMessageCount} unread conversations"
         : "Messages";
