@@ -12,6 +12,7 @@ import {
 import { Alert, AppState, Linking } from 'react-native';
 import { addNetworkStateListener } from 'expo-network';
 import * as Notifications from 'expo-notifications';
+import * as Sentry from '@sentry/react-native';
 import { getAppConfig } from '../config/appConfig';
 import { ApiError, configureAuthenticatedGetRecovery, fetchJson } from '../api/client';
 import { fallbackProfileLimits, parseMemberProfile, type MemberProfile } from '../api/me';
@@ -462,6 +463,67 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let inFlight = false;
     let lockedPending = false;
 
+    const readCredentials = async (isCurrent: () => boolean) => {
+      try {
+        const stored =
+          getAppConfig().appEnv === 'development'
+            ? await withTimeout(
+                serializeCredentials(readStoredSession),
+                developmentSessionRestoreTimeoutMs,
+                sessionRestoreTimeoutLabel,
+              )
+            : await serializeCredentials(readStoredSession);
+        lockedPending = false;
+        return stored;
+      } catch (error) {
+        if (!isCurrent()) {
+          return null;
+        }
+        if (isKeychainLockedError(error)) {
+          // A locked read is not sign-out. Retry when the app becomes active.
+          lockedPending = true;
+          return null;
+        }
+        lockedPending = false;
+        if (!isSessionRestoreTimeoutError(error)) {
+          Sentry.captureException(error, { tags: { operation: 'session.restore.credentials' } });
+        }
+        // Preserve the stored grant for a later launch, but always finish restoring.
+        setSession({ ...signedOut, isRestoring: false });
+        return null;
+      }
+    };
+
+    const finishRestoreRefresh = async (pending: Promise<string | null>, isCurrent: () => boolean) => {
+      const next = await pending;
+      if (!next && isCurrent() && !sessionRef.current.accessToken && !memberIdRef.current) {
+        await clearLocal();
+      }
+    };
+
+    const restoreProfile = async (stored: StoredSession, generation: number, isCurrent: () => boolean) => {
+      try {
+        const profile = await loadProfile(stored.accessToken);
+        if (isCurrent()) {
+          applyProfile(stored.accessToken, profile, generation);
+        }
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        if (!(error instanceof ApiError) || error.status !== 401) {
+          return;
+        }
+        if (stored.expiresAt <= Date.now()) {
+          await clearLocal();
+          return;
+        }
+        if (!appIsInBackground()) {
+          await finishRestoreRefresh(refreshWithStoredGrant(), isCurrent);
+        }
+      }
+    };
+
     const restore = async () => {
       if (inFlight || cancelled) {
         return;
@@ -470,39 +532,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const generation = generationRef.current;
       const isCurrent = () => !cancelled && generation === generationRef.current;
       try {
-        let stored: StoredSession | null;
-        try {
-          stored =
-            getAppConfig().appEnv === 'development'
-              ? await withTimeout(
-                  serializeCredentials(readStoredSession),
-                  developmentSessionRestoreTimeoutMs,
-                  sessionRestoreTimeoutLabel,
-                )
-              : await serializeCredentials(readStoredSession);
-        } catch (error) {
-          if (!isCurrent()) {
-            return;
-          }
-          if (isSessionRestoreTimeoutError(error)) {
-            // Simulator SecureStore can hang instead of resolving. Fail open so
-            // Profile is not stuck on "Restoring your session…" (#1387).
-            lockedPending = false;
-            setSession({ ...signedOut, isRestoring: false });
-            return;
-          }
-          if (isKeychainLockedError(error)) {
-            // Keep isRestoring. A locked read is not sign-out and must not unhandled-reject.
-            lockedPending = true;
-            return;
-          }
-          throw error;
-        }
-        lockedPending = false;
-        if (!isCurrent()) {
+        const stored = await readCredentials(isCurrent);
+        if (!isCurrent() || lockedPending) {
           return;
         }
-
         if (!stored) {
           setSession({ ...signedOut, isRestoring: false });
           return;
@@ -514,66 +547,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           void reconcileDownloads(stored.identity.memberId).catch(() => {});
         }
 
-        // Seed the grant and start a single-flight /token before the signed-in
-        // shell is live so flushOfflineQueue / refreshProfile join this promise
-        // instead of presenting the same single-use refresh token twice.
+        // Start the single-flight refresh before exposing the shell so consumers
+        // join it instead of presenting the rotating grant twice.
         refreshTokenRef.current = stored.refreshToken;
         expiresAtRef.current = stored.expiresAt;
         const expired = stored.expiresAt <= Date.now();
         const deferRefresh = appIsInBackground();
         const pendingRefresh = expired && !deferRefresh ? refreshWithStoredGrant() : null;
-
         applyTokenState(stored, {
           displayName: stored.identity?.displayName ?? null,
           profile: shell,
         });
-
         if (expired && deferRefresh) {
-          // Background launch: keep the stored grant untouched. The foreground
-          // listener refreshes it (and loads /me) when the member opens the app.
           return;
         }
-
-        try {
-          if (pendingRefresh) {
-            const next = await pendingRefresh;
-            if (!next && isCurrent() && !sessionRef.current.accessToken && !memberIdRef.current) {
-              await clearLocal();
-            }
-            return;
-          }
-
-          try {
-            const profile = await loadProfile(stored.accessToken);
-            if (isCurrent()) {
-              applyProfile(stored.accessToken, profile, generation);
-            }
-          } catch (err) {
-            if (!isCurrent()) {
-              return;
-            }
-
-            const canRetryRefresh =
-              err instanceof ApiError && err.status === 401 && stored.expiresAt > Date.now();
-            if (canRetryRefresh && appIsInBackground()) {
-              return;
-            }
-            if (canRetryRefresh) {
-              const next = await refreshWithStoredGrant();
-              if (!next && isCurrent() && !sessionRef.current.accessToken && !memberIdRef.current) {
-                await clearLocal();
-              }
-              return;
-            }
-
-            if (err instanceof ApiError && err.status === 401) {
-              await clearLocal();
-            }
-          }
-        } catch {
-          if (isCurrent()) {
-            await clearLocal();
-          }
+        if (pendingRefresh) {
+          await finishRestoreRefresh(pendingRefresh, isCurrent);
+        } else {
+          await restoreProfile(stored, generation, isCurrent);
+        }
+      } catch {
+        if (isCurrent()) {
+          await clearLocal();
         }
       } finally {
         inFlight = false;

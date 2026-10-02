@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Alert, AppState, Text, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as Sentry from '@sentry/react-native';
 import { act, screen, waitFor, userEvent } from '@testing-library/react-native';
 import { ApiError, fetchJson } from '../api/client';
 import { TokenEndpointError } from '../api/errors';
 import { authTokensFixture, deferred, memberProfilePayload } from '../test/fixtures';
 import { initials } from '../ui/initials';
 import { renderWithProviders } from '../test/render';
-import { SessionProvider, useSession, useSessionActions, type SessionActions } from './SessionContext';
+import { SessionProvider, useSession, useSessionActions, type SessionActions, type Session } from './SessionContext';
 import * as oauth from './oauth';
 import * as tokenStore from './tokenStore';
 import * as notifications from '../notifications';
@@ -92,7 +93,7 @@ const clearPushRegistration = notifications.clearPushRegistration as jest.Mocked
   typeof notifications.clearPushRegistration
 >;
 
-let capturedActions: SessionActions;
+let capturedActions: SessionActions & Session;
 
 function Probe() {
   const session = useSession();
@@ -217,6 +218,213 @@ describe('SessionProvider', () => {
     renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(screen.getByText('no-token')).toBeOnTheScreen();
+  });
+
+  it.each(['development', 'production'])('finishes restore and reports an unexpected credential read failure in %s', async (environment) => {
+    mockAppConfig.appEnv = environment;
+    const error = new Error('credential storage failed');
+    readStored.mockRejectedValue(error);
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
+    renderSession();
+    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
+    expect(screen.getByText('no-token')).toBeOnTheScreen();
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.profile?.memberId ?? null).toBeNull();
+    expect(Sentry.captureException).toHaveBeenCalledWith(error, {
+      tags: { operation: 'session.restore.credentials' },
+    });
+    expect(clearStored).not.toHaveBeenCalled();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(reconcile).not.toHaveBeenCalled();
+  });
+
+  it.each(['sign-in', 'sign-out', 'unmount'] as const)(
+    'ignores a credential read failure after %s supersedes restore', async (action) => {
+      const read = deferred<tokenStore.StoredSession | null>();
+      readStored.mockReturnValue(read.promise);
+      const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
+      const view = renderSession();
+      await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
+      if (action === 'sign-in') {
+        signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
+        // Sign-in changes generation before its credential write joins the read queue.
+        let signingIn!: Promise<void>;
+        await act(async () => { signingIn = capturedActions.signIn('Google'); });
+        await act(async () => {
+          read.reject(new Error('stale read failure'));
+          await signingIn;
+        });
+        expect(screen.getByText('new-account')).toBeOnTheScreen();
+        expect(capturedActions.profile?.memberId).toBe('member-1');
+        expect(reconcile).toHaveBeenCalledTimes(1);
+      } else {
+        if (action === 'sign-out') {
+          await act(async () => { await capturedActions.signOut(); });
+        } else {
+          view.unmount();
+        }
+        await act(async () => { read.reject(new Error('stale read failure')); });
+        expect(reconcile).not.toHaveBeenCalled();
+        if (action === 'sign-out') {
+          expect(screen.getByText('signed-out')).toBeOnTheScreen();
+          expect(screen.getByText('no-token')).toBeOnTheScreen();
+          expect(capturedActions.isRestoring).toBe(false);
+          expect(capturedActions.profile).toBeNull();
+        }
+      }
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+      expect(refreshAccessToken).not.toHaveBeenCalled();
+      expect(clearStored).toHaveBeenCalledTimes(action === 'sign-out' ? 1 : 0);
+    },
+  );
+
+  it('single-flights repeated foreground restore attempts while the keychain retry is pending', async () => {
+    const handlers: ((state: AppStateStatus) => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, handler) => {
+      handlers.push(handler);
+      return { remove: jest.fn() };
+    });
+    const read = deferred<tokenStore.StoredSession | null>();
+    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
+    readStored.mockRejectedValueOnce(new Error('User interaction is not allowed'));
+    readStored.mockReturnValue(read.promise);
+    refreshAccessToken.mockReturnValue(refresh.promise);
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
+    renderSession();
+    await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
+    expect(capturedActions.isRestoring).toBe(true);
+    await act(async () => {
+      handlers.forEach((handler) => handler('active'));
+      handlers.forEach((handler) => handler('active'));
+    });
+    expect(readStored).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      read.resolve({ ...authTokensFixture(), expiresAt: Date.now() - 1_000 });
+    });
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBe('access-token');
+    expect(capturedActions.profile).toBeNull();
+    await act(async () => {
+      handlers.forEach((handler) => handler('active'));
+      refresh.resolve(authTokensFixture({ accessToken: 'next' }));
+    });
+    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
+    expect(capturedActions.profile?.memberId).toBe('member-1');
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(clearStored).not.toHaveBeenCalled();
+    expect(reconcile).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears an expired grant without a cached member when foreground refresh is rejected', async () => {
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() - 1_000 });
+    refreshAccessToken.mockRejectedValue(new TokenEndpointError(400, 'invalid_grant', 'Expired'));
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
+    renderSession();
+    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBeNull();
+    expect(capturedActions.profile).toBeNull();
+    expect(clearStored).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(reconcile).not.toHaveBeenCalled();
+  });
+
+  it('clears an expired stored session when refresh yields no token or cached member', async () => {
+    readStored.mockResolvedValue({
+      ...authTokensFixture({ accessToken: '', refreshToken: '' }),
+      expiresAt: Date.now() - 1_000,
+    });
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
+    renderSession();
+    await waitFor(() => expect(clearStored).toHaveBeenCalledTimes(1));
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBeNull();
+    expect(capturedActions.profile).toBeNull();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(reconcile).not.toHaveBeenCalled();
+  });
+
+  it('clears a grant that expires while the restore profile request is pending', async () => {
+    const now = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const profile = deferred<unknown>();
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
+    fetchJsonMock.mockReturnValue(profile.promise);
+    renderSession();
+    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledTimes(1));
+    clock.mockReturnValue(now + 120_000);
+    await act(async () => { profile.reject(ApiError.http(401, 'Unauthorized')); });
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBeNull();
+    expect(capturedActions.profile).toBeNull();
+    expect(clearStored).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('ignores a superseded restore profile (reject=%s)', async (reject) => {
+    const profile = deferred<unknown>();
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
+    fetchJsonMock.mockReturnValue(profile.promise);
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
+    renderSession();
+    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledTimes(1));
+    await act(async () => { await capturedActions.signOut(); });
+    await act(async () => {
+      if (reject) profile.reject(ApiError.http(401, 'Unauthorized'));
+      else profile.resolve(memberProfilePayload());
+    });
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBeNull();
+    expect(capturedActions.profile).toBeNull();
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(clearStored).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('ignores stored credentials resolved after sign-out', async () => {
+    const read = deferred<tokenStore.StoredSession | null>();
+    readStored.mockReturnValue(read.promise);
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
+    renderSession();
+    await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
+    await act(async () => { await capturedActions.signOut(); });
+    await act(async () => {
+      read.resolve({ ...authTokensFixture(), expiresAt: Date.now() - 1_000,
+        identity: { displayName: 'Freddie', memberId: 'member-1' } });
+    });
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBeNull();
+    expect(capturedActions.profile).toBeNull();
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(clearStored).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('keeps the restored token when profile reconciliation fails synchronously', async () => {
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    renderSession();
+    await waitFor(() => expect(reconcile).toHaveBeenCalledWith('member-1'));
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBe('access-token');
+    expect(capturedActions.profile).toBeNull();
+    expect(clearStored).not.toHaveBeenCalled();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('finishes restore when unexpected shell reconciliation fails synchronously', async () => {
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000,
+      identity: { displayName: 'Freddie', memberId: 'member-1' } });
+    jest.spyOn(downloadManager, 'reconcileDownloads').mockImplementation(() => { throw new Error('storage unavailable'); });
+    renderSession();
+    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBeNull();
+    expect(capturedActions.profile).toBeNull();
+    expect(clearStored).toHaveBeenCalledTimes(1);
+    expect(refreshAccessToken).not.toHaveBeenCalled();
   });
 
   it('applies the smoke session when Release smokeEmbed is baked', async () => {
@@ -975,6 +1183,7 @@ describe('SessionProvider', () => {
   });
 
   it('does not rotate or sign out when /me returns 401 during a background launch', async () => {
+    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
     setAppState('background');
     readStored.mockResolvedValue({
       ...authTokensFixture(),
@@ -988,6 +1197,10 @@ describe('SessionProvider', () => {
     expect(refreshAccessToken).not.toHaveBeenCalled();
     expect(clearStored).not.toHaveBeenCalled();
     expect(screen.getByText('signed-in')).toBeOnTheScreen();
+    expect(capturedActions.isRestoring).toBe(false);
+    expect(capturedActions.accessToken).toBe('access-token');
+    expect(capturedActions.profile?.memberId).toBe('member-1');
+    expect(reconcile).toHaveBeenCalledWith('member-1');
   });
 
   it('does not rotate the grant from ensureAccessToken while backgrounded', async () => {
