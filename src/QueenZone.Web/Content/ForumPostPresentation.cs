@@ -6,8 +6,15 @@ public sealed record ForumPostPresentation(ForumPostViewModel Post, bool CanRepl
         new(post, canReply, isAdmin, returnPath + $"#post-{post.Id}");
 
     public string? AuthorHref => AuthorPath(Post.AuthorMemberId, Post.AuthorLegacyUserId);
-    public static string? AuthorPath(Guid? memberId, int? legacyId) => memberId is Guid id
-        ? $"/members/{id}" : legacyId is int legacy ? $"/forum/archive-authors/{legacy}" : null;
+    public static string? AuthorPath(Guid? memberId, int? legacyId)
+    {
+        if (memberId is Guid id)
+        {
+            return $"/members/{id}";
+        }
+
+        return legacyId is int legacy ? $"/forum/archive-authors/{legacy}" : null;
+    }
     public bool CanEdit => Post.IsAuthor && Post.CanEdit;
     public bool CanReport => !Post.IsAuthor;
     public bool ShowActions => CanEdit || Post.CanMessage || CanReply || IsAdmin || CanReport;

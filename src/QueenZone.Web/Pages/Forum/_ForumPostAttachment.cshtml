@@ -1,5 +1,4 @@
 @model ForumAttachmentViewModel
-                  <li class="qz-forum-post__attachment-item">
                     @if (ForumPostPresentation.HasThumbnail(Model))
                     {
                       <a class="qz-forum-post__attachment-thumb-link" href="@Model.Url" rel="noopener noreferrer">
@@ -23,4 +22,3 @@
                         <span>Members only</span>
                       </span>
                     </a>
-                  </li>

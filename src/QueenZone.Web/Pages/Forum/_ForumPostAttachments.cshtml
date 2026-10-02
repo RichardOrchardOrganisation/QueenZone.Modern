@@ -7,7 +7,9 @@
               <ul class="qz-forum-post__attachment-list">
                 @foreach (var attachment in post.Attachments)
                 {
-                  <partial name="_ForumPostAttachment" model="attachment" />
+                  <li class="qz-forum-post__attachment-item">
+                    <partial name="_ForumPostAttachment" model="attachment" />
+                  </li>
                 }
               </ul>
             </div>

@@ -4,13 +4,13 @@
             {
               @if (post.AlreadyReported)
               {
-                <span class="qz-meta" role="status">Report submitted</span>
+                <output class="qz-meta">Report submitted</output>
               }
               else
               {
                 <a class="qz-forum-post__report-link" href="/forum/post/@post.Id/report?returnUrl=@Model.ReportReturnUrl" rel="nofollow">Report post</a>
               }
-              @if (post.AuthorMemberId is Guid blockMemberId)
+              @if (post.AuthorMemberId is not null)
               {
                 @if (post.IsBlocked)
                 {
