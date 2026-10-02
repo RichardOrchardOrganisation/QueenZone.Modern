@@ -18,43 +18,23 @@ type Props = CompositeScreenProps<
   BottomTabScreenProps<RootTabParamList>
 >;
 
+const archiveRoutes: Record<ArchiveDestination['id'], (navigation: Props['navigation']) => void> = {
+  'stories': (navigation) => navigation.navigate('Articles'),
+  'timeline': (navigation) => navigation.navigate('Timeline'),
+  'biography': (navigation) => navigation.navigate('Biography'),
+  'discography': (navigation) => navigation.navigate('Discography'),
+  'tribute': (navigation) => navigation.navigate('FreddieTribute'),
+  'fan-performances': (navigation) => navigation.navigate('FanPerformances'),
+  'recently-restored': (navigation) => navigation.navigate('PhotosTab', { screen: 'PhotoIndex' }),
+  'trivia': (navigation) => navigation.navigate('Trivia'),
+  'quiz': (navigation) => navigation.navigate('QuizSprint'),
+  'about': (navigation) => navigation.navigate('AboutArchive'),
+};
+
 export function ArchiveHubScreen({ navigation }: Props) {
   const { c } = useTheme();
 
-  const open = (row: ArchiveDestination) => {
-    switch (row.id) {
-      case 'stories':
-        navigation.navigate('Articles');
-        return;
-      case 'timeline':
-        navigation.navigate('Timeline');
-        return;
-      case 'biography':
-        navigation.navigate('Biography');
-        return;
-      case 'discography':
-        navigation.navigate('Discography');
-        return;
-      case 'tribute':
-        navigation.navigate('FreddieTribute');
-        return;
-      case 'fan-performances':
-        navigation.navigate('FanPerformances');
-        return;
-      case 'recently-restored':
-        navigation.navigate('PhotosTab', { screen: 'PhotoIndex' });
-        return;
-      case 'trivia':
-        navigation.navigate('Trivia');
-        return;
-      case 'quiz':
-        navigation.navigate('QuizSprint');
-        return;
-      case 'about':
-        navigation.navigate('AboutArchive');
-        return;
-    }
-  };
+  const open = (row: ArchiveDestination) => archiveRoutes[row.id](navigation);
 
   return (
     <FlatList
