@@ -113,13 +113,15 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: node scripts/Test-MobileCoverageGate.mjs
 
-      # Report-only (#1979): ranks functions by CRAP (ESLint complexity x
-      # uncovered statements). Mobile counterpart of scripts/Get-CrapReport.ps1.
+      # Ranks functions by CRAP (ESLint complexity x uncovered statements) and
+      # compares against config/crap-baseline.mobile.json (#1979). Report only
+      # here; the ratchet is enforced in the last step so a failure cannot skip
+      # Expo Doctor or the coverage uploads.
       - name: Mobile CRAP report
         if: always() && steps.mobile-coverage-collect.outcome == 'success'
         working-directory: ${{ github.workspace }}
         run: |
-          node scripts/Get-MobileCrapReport.mjs
+          node scripts/Get-MobileCrapReport.mjs --baseline config/crap-baseline.mobile.json
           cat src/QueenZone.Mobile/coverage/crap/crap-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Expo Doctor
@@ -137,6 +139,7 @@ jobs:
             src/QueenZone.Mobile/coverage/node/lcov.info
             src/QueenZone.Mobile/coverage/crap/crap-report.csv
             src/QueenZone.Mobile/coverage/crap/crap-summary.md
+            src/QueenZone.Mobile/coverage/crap/crap-baseline.proposed.json
           retention-days: 3
           if-no-files-found: error
 
@@ -148,6 +151,13 @@ jobs:
           path: src/QueenZone.Mobile/coverage/merged/html
           retention-days: 1
           if-no-files-found: error
+
+      # Fails on a function above CRAP 30 that is not in the baseline, or a
+      # baselined one whose score rose (AGENTS.md "Change risk (CRAP)").
+      - name: Enforce mobile CRAP ratchet
+        if: always() && steps.mobile-coverage-collect.outcome == 'success'
+        working-directory: ${{ github.workspace }}
+        run: node scripts/Get-MobileCrapReport.mjs --baseline config/crap-baseline.mobile.json --enforce
 
   # Unsigned Android debug APK from CNG-generated native project (issue #794).
   # No keystore secrets: Gradle's default debug signing config is fine for a
@@ -841,15 +851,17 @@ jobs:
       - name: Add coverage summary
         run: cat coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
-      # Report-only: ranks methods by CRAP (complexity x uncovered lines). The
-      # ReportGenerator HTML also has a Risk Hotspots table built from the same data.
-      # Writes into coverage-report/crap so the existing coverage-report upload
-      # at the end of this job carries the CSV.
+      # Ranks methods by CRAP (complexity x uncovered lines) and compares against
+      # config/crap-baseline.dotnet.json. The ReportGenerator HTML also has a Risk
+      # Hotspots table built from the same data. Writes into coverage-report/crap
+      # (CSV, summary, crap-baseline.proposed.json) so the coverage-report upload
+      # at the end of this job carries it. The ratchet is enforced in the last step.
       - name: CRAP report
+        id: crap-report
         shell: pwsh
         run: |
           ./scripts/Get-CrapReport.ps1 -SelfTest
-          ./scripts/Get-CrapReport.ps1 -Reports ./TestResults -OutputDirectory ./coverage-report/crap
+          ./scripts/Get-CrapReport.ps1 -Reports ./TestResults -OutputDirectory ./coverage-report/crap -Baseline ./config/crap-baseline.dotnet.json
           Get-Content ./coverage-report/crap/crap-summary.md | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Self-test coverage gate loader
@@ -888,6 +900,14 @@ jobs:
           name: coverage-report-${{ github.run_id }}
           path: coverage-report
           retention-days: 1
+
+      # Last, so a ratchet failure cannot skip the coverage gate or the upload.
+      # Fails on a method above CRAP 30 that is not in the baseline, or a
+      # baselined one whose score rose (AGENTS.md "Change risk (CRAP)").
+      - name: Enforce CRAP ratchet
+        if: always() && steps.crap-report.outcome == 'success'
+        shell: pwsh
+        run: ./scripts/Get-CrapReport.ps1 -FromCsv ./coverage-report/crap/crap-report.csv -OutputDirectory ./crap-ratchet -Baseline ./config/crap-baseline.dotnet.json -Enforce
 
   # build-binaries (~100MB) and coverage-raw are only needed while this run's
   # test/coverage jobs are in flight. Leaving them until retention expires was

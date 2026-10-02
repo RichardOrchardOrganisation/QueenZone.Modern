@@ -14,13 +14,18 @@
  * matching ESLint, which scores nested functions on their own. Anonymous
  * callbacks report as `<parent>::lambda`, like C# lambdas in the .NET report.
  *
- * Report-only: writes crap-report.csv and crap-summary.md, exits 0 however
- * many functions exceed --threshold.
+ * Writes crap-report.csv and crap-summary.md. With --baseline it also runs the
+ * CRAP ratchet, same rules as Get-CrapReport.ps1: a function above --threshold
+ * that is not in the baseline is new debt; a baselined one whose score rose by
+ * more than 0.1 got worse. --enforce fails on either. Every --baseline run writes
+ * crap-baseline.proposed.json, which only lowers or drops entries;
+ * --write-baseline applies it (or creates the baseline when missing).
  *
  *   node scripts/Get-MobileCrapReport.mjs
- *   node scripts/Get-MobileCrapReport.mjs --complexity eslint.json --output out/
+ *   node scripts/Get-MobileCrapReport.mjs --baseline config/crap-baseline.mobile.json --enforce
+ *   node scripts/Get-MobileCrapReport.mjs --baseline config/crap-baseline.mobile.json --write-baseline
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -268,21 +273,139 @@ async function runEslintComplexity(mobileRoot) {
   return eslint.lintFiles(['src']);
 }
 
+// Scores are rounded to 0.1, so a rise within this is rounding, not a regression.
+const RATCHET_TOLERANCE = 0.1;
+
+/** `File|Method`; anonymous callbacks already share `<parent>::lambda`, so the key survives reordering. */
+export function baselineKey(row) {
+  return `${row.File}|${row.Method}`;
+}
+
+/** Highest score per baseline key (several lambdas in one parent share a key). */
+export function methodScores(rows) {
+  const scores = new Map();
+  for (const row of rows) {
+    const key = baselineKey(row);
+    scores.set(key, Math.max(scores.get(key) ?? Number.NEGATIVE_INFINITY, row.Crap));
+  }
+  return scores;
+}
+
+export function compareBaseline(scores, baseline, threshold) {
+  const result = { added: [], worse: [], improved: [] };
+  for (const [key, score] of [...scores].sort(([a], [b]) => a.localeCompare(b))) {
+    if (!baseline.has(key)) {
+      if (score > threshold) result.added.push({ key, score });
+    } else if (score > baseline.get(key) + RATCHET_TOLERANCE) {
+      result.worse.push({ key, baseline: baseline.get(key), score });
+    }
+  }
+  for (const [key, recorded] of [...baseline].sort(([a], [b]) => a.localeCompare(b))) {
+    const score = scores.get(key);
+    if (score === undefined || score < recorded - RATCHET_TOLERANCE) {
+      result.improved.push({ key, baseline: recorded, score: score ?? null });
+    }
+  }
+  return result;
+}
+
+/**
+ * Ratchet only: keep baselined keys still above the threshold at min(baseline, current)
+ * and never add a key. With no baseline yet, record every function above the threshold.
+ */
+export function proposeBaseline(scores, baseline, threshold) {
+  const keys = baseline ? [...baseline.keys()] : [...scores.keys()];
+  const proposed = new Map();
+  for (const key of keys.sort((a, b) => a.localeCompare(b))) {
+    const score = scores.get(key);
+    if (score !== undefined && score > threshold) {
+      proposed.set(key, baseline ? Math.min(baseline.get(key), score) : score);
+    }
+  }
+  return proposed;
+}
+
+export function readBaseline(file) {
+  const parsed = JSON.parse(readFileSync(file, 'utf8'));
+  return new Map(Object.entries(parsed.hotspots ?? {}).map(([key, score]) => [key, Number(score)]));
+}
+
+export function renderBaseline(hotspots, threshold) {
+  const document = {
+    description:
+      'CRAP ratchet baseline. Functions above the threshold that already existed. Lower or remove entries; never raise by hand. See AGENTS.md (Change risk).',
+    threshold,
+    hotspots: Object.fromEntries(hotspots),
+  };
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
+export function renderRatchetMarkdown(comparison, { baselinePath, threshold }) {
+  const lines = ['', `### CRAP ratchet (\`${baselinePath}\`)`, ''];
+  if (comparison.added.length === 0 && comparison.worse.length === 0) {
+    lines.push(`No new or worsened hotspots above ${threshold}.`);
+  }
+  for (const item of comparison.added) {
+    lines.push(`- **New hotspot:** \`${item.key}\` scores ${item.score}. Add tests or split it until it is at most ${threshold}.`);
+  }
+  for (const item of comparison.worse) {
+    lines.push(`- **Worse:** \`${item.key}\` rose from ${item.baseline} to ${item.score}.`);
+  }
+  if (comparison.improved.length > 0) {
+    lines.push(
+      '',
+      `${comparison.improved.length} baselined hotspot(s) improved or were removed. Commit \`crap-baseline.proposed.json\` from this report as \`${baselinePath}\` to lock in the gain.`,
+    );
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function runRatchet(rows, args, threshold) {
+  const baselinePath = args.baseline;
+  const hasBaseline = existsSync(baselinePath);
+  if (!hasBaseline && !args['write-baseline']) {
+    throw new Error(`CRAP baseline '${baselinePath}' does not exist. Create it with --write-baseline.`);
+  }
+  const scores = methodScores(rows);
+  const existing = hasBaseline ? readBaseline(baselinePath) : null;
+  const proposed = proposeBaseline(scores, existing, threshold);
+  writeFileSync(path.join(args.output, 'crap-baseline.proposed.json'), renderBaseline(proposed, threshold));
+  if (args['write-baseline']) {
+    writeFileSync(baselinePath, renderBaseline(proposed, threshold));
+    console.log(`Wrote ${baselinePath} (${proposed.size} hotspot(s)).`);
+  }
+
+  // A first --write-baseline run compares against what it just recorded, not an empty list.
+  const comparison = compareBaseline(scores, existing ?? proposed, threshold);
+  const markdown = renderRatchetMarkdown(comparison, { baselinePath, threshold });
+  appendFileSync(path.join(args.output, 'crap-summary.md'), markdown);
+  console.log(markdown);
+  return comparison;
+}
+
+const BOOLEAN_FLAGS = new Set(['enforce', 'write-baseline']);
+
 function parseArgs(argv) {
   const args = {
     repoRoot: defaultRepoRoot,
     reports: path.join(defaultRepoRoot, 'src/QueenZone.Mobile/coverage'),
     output: path.join(defaultRepoRoot, 'src/QueenZone.Mobile/coverage/crap'),
     complexity: null,
+    baseline: null,
     threshold: '30',
     top: '20',
   };
   for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index];
-    if (token.startsWith('--') && argv[index + 1]) {
-      args[token.slice(2)] = argv[index + 1];
+    const name = argv[index].startsWith('--') ? argv[index].slice(2) : null;
+    if (name && BOOLEAN_FLAGS.has(name)) {
+      args[name] = true;
+    } else if (name && argv[index + 1]) {
+      args[name] = argv[index + 1];
       index += 1;
     }
+  }
+  if ((args.enforce || args['write-baseline']) && !args.baseline) {
+    throw new Error('--enforce and --write-baseline require --baseline.');
   }
   return args;
 }
@@ -323,6 +446,16 @@ export async function main(argv) {
   }
   console.log(`Wrote ${csvPath}`);
   console.log(`Wrote ${mdPath}`);
+
+  if (args.baseline) {
+    const comparison = runRatchet(rows, args, threshold);
+    const violations = comparison.added.length + comparison.worse.length;
+    if (args.enforce && violations > 0) {
+      throw new Error(
+        `CRAP ratchet failed: ${comparison.added.length} new and ${comparison.worse.length} worsened hotspot(s) above ${threshold}. See crap-summary.md.`,
+      );
+    }
+  }
   return rows;
 }
 

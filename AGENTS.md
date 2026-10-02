@@ -301,6 +301,7 @@ GitHub Actions workflow `.github/workflows/ci.yml` blocks merge when these fail:
 | **Small test projects** | `Tools`/`Storage`/`NewsAgent` test projects, in parallel with the Web.Tests shards | Yes |
 | **Global line coverage** | At least **91%** across the union of deterministic suite reports | Yes |
 | **Changed-line coverage** | At least **70%** of changed, coverable `.cs` lines in the PR diff vs `main` | Yes |
+| **CRAP ratchet** | No method/function above CRAP **30** unless it is listed in `config/crap-baseline.dotnet.json` / `config/crap-baseline.mobile.json`, and no baselined score may rise. Last step of `coverage` (.NET) and `mobile-js` (mobile). See "Change risk (CRAP)" below | Yes |
 | **Smoke test** | Published app responds on `/health`, `/`, `/news` (starts after `build`, overlaps coverage) | Yes |
 | **EF migrations (SQL Express mirror)** | When migration-related paths change: `has-pending-model-changes` + `database update` against the SQL Express mirror (no production Azure SQL, no prod GitHub Environment) | Yes (job runs only for those PRs) |
 | **Playwright e2e** | Self-hosted runner selected by the `e2e` label (Windows or macOS) | Yes (required PR merge gate; not rerun by deploy) |
@@ -315,6 +316,18 @@ There are two separate deploy workflows, not one: `deploy-dev.yml` auto-deploys 
 Coverage exclusions are configured in `coverlet.runsettings`. EF Core files under `**/Migrations/**/*.cs` are excluded from coverage metrics.
 
 The changed-line gate compares `git diff origin/main...HEAD` for `*.cs` files. Large new modules (services, repositories, workers) usually need targeted unit or integration tests, often with fakes or SQLite/in-memory EF, or the gate will fail.
+
+### Change risk (CRAP)
+
+CRAP = complexity² × (1 − coverage)³ + complexity, per method (.NET: Coverlet complexity and line coverage) or function (mobile: ESLint `complexity` and statement coverage). Above **30** a method is too complex for the tests it has.
+
+- Keep new and changed methods **≤ 30**; aim for complexity ≤ 15 (Sonar's cognitive-complexity limit). Untested code fails above complexity 5. Complexity above 30 fails even at 100% coverage, so split it; tests can't fix it.
+- In Razor views, move decisions into the page model or a view model. In React Native screens, move them into hooks or pure functions. Then unit-test those directly.
+- The ratchet fails on a hotspot that is not in the baseline, or a baselined score that rose by more than 0.1. Existing hotspots may stay, but must not get worse.
+- When a PR lowers or removes a hotspot, lock it in: download `crap-baseline.proposed.json` from the CI report (`coverage-report-<run id>` → `crap/`, or `mobile-coverage-<run id>`) and commit it over the baseline. The proposal only lowers or drops entries. For mobile, `node scripts/Get-MobileCrapReport.mjs --baseline config/crap-baseline.mobile.json --write-baseline` after `npm run test:coverage` does the same locally. A local .NET run lacks the SQL Server shard, so use the CI file.
+- Never raise a baseline score or add an entry by hand. The one exception is renaming or moving a baselined method: update its key in the same PR, keeping the score, and say so in the PR.
+
+Report details and flags: `docs/architecture/testing-policy.md`.
 
 ### CI Web.Tests sharding (agents)
 
