@@ -33,6 +33,8 @@ public sealed class IndexModel(
 
     private const int ForumBandCount = 6;
 
+    private const int FeaturedQuoteCount = 3;
+
     public IReadOnlyList<NewsArchiveItem> Latest { get; private set; } = [];
 
     public IReadOnlyList<ForumRecentThreadSummary> ForumThreads { get; private set; } = [];
@@ -56,7 +58,8 @@ public sealed class IndexModel(
 
     public IReadOnlyList<HomeArticleTeaser> FeaturedArticles { get; private set; } = [];
 
-    public QuoteItem? FeaturedQuote { get; private set; }
+    /// <summary>Random published Queen quotes for the card under Forum now.</summary>
+    public IReadOnlyList<QuoteItem> FeaturedQuotes { get; private set; } = [];
 
     public SprintBoard SprintBoard { get; private set; } = new([], null, 0);
 
@@ -132,7 +135,7 @@ public sealed class IndexModel(
                 item.Href))
             .ToList();
 
-        FeaturedQuote = await publicQueryCache.GetRandomPublishedQuoteAsync(cancellationToken);
+        FeaturedQuotes = await publicQueryCache.GetRandomPublishedQuotesAsync(FeaturedQuoteCount, cancellationToken);
         await LoadHomePollAsync(cancellationToken);
         HomePollError = TempData["HomePollError"] as string;
         Ticker = BuildTicker();

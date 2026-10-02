@@ -56,7 +56,7 @@ public sealed class QuizSprintPagesTests : IClassFixture<WebHostVariantCache>, I
         var leaderboard = await member.GetStringAsync("/quizzes/leaderboard");
         Assert.Contains("1 member ranked today.", leaderboard, StringComparison.Ordinal);
         var home = await member.GetStringAsync("/");
-        Assert.Contains("The sixty-second Queen quiz", home, StringComparison.Ordinal);
+        Assert.Contains("How well do you know Queen?", home, StringComparison.Ordinal);
         Assert.Contains("1 member has played today.", home, StringComparison.Ordinal);
     }
 

@@ -212,6 +212,20 @@ public sealed class PublicQueryCacheService(
     }
 
     /// <summary>
+    /// Up to <paramref name="count"/> distinct published quotes in random order, drawn from the
+    /// same cached pool as <see cref="GetRandomPublishedQuoteAsync"/>.
+    /// </summary>
+    public async Task<IReadOnlyList<QuoteItem>> GetRandomPublishedQuotesAsync(
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        var published = await GetPublishedQuotesAsync(cancellationToken);
+        var shuffled = published.ToArray();
+        Random.Shared.Shuffle(shuffled);
+        return shuffled.Take(Math.Max(count, 0)).ToList();
+    }
+
+    /// <summary>
     /// Caches the published trivia pool and picks <see cref="Random.Shared"/> per request
     /// so consecutive callers do not freeze on one fact.
     /// </summary>

@@ -7820,59 +7820,17 @@ select.qz-input {
 }
 
 /* Articles */
-.qz-home-articles { padding: 80px 0; background: var(--surface-page); }
+.qz-home-articles { padding: 80px 0; background: var(--qz-warm-white); }
 
 /* Quiz + poll */
+/* Section rhythm: front page (white) → On this day (warm) → forum (dark) → poll (white)
+   → articles (warm) → archive (dark, gilt hairline before the black footer). */
 .qz-home-play {
   padding: 80px 0;
-  background: var(--qz-warm-white);
-  border-top: 1px solid var(--border-default);
+  background: var(--surface-page);
 }
 
-.qz-home-play__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
-  gap: 28px;
-  align-items: stretch;
-}
-
-.qz-home-sprint {
-  display: flex;
-  flex-direction: column;
-  padding: 32px;
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-}
-
-.qz-home-sprint__title {
-  margin: 0 0 12px;
-  font: var(--fw-semibold) 28px/1.18 var(--font-display);
-  color: var(--text-primary);
-}
-
-.qz-home-sprint__body {
-  margin: 0 0 22px;
-  font: var(--fw-regular) 15px/1.55 var(--font-body);
-  color: var(--text-secondary);
-}
-
-.qz-home-sprint__board-label {
-  margin: 0 0 10px;
-  font: var(--fw-medium) 11px/1 var(--font-body);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.qz-home-sprint__actions {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
-  margin-top: auto;
-  padding-top: 24px;
-}
+.qz-home-play__inner { max-width: 720px; }
 
 .qz-home-poll { display: flex; }
 
@@ -7881,11 +7839,47 @@ select.qz-input {
   padding: 32px;
 }
 
-/* Quote */
-.qz-home-quote { padding: 64px 0; }
+/* Queen quotes card under Forum now */
+.qz-home-quotes {
+  padding: 20px;
+  border: 1px solid var(--border-default);
+  border-top: 3px solid var(--qz-gold);
+  border-radius: var(--radius-md);
+  background: var(--qz-warm-white);
+}
+
+.qz-home-quotes__heading {
+  margin: 0 0 4px;
+  font: var(--fw-semibold) 22px/1.1 var(--font-display);
+  color: var(--text-primary);
+}
+
+.qz-home-quotes__item {
+  margin: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.qz-home-quotes__item:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.qz-home-quotes__item blockquote {
+  margin: 0 0 8px;
+  font: italic var(--fw-medium) 18px/1.35 var(--font-display);
+  color: var(--text-primary);
+}
+
+.qz-home-quotes__item figcaption {
+  font: var(--fw-medium) 11px/1 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
 
 /* Archive montage as a below-the-fold band */
-.qz-hero-archive--band { min-height: 0; }
+.qz-hero-archive--band {
+  min-height: 0;
+  border-bottom: 1px solid rgba(184, 154, 74, 0.55);
+}
 
 .qz-hero-archive--band .qz-hero-archive__inner { padding-top: 80px; }
 
@@ -7914,7 +7908,11 @@ select.qz-input {
 }
 
 /* On this day */
-.qz-home-onthisday { padding: 72px 0; background: var(--surface-page); }
+.qz-home-onthisday {
+  padding: 72px 0;
+  background: var(--qz-warm-white);
+  border-top: 1px solid var(--border-default);
+}
 
 .qz-home-onthisday__note { color: var(--text-secondary); margin: -20px 0 20px; }
 
@@ -7958,7 +7956,6 @@ select.qz-input {
   .qz-home-forum__inner,
   .qz-home-articles,
   .qz-home-play { padding-top: 56px; padding-bottom: 56px; }
-  .qz-home-sprint,
   .qz-home-quiz-callout,
   .qz-home-poll .qz-poll { padding: 24px; }
   .qz-home-apps__cta { width: 100%; text-align: center; }

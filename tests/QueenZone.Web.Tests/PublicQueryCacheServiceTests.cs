@@ -792,6 +792,28 @@ public sealed class PublicQueryCacheServiceTests
     }
 
     [Fact]
+    public async Task RandomQuotesAreDistinctPublishedAndShareTheCachedPool()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var quoteRepository = new CountingQuoteRepository(
+            new QuoteItem(1, "Published one", "Freddie", DateTime.UtcNow, true),
+            new QuoteItem(2, "Published two", "Brian", DateTime.UtcNow, true),
+            new QuoteItem(3, "Draft", "Roger", DateTime.UtcNow, false),
+            new QuoteItem(4, "Published three", "John", DateTime.UtcNow, true));
+        var service = CreateService(memoryCache, quoteRepository: quoteRepository);
+
+        var two = await service.GetRandomPublishedQuotesAsync(2);
+        var all = await service.GetRandomPublishedQuotesAsync(10);
+        _ = await service.GetRandomPublishedQuoteAsync();
+
+        Assert.Equal(2, two.Count);
+        Assert.Equal(2, two.Select(quote => quote.Id).Distinct().Count());
+        Assert.Equal([1, 2, 4], all.Select(quote => quote.Id).Order());
+        Assert.Empty(await service.GetRandomPublishedQuotesAsync(0));
+        Assert.Equal(1, quoteRepository.AllCallCount);
+    }
+
+    [Fact]
     public async Task RandomQuoteReturnsNullWhenPublishedPoolIsEmpty()
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
