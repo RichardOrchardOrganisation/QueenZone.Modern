@@ -830,6 +830,22 @@ jobs:
       - name: Add coverage summary
         run: cat coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
 
+      # Report-only: ranks methods by CRAP (complexity x uncovered lines). The
+      # ReportGenerator HTML also has a Risk Hotspots table built from the same data.
+      - name: CRAP report
+        shell: pwsh
+        run: |
+          ./scripts/Get-CrapReport.ps1 -SelfTest
+          ./scripts/Get-CrapReport.ps1 -Reports ./TestResults -OutputDirectory ./coverage-report/crap
+          Get-Content ./coverage-report/crap/crap-summary.md | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-report-${{ github.run_id }}
+          path: coverage-report
+          retention-days: 1
+
       - name: Self-test coverage gate loader
         shell: pwsh
         run: ./scripts/Test-CoverageGate.ps1 -SelfTest
