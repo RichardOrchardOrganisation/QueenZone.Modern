@@ -21,7 +21,6 @@
     "src/QueenZone.NewsAgent/NewsFeedParser.cs|QueenZone.NewsAgent.NewsFeedParser|ParseAtom": 42.1,
     "src/QueenZone.NewsAgent/OpenRouterChatCompletionParser.cs|QueenZone.NewsAgent.OpenRouterChatCompletionParser|Parse": 34.0,
     "src/QueenZone.NewsAgent/OpenRouterOptions.cs|QueenZone.NewsAgent.OpenRouterOptions|Validate": 54.4,
-    "src/QueenZone.NewsAgent/OutboundUrlSafety.cs|QueenZone.NewsAgent.OutboundUrlSafety|IsBlockedAddress": 77.3,
     "src/QueenZone.Storage/BlobContentSniffer.cs|QueenZone.Storage.BlobContentSniffer|TryDetectContentType": 146.1,
     "src/QueenZone.Storage/BlobUploadValidator.cs|QueenZone.Storage.BlobUploadValidator|ResolveAndValidateContentType": 36.0,
     "src/QueenZone.Storage/IGalleryPhotoBlobService.cs|QueenZone.Storage.AzureGalleryPhotoBlobService|ListBlobsAsync": 42.0,
