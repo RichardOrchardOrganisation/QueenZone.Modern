@@ -1,0 +1,28 @@
+@model ForumPostPresentation
+@{ var post = Model.Post; }
+            @if (Model.CanReport)
+            {
+              @if (post.AlreadyReported)
+              {
+                <span class="qz-meta" role="status">Report submitted</span>
+              }
+              else
+              {
+                <a class="qz-forum-post__report-link" href="/forum/post/@post.Id/report?returnUrl=@Model.ReportReturnUrl" rel="nofollow">Report post</a>
+              }
+              @if (post.AuthorMemberId is Guid blockMemberId)
+              {
+                @if (post.IsBlocked)
+                {
+                  <span class="qz-meta">Member blocked</span>
+                }
+                else
+                {
+                  <form method="post" action="/forum/post/@post.Id/block" class="admin-inline-form" onsubmit="return confirm('Block @post.AuthorUsername? They will no longer be able to contact you privately.');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@(Model.ReturnPath)" />
+                    <button type="submit" class="qz-link-button">Block member</button>
+                  </form>
+                }
+              }
+            }

@@ -1,0 +1,26 @@
+@model ForumAttachmentViewModel
+                  <li class="qz-forum-post__attachment-item">
+                    @if (ForumPostPresentation.HasThumbnail(Model))
+                    {
+                      <a class="qz-forum-post__attachment-thumb-link" href="@Model.Url" rel="noopener noreferrer">
+                        <img class="qz-forum-post__attachment-thumb" src="@Model.ThumbnailUrl" alt="@Model.FileName" loading="lazy" width="120" height="120" />
+                      </a>
+                    }
+                    <a class="qz-forum-post__attachment-link" href="@Model.Url" rel="noopener noreferrer">
+                      <svg class="qz-forum-post__attachment-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                      </svg>
+                      <span class="qz-forum-post__attachment-name">@Model.FileName</span>
+                      <span class="qz-forum-post__attachment-meta qz-meta">
+                        @if (!string.IsNullOrEmpty(Model.Extension))
+                        {
+                          <span>@Model.Extension</span>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.FormattedSize))
+                        {
+                          <span>@Model.FormattedSize</span>
+                        }
+                        <span>Members only</span>
+                      </span>
+                    </a>
+                  </li>

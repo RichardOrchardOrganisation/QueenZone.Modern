@@ -41,7 +41,7 @@
       "name": "Forum board",
       "page": "Pages/Forum/Category.cshtml",
       "url": "/forum/{id}/{slug}",
-      "entry": "Forum → board"
+      "entry": "Forum \u2192 board"
     },
     {
       "aliases": [],
@@ -58,7 +58,7 @@
       "name": "Forum board page",
       "page": "Pages/Forum/CategoryPage.cshtml",
       "url": "/forum/{id}/{slug}/page/{pageNumber}",
-      "entry": "Forum board → next page"
+      "entry": "Forum board \u2192 next page"
     },
     {
       "aliases": [
@@ -84,7 +84,7 @@
       "name": "Forum topic",
       "page": "Pages/Forum/Topic.cshtml",
       "url": "/forum/topic/{topicId}/{slug}",
-      "entry": "Forum board → topic"
+      "entry": "Forum board \u2192 topic"
     },
     {
       "aliases": [],
@@ -106,7 +106,7 @@
       "name": "Forum topic page",
       "page": "Pages/Forum/TopicPage.cshtml",
       "url": "/forum/topic/{topicId}/{slug}/page/{pageNumber}",
-      "entry": "Forum topic → next page"
+      "entry": "Forum topic \u2192 next page"
     },
     {
       "aliases": [],
@@ -125,7 +125,7 @@
       "name": "New thread",
       "page": "Pages/Forum/NewThread.cshtml",
       "url": "/forum/c/{categorySlug}/new-thread",
-      "entry": "Forum board → new thread"
+      "entry": "Forum board \u2192 new thread"
     },
     {
       "aliases": [],
@@ -142,7 +142,7 @@
       "name": "Edit post",
       "page": "Pages/Forum/EditPost.cshtml",
       "url": "/forum/post/{postId}/edit",
-      "entry": "Forum post → edit"
+      "entry": "Forum post \u2192 edit"
     },
     {
       "aliases": [],
@@ -159,7 +159,7 @@
       "name": "Report a post",
       "page": "Pages/Forum/Report.cshtml",
       "url": "/forum/post/{postId}/report",
-      "entry": "Forum post → report"
+      "entry": "Forum post \u2192 report"
     },
     {
       "aliases": [],
@@ -178,7 +178,7 @@
       "name": "Block a member",
       "page": "Pages/Forum/Block.cshtml",
       "url": "/forum/post/{postId}/block",
-      "entry": "Forum post → block author"
+      "entry": "Forum post \u2192 block author"
     },
     {
       "aliases": [],
@@ -195,7 +195,7 @@
       "name": "Hide author",
       "page": "Pages/Forum/HideAuthor.cshtml",
       "url": "/forum/post/{postId}/hide-author",
-      "entry": "Forum post → hide author"
+      "entry": "Forum post \u2192 hide author"
     },
     {
       "aliases": [],
@@ -212,7 +212,7 @@
       "name": "Archive author",
       "page": "Pages/Forum/ArchiveAuthor.cshtml",
       "url": "/forum/archive-authors/{legacyUserId}",
-      "entry": "Forum post → archive author profile"
+      "entry": "Forum post \u2192 archive author profile"
     },
     {
       "aliases": [
@@ -235,7 +235,7 @@
       "name": "Forum YouTube cards",
       "page": "Pages/Forum/Topic.cshtml",
       "url": "/forum/topic/1030/archive-sample-thread-1030",
-      "entry": "Forum board page 2 → Archive sample thread 1030"
+      "entry": "Forum board page 2 \u2192 Archive sample thread 1030"
     }
   ]
 }
