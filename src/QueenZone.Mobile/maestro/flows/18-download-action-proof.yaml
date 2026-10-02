@@ -1,0 +1,32 @@
+appId: org.queenzone.mobile
+name: Download control presentation proof
+---
+- runFlow: open-smoke-auth.yaml
+- tapOn:
+    id: tab-archive
+- extendedWaitUntil:
+    visible:
+      id: archive-hub-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: Fan performances
+    direction: DOWN
+- tapOn: Fan performances
+- extendedWaitUntil:
+    visible:
+      id: fan-performances-screen
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: fan-performance-download-187
+    timeout: 20000
+- takeScreenshot: download-idle-control
+- tapOn:
+    id: fan-performance-187
+- extendedWaitUntil:
+    visible:
+      id: fan-performance-download-187
+    timeout: 20000
+- assertVisible: Reaching Out
+- takeScreenshot: download-detail-control
