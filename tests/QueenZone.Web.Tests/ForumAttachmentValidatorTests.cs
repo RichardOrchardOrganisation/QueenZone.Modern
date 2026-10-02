@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using QueenZone.Storage;
 using QueenZone.Web;
@@ -130,6 +131,48 @@ public sealed class ForumAttachmentValidatorTests
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error => error.Contains("not allowed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(".tif")]
+    [InlineData(".tiff")]
+    public void Validate_Tiff_RemainsDisallowed(string extension)
+    {
+        Assert.Equal("image/tiff", ForumAttachmentValidator.GuessContentType("scan" + extension));
+        var result = validator.Validate([CreateFile("scan" + extension, 4, "image/tiff", [0x49, 0x49, 0x2A, 0x00])]);
+        Assert.False(result.IsValid);
+        Assert.Empty(result.AcceptedFiles);
+        Assert.Contains(result.Errors, error => error.Contains("not allowed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void GuessContentType_UnknownExtension_KeepsDisplayFallback() =>
+        Assert.Equal("application/octet-stream", ForumAttachmentValidator.GuessContentType("payload.unknown"));
+
+    [Fact]
+    public void AllowedContentTypes_HaveSharedExtensionMappings()
+    {
+        string[] extensions = [".jpg", ".png", ".gif", ".webp", ".pdf", ".txt", ".zip", ".mp3", ".flac", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"];
+        var mapped = extensions.Select(extension => BlobContentSniffer.GuessContentTypeFromExtension(extension)).ToArray();
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(RepoPaths.Combine("src", "QueenZone.Web", "appsettings.json"))
+            .Build();
+        var configuredForum = configuration.GetSection(ForumAttachmentOptions.SectionName).Get<ForumAttachmentOptions>()!;
+        var configuredStorage = configuration.GetSection(BlobUploadOptions.SectionName).Get<BlobUploadOptions>()!;
+        var allowed = configuredForum.AllowedContentTypes
+            .Concat(new ForumAttachmentOptions().AllowedContentTypes)
+            .Concat(configuredStorage.Containers[BlobUploadContainers.Forum].AllowedContentTypes!)
+            .Concat(new BlobUploadOptions().Containers[BlobUploadContainers.Forum].AllowedContentTypes!);
+        foreach (var type in allowed.Distinct())
+        {
+            // Configuration also permits legacy MIME aliases; the table returns canonical types.
+            var canonical = type == "application/x-zip-compressed" ? "application/zip" : type;
+            Assert.Contains(mapped, candidate => candidate is not null && BlobUploadValidator.ContentTypesAgree(candidate, canonical));
+        }
+        foreach (var extension in extensions)
+        {
+            Assert.Equal(BlobContentSniffer.GuessContentTypeFromExtension(extension), ForumAttachmentValidator.GuessContentType("file" + extension));
+        }
     }
 
     private static IFormFile CreateFile(string name, long length, string contentType, byte[]? content = null)
