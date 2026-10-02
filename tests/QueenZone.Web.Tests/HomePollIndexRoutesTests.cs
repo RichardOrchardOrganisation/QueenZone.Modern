@@ -29,6 +29,20 @@ public sealed class HomePollIndexRoutesTests : IClassFixture<WebHostVariantCache
     }
 
     [Fact]
+    public async Task Anonymous_index_visit_sets_no_cookie_so_output_caching_can_store_it()
+    {
+        await PublishPollAsync(factory, "Cacheable poll?", ["Alpha", "Beta"]);
+        using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
+
+        using var response = await client.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(
+            response.Headers.Contains("Set-Cookie"),
+            "A plain homepage visit must not set cookies; output caching skips responses that do.");
+    }
+
+    [Fact]
     public async Task Guest_sees_results_and_member_can_vote_once_from_index()
     {
         var optionId = await PublishPollAsync(factory, "Index poll?", ["Alpha", "Beta"]);
