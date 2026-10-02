@@ -33,7 +33,7 @@ public sealed class IndexModel(
 
     private const int ForumBandCount = 6;
 
-    private const int FeaturedQuoteCount = 3;
+    private const int FeaturedQuoteCount = 1;
 
     public IReadOnlyList<NewsArchiveItem> Latest { get; private set; } = [];
 
@@ -58,7 +58,7 @@ public sealed class IndexModel(
 
     public IReadOnlyList<HomeArticleTeaser> FeaturedArticles { get; private set; } = [];
 
-    /// <summary>Random published Queen quotes for the card under Forum now.</summary>
+    /// <summary>A random published Queen quote for the card under Forum now.</summary>
     public IReadOnlyList<QuoteItem> FeaturedQuotes { get; private set; } = [];
 
     public SprintBoard SprintBoard { get; private set; } = new([], null, 0);
