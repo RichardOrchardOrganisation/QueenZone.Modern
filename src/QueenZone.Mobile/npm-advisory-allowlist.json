@@ -19,8 +19,8 @@
     {
       "ghsa": "GHSA-86w9-cpqp-85rv",
       "package": "node-forge",
-      "via": "@expo/cli@57.0.27 (direct and via @expo/code-signing-certificates@0.0.6)",
-      "exploitability": "Developer CLI only: @expo/cli uses node-forge to generate and self-verify code-signing keys it created; it is not imported by app code or shipped in the bundle, and no patched node-forge (all <=1.4.0 affected) or newer SDK 57 @expo/cli exists yet.",
+      "via": "expo@57.0.26 -> @expo/cli@57.0.27 / @expo/code-signing-certificates@0.0.6",
+      "exploitability": "Expo development/build certificate tooling only in the current graph; no application imports or OTA code-signing configuration. Signature-verification tooling remains affected; no patched release is published. Remove on a patched compatible release (#1996).",
       "owner": "QueenZone maintainers",
       "expires": "2026-12-31"
     }
