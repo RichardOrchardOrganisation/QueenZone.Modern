@@ -79,7 +79,6 @@
     "src/QueenZone.Web/Pages/Forum/_ForumPostList.cshtml|QueenZone.Web.Pages.Forum.Pages_Forum__ForumPostList|ExecuteAsync": 76.1,
     "src/QueenZone.Web/Pages/Forum/NewThread.cshtml.cs|QueenZone.Web.Pages.Forum.NewThreadModel|MapOutcome": 52.5,
     "src/QueenZone.Web/Pages/Forum/Topic.cshtml|QueenZone.Web.Pages.Forum.Pages_Forum_Topic|ExecuteAsync": 30.4,
-    "src/QueenZone.Web/Pages/Index.cshtml|QueenZone.Web.Pages.Pages_Index|ExecuteAsync": 136.0,
     "src/QueenZone.Web/Pages/Members/Profile.cshtml|QueenZone.Web.Pages.Members.Pages_Members_Profile|ExecuteAsync": 50.0,
     "src/QueenZone.Web/Pages/Messages/Compose.cshtml.cs|QueenZone.Web.Pages.Messages.ComposeModel|OnPostAsync": 85.2,
     "src/QueenZone.Web/Pages/Messages/Conversation.cshtml|QueenZone.Web.Pages.Messages.Pages_Messages_Conversation|ExecuteAsync": 46.0,

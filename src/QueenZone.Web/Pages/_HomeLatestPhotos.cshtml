@@ -1,0 +1,18 @@
+@model QueenZone.Web.Pages.IndexModel
+      @if (Model.LatestPhotos.Count > 0)
+      {
+        <div class="qz-home-rule-head">
+          <h2>Just added to the gallery</h2>
+          <a href="/photography">All photos &rarr;</a>
+        </div>
+        <div class="qz-home-photos__grid">
+          @for (var index = 0; index < Model.LatestPhotos.Count; index++)
+          {
+            var tile = Model.LatestPhotos[index];
+            <a class="qz-home-photos__tile" href="@PhotoRoutes.GetDetailPath(tile.CategorySlug, tile.PicId)">
+              <img src="@tile.ThumbnailUrl" alt="@tile.Title" loading="@(index == 0 ? "eager" : "lazy")" fetchpriority="@(index == 0 ? "high" : "auto")">
+              <span class="qz-home-photos__caption">@tile.CategoryName</span>
+            </a>
+          }
+        </div>
+      }

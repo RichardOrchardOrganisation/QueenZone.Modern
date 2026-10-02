@@ -13,7 +13,21 @@
         "mobile apps call to action"
       ],
       "sources": [
-        "src/QueenZone.Web/Pages/Index.cshtml"
+        "src/QueenZone.Web/Pages/Index.cshtml",
+        "src/QueenZone.Web/Pages/_HomeApps.cshtml",
+        "src/QueenZone.Web/Pages/_HomeArchiveMontage.cshtml",
+        "src/QueenZone.Web/Pages/_HomeArticles.cshtml",
+        "src/QueenZone.Web/Pages/_HomeForumBand.cshtml",
+        "src/QueenZone.Web/Pages/_HomeForumNow.cshtml",
+        "src/QueenZone.Web/Pages/_HomeLatestPhotos.cshtml",
+        "src/QueenZone.Web/Pages/_HomeNewsList.cshtml",
+        "src/QueenZone.Web/Pages/_HomeOnThisDay.cshtml",
+        "src/QueenZone.Web/Pages/_HomePoll.cshtml",
+        "src/QueenZone.Web/Pages/_HomePollResults.cshtml",
+        "src/QueenZone.Web/Pages/_HomePollTeaser.cshtml",
+        "src/QueenZone.Web/Pages/_HomeQuotes.cshtml",
+        "src/QueenZone.Web/Pages/_HomeSprintQuiz.cshtml",
+        "src/QueenZone.Web/Pages/_HomeTicker.cshtml"
       ],
       "testIds": [],
       "flows": [],
