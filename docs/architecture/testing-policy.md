@@ -567,6 +567,8 @@ node ../../scripts/Test-MobileCoverageGate.mjs
 node ../../scripts/Test-MobileCoverageGate.mjs --self-test
 ```
 
+**CRAP report.** After the gate, `mobile-js` runs `scripts/Get-MobileCrapReport.mjs`. It ranks each function by CRAP (`complexity² × (1 − statement coverage)³ + complexity`). Complexity comes from ESLint's core `complexity` rule, and coverage from Jest's `coverage-final.json` plus Node lcov hits. Each statement counts toward the innermost function that contains it, and anonymous callbacks show as `<parent>::lambda`. The job adds the top 20 to the job summary and puts `coverage/crap/crap-report.csv` in the machine-readable artifact. Above 30 means a function is too complex for the tests it has. JSX `&&` and ternaries count as branches, so large screens rank high. The report is informational, not a gate. Run it locally after `npm run test:coverage` with `node ../../scripts/Get-MobileCrapReport.mjs`.
+
 ### Other CI jobs
 
 | Job | Purpose | Blocks merge? |
