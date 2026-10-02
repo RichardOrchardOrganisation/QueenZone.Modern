@@ -69,11 +69,21 @@ public sealed class HomePageRoutesTests :
         var apps = html.IndexOf("Try out the Mobile Apps", StringComparison.Ordinal);
         Assert.InRange(apps, html.IndexOf("data-home-ticker", StringComparison.Ordinal), html.IndexOf("id=\"news\"", StringComparison.Ordinal));
 
+        // Queen quotes sit in the right column under Forum now, inside the front page.
+        var quotes = html.IndexOf("id=\"home-quotes-heading\"", StringComparison.Ordinal);
+        Assert.InRange(quotes, html.IndexOf("Forum now", StringComparison.Ordinal), html.IndexOf("Live from the forum", StringComparison.Ordinal));
+        Assert.Contains("class=\"qz-home-quotes__item\"", html, StringComparison.Ordinal);
+
         // The Queenzone history montage moves below the fold as a section heading.
         Assert.Matches(
             new Regex(@"<h2\b[^>]*>\s*Twenty-five years of the Queen internet zone\s*</h2>"),
             html);
-        Assert.True(html.IndexOf("id=\"qz-hero-archive\"", StringComparison.Ordinal) > html.IndexOf("id=\"play\"", StringComparison.Ordinal));
+        Assert.True(html.IndexOf("id=\"qz-hero-archive\"", StringComparison.Ordinal) > html.IndexOf("id=\"articles\"", StringComparison.Ordinal));
+
+        // On This Day follows the front page, ahead of the forum band; the quiz has one callout only.
+        var onThisDay = html.IndexOf("id=\"home-onthisday-heading\"", StringComparison.Ordinal);
+        Assert.InRange(onThisDay, latestNews, html.IndexOf("Live from the forum", StringComparison.Ordinal));
+        Assert.DoesNotContain("The sixty-second Queen quiz", html, StringComparison.Ordinal);
         Assert.Contains("<script src=\"/js/home-live-ticker.js?v=", html, StringComparison.Ordinal);
     }
 
@@ -141,7 +151,7 @@ public sealed class HomePageRoutesTests :
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Single(Regex.Matches(html, @"<h1\b", RegexOptions.IgnoreCase));
         Assert.Matches(HomepageHeading, html);
-        Assert.Contains("The sixty-second Queen quiz", html, StringComparison.Ordinal);
-        Assert.Contains("No scores yet today.", html, StringComparison.Ordinal);
+        Assert.Contains("How well do you know Queen?", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/quizzes/sprint\"", html, StringComparison.Ordinal);
     }
 }
