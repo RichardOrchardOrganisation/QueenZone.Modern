@@ -316,7 +316,7 @@ export function compareBaseline(scores, baseline, threshold) {
 export function proposeBaseline(scores, baseline, threshold) {
   const keys = baseline ? [...baseline.keys()] : [...scores.keys()];
   const proposed = new Map();
-  for (const key of keys.sort((a, b) => a.localeCompare(b))) {
+  for (const key of keys.toSorted((a, b) => a.localeCompare(b))) {
     const score = scores.get(key);
     if (score !== undefined && score > threshold) {
       proposed.set(key, baseline ? Math.min(baseline.get(key), score) : score);
