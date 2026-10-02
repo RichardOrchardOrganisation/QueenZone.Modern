@@ -67,7 +67,9 @@
         "forumThreadReply",
         "forumThreadAttachment"
       ],
-      "flows": [],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/07-forum.yaml"
+      ],
       "specs": [],
       "selectors": [],
       "signIn": "none",
