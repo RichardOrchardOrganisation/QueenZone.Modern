@@ -1,19 +1,14 @@
+import { PhotoViewerChrome, type ViewerStatus, type ViewerStatusKind } from './PhotoViewerChrome';
+import { photoViewerDisplay } from './photoViewerDisplay';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Check, ChevronLeft, ChevronRight, Download, Wallpaper, X } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibilityInfo, Platform, Text, View } from 'react-native';
 import { ApiError, fetchPhotoDetail, type PhotoDetail } from '../../api';
 import type { PhotosStackParamList } from '../../navigation/types';
 import { testIds } from '../../test/testIds';
-import { fonts, radius, space, type, useTheme } from '../../theme';
-import { IconButton } from '../../ui/IconButton';
-import { MetaLine } from '../../ui/MetaLine';
+import { type, useTheme } from '../../theme';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import {
-  photoCdnSource,
-  photoCounterLabel,
-  photoDetailMeta,
   photoViewerParams,
   resolvedPhotoSize,
   schedulePhotoGallerySwipe,
@@ -26,8 +21,7 @@ import { usePrefetchNeighbours } from './usePrefetchNeighbours';
 import { ZoomableArchiveImage } from './ZoomableArchiveImage';
 
 type Props = NativeStackScreenProps<PhotosStackParamList, 'PhotoViewer'>;
-type ViewerStatusKind = 'success' | 'error';
-type ViewerStatus = { message: string; kind: ViewerStatusKind };
+
 
 export const photoViewerStatusTiming = {
   successDismissMs: 2800,
@@ -42,53 +36,7 @@ function clearTimeoutRef(ref: { current: ReturnType<typeof setTimeout> | null })
   }
 }
 
-function ViewerStatusBanner({
-  status,
-  top,
-}: {
-  status: ViewerStatus;
-  top: number;
-}) {
-  const { c } = useTheme();
-  return (
-    <View
-      testID={testIds.photoViewerStatus}
-      pointerEvents="none"
-      accessibilityLiveRegion="polite"
-      style={{
-        position: 'absolute',
-        top,
-        left: space.base,
-        right: space.base,
-        alignItems: 'center',
-      }}
-    >
-      <View
-        style={{
-          maxWidth: '100%',
-          paddingHorizontal: space.md,
-          paddingVertical: space.sm,
-          borderRadius: radius.pill,
-          backgroundColor: status.kind === 'error' ? 'rgba(142,47,47,0.94)' : 'rgba(17,17,17,0.88)',
-          borderWidth: 1,
-          borderColor: status.kind === 'error' ? c.danger : c.accentPrimary,
-        }}
-      >
-        <Text
-          style={[
-            type.caption,
-            { color: '#FFFFFF', textAlign: 'center', fontFamily: fonts.bodyMedium },
-          ]}
-        >
-          {status.message}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 export function PhotoViewerScreen({ navigation, route }: Props) {
-  const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const { slug, picId, size } = route.params;
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -158,24 +106,8 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
     [navigation, picId, size, slug],
   );
 
-  const previousPicId = photo?.previous?.picId ?? null;
-  const nextPicId = photo?.next?.picId ?? null;
-  const neighborNav =
-    photo != null && photo.picId !== picId
-      ? photo.previous?.picId === picId
-        ? photo.previous
-        : photo.next?.picId === picId
-          ? photo.next
-          : null
-      : null;
-  const neighborSource = photoCdnSource(neighborNav?.imageUrl);
-  const displayingNeighbor = neighborSource != null;
-  const currentSource = photoCdnSource(photo?.imageUrl);
-  const image = displayingNeighbor ? neighborSource : currentSource;
-  const neighbourUris =
-    photo != null && photo.picId === picId
-      ? [photoCdnSource(photo.previous?.imageUrl)?.uri, photoCdnSource(photo.next?.imageUrl)?.uri]
-      : [];
+  const display = photoViewerDisplay(photo, picId);
+  const { previousPicId, nextPicId, image, neighbourUris } = display;
   const onCurrentLoaded = usePrefetchNeighbours(image?.uri, neighbourUris);
 
   const handleGallerySwipe = useCallback(
@@ -386,10 +318,6 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
     return <ErrorBlock message={error ?? 'Photograph not found.'} onRetry={retry} />;
   }
 
-  const actionBusy = saveBusy || wallpaperBusy;
-  const saveIcon = photosCooldown && !saveBusy ? Check : Download;
-  const wallpaperOnCooldown = Platform.OS === 'ios' ? photosCooldown : wallpaperCooldown;
-  const wallpaperIcon = wallpaperOnCooldown && !wallpaperBusy ? Check : Wallpaper;
 
   return (
     <View testID={testIds.photoViewerScreen} style={{ flex: 1, backgroundColor: '#000' }}>
@@ -398,15 +326,15 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
           <ZoomableArchiveImage
             source={image}
             label={photo.title}
-            recyclingKey={`photo-full-${displayingNeighbor ? picId : photo.picId}`}
-            imageWidth={displayingNeighbor ? (neighborNav?.pictureWidth ?? 0) : photo.pictureWidth}
-            imageHeight={displayingNeighbor ? (neighborNav?.pictureHeight ?? 0) : photo.pictureHeight}
-            resetKey={displayingNeighbor ? picId : photo.picId}
+            recyclingKey={display.recyclingKey}
+            imageWidth={display.imageWidth}
+            imageHeight={display.imageHeight}
+            resetKey={display.resetKey!}
             canSwipePrevious={previousPicId != null}
             canSwipeNext={nextPicId != null}
             onGallerySwipe={handleGallerySwipe}
             onToggleChrome={toggleChrome}
-            pending={photo.picId !== picId && !displayingNeighbor}
+            pending={display.pending}
             onLoaded={onCurrentLoaded}
           />
         ) : (
@@ -416,89 +344,9 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
         )}
       </View>
       {chromeVisible ? (
-        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-          <View
-            style={{
-              position: 'absolute',
-              top: insets.top,
-              left: 4,
-              right: 4,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-start' }}>
-              <IconButton
-                icon={X}
-                accessibilityLabel="Close"
-                testID={testIds.photoViewerClose}
-                onPress={() => navigation.goBack()}
-              />
-            </View>
-            <Text style={[type.eyebrow, { color: c.textMuted }]}>
-              {photoCounterLabel(photo.index, photo.count)}
-            </Text>
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end' }}>
-              {image ? (
-                <>
-                  <IconButton
-                    icon={wallpaperIcon}
-                    accessibilityLabel={wallpaperCopy.accessibilityLabel}
-                    testID={testIds.photoViewerWallpaper}
-                    disabled={actionBusy}
-                    busy={wallpaperBusy}
-                    onPress={handleWallpaper}
-                  />
-                  <IconButton
-                    icon={saveIcon}
-                    accessibilityLabel="Save to Photos"
-                    testID={testIds.photoViewerSave}
-                    disabled={actionBusy}
-                    busy={saveBusy}
-                    onPress={() => {
-                      void handleSave();
-                    }}
-                  />
-                </>
-              ) : (
-                <View style={{ width: 44 }} />
-              )}
-            </View>
-          </View>
-          {status ? <ViewerStatusBanner status={status} top={insets.top + 48} /> : null}
-          {photo.previous ? (
-            <View style={{ position: 'absolute', left: 4, top: '45%' }}>
-              <IconButton
-                icon={ChevronLeft}
-                accessibilityLabel="Previous image"
-                onPress={() => goTo(photo.previous!.picId)}
-              />
-            </View>
-          ) : null}
-          {photo.next ? (
-            <View style={{ position: 'absolute', right: 4, top: '45%' }}>
-              <IconButton
-                icon={ChevronRight}
-                accessibilityLabel="Next image"
-                onPress={() => goTo(photo.next!.picId)}
-              />
-            </View>
-          ) : null}
-          <View
-            testID={testIds.photoViewerMeta}
-            style={{
-              position: 'absolute',
-              left: 24,
-              right: 24,
-              bottom: insets.bottom + 24,
-              gap: 8,
-            }}
-          >
-            <Text style={[type.cardTitle, { color: c.textPrimary }]}>{photo.title}</Text>
-            <MetaLine parts={photoDetailMeta(photo)} />
-          </View>
-        </View>
+        <PhotoViewerChrome photo={photo} hasImage={image != null} status={status}
+          saveBusy={saveBusy} wallpaperBusy={wallpaperBusy} photosCooldown={photosCooldown} wallpaperCooldown={wallpaperCooldown}
+          onClose={() => navigation.goBack()} onWallpaper={handleWallpaper} onSave={handleSave} goTo={goTo} />
       ) : null}
       {chromeVisible && wallpaperSheetVisible && Platform.OS === 'android' ? (
         <WallpaperTargetSheet
