@@ -3,8 +3,6 @@
   "threshold": 30,
   "hotspots": {
     "src/QueenZone.Mobile/src/downloads/DownloadAction.tsx|DownloadAction": 46,
-    "src/QueenZone.Mobile/src/downloads/manager.ts|defaultProbeAudio": 156,
-    "src/QueenZone.Mobile/src/downloads/manager.ts|parseContentRangeTotal": 42,
     "src/QueenZone.Mobile/src/downloads/manager.ts|runDownload": 32.4,
     "src/QueenZone.Mobile/src/screens/account/SettingsScreen.tsx|SettingsForm": 34,
     "src/QueenZone.Mobile/src/screens/archive/ArchiveHubScreen.tsx|ArchiveHubScreen::lambda": 33.6,
