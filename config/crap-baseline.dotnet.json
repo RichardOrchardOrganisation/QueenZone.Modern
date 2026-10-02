@@ -61,7 +61,6 @@
     "src/QueenZone.Web/Pages/Admin/FreddieTributes/Index.cshtml.cs|QueenZone.Web.Pages.Admin.FreddieTributes.IndexModel|BuildPageQuery": 42.0,
     "src/QueenZone.Web/Pages/Admin/FreddieTributes/Index.cshtml|QueenZone.Web.Pages.Admin.FreddieTributes.Pages_Admin_FreddieTributes_Index|ExecuteAsync": 44.1,
     "src/QueenZone.Web/Pages/Admin/Index.cshtml|QueenZone.Web.Pages.Admin.Pages_Admin_Index|ExecuteAsync": 41.3,
-    "src/QueenZone.Web/Pages/Admin/Index.cshtml|QueenZone.Web.Pages.Admin.Pages_Admin_Index|FormatRelative": 110.0,
     "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml|QueenZone.Web.Pages.Admin.Members.Pages_Admin_Members_Index|ExecuteAsync": 109.7,
     "src/QueenZone.Web/Pages/Admin/News/_ArticleForm.cshtml|QueenZone.Web.Pages.Admin.News.Pages_Admin_News__ArticleForm|ExecuteAsync": 38.0,
     "src/QueenZone.Web/Pages/Admin/NewsDiscovery/Index.cshtml|QueenZone.Web.Pages.Admin.NewsDiscovery.Pages_Admin_NewsDiscovery_Index|ExecuteAsync": 59.5,
