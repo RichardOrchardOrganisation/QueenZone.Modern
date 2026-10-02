@@ -759,6 +759,8 @@ dotnet tool run reportgenerator -reports:".\TestResults\**\coverage.cobertura.xm
 
 Do not commit generated `TestResults/` or `coverage-report/` output.
 
+To rank change-risk hotspots, run `pwsh ./scripts/Get-CrapReport.ps1 -Reports ./TestResults`. It scores every method by CRAP (`complexity² × (1 − line coverage)³ + complexity`), unions line hits across reports, and writes `coverage-report/crap/crap-report.csv` and `crap-summary.md`. Scores above 30 mean a method is too complex for the tests it has: add tests or split it before changing it. The CI `coverage` job writes the same summary to the run's step summary and uploads `coverage-report-<run id>` (1-day retention). That artifact also includes the ReportGenerator HTML and its Risk Hotspots table. The report is informational, not a gate.
+
 Playwright browser smoke tests live in `tests/QueenZone.Web.E2E` and run in CI on whichever self-hosted runner carrying the `e2e` label is available (currently Windows or macOS), avoiding GitHub Actions minutes. This job is a required pull-request merge gate; the deploy workflow does not rerun it. See `docs/architecture/self-hosted-e2e-runner.md` for runner setup and operational notes.
 
 ## Test Selection Rules
