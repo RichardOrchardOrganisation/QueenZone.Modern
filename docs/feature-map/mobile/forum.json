@@ -49,7 +49,7 @@
       "id": "mobile.forum.category",
       "name": "Forum board",
       "screen": "ForumStack/Category",
-      "entry": "Forum tab → board (e.g. The Music)"
+      "entry": "Forum tab \u2192 board (e.g. The Music)"
     },
     {
       "aliases": [
@@ -57,7 +57,9 @@
         "ranking thread"
       ],
       "sources": [
-        "src/QueenZone.Mobile/src/screens/forum/ThreadScreen.tsx"
+        "src/QueenZone.Mobile/src/screens/forum/ThreadScreen.tsx",
+        "src/QueenZone.Mobile/src/screens/forum/ThreadHeader.tsx",
+        "src/QueenZone.Mobile/src/screens/forum/threadPresentation.ts"
       ],
       "testIds": [
         "forumThreadScreen",
@@ -73,7 +75,7 @@
       "id": "mobile.forum.thread",
       "name": "Forum thread",
       "screen": "ForumStack/Thread",
-      "entry": "Forum → board → thread"
+      "entry": "Forum \u2192 board \u2192 thread"
     },
     {
       "aliases": [
@@ -91,7 +93,7 @@
       "id": "mobile.forum.report",
       "name": "Report a post",
       "screen": "ForumStack/ForumReport",
-      "entry": "Forum thread → report post"
+      "entry": "Forum thread \u2192 report post"
     },
     {
       "aliases": [
@@ -119,7 +121,7 @@
       "id": "mobile.forum.composer",
       "name": "Forum composer",
       "screen": "ForumStack/Composer",
-      "entry": "Forum board → new thread, or thread → reply",
+      "entry": "Forum board \u2192 new thread, or thread \u2192 reply",
       "drive": {
         "attach": "src/QueenZone.Mobile/maestro/flows/10-forum-attach.yaml"
       }
