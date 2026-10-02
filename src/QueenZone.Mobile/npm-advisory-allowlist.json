@@ -15,6 +15,14 @@
       "exploitability": "Build/CI tooling only: Metro 0.84 parses local project assets; not a known remote runtime hole in the installed Expo 57 app.",
       "owner": "QueenZone maintainers",
       "expires": "2026-11-24"
+    },
+    {
+      "ghsa": "GHSA-86w9-cpqp-85rv",
+      "package": "node-forge",
+      "via": "@expo/cli@57.0.27 (direct and via @expo/code-signing-certificates@0.0.6)",
+      "exploitability": "Developer CLI only: @expo/cli uses node-forge to generate and self-verify code-signing keys it created; it is not imported by app code or shipped in the bundle, and no patched node-forge (all <=1.4.0 affected) or newer SDK 57 @expo/cli exists yet.",
+      "owner": "QueenZone maintainers",
+      "expires": "2026-12-31"
     }
   ]
 }
