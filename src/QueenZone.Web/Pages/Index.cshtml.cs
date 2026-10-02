@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Extensions.Options;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Pages;
@@ -11,6 +13,7 @@ public sealed class IndexModel(
     HomePollVoteService homePollVoteService,
     QuizSprintService quizSprintService,
     TimeProvider timeProvider,
+    IOptions<CookieTempDataProviderOptions> tempDataCookieOptions,
     ILogger<IndexModel> logger) : PageModel
 {
     /// <summary>Stock archive images cycled deterministically per article, since legacy
@@ -33,7 +36,7 @@ public sealed class IndexModel(
 
     private const int ForumBandCount = 6;
 
-    private const int FeaturedQuoteCount = 3;
+    private const int FeaturedQuoteCount = 1;
 
     public IReadOnlyList<NewsArchiveItem> Latest { get; private set; } = [];
 
@@ -58,7 +61,7 @@ public sealed class IndexModel(
 
     public IReadOnlyList<HomeArticleTeaser> FeaturedArticles { get; private set; } = [];
 
-    /// <summary>Random published Queen quotes for the card under Forum now.</summary>
+    /// <summary>A random published Queen quote for the card under Forum now.</summary>
     public IReadOnlyList<QuoteItem> FeaturedQuotes { get; private set; } = [];
 
     public SprintBoard SprintBoard { get; private set; } = new([], null, 0);
@@ -137,7 +140,7 @@ public sealed class IndexModel(
 
         FeaturedQuotes = await publicQueryCache.GetRandomPublishedQuotesAsync(FeaturedQuoteCount, cancellationToken);
         await LoadHomePollAsync(cancellationToken);
-        HomePollError = TempData["HomePollError"] as string;
+        HomePollError = ReadHomePollError();
         Ticker = BuildTicker();
     }
 
@@ -160,6 +163,20 @@ public sealed class IndexModel(
         }
 
         return Redirect("/#home-poll");
+    }
+
+    /// <summary>
+    /// Reads the vote error left by <see cref="OnPostVoteAsync"/> only when the TempData cookie is
+    /// present. Touching TempData on a plain visit makes the cookie provider emit a clearing
+    /// Set-Cookie, and output caching skips any response that sets a cookie, so the homepage
+    /// would otherwise never be served from the public HTML cache.
+    /// </summary>
+    private string? ReadHomePollError()
+    {
+        var cookieName = tempDataCookieOptions.Value.Cookie.Name ?? CookieTempDataProvider.CookieName;
+        return Request.Cookies.ContainsKey(cookieName)
+            ? TempData["HomePollError"] as string
+            : null;
     }
 
     private async Task<int?> LoadForumRepliesTodayAsync(CancellationToken cancellationToken)

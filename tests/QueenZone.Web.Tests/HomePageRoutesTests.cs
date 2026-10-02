@@ -69,10 +69,10 @@ public sealed class HomePageRoutesTests :
         var apps = html.IndexOf("Try out the Mobile Apps", StringComparison.Ordinal);
         Assert.InRange(apps, html.IndexOf("data-home-ticker", StringComparison.Ordinal), html.IndexOf("id=\"news\"", StringComparison.Ordinal));
 
-        // Queen quotes sit in the right column under Forum now, inside the front page.
+        // One Queen quote sits in the right column under Forum now, inside the front page.
         var quotes = html.IndexOf("id=\"home-quotes-heading\"", StringComparison.Ordinal);
         Assert.InRange(quotes, html.IndexOf("Forum now", StringComparison.Ordinal), html.IndexOf("Live from the forum", StringComparison.Ordinal));
-        Assert.Contains("class=\"qz-home-quotes__item\"", html, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(html, "class=\"qz-home-quotes__item\""));
 
         // The Queenzone history montage moves below the fold as a section heading.
         Assert.Matches(
