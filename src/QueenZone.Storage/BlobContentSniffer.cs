@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Collections.Frozen;
 using System.Text;
 
 namespace QueenZone.Storage;
@@ -207,25 +208,29 @@ internal static class BlobContentSniffer
         return false;
     }
 
-    public static string? GuessContentTypeFromExtension(string extension)
-    {
-        return extension.ToLowerInvariant() switch
+    private static readonly FrozenDictionary<string, string> ExtensionContentTypes =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            ".tif" or ".tiff" => "image/tiff",
-            ".pdf" => "application/pdf",
-            ".txt" => "text/plain",
-            ".zip" => "application/zip",
-            ".doc" => "application/msword",
-            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xls" => "application/vnd.ms-excel",
-            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ".mp3" => "audio/mpeg",
-            ".flac" => "audio/flac",
-            _ => null,
-        };
-    }
+            [".jpg"] = "image/jpeg",
+            [".jpeg"] = "image/jpeg",
+            [".png"] = "image/png",
+            [".gif"] = "image/gif",
+            [".webp"] = "image/webp",
+            [".tif"] = "image/tiff",
+            [".tiff"] = "image/tiff",
+            [".pdf"] = "application/pdf",
+            [".txt"] = "text/plain",
+            [".zip"] = "application/zip",
+            [".doc"] = "application/msword",
+            [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            [".xls"] = "application/vnd.ms-excel",
+            [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            [".ppt"] = "application/vnd.ms-powerpoint",
+            [".pptx"] = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            [".mp3"] = "audio/mpeg",
+            [".flac"] = "audio/flac",
+        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
+    public static string? GuessContentTypeFromExtension(string extension) =>
+        ExtensionContentTypes.GetValueOrDefault(extension);
 }

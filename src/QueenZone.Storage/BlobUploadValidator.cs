@@ -65,8 +65,8 @@ internal sealed class BlobUploadValidator(BlobUploadOptions options)
         var fromExtension = BlobContentSniffer.GuessContentTypeFromExtension(extension);
 
         // Prefer sniff when available; require agreement with extension when both present.
-        // Office Open XML (docx/xlsx) files are ZIP containers — allow extension to win.
-        // Legacy .doc/.xls are OLE compound files — same exception, extension wins.
+        // Office Open XML (docx/xlsx/pptx) files are ZIP containers — allow extension to win.
+        // Legacy .doc/.xls/.ppt are OLE compound files — same exception, extension wins.
         // Audio and every other non-image type must match a real signature. A null sniff
         // must not fall through to the extension for PDF, text, zip, or Office.
         if (IsAudioContentType(fromExtension) && !IsAudioContentType(fromSniff))
@@ -149,11 +149,13 @@ internal sealed class BlobUploadValidator(BlobUploadOptions options)
         string.Equals(sniffed, "application/zip", StringComparison.OrdinalIgnoreCase)
         && fromExtension is not null
         && (string.Equals(fromExtension, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(fromExtension, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", StringComparison.OrdinalIgnoreCase));
+            || string.Equals(fromExtension, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fromExtension, "application/vnd.openxmlformats-officedocument.presentationml.presentation", StringComparison.OrdinalIgnoreCase));
 
     private static bool IsOleCompoundOfficePackage(string? sniffed, string? fromExtension) =>
         string.Equals(sniffed, BlobContentSniffer.OleCompoundContentType, StringComparison.OrdinalIgnoreCase)
         && fromExtension is not null
         && (string.Equals(fromExtension, "application/msword", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(fromExtension, "application/vnd.ms-excel", StringComparison.OrdinalIgnoreCase));
+            || string.Equals(fromExtension, "application/vnd.ms-excel", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fromExtension, "application/vnd.ms-powerpoint", StringComparison.OrdinalIgnoreCase));
 }
