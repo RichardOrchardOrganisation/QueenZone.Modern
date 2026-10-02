@@ -117,6 +117,48 @@ public class ForumPostingWorkflowTests : E2EPageTest
         await Expect(Page.GetByText(originalBody)).ToHaveCountAsync(0);
     }
 
+    [TestCase("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")]
+    [TestCase("ppt", "application/vnd.ms-powerpoint")]
+    public async Task MemberCanUploadAndDownloadPowerPoint(string extension, string expected)
+    {
+        var fileName = $"deck-{Guid.NewGuid():N}.{extension}";
+        byte[] bytes = extension == "pptx" ? [0x50, 0x4B, 0x03, 0x04] : [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+        await Page.GotoAsync("/forum/topic/1002/ranking-every-studio-album");
+        await FillRichTextEditorAsync("PowerPoint upload regression");
+        await Page.GetByLabel("Attachments (optional)").SetInputFilesAsync(new FilePayload
+        {
+            Name = fileName,
+            MimeType = "application/octet-stream",
+            Buffer = bytes,
+        });
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Reply", Exact = true }).ClickAsync();
+        var link = Page.GetByRole(AriaRole.Link, new() { Name = fileName, Exact = false });
+        await Expect(link).ToBeVisibleAsync();
+        var path = await link.GetAttributeAsync("href");
+        var response = await Context.APIRequest.GetAsync(path!);
+        Assert.That(response.Status, Is.EqualTo(200));
+        Assert.That(response.Headers["content-type"], Is.EqualTo(expected));
+        Assert.That(await response.BodyAsync(), Is.EqualTo(bytes));
+    }
+
+    [TestCase("pptx")]
+    [TestCase("ppt")]
+    public async Task MemberCannotUploadHtmlAsPowerPoint(string extension)
+    {
+        var fileName = $"fake-{Guid.NewGuid():N}.{extension}";
+        await Page.GotoAsync("/forum/topic/1002/ranking-every-studio-album");
+        await FillRichTextEditorAsync("Spoofed PowerPoint regression");
+        await Page.GetByLabel("Attachments (optional)").SetInputFilesAsync(new FilePayload
+        {
+            Name = fileName,
+            MimeType = "application/vnd.ms-powerpoint",
+            Buffer = "<html>not a presentation</html>"u8.ToArray(),
+        });
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Reply", Exact = true }).ClickAsync();
+        await Expect(Page.GetByText("does not match extension", new() { Exact = false }).First).ToBeVisibleAsync();
+        await Expect(Page.GetByRole(AriaRole.Link, new() { Name = fileName, Exact = false })).ToHaveCountAsync(0);
+    }
+
     private async Task FillRichTextEditorAsync(string text)
     {
         var editor = Page.Locator("[data-testid='rich-text-editor']").Last;
