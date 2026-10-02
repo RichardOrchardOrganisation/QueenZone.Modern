@@ -1,0 +1,36 @@
+@model SiteHeaderViewModel
+    <nav class="qz-nav" aria-label="Primary navigation" data-masthead-nav>
+      @foreach (var group in Model.NavigationGroups)
+      {
+        var panelId = $"qz-nav-panel-{group.Id}";
+        <div class="qz-nav-group qz-nav-group--@group.Accent" data-nav-group>
+          <button class="qz-nav-group__button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="@panelId" data-nav-trigger>
+            <span>@group.Label</span>
+            <svg class="qz-nav-group__chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="qz-nav-panel" id="@panelId" role="menu" hidden data-nav-panel>
+            <p class="qz-nav-panel__eyebrow">@group.Eyebrow</p>
+            <ul class="qz-nav-panel__list">
+              @foreach (var item in group.Items)
+              {
+                <li>
+                  <a class="qz-nav-panel__link" href="@item.Href" role="menuitem" aria-current="@(Model.IsActive(item.Href) ? "page" : null)">
+                    <span class="qz-nav-panel__title">
+                      <span>@item.Title</span>
+                      @if (!string.IsNullOrWhiteSpace(item.Tag))
+                      {
+                        <span class="qz-nav-panel__tag">@item.Tag</span>
+                      }
+                    </span>
+                    <span class="qz-nav-panel__desc">@item.Description</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        </div>
+      }
+      <a class="qz-nav__link" href="/quizzes/sprint" aria-current="@(Model.IsActive("/quizzes") ? "page" : null)">Quiz</a>
+    </nav>
