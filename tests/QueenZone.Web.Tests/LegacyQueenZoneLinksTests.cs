@@ -37,6 +37,8 @@ public sealed class LegacyQueenZoneLinksTests
     [InlineData("http://www.queenzone.com/queenzone/forumnew/forum_topic_view.aspx")]
     [InlineData("http://www.queenzone.com/queenzone/forumnew/forum_topic_view.aspx?Q=abc")]
     [InlineData("http://www.queenzone.com/queenzone/forumnew/forum_topic_view.aspx?Q=0")]
+    [InlineData("http://www.queenzone.com/queenzone/forumnew/forum_topic_view.aspx?Q=99999999999")]
+    [InlineData("http://www.queenzone.com/forums/99999999999/too-big.aspx")]
     [InlineData("http://www.queenzone.com/queenzone/news_view.aspx?q=12")]
     [InlineData("http://www.queenzone.com/queenzone/mp3.aspx?Q=12")]
     [InlineData("http://www.queenzone.com/queenzone/profile.aspx?Q=12")]

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
@@ -28,35 +29,8 @@ public static partial class LegacyQueenZoneLinks
     };
 
     /// <summary>Returns the modern site-relative path for a legacy QueenZone URL, or null.</summary>
-    public static string? TryGetModernPath(string? href)
-    {
-        if (string.IsNullOrWhiteSpace(href)
-            || !Uri.TryCreate(WebUtility.HtmlDecode(href.Trim()), UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-            || !LegacyHosts.Contains(uri.Host))
-        {
-            return null;
-        }
-
-        var path = uri.AbsolutePath;
-        var slugTopic = SlugTopicPath().Match(path);
-        if (slugTopic.Success && int.TryParse(slugTopic.Groups[1].ValueSpan, out var slugTopicId))
-        {
-            return ForumRoutes.GetLegacyPostPath(slugTopicId);
-        }
-
-        var fileName = path[(path.LastIndexOf('/') + 1)..].ToLowerInvariant();
-        var isForumFolder = path.Contains("/forum", StringComparison.OrdinalIgnoreCase);
-        return fileName switch
-        {
-            "forum_topic_view.aspx" => QueryId(uri, "q") is { } topicId ? ForumRoutes.GetLegacyPostPath(topicId) : null,
-            "forum_view.aspx" => QueryId(uri, "q") is { } forumId ? ForumRoutes.GetCategoryCanonicalPath(forumId, "forum") : null,
-            "news_view.aspx" => QueryId(uri, "news_id") is { } newsId ? NewsRoutes.GetNewsDetailPath(newsId, "news") : null,
-            "news.aspx" => NewsRoutes.GetArchiveCanonicalPath(1),
-            "" or "default.aspx" when isForumFolder => "/forum",
-            _ => null,
-        };
-    }
+    public static string? TryGetModernPath(string? href) =>
+        TryParseLegacyUri(href) is { } uri ? MapLegacyUri(uri) : null;
 
     /// <summary>
     /// Rewrites a legacy anchor to its modern path. Returns false (leaving the anchor untouched)
@@ -75,6 +49,44 @@ public static partial class LegacyQueenZoneLinks
         anchor.RemoveAttribute("rel");
         return true;
     }
+
+    private static Uri? TryParseLegacyUri(string? href)
+    {
+        if (string.IsNullOrWhiteSpace(href)
+            || !Uri.TryCreate(WebUtility.HtmlDecode(href.Trim()), UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        var isWeb = uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+        return isWeb && LegacyHosts.Contains(uri.Host) ? uri : null;
+    }
+
+    private static string? MapLegacyUri(Uri uri)
+    {
+        var path = uri.AbsolutePath;
+        var slugTopic = SlugTopicPath().Match(path);
+        if (slugTopic.Success)
+        {
+            return int.TryParse(slugTopic.Groups[1].ValueSpan, CultureInfo.InvariantCulture, out var topicId)
+                ? ForumRoutes.GetLegacyPostPath(topicId)
+                : null;
+        }
+
+        var fileName = path[(path.LastIndexOf('/') + 1)..].ToLowerInvariant();
+        return fileName switch
+        {
+            "forum_topic_view.aspx" => MapQueryId(uri, "q", ForumRoutes.GetLegacyPostPath),
+            "forum_view.aspx" => MapQueryId(uri, "q", forumId => ForumRoutes.GetCategoryCanonicalPath(forumId, "forum")),
+            "news_view.aspx" => MapQueryId(uri, "news_id", newsId => NewsRoutes.GetNewsDetailPath(newsId, "news")),
+            "news.aspx" => NewsRoutes.GetArchiveCanonicalPath(1),
+            "" or "default.aspx" when path.Contains("/forum", StringComparison.OrdinalIgnoreCase) => "/forum",
+            _ => null,
+        };
+    }
+
+    private static string? MapQueryId(Uri uri, string key, Func<int, string> toPath) =>
+        QueryId(uri, key) is { } id ? toPath(id) : null;
 
     /// <summary>
     /// Reads a numeric query value. Only leading digits count, because auto-linked plain text
