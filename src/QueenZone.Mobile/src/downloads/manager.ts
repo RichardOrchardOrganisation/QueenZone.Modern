@@ -1,3 +1,4 @@
+import { parseContentRangeTotal } from './httpHeaders';
 import type { FanPerformance } from '../api';
 import { apiV1Url } from '../config';
 import { fanPerformanceAudioPath } from '../audio/formatDuration';
@@ -81,18 +82,6 @@ function isJobActive(key: string): boolean {
   return inflight.has(key) || queuedTracks.has(key);
 }
 
-function parseContentRangeTotal(header: string | null): number | null {
-  if (!header) {
-    return null;
-  }
-  const match = /\/(\d+)\s*$/.exec(header);
-  if (!match?.[1]) {
-    return null;
-  }
-  const total = Number(match[1]);
-  return Number.isFinite(total) && total > 0 ? total : null;
-}
-
 async function cancelResponseBody(response: Response): Promise<void> {
   try {
     const body = response.body as { cancel?: () => Promise<void> } | null;
@@ -119,7 +108,7 @@ type AudioDownloadProbe = {
   finalTarget?: string | null;
 };
 
-async function defaultProbeAudio(url: string, token: string): Promise<AudioDownloadProbe> {
+export async function defaultProbeAudio(url: string, token: string): Promise<AudioDownloadProbe> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
   try {
