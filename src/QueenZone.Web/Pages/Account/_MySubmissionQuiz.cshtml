@@ -1,0 +1,36 @@
+@model MySubmissionsModel
+@using QueenZone.Storage
+      <h2 class="visually-hidden">Quiz</h2>
+      @if (Model.QuizSubmissions.Count == 0)
+      {
+        <p>You have not suggested any quiz questions yet. <a href="/submit/quiz-question">Suggest a quiz question</a></p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var item in Model.QuizSubmissions)
+            {
+              <tr>
+                <td>@item.QuestionText</td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@item.SubmittedAt.ToString("u")</td>
+                <td>
+                  @if (MySubmissionPresentation.RejectionNotes(item.Status, item.RejectionReason) is { } notes)
+                  {
+                    <span>@notes</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }

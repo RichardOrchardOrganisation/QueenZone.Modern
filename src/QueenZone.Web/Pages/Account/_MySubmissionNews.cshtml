@@ -1,0 +1,47 @@
+@model MySubmissionsModel
+@using QueenZone.Storage
+      <h2 class="visually-hidden">News suggestions</h2>
+      @if (Model.NewsSuggestions.Count == 0)
+      {
+        <p>You have not suggested any news yet. <a href="/submit/news">Suggest a news link</a></p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var row in Model.NewsSuggestions)
+            {
+              var item = row.Suggestion;
+              <tr>
+                <td>
+                  <a href="@item.Url" rel="noopener noreferrer" title="@item.Url">
+                    @SubmissionStatusPresentation.TruncateUrl(item.Url)
+                  </a>
+                  @if (!string.IsNullOrWhiteSpace(item.Title))
+                  {
+                    <div class="qz-submissions-secondary">@item.Title</div>
+                  }
+                </td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@item.SubmittedAt.ToString("u")</td>
+                <td>@item.ReviewNotes</td>
+                <td>
+                  @if (!string.IsNullOrWhiteSpace(row.PublishedArticlePath))
+                  {
+                    <a href="@row.PublishedArticlePath">View article</a>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
