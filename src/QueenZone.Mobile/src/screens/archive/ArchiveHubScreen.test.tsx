@@ -1,3 +1,4 @@
+import { archiveDestinations } from '../../content/archiveHub';
 import { screen, userEvent } from '@testing-library/react-native';
 import { fakeNavigation, flushVirtualizedList, renderWithProviders } from '../../test/render';
 import { ArchiveHubScreen } from './ArchiveHubScreen';
@@ -91,5 +92,27 @@ describe('ArchiveHubScreen', () => {
       'ArchiveTab',
       expect.objectContaining({ screen: 'Timeline' }),
     );
+  });
+});
+
+
+describe('complete archive destination navigation', () => {
+  it.each([
+    ['stories', 'Articles'], ['timeline', 'Timeline'], ['biography', 'Biography'],
+    ['discography', 'Discography'], ['tribute', 'FreddieTribute'],
+    ['fan-performances', 'FanPerformances'], ['recently-restored', 'PhotosTab'],
+    ['trivia', 'Trivia'], ['quiz', 'QuizSprint'], ['about', 'AboutArchive'],
+  ])('opens %s through %s', async (id, route) => {
+    const row = archiveDestinations.find((destination) => destination.id === id)!;
+    const navigation = fakeNavigation();
+    renderWithProviders(<ArchiveHubScreen navigation={navigation as never} route={{ key: 'archive', name: 'ArchiveHub' } as never} />, { navigation: false });
+    await flushVirtualizedList();
+    await userEvent.setup().press(screen.getByRole('button', { name: new RegExp(`${row.kicker}\\. ${row.title}\\.`) }));
+    if (id === 'recently-restored') {
+      expect(navigation.navigate).toHaveBeenCalledWith(route, { screen: 'PhotoIndex' });
+    } else {
+      expect(navigation.navigate).toHaveBeenCalledWith(route);
+    }
+    expect(navigation.navigate).toHaveBeenCalledTimes(1);
   });
 });
