@@ -57,6 +57,19 @@ public sealed class EfLegacyForumRepositoryLegacyProbeTests
             var posts = await repository.GetTopicPostsPageAsync(topics.Topics[0].Id, 1, 5);
             Assert.NotNull(posts);
             Assert.True(posts.TotalCount >= posts.Posts.Count);
+
+            // TOPIC_SUBJECT is char(75): the lookup must trim it like the topic page does.
+            var topicLocation = await repository.FindLegacyPostAsync(topics.Topics[0].Id);
+            Assert.NotNull(topicLocation);
+            Assert.Equal(topics.Topics[0].Id, topicLocation.TopicId);
+            Assert.Equal(topicLocation.Title.Trim(), topicLocation.Title);
+
+            if (posts.Posts.Count > 1)
+            {
+                var replyLocation = await repository.FindLegacyPostAsync(posts.Posts[^1].Id);
+                Assert.NotNull(replyLocation);
+                Assert.Equal(topics.Topics[0].Id, replyLocation.TopicId);
+            }
         }
 
         var threadCount = await repository.GetTotalThreadCountAsync();

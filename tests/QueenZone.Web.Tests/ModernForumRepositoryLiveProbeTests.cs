@@ -44,6 +44,18 @@ public sealed class ModernForumRepositoryLiveProbeTests
             var posts = await repository.GetTopicPostsPageAsync(topics.Topics[0].Id, 1, 5);
             Assert.NotNull(posts);
             Assert.True(posts.TotalCount >= posts.Posts.Count);
+
+            var topicLocation = await repository.FindLegacyPostAsync(topics.Topics[0].Id);
+            Assert.NotNull(topicLocation);
+            Assert.Equal(topics.Topics[0].Id, topicLocation.TopicId);
+            Assert.Equal(0, topicLocation.PostIndex);
+
+            if (posts.Posts.Count > 1)
+            {
+                var replyLocation = await repository.FindLegacyPostAsync(posts.Posts[^1].Id);
+                Assert.NotNull(replyLocation);
+                Assert.Equal(posts.Posts[^1].Id, replyLocation.PostId);
+            }
         }
 
         var first = await repository.SearchForumAsync("Queen", 1, 5);

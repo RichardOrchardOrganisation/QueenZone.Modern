@@ -177,6 +177,34 @@ public sealed class ModernForumRepositorySqlServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Find_legacy_post_resolves_topics_and_visible_reply_positions()
+    {
+        await database.SeedCategoryAsync(1, 10, "General", sortOrder: 1);
+        await database.SeedThreadAsync(200, 2000, 10, 1, "  Topic title  ", "Freddie", lastActivityAt: Day2);
+        await database.SeedThreadAsync(201, 3010, 10, 1, "Collision topic", "Brian", lastActivityAt: Day1);
+        await database.SeedThreadAsync(202, 2002, 10, 1, "Hidden topic", "John", isHidden: true);
+        await database.SeedPostAsync(300, 3000, 2000, 200, 10, "Freddie", "starter", postedAt: Day1);
+        await database.SeedPostAsync(301, 3001, 2000, 200, 10, "Hidden", "secret", postedAt: Day2, isHidden: true);
+        await database.SeedPostAsync(302, 3002, 2000, 200, 10, "John", "second", postedAt: Day2);
+        await database.SeedPostAsync(303, 3003, 2000, 200, 10, "Roger", "third", postedAt: Day3);
+        await database.SeedPostAsync(304, 3010, 2000, 200, 10, "Roger", "same ID as a topic", postedAt: Day4);
+        await database.SeedPostAsync(305, 3005, 2002, 202, 10, "John", "in hidden topic", postedAt: Day1);
+
+        Assert.Equal(new ForumLegacyPostLocation(2000, "Topic title", 2000, 0), await repository.FindLegacyPostAsync(2000));
+        Assert.Equal(new ForumLegacyPostLocation(2000, "Topic title", 3000, 0), await repository.FindLegacyPostAsync(3000));
+        Assert.Equal(new ForumLegacyPostLocation(2000, "Topic title", 3002, 1), await repository.FindLegacyPostAsync(3002));
+        Assert.Equal(new ForumLegacyPostLocation(2000, "Topic title", 3003, 2), await repository.FindLegacyPostAsync(3003));
+
+        // Topic IDs win when a post shares the ID.
+        Assert.Equal(new ForumLegacyPostLocation(3010, "Collision topic", 3010, 0), await repository.FindLegacyPostAsync(3010));
+
+        Assert.Null(await repository.FindLegacyPostAsync(3001));
+        Assert.Null(await repository.FindLegacyPostAsync(2002));
+        Assert.Null(await repository.FindLegacyPostAsync(3005));
+        Assert.Null(await repository.FindLegacyPostAsync(404));
+    }
+
+    [Fact]
     public async Task Topic_posts_return_null_for_missing_hidden_or_blank_title()
     {
         await database.SeedCategoryAsync(1, 10, "General", sortOrder: 1);

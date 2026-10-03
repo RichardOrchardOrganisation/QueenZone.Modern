@@ -1,3 +1,4 @@
+using QueenZone.Data;
 using QueenZone.Routing;
 
 namespace QueenZone.Search.Shared.Tests;
@@ -56,4 +57,18 @@ public sealed class ForumRoutesTests
     [InlineData(31, 3)]
     public void GetPostsTotalPages_UsesFifteenPostPageSize(int totalCount, int expectedPages) =>
         Assert.Equal(expectedPages, ForumRoutes.GetPostsTotalPages(totalCount));
+
+    [Theory]
+    [InlineData(1002, 0, "/forum/topic/1002/ranking-every-studio-album")]
+    [InlineData(1101, 1, "/forum/topic/1002/ranking-every-studio-album#post-1101")]
+    [InlineData(1200, 14, "/forum/topic/1002/ranking-every-studio-album#post-1200")]
+    [InlineData(1201, 15, "/forum/topic/1002/ranking-every-studio-album/page/2#post-1201")]
+    public void GetLegacyPostTargetPath_PagesAndAnchorsReplies(int postId, int postIndex, string expected) =>
+        Assert.Equal(
+            expected,
+            ForumRoutes.GetLegacyPostTargetPath(new ForumLegacyPostLocation(1002, "Ranking every studio album", postId, postIndex)));
+
+    [Fact]
+    public void GetLegacyPostPath_UsesGotoRoute() =>
+        Assert.Equal("/forum/goto/413200", ForumRoutes.GetLegacyPostPath(413200));
 }
