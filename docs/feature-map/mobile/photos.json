@@ -43,7 +43,7 @@
       "id": "mobile.photos.category",
       "name": "Photo collection",
       "screen": "PhotosStack/PhotoCategory",
-      "entry": "Photography tab → collection (e.g. Brian May)"
+      "entry": "Photography tab \u2192 collection (e.g. Brian May)"
     },
     {
       "aliases": [
@@ -55,7 +55,9 @@
       ],
       "sources": [
         "src/QueenZone.Mobile/src/screens/photos/PhotoViewerScreen.tsx",
-        "src/QueenZone.Mobile/src/screens/photos/ZoomableArchiveImage.tsx"
+        "src/QueenZone.Mobile/src/screens/photos/ZoomableArchiveImage.tsx",
+        "src/QueenZone.Mobile/src/screens/photos/PhotoViewerChrome.tsx",
+        "src/QueenZone.Mobile/src/screens/photos/photoViewerDisplay.ts"
       ],
       "testIds": [
         "photoViewerScreen",
@@ -74,7 +76,7 @@
       "id": "mobile.photos.viewer",
       "name": "Photo viewer",
       "screen": "PhotosStack/PhotoViewer",
-      "entry": "Photography tab → collection → photograph",
+      "entry": "Photography tab \u2192 collection \u2192 photograph",
       "drive": {
         "photos": "src/QueenZone.Mobile/maestro/flows/05-photography.yaml"
       }
@@ -96,7 +98,7 @@
       "id": "mobile.photos.submit",
       "name": "Submit a photo",
       "screen": "PhotosStack/PhotoSubmit",
-      "entry": "Photography tab → submit a photo"
+      "entry": "Photography tab \u2192 submit a photo"
     }
   ]
 }

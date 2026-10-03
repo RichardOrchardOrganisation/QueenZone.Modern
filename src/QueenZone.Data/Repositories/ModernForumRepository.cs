@@ -239,6 +239,45 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
         return await ExecuteSearchAsync(query, page, pageSize, cancellationToken);
     }
 
+    public async Task<ForumLegacyPostLocation?> FindLegacyPostAsync(
+        int legacyPostId,
+        CancellationToken cancellationToken = default)
+    {
+        // Topic IDs win over post IDs: old links overwhelmingly point at topics, and modern
+        // threads allocate topic and post IDs from separate sequences that can overlap.
+        // PostIndex mirrors ModernForum_GetTopicPostsPage ordering (visible posts by LegacyPostId).
+        var rows = await EfSql.QuerySqlAsync<ForumLegacyPostRow>(
+            dbContext,
+            """
+            SELECT TOP (1) TopicId, Title, PostId, PostIndex
+            FROM
+            (
+                SELECT 0 AS Priority, t.LegacyTopicId AS TopicId, t.Title, t.LegacyTopicId AS PostId, 0 AS PostIndex
+                FROM dbo.ModernForumThread t
+                WHERE t.LegacyTopicId = @LegacyPostId
+                  AND t.IsHidden = 0
+                UNION ALL
+                SELECT 1, t.LegacyTopicId, t.Title, p.LegacyPostId,
+                    (SELECT COUNT(*)
+                     FROM dbo.ModernForumPost earlier
+                     WHERE earlier.ThreadId = p.ThreadId
+                       AND earlier.IsHidden = 0
+                       AND earlier.LegacyPostId < p.LegacyPostId)
+                FROM dbo.ModernForumPost p
+                INNER JOIN dbo.ModernForumThread t ON t.Id = p.ThreadId
+                WHERE p.LegacyPostId = @LegacyPostId
+                  AND p.IsHidden = 0
+                  AND t.IsHidden = 0
+            ) matches
+            ORDER BY Priority;
+            """,
+            command => command.Parameters.Add(EfSql.Input("@LegacyPostId", legacyPostId)),
+            InteractiveCommandTimeoutSeconds,
+            cancellationToken);
+
+        return rows.Select(ForumLegacyPostRow.Map).FirstOrDefault();
+    }
+
     private async Task<ForumSearchPage> ExecuteSearchAsync(
         string query,
         int page,

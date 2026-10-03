@@ -28,6 +28,7 @@ appId: org.queenzone.mobile
     visible:
       id: photo-viewer-save
     timeout: 5000
+- takeScreenshot: photo-viewer-controls-proof
 # PhotoViewer hides the tab bar (navigation/visibility.ts) — leave via its
 # own close control, same pattern as 08-profile-signed-out.yaml's profile-back.
 # Close pops back to the category, not the tab root.

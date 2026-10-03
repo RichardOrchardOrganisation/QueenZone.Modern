@@ -237,6 +237,25 @@
       "page": "Pages/Forum/Topic.cshtml",
       "url": "/forum/topic/1030/archive-sample-thread-1030",
       "entry": "Forum board page 2 \u2192 Archive sample thread 1030"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Forum/LegacyPostRedirect.cshtml",
+        "src/QueenZone.Web/Content/LegacyQueenZoneLinks.cs"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.forum.legacyPostRedirect",
+      "name": "Legacy forum link redirect",
+      "page": "Pages/Forum/LegacyPostRedirect.cshtml",
+      "url": "/forum/goto/{legacyPostId}",
+      "entry": "Forum post \u2192 old queenzone.com forum link",
+      "kind": "handler"
     }
   ]
 }

@@ -27,7 +27,7 @@
       "id": "mobile.account.profile",
       "name": "Profile",
       "screen": "HomeStack/Profile",
-      "entry": "Home masthead identity → Profile",
+      "entry": "Home masthead identity \u2192 Profile",
       "drive": {
         "profile": "src/QueenZone.Mobile/maestro/flows/08-profile-signed-out.yaml"
       }
@@ -49,21 +49,26 @@
       "id": "mobile.account.appearance",
       "name": "Appearance",
       "screen": "HomeStack/Appearance",
-      "entry": "Profile → Appearance"
+      "entry": "Profile \u2192 Appearance"
     },
     {
       "aliases": [
         "notification settings"
       ],
       "sources": [
-        "src/QueenZone.Mobile/src/screens/account/SettingsScreen.tsx"
+        "src/QueenZone.Mobile/src/screens/account/SettingsScreen.tsx",
+        "src/QueenZone.Mobile/src/screens/account/useSettingsForm.ts",
+        "src/QueenZone.Mobile/src/screens/account/SettingsLegacySection.tsx",
+        "src/QueenZone.Mobile/src/screens/account/settingsPresentation.ts"
       ],
       "testIds": [
         "settingsNotifyForumReply",
         "settingsNotifyPrivateMessage",
         "settingsNotifyNews"
       ],
-      "flows": [],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/18-account-settings-proof.yaml"
+      ],
       "specs": [],
       "selectors": [],
       "signIn": "none",
@@ -71,7 +76,7 @@
       "id": "mobile.account.settings",
       "name": "Settings",
       "screen": "HomeStack/Settings",
-      "entry": "Profile → Settings"
+      "entry": "Profile \u2192 Settings"
     },
     {
       "aliases": [
@@ -79,7 +84,10 @@
         "analytics settings"
       ],
       "sources": [
-        "src/QueenZone.Mobile/src/screens/account/AnalyticsSettingsScreen.tsx"
+        "src/QueenZone.Mobile/src/screens/account/AnalyticsSettingsScreen.tsx",
+        "src/QueenZone.Mobile/src/screens/account/useSettingsForm.ts",
+        "src/QueenZone.Mobile/src/screens/account/SettingsLegacySection.tsx",
+        "src/QueenZone.Mobile/src/screens/account/settingsPresentation.ts"
       ],
       "testIds": [],
       "flows": [],
@@ -90,7 +98,7 @@
       "id": "mobile.account.analytics",
       "name": "Analytics preferences",
       "screen": "HomeStack/AnalyticsSettings",
-      "entry": "Profile → Settings → Analytics preferences"
+      "entry": "Profile \u2192 Settings \u2192 Analytics preferences"
     },
     {
       "aliases": [
@@ -114,7 +122,7 @@
       "id": "mobile.account.contact",
       "name": "Contact",
       "screen": "HomeStack/Contact",
-      "entry": "Profile → Contact"
+      "entry": "Profile \u2192 Contact"
     },
     {
       "aliases": [
@@ -132,7 +140,7 @@
       "id": "mobile.account.delete",
       "name": "Delete account",
       "screen": "HomeStack/DeleteAccount",
-      "entry": "Profile → Delete account"
+      "entry": "Profile \u2192 Delete account"
     },
     {
       "aliases": [
@@ -151,7 +159,7 @@
       "id": "mobile.account.saved",
       "name": "Library",
       "screen": "HomeStack/SavedList",
-      "entry": "Profile → Library"
+      "entry": "Profile \u2192 Library"
     },
     {
       "aliases": [
@@ -172,7 +180,7 @@
       "id": "mobile.account.submissions",
       "name": "My submissions",
       "screen": "HomeStack/MySubmissions",
-      "entry": "Profile → My submissions"
+      "entry": "Profile \u2192 My submissions"
     }
   ]
 }

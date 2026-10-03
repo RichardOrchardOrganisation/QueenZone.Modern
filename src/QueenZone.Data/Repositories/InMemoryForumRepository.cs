@@ -152,6 +152,36 @@ public sealed class InMemoryForumRepository(
         return Task.FromResult(new ForumSearchPage(pageItems, allResults.Count, page, pageSize));
     }
 
+    public Task<ForumLegacyPostLocation?> FindLegacyPostAsync(
+        int legacyPostId,
+        CancellationToken cancellationToken = default)
+    {
+        var header = SampleForumData.TryGetSeedTopicHeader(legacyPostId)
+            ?? TryGetCreatedTopicHeader(legacyPostId);
+        if (header is not null)
+        {
+            return Task.FromResult<ForumLegacyPostLocation?>(
+                new ForumLegacyPostLocation(header.TopicId, header.Title, legacyPostId, 0));
+        }
+
+        var topics = GetTopicSitemapItems();
+        foreach (var topic in topics)
+        {
+            var posts = SampleForumData.CreateSeedPosts(topic.TopicId)
+                .Concat(GetCreatedPosts(topic.TopicId))
+                .OrderBy(post => post.PostedAt)
+                .ToList();
+            var index = posts.FindIndex(post => post.Id == legacyPostId);
+            if (index >= 0)
+            {
+                return Task.FromResult<ForumLegacyPostLocation?>(
+                    new ForumLegacyPostLocation(topic.TopicId, topic.Title, legacyPostId, index));
+            }
+        }
+
+        return Task.FromResult<ForumLegacyPostLocation?>(null);
+    }
+
     private IReadOnlyList<ForumTopicSitemapItem> GetTopicSitemapItems()
     {
         var created = (writeRepository?.GetCreatedThreads() ?? [])

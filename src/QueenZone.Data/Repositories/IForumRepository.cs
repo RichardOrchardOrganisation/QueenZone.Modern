@@ -42,4 +42,12 @@ public interface IForumRepository
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolves a legacy topic or reply ID to its visible topic and position, or null when the
+    /// post is missing or hidden.
+    /// </summary>
+    Task<ForumLegacyPostLocation?> FindLegacyPostAsync(
+        int legacyPostId,
+        CancellationToken cancellationToken = default);
 }

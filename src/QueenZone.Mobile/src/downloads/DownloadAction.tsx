@@ -4,7 +4,7 @@ import type { FanPerformance } from '../api';
 import { useSession } from '../session/SessionContext';
 import { testIds } from '../test/testIds';
 import { space, type, useTheme } from '../theme';
-import { formatByteSize, formatDownloadProgress } from './formatBytes';
+import { downloadActionView } from './downloadActionView';
 import { enqueueDownload, removeDownload } from './manager';
 import { useDownloadMemberId, useDownloadUi } from './useDownloadUi';
 
@@ -14,29 +14,7 @@ type Props = {
   onNeedSignIn?: () => void;
 };
 
-export function downloadStatusLabel(
-  status: string | undefined,
-  title: string,
-  sizeLabel: string,
-  error?: string | null,
-): string {
-  switch (status) {
-    case 'queued':
-      return `Download queued for ${title}`;
-    case 'downloading':
-      return sizeLabel ? `Downloading ${title}, ${sizeLabel}` : `Downloading ${title}`;
-    case 'downloaded':
-      return sizeLabel ? `${title} downloaded, ${sizeLabel}` : `${title} downloaded`;
-    case 'failed':
-      return error
-        ? `Download failed for ${title}: ${error} Double tap to retry`
-        : `Download failed for ${title}. Double tap to retry`;
-    case 'removing':
-      return `Removing download of ${title}`;
-    default:
-      return `Download ${title} for offline playback`;
-  }
-}
+export { downloadStatusLabel } from './downloadActionView';
 
 export function DownloadAction({ track, compact = false, onNeedSignIn }: Props) {
   const { c } = useTheme();
@@ -44,94 +22,42 @@ export function DownloadAction({ track, compact = false, onNeedSignIn }: Props) 
   const memberId = useDownloadMemberId();
   const performanceId = String(track.id);
   const snapshot = useDownloadUi(performanceId);
-  const status = snapshot?.status;
-  const progressLabel = formatDownloadProgress(snapshot?.byteSize, snapshot?.expectedBytes);
-  const sizeLabel =
-    status === 'downloading' ? progressLabel : formatByteSize(snapshot?.byteSize ?? snapshot?.expectedBytes);
-  const error = snapshot?.error;
-  const label = downloadStatusLabel(status, track.title, sizeLabel, error);
-
+  const view = downloadActionView(track.title, snapshot, compact, isRestoring, Boolean(memberId));
+  const Icon = { check: Check, alert: CircleAlert, loader: LoaderCircle, download: Download }[view.icon];
+  const tint = { danger: c.danger, accent: c.accentPrimary, text: c.textPrimary };
   const onPress = () => {
-    if (isRestoring) {
-      return;
+    switch (view.action) {
+      case 'sign-in': onNeedSignIn?.(); return;
+      case 'remove': void removeDownload(memberId!, performanceId); return;
+      case 'enqueue': enqueueDownload(track, memberId!, ensureAccessToken); return;
+      case 'none': return;
     }
-    if (!memberId) {
-      onNeedSignIn?.();
-      return;
-    }
-    if (status === 'downloaded') {
-      void removeDownload(memberId, performanceId);
-      return;
-    }
-    if (status === 'queued' || status === 'downloading' || status === 'removing') {
-      return;
-    }
-    enqueueDownload(track, memberId, ensureAccessToken);
   };
-
-  const Icon =
-    status === 'downloaded'
-      ? Check
-      : status === 'failed'
-        ? CircleAlert
-        : status === 'queued' || status === 'downloading' || status === 'removing'
-          ? LoaderCircle
-          : Download;
-
-  const caption =
-    status === 'downloaded'
-      ? sizeLabel
-        ? `Downloaded · ${sizeLabel}`
-        : 'Downloaded'
-      : status === 'downloading'
-        ? sizeLabel
-          ? `Downloading · ${sizeLabel}`
-          : 'Downloading'
-        : status === 'queued'
-          ? 'Queued'
-          : status === 'failed'
-            ? error ?? 'Retry download'
-            : status === 'removing'
-              ? 'Removing'
-              : 'Download';
-
-  const showCaption = !compact || status === 'downloading' || status === 'failed';
 
   return (
     <Pressable
       testID={`${testIds.fanPerformanceDownloadPrefix}${performanceId}`}
       accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={
-        status === 'downloaded' ? 'Removes the downloaded recording from this device' : undefined
-      }
-      accessibilityState={{
-        busy: status === 'downloading' || status === 'removing' || status === 'queued',
-        disabled: status === 'queued' || status === 'downloading' || status === 'removing',
-      }}
+      accessibilityLabel={view.label}
+      accessibilityHint={view.hint}
+      accessibilityState={{ busy: view.busy, disabled: view.busy }}
       hitSlop={compact ? { top: 8, bottom: 8, left: 4, right: 8 } : 8}
       unstable_pressDelay={0}
       onPress={onPress}
       style={[
         styles.button,
         compact ? styles.compact : null,
-        compact && showCaption ? (status === 'failed' ? styles.compactFailed : styles.compactWide) : null,
+        view.compactVariant ? { failed: styles.compactFailed, wide: styles.compactWide }[view.compactVariant] : null,
         { borderColor: c.borderStrong, backgroundColor: c.surfaceRaised },
       ]}
     >
-      <Icon
-        size={18}
-        color={status === 'failed' ? c.danger : status === 'downloaded' ? c.accentPrimary : c.textPrimary}
-      />
-      {showCaption ? (
+      <Icon size={18} color={tint[view.tint]} />
+      {view.showCaption ? (
         <Text
-          style={[
-            compact && status !== 'failed' ? type.meta : type.caption,
-            { color: status === 'failed' ? c.danger : c.textPrimary, flexShrink: 1 },
-          ]}
-          numberOfLines={status === 'failed' ? undefined : compact ? 2 : 3}
+          style={[type[view.captionStyle], { color: tint[view.captionTint], flexShrink: 1 }]}
+          numberOfLines={view.captionLines}
         >
-          {compact && status === 'downloading' ? sizeLabel || '…' : caption}
+          {view.captionText}
         </Text>
       ) : null}
     </Pressable>

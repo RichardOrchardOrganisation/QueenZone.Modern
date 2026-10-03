@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
+import { Alert, FlatList, StyleSheet, type ListRenderItem } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   fetchForumTopicPostsResult,
@@ -19,13 +19,13 @@ import { resolvePushMemberId } from '../../notifications/pushMemberId';
 import { type OfflineQueueItem, useOfflineQueue } from '../../offlineQueue';
 import { useSession } from '../../session/SessionContext';
 import { openForumComposer, openSignIn } from '../../session/signInNavigation';
-import { EmptyBlock, ErrorBlock, LoadingBlock, OfflineBanner, SectionErrorBlock } from '../../ui/ScreenStates';
+import { EmptyBlock, ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { ThemedRefreshControl } from '../../ui/ThemedRefreshControl';
 import { testIds } from '../../test/testIds';
-import { space, type, useTheme } from '../../theme';
-import { ForumPollCard } from './ForumPollCard';
+import { useTheme } from '../../theme';
+import { ThreadHeader } from './ThreadHeader';
+import { threadHeading } from './threadPresentation';
 import { ForumPostRow, postKeyExtractor, type DisplayPost } from './ForumPostRow';
-import { ForumWatchControl } from './ForumWatchControl';
 import { ThreadReplyFooter } from './ThreadReplyFooter';
 import { forumPostsPageSize, parseTopicId, topicReplyAllowed } from './forumThreadMeta';
 import { useForumThread } from './useForumThread';
@@ -233,54 +233,12 @@ export function ThreadScreen({ navigation, route }: Props) {
     return <ErrorBlock message={paged.error} onRetry={retry} />;
   }
 
-  const stats = topic ? `${topic.postCount.toLocaleString()} posts · ${topic.forumName}` : null;
-
   const header = (
-    <View style={styles.header}>
-      {offlineSnapshot ? <OfflineBanner cachedAt={snapshotCachedAt} testID={testIds.offlineBanner} /> : null}
-      <Text style={[type.eyebrow, { color: c.accentPrimary }]}>{topic?.forumName ?? 'Forum'}</Text>
-      <Text
-        style={[type.articleTitle, { color: c.textPrimary, marginTop: space.sm }]}
-        allowFontScaling
-        maxFontSizeMultiplier={1.4}
-      >
-        {topic?.title ?? title ?? 'Thread'}
-      </Text>
-      {stats ? (
-        <Text style={[type.meta, { color: c.textMuted, marginTop: space.md }]}>{stats}</Text>
-      ) : null}
-      {moderationError ? (
-        <SectionErrorBlock
-          message={moderationError}
-          onRetry={() => setModerationReloadToken((current) => current + 1)}
-        />
-      ) : null}
-      <ForumWatchControl
-        isSignedIn={isSignedIn}
-        watching={forumThread.watching}
-        watchBusy={forumThread.watchBusy}
-        watchError={forumThread.watchError}
-        disabled={offlineSnapshot}
-        onToggle={forumThread.toggleWatch}
-      />
-      {forumThread.poll && !offlineSnapshot ? (
-        <View style={styles.poll}>
-          <ForumPollCard
-            poll={forumThread.poll}
-            isSignedIn={isSignedIn}
-            hasAccessToken={Boolean(accessToken)}
-            busy={forumThread.pollBusy}
-            error={forumThread.pollError}
-            onVote={forumThread.votePoll}
-            onClose={forumThread.closePoll}
-            onSignIn={() => openSignIn(navigation)}
-          />
-        </View>
-      ) : null}
-      {forumThread.pollError && !forumThread.poll ? (
-        <ErrorBlock message={forumThread.pollError} onRetry={retry} />
-      ) : null}
-    </View>
+    <ThreadHeader heading={threadHeading(topic, title)} offlineSnapshot={offlineSnapshot}
+      snapshotCachedAt={snapshotCachedAt} moderationError={moderationError}
+      reloadModeration={() => setModerationReloadToken((current) => current + 1)} retry={retry}
+      forumThread={forumThread} isSignedIn={isSignedIn} accessToken={accessToken}
+      onSignIn={() => openSignIn(navigation)} />
   );
 
   const canReply = topicReplyAllowed(topic);
@@ -345,13 +303,4 @@ function overlayQueuedPosts(
 
 const styles = StyleSheet.create({
   list: { flex: 1 },
-  header: {
-    paddingHorizontal: space.xl,
-    paddingTop: space.xl,
-    paddingBottom: space.base,
-  },
-  poll: {
-    marginHorizontal: -space.xl,
-    marginTop: space.lg,
-  },
 });

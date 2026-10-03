@@ -74,7 +74,8 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
 
     /// <summary>
     /// Sanitizes UGC HTML for public rendering. Images use the stored thumbnail proxy path
-    /// (or <c>?size=thumb</c>) and wrap a link to the full-size image.
+    /// (or <c>?size=thumb</c>) and wrap a link to the full-size image. Links to the retired
+    /// QueenZone site point at modern routes (<see cref="LegacyQueenZoneLinks"/>).
     /// Plain-text legacy bodies keep auto-linked URLs via <see cref="NewsArticleContent.FormatBody"/>.
     /// </summary>
     public string FormatForDisplay(string? body)
@@ -191,7 +192,8 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
             RestrictClasses(element);
 
             if (string.Equals(element.TagName, "A", StringComparison.OrdinalIgnoreCase)
-                && element.HasAttribute("href"))
+                && element.HasAttribute("href")
+                && !(forDisplay && LegacyQueenZoneLinks.TryRewriteAnchor(element)))
             {
                 element.SetAttribute("rel", "noopener noreferrer");
                 element.SetAttribute("target", "_blank");

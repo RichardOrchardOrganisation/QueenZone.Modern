@@ -204,6 +204,21 @@ public sealed class LegacyForumRepositorySqlServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Find_legacy_post_resolves_starters_and_replies_to_topic_positions()
+    {
+        Assert.Equal(new ForumLegacyPostLocation(1000, "Pinned", 1000, 0), await repository.FindLegacyPostAsync(1000));
+        Assert.Equal(new ForumLegacyPostLocation(1000, "Pinned", 1006, 1), await repository.FindLegacyPostAsync(1006));
+        Assert.Equal(new ForumLegacyPostLocation(1000, "Pinned", 1007, 2), await repository.FindLegacyPostAsync(1007));
+
+        // Starters by unvalidated or deleted members still resolve; the topic page decides visibility.
+        Assert.Equal(new ForumLegacyPostLocation(1004, "Unvalidated", 1004, 0), await repository.FindLegacyPostAsync(1004));
+
+        // Hidden discography rows and unknown IDs do not resolve.
+        Assert.Null(await repository.FindLegacyPostAsync(1008));
+        Assert.Null(await repository.FindLegacyPostAsync(404));
+    }
+
+    [Fact]
     public async Task Archive_recent_discography_and_sitemap_materialize_legacy_types()
     {
         Assert.Equal(10, await repository.GetTotalThreadCountAsync());

@@ -289,6 +289,44 @@ public sealed class LegacyForumRepository(QueenZoneDbContext dbContext) : IForum
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Forum search is not supported on the legacy forum path.");
 
+    public async Task<ForumLegacyPostLocation?> FindLegacyPostAsync(
+        int legacyPostId,
+        CancellationToken cancellationToken = default)
+    {
+        // Replies point at their starter through Q_FORUM_TOPIC_PARENT_ID; starters hold their own
+        // ID, 0 or NULL there. PostIndex mirrors Q_FORUM_TOPIC_NEW_SP: validated authors,
+        // DISCOGRAPHY <> 2, TOPIC_DATE ascending (ID breaks same-minute ties). The target post
+        // itself skips the author check so starters by since-deleted members still resolve.
+        var rows = await EfSql.QuerySqlAsync<ForumLegacyPostRow>(
+            dbContext,
+            """
+            SELECT TOP (1)
+                root.Q_FORUM_TOPIC_ID AS TopicId,
+                root.TOPIC_SUBJECT AS Title,
+                p.Q_FORUM_TOPIC_ID AS PostId,
+                (SELECT COUNT(*)
+                 FROM dbo.Q_FORUM_TOPIC_T earlier
+                 INNER JOIN dbo.USERS_T earlierUser ON earlierUser.USER_ID = earlier.USER_ID
+                 WHERE (earlier.Q_FORUM_TOPIC_ID = root.Q_FORUM_TOPIC_ID
+                        OR earlier.Q_FORUM_TOPIC_PARENT_ID = root.Q_FORUM_TOPIC_ID)
+                   AND earlier.DISCOGRAPHY <> 2
+                   AND earlierUser.validated = 1
+                   AND (earlier.TOPIC_DATE < p.TOPIC_DATE
+                        OR (earlier.TOPIC_DATE = p.TOPIC_DATE AND earlier.Q_FORUM_TOPIC_ID < p.Q_FORUM_TOPIC_ID))) AS PostIndex
+            FROM dbo.Q_FORUM_TOPIC_T p
+            INNER JOIN dbo.Q_FORUM_TOPIC_T root ON root.Q_FORUM_TOPIC_ID =
+                CASE WHEN ISNULL(p.Q_FORUM_TOPIC_PARENT_ID, 0) = 0 THEN p.Q_FORUM_TOPIC_ID ELSE p.Q_FORUM_TOPIC_PARENT_ID END
+            WHERE p.Q_FORUM_TOPIC_ID = @LegacyPostId
+              AND p.DISCOGRAPHY <> 2
+              AND root.DISCOGRAPHY <> 2;
+            """,
+            command => command.Parameters.Add(EfSql.Input("@LegacyPostId", legacyPostId)),
+            CommandTimeoutSeconds,
+            cancellationToken);
+
+        return rows.Select(ForumLegacyPostRow.Map).FirstOrDefault();
+    }
+
     private static ForumCategoryItem Map(ForumCategoryRow row) =>
         new(
             row.Id,
