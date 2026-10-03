@@ -48,6 +48,26 @@ public class AdminSmokeTests : E2EPageTest
         await Expect(Page.GetByText(uniqueTitle)).ToBeVisibleAsync();
     }
 
+    [Test]
+    public async Task FanPerformanceReports_FilterSelectionMatchesTheRenderedList()
+    {
+        await GotoAdminAsync("/admin/fan-performance-reports");
+        await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Fan performance reports", Level = 1 })).ToBeVisibleAsync();
+        await Expect(Page.GetByLabel("Status")).ToHaveValueAsync("Open");
+        await Expect(Page.GetByText("No reports in this view.")).ToBeVisibleAsync();
+
+        await Page.GetByLabel("Status").SelectOptionAsync("Resolved");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Filter", Exact = true }).ClickAsync();
+        await Expect(Page).ToHaveURLAsync(new Regex("/admin/fan-performance-reports\\?status=Resolved$"));
+        await Expect(Page.GetByLabel("Status")).ToHaveValueAsync("Resolved");
+        await Expect(Page.GetByText("No reports in this view.")).ToBeVisibleAsync();
+
+        await GotoAdminAsync("/admin/fan-performance-reports?status=resolved");
+        await Expect(Page.GetByLabel("Status")).ToHaveValueAsync("Resolved");
+        await GotoAdminAsync("/admin/fan-performance-reports?status=unknown");
+        await Expect(Page.GetByLabel("Status")).ToHaveValueAsync("Open");
+    }
+
     private async Task GotoAdminAsync(string path)
     {
         var response = await Page.GotoAsync(path);

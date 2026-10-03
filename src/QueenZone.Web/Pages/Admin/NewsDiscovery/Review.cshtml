@@ -9,221 +9,26 @@
 }
 else
 {
-  var candidate = Model.Candidate;
-  <h1>Review candidate #@candidate.Id</h1>
+  <h1>Review candidate #@Model.Candidate.Id</h1>
 
   @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
   {
     <p class="admin-status admin-status--@(Model.StatusMessageKind ?? "info")">@Model.StatusMessage</p>
   }
 
-  <section class="admin-review-section">
-    <h2>Source item</h2>
-    <dl class="admin-review-meta">
-      <dt>Title</dt>
-      <dd>@candidate.SourceTitle</dd>
-      <dt>Source URL</dt>
-      <dd><a href="@candidate.SourceUrl" rel="noopener noreferrer" target="_blank">@candidate.SourceUrl</a></dd>
-      <dt>Source</dt>
-      <dd>@candidate.SourceDisplayName (@NewsDiscoveryStatusLabels.FormatTrustTier(candidate.SourceTrustTier))</dd>
-      <dt>Status</dt>
-      <dd>@NewsDiscoveryStatusLabels.Format(candidate.Status)</dd>
-      <dt>Discovered</dt>
-      <dd>@candidate.DiscoveredAt.ToString("dd MMM yyyy HH:mm") UTC</dd>
-      <dt>Published</dt>
-      <dd>@(candidate.SourcePublishedAt?.ToString("dd MMM yyyy") ?? "Unknown")</dd>
-      <dt>Scores</dt>
-      <dd>Relevance @(candidate.RelevanceScore?.ToString("0.00") ?? "—"), confidence @(candidate.ConfidenceScore?.ToString("0.00") ?? "—")</dd>
-      @if (!string.IsNullOrWhiteSpace(candidate.ReviewNotes))
-      {
-        <dt>Review notes</dt>
-        <dd>@candidate.ReviewNotes</dd>
-      }
-      @if (Model.DuplicateCandidate is not null)
-      {
-        <dt>Duplicate of</dt>
-        <dd><a href="/admin/news-discovery/@Model.DuplicateCandidate.Id">Candidate #@Model.DuplicateCandidate.Id — @Model.DuplicateCandidate.SourceTitle</a></dd>
-      }
-      @if (candidate.PromotedNewsId is int promotedNewsId)
-      {
-        <dt>Promoted article</dt>
-        <dd><a href="/admin/news/@promotedNewsId/edit">Admin news #@promotedNewsId</a></dd>
-      }
-    </dl>
-  </section>
+  <partial name="_ReviewSource" model="Model" />
 
-  @if (Model.LatestTriageSummary is not null)
-  {
-    <section class="admin-review-section">
-      <h2>AI triage</h2>
-      <dl class="admin-review-meta">
-        @if (!string.IsNullOrWhiteSpace(Model.LatestTriageSummary.Verdict))
-        {
-          <dt>Verdict</dt>
-          <dd>@Model.LatestTriageSummary.Verdict</dd>
-        }
-        <dt>Rationale</dt>
-        <dd>@Model.LatestTriageSummary.Rationale</dd>
-        @if (Model.LatestTriageSummary.Entities.Count > 0)
-        {
-          <dt>Entities</dt>
-          <dd>@string.Join(", ", Model.LatestTriageSummary.Entities)</dd>
-        }
-        @if (!string.IsNullOrWhiteSpace(Model.LatestTriageSummary.ReviewNotes))
-        {
-          <dt>AI review notes</dt>
-          <dd>@Model.LatestTriageSummary.ReviewNotes</dd>
-        }
-      </dl>
-    </section>
-  }
+  <partial name="_ReviewTriage" model="Model" />
 
-  @if (Model.Evidence.Count > 0)
-  {
-    <section class="admin-review-section">
-      <h2>Evidence</h2>
-      <ul class="admin-review-list">
-        @foreach (var item in Model.Evidence)
-        {
-          <li>
-            <a href="@item.SourceUrl" rel="noopener noreferrer" target="_blank">@item.FetchedTitle</a>
-            <span class="admin-muted">(@item.SourceName, @item.FetchedAt.ToString("dd MMM yyyy"))</span>
-            @if (!string.IsNullOrWhiteSpace(item.Excerpt))
-            {
-              <p>@item.Excerpt</p>
-            }
-          </li>
-        }
-      </ul>
-    </section>
-  }
+  <partial name="_ReviewEvidence" model="Model" />
 
-  @if (Model.PreservedQuotes.Count > 0)
-  {
-    <section class="admin-review-section">
-      <h2>Preserved quotes</h2>
-      <p class="admin-muted">Exact band-member quotations extracted for editor verification before promotion.</p>
-      <ul class="admin-review-list">
-        @foreach (var quote in Model.PreservedQuotes)
-        {
-          <li>
-            <strong>@quote.Speaker</strong>: “@quote.ExactText”
-            @if (!string.IsNullOrWhiteSpace(quote.SourceUrl))
-            {
-              <div><a href="@quote.SourceUrl" rel="noopener noreferrer" target="_blank">@quote.SourceUrl</a></div>
-            }
-            @if (!string.IsNullOrWhiteSpace(quote.SourceContext))
-            {
-              <p class="admin-muted">@quote.SourceContext</p>
-            }
-          </li>
-        }
-      </ul>
-    </section>
-  }
+  <partial name="_ReviewQuotes" model="Model" />
 
-  @if (Model.Draft is not null)
-  {
-    <section class="admin-review-section">
-      <h2>Generated draft</h2>
-      <dl class="admin-review-meta">
-        <dt>Title</dt>
-        <dd>@Model.Draft.ProposedTitle</dd>
-        <dt>Excerpt</dt>
-        <dd>@Model.Draft.ProposedExcerpt</dd>
-        <dt>Body</dt>
-        <dd><pre class="admin-review-pre">@Model.Draft.ProposedBody</pre></dd>
-        @if (!string.IsNullOrWhiteSpace(Model.Draft.AttributionText))
-        {
-          <dt>Attribution</dt>
-          <dd>@Model.Draft.AttributionText</dd>
-        }
-        @if (!string.IsNullOrWhiteSpace(Model.Draft.SourceNotes))
-        {
-          <dt>Source notes</dt>
-          <dd>@Model.Draft.SourceNotes</dd>
-        }
-        @if (!string.IsNullOrWhiteSpace(Model.Draft.ConfidenceNotes))
-        {
-          <dt>Confidence notes</dt>
-          <dd>@Model.Draft.ConfidenceNotes</dd>
-        }
-      </dl>
-      <p><a href="/admin/news-discovery/@candidate.Id/edit-draft">Edit draft</a></p>
-      @if (candidate.Status is QueenZone.Data.NewsCandidateStatus.Discovered or QueenZone.Data.NewsCandidateStatus.NeedsReview or QueenZone.Data.NewsCandidateStatus.Drafted or QueenZone.Data.NewsCandidateStatus.Rejected)
-      {
-        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{candidate.Id}/regeneratedraft", "Regenerate draft with AI", Confirm: true, BusyLabel: "Regenerating draft"))" />
-      }
-    </section>
-  }
-  else
-  {
-    <section class="admin-review-section">
-      <h2>Generated draft</h2>
-      <p>No draft yet.</p>
-      @if (candidate.Status is QueenZone.Data.NewsCandidateStatus.Discovered or QueenZone.Data.NewsCandidateStatus.NeedsReview or QueenZone.Data.NewsCandidateStatus.Rejected)
-      {
-        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{candidate.Id}/regeneratedraft", "Generate draft with AI", BusyLabel: "Generating draft"))" />
-      }
-      else
-      {
-        <p>Draft generation is only available for candidates still in discovery review.</p>
-      }
-    </section>
-  }
+  <partial name="_ReviewDraft" model="Model" />
 
-  <section class="admin-review-section">
-    <h2>AI provenance</h2>
-    @if (Model.AiRuns.Count == 0)
-    {
-      <p class="admin-muted">No AI runs recorded for this candidate.</p>
-    }
-    else
-    {
-      <table class="admin-table">
-        <thead>
-          <tr>
-            <th>Kind</th>
-            <th>Prompt version</th>
-            <th>Guidance revision</th>
-            <th>Guidance hash</th>
-            <th>Status</th>
-            <th>Started</th>
-          </tr>
-        </thead>
-        <tbody>
-          @foreach (var run in Model.AiRuns)
-          {
-            <tr>
-              <td>@run.Kind</td>
-              <td>@run.PromptVersion</td>
-              <td>@(run.GuidanceRevisionNumber?.ToString() ?? "compiled default")</td>
-              <td>@(run.GuidanceContentHash ?? "—")</td>
-              <td>@run.Status</td>
-              <td>@run.StartedAt.ToString("dd MMM yyyy HH:mm") UTC</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    }
-  </section>
+  <partial name="_ReviewProvenance" model="Model" />
 
-  <section class="admin-review-section">
-    <h2>Actions</h2>
-    <div class="admin-actions">
-      @if (Model.Draft is not null)
-      {
-        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{candidate.Id}/promote", "Promote to admin news"))" />
-      }
-      @if (candidate.Status is not QueenZone.Data.NewsCandidateStatus.Rejected)
-      {
-        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{candidate.Id}/reject", "Mark not relevant", Confirm: true))" />
-      }
-      @if (candidate.Status is not QueenZone.Data.NewsCandidateStatus.IgnoredDuplicate)
-      {
-        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{candidate.Id}/ignoreduplicate", "Ignore duplicate", Confirm: true))" />
-      }
-    </div>
-  </section>
+  <partial name="_ReviewActions" model="Model" />
+
 }
 </div>

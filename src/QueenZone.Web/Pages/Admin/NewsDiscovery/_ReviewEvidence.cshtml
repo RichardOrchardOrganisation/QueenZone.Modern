@@ -1,0 +1,20 @@
+@model ReviewModel
+  @if (Model.Evidence.Count > 0)
+  {
+    <section class="admin-review-section">
+      <h2>Evidence</h2>
+      <ul class="admin-review-list">
+        @foreach (var item in Model.Evidence)
+        {
+          <li>
+            <a href="@item.SourceUrl" rel="noopener noreferrer" target="_blank">@item.FetchedTitle</a>
+            <span class="admin-muted">(@item.SourceName, @item.FetchedAt.ToString("dd MMM yyyy"))</span>
+            @if (!string.IsNullOrWhiteSpace(item.Excerpt))
+            {
+              <p>@item.Excerpt</p>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
