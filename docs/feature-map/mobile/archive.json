@@ -209,7 +209,9 @@
         "fanPerformancesScreen",
         "fanPerformancesPlayAll"
       ],
-      "flows": [],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/18-download-action-proof.yaml"
+      ],
       "specs": [],
       "selectors": [],
       "signIn": "none",
