@@ -1336,6 +1336,9 @@ public sealed class PublicQueryCacheServiceTests
 
         public Task<ForumSearchPage> SearchForumAsync(string query, int page, int pageSize, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<ForumLegacyPostLocation?> FindLegacyPostAsync(int legacyPostId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private class CountingQueenHistoryRepository : IQueenHistoryRepository

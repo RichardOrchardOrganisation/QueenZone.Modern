@@ -146,5 +146,10 @@ public sealed class ForumSitemapBuilderTests
             int pageSize,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new ForumSearchPage([], 0, page, pageSize));
+
+        public Task<ForumLegacyPostLocation?> FindLegacyPostAsync(
+            int legacyPostId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ForumLegacyPostLocation?>(null);
     }
 }

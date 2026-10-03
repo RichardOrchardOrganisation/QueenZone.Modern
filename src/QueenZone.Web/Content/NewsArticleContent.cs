@@ -67,7 +67,10 @@ public static partial class NewsArticleContent
                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
                 var encoded = WebUtility.HtmlEncode(part);
-                sb.Append($"<a href=\"{encoded}\" rel=\"noopener noreferrer\" target=\"_blank\">{encoded}</a>");
+                var modern = LegacyQueenZoneLinks.TryGetModernPath(part);
+                sb.Append(modern is null
+                    ? $"<a href=\"{encoded}\" rel=\"noopener noreferrer\" target=\"_blank\">{encoded}</a>"
+                    : $"<a href=\"{WebUtility.HtmlEncode(modern)}\">{encoded}</a>");
             }
             else
             {
@@ -141,7 +144,8 @@ public static partial class NewsArticleContent
             }
 
             if (string.Equals(element.TagName, "A", StringComparison.OrdinalIgnoreCase)
-                && element.HasAttribute("href"))
+                && element.HasAttribute("href")
+                && !LegacyQueenZoneLinks.TryRewriteAnchor(element))
             {
                 element.SetAttribute("rel", "noopener noreferrer");
                 element.SetAttribute("target", "_blank");

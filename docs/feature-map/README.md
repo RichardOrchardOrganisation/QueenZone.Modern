@@ -146,6 +146,7 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `web.forum.editPost` — Edit post (Pages/Forum/EditPost.cshtml — /forum/post/{postId}/edit)
 - `web.forum.hideAuthor` — Hide author (Pages/Forum/HideAuthor.cshtml — /forum/post/{postId}/hide-author)
 - `web.forum.index` — Forum (Pages/Forum.cshtml — /forum)
+- `web.forum.legacyPostRedirect` — Legacy forum link redirect (Pages/Forum/LegacyPostRedirect.cshtml — /forum/goto/{legacyPostId})
 - `web.forum.newThread` — New thread (Pages/Forum/NewThread.cshtml — /forum/c/{categorySlug}/new-thread)
 - `web.forum.report` — Report a post (Pages/Forum/Report.cshtml — /forum/post/{postId}/report)
 - `web.forum.topic` — Forum topic (Pages/Forum/Topic.cshtml — /forum/topic/{topicId}/{slug})

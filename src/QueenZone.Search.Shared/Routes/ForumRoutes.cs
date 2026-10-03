@@ -40,6 +40,21 @@ public static class ForumRoutes
         return page <= 1 ? $"/forum/topic/{topicId}/{slug}" : $"/forum/topic/{topicId}/{slug}/page/{page}";
     }
 
+    /// <summary>
+    /// Resolver for a legacy topic or reply ID (old <c>forum_topic_view.aspx?Q={id}</c> links).
+    /// Redirects to <see cref="GetLegacyPostTargetPath"/>.
+    /// </summary>
+    public static string GetLegacyPostPath(int legacyPostId) =>
+        $"/forum/goto/{legacyPostId}";
+
+    /// <summary>Topic page holding the post, anchored to it unless it is the first post.</summary>
+    public static string GetLegacyPostTargetPath(ForumLegacyPostLocation location)
+    {
+        var page = location.PostIndex / PostsPageSize + 1;
+        var path = GetTopicCanonicalPath(location.TopicId, location.Title, page);
+        return location.PostIndex == 0 ? path : $"{path}#post-{location.PostId}";
+    }
+
     public static string GetTopicPageTitle(ForumThreadHeader header, int page) =>
         page <= 1 ? $"{header.Title} | {header.ForumName} | QueenZone forum"
             : $"{header.Title} – Page {page} | QueenZone forum";
