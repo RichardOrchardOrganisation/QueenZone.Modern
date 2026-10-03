@@ -137,22 +137,25 @@ public sealed class AdminReviewerAccountService(
                 $"Display name must be between {MemberAccountService.MinDisplayNameLength} and {MemberAccountService.MaxDisplayNameLength} characters.");
         }
 
+        var passwordError = ValidatePassword(password, passwordRequired);
+        return passwordError is null
+            ? new ValidatedInput(trimmedEmail, trimmedDisplayName, null)
+            : ValidatedInput.Invalid(passwordError);
+    }
+
+    private static string? ValidatePassword(string? password, bool passwordRequired)
+    {
         if (passwordRequired && string.IsNullOrWhiteSpace(password))
         {
-            return ValidatedInput.Invalid("Password is required.");
+            return "Password is required.";
         }
 
         if (!string.IsNullOrEmpty(password) && password.Length < 12)
         {
-            return ValidatedInput.Invalid("Password must be at least 12 characters.");
+            return "Password must be at least 12 characters.";
         }
 
-        if (password?.Length > 256)
-        {
-            return ValidatedInput.Invalid("Password must be at most 256 characters.");
-        }
-
-        return new ValidatedInput(trimmedEmail, trimmedDisplayName, null);
+        return password?.Length > 256 ? "Password must be at most 256 characters." : null;
     }
 
     private static LocalPasswordAccountSummary ToSummary(MemberAccount account) =>
