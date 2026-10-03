@@ -25,6 +25,13 @@ name: Download control presentation proof
 - tapOn:
     id: fan-performance-187
 - extendedWaitUntil:
+    visible: Skip back 15 seconds
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: fan-performance-download-187
+    direction: DOWN
+- extendedWaitUntil:
     visible:
       id: fan-performance-download-187
     timeout: 20000
