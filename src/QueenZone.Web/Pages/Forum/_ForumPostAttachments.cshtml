@@ -1,0 +1,16 @@
+@model ForumPostPresentation
+@{ var post = Model.Post; }
+          @if (Model.HasAttachments)
+          {
+            <div class="qz-forum-post__attachments">
+              <p class="qz-forum-post__attachments-label qz-meta">@Model.AttachmentsLabel</p>
+              <ul class="qz-forum-post__attachment-list">
+                @foreach (var attachment in post.Attachments)
+                {
+                  <li class="qz-forum-post__attachment-item">
+                    <partial name="_ForumPostAttachment" model="attachment" />
+                  </li>
+                }
+              </ul>
+            </div>
+          }
