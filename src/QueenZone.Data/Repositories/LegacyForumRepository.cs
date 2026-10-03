@@ -60,6 +60,7 @@ public sealed class LegacyForumRepository(QueenZoneDbContext dbContext) : IForum
         FROM Q_FORUM_TOPIC_T t
         INNER JOIN Q_FORUM_T f ON f.Q_FORUM_ID = t.Q_FORUM_ID
         WHERE t.TOPIC_STARTER = 1
+          AND t.Q_FORUM_ID <> {1}
           AND LTRIM(RTRIM(ISNULL(t.TOPIC_SUBJECT, ''))) <> ''
         ORDER BY t.TOPIC_LAST_POST DESC, t.Q_FORUM_TOPIC_ID DESC
         """;
@@ -218,7 +219,7 @@ public sealed class LegacyForumRepository(QueenZoneDbContext dbContext) : IForum
         var take = Math.Clamp(count, 1, 50);
         dbContext.Database.SetCommandTimeout(CommandTimeoutSeconds);
         var rows = await dbContext.Database
-            .SqlQueryRaw<ForumRecentThreadRow>(RecentThreadsSelect, take)
+            .SqlQueryRaw<ForumRecentThreadRow>(RecentThreadsSelect, take, ForumRecentThreadsPolicy.WebsiteDiscussionBoardId)
             .ToListAsync(cancellationToken);
         return rows
             .Select(row => new ForumRecentThreadItem(

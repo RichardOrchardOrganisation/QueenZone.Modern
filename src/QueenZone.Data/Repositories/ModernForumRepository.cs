@@ -141,7 +141,8 @@ public sealed class ModernForumRepository(QueenZoneDbContext dbContext) : IForum
                 && thread.StartedByUserValidated == true
                 && thread.LastActivityAt != null
                 && thread.Category != null
-                && !thread.Category.IsSynthetic)
+                && !thread.Category.IsSynthetic
+                && thread.Category.LegacyForumId != ForumRecentThreadsPolicy.WebsiteDiscussionBoardId)
             .OrderByDescending(thread => thread.LastActivityAt)
             .ThenByDescending(thread => thread.LegacyTopicId)
             .Take(take)

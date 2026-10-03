@@ -69,6 +69,25 @@ public sealed class ModernForumRepositoryRecentThreadsTests : IAsyncDisposable
         Assert.Equal([105, 104, 103], recent.Select(item => item.TopicId).ToArray());
     }
 
+    [Fact]
+    public async Task GetRecentThreadsAsync_ExcludesWebsiteBoardBeforeLimitAndKeepsOtherTestTitles()
+    {
+        var website = await SeedCategoryAsync(7, "Queenzone.com", false);
+        var music = await SeedCategoryAsync(1, "The Music", false);
+        var now = new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc);
+        await SeedThreadAsync(website.Id, 7, 200, "Reviewer Test Message", 0, now.AddDays(1), true);
+        await SeedThreadAsync(music.Id, 1, 201, "Test pressings of Queen II", 3, now, true);
+        await SeedThreadAsync(music.Id, 1, 202, "Older discussion", 2, now.AddDays(-1), true);
+
+        var recent = await repository.GetRecentThreadsAsync(2);
+
+        Assert.Equal([201, 202], recent.Select(item => item.TopicId).ToArray());
+        Assert.All(recent, item => Assert.NotEqual(7, item.CategoryId));
+        // Promotion is separate from visibility: neither the board nor its rows are hidden.
+        Assert.False(website.IsSynthetic);
+        Assert.False((await dbContext.ModernForumThreads.SingleAsync(thread => thread.LegacyTopicId == 200)).IsHidden);
+    }
+
     private async Task<ModernForumCategoryEntity> SeedCategoryAsync(int legacyForumId, string name, bool isSynthetic)
     {
         var category = new ModernForumCategoryEntity

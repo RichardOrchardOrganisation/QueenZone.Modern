@@ -64,6 +64,7 @@ public sealed class EfLegacyForumRepositoryLegacyProbeTests
 
         var recent = await repository.GetRecentThreadsAsync(5);
         Assert.True(recent.Count <= 5);
+        Assert.All(recent, item => Assert.NotEqual(7, item.CategoryId));
 
         var discography = await repository.GetLegacyDiscographyThreadsAsync();
         Assert.NotNull(discography);

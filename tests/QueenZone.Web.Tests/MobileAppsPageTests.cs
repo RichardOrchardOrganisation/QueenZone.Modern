@@ -27,6 +27,10 @@ public sealed class MobileAppsPageTests : IClassFixture<QueenZoneWebApplicationF
         Assert.Contains("https://apps.apple.com/au/app/queenzone-org/id6803889011", body);
         Assert.Contains("Get it on the App Store", body);
         Assert.Contains("The iOS app is live on the App Store.", body);
+        TestHtmlAssertions.AssertPageTitle(body, "Queenzone Mobile Apps");
+        Assert.Contains("QueenZone on your phone", body);
+        Assert.True(body.IndexOf("Get it on the App Store", StringComparison.Ordinal) < body.IndexOf("Join the Google Group", StringComparison.Ordinal));
+        Assert.DoesNotContain("Help test Queenzone", body);
         Assert.Contains("More than 200 fan performances", body);
         Assert.DoesNotContain("That is all.", body);
         Assert.DoesNotContain("TestFlight", body);

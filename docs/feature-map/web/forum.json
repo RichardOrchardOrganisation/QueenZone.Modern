@@ -13,6 +13,7 @@
       "testIds": [],
       "flows": [],
       "specs": [
+        "tests/QueenZone.Web.E2E/ParticipationClarityTests.cs",
         "tests/QueenZone.Web.E2E/SmokeTests.cs"
       ],
       "selectors": [],

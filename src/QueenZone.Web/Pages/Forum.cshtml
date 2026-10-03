@@ -2,7 +2,7 @@
 @model ForumModel
 @{
   ViewData["Title"] = "Forum | QueenZone";
-  ViewData["Description"] = "Read-only Queenzone forum archive boards and community history.";
+  ViewData["Description"] = "QueenZone community discussions and archive. Browse freely; sign in to reply, start topics and watch discussions.";
   ViewData["CanonicalPath"] = "/forum";
 }
 
@@ -10,9 +10,10 @@
   <partial name="_PictureImage" model="@("/design-system/assets/crest-white.png", "", false, "qz-page-hero__crest")" />
   <div class="qz-container qz-breadcrumbs-on-dark">
     <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
-    <div class="qz-eyebrow">Community Archive</div>
+    <div class="qz-eyebrow">Community</div>
     <h1>Forum</h1>
-    <p class="lede">A read-only modern index for the original community discussions, boards and recent thread patterns.</p>
+    <p class="lede">Explore the original QueenZone discussions and join the conversation. Sign in to reply, start a topic or watch a discussion.</p>
+    <a class="qz-button qz-button--outline" href="/account/login?returnUrl=%2Fforum">Sign in to participate</a>
     <div class="qz-forum-stats">
       <span><strong>@Model.Stats.ForumCount.ToString("N0")</strong> boards</span>
       <span><strong>@ForumRoutes.FormatCount(Model.Stats.ThreadCount)</strong> threads</span>
@@ -23,7 +24,7 @@
 
 <section class="qz-section qz-section--warm">
   <div class="qz-container">
-    <partial name="_SectionHeader" model="@(("Boards", "Browse the community archive", false, "/search", "Search forum"))" />
+    <partial name="_SectionHeader" model="@(("Boards", "Explore the community boards", false, "/search", "Search forum"))" />
     @if (Model.Categories.Count == 0)
     {
       <p>No forum boards are available yet.</p>
