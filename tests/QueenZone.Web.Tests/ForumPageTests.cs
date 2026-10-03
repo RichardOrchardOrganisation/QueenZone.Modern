@@ -20,6 +20,8 @@ public sealed class ForumPageTests : IClassFixture<QueenZoneWebApplicationFactor
         var body = await client.GetStringAsync("/forum");
 
         Assert.Contains("Forum", body);
+        Assert.Contains("Sign in to reply, start a topic or watch a discussion.", body);
+        Assert.DoesNotContain("read-only", body, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("The Music", body);
         Assert.Contains("/forum/1/the-music", body);
         Assert.Contains("<strong>6</strong> boards", body);

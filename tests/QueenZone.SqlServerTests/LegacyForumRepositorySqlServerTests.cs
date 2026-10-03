@@ -264,6 +264,29 @@ public sealed class LegacyForumRepositorySqlServerTests : IAsyncLifetime
         Assert.Equal("Orphan reply", orphan[0].Title);
     }
 
+    [Fact]
+    public async Task GetRecentThreadsAsync_ExcludesWebsiteBoardBeforeTopAndPreservesBoardReads()
+    {
+        await dbContext.Database.ExecuteSqlRawAsync("""
+            INSERT INTO dbo.Q_FORUM_T (Q_FORUM_ID, Q_FORUM_NAME, FORUM_ORDER)
+            VALUES (7, 'Queenzone.com', 70);
+            SET IDENTITY_INSERT dbo.Q_FORUM_TOPIC_T ON;
+            INSERT INTO dbo.Q_FORUM_TOPIC_T
+                (Q_FORUM_TOPIC_ID, Q_FORUM_ID, TOPIC_SUBJECT, USER_ID, TOPIC_REPLIES,
+                 TOPIC_LAST_POST, TOPIC_DATE, Q_FORUM_TOPIC_PARENT_ID, TOPIC_MESSAGE, TOPIC_STARTER, DISCOGRAPHY)
+            VALUES
+                (2000, 7, 'Reviewer Test Message', 1, 0, '2026-08-02', '2026-08-02', 0, 'App check', 1, 0),
+                (2001, 1, 'Test pressings of Queen II', 1, 0, '2026-08-01', '2026-08-01', 0, 'Discussion', 1, 0);
+            SET IDENTITY_INSERT dbo.Q_FORUM_TOPIC_T OFF;
+            """);
+
+        var recent = await repository.GetRecentThreadsAsync(1);
+        Assert.Equal(2001, Assert.Single(recent).TopicId);
+        Assert.NotNull(await repository.GetCategoryByIdAsync(7));
+        Assert.Equal(2000, Assert.Single((await repository.GetCategoryTopicsPageAsync(7, 1, 5)).Topics).Id);
+        Assert.NotNull(await repository.GetTopicPostsPageAsync(2000, 1, 5));
+    }
+
     private async Task SeedAsync()
     {
         await dbContext.Database.ExecuteSqlRawAsync(

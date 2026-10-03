@@ -20,6 +20,7 @@ public interface IForumRepository
 
     Task<int> GetTotalThreadCountAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Latest topics for cross-board feeds, excluding the Queenzone.com support board.</summary>
     Task<IReadOnlyList<ForumRecentThreadItem>> GetRecentThreadsAsync(
         int count,
         CancellationToken cancellationToken = default);

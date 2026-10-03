@@ -58,6 +58,10 @@ public sealed class ModernForumRepositoryLiveProbeTests
             }
         }
 
+        var recent = await repository.GetRecentThreadsAsync(5);
+        Assert.True(recent.Count <= 5);
+        Assert.All(recent, item => Assert.NotEqual(7, item.CategoryId));
+
         var first = await repository.SearchForumAsync("Queen", 1, 5);
         Assert.True(first.TotalCount >= first.Results.Count);
         Assert.True(first.Results.Count <= 5);

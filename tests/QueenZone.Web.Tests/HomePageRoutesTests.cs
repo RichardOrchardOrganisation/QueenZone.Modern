@@ -66,7 +66,7 @@ public sealed class HomePageRoutesTests :
         Assert.True(gallery > 0 && gallery < quiz && quiz < latestNews);
 
         // The apps call to action sits at the top, straight under the live strip and above the front page.
-        var apps = html.IndexOf("Try out the Mobile Apps", StringComparison.Ordinal);
+        var apps = html.IndexOf("Explore the mobile apps", StringComparison.Ordinal);
         Assert.InRange(apps, html.IndexOf("data-home-ticker", StringComparison.Ordinal), html.IndexOf("id=\"news\"", StringComparison.Ordinal));
 
         // One Queen quote sits in the right column under Forum now, inside the front page.

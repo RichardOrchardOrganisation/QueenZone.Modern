@@ -21,7 +21,7 @@ public sealed class PublicCopyTests : IClassFixture<QueenZoneWebApplicationFacto
         Assert.Contains("Thousands of restored images", body);
         Assert.Contains("href=\"/about\">Read More</a>", body);
         Assert.Contains("href=\"/mobile-apps\"", body);
-        Assert.Contains("Try out the Mobile Apps", body);
+        Assert.Contains("Explore the mobile apps", body);
         Assert.DoesNotContain("Tens of thousands of restored images", body);
         Assert.DoesNotContain("Explore the timeline", body);
     }

@@ -69,6 +69,7 @@ public sealed class InMemoryForumRepository(
     {
         var take = Math.Clamp(count, 1, 50);
         var items = seedCategories
+            .Where(category => category.Id != ForumRecentThreadsPolicy.WebsiteDiscussionBoardId)
             .SelectMany(category => SampleForumData.CreateSeedTopics(category.Id)
                 .Concat(GetCreatedTopics(category.Id))
                 .Select(topic => new ForumRecentThreadItem(

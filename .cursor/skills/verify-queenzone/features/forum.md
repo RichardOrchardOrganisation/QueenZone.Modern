@@ -4,7 +4,7 @@ The forum shows public boards, lets a visitor open The Music, and read the seede
 
 ## Sub-features
 
-- `forum-index` shows the Forum heading, the The Music board card, and latest activity.
+- `forum-index` shows the Forum heading, participation guidance, the The Music board card, and latest activity. The Queenzone.com support board remains browsable while its topics are excluded from the cross-board recent table.
 - `forum-category` lists topics on `/forum/1/the-music`, including `Ranking every studio album`.
 - `forum-topic` shows that topic's heading, breadcrumb, and at least one post.
 

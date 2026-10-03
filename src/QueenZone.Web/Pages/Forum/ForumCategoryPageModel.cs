@@ -76,7 +76,7 @@ public abstract class ForumCategoryPageModel(IForumRepository forumRepository) :
         ViewData["Title"] = ForumRoutes.GetCategoryPageTitle(categoryView, page);
         ViewData["CanonicalPath"] = ForumRoutes.GetCategoryCanonicalPath(categoryView, page);
         ViewData["Description"] = string.IsNullOrWhiteSpace(categoryView.Description)
-            ? $"Read-only Queenzone forum archive for {categoryView.Name}."
+            ? $"QueenZone discussions in {categoryView.Name}. Browse freely; sign in to participate."
             : categoryView.Description;
 
         if (page > 1)
