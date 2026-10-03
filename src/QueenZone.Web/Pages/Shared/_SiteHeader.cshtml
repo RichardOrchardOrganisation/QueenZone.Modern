@@ -1,208 +1,19 @@
-﻿@using Microsoft.AspNetCore.Authentication
-@using System.Security.Claims
 @{
-  var path = Context.Request.Path.Value ?? "/";
-  bool IsActive(string route) => route == "/" ? path == "/" : path.StartsWith(route, StringComparison.OrdinalIgnoreCase);
-  var mastheadDark = ViewData["MastheadDark"] is bool dark ? dark : true;
-
-  // Authenticate the member cookie first, then the test-member scheme on Testing/E2E hosts.
-  // Do not use the ambient User — the default authenticate scheme is Admin, so a signed-in
-  // member would otherwise look anonymous here. Cookie validation is in-process.
-  var memberAuthResult = await Context.AuthenticateMemberAsync();
-  var memberDisplayName = memberAuthResult.Succeeded
-    ? memberAuthResult.Principal?.FindFirstValue(ClaimTypes.Name)
-    : null;
-  Guid? memberId = null;
-  if (memberAuthResult.Succeeded
-      && Guid.TryParse(memberAuthResult.Principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedMemberId))
-  {
-    memberId = parsedMemberId;
-  }
-  // Admin pages authenticate via the separate Admin/Entra scheme, not the member cookie above,
-  // so surface that identity explicitly here — otherwise the header shows no sign-in state at
-  // all for admins (the member "Sign in" link renders regardless of admin auth status).
-  var showAdminNav = ViewData["ShowAdminNav"] is true;
-  var adminEmail = showAdminNav
-    ? Context.User.FindFirstValue(ClaimTypes.Email)
-      ?? Context.User.FindFirstValue("preferred_username")
-      ?? Context.User.Identity?.Name
-    : null;
-  // Look up avatar presence and unread message count once per request. Fail soft if the DB
-  // is mid-migration or unavailable — never break sign-in or page render for these alone.
-  var memberHasAvatar = false;
-  var unreadMessageCount = 0;
-  if (memberId is Guid mid)
-  {
-    try
-    {
-      var memberAccounts = Context.RequestServices.GetService(typeof(QueenZone.Data.IMemberAccountRepository))
-        as QueenZone.Data.IMemberAccountRepository;
-      if (memberAccounts is not null)
-      {
-        var memberAccount = await memberAccounts.FindByIdAsync(mid);
-        memberHasAvatar = !string.IsNullOrWhiteSpace(memberAccount?.AvatarUrl);
-      }
-
-      var privateMessages = Context.RequestServices.GetService(typeof(QueenZone.Data.IPrivateMessageRepository))
-        as QueenZone.Data.IPrivateMessageRepository;
-      if (privateMessages is not null)
-      {
-        unreadMessageCount = await privateMessages.CountUnreadConversationsAsync(mid);
-      }
-    }
-    catch
-    {
-      memberHasAvatar = false;
-      unreadMessageCount = 0;
-    }
-  }
-  var navGroups = new[]
-  {
-    new
-    {
-      Id = "band",
-      Label = "The Band",
-      Eyebrow = "About Queen",
-      Accent = "purple",
-      Items = new[]
-      {
-        new { Title = "Biography", Href = "/biography", Description = "The story of the band, member by member", Tag = "" },
-        new { Title = "Discography", Href = "/discography", Description = "The core albums", Tag = "" },
-        new { Title = "Rare Discography", Href = "/discography/rare-discography", Description = "John S Stuart's rare recordings and analysis posts", Tag = "" },
-        new { Title = "Timeline", Href = "/timeline", Description = "Five decades, year by year", Tag = "" },
-        new { Title = "Trivia", Href = "/trivia", Description = "Random Queen facts from the archive", Tag = "" }
-      }
-    },
-    new
-    {
-      Id = "archive",
-      Label = "Archive",
-      Eyebrow = "The Publication",
-      Accent = "blue",
-      Items = new[]
-      {
-        new { Title = "News", Href = "/news", Description = "4,000+ articles from the original archive", Tag = "" },
-        new { Title = "Articles", Href = "/articles", Description = "Community articles and long-form features from the archive", Tag = "" },
-        new { Title = "Photography", Href = "/photography", Description = "Thousands of restored images", Tag = "" },
-        new { Title = "Links", Href = "/links", Description = "Checked Queen-related websites from the archive", Tag = "" }
-      }
-    },
-    new
-    {
-      Id = "community",
-      Label = "Community",
-      Eyebrow = "The Fans",
-      Accent = "burgundy",
-      Items = new[]
-      {
-        new { Title = "Forum", Href = "/forum", Description = "100,000+ posts from the membership", Tag = "" },
-        new { Title = "Fan Performances", Href = "/fan-performances", Description = "Covers, tributes and live sets", Tag = "" },
-        new { Title = "Freddie Tribute", Href = "/freddie-mercury-tribute", Description = "Visitor messages remembering Freddie Mercury", Tag = "" }
-      }
-    }
-  };
+    var header = await SiteHeaderPresentation.CreateAsync(
+        Context, ViewData["MastheadDark"] as bool?, ViewData["ShowAdminNav"] is true);
 }
 
-<header class="qz-masthead @(mastheadDark ? "qz-masthead--dark" : "qz-masthead--light")" data-masthead>
+<header class="qz-masthead @(header.MastheadDark ? "qz-masthead--dark" : "qz-masthead--light")" data-masthead>
   <div class="qz-masthead__inner">
     <a class="qz-brand" href="/">
-      <partial name="_PictureImage" model="@(mastheadDark ? "/design-system/assets/crest-white.png" : "/design-system/assets/crest-black.png", "Queen crest", false, "qz-brand__crest")" />
+      <partial name="_PictureImage" model="@(header.MastheadDark ? "/design-system/assets/crest-white.png" : "/design-system/assets/crest-black.png", "Queen crest", false, "qz-brand__crest")" />
       <span>Queenzone.org</span>
     </a>
 
-    <nav class="qz-nav" aria-label="Primary navigation" data-masthead-nav>
-      @foreach (var group in navGroups)
-      {
-        var panelId = $"qz-nav-panel-{group.Id}";
-        <div class="qz-nav-group qz-nav-group--@group.Accent" data-nav-group>
-          <button class="qz-nav-group__button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="@panelId" data-nav-trigger>
-            <span>@group.Label</span>
-            <svg class="qz-nav-group__chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-          <div class="qz-nav-panel" id="@panelId" role="menu" hidden data-nav-panel>
-            <p class="qz-nav-panel__eyebrow">@group.Eyebrow</p>
-            <ul class="qz-nav-panel__list">
-              @foreach (var item in group.Items)
-              {
-                <li>
-                  <a class="qz-nav-panel__link" href="@item.Href" role="menuitem" aria-current="@(IsActive(item.Href) ? "page" : null)">
-                    <span class="qz-nav-panel__title">
-                      <span>@item.Title</span>
-                      @if (!string.IsNullOrWhiteSpace(item.Tag))
-                      {
-                        <span class="qz-nav-panel__tag">@item.Tag</span>
-                      }
-                    </span>
-                    <span class="qz-nav-panel__desc">@item.Description</span>
-                  </a>
-                </li>
-              }
-            </ul>
-          </div>
-        </div>
-      }
-      <a class="qz-nav__link" href="/quizzes/sprint" aria-current="@(IsActive("/quizzes") ? "page" : null)">Quiz</a>
-    </nav>
+<partial name="_SiteHeaderDesktopNavigation" model="header" />
 
-    <div class="qz-masthead__actions">
-      <a class="qz-icon-button" href="/search" aria-label="Search" aria-current="@(IsActive("/search") ? "page" : null)">
-        <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" />
-        </svg>
-      </a>
-      @if (memberDisplayName is not null)
-      {
-        var messagesIconLabel = unreadMessageCount > 0
-          ? $"Messages, {unreadMessageCount} unread conversations"
-          : "Messages";
-        <a class="qz-icon-button qz-masthead__messages-icon" href="/messages" aria-label="@messagesIconLabel" aria-current="@(IsActive("/messages") ? "page" : null)">
-          <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <path d="m3 7 9 6 9-6" />
-          </svg>
-          @if (unreadMessageCount > 0)
-          {
-            <span class="qz-masthead__unread" aria-hidden="true">@unreadMessageCount</span>
-          }
-        </a>
-      }
-      @if (showAdminNav)
-      {
-        <a class="qz-masthead__admin-link" href="/admin" aria-current="@(IsActive("/admin") ? "page" : null)">Admin</a>
-        <span class="qz-masthead__admin-status" title="@adminEmail">
-          Admin access@(adminEmail is not null ? $": {adminEmail}" : "")
-        </span>
-      }
-      @if (memberDisplayName is not null)
-      {
-        <a class="qz-masthead__member" href="/account/settings" title="Account settings">
-          <partial name="_MemberAvatar" model="@(new MemberAvatarViewModel { DisplayName = memberDisplayName, MemberId = memberId, HasAvatar = memberHasAvatar, UseThumbnail = true, Size = "sm" })" />
-          <span class="qz-masthead__member-name" title="@memberDisplayName">@memberDisplayName</span>
-        </a>
-        <a class="qz-masthead__signin qz-masthead__messages" href="/messages" aria-current="@(IsActive("/messages") ? "page" : null)">
-          Messages
-          @if (unreadMessageCount > 0)
-          {
-            <span class="qz-masthead__unread" aria-label="@unreadMessageCount unread conversations">@unreadMessageCount</span>
-          }
-        </a>
-        <a class="qz-masthead__signin" href="/following" aria-current="@(IsActive("/following") ? "page" : null)">Following</a>
-        <a class="qz-masthead__signin" href="/account/settings" aria-current="@(IsActive("/account/settings") ? "page" : null)">Settings</a>
-        <partial name="_MemberSignOut" />
-      }
-      else
-      {
-        <a class="qz-masthead__signin" href="/account/login">Member sign in</a>
-      }
-      <button class="qz-menu-button" type="button" aria-label="Open navigation menu" aria-controls="qz-mobile-menu" aria-expanded="false" data-menu-open>
-        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M4 7h16M4 12h16M4 17h16" />
-        </svg>
-      </button>
-    </div>
+<partial name="_SiteHeaderDesktopActions" model="header" />
+
   </div>
 
   <div class="qz-mobile-menu" id="qz-mobile-menu" hidden data-mobile-menu>
@@ -221,61 +32,10 @@
           </svg>
         </a>
       </div>
-      <div class="qz-mobile-account" aria-label="Member account">
-        @if (memberDisplayName is not null)
-        {
-          <a class="qz-masthead__member qz-masthead__member--mobile" href="/account/settings" title="Account settings">
-            <partial name="_MemberAvatar" model="@(new MemberAvatarViewModel { DisplayName = memberDisplayName, MemberId = memberId, HasAvatar = memberHasAvatar, UseThumbnail = true, Size = "sm" })" />
-            <span class="qz-masthead__member-name qz-masthead__member-name--mobile">@memberDisplayName</span>
-          </a>
-          <a class="qz-masthead__signin qz-masthead__signin--mobile qz-masthead__messages" href="/messages" aria-current="@(IsActive("/messages") ? "page" : null)">
-            Messages
-            @if (unreadMessageCount > 0)
-            {
-              <span class="qz-masthead__unread" aria-label="@unreadMessageCount unread conversations">@unreadMessageCount</span>
-            }
-          </a>
-          <a class="qz-masthead__signin qz-masthead__signin--mobile" href="/following" aria-current="@(IsActive("/following") ? "page" : null)">Following</a>
-          <a class="qz-masthead__signin qz-masthead__signin--mobile" href="/account/settings" aria-current="@(IsActive("/account/settings") ? "page" : null)">Settings</a>
-          <partial name="_MemberSignOut" view-data='@new ViewDataDictionary(ViewData) { { "SignOutExtraClass", "qz-masthead__signin--mobile" } }' />
-        }
-        else
-        {
-          <a class="qz-masthead__signin qz-masthead__signin--mobile" href="/account/login">Member sign in</a>
-        }
-      </div>
-      <nav class="qz-mobile-nav" aria-label="Mobile primary navigation">
-        @foreach (var group in navGroups)
-        {
-          <section class="qz-mobile-nav__section qz-nav-group--@group.Accent" aria-labelledby="qz-mobile-nav-@group.Id">
-            <h2 id="qz-mobile-nav-@group.Id">@group.Label</h2>
-            <p>@group.Eyebrow</p>
-            <ul>
-              @foreach (var item in group.Items)
-              {
-                <li>
-                  <a href="@item.Href" aria-current="@(IsActive(item.Href) ? "page" : null)">
-                    <span>@item.Title</span>
-                    @if (!string.IsNullOrWhiteSpace(item.Tag))
-                    {
-                      <span class="qz-nav-panel__tag">@item.Tag</span>
-                    }
-                  </a>
-                </li>
-              }
-            </ul>
-          </section>
-        }
-        <section class="qz-mobile-nav__section qz-nav-group--gold" aria-labelledby="qz-mobile-nav-quiz">
-          <h2 id="qz-mobile-nav-quiz">Quiz</h2>
-          <p>The Daily Challenge</p>
-          <ul>
-            <li>
-              <a href="/quizzes/sprint" aria-current="@(IsActive("/quizzes") ? "page" : null)"><span>Quiz Sprint</span></a>
-            </li>
-          </ul>
-        </section>
-      </nav>
+<partial name="_SiteHeaderMobileAccount" model="header" />
+
+<partial name="_SiteHeaderMobileNavigation" model="header" />
+
     </div>
   </div>
 </header>

@@ -4,7 +4,7 @@
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
   var f = Model.Form;
-  var formAction = f.Id is Guid existingId ? $"/admin/articles/editor/{existingId}" : "/admin/articles/editor";
+  var presentation = ArticleEditorPresentation.For(f.Id);
   var token = Antiforgery.GetAndStoreTokens(ViewContext.HttpContext).RequestToken;
   ViewData["TextareaId"] = "article-body";
   ViewData["TextareaName"] = "Form.Body";
@@ -17,36 +17,14 @@
 <link rel="stylesheet" href="~/css/admin/cropper.min.css" asp-append-version="true" />
 <div class="admin-shell admin-form-panel" data-gallery-picker-host>
   <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
-  <h1>@(f.Id is null ? "Create article" : "Edit article")</h1>
+  <h1>@presentation.Title</h1>
   @if (Model.Errors.Count > 0) { <ul class="admin-errors">@foreach (var error in Model.Errors) { <li>@error</li> }</ul> }
-  <form method="post" action="@formAction" enctype="multipart/form-data" class="admin-form qz-form" data-busy-submit data-busy-label="Saving…">
+  <form method="post" action="@presentation.FormAction" enctype="multipart/form-data" class="admin-form qz-form" data-busy-submit data-busy-label="Saving…">
     <input type="hidden" name="__RequestVerificationToken" value="@token" />
     <input type="hidden" asp-for="Form.Id" /><input type="hidden" asp-for="Form.LegacyArticleId" /><input type="hidden" asp-for="Form.SourceSubmissionId" />
-    <fieldset class="qz-fieldset"><legend class="qz-legend">Content</legend>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.Title">Title</label><input class="qz-input" asp-for="Form.Title" maxlength="300" required /></div>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.Slug">Slug</label><input class="qz-input" asp-for="Form.Slug" maxlength="300" /></div>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.Excerpt">Excerpt</label><textarea class="qz-input" asp-for="Form.Excerpt" maxlength="500" rows="3" required></textarea></div>
-      <partial name="_RichTextEditor" />
-    </fieldset>
-    <fieldset class="qz-fieldset"><legend class="qz-legend">Attribution</legend>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.AuthorName">Author</label><input class="qz-input" asp-for="Form.AuthorName" maxlength="200" required /></div>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.Category">Category</label><input class="qz-input" asp-for="Form.Category" list="article-categories" maxlength="100" required /><datalist id="article-categories">@foreach (var category in Model.Categories) { <option value="@category"></option> }</datalist></div>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.Tags">Tags</label><input class="qz-input" asp-for="Form.Tags" maxlength="500" /><p class="qz-help">Comma-separated.</p></div>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.Source">Source</label><input class="qz-input" asp-for="Form.Source" maxlength="2000" /></div>
-      <div class="qz-field"><label class="qz-label" asp-for="Form.PublishedAt">Publication date</label><input class="qz-input" type="date" asp-for="Form.PublishedAt" /></div>
-    </fieldset>
-    <fieldset class="qz-fieldset"><legend class="qz-legend">Image</legend>
-      <input type="hidden" asp-for="Form.ImageBlobKey" data-article-image-blob-key /><input type="hidden" asp-for="Form.ImageGalleryPicId" data-article-image-gallery-id />
-      <div class="qz-field" data-article-image-crop data-aspect-width="3" data-aspect-height="2" data-min-crop-width="600" data-min-crop-height="400" data-max-bytes="10485760">
-        <label class="qz-label" for="article-image-file">Article image</label><div class="qz-dropzone" data-gallery-picker>
-          <figure class="admin-article-image qz-dropzone-media"><img src="@NewsArticleImage.ResolveDisplayUrl(f.ImageBlobKey, null)" alt="Article image preview" width="600" height="400" data-article-image-preview /></figure>
-          <div class="qz-dropzone-body"><div class="qz-dropzone-actions"><button type="button" class="qz-button qz-button--outline qz-button--sm" data-article-image-choose>Choose file</button><button type="button" class="qz-button qz-button--ghost qz-button--sm" data-gallery-picker-open data-gallery-picker-url="/admin/news/gallery-picker">Choose from gallery</button></div><p class="qz-help">JPEG, PNG or WebP, cropped to 3:2.</p></div>
-          <input id="article-image-file" type="file" asp-for="Form.ArticleImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" data-article-image-input class="visually-hidden" />
-        </div><p class="qz-error" data-article-image-error hidden></p>
-        <input type="hidden" asp-for="Form.CropX" data-crop-x /><input type="hidden" asp-for="Form.CropY" data-crop-y /><input type="hidden" asp-for="Form.CropWidth" data-crop-width /><input type="hidden" asp-for="Form.CropHeight" data-crop-height />
-        <partial name="_ArticleImageCropDialog" />
-      </div>
-    </fieldset>
+    <partial name="_ArticleEditorContent" model="Model" />
+    <partial name="_ArticleEditorAttribution" model="Model" />
+    <partial name="_ArticleEditorImage" model="Model" />
     <div class="admin-form-actions"><button class="qz-button" type="submit">Save draft</button>@if (f.Id is not null) { <a class="qz-button qz-button--ghost" href="/admin/articles/editor/@f.Id/preview">Preview</a> }</div>
   </form>
   <dialog class="admin-gallery-picker" data-gallery-picker-dialog><div class="admin-gallery-picker__header"><h2>Choose a gallery photo</h2><button type="button" data-gallery-picker-close>Close</button></div><div data-gallery-picker-panel></div></dialog>

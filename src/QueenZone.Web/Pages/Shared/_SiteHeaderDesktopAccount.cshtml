@@ -1,0 +1,22 @@
+@model SiteHeaderViewModel
+      @if (Model.MemberDisplayName is not null)
+      {
+        <a class="qz-masthead__member" href="/account/settings" title="Account settings">
+          <partial name="_MemberAvatar" model="@(new MemberAvatarViewModel { DisplayName = Model.MemberDisplayName, MemberId = Model.MemberId, HasAvatar = Model.MemberHasAvatar, UseThumbnail = true, Size = "sm" })" />
+          <span class="qz-masthead__member-name" title="@Model.MemberDisplayName">@Model.MemberDisplayName</span>
+        </a>
+        <a class="qz-masthead__signin qz-masthead__messages" href="/messages" aria-current="@(Model.IsActive("/messages") ? "page" : null)">
+          Messages
+          @if (Model.UnreadMessageCount > 0)
+          {
+            <span class="qz-masthead__unread" aria-label="@Model.UnreadMessageCount unread conversations">@Model.UnreadMessageCount</span>
+          }
+        </a>
+        <a class="qz-masthead__signin" href="/following" aria-current="@(Model.IsActive("/following") ? "page" : null)">Following</a>
+        <a class="qz-masthead__signin" href="/account/settings" aria-current="@(Model.IsActive("/account/settings") ? "page" : null)">Settings</a>
+        <partial name="_MemberSignOut" />
+      }
+      else
+      {
+        <a class="qz-masthead__signin" href="/account/login">Member sign in</a>
+      }

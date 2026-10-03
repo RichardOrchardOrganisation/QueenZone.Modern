@@ -1,0 +1,24 @@
+@model SiteHeaderViewModel
+      <div class="qz-mobile-account" aria-label="Member account">
+        @if (Model.MemberDisplayName is not null)
+        {
+          <a class="qz-masthead__member qz-masthead__member--mobile" href="/account/settings" title="Account settings">
+            <partial name="_MemberAvatar" model="@(new MemberAvatarViewModel { DisplayName = Model.MemberDisplayName, MemberId = Model.MemberId, HasAvatar = Model.MemberHasAvatar, UseThumbnail = true, Size = "sm" })" />
+            <span class="qz-masthead__member-name qz-masthead__member-name--mobile">@Model.MemberDisplayName</span>
+          </a>
+          <a class="qz-masthead__signin qz-masthead__signin--mobile qz-masthead__messages" href="/messages" aria-current="@(Model.IsActive("/messages") ? "page" : null)">
+            Messages
+            @if (Model.UnreadMessageCount > 0)
+            {
+              <span class="qz-masthead__unread" aria-label="@Model.UnreadMessageCount unread conversations">@Model.UnreadMessageCount</span>
+            }
+          </a>
+          <a class="qz-masthead__signin qz-masthead__signin--mobile" href="/following" aria-current="@(Model.IsActive("/following") ? "page" : null)">Following</a>
+          <a class="qz-masthead__signin qz-masthead__signin--mobile" href="/account/settings" aria-current="@(Model.IsActive("/account/settings") ? "page" : null)">Settings</a>
+          <partial name="_MemberSignOut" view-data='@new ViewDataDictionary(ViewData) { { "SignOutExtraClass", "qz-masthead__signin--mobile" } }' />
+        }
+        else
+        {
+          <a class="qz-masthead__signin qz-masthead__signin--mobile" href="/account/login">Member sign in</a>
+        }
+      </div>
