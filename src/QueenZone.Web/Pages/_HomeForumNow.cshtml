@@ -1,0 +1,33 @@
+@model QueenZone.Web.Pages.IndexModel
+      <div class="qz-home-forum-now">
+        <div class="qz-home-forum-now__head">
+          <h2>Forum now<span class="qz-home-live__dot" aria-hidden="true"></span></h2>
+          @if (Model.ForumRepliesToday is int replies)
+          {
+            <span>@replies.ToString("N0") @(replies == 1 ? "reply" : "replies") today</span>
+          }
+        </div>
+        @if (Model.ForumNow.Count == 0)
+        {
+          <p class="qz-home-forum-now__empty">No recent forum activity yet.</p>
+        }
+        else
+        {
+          <ul>
+            @foreach (var thread in Model.ForumNow)
+            {
+              var live = HomeRelativeTime.IsLive(thread.LastActivityAt, Model.Now);
+              <li>
+                <a href="@thread.DetailPath">
+                  <span class="qz-home-forum-now__title">@thread.Title</span>
+                  <span class="qz-home-forum-now__meta">
+                    <span class="@(live ? "qz-home-is-live" : "")">@(live ? "Live · " : "")@HomeRelativeTime.Format(thread.LastActivityAt, Model.Now)</span>
+                    <span>@thread.ReplyCount.ToString("N0") @(thread.ReplyCount == 1 ? "reply" : "replies")</span>
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+        <a class="qz-home-forum-now__more" href="/forum">Join the conversation &rarr;</a>
+      </div>

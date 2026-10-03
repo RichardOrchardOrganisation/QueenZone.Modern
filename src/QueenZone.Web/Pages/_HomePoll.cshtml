@@ -1,0 +1,56 @@
+@model QueenZone.Web.Pages.IndexModel
+@if (Model.HomePoll is not null)
+{
+  var poll = Model.HomePoll;
+  <section class="qz-home-play" id="play" aria-label="Members' poll">
+    <div class="qz-container qz-home-play__inner">
+      <div class="qz-home-poll" id="home-poll">
+        <section class="qz-poll qz-poll--dark" aria-label="QueenZone poll">
+          <div class="qz-poll__header">
+            <p class="qz-poll__eyebrow">Members' poll</p>
+            @if (poll.IsClosed)
+            {
+              <span class="qz-poll__badge">Closed</span>
+            }
+          </div>
+
+          <h2 class="qz-poll__question">@poll.Question</h2>
+
+          @if (!string.IsNullOrWhiteSpace(Model.HomePollError))
+          {
+            <p class="qz-poll__error">@Model.HomePollError</p>
+          }
+
+          @if (Model.HomePollViewerCanVote)
+          {
+            <form method="post" asp-page-handler="Vote" class="qz-forum-poll__vote-form">
+              @Html.AntiForgeryToken()
+              <ul class="qz-poll__options">
+                @foreach (var option in poll.Options)
+                {
+                  <li>
+                    <button type="submit" name="optionId" value="@option.OptionId" class="qz-poll__option qz-poll__option--button">
+                      <span class="qz-poll__option-content">
+                        <span class="qz-poll__indicator qz-poll__indicator--circle"></span>
+                        <span class="qz-poll__label">@option.OptionText</span>
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </form>
+          }
+          else
+          {
+            <partial name="_HomePollResults" model="Model.HomePoll" />
+          }
+
+          <div class="qz-poll__meta-row">
+            <span class="qz-poll__meta">@poll.TotalVotes.ToString("N0") vote@(poll.TotalVotes == 1 ? "" : "s")</span>
+            <span class="qz-poll__meta">@(poll.IsClosed ? "Closed" : (poll.ViewerHasVoted ? "You voted" : "Open"))</span>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+}

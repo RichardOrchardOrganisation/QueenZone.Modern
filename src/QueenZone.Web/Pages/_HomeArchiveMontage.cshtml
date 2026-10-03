@@ -1,0 +1,79 @@
+@model QueenZone.Web.Pages.IndexModel
+@using System.Text.Json
+@inject IFileVersionProvider FileVersionProvider
+@{
+    var eraSlides = HomeEraMontage.GetSlides(FileVersionProvider, Context.Request.PathBase);
+    var eraConfig = eraSlides.Select(slide => new { slide.Year, slide.Label, slide.Glow });
+    var eraConfigJson = JsonSerializer.Serialize(eraConfig, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+}
+
+<section class="qz-hero-archive qz-hero-archive--band" id="qz-hero-archive" aria-labelledby="home-archive-heading">
+  <div class="qz-hero-archive__glow" id="qz-era-glow" aria-hidden="true"></div>
+  <partial name="_PictureImage" model="@("/design-system/assets/crest-white.png", "", true, "qz-hero-archive__crest")" />
+
+  <div class="qz-container qz-hero-archive__inner" id="archive">
+
+    <!-- Editorial column -->
+    <div class="qz-hero-archive__editorial">
+      <div class="qz-eyebrow qz-hero-archive__badge">From the Queenzone.com archive</div>
+      <h2 class="qz-hero-archive__title" id="home-archive-heading">Twenty-five years of the Queen internet zone</h2>
+      <p class="qz-hero-archive__standfirst">From hand-coded HTML in 1999 to the community&#8217;s final form &#8212; every era of Queenzone.com, restored and morphed into one living home.</p>
+      <div class="qz-hero-archive__actions">
+        <a class="qz-button qz-button--cta" href="/about">Read More</a>
+        <span class="qz-hero-archive__meta">Est. 1999 &middot; queenzone.com</span>
+      </div>
+      <nav class="qz-home-archive-links" aria-label="Explore the archive">
+        <a href="/news">News archive</a>
+        <a href="/articles">Articles</a>
+        <a href="/biography">Biography</a>
+        <a href="/photography">Photo archive</a>
+        <a href="/forum">Forum history</a>
+        <a href="/timeline">Timeline</a>
+      </nav>
+    </div>
+
+    <!-- Morphing site-window stage -->
+    <div class="qz-hero-archive__stage">
+      <!-- Archive-stack ghost frames -->
+      <div class="qz-hero-archive__ghost qz-hero-archive__ghost--far" aria-hidden="true"></div>
+      <div class="qz-hero-archive__ghost qz-hero-archive__ghost--near" aria-hidden="true"></div>
+
+      <!-- macOS-style browser window -->
+      <div class="qz-hero-archive__window" aria-hidden="true">
+        <div class="qz-hero-archive__titlebar">
+          <span class="qz-hero-archive__dot"></span>
+          <span class="qz-hero-archive__dot"></span>
+          <span class="qz-hero-archive__dot"></span>
+          <span class="qz-hero-archive__era-label" id="qz-era-label">The Queen Internet Zone</span>
+          <span class="qz-hero-archive__era-year" id="qz-era-year">1999</span>
+        </div>
+        <div class="qz-hero-archive__viewport">
+          @for (var index = 0; index < eraSlides.Count; index++)
+          {
+            var slide = eraSlides[index];
+            var screenshotClass = index == 0
+                ? "qz-hero-archive__screenshot qz-hero-archive__screenshot--active"
+                : "qz-hero-archive__screenshot";
+            <img class="@screenshotClass"
+                 src="@slide.Img"
+                 alt="Queenzone.com in @slide.Year"
+                 loading="lazy"
+                 width="787" height="518">
+          }
+          <div class="qz-hero-archive__overlay"></div>
+        </div>
+      </div>
+
+      <!-- Era ticker -->
+      <div class="qz-hero-archive__ticker" role="group" aria-label="Browse Queenzone eras">
+        <button class="qz-era-btn qz-era-btn--active" data-era="0" aria-pressed="true">1999<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="1" aria-pressed="false">2000<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="2" aria-pressed="false">2002<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="3" aria-pressed="false">2004<span class="qz-era-btn__pip"></span></button>
+        <button class="qz-era-btn" data-era="4" aria-pressed="false">2020<span class="qz-era-btn__pip"></span></button>
+      </div>
+    </div>
+
+  </div>
+</section>
+<script type="application/json" id="qz-era-config">@Html.Raw(eraConfigJson)</script>

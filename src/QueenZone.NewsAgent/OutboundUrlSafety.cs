@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
 
 namespace QueenZone.NewsAgent;
 
@@ -9,6 +8,37 @@ namespace QueenZone.NewsAgent;
 /// </summary>
 public static class OutboundUrlSafety
 {
+    // Special-purpose ranges from the IANA IPv4/IPv6 registries:
+    // https://www.iana.org/assignments/iana-ipv4-special-registry/
+    // https://www.iana.org/assignments/iana-ipv6-special-registry/
+    // Translation/transition prefixes are blocked outright: news hosts do not need
+    // literal NAT64, IPv4-compatible or 6to4 destinations that can embed private IPv4.
+    private static readonly IPNetwork[] BlockedNetworks =
+    [
+        IPNetwork.Parse("0.0.0.0/8"),
+        IPNetwork.Parse("10.0.0.0/8"),
+        IPNetwork.Parse("100.64.0.0/10"),
+        IPNetwork.Parse("127.0.0.0/8"),
+        IPNetwork.Parse("169.254.0.0/16"),
+        IPNetwork.Parse("172.16.0.0/12"),
+        IPNetwork.Parse("192.0.0.0/24"),
+        IPNetwork.Parse("192.0.2.0/24"),
+        IPNetwork.Parse("192.168.0.0/16"),
+        IPNetwork.Parse("198.18.0.0/15"),
+        IPNetwork.Parse("198.51.100.0/24"),
+        IPNetwork.Parse("203.0.113.0/24"),
+        IPNetwork.Parse("224.0.0.0/4"), // Multicast (RFC 1112).
+        IPNetwork.Parse("240.0.0.0/4"), // Reserved, including limited broadcast.
+        IPNetwork.Parse("::/96"), // Unspecified, loopback and deprecated IPv4-compatible.
+        IPNetwork.Parse("64:ff9b::/96"),
+        IPNetwork.Parse("64:ff9b:1::/48"),
+        IPNetwork.Parse("2002::/16"),
+        IPNetwork.Parse("fc00::/7"),
+        IPNetwork.Parse("fe80::/10"),
+        IPNetwork.Parse("fec0::/10"), // Deprecated site-local.
+        IPNetwork.Parse("ff00::/8"), // IPv6 multicast (RFC 4291).
+    ];
+
     public const int DefaultMaxResponseBytes = 5 * 1024 * 1024;
     public const int MaxUrlLength = 2000;
 
@@ -118,77 +148,12 @@ public static class OutboundUrlSafety
     {
         ArgumentNullException.ThrowIfNull(address);
 
-        if (IPAddress.IsLoopback(address))
-        {
-            return true;
-        }
-
-        if (address.Equals(IPAddress.Any)
-            || address.Equals(IPAddress.IPv6Any)
-            || address.Equals(IPAddress.None)
-            || address.Equals(IPAddress.Broadcast))
-        {
-            return true;
-        }
-
-        if (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6UniqueLocal)
-        {
-            return true;
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetwork)
-        {
-            var bytes = address.GetAddressBytes();
-            // 0.0.0.0/8
-            if (bytes[0] == 0)
-            {
-                return true;
-            }
-
-            // 10.0.0.0/8
-            if (bytes[0] == 10)
-            {
-                return true;
-            }
-
-            // 127.0.0.0/8 already covered by IsLoopback for 127.0.0.1; keep full range.
-            if (bytes[0] == 127)
-            {
-                return true;
-            }
-
-            // 169.254.0.0/16 link-local + cloud metadata
-            if (bytes[0] == 169 && bytes[1] == 254)
-            {
-                return true;
-            }
-
-            // 172.16.0.0/12
-            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
-            {
-                return true;
-            }
-
-            // 192.168.0.0/16
-            if (bytes[0] == 192 && bytes[1] == 168)
-            {
-                return true;
-            }
-
-            // 100.64.0.0/10 carrier-grade NAT
-            if (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127)
-            {
-                return true;
-            }
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetworkV6
-            && address.IsIPv4MappedToIPv6)
+        if (address.IsIPv4MappedToIPv6)
         {
             return IsBlockedAddress(address.MapToIPv4());
         }
 
-        return false;
+        return BlockedNetworks.Any(network => network.Contains(address));
     }
 
     public static bool IsAllowedTextContentType(string? contentType)
