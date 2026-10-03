@@ -1,0 +1,26 @@
+@model QueenZone.Web.Pages.IndexModel
+@if (Model.Ticker.Count > 0)
+{
+  <div class="qz-home-live" aria-label="Happening now">
+    <div class="qz-container qz-home-live__inner">
+      <span class="qz-home-live__label"><span class="qz-home-live__dot" aria-hidden="true"></span>Happening now</span>
+      <ul class="qz-home-live__items" data-home-ticker>
+        @for (var index = 0; index < Model.Ticker.Count; index++)
+        {
+          var item = Model.Ticker[index];
+          <li class="qz-home-live__item@(index == 0 ? " qz-home-live__item--active" : "")">
+            <a href="@item.Href">@item.Text</a>
+            @if (item.When is not null)
+            {
+              <span class="qz-home-live__when">&middot; @item.When</span>
+            }
+          </li>
+        }
+      </ul>
+      @if (HomePresentation.ForumRepliesToday(Model.ForumRepliesToday) is not null)
+      {
+        <a class="qz-home-live__count" href="/forum">@HomePresentation.ForumRepliesToday(Model.ForumRepliesToday)</a>
+      }
+    </div>
+  </div>
+}

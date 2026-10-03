@@ -1,0 +1,37 @@
+@model QueenZone.Web.Pages.IndexModel
+    <div class="qz-home-front__list">
+      <div class="qz-home-rule-head">
+        <h2>Latest news</h2>
+        <a href="/news">All news &rarr;</a>
+      </div>
+      @if (Model.Latest.Count == 0)
+      {
+        <p class="qz-home-empty">More stories will appear here as news is published.</p>
+      }
+      else
+      {
+        <ol class="qz-home-newslist">
+          @foreach (var item in Model.Latest)
+          {
+            <li>
+              <a href="@item.DetailPath" class="@(item.ThumbnailUrl is null ? "" : "qz-home-newslist__item--thumb")">
+                @if (item.ThumbnailUrl is not null)
+                {
+                  <img class="qz-home-newslist__thumb" src="@item.ThumbnailUrl" alt="" loading="lazy">
+                }
+                <span class="qz-home-newslist__text">
+                <span class="qz-home-newslist__meta">
+                  <time datetime="@item.PublishedAt.ToString("yyyy-MM-dd")">@HomeRelativeTime.Format(item.PublishedAt, Model.Now)</time>
+                  @if (item.ReplyCount is > 0)
+                  {
+                    <span>@item.ReplyCount.Value.ToString("N0") comment@(item.ReplyCount == 1 ? "" : "s")</span>
+                  }
+                </span>
+                <span class="qz-home-newslist__title">@item.Title</span>
+                </span>
+              </a>
+            </li>
+          }
+        </ol>
+      }
+    </div>

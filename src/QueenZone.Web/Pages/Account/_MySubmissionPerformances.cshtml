@@ -1,0 +1,68 @@
+@model MySubmissionsModel
+@using QueenZone.Storage
+      <h2 class="visually-hidden">Fan performances</h2>
+      @if (Model.FanPerformanceSubmissions.Count == 0)
+      {
+        <p>You have not submitted any fan performances yet. <a href="/submit/fan-performance">Submit a performance</a></p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var item in Model.FanPerformanceSubmissions)
+            {
+              var memberNotes = FanPerformanceSubmissionFeedback.GetMemberFacingNotes(item);
+              var publishedPath = FanPerformanceSubmissionFeedback.GetPublishedPath(item);
+              <tr>
+                <td>
+                  @item.Title
+                  <div class="qz-submissions-secondary">@item.CoveredSong · @item.PerformedBy</div>
+                </td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@item.SubmittedAt.ToString("u")</td>
+                <td>
+                  @if (memberNotes is not null)
+                  {
+                    <span>@memberNotes</span>
+                  }
+                </td>
+                <td>
+                  @if (publishedPath is not null)
+                  {
+                    <a href="@publishedPath">View live performance</a>
+                  }
+                  @if (FanPerformanceSubmissionWorkflow.CanMemberWithdraw(item.Status))
+                  {
+                    <form method="post" asp-page-handler="WithdrawFanPerformance" class="qz-account-form">
+                      @Html.AntiForgeryToken()
+                      <input type="hidden" name="id" value="@item.Id" />
+                      <button type="submit" class="qz-button">Withdraw</button>
+                    </form>
+                  }
+                  @if (FanPerformanceSubmissionWorkflow.CanMemberReplyNeedsInfo(item.Status))
+                  {
+                    <form method="post" asp-page-handler="ReplyFanPerformance" class="qz-account-form">
+                      @Html.AntiForgeryToken()
+                      <input type="hidden" name="id" value="@item.Id" />
+                      <label class="qz-account-form__field">
+                        <span>Reply</span>
+                        <textarea name="reply" rows="2" maxlength="@FanPerformanceSubmissionService.MaxReplyLength" required></textarea>
+                      </label>
+                      <button type="submit" class="qz-button">Send reply</button>
+                    </form>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }

@@ -1,0 +1,13 @@
+@model ForumPostPresentation
+@{ var post = Model.Post; }
+          @if (post.IsBlocked)
+          {
+            <details class="qz-forum-post__blocked">
+              <summary>Post from a blocked member. Show this post</summary>
+              <div class="qz-forum-post__body article-body"><partial name="_ForumVideoBody" model="post.Body" /></div>
+            </details>
+          }
+          else
+          {
+            <div class="qz-forum-post__body article-body"><partial name="_ForumVideoBody" model="post.Body" /></div>
+          }

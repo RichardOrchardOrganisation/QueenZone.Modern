@@ -938,8 +938,12 @@ public sealed partial class AdminNewsDiscoveryRoutesTests : IClassFixture<WebHos
         Assert.Equal(NewsAgentRunRequestKind.UrlIngestion, request.Kind);
     }
 
-    [Fact]
-    public async Task UrlIngestion_rejects_private_urls_without_queueing()
+    [Theory]
+    [InlineData("http://127.0.0.1/secret")]
+    [InlineData("http://[64:ff9b::a9fe:a9fe]/")]
+    [InlineData("http://[2002:a9fe:a9fe::1]/")]
+    [InlineData("http://224.0.0.1/")]
+    public async Task UrlIngestion_rejects_private_urls_without_queueing(string url)
     {
         var client = CreateClient(AdminEmail);
         var repository = factory.Services.GetRequiredService<INewsAgentRunRequestRepository>();
@@ -949,7 +953,7 @@ public sealed partial class AdminNewsDiscoveryRoutesTests : IClassFixture<WebHos
             "/admin/news-discovery?handler=queueurlingestion",
             new Dictionary<string, string>
             {
-                ["ArticleUrl"] = "http://127.0.0.1/secret",
+                ["ArticleUrl"] = url,
                 ["UrlIngestionAction"] = "triage"
             });
 

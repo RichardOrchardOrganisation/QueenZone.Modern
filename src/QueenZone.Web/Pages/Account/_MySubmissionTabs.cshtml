@@ -1,0 +1,8 @@
+@model IReadOnlyList<MySubmissionTab>
+<nav class="qz-submissions-tabs" aria-label="Submission types">
+  @foreach (var tab in Model)
+  {
+    <a class="qz-submissions-tabs__tab @(tab.IsActive ? "is-active" : null)"
+       href="@tab.Href" aria-current="@(tab.IsActive ? "page" : null)">@tab.Label</a>
+  }
+</nav>

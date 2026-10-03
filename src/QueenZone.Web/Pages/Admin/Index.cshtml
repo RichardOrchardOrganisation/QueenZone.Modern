@@ -1,5 +1,6 @@
 @page "/admin"
 @model QueenZone.Web.Pages.Admin.IndexModel
+@inject TimeProvider TimeProvider
 @{
     ViewData["Title"] = "Admin Dashboard";
 
@@ -249,7 +250,7 @@
             <span class="admin-dashboard__login-name">@login.DisplayName</span>
             <time class="admin-dashboard__login-time"
                   datetime="@login.LastLoginAt.ToString("O")">
-              @FormatRelative(login.LastLoginAt)
+              @HomeRelativeTime.FormatAdmin(login.LastLoginAt, TimeProvider.GetUtcNow())
             </time>
           </li>
         }
@@ -394,16 +395,3 @@
     }
   </section>
 </div>
-
-@functions {
-    private static string FormatRelative(DateTime utc)
-    {
-        var diff = DateTime.UtcNow - utc;
-        if (diff.TotalMinutes < 2) return "just now";
-        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} mins ago";
-        if (diff.TotalHours < 2) return "1 hour ago";
-        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours} hours ago";
-        if (diff.TotalDays < 2) return "yesterday";
-        return $"{(int)diff.TotalDays} days ago";
-    }
-}

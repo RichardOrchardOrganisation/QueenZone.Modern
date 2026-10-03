@@ -1,0 +1,35 @@
+@model ReviewModel
+  <section class="admin-review-section">
+    <h2>Source item</h2>
+    <dl class="admin-review-meta">
+      <dt>Title</dt>
+      <dd>@Model.Candidate!.SourceTitle</dd>
+      <dt>Source URL</dt>
+      <dd><a href="@Model.Candidate!.SourceUrl" rel="noopener noreferrer" target="_blank">@Model.Candidate!.SourceUrl</a></dd>
+      <dt>Source</dt>
+      <dd>@Model.Candidate!.SourceDisplayName (@NewsDiscoveryStatusLabels.FormatTrustTier(Model.Candidate!.SourceTrustTier))</dd>
+      <dt>Status</dt>
+      <dd>@NewsDiscoveryStatusLabels.Format(Model.Candidate!.Status)</dd>
+      <dt>Discovered</dt>
+      <dd>@Model.Candidate!.DiscoveredAt.ToString("dd MMM yyyy HH:mm") UTC</dd>
+      <dt>Published</dt>
+      <dd>@NewsCandidateReviewPresentation.PublishedDate(Model.Candidate!.SourcePublishedAt)</dd>
+      <dt>Scores</dt>
+      <dd>Relevance @NewsCandidateReviewPresentation.Score(Model.Candidate!.RelevanceScore), confidence @NewsCandidateReviewPresentation.Score(Model.Candidate!.ConfidenceScore)</dd>
+      @if (!string.IsNullOrWhiteSpace(Model.Candidate!.ReviewNotes))
+      {
+        <dt>Review notes</dt>
+        <dd>@Model.Candidate!.ReviewNotes</dd>
+      }
+      @if (Model.DuplicateCandidate is not null)
+      {
+        <dt>Duplicate of</dt>
+        <dd><a href="/admin/news-discovery/@Model.DuplicateCandidate.Id">Candidate #@Model.DuplicateCandidate.Id — @Model.DuplicateCandidate.SourceTitle</a></dd>
+      }
+      @if (Model.Candidate!.PromotedNewsId is int promotedNewsId)
+      {
+        <dt>Promoted article</dt>
+        <dd><a href="/admin/news/@promotedNewsId/edit">Admin news #@promotedNewsId</a></dd>
+      }
+    </dl>
+  </section>

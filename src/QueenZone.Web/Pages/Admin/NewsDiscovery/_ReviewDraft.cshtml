@@ -1,0 +1,50 @@
+@model ReviewModel
+  @if (Model.Draft is not null)
+  {
+    <section class="admin-review-section">
+      <h2>Generated draft</h2>
+      <dl class="admin-review-meta">
+        <dt>Title</dt>
+        <dd>@Model.Draft.ProposedTitle</dd>
+        <dt>Excerpt</dt>
+        <dd>@Model.Draft.ProposedExcerpt</dd>
+        <dt>Body</dt>
+        <dd><pre class="admin-review-pre">@Model.Draft.ProposedBody</pre></dd>
+        @if (!string.IsNullOrWhiteSpace(Model.Draft.AttributionText))
+        {
+          <dt>Attribution</dt>
+          <dd>@Model.Draft.AttributionText</dd>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.Draft.SourceNotes))
+        {
+          <dt>Source notes</dt>
+          <dd>@Model.Draft.SourceNotes</dd>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.Draft.ConfidenceNotes))
+        {
+          <dt>Confidence notes</dt>
+          <dd>@Model.Draft.ConfidenceNotes</dd>
+        }
+      </dl>
+      <p><a href="/admin/news-discovery/@Model.Candidate!.Id/edit-draft">Edit draft</a></p>
+      @if (Model.Actions!.CanGenerateDraft)
+      {
+        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{Model.Candidate!.Id}/regeneratedraft", Model.Actions!.GenerationLabel, Confirm: Model.Actions.ConfirmGeneration, BusyLabel: Model.Actions.GenerationBusyLabel))" />
+      }
+    </section>
+  }
+  else
+  {
+    <section class="admin-review-section">
+      <h2>Generated draft</h2>
+      <p>No draft yet.</p>
+      @if (Model.Actions!.CanGenerateDraft)
+      {
+        <partial name="_PostAction" model="@(new PostActionViewModel($"/admin/news-discovery/{Model.Candidate!.Id}/regeneratedraft", Model.Actions!.GenerationLabel, BusyLabel: Model.Actions.GenerationBusyLabel))" />
+      }
+      else
+      {
+        <p>Draft generation is only available for candidates still in discovery review.</p>
+      }
+    </section>
+  }

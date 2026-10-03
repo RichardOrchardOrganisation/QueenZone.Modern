@@ -1,0 +1,31 @@
+@model QueenZone.Data.HomePollResults
+@{ var poll = Model; }
+            <ul class="qz-poll__results">
+              @foreach (var option in poll.Options)
+              {
+                var selected = poll.SelectedOptionId == option.OptionId;
+                <li class="qz-poll__option qz-poll__option--voted">
+                  <span class="qz-poll__option-bar qz-poll__option-bar--@(selected ? "mine" : "other")" data-bar-width="@(option.Percentage.ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span>
+                  <span class="qz-poll__option-content">
+                    <span class="qz-poll__indicator qz-poll__indicator--circle@(selected ? " qz-poll__indicator--mine" : "")">
+                      @if (selected)
+                      {
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+                      }
+                    </span>
+                    <span class="qz-poll__label@(selected ? " qz-poll__label--mine" : "")">
+                      @option.OptionText
+                      @if (selected)
+                      {
+                        <span class="visually-hidden">— Your vote</span>
+                      }
+                    </span>
+                    <span class="qz-poll__pct@(selected ? " qz-poll__pct--mine" : "")">@option.VoteCount · @option.Percentage.ToString("0.#")%</span>
+                  </span>
+                </li>
+              }
+            </ul>
+            @if (!poll.ViewerHasVoted && !poll.IsClosed)
+            {
+              <p class="qz-poll__sign-in"><a href="/account/login?returnUrl=@Uri.EscapeDataString("/#home-poll")">Sign in to vote</a></p>
+            }
