@@ -72,6 +72,7 @@ public class E2ECategoryGuardTests
             nameof(ForumYoutubeVideoTests),
             nameof(LiveSiteTransportRetryTests),
             nameof(PageShapeAssertionTests),
+            nameof(ParticipationClarityTests),
             nameof(PhotographyLightboxTests),
             nameof(PrivateMessagingMobileTests),
             nameof(RealDataDbTests),
