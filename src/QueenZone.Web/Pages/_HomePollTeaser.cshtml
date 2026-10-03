@@ -1,0 +1,9 @@
+@model QueenZone.Web.Pages.IndexModel
+      @if (Model.HomePoll is { } teaserPoll)
+      {
+        <a class="qz-home-teaser" href="#home-poll">
+          <span class="qz-home-teaser__kicker qz-home-teaser__kicker--poll">@(teaserPoll.IsClosed ? "Poll results" : "Members' poll")</span>
+          <span class="qz-home-teaser__title">@teaserPoll.Question</span>
+          <span class="qz-home-teaser__cta">@(teaserPoll.IsClosed || teaserPoll.ViewerHasVoted ? "See results" : "Vote") &rarr;</span>
+        </a>
+      }

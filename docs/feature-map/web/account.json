@@ -17,12 +17,19 @@
       "name": "Account settings",
       "page": "Pages/Account/Settings.cshtml",
       "url": "/account/settings",
-      "entry": "Signed-in account menu → Settings"
+      "entry": "Signed-in account menu \u2192 Settings"
     },
     {
       "aliases": [],
       "sources": [
-        "src/QueenZone.Web/Pages/Account/MySubmissions.cshtml"
+        "src/QueenZone.Web/Pages/Account/MySubmissions.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionArticles.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionNews.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionPerformances.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionPhotos.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionQuiz.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionTabs.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionTrivia.cshtml"
       ],
       "testIds": [],
       "flows": [],
@@ -34,7 +41,7 @@
       "name": "My submissions",
       "page": "Pages/Account/MySubmissions.cshtml",
       "url": "/account/my-submissions",
-      "entry": "Account menu → My submissions"
+      "entry": "Account menu \u2192 My submissions"
     },
     {
       "aliases": [],
@@ -51,7 +58,7 @@
       "name": "Delete account",
       "page": "Pages/Account/Delete.cshtml",
       "url": "/account/delete",
-      "entry": "Account settings → delete account"
+      "entry": "Account settings \u2192 delete account"
     },
     {
       "aliases": [],
@@ -68,7 +75,7 @@
       "name": "Deletion requested",
       "page": "Pages/Account/DeletionRequested.cshtml",
       "url": "/account/deletion-requested",
-      "entry": "Delete account → requested"
+      "entry": "Delete account \u2192 requested"
     },
     {
       "aliases": [],

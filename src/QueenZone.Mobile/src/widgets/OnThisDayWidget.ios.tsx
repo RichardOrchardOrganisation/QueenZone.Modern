@@ -31,7 +31,7 @@ import type { WidgetProps } from './widgetCopy';
  */
 export type OnThisDayWidgetProps = WidgetProps;
 
-function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
+export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
   'widget';
 
   const hasDay = Boolean(props.formattedDate && props.summary);
@@ -56,13 +56,9 @@ function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
   const eventId = Number(props.eventId);
   const tapUrl = showTrivia
     ? 'queenzone://trivia'
-    : showQuote && quoteId > 0
-      ? `queenzone://quotes/${quoteId}`
-      : showDay && eventId > 0
-        ? `queenzone://timeline/${eventId}`
-        : showQuote
-          ? 'queenzone://home'
-          : 'queenzone://timeline';
+    : showQuote
+      ? quoteId > 0 ? `queenzone://quotes/${quoteId}` : 'queenzone://home'
+      : eventId > 0 ? `queenzone://timeline/${eventId}` : 'queenzone://timeline';
 
   return (
     <VStack

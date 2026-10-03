@@ -1,0 +1,36 @@
+@model MySubmissionsModel
+@using QueenZone.Storage
+      <h2 class="visually-hidden">Trivia</h2>
+      @if (Model.TriviaSubmissions.Count == 0)
+      {
+        <p>You have not suggested any trivia facts yet. <a href="/submit/trivia">Suggest a trivia fact</a></p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Fact</th>
+              <th>Status</th>
+              <th>Submitted</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var item in Model.TriviaSubmissions)
+            {
+              <tr>
+                <td>@item.Text</td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@item.SubmittedAt.ToString("u")</td>
+                <td>
+                  @if (MySubmissionPresentation.RejectionNotes(item.Status, item.RejectionReason) is { } notes)
+                  {
+                    <span>@notes</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }

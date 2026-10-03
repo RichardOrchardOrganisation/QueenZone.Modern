@@ -1,0 +1,26 @@
+@model ReviewModel
+  @if (Model.LatestTriageSummary is not null)
+  {
+    <section class="admin-review-section">
+      <h2>AI triage</h2>
+      <dl class="admin-review-meta">
+        @if (!string.IsNullOrWhiteSpace(Model.LatestTriageSummary.Verdict))
+        {
+          <dt>Verdict</dt>
+          <dd>@Model.LatestTriageSummary.Verdict</dd>
+        }
+        <dt>Rationale</dt>
+        <dd>@Model.LatestTriageSummary.Rationale</dd>
+        @if (Model.LatestTriageSummary.Entities.Count > 0)
+        {
+          <dt>Entities</dt>
+          <dd>@string.Join(", ", Model.LatestTriageSummary.Entities)</dd>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.LatestTriageSummary.ReviewNotes))
+        {
+          <dt>AI review notes</dt>
+          <dd>@Model.LatestTriageSummary.ReviewNotes</dd>
+        }
+      </dl>
+    </section>
+  }

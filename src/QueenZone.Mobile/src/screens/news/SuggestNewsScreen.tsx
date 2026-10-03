@@ -139,7 +139,7 @@ export function SuggestNewsScreen({ navigation }: Props) {
   const host = hostOf(draft.url);
   const canPatch = share.kind === 'form' || share.kind === 'failed';
   const patch = canPatch ? share.patch : () => undefined;
-  const canSubmit = session.isSignedIn && !busy && draft.url.trim().length > 0;
+  const canSubmit = session.isSignedIn && Boolean(session.accessToken) && !busy && draft.url.trim().length > 0;
 
   return (
     <FormScreenLayout testID={testIds.suggestNewsScreen} backgroundColor={c.surfacePage} bottomInset={insets.bottom}>
