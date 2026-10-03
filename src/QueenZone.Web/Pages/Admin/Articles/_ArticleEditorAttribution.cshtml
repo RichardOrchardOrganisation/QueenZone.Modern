@@ -1,0 +1,10 @@
+@model EditModel
+@using QueenZone.Storage
+@{ var f = Model.Form; }
+    <fieldset class="qz-fieldset"><legend class="qz-legend">Attribution</legend>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.AuthorName">Author</label><input class="qz-input" asp-for="Form.AuthorName" maxlength="200" required /></div>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.Category">Category</label><input class="qz-input" asp-for="Form.Category" list="article-categories" maxlength="100" required /><datalist id="article-categories">@foreach (var category in Model.Categories) { <option value="@category"></option> }</datalist></div>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.Tags">Tags</label><input class="qz-input" asp-for="Form.Tags" maxlength="500" /><p class="qz-help">Comma-separated.</p></div>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.Source">Source</label><input class="qz-input" asp-for="Form.Source" maxlength="2000" /></div>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.PublishedAt">Publication date</label><input class="qz-input" type="date" asp-for="Form.PublishedAt" /></div>
+    </fieldset>

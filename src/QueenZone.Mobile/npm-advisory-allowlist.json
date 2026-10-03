@@ -23,6 +23,14 @@
       "exploitability": "Expo development/build certificate tooling only in the current graph; no application imports or OTA code-signing configuration. Signature-verification tooling remains affected; no patched release is published. Remove on a patched compatible release (#1996).",
       "owner": "QueenZone maintainers",
       "expires": "2026-12-31"
+    },
+    {
+      "ghsa": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "via": "expo57.0.26 / react-native0.86.3 Metro file maps and Jest29.7 tooling -> micromatch4.0.8 -> braces3.0.3",
+      "exploitability": "Build/test glob tooling; no first-party runtime import or remote user-content pattern sink identified. Deep brace expansion and bundled tooling copies remain vulnerable; temporary acceptance of tooling denial-of-service risk, not a fix (#2016).",
+      "owner": "QueenZone maintainers",
+      "expires": "2026-10-17"
     }
   ]
 }

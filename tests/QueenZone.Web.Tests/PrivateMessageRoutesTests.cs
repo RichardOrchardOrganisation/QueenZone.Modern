@@ -53,6 +53,89 @@ public sealed class PrivateMessageRoutesTests :
         Assert.Contains("aria-label=\"Messages\"", html);
     }
 
+    [Theory]
+    [InlineData(0, false, "Choose a recipient.")]
+    [InlineData(0, true, "No members matched that name.")]
+    [InlineData(2, true, "Multiple members matched. Select one from the list.")]
+    public async Task Compose_NameResolutionRejectsMissingOrAmbiguousRecipient(int matches, bool useQuery, string error)
+    {
+        var prefix = "Recipient " + Guid.NewGuid().ToString("N");
+        var (client, sender) = await CreateMemberAsync($"sender-{Guid.NewGuid():N}@example.com", "Resolution Sender");
+        for (var index = 0; index < matches; index++)
+        {
+            await CreateMemberAsync($"recipient-{Guid.NewGuid():N}@example.com", $"{prefix} {index}");
+        }
+        var page = await client.GetStringAsync("/messages/compose");
+        var response = await client.PostAsync("/messages/compose", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(page),
+            ["Input.RecipientQuery"] = useQuery ? prefix : "   ",
+            ["Input.Body"] = "Do not deliver this message",
+        }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains(error, html);
+        for (var index = 0; index < matches; index++)
+        {
+            Assert.Contains($"{prefix} {index}", html);
+        }
+        var repository = factory.Services.GetRequiredService<IPrivateMessageRepository>();
+        Assert.Empty((await repository.GetInboxAsync(sender.Id)).Items);
+    }
+
+    [Fact]
+    public async Task Compose_NameResolutionSelectsUniqueMemberAndDelivers()
+    {
+        var name = "Unique " + Guid.NewGuid().ToString("N");
+        var (client, sender) = await CreateMemberAsync($"unique-sender-{Guid.NewGuid():N}@example.com", "Unique Sender");
+        var (recipientClient, recipient) = await CreateMemberAsync($"unique-recipient-{Guid.NewGuid():N}@example.com", name);
+        var page = await client.GetStringAsync("/messages/compose");
+        var response = await client.PostAsync("/messages/compose", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(page),
+            ["Input.RecipientQuery"] = name,
+            ["Input.Body"] = "Unique recipient message",
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.StartsWith("/messages/", response.Headers.Location!.OriginalString);
+        var received = await recipientClient.GetStringAsync(response.Headers.Location.OriginalString);
+        Assert.Contains("Unique recipient message", received);
+        Assert.Contains(sender.DisplayName, received);
+        var repository = factory.Services.GetRequiredService<IPrivateMessageRepository>();
+        Assert.Single((await repository.GetInboxAsync(recipient.Id)).Items);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Compose_ExplicitRecipientRejectsSelfAndBlockingMember(bool blocked)
+    {
+        var (client, sender) = await CreateMemberAsync($"reject-sender-{Guid.NewGuid():N}@example.com", "Reject Sender");
+        var recipient = sender;
+        if (blocked)
+        {
+            var (blockingClient, blocker) = await CreateMemberAsync($"blocker-{Guid.NewGuid():N}@example.com", "Blocking Recipient");
+            var profile = await blockingClient.GetStringAsync($"/members/{sender.Id}");
+            Assert.Equal(HttpStatusCode.Redirect, (await blockingClient.PostAsync($"/members/{sender.Id}?handler=Block",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = ExtractAntiforgeryToken(profile),
+                }))).StatusCode);
+            recipient = blocker;
+        }
+        var page = await client.GetStringAsync("/messages/compose");
+        var response = await client.PostAsync("/messages/compose", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(page),
+            ["Input.RecipientMemberId"] = recipient.Id.ToString(),
+            ["Input.Body"] = "Rejected message",
+        }));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(blocked ? PrivateMessageService.UnableToSendMessage : "You cannot message yourself.",
+            await response.Content.ReadAsStringAsync());
+        Assert.Empty((await factory.Services.GetRequiredService<IPrivateMessageRepository>().GetInboxAsync(sender.Id)).Items);
+    }
+
     [Fact]
     public async Task Compose_Send_Reply_AndUnreadFlow_Works()
     {
