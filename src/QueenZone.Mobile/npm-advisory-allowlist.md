@@ -45,3 +45,29 @@ release is available through an Expo-compatible update or narrow override;
 tracks that work. Reassess before enabling OTA code signing or processing
 externally supplied certificates/signatures in tooling. The full-graph audit
 and expiry enforcement remain enabled.
+
+## braces recursion denial of service (#2016)
+
+Richard approved the single `GHSA-vfj7-8cjw-p6xm` exception on 2026-10-03.
+It accepts unresolved `braces@3.0.3` tooling risk; it is not a vulnerability fix.
+The [official advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+lists no patched release. [Upstream PR72](https://github.com/micromatch/braces/pull/72)
+is unmerged/unreleased at approval; release timing is unknown.
+
+Expo/React Native CLI and Metro file maps, plus Jest tooling, independently
+reach braces through micromatch. Inspected callers match build/test filesystem
+and configuration globs. No first-party application import or remote user-content
+pattern sink was identified, but complete runtime/minified-tool reachability
+has not been established. Expo Doctor and resolve-workspace-root also bundle
+matching code: a standalone override would not establish complete remediation.
+Deep brace expansion can still exhaust the Node stack and terminate tooling.
+
+Owner: **QueenZone maintainers**. Review on **2026-10-10**; expires
+**2026-10-17** (inclusive UTC date), so the unchanged validator rejects it from
+**2026-10-18T00:00:00Z**. **No automatic renewal.** Remove earlier on a published
+Expo-compatible fixed release and revalidate the full graph and native tooling.
+If no fix exists at expiry, let CI block and obtain a fresh explicit decision.
+Reassess before processing externally supplied glob patterns or adding runtime
+imports. [#2016](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2016)
+tracks review/removal. All other advisories, existing exceptions, full-graph audit,
+expiry enforcement and required checks remain active.

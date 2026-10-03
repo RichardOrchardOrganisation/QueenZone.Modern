@@ -354,6 +354,68 @@ public sealed class AdminMembersRoutesTests :
         _ = second;
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Members_LegacyAuthorPanelOffersMatchingModerationAction(bool hidden)
+    {
+        var name = "Legacy 'Author' " + Guid.NewGuid().ToString("N");
+        var forum = factory.Services.GetRequiredService<IForumWriteRepository>();
+        await forum.CreateThreadAsync(new NewForumThread(
+            1, Guid.Empty, name, "Legacy author thread", "<p>Legacy post</p>", DateTimeOffset.UtcNow));
+        if (hidden)
+        {
+            await forum.HideAuthorForumContentAsync(null, name);
+        }
+        var admin = CreateAdminClient(AdminEmail);
+        var html = await admin.GetStringAsync("/admin/members?query=" + Uri.EscapeDataString(name));
+        var decoded = WebUtility.HtmlDecode(html);
+        Assert.Contains("No member account.", decoded);
+        Assert.Contains(name, decoded);
+        Assert.Contains(hidden ? "/admin/members/forum-author/Unhide" : "/admin/members/forum-author/Hide", decoded);
+        Assert.DoesNotContain(hidden ? "/admin/members/forum-author/Hide" : "/admin/members/forum-author/Unhide", decoded);
+        if (!hidden)
+        {
+            var confirmation = System.Text.Json.JsonSerializer.Serialize(
+                $"Hide all posts and threads started by {name}? Other people's posts stay.");
+            Assert.Contains("return confirm(" + confirmation + ");", decoded);
+        }
+    }
+
+    [Fact]
+    public async Task Members_PaginationPreservesSearchAndShowsPreviousAndNext()
+    {
+        var prefix = "Pagination " + Guid.NewGuid().ToString("N");
+        var members = factory.Services.GetRequiredService<IMemberAccountRepository>();
+        for (var index = 0; index < 101; index++)
+        {
+            await members.CreateAsync(new QueenZone.Data.Entities.MemberAccount
+            {
+                Id = Guid.NewGuid(),
+                Email = $"page-{index}-{Guid.NewGuid():N}@example.com",
+                DisplayName = $"{prefix} {index:000}",
+                CreatedAt = DateTime.UtcNow,
+            });
+        }
+        var admin = CreateAdminClient(AdminEmail);
+        var encoded = Uri.EscapeDataString(prefix);
+        var first = await admin.GetStringAsync($"/admin/members?query={encoded}");
+        var middle = await admin.GetStringAsync($"/admin/members?query={encoded}&pageNumber=2");
+        var last = await admin.GetStringAsync($"/admin/members?query={encoded}&pageNumber=3");
+        Assert.Contains("Page 1 of 3 (101 total)", first);
+        Assert.Contains("Page 2 of 3 (101 total)", middle);
+        Assert.Contains("Page 3 of 3 (101 total)", last);
+        Assert.Contains("pageNumber=2", first);
+        Assert.DoesNotContain(">Previous</a>", first);
+        Assert.Contains("pageNumber=1", middle);
+        Assert.Contains("pageNumber=3", middle);
+        Assert.Contains(">Previous</a>", middle);
+        Assert.Contains(">Next</a>", middle);
+        Assert.Contains("pageNumber=2", last);
+        Assert.DoesNotContain(">Next</a>", last);
+        Assert.Contains("query=" + prefix, WebUtility.HtmlDecode(middle));
+    }
+
     private HttpClient CreateAdminClient(string? email = null) =>
         CreateAdminClient(factory, email);
 
