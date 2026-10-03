@@ -1,0 +1,30 @@
+appId: org.queenzone.mobile
+name: Account settings presentation proof
+---
+- runFlow: open-smoke-auth.yaml
+- tapOn:
+    id: tab-home
+- tapOn:
+    id: home-profile
+- extendedWaitUntil:
+    visible:
+      id: profile-signed-in
+    timeout: 20000
+- tapOn: Account settings
+- extendedWaitUntil:
+    visible: Update the name shown on your posts and contributions.
+    timeout: 20000
+- assertVisible: Profile avatar
+- scrollUntilVisible:
+    element:
+      text: Save display name
+    direction: DOWN
+- assertVisible: Display name
+- assertVisible: Save display name
+- takeScreenshot: account-settings-display-name
+- scrollUntilVisible:
+    element:
+      text: Who can message me
+    direction: DOWN
+- assertVisible: Who can message me
+- takeScreenshot: account-settings-privacy
