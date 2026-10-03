@@ -3,7 +3,6 @@
   "threshold": 30,
   "hotspots": {
     "src/QueenZone.Mobile/src/downloads/manager.ts|runDownload": 32.4,
-    "src/QueenZone.Mobile/src/screens/account/SettingsScreen.tsx|SettingsForm": 34,
     "src/QueenZone.Mobile/src/screens/forum/ThreadScreen.tsx|ThreadScreen": 32.1,
     "src/QueenZone.Mobile/src/session/SessionContext.tsx|SessionProvider::lambda": 45.7
   }
