@@ -19,6 +19,7 @@ appId: org.queenzone.mobile
       id: forum-thread-screen
     timeout: 20000
 - assertVisible: Ranking every studio album
+- takeScreenshot: forum-thread-header-proof
 # Thread hides the tab bar (navigation/visibility.ts) — leave via its own
 # back control, same pattern as 08-profile-signed-out.yaml's profile-back.
 # Back pops one level, to the category screen, not the forum root.
