@@ -1,0 +1,35 @@
+@model QueenZone.Web.Pages.IndexModel
+<section class="qz-home-onthisday" aria-labelledby="home-onthisday-heading">
+  <div class="qz-container">
+    <div class="qz-home-section-head">
+      <div>
+        <div class="qz-home-eyebrow qz-home-eyebrow--gold">On this day &middot; @Model.Now.ToString("d MMMM", System.Globalization.CultureInfo.InvariantCulture)</div>
+        <h2 id="home-onthisday-heading" class="qz-home-section-title qz-home-section-title--sm">This Day in Queen History</h2>
+      </div>
+      <a class="qz-home-section-head__link" href="/timeline">View timeline &rarr;</a>
+    </div>
+    @if (Model.OnThisDay.Count == 0)
+    {
+      <p>No exact Queen history records are available for today yet.</p>
+    }
+    else
+    {
+      @if (Model.IsOnThisDayFallback)
+      {
+        <p class="qz-home-onthisday__note">No exact match for today yet. Showing nearby dates from the archive.</p>
+      }
+      <ol class="qz-home-onthisday__list">
+        @foreach (var item in Model.OnThisDay)
+        {
+          <li>
+            <time datetime="@item.EventDate.ToString("yyyy-MM-dd")">@item.FormattedDate</time>
+            <div>
+              <h3>@item.Title</h3>
+              <p>@item.Summary</p>
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  </div>
+</section>

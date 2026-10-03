@@ -1,0 +1,36 @@
+@model ReviewModel
+  <section class="admin-review-section">
+    <h2>AI provenance</h2>
+    @if (Model.AiRuns.Count == 0)
+    {
+      <p class="admin-muted">No AI runs recorded for this Model.Candidate!.</p>
+    }
+    else
+    {
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Kind</th>
+            <th>Prompt version</th>
+            <th>Guidance revision</th>
+            <th>Guidance hash</th>
+            <th>Status</th>
+            <th>Started</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var run in Model.AiRuns)
+          {
+            <tr>
+              <td>@run.Kind</td>
+              <td>@run.PromptVersion</td>
+              <td>@NewsCandidateReviewPresentation.GuidanceRevision(run.GuidanceRevisionNumber)</td>
+              <td>@NewsCandidateReviewPresentation.GuidanceHash(run.GuidanceContentHash)</td>
+              <td>@run.Status</td>
+              <td>@run.StartedAt.ToString("dd MMM yyyy HH:mm") UTC</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </section>

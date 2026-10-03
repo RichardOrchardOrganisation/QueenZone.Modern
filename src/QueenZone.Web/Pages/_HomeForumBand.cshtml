@@ -1,0 +1,37 @@
+@model QueenZone.Web.Pages.IndexModel
+@if (Model.ForumBand.Count > 0)
+{
+  <section class="qz-home-forum" id="forum" aria-labelledby="home-forum-heading">
+    <partial name="_PictureImage" model="@("/design-system/assets/crest-white.png", "", true, "qz-home-forum__crest")" />
+    <div class="qz-container qz-home-forum__inner">
+      <div class="qz-home-section-head">
+        <div>
+          <div class="qz-home-eyebrow qz-home-eyebrow--gold">The community</div>
+          <h2 id="home-forum-heading" class="qz-home-section-title">Live from the forum</h2>
+        </div>
+        <a class="qz-home-section-head__link" href="/forum">All boards &rarr;</a>
+      </div>
+      <div class="qz-home-forum__grid">
+        @foreach (var thread in Model.ForumBand)
+        {
+          var live = HomeRelativeTime.IsLive(thread.LastActivityAt, Model.Now);
+          <a class="qz-home-forum__thread" href="@thread.DetailPath">
+            <span class="qz-home-forum__board">
+              <span>@thread.CategoryName</span>
+              <span class="@(live ? "qz-home-is-live" : "")">@(live ? "Live · " : "")@HomeRelativeTime.Format(thread.LastActivityAt, Model.Now)</span>
+            </span>
+            <span class="qz-home-forum__title">@thread.Title</span>
+            <span class="qz-home-forum__stats">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              @thread.ReplyCount.ToString("N0") @(thread.ReplyCount == 1 ? "reply" : "replies")
+            </span>
+          </a>
+        }
+      </div>
+      <div class="qz-home-forum__foot">
+        <span>@(HomePresentation.ForumRepliesToday(Model.ForumRepliesToday) ?? "Join thousands of Queen fans in conversation.")</span>
+        <a class="qz-button qz-button--cta" href="/forum">Join the conversation</a>
+      </div>
+    </div>
+  </section>
+}

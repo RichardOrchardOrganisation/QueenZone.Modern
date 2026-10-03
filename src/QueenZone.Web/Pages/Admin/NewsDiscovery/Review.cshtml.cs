@@ -5,6 +5,8 @@ namespace QueenZone.Web.Pages.Admin.NewsDiscovery;
 
 public sealed class ReviewModel(INewsDiscoveryRepository discoveryRepository) : AdminNewsDiscoveryPageModel
 {
+    public NewsCandidateReviewActions? Actions { get; private set; }
+
     public NewsCandidate? Candidate { get; private set; }
 
     public IReadOnlyList<NewsCandidateEvidence> Evidence { get; private set; } = [];
@@ -52,6 +54,7 @@ public sealed class ReviewModel(INewsDiscoveryRepository discoveryRepository) : 
         Evidence = await discoveryRepository.GetCandidateEvidenceAsync(id, cancellationToken);
         AiRuns = await discoveryRepository.GetAiRunsForCandidateAsync(id, cancellationToken);
         Draft = await discoveryRepository.GetDraftByCandidateIdAsync(id, cancellationToken);
+        Actions = NewsCandidateReviewPresentation.Actions(Candidate.Status, Draft is not null);
 
         if (Candidate.DuplicateOfCandidateId is int duplicateId)
         {

@@ -1,0 +1,25 @@
+@model QueenZone.Web.Pages.IndexModel
+<section class="qz-home-articles" id="articles" aria-labelledby="home-articles-heading">
+  <div class="qz-container">
+    <div class="qz-home-section-head">
+      <div>
+        <div class="qz-home-eyebrow qz-home-eyebrow--editorial">Latest reads</div>
+        <h2 id="home-articles-heading" class="qz-home-section-title">Articles &amp; features</h2>
+      </div>
+      <a class="qz-home-section-head__link" href="/articles">All articles &rarr;</a>
+    </div>
+    @if (Model.FeaturedArticles.Count == 0)
+    {
+      <p>No published articles are available yet.</p>
+    }
+    else
+    {
+      <div class="qz-grid qz-grid--three">
+        @foreach (var article in Model.FeaturedArticles)
+        {
+          <partial name="_ArticleCard" model="@(article.Image, article.Category, article.Title, article.Excerpt, article.Meta, article.Href, false)" />
+        }
+      </div>
+    }
+  </div>
+</section>

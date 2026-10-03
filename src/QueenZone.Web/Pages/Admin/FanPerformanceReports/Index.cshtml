@@ -1,6 +1,5 @@
 @page "/admin/fan-performance-reports"
 @model QueenZone.Web.Pages.Admin.FanPerformanceReports.IndexModel
-@using QueenZone.Data
 
 <div class="admin-shell">
   <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
@@ -13,27 +12,7 @@
   <form method="get" class="admin-search-form">
     <label>
       Status
-      <select name="status">
-        @if (string.Equals(Model.StatusFilter, "all", StringComparison.OrdinalIgnoreCase))
-        {
-          <option value="all" selected>All</option>
-        }
-        else
-        {
-          <option value="all">All</option>
-        }
-        @foreach (var status in FanPerformanceReportStatus.All)
-        {
-          if (string.Equals(Model.StatusFilter, status, StringComparison.Ordinal))
-          {
-            <option value="@status" selected>@status</option>
-          }
-          else
-          {
-            <option value="@status">@status</option>
-          }
-        }
-      </select>
+      <select name="status" asp-items="Model.StatusOptions"></select>
     </label>
     <button type="submit" class="qz-button">Filter</button>
   </form>
