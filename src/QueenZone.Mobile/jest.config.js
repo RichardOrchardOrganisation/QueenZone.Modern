@@ -1,6 +1,9 @@
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'jest-expo',
+  transform: {
+    'OnThisDayWidget\\.ios\\.tsx$': '<rootDir>/scripts/widget-view-test-transformer.cjs',
+  },
   // @native-html/render pulls in ESM-only leaf packages (wooorm's
   // stringify-entities/character-entities-*) that jest-expo's default
   // transformIgnorePatterns does not cover; transform them too.

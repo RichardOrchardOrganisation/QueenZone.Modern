@@ -29,6 +29,10 @@ public sealed class MySubmissionsModel(
 
     public string ActiveTab { get; private set; } = TabPhotos;
 
+    public IReadOnlyList<MySubmissionTab> Tabs => MySubmissionPresentation.Tabs(ActiveTab);
+
+    public string ActiveSectionPartial => MySubmissionPresentation.PartialForTab(ActiveTab);
+
     public int CurrentPage { get; private set; } = 1;
 
     public IReadOnlyList<PhotoSubmission> PhotoSubmissions { get; private set; } = [];

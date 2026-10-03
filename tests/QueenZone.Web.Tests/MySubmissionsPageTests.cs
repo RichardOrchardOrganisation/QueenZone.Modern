@@ -159,6 +159,29 @@ public sealed partial class MySubmissionsPageTests :
     }
 
     [Fact]
+    public async Task Get_ArticleNotesAndRevisionAction_AreWiredToPresentation()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            "mysubs-presentation-notes@example.com", "Presentation Notes Fan", "google-mysubs-presentation-notes");
+        var revision = await SubmitArticleAsync(client, "Revision presentation article");
+        var rejected = await SubmitArticleAsync(client, "Rejected presentation article");
+        var repository = factory.Services.GetRequiredService<IArticleSubmissionRepository>();
+        await repository.UpdateStatusAsync(revision, ArticleSubmissionStatus.RequiresRevision, "admin@test.local",
+            "Add the source for the quotation.", "Do not show this older rejection reason.");
+        await repository.UpdateStatusAsync(rejected, ArticleSubmissionStatus.Rejected, "admin@test.local",
+            "Do not prefer the internal review note.", "The submission duplicates an existing article.");
+        var response = await client.GetAsync("/account/my-submissions?tab=articles");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Add the source for the quotation.", html);
+        Assert.Contains("The submission duplicates an existing article.", html);
+        Assert.Contains("Revise and resubmit", html);
+        Assert.Contains($"/submit/article/{revision:D}", html);
+        Assert.DoesNotContain("Do not show this older rejection reason.", html);
+        Assert.DoesNotContain("Do not prefer the internal review note.", html);
+    }
+
+    [Fact]
     public async Task Get_ArticleDraft_LinksToSubmitArticleIdPath()
     {
         var client = await CreateSignedInMemberClientAsync(

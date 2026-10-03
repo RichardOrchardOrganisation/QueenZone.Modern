@@ -50,7 +50,15 @@ public abstract class PhotoCategoryPageModel(PublicQueryCacheService publicQuery
             cancellationToken);
         var totalPages = PhotoRoutes.GetCategoryTotalPages(result.TotalCount);
 
-        if (totalPages == 0 ? page > 1 : page > totalPages)
+        // An empty size filter can be cleared on the current, existing collection page.
+        // Still reject URLs beyond the unfiltered collection rather than creating arbitrary pages.
+        var lastValidPage = totalPages;
+        if (result.TotalCount == 0 && SizeFilter.IsActive)
+        {
+            lastValidPage = PhotoRoutes.GetCategoryTotalPages(category.ImageCount);
+        }
+
+        if (page > Math.Max(1, lastValidPage))
         {
             return NotFound();
         }

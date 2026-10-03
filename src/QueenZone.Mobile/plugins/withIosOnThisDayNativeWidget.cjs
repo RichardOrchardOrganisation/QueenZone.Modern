@@ -135,11 +135,11 @@ struct OnThisDayNativeEntryView: View {
     if showQuote && quoteId > 0 {
       return URL(string: "queenzone://quotes/\\(quoteId)")
     }
-    if showDay && eventId > 0 {
-      return URL(string: "queenzone://timeline/\\(eventId)")
-    }
     if showQuote {
       return URL(string: "queenzone://home")
+    }
+    if eventId > 0 {
+      return URL(string: "queenzone://timeline/\\(eventId)")
     }
     return URL(string: "queenzone://timeline")
   }

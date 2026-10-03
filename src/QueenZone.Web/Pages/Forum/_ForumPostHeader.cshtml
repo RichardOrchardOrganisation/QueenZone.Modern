@@ -1,0 +1,36 @@
+@model ForumPostPresentation
+@{ var post = Model.Post; }
+          <header class="qz-forum-post__header">
+            @* Legacy archive posts have no AuthorMemberId; modern posts link to /members/{id}. *@
+            @if (Model.AuthorHref is not null)
+            {
+              <a class="qz-forum-post__author-link" href="@Model.AuthorHref" title="View @post.AuthorUsername's profile">
+                <partial name="_MemberAvatar" model="@(new MemberAvatarViewModel { DisplayName = post.AuthorUsername, MemberId = post.AuthorMemberId, Size = "sm" })" />
+              </a>
+            }
+            else
+            {
+              <partial name="_MemberAvatar" model="@(new MemberAvatarViewModel { DisplayName = post.AuthorUsername, Size = "sm" })" />
+            }
+            <div class="qz-forum-post__author-meta">
+              @if (Model.AuthorHref is not null)
+              {
+                <strong class="qz-forum-post__author"><a class="qz-forum-post__author-link" href="@Model.AuthorHref">@post.AuthorUsername</a></strong>
+              }
+              else
+              {
+                <strong class="qz-forum-post__author">@post.AuthorUsername</strong>
+              }
+              <span class="qz-meta qz-forum-post__meta-line">
+                <time datetime="@Model.PostedAtAttribute">@Model.PostedAtLabel</time>
+                @if (Model.HasMemberSince)
+                {
+                  <text> · Member since <time datetime="@Model.MemberSinceAttribute">@Model.MemberSinceLabel</time></text>
+                }
+                @if (Model.HasEditedLabel)
+                {
+                  <text> · <em>@post.EditedLabel</em></text>
+                }
+              </span>
+            </div>
+          </header>

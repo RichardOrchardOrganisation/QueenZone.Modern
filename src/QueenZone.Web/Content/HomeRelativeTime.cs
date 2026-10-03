@@ -41,6 +41,33 @@ public static class HomeRelativeTime
         return then.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Admin dashboard wording, preserved when moving its formatting out of Razor.</summary>
+    public static string FormatAdmin(DateTime utc, DateTimeOffset now)
+    {
+        var difference = now.UtcDateTime - DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+        if (difference.TotalMinutes < 2)
+        {
+            return "just now";
+        }
+        if (difference.TotalMinutes < 60)
+        {
+            return $"{(int)difference.TotalMinutes} mins ago";
+        }
+        if (difference.TotalHours < 2)
+        {
+            return "1 hour ago";
+        }
+        if (difference.TotalHours < 24)
+        {
+            return $"{(int)difference.TotalHours} hours ago";
+        }
+        if (difference.TotalDays < 2)
+        {
+            return "yesterday";
+        }
+        return $"{(int)difference.TotalDays} days ago";
+    }
+
     public static bool IsLive(DateTime value, DateTimeOffset now) =>
         now.UtcDateTime - DateTime.SpecifyKind(value, DateTimeKind.Utc) < LiveWindow;
 }
