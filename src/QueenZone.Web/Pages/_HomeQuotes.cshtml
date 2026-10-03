@@ -1,0 +1,14 @@
+@model QueenZone.Web.Pages.IndexModel
+      @if (Model.FeaturedQuotes.Count > 0)
+      {
+        <section class="qz-home-quotes" aria-labelledby="home-quotes-heading">
+          <h2 id="home-quotes-heading" class="qz-home-quotes__heading">Queen quote</h2>
+          @foreach (var quote in Model.FeaturedQuotes)
+          {
+            <figure class="qz-home-quotes__item">
+              <blockquote>&ldquo;@quote.Text&rdquo;</blockquote>
+              <figcaption>&mdash; @quote.WhoSaid</figcaption>
+            </figure>
+          }
+        </section>
+      }

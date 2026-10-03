@@ -1,0 +1,12 @@
+@model QueenZone.Web.Pages.IndexModel
+      <div class="qz-home-quiz-callout" id="quiz-callout">
+        <div class="qz-home-quiz-callout__copy">
+          <p class="qz-home-eyebrow qz-home-eyebrow--gold">The daily challenge &middot; 60 seconds</p>
+          <h2 class="qz-home-quiz-callout__title">How well do you know Queen?</h2>
+          <p class="qz-home-quiz-callout__body">A new sixty-second quiz every day, drawn from the archive. Build a streak and claim a place on today's leaderboard.@HomePresentation.SprintPlayersNote(Model.SprintBoard.Players)</p>
+        </div>
+        <div class="qz-home-quiz-callout__actions">
+          <a class="qz-button qz-button--cta" href="/quizzes/sprint">Play the sprint</a>
+          <a class="qz-home-quiz-callout__link" href="/quizzes/leaderboard">Today's leaderboard &rarr;</a>
+        </div>
+      </div>
