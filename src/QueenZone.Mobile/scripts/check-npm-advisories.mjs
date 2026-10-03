@@ -456,6 +456,54 @@ function runSelfTest() {
     );
   });
 
+  const bracesRow = {
+    ...validRow,
+    ghsa: 'GHSA-vfj7-8cjw-p6xm',
+    package: 'braces',
+    via: 'micromatch@4.0.8',
+    expires: '2026-10-17',
+  };
+  const bracesAudit = {
+    vulnerabilities: {
+      braces: {
+        severity: 'high',
+        via: [{
+          name: 'braces',
+          severity: 'high',
+          url: 'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',
+        }],
+      },
+    },
+  };
+
+  assert('braces exception valid through final UTC day', () => {
+    const result = evaluatePolicy({
+      audit: bracesAudit,
+      allowlist: { advisories: [bracesRow] },
+      now: new Date('2026-10-17T23:59:59.999Z'),
+    });
+    if (!result.ok) throw new Error(result.failures.join(' '));
+  });
+
+  assert('braces exception rejects at next UTC midnight', () => {
+    expectThrow(() => evaluatePolicy({
+      audit: bracesAudit,
+      allowlist: { advisories: [bracesRow] },
+      now: new Date('2026-10-18T00:00:00.000Z'),
+    }), /Expired allowlist entry GHSA-VFJ7-8CJW-P6XM/);
+  });
+
+  assert('braces exception does not allow another high advisory', () => {
+    const result = evaluatePolicy({
+      audit: highAudit,
+      allowlist: { advisories: [bracesRow] },
+      now: new Date('2026-10-03T00:00:00.000Z'),
+    });
+    if (result.ok || !result.failures.some((failure) => failure.includes('GHSA-W3RX-R6R6-PGPR'))) {
+      throw new Error('Unrelated high advisory must remain blocked.');
+    }
+  });
+
   assert('malformed allowlist missing field fails', () => {
     const { expires, ...rest } = validRow;
     expectThrow(() => validateAllowlist({ advisories: [rest] }, now), /expires is required/);
