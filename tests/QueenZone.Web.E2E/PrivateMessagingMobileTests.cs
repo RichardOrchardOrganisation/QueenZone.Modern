@@ -51,6 +51,29 @@ public class PrivateMessagingMobileTests : E2EPageTest
         await ExpectNoHorizontalOverflowAsync();
     }
 
+    [TestCase(false, "Choose a recipient.")]
+    [TestCase(true, "No members matched that name.")]
+    public async Task MobileCompose_RecipientResolutionErrorsAreVisible(bool unknownRecipient, string error)
+    {
+        await Page.GotoAsync("/messages/compose");
+        // Exercise the server's rejection path even though the normal UI first selects a recipient.
+        await Page.EvaluateAsync("""
+            query => {
+                const form = Array.from(document.forms).find(form => form.method === 'post' && new URL(form.action).pathname === '/messages/compose');
+                for (const [name, value] of Object.entries({ 'Input.RecipientQuery': query, 'Input.Body': 'Rejected message' })) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    form.append(input);
+                }
+                form.requestSubmit();
+            }
+            """, unknownRecipient ? $"Missing member {Guid.NewGuid():N}" : "");
+        await Expect(Page.GetByText(error, new() { Exact = true })).ToBeVisibleAsync();
+        await ExpectNoHorizontalOverflowAsync();
+    }
+
     private Task ExpectNoHorizontalOverflowAsync() =>
         PageShapeAssertions.AssertNoHorizontalOverflowAsync(Page, Page.Url);
 }

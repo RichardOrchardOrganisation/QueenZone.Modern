@@ -92,20 +92,20 @@ public sealed class ComposeModel(
                 }
                 else if (RecipientMatches.Count == 0)
                 {
-                    ModelState.AddModelError(nameof(Input.RecipientQuery), "No members matched that name.");
+                    ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.RecipientQuery)}", "No members matched that name.");
                     return Page();
                 }
                 else
                 {
                     ModelState.AddModelError(
-                        nameof(Input.RecipientQuery),
+                        $"{nameof(Input)}.{nameof(Input.RecipientQuery)}",
                         "Multiple members matched. Select one from the list.");
                     return Page();
                 }
             }
             else
             {
-                ModelState.AddModelError(nameof(Input.RecipientQuery), "Choose a recipient.");
+                ModelState.AddModelError($"{nameof(Input)}.{nameof(Input.RecipientQuery)}", "Choose a recipient.");
                 return Page();
             }
         }

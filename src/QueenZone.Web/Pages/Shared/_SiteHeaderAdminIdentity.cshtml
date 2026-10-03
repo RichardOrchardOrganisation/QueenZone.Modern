@@ -1,0 +1,8 @@
+@model SiteHeaderViewModel
+      @if (Model.ShowAdminNav)
+      {
+        <a class="qz-masthead__admin-link" href="/admin" aria-current="@(Model.IsActive("/admin") ? "page" : null)">Admin</a>
+        <span class="qz-masthead__admin-status" title="@Model.AdminEmail">
+          Admin access@(Model.AdminEmail is not null ? $": {Model.AdminEmail}" : "")
+        </span>
+      }

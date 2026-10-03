@@ -13,8 +13,6 @@
 
   @if (Model.NoAccountAuthor is not null)
   {
-    var hideConfirmMessage = System.Text.Json.JsonSerializer.Serialize(
-      $"Hide all posts and threads started by {Model.NoAccountAuthor.DisplayName}? Other people's posts stay.");
     <section class="admin-form">
       <h2>@Model.NoAccountAuthor.DisplayName</h2>
       <p>No member account. <strong>@Model.NoAccountAuthor.PostCount</strong> posts and <strong>@Model.NoAccountAuthor.ThreadCount</strong> started threads match this exact display name.</p>
@@ -28,7 +26,7 @@
       }
       else
       {
-        <form method="post" action="/admin/members/forum-author/Hide" onsubmit="return confirm(@hideConfirmMessage);">
+        <form method="post" action="/admin/members/forum-author/Hide" onsubmit="return confirm(@Model.HideAuthorConfirmMessageJson);">
           @Html.AntiForgeryToken()
           <input type="hidden" name="DisplayName" value="@Model.NoAccountAuthor.DisplayName" />
           <button type="submit" class="qz-button qz-button--danger">Hide all posts and threads</button>
