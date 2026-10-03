@@ -1,0 +1,9 @@
+@model EditModel
+@using QueenZone.Storage
+@{ var f = Model.Form; }
+    <fieldset class="qz-fieldset"><legend class="qz-legend">Content</legend>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.Title">Title</label><input class="qz-input" asp-for="Form.Title" maxlength="300" required /></div>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.Slug">Slug</label><input class="qz-input" asp-for="Form.Slug" maxlength="300" /></div>
+      <div class="qz-field"><label class="qz-label" asp-for="Form.Excerpt">Excerpt</label><textarea class="qz-input" asp-for="Form.Excerpt" maxlength="500" rows="3" required></textarea></div>
+      <partial name="_RichTextEditor" />
+    </fieldset>
