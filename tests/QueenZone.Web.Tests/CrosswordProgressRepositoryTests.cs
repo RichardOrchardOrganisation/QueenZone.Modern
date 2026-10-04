@@ -18,7 +18,7 @@ public sealed class CrosswordProgressRepositoryTests
     {
         Assert.Null(await repository.GetAsync(puzzle.Id, Member));
         var blank = CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid);
-        var first = new CrosswordProgressWrite(blank.ToLowerInvariant(), 12, [], false, clock.GetUtcNow());
+        var first = new CrosswordProgressWrite(blank.ToLowerInvariant(), 12, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
         var saved = await repository.SaveAsync(puzzle.Id, Member, first);
         Assert.Equal(blank, saved.Letters);
         Assert.Equal(clock.GetUtcNow(), saved.StartedAt);
@@ -46,9 +46,9 @@ public sealed class CrosswordProgressRepositoryTests
     {
         var grid = puzzle.Seed.Grid;
         var cells = CrosswordPlayRules.SelectCells(grid, new("grid"));
-        await repository.MarkAssistanceAsync(puzzle.Id, Member, [cells[0]], false);
-        await repository.MarkAssistanceAsync(puzzle.Id, Member, [cells[1], cells[0]], true);
-        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(grid), 120, [], false, clock.GetUtcNow());
+        await repository.MarkAssistanceAsync(puzzle.Id, Member, [cells[0]], false, puzzle.PlayVersion);
+        await repository.MarkAssistanceAsync(puzzle.Id, Member, [cells[1], cells[0]], true, puzzle.PlayVersion);
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(grid), 120, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
         await repository.SaveAsync(puzzle.Id, Member, write);
         clock.Advance(TimeSpan.FromSeconds(1));
         var stale = write with { UpdatedAt = write.UpdatedAt.AddSeconds(-1), RevealedCells = [cells[2]] };
@@ -71,7 +71,7 @@ public sealed class CrosswordProgressRepositoryTests
     [InlineData(true)]
     public Task Server_checks_completion_and_first_success_is_immutable(bool ef) => Run(ef, async (repository, _, clock, puzzle) =>
     {
-        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, clock.GetUtcNow());
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
         var wrong = await repository.CompleteAsync(puzzle.Id, Member, write);
         Assert.False(wrong.Correct);
         Assert.Null(wrong.Completion);
@@ -89,7 +89,7 @@ public sealed class CrosswordProgressRepositoryTests
             write with { ElapsedSeconds = 200, UpdatedAt = clock.GetUtcNow(), AutoCheckUsed = true });
         Assert.Equal(result.Completion, replay.Completion);
         await repository.SaveAsync(puzzle.Id, Member, write with { UpdatedAt = clock.GetUtcNow() });
-        await repository.MarkAssistanceAsync(puzzle.Id, Member, [], true);
+        await repository.MarkAssistanceAsync(puzzle.Id, Member, [], true, puzzle.PlayVersion);
         Assert.Equivalent(saved, await repository.GetAsync(puzzle.Id, Member));
         Assert.Single(await repository.GetCompletionsAsync(null, Member));
         Assert.Single(await repository.GetCompletionsAsync(puzzle.Id, null));
@@ -102,7 +102,7 @@ public sealed class CrosswordProgressRepositoryTests
     public Task Stale_correct_submission_cannot_complete_a_newer_incorrect_grid(bool ef) => Run(ef, async (repository, _, clock, puzzle) =>
     {
         var originalTime = clock.GetUtcNow();
-        var latest = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, originalTime.AddSeconds(1));
+        var latest = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, originalTime.AddSeconds(1), puzzle.PlayVersion);
         await repository.SaveAsync(puzzle.Id, Member, latest);
         var result = await repository.CompleteAsync(puzzle.Id, Member,
             latest with { Letters = string.Concat(puzzle.Seed.Grid.Rows), UpdatedAt = originalTime });
@@ -118,7 +118,7 @@ public sealed class CrosswordProgressRepositoryTests
     public Task Implausible_time_completes_but_is_excluded_from_ranking(bool ef, int seconds, bool ranked) => Run(ef, async (repository, _, clock, puzzle) =>
     {
         var result = await repository.CompleteAsync(puzzle.Id, Member,
-            new(string.Concat(puzzle.Seed.Grid.Rows), seconds, [], false, clock.GetUtcNow()));
+            new(string.Concat(puzzle.Seed.Grid.Rows), seconds, [], false, clock.GetUtcNow(), puzzle.PlayVersion));
         Assert.True(result.Correct);
         Assert.True(result.Completion!.Clean);
         Assert.Equal(ranked, result.Completion.RankingEligible);
@@ -129,13 +129,13 @@ public sealed class CrosswordProgressRepositoryTests
     [InlineData(true)]
     public Task Invalid_input_does_not_create_or_change_progress(bool ef) => Run(ef, async (repository, _, clock, puzzle) =>
     {
-        var valid = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 0, [], false, clock.GetUtcNow());
+        var valid = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 0, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
         await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(puzzle.Id, Guid.Empty, valid));
         await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(puzzle.Id, Member, valid with { ElapsedSeconds = -1 }));
         await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(puzzle.Id, Member, valid with { UpdatedAt = DateTimeOffset.MinValue }));
         await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(puzzle.Id, Member, valid with { Letters = "ABC" }));
         await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(puzzle.Id, Member, valid with { RevealedCells = [999] }));
-        await Assert.ThrowsAsync<ArgumentException>(() => repository.MarkAssistanceAsync(puzzle.Id, Member, Enumerable.Repeat(0, 226).ToArray(), false));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.MarkAssistanceAsync(puzzle.Id, Member, Enumerable.Repeat(0, 226).ToArray(), false, puzzle.PlayVersion));
         await Assert.ThrowsAsync<ArgumentNullException>(() => repository.SaveAsync(puzzle.Id, Member, null!));
         await Assert.ThrowsAsync<ArgumentNullException>(() => repository.SaveAsync(puzzle.Id, Member, valid with { RevealedCells = null! }));
         Assert.Null(await repository.GetAsync(puzzle.Id, Member));
@@ -150,7 +150,7 @@ public sealed class CrosswordProgressRepositoryTests
     [InlineData(true)]
     public Task Changed_grid_rejects_old_progress_without_erasing_it_or_completed_results(bool ef) => Run(ef, async (repository, catalog, clock, puzzle) =>
     {
-        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, clock.GetUtcNow());
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
         await repository.SaveAsync(puzzle.Id, Other, write);
         var result = await repository.CompleteAsync(puzzle.Id, Member, write with { Letters = string.Concat(puzzle.Seed.Grid.Rows) });
         await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Draft, null, puzzle.RowVersion, "editor");
@@ -167,9 +167,33 @@ public sealed class CrosswordProgressRepositoryTests
         draft = (await catalog.GetByIdAsync(puzzle.Id))!;
         await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Published, null, draft.RowVersion, "editor");
         await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.SaveAsync(puzzle.Id, Other, write));
-        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.MarkAssistanceAsync(puzzle.Id, Other, [], true));
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.MarkAssistanceAsync(puzzle.Id, Other, [], true, puzzle.PlayVersion));
         Assert.Equal(write.Letters, (await repository.GetAsync(puzzle.Id, Other))!.Letters);
         Assert.Equal(result.Completion, Assert.Single(await repository.GetCompletionsAsync(puzzle.Id, Member)));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Editorial_text_changes_preserve_version_and_allow_existing_progress(bool ef) => Run(ef, async (repository, catalog, clock, puzzle) =>
+    {
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
+        await repository.SaveAsync(puzzle.Id, Member, write);
+        await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Draft, null, puzzle.RowVersion, "editor");
+        var draft = (await catalog.GetByIdAsync(puzzle.Id))!;
+        var changed = draft.Seed with
+        {
+            Title = "Edited title",
+            Grid = draft.Seed.Grid with { Clues = draft.Seed.Grid.Clues.Select(clue => clue with { Clue = clue.Clue + " updated", Explanation = "Updated fact" }).ToArray() }
+        };
+        await catalog.SaveDraftAsync(puzzle.Id, changed, draft.RowVersion, "editor");
+        draft = (await catalog.GetByIdAsync(puzzle.Id))!;
+        Assert.NotEqual(Guid.Empty, draft.PlayVersion);
+        Assert.Equal(puzzle.PlayVersion, draft.PlayVersion);
+        await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Published, null, draft.RowVersion, "editor");
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var saved = await repository.SaveAsync(puzzle.Id, Member, write with { UpdatedAt = clock.GetUtcNow() });
+        Assert.Equal(puzzle.PlayVersion, saved.PlayVersion);
     });
 
     private static async Task Run(bool ef, Func<ICrosswordProgressRepository, ICrosswordCatalogRepository, FakeTimeProvider, CrosswordCatalogItem, Task> scenario)

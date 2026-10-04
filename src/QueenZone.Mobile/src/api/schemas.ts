@@ -73,6 +73,7 @@ export const crosswordDetailSchema = crosswordListItemSchema.omit({ publishedAt:
   description: z.string(),
   style: z.enum(['american', 'british']),
   archived: z.boolean(),
+  playVersion: guid.optional(),
   blocks: z.array(z.boolean()).max(225),
   numbering: z.array(z.number().int().nonnegative()).max(225),
   clues: z.array(z.object({
@@ -92,19 +93,23 @@ const crosswordExplanationSchema = z.object({
   number: z.number().int().positive(), direction: z.enum(['across', 'down']), explanation: z.string().max(300),
 });
 export const crosswordCheckResultSchema = z.object({
+  playVersion: guid,
   cells: z.array(z.object({ index: crosswordCellIndex, status: z.enum(['correct', 'incorrect', 'empty']) })).max(225),
   explanations: z.array(crosswordExplanationSchema), complete: z.boolean(),
 });
 export const crosswordRevealResultSchema = z.object({
+  playVersion: guid,
   cells: z.array(z.object({ index: crosswordCellIndex, letter: z.string().regex(/^[A-Z]$/) })).max(225),
   explanations: z.array(crosswordExplanationSchema), clean: z.boolean(),
 });
 export const crosswordProgressSchema = z.object({
+  playVersion: guid,
   letters: z.string().max(225).regex(/^[A-Z.#]+$/), elapsedSeconds: z.number().int().nonnegative(),
   revealedCells: z.array(crosswordCellIndex).max(225), autoCheckUsed: z.boolean(),
   updatedAt: isoDateTime, startedAt: isoDateTime,
 });
 export const crosswordCompletionResultSchema = z.object({
+  playVersion: guid,
   correct: z.boolean(),
   completion: z.object({ elapsedSeconds: z.number().int().nonnegative(), clean: z.boolean(),
     rankingEligible: z.boolean(), completedAt: isoDateTime }).nullable(),

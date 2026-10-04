@@ -4,9 +4,9 @@ using QueenZone.Data.Entities;
 namespace QueenZone.Data;
 
 public sealed record CrosswordProgressWrite(string Letters, int ElapsedSeconds, IReadOnlyList<int> RevealedCells,
-    bool AutoCheckUsed, DateTimeOffset UpdatedAt);
+    bool AutoCheckUsed, DateTimeOffset UpdatedAt, Guid PlayVersion);
 public sealed record CrosswordProgress(Guid CrosswordId, string Letters, int ElapsedSeconds,
-    IReadOnlyList<int> RevealedCells, bool AutoCheckUsed, DateTimeOffset UpdatedAt, DateTimeOffset StartedAt);
+    IReadOnlyList<int> RevealedCells, bool AutoCheckUsed, DateTimeOffset UpdatedAt, DateTimeOffset StartedAt, Guid PlayVersion);
 public sealed record CrosswordCompletion(Guid CrosswordId, Guid MemberId, int ElapsedSeconds,
     bool Clean, bool RankingEligible, DateTimeOffset CompletedAt);
 public sealed record CrosswordCompletionResult(bool Correct, CrosswordCompletion? Completion);
@@ -26,7 +26,7 @@ public interface ICrosswordProgressRepository
     Task<CrosswordProgress> SaveAsync(Guid crosswordId, Guid memberId, CrosswordProgressWrite write,
         CancellationToken cancellationToken = default);
     Task MarkAssistanceAsync(Guid crosswordId, Guid memberId, IReadOnlyList<int> revealedCells, bool autoCheckUsed,
-        CancellationToken cancellationToken = default);
+        Guid playVersion, CancellationToken cancellationToken = default);
     Task<CrosswordCompletionResult> CompleteAsync(Guid crosswordId, Guid memberId, CrosswordProgressWrite write,
         CancellationToken cancellationToken = default);
 }
@@ -44,6 +44,7 @@ internal static class CrosswordProgressMapping
             Id = Guid.NewGuid(),
             CrosswordId = puzzle.Id,
             MemberId = memberId,
+            PlayVersion = puzzle.PlayVersion,
             GridFingerprint = CrosswordPlayRules.GridFingerprint(puzzle.Seed.Grid),
             Letters = CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid),
             RevealedCellsJson = "[]",
@@ -53,11 +54,11 @@ internal static class CrosswordProgressMapping
     }
 
     public static CrosswordProgress Read(CrosswordProgressEntity entity) => new(entity.CrosswordId, entity.Letters,
-        entity.ElapsedSeconds, RevealedCells(entity), entity.AutoCheckUsed, entity.UpdatedAt, entity.StartedAt);
+        entity.ElapsedSeconds, RevealedCells(entity), entity.AutoCheckUsed, entity.UpdatedAt, entity.StartedAt, entity.PlayVersion);
 
     public static void EnsureGrid(CrosswordProgressEntity entity, CrosswordCatalogItem puzzle)
     {
-        if (entity.GridFingerprint != CrosswordPlayRules.GridFingerprint(puzzle.Seed.Grid))
+        if (entity.PlayVersion != puzzle.PlayVersion || entity.GridFingerprint != CrosswordPlayRules.GridFingerprint(puzzle.Seed.Grid))
         {
             throw new OptimisticConcurrencyException("This crossword has changed. Reload before continuing.");
         }

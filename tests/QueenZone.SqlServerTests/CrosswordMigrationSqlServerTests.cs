@@ -28,7 +28,7 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
         db = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure()).Options);
         var operations = new AddCrosswords().UpOperations.Concat(new AddCrosswordDraftRows().UpOperations)
-            .Concat(new AddCrosswordProgress().UpOperations).ToArray();
+            .Concat(new AddCrosswordProgress().UpOperations).Concat(new AddCrosswordPlayVersions().UpOperations).ToArray();
         var commands = db.GetService<IMigrationsSqlGenerator>().Generate(operations, db.Model);
         foreach (var command in commands)
         {
@@ -127,16 +127,21 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
         var member = Guid.NewGuid();
         var repository = new EfCrosswordProgressRepository(db, TimeProvider.System, new());
         var now = DateTimeOffset.UtcNow;
-        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, now);
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, now, puzzle.PlayVersion);
+        Assert.NotEqual(Guid.Empty, puzzle.PlayVersion);
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(puzzle.Id, member, write with { PlayVersion = Guid.Empty }));
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.SaveAsync(puzzle.Id, member, write with { PlayVersion = Guid.NewGuid() }));
+        Assert.Null(await repository.GetAsync(puzzle.Id, member));
         await repository.SaveAsync(puzzle.Id, member, write);
         var originalVersion = (await db.CrosswordProgress.AsNoTracking().SingleAsync()).RowVersion;
         Assert.NotEmpty(originalVersion);
         var cell = CrosswordPlayRules.SelectCells(puzzle.Seed.Grid, new("grid"))[0];
-        await repository.MarkAssistanceAsync(puzzle.Id, member, [cell], true);
+        await repository.MarkAssistanceAsync(puzzle.Id, member, [cell], true, puzzle.PlayVersion);
         var assistedVersion = (await db.CrosswordProgress.AsNoTracking().SingleAsync()).RowVersion;
         Assert.False(originalVersion.SequenceEqual(assistedVersion));
         await repository.SaveAsync(puzzle.Id, member, write with { ElapsedSeconds = 1, UpdatedAt = now.AddSeconds(-1) });
         var saved = (await repository.GetAsync(puzzle.Id, member))!;
+        Assert.Equal(puzzle.PlayVersion, saved.PlayVersion);
         Assert.Equal(120, saved.ElapsedSeconds);
         Assert.Equal(new[] { cell }, saved.RevealedCells);
         Assert.True(saved.AutoCheckUsed);

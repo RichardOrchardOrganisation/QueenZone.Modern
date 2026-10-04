@@ -33,8 +33,8 @@ public sealed class EfCrosswordProgressRepository(QueenZoneDbContext db, TimePro
         MutateAsync(crosswordId, memberId, state => state.Save(write), cancellationToken);
 
     public async Task MarkAssistanceAsync(Guid crosswordId, Guid memberId, IReadOnlyList<int> revealedCells,
-        bool autoCheckUsed, CancellationToken cancellationToken = default) =>
-        await MutateAsync(crosswordId, memberId, state => { state.MarkAssistance(revealedCells, autoCheckUsed); return true; }, cancellationToken);
+        bool autoCheckUsed, Guid playVersion, CancellationToken cancellationToken = default) =>
+        await MutateAsync(crosswordId, memberId, state => { state.MarkAssistance(revealedCells, autoCheckUsed, playVersion); return true; }, cancellationToken);
 
     public Task<CrosswordCompletionResult> CompleteAsync(Guid crosswordId, Guid memberId, CrosswordProgressWrite write,
         CancellationToken cancellationToken = default) =>

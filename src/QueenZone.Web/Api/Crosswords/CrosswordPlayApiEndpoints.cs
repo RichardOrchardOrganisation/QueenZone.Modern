@@ -34,31 +34,33 @@ public static class CrosswordPlayApiEndpoints
         ICrosswordCatalogRepository catalog, ICrosswordProgressRepository progress, CancellationToken cancellationToken) =>
         WithPuzzleAsync(context, id, catalog, async puzzle =>
         {
+            CrosswordPlayRules.EnsureVersion(puzzle, request.PlayVersion);
             ArgumentNullException.ThrowIfNull(request.Selection);
             var selection = request.Selection.ToSelection();
             var letters = CrosswordPlayRules.ExpandLetters(puzzle.Seed.Grid, request.Letters, selection);
             var cells = CrosswordPlayRules.Check(puzzle.Seed.Grid, letters, selection);
             if (request.AutoCheck && await BearerMemberAsync(context) is { } member)
             {
-                await progress.MarkAssistanceAsync(id, member, [], true, cancellationToken);
+                await progress.MarkAssistanceAsync(id, member, [], true, request.PlayVersion, cancellationToken);
             }
             return Results.Ok(new CrosswordCheckResultDto(cells,
-                Explanations(puzzle.Seed.Grid, letters, []), CrosswordPlayRules.IsComplete(puzzle.Seed.Grid, letters)));
+                Explanations(puzzle.Seed.Grid, letters, []), CrosswordPlayRules.IsComplete(puzzle.Seed.Grid, letters), puzzle.PlayVersion));
         }, cancellationToken);
 
     private static Task<IResult> RevealAsync(HttpContext context, Guid id, CrosswordRevealRequestDto request,
         ICrosswordCatalogRepository catalog, ICrosswordProgressRepository progress, CancellationToken cancellationToken) =>
         WithPuzzleAsync(context, id, catalog, async puzzle =>
         {
+            CrosswordPlayRules.EnsureVersion(puzzle, request.PlayVersion);
             ArgumentNullException.ThrowIfNull(request.Selection);
             var cells = CrosswordPlayRules.Reveal(puzzle.Seed.Grid, request.Selection.ToSelection());
             var indices = cells.Select(cell => cell.Index).ToArray();
             if (await BearerMemberAsync(context) is { } member)
             {
-                await progress.MarkAssistanceAsync(id, member, indices, false, cancellationToken);
+                await progress.MarkAssistanceAsync(id, member, indices, false, request.PlayVersion, cancellationToken);
             }
             return Results.Ok(new CrosswordRevealResultDto(cells,
-                Explanations(puzzle.Seed.Grid, CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), indices), false));
+                Explanations(puzzle.Seed.Grid, CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), indices), false, puzzle.PlayVersion));
         }, cancellationToken);
 
     private static Task<IResult> GetProgressAsync(HttpContext context, Guid id, ICrosswordCatalogRepository catalog,
@@ -83,7 +85,7 @@ public static class CrosswordPlayApiEndpoints
                 completed.Clean, completed.RankingEligible, completed.CompletedAt) : null;
             IReadOnlyList<CrosswordAnswerReviewDto> review = result.Correct ? puzzle.Seed.Grid.Clues.Select(clue =>
                 new CrosswordAnswerReviewDto(clue.Number, Direction(clue.Direction), clue.Answer, clue.Explanation)).ToArray() : [];
-            return Results.Ok(new CrosswordCompletionResultDto(result.Correct, completion, review));
+            return Results.Ok(new CrosswordCompletionResultDto(result.Correct, completion, review, puzzle.PlayVersion));
         }, cancellationToken);
 
     private static async Task<IResult> WithPuzzleAsync(HttpContext context, Guid id, ICrosswordCatalogRepository catalog,
@@ -94,8 +96,22 @@ public static class CrosswordPlayApiEndpoints
         {
             var puzzle = await catalog.GetByIdAsync(id, cancellationToken);
             var now = (context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow();
-            return puzzle is null || !CrosswordVisibility.IsPlayable(puzzle, now)
-                ? ApiV1EndpointHelpers.NotFound("No playable crossword with that id.") : await action(puzzle);
+            if (puzzle is null || !CrosswordVisibility.IsPlayable(puzzle, now))
+            {
+                return ApiV1EndpointHelpers.NotFound("No playable crossword with that id.");
+            }
+            var result = await action(puzzle);
+            var latest = await catalog.GetByIdAsync(id, cancellationToken);
+            if (latest is null || !CrosswordVisibility.IsPlayable(latest,
+                    (context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow()))
+            {
+                return ApiV1EndpointHelpers.NotFound("No playable crossword with that id.");
+            }
+            if (latest.PlayVersion != puzzle.PlayVersion)
+            {
+                throw new OptimisticConcurrencyException("Crossword changed while processing the request.");
+            }
+            return result;
         }
         catch (ArgumentException exception)
         {
@@ -127,7 +143,7 @@ public static class CrosswordPlayApiEndpoints
     }
 
     private static CrosswordProgressDto ToDto(CrosswordProgress progress) => new(progress.Letters,
-        progress.ElapsedSeconds, progress.RevealedCells, progress.AutoCheckUsed, progress.UpdatedAt, progress.StartedAt);
+        progress.ElapsedSeconds, progress.RevealedCells, progress.AutoCheckUsed, progress.UpdatedAt, progress.StartedAt, progress.PlayVersion);
 
     private static IReadOnlyList<CrosswordExplanationDto> Explanations(CrosswordGrid grid, string letters, IReadOnlyList<int> revealed) =>
         CrosswordPlayRules.GetExplanations(grid, letters, revealed).Select(item =>

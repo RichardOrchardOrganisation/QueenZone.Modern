@@ -16,13 +16,13 @@ export function fetchCrosswordsPage(query: PageQuery & { accessToken?: string | 
 type PlayOptions = { signal?: AbortSignal; accessToken?: string | null };
 function path(id: string, action: string): string { return `/crosswords/${encodeURIComponent(id)}/${action}`; }
 
-export function checkCrossword(id: string, letters: string, selection: CrosswordSelection,
+export function checkCrossword(id: string, playVersion: string, letters: string, selection: CrosswordSelection,
   autoCheck = false, options: PlayOptions = {}): Promise<CrosswordCheckResult> {
-  return sendJson(path(id, 'check'), { ...options, body: { letters, selection, autoCheck } });
+  return sendJson(path(id, 'check'), { ...options, body: { letters, selection, autoCheck, playVersion } });
 }
 
-export function revealCrossword(id: string, selection: CrosswordSelection, options: PlayOptions = {}): Promise<CrosswordRevealResult> {
-  return sendJson(path(id, 'reveal'), { ...options, body: { selection } });
+export function revealCrossword(id: string, playVersion: string, selection: CrosswordSelection, options: PlayOptions = {}): Promise<CrosswordRevealResult> {
+  return sendJson(path(id, 'reveal'), { ...options, body: { selection, playVersion } });
 }
 
 export function fetchCrosswordProgress(id: string, accessToken: string, signal?: AbortSignal): Promise<CrosswordProgress | undefined> {

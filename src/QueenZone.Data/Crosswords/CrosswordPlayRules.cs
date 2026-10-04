@@ -12,6 +12,18 @@ public sealed record CrosswordEntryExplanation(int Number, CrosswordDirection Di
 /// <summary>Server-only solution operations. Public puzzle DTOs must never contain the grid passed here.</summary>
 public static class CrosswordPlayRules
 {
+    public static void EnsureVersion(CrosswordCatalogItem puzzle, Guid expected)
+    {
+        if (expected == Guid.Empty)
+        {
+            throw new ArgumentException("A play version from the current puzzle is required.", nameof(expected));
+        }
+        if (expected != puzzle.PlayVersion)
+        {
+            throw new OptimisticConcurrencyException("This crossword has changed. Reload before continuing.");
+        }
+    }
+
     public static string NormalizeLetters(CrosswordGrid grid, string letters)
     {
         ArgumentNullException.ThrowIfNull(letters);

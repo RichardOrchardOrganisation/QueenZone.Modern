@@ -64,6 +64,11 @@ internal static class CrosswordCatalogMapping
 
     public static void Apply(CrosswordEntity entity, CrosswordSeed seed, string actor, DateTimeOffset now)
     {
+        var rows = JsonSerializer.Serialize(seed.Grid.Rows);
+        if (entity.Width != seed.Grid.Width || entity.Height != seed.Grid.Height || entity.SolutionRowsJson != rows)
+        {
+            entity.PlayVersion = Guid.NewGuid();
+        }
         entity.Slug = seed.Slug;
         entity.Title = seed.Title;
         entity.Description = seed.Description;
@@ -72,7 +77,7 @@ internal static class CrosswordCatalogMapping
         entity.Width = seed.Grid.Width;
         entity.Height = seed.Grid.Height;
         entity.BlockMask = string.Concat(seed.Grid.Rows).ReplaceLettersWithWhiteCells();
-        entity.SolutionRowsJson = JsonSerializer.Serialize(seed.Grid.Rows);
+        entity.SolutionRowsJson = rows;
         entity.UpdatedAt = now;
         entity.UpdatedByEmail = actor;
         var runs = CrosswordGridValidator.Validate(seed.Grid).Runs;
@@ -104,7 +109,7 @@ internal static class CrosswordCatalogMapping
                     entry.Enumeration, entry.Explanation)).ToArray());
         return new(entity.Id, new(entity.Slug, entity.Title, entity.Description, entity.Difficulty, entity.Style, grid),
             entity.Status, entity.PublishAt, entity.PublishedAt, entity.CreatedAt, entity.CreatedByMemberId,
-            entity.UpdatedAt, entity.UpdatedByEmail, entity.RowVersion.ToArray());
+            entity.UpdatedAt, entity.UpdatedByEmail, entity.RowVersion.ToArray(), entity.PlayVersion);
     }
 
     private static string ReplaceLettersWithWhiteCells(this string rows) =>

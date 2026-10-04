@@ -23,7 +23,7 @@ public sealed class CrosswordPlayApiTests
         var root = Root(puzzle);
         var run = CrosswordGridValidator.Validate(puzzle.Seed.Grid).Runs[0];
         var selection = new CrosswordSelectionDto("entry", Number: run.Number, Direction: Direction(run.Direction));
-        var checkedResponse = await client.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(run.Answer.ToLowerInvariant(), selection));
+        var checkedResponse = await client.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(run.Answer.ToLowerInvariant(), selection, puzzle.PlayVersion));
         Assert.Equal(HttpStatusCode.OK, checkedResponse.StatusCode);
         Assert.True(checkedResponse.Headers.CacheControl?.NoStore);
         var check = (await checkedResponse.Content.ReadFromJsonAsync<CrosswordCheckResultDto>())!;
@@ -31,7 +31,7 @@ public sealed class CrosswordPlayApiTests
         Assert.DoesNotContain(run.Answer, await checkedResponse.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.False(check.Complete);
         Assert.Contains(check.Explanations, clue => clue.Number == run.Number && clue.Direction == Direction(run.Direction));
-        var reveal = (await (await client.PostAsJsonAsync(root + "/reveal", new CrosswordRevealRequestDto(selection)))
+        var reveal = (await (await client.PostAsJsonAsync(root + "/reveal", new CrosswordRevealRequestDto(selection, puzzle.PlayVersion)))
             .Content.ReadFromJsonAsync<CrosswordRevealResultDto>())!;
         Assert.Equal(run.Answer, string.Concat(reveal.Cells.Select(cell => cell.Letter)));
         Assert.False(reveal.Clean);
@@ -54,11 +54,11 @@ public sealed class CrosswordPlayApiTests
         Assert.Equal(HttpStatusCode.NoContent, (await member.GetAsync(root + "/progress")).StatusCode);
         var cells = CrosswordPlayRules.SelectCells(puzzle.Seed.Grid, new("grid"));
         Assert.Equal(HttpStatusCode.OK, (await member.PostAsJsonAsync(root + "/reveal",
-            new CrosswordRevealRequestDto(new("cell", cells[0])))).StatusCode);
+            new CrosswordRevealRequestDto(new("cell", cells[0]), puzzle.PlayVersion))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync(root + "/check",
-            new CrosswordCheckRequestDto("", new("entry", Number: 999, Direction: "down")))).StatusCode);
+            new CrosswordCheckRequestDto("", new("entry", Number: 999, Direction: "down"), puzzle.PlayVersion))).StatusCode);
         var write = Write(host, puzzle);
-        var checkedResponse = await member.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(write.Letters, new("grid"), true));
+        var checkedResponse = await member.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(write.Letters, new("grid"), puzzle.PlayVersion, true));
         Assert.Equal(HttpStatusCode.OK, checkedResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await member.PutAsJsonAsync(root + "/progress", write)).StatusCode);
         var saved = (await member.GetFromJsonAsync<CrosswordProgressDto>(root + "/progress"))!;
@@ -123,12 +123,12 @@ public sealed class CrosswordPlayApiTests
         var root = Root(puzzle);
         var requests = new[]
         {
-            new CrosswordCheckRequestDto("", new("bad")),
-            new CrosswordCheckRequestDto("A", new("cell", -1)),
-            new CrosswordCheckRequestDto("A", new("entry", Number: 1, Direction: "diagonal")),
-            new CrosswordCheckRequestDto("?", new("cell", CrosswordPlayRules.SelectCells(puzzle.Seed.Grid, new("grid"))[0])),
-            new CrosswordCheckRequestDto("ABC", new("grid")),
-            new CrosswordCheckRequestDto("ABC", null!)
+            new CrosswordCheckRequestDto("", new("bad"), puzzle.PlayVersion),
+            new CrosswordCheckRequestDto("A", new("cell", -1), puzzle.PlayVersion),
+            new CrosswordCheckRequestDto("A", new("entry", Number: 1, Direction: "diagonal"), puzzle.PlayVersion),
+            new CrosswordCheckRequestDto("?", new("cell", CrosswordPlayRules.SelectCells(puzzle.Seed.Grid, new("grid"))[0]), puzzle.PlayVersion),
+            new CrosswordCheckRequestDto("ABC", new("grid"), puzzle.PlayVersion),
+            new CrosswordCheckRequestDto("ABC", null!, puzzle.PlayVersion)
         };
         foreach (var request in requests)
         {
@@ -139,7 +139,7 @@ public sealed class CrosswordPlayApiTests
         var invalid = await member.PutAsJsonAsync(root + "/progress", Write(host, puzzle) with { ElapsedSeconds = -1 });
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await member.GetAsync(root + "/progress")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync(root + "/reveal", new CrosswordRevealRequestDto(new("cell", 999)))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await member.PostAsJsonAsync(root + "/reveal", new CrosswordRevealRequestDto(new("cell", 999), puzzle.PlayVersion))).StatusCode);
     }
 
     [Fact]
@@ -151,11 +151,11 @@ public sealed class CrosswordPlayApiTests
         var root = Root(puzzle);
         var catalog = host.Services.GetRequiredService<ICrosswordCatalogRepository>();
         await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Archived, null, puzzle.RowVersion, "editor");
-        Assert.Equal(HttpStatusCode.OK, (await member.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(Write(host, puzzle).Letters, new("grid")))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await member.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(Write(host, puzzle).Letters, new("grid"), puzzle.PlayVersion))).StatusCode);
         var archived = (await catalog.GetByIdAsync(puzzle.Id))!;
         await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Draft, null, archived.RowVersion, "editor");
-        Assert.Equal(HttpStatusCode.NotFound, (await member.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(Write(host, puzzle).Letters, new("grid")))).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await member.PostAsJsonAsync(root + "/reveal", new CrosswordRevealRequestDto(new("grid")))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await member.PostAsJsonAsync(root + "/check", new CrosswordCheckRequestDto(Write(host, puzzle).Letters, new("grid"), puzzle.PlayVersion))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await member.PostAsJsonAsync(root + "/reveal", new CrosswordRevealRequestDto(new("grid"), puzzle.PlayVersion))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await member.PutAsJsonAsync(root + "/progress", Write(host, puzzle))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await member.PostAsJsonAsync(root + "/complete", Write(host, puzzle))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await member.GetAsync(root + "/progress")).StatusCode);
@@ -210,10 +210,86 @@ public sealed class CrosswordPlayApiTests
         Assert.Null(publicItem.ElapsedSeconds);
     }
 
+    [Theory]
+    [InlineData("check")]
+    [InlineData("reveal")]
+    [InlineData("progress")]
+    [InlineData("complete")]
+    public async Task Every_mutation_requires_current_version_even_without_existing_progress(string route)
+    {
+        await using var host = new PlayFactory();
+        var puzzle = await Publish(host);
+        using var member = Bearer(host, Member);
+        foreach (var version in new Guid?[] { null, Guid.Empty, Guid.NewGuid() })
+        {
+            var body = new Dictionary<string, object?>
+            {
+                ["letters"] = Write(host, puzzle).Letters,
+                ["selection"] = new CrosswordSelectionDto("grid"),
+                ["elapsedSeconds"] = 120,
+                ["revealedCells"] = Array.Empty<int>(),
+                ["autoCheckUsed"] = false,
+                ["autoCheck"] = true,
+                ["updatedAt"] = host.Clock.GetUtcNow()
+            };
+            if (version.HasValue) body["playVersion"] = version.Value;
+            using var response = route == "progress"
+                ? await member.PutAsJsonAsync(Root(puzzle) + "/" + route, body)
+                : await member.PostAsJsonAsync(Root(puzzle) + "/" + route, body);
+            Assert.Equal(version is null || version == Guid.Empty ? HttpStatusCode.BadRequest : HttpStatusCode.Conflict,
+                response.StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, (await member.GetAsync(Root(puzzle) + "/progress")).StatusCode);
+        }
+        var detail = (await member.GetFromJsonAsync<CrosswordDetailDto>(Root(puzzle)))!;
+        Assert.NotEqual(Guid.Empty, detail.PlayVersion);
+        Assert.Equal(puzzle.PlayVersion, detail.PlayVersion);
+    }
+
+    [Theory]
+    [InlineData("check")]
+    [InlineData("reveal")]
+    [InlineData("progress")]
+    [InlineData("complete")]
+    public async Task Edit_after_request_snapshot_rejects_stale_mutation_without_creating_progress(string route)
+    {
+        await using var host = new PlayFactory(race: true);
+        var puzzle = await Publish(host);
+        using var member = Bearer(host, Member);
+        var catalog = host.Services.GetRequiredService<InMemoryCrosswordCatalogRepository>();
+        host.Racing!.AfterSnapshot = async () =>
+        {
+            await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Draft, null, puzzle.RowVersion, "editor");
+            var draft = (await catalog.GetByIdAsync(puzzle.Id))!;
+            var changed = draft.Seed with
+            {
+                Grid = draft.Seed.Grid with
+                {
+                    Rows = draft.Seed.Grid.Rows.Select(row => row.Replace('A', 'Z')).ToArray(),
+                    Clues = draft.Seed.Grid.Clues.Select(clue => clue with { Answer = clue.Answer.Replace('A', 'Z') }).ToArray()
+                }
+            };
+            await catalog.SaveDraftAsync(puzzle.Id, changed, draft.RowVersion, "editor");
+            draft = (await catalog.GetByIdAsync(puzzle.Id))!;
+            await catalog.SetPublicationAsync(puzzle.Id, CrosswordStatus.Published, null, draft.RowVersion, "editor");
+        };
+        object body = route switch
+        {
+            "check" => new CrosswordCheckRequestDto(Write(host, puzzle).Letters, new("grid"), puzzle.PlayVersion),
+            "reveal" => new CrosswordRevealRequestDto(new("grid"), puzzle.PlayVersion),
+            _ => Write(host, puzzle) with { Letters = string.Concat(puzzle.Seed.Grid.Rows) }
+        };
+        using var response = route == "progress"
+            ? await member.PutAsJsonAsync(Root(puzzle) + "/" + route, body)
+            : await member.PostAsJsonAsync(Root(puzzle) + "/" + route, body);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await member.GetAsync(Root(puzzle) + "/progress")).StatusCode);
+        Assert.Empty(await host.Services.GetRequiredService<ICrosswordProgressRepository>().GetCompletionsAsync(puzzle.Id, Member));
+    }
+
     private static string Root(CrosswordCatalogItem puzzle) => CrosswordApiEndpoints.RootPath + "/" + puzzle.Id;
     private static string Direction(CrosswordDirection direction) => direction == CrosswordDirection.Across ? "across" : "down";
     private static CrosswordProgressRequestDto Write(PlayFactory host, CrosswordCatalogItem puzzle) =>
-        new(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, host.Clock.GetUtcNow());
+        new(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, host.Clock.GetUtcNow(), puzzle.PlayVersion);
 
     private static async Task<CrosswordCatalogItem> Publish(PlayFactory host)
     {
@@ -239,10 +315,35 @@ public sealed class CrosswordPlayApiTests
         return client;
     }
 
-    private sealed class PlayFactory : QueenZoneWebApplicationFactory
+    private sealed class PlayFactory(bool race = false) : QueenZoneWebApplicationFactory
     {
+        public RacingCatalog? Racing { get; private set; }
         public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
         protected override void ConfigureTestServices(IWebHostBuilder builder) =>
-            builder.ConfigureServices(services => services.AddSingleton<TimeProvider>(Clock));
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(Clock);
+                if (race) services.AddSingleton<ICrosswordCatalogRepository>(provider => Racing =
+                    new RacingCatalog(provider.GetRequiredService<InMemoryCrosswordCatalogRepository>()));
+            });
+    }
+
+    private sealed class RacingCatalog(ICrosswordCatalogRepository inner) : ICrosswordCatalogRepository
+    {
+        public Func<Task>? AfterSnapshot { get; set; }
+        public async Task<CrosswordCatalogItem?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var snapshot = await inner.GetByIdAsync(id, cancellationToken);
+            var callback = AfterSnapshot;
+            AfterSnapshot = null;
+            if (callback is not null) await callback();
+            return snapshot;
+        }
+        public Task<IReadOnlyList<CrosswordCatalogItem>> GetAllAsync(CancellationToken cancellationToken = default) => inner.GetAllAsync(cancellationToken);
+        public Task<IReadOnlyList<CrosswordAuditItem>> GetAuditAsync(Guid id, CancellationToken cancellationToken = default) => inner.GetAuditAsync(id, cancellationToken);
+        public Task<Guid> CreateDraftAsync(CrosswordSeed draft, Guid creatorId, string actor, CancellationToken cancellationToken = default) => inner.CreateDraftAsync(draft, creatorId, actor, cancellationToken);
+        public Task SaveDraftAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default) => inner.SaveDraftAsync(id, draft, expectedRowVersion, actor, cancellationToken);
+        public Task SetPublicationAsync(Guid id, CrosswordStatus status, DateTimeOffset? publishAt, byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default) => inner.SetPublicationAsync(id, status, publishAt, expectedRowVersion, actor, cancellationToken);
+        public Task<CrosswordImportResult> ImportAsync(IReadOnlyList<CrosswordSeed> seeds, Guid creatorId, string actor, bool publish = false, CancellationToken cancellationToken = default) => inner.ImportAsync(seeds, creatorId, actor, publish, cancellationToken);
     }
 }

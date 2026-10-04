@@ -13,7 +13,8 @@ public sealed record CrosswordCatalogItem(
     Guid CreatedByMemberId,
     DateTimeOffset UpdatedAt,
     string UpdatedByEmail,
-    byte[] RowVersion);
+    byte[] RowVersion,
+    Guid PlayVersion = default);
 
 public sealed record CrosswordImportResult(IReadOnlyList<string> Imported, IReadOnlyList<string> Skipped);
 

@@ -19,21 +19,22 @@ import {
 
 describe('parseContract', () => {
   it('validates crossword play status, cell bounds, letters and completion review independently of future fields', () => {
-    const check = { cells: [{ index: 0, status: 'correct' }], explanations: [], complete: false, futureField: true };
+    const playVersion = '11111111-2222-4333-8444-555555555555';
+    const check = { playVersion, cells: [{ index: 0, status: 'correct' }], explanations: [], complete: false, futureField: true };
     assert.ok(crosswordCheckResultSchema.safeParse(check).success);
     assert.ok(!crosswordCheckResultSchema.safeParse({ ...check, cells: [{ index: 225, status: 'correct' }] }).success);
     assert.ok(!crosswordCheckResultSchema.safeParse({ ...check, cells: [{ index: 0, status: 'unknown' }] }).success);
-    assert.ok(crosswordRevealResultSchema.safeParse({ cells: [{ index: 0, letter: 'A' }], explanations: [], clean: false }).success);
-    assert.ok(!crosswordRevealResultSchema.safeParse({ cells: [{ index: 0, letter: 'AB' }], explanations: [], clean: false }).success);
-    const progress = { letters: 'BRIAN.#', elapsedSeconds: 12, revealedCells: [0], autoCheckUsed: true,
+    assert.ok(crosswordRevealResultSchema.safeParse({ playVersion, cells: [{ index: 0, letter: 'A' }], explanations: [], clean: false }).success);
+    assert.ok(!crosswordRevealResultSchema.safeParse({ playVersion, cells: [{ index: 0, letter: 'AB' }], explanations: [], clean: false }).success);
+    const progress = { playVersion, letters: 'BRIAN.#', elapsedSeconds: 12, revealedCells: [0], autoCheckUsed: true,
       updatedAt: '2026-10-04T00:00:00Z', startedAt: '2026-10-04T00:00:00Z' };
     assert.ok(crosswordProgressSchema.safeParse(progress).success);
     assert.ok(!crosswordProgressSchema.safeParse({ ...progress, letters: 'private?' }).success);
     assert.ok(!crosswordProgressSchema.safeParse({ ...progress, elapsedSeconds: -1 }).success);
-    const completion = { correct: true, completion: { elapsedSeconds: 120, clean: false, rankingEligible: false,
+    const completion = { playVersion: progress.playVersion, correct: true, completion: { elapsedSeconds: 120, clean: false, rankingEligible: false,
       completedAt: progress.updatedAt }, review: [{ number: 1, direction: 'across', answer: 'BRIAN', explanation: null }] };
     assert.ok(crosswordCompletionResultSchema.safeParse(completion).success);
-    assert.ok(crosswordCompletionResultSchema.safeParse({ correct: false, completion: null, review: [] }).success);
+    assert.ok(crosswordCompletionResultSchema.safeParse({ playVersion: progress.playVersion, correct: false, completion: null, review: [] }).success);
     assert.ok(!crosswordCompletionResultSchema.safeParse({ ...completion, review: [{ ...completion.review[0], answer: 'two words' }] }).success);
   });
   it('rejects malformed crossword coordinates and mismatched grid arrays', () => {

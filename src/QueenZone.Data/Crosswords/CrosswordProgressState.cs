@@ -10,6 +10,8 @@ internal sealed class CrosswordProgressState(CrosswordCatalogItem puzzle, Guid m
 
     public CrosswordProgress Save(CrosswordProgressWrite write)
     {
+        ArgumentNullException.ThrowIfNull(write);
+        CrosswordPlayRules.EnsureVersion(puzzle, write.PlayVersion);
         write = CrosswordProgressMapping.Normalize(puzzle.Seed.Grid, write);
         CrosswordProgressMapping.EnsureGrid(Progress, puzzle);
         if (Completion is null)
@@ -19,8 +21,9 @@ internal sealed class CrosswordProgressState(CrosswordCatalogItem puzzle, Guid m
         return CrosswordProgressMapping.Read(Progress);
     }
 
-    public void MarkAssistance(IReadOnlyList<int> cells, bool autoCheckUsed)
+    public void MarkAssistance(IReadOnlyList<int> cells, bool autoCheckUsed, Guid playVersion)
     {
+        CrosswordPlayRules.EnsureVersion(puzzle, playVersion);
         cells = CrosswordProgressMapping.NormalizeReveals(puzzle.Seed.Grid, cells);
         CrosswordProgressMapping.EnsureGrid(Progress, puzzle);
         if (Completion is null)
@@ -31,6 +34,8 @@ internal sealed class CrosswordProgressState(CrosswordCatalogItem puzzle, Guid m
 
     public CrosswordCompletionResult Complete(CrosswordProgressWrite write, CrosswordRankingOptions options)
     {
+        ArgumentNullException.ThrowIfNull(write);
+        CrosswordPlayRules.EnsureVersion(puzzle, write.PlayVersion);
         write = CrosswordProgressMapping.Normalize(puzzle.Seed.Grid, write);
         if (Completion is not null)
         {

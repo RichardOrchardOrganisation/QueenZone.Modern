@@ -119,17 +119,19 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
   it('checks, reveals, restores progress and completes through the live crossword contract', async () => {
     const id = fixture.crosswordId;
     const detail = await fetchCrosswordDetail(id);
+    assert.ok(detail.playVersion);
+    const playVersion = detail.playVersion;
     const letters = detail.blocks.map(block => block ? '#' : '.').join('');
     const check = parseContract('POST crossword check', crosswordCheckResultSchema,
-      await checkCrossword(id, letters, { scope: 'grid' }));
+      await checkCrossword(id, playVersion, letters, { scope: 'grid' }));
     assert.equal(check.complete, false);
     assert.ok(check.cells.every(cell => cell.status === 'empty'));
     const reveal = parseContract('POST crossword reveal', crosswordRevealResultSchema,
-      await revealCrossword(id, { scope: 'grid' }, { accessToken: token }));
+      await revealCrossword(id, playVersion, { scope: 'grid' }, { accessToken: token }));
     assert.equal(reveal.clean, false);
     const filled = [...letters];
     for (const cell of reveal.cells) filled[cell.index] = cell.letter;
-    const write = { letters: filled.join(''), elapsedSeconds: 120, revealedCells: [], autoCheckUsed: false,
+    const write = { playVersion, letters: filled.join(''), elapsedSeconds: 120, revealedCells: [], autoCheckUsed: false,
       updatedAt: new Date().toISOString() };
     const saved = parseContract('PUT crossword progress', crosswordProgressSchema,
       await saveCrosswordProgress(id, write, token));

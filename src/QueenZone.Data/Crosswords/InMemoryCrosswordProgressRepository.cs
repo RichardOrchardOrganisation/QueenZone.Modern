@@ -2,7 +2,7 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-public sealed class InMemoryCrosswordProgressRepository(ICrosswordCatalogRepository catalog, TimeProvider clock,
+public sealed class InMemoryCrosswordProgressRepository(InMemoryCrosswordCatalogRepository catalog, TimeProvider clock,
     CrosswordRankingOptions options) : ICrosswordProgressRepository
 {
     private readonly object gate = new();
@@ -45,21 +45,16 @@ public sealed class InMemoryCrosswordProgressRepository(ICrosswordCatalogReposit
         MutateAsync(crosswordId, memberId, state => state.Save(write), cancellationToken);
 
     public async Task MarkAssistanceAsync(Guid crosswordId, Guid memberId, IReadOnlyList<int> revealedCells,
-        bool autoCheckUsed, CancellationToken cancellationToken = default) =>
-        await MutateAsync(crosswordId, memberId, state => { state.MarkAssistance(revealedCells, autoCheckUsed); return true; }, cancellationToken);
+        bool autoCheckUsed, Guid playVersion, CancellationToken cancellationToken = default) =>
+        await MutateAsync(crosswordId, memberId, state => { state.MarkAssistance(revealedCells, autoCheckUsed, playVersion); return true; }, cancellationToken);
 
     public Task<CrosswordCompletionResult> CompleteAsync(Guid crosswordId, Guid memberId, CrosswordProgressWrite write,
         CancellationToken cancellationToken = default) =>
         MutateAsync(crosswordId, memberId, state => state.Complete(write, options), cancellationToken);
 
-    private async Task<T> MutateAsync<T>(Guid crosswordId, Guid memberId, Func<CrosswordProgressState, T> action,
-        CancellationToken cancellationToken)
+    private Task<T> MutateAsync<T>(Guid crosswordId, Guid memberId, Func<CrosswordProgressState, T> action,
+        CancellationToken cancellationToken) => Task.FromResult(catalog.WithPlayablePuzzle(crosswordId, clock.GetUtcNow(), puzzle =>
     {
-        var puzzle = await catalog.GetByIdAsync(crosswordId, cancellationToken);
-        if (puzzle is null || !CrosswordVisibility.IsPlayable(puzzle, clock.GetUtcNow()))
-        {
-            throw new KeyNotFoundException("No playable crossword with that id.");
-        }
         lock (gate)
         {
             var key = (crosswordId, memberId);
@@ -74,5 +69,5 @@ public sealed class InMemoryCrosswordProgressRepository(ICrosswordCatalogReposit
             }
             return result;
         }
-    }
+    }));
 }

@@ -120,15 +120,16 @@ public static class QueenZoneDataServiceCollectionExtensions
 
     public static IServiceCollection AddQueenZoneInMemoryData(this IServiceCollection services)
     {
-        services.AddSingleton<ICrosswordCatalogRepository>(sp =>
+        services.AddSingleton<InMemoryCrosswordCatalogRepository>(sp =>
         {
             var catalog = new InMemoryCrosswordCatalogRepository(sp.GetService<TimeProvider>() ?? TimeProvider.System);
             catalog.ImportAsync(CrosswordSampleData.Load(), Guid.Empty, "sample-seed").GetAwaiter().GetResult();
             return catalog;
         });
+        services.AddSingleton<ICrosswordCatalogRepository>(sp => sp.GetRequiredService<InMemoryCrosswordCatalogRepository>());
         services.AddOptions<CrosswordRankingOptions>();
         services.AddSingleton<ICrosswordProgressRepository>(sp => new InMemoryCrosswordProgressRepository(
-            sp.GetRequiredService<ICrosswordCatalogRepository>(), sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<InMemoryCrosswordCatalogRepository>(), sp.GetService<TimeProvider>() ?? TimeProvider.System,
             sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CrosswordRankingOptions>>().Value));
         services.TryAddSingleton<SearchIndexRevision>();
         var store = new SharedNewsStore(SampleNewsData.CreateSeedArticles());

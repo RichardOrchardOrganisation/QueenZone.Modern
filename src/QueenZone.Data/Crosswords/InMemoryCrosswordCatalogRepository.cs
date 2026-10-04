@@ -8,6 +8,23 @@ public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICr
     private readonly Dictionary<Guid, CrosswordEntity> puzzles = [];
     private readonly Dictionary<Guid, List<CrosswordAuditItem>> audit = [];
 
+    internal T WithPlayablePuzzle<T>(Guid id, DateTimeOffset now, Func<CrosswordCatalogItem, T> action)
+    {
+        lock (gate)
+        {
+            if (!puzzles.TryGetValue(id, out var entity))
+            {
+                throw new KeyNotFoundException("No playable crossword with that id.");
+            }
+            var puzzle = CrosswordCatalogMapping.Read(entity);
+            if (!CrosswordVisibility.IsPlayable(puzzle, now))
+            {
+                throw new KeyNotFoundException("No playable crossword with that id.");
+            }
+            return action(puzzle);
+        }
+    }
+
     public Task<IReadOnlyList<CrosswordCatalogItem>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         lock (gate)

@@ -5,6 +5,8 @@ public enum CrosswordStatus { Draft, Scheduled, Published, Archived }
 public sealed class CrosswordEntity
 {
     public Guid Id { get; set; }
+    /// <summary>Public opaque identity for this grid/solution, stable across clue-only corrections.</summary>
+    public Guid PlayVersion { get; set; } = Guid.NewGuid();
     public string Slug { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";

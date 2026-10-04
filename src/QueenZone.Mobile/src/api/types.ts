@@ -53,6 +53,7 @@ export type CrosswordDetail = {
   width: number;
   height: number;
   archived: boolean;
+  playVersion?: string;
   blocks: boolean[];
   numbering: number[];
   clues: CrosswordPlayClue[];
@@ -61,16 +62,19 @@ export type CrosswordDetail = {
 export type CrosswordSelection = { scope: 'cell' | 'entry' | 'grid'; cell?: number; number?: number; direction?: 'across' | 'down' };
 export type CrosswordExplanation = { number: number; direction: 'across' | 'down'; explanation: string };
 export type CrosswordCheckResult = {
+  playVersion: string;
   cells: { index: number; status: 'correct' | 'incorrect' | 'empty' }[];
   explanations: CrosswordExplanation[];
   complete: boolean;
 };
 export type CrosswordRevealResult = {
+  playVersion: string;
   cells: { index: number; letter: string }[];
   explanations: CrosswordExplanation[];
   clean: boolean;
 };
 export type CrosswordProgressWrite = {
+  playVersion: string;
   letters: string;
   elapsedSeconds: number;
   revealedCells: number[];
@@ -79,6 +83,7 @@ export type CrosswordProgressWrite = {
 };
 export type CrosswordProgress = CrosswordProgressWrite & { startedAt: string };
 export type CrosswordCompletionResult = {
+  playVersion: string;
   correct: boolean;
   completion: { elapsedSeconds: number; clean: boolean; rankingEligible: boolean; completedAt: string } | null;
   review: { number: number; direction: 'across' | 'down'; answer: string; explanation: string | null }[];

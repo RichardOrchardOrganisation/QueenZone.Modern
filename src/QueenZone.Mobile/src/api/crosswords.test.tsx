@@ -8,6 +8,8 @@ jest.mock('../config', () => ({
   apiV1Url: (path: string) => `http://qz.test/api/v1${path}`,
 }));
 
+const playVersion = '11111111-2222-4333-8444-555555555555';
+
 const fetchMock = jest.fn<Promise<Response>, [RequestInfo | URL, RequestInit?]>();
 
 beforeEach(() => {
@@ -40,30 +42,30 @@ it('keeps a supplied id inside one URL segment and forwards cancellation', async
 it('checks or reveals a selection with optional bearer identity and no solution in its request', async () => {
   const selection = { scope: 'entry' as const, number: 1, direction: 'across' as const };
   fetchMock.mockResolvedValueOnce(jsonResponse({ cells: [], explanations: [], complete: false }));
-  await checkCrossword('id/one', 'BRIAN', selection);
+  await checkCrossword('id/one', playVersion, 'BRIAN', selection);
   expect(String(fetchMock.mock.calls[0][0])).toBe('http://qz.test/api/v1/crosswords/id%2Fone/check');
-  expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ letters: 'BRIAN', selection, autoCheck: false }) });
+  expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ letters: 'BRIAN', selection, autoCheck: false, playVersion }) });
   fetchMock.mockResolvedValueOnce(jsonResponse({ cells: [], explanations: [], complete: false }));
-  await checkCrossword('one', 'BRIAN', selection, true, { accessToken: 'member-token' });
+  await checkCrossword('one', playVersion, 'BRIAN', selection, true, { accessToken: 'member-token' });
   expect(fetchMock.mock.calls[1][1]?.headers).toMatchObject({ Authorization: 'Bearer member-token' });
   fetchMock.mockResolvedValueOnce(jsonResponse({ cells: [], explanations: [], clean: false }));
-  await revealCrossword('one', { scope: 'cell', cell: 2 });
-  expect(fetchMock.mock.calls[2][1]?.body).toBe(JSON.stringify({ selection: { scope: 'cell', cell: 2 } }));
+  await revealCrossword('one', playVersion, { scope: 'cell', cell: 2 });
+  expect(fetchMock.mock.calls[2][1]?.body).toBe(JSON.stringify({ selection: { scope: 'cell', cell: 2 }, playVersion }));
   fetchMock.mockResolvedValueOnce(jsonResponse({ cells: [], explanations: [], clean: false }));
-  await revealCrossword('one', { scope: 'grid' }, { accessToken: 'member-token' });
+  await revealCrossword('one', playVersion, { scope: 'grid' }, { accessToken: 'member-token' });
   expect(fetchMock.mock.calls[3][1]?.headers).toMatchObject({ Authorization: 'Bearer member-token' });
 });
 
 it('loads, saves and completes private progress through the shared authenticated client', async () => {
   const controller = new AbortController();
-  const progress = { letters: 'BRIAN', elapsedSeconds: 123, revealedCells: [], autoCheckUsed: false, updatedAt: '2026-10-04T00:00:00Z' };
+  const progress = { playVersion, letters: 'BRIAN', elapsedSeconds: 123, revealedCells: [], autoCheckUsed: false, updatedAt: '2026-10-04T00:00:00Z' };
   fetchMock.mockResolvedValueOnce(jsonResponse({ ...progress, startedAt: progress.updatedAt }));
   await fetchCrosswordProgress('one', 'member-token', controller.signal);
   expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'GET', headers: { Authorization: 'Bearer member-token' } });
   fetchMock.mockResolvedValueOnce(jsonResponse({ ...progress, startedAt: progress.updatedAt }));
   await saveCrosswordProgress('one', progress, 'member-token', controller.signal);
   expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'PUT', body: JSON.stringify(progress), headers: { Authorization: 'Bearer member-token' } });
-  fetchMock.mockResolvedValueOnce(jsonResponse({ correct: true, completion: null, review: [] }));
+  fetchMock.mockResolvedValueOnce(jsonResponse({ playVersion, correct: true, completion: null, review: [] }));
   await completeCrossword('one', progress, 'member-token', controller.signal);
   expect(String(fetchMock.mock.calls[2][0])).toBe('http://qz.test/api/v1/crosswords/one/complete');
   expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'POST', body: JSON.stringify(progress) });

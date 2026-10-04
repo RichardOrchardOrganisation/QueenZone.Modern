@@ -5,6 +5,7 @@ public sealed class CrosswordProgressEntity
     public Guid Id { get; set; }
     public Guid CrosswordId { get; set; }
     public Guid MemberId { get; set; }
+    public Guid PlayVersion { get; set; }
     public string GridFingerprint { get; set; } = string.Empty;
     public string Letters { get; set; } = string.Empty;
     public string RevealedCellsJson { get; set; } = "[]";

@@ -74,7 +74,7 @@ public static class CrosswordApiEndpoints
         context.Response.Headers.CacheControl = "no-store";
         return Results.Ok(new CrosswordDetailDto(item.Id, item.Seed.Slug, item.Seed.Title, item.Seed.Description,
             item.Seed.Difficulty, item.Seed.Style, grid.Width, grid.Height, item.Status == CrosswordStatus.Archived,
-            string.Concat(grid.Rows).Select(cell => cell == '#').ToArray(), numbering, clues));
+            string.Concat(grid.Rows).Select(cell => cell == '#').ToArray(), numbering, clues, item.PlayVersion));
     }
 
     private static TimeProvider Clock(HttpContext context) =>
