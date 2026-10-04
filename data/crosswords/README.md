@@ -8,9 +8,9 @@ outside those banks were added.
 
 The files follow Appendix B. Entry positions and reading-order numbers are derived
 from the solution rows by `CrosswordGridValidator`; the JSON parser checks the supplied
-answers and enumerations against those runs. The grids currently use British style
-and can carry unchecked-cell and symmetry warnings. The epic's style decision must
-be settled before final acceptance.
+answers and enumerations against those runs. Richard approved British style for the
+first ten puzzles on 2026-10-04; unchecked-cell and symmetry warnings are allowed.
+Per-puzzle editorial fact-check remains pending before publication.
 
 | Puzzle | Size | Entries | Editorial fact-check |
 | --- | --- | --- | --- |
