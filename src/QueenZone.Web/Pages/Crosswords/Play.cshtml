@@ -46,7 +46,7 @@
         <div class="qz-crossword-pause" data-paused hidden><h2>Paused</h2><p>The timer has stopped and your letters are hidden.</p><button type="button" data-resume>Resume crossword</button></div>
         <div class="qz-crossword-completion" data-completion hidden>
           <h2>Crossword complete</h2><p data-completion-message></p>
-          <button type="button" data-play-again>Play again</button><button type="button" data-share>Share result</button><a href="/crosswords">Next crossword</a>
+          <button type="button" data-play-again>Play again</button><button type="button" data-share>Share result</button><a href="/crosswords">Next crossword</a><a href="/crosswords/@puzzle.Slug/leaderboard">Leaderboard</a>
           @if (Model.MemberId is null) { <p><a href="/account/login?returnUrl=@Uri.EscapeDataString("/crosswords/" + puzzle.Slug)">Sign in to save progress across devices</a></p> }
         </div>
       </div>

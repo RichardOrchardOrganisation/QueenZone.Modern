@@ -17,6 +17,7 @@ public static class CrosswordApiEndpoints
         group.MapDetail<CrosswordDetailDto>("/by-slug/{slug}", GetBySlugAsync, "GetCrosswordBySlug",
             "Solution-free playable crossword resolved by its canonical slug, including published archives.");
         group.MapCrosswordPlayApiEndpoints();
+        group.MapCrosswordResultsApiEndpoints();
     }
 
     internal static async Task<IResult> GetListAsync(HttpContext context, ICrosswordCatalogRepository catalog,
