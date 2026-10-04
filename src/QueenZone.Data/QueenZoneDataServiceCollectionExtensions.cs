@@ -72,6 +72,10 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IQuizRepository, EfQuizRepository>();
         services.AddScoped<ICrosswordCatalogRepository>(sp => new EfCrosswordCatalogRepository(
             sp.GetRequiredService<QueenZoneDbContext>(), sp.GetService<TimeProvider>() ?? TimeProvider.System));
+        services.AddScoped<ICrosswordProgressRepository>(sp => new EfCrosswordProgressRepository(
+            sp.GetRequiredService<QueenZoneDbContext>(), sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CrosswordRankingOptions>>().Value));
+        services.AddOptions<CrosswordRankingOptions>();
         services.AddScoped<IQuizQuestionSubmissionRepository, EfQuizQuestionSubmissionRepository>();
         services.AddScoped<INewsDiscoveryRepository, EfNewsDiscoveryRepository>();
         services.AddScoped<INewsAgentGuidanceRepository, EfNewsAgentGuidanceRepository>();
@@ -116,12 +120,17 @@ public static class QueenZoneDataServiceCollectionExtensions
 
     public static IServiceCollection AddQueenZoneInMemoryData(this IServiceCollection services)
     {
-        services.AddSingleton<ICrosswordCatalogRepository>(sp =>
+        services.AddSingleton<InMemoryCrosswordCatalogRepository>(sp =>
         {
             var catalog = new InMemoryCrosswordCatalogRepository(sp.GetService<TimeProvider>() ?? TimeProvider.System);
             catalog.ImportAsync(CrosswordSampleData.Load(), Guid.Empty, "sample-seed").GetAwaiter().GetResult();
             return catalog;
         });
+        services.AddSingleton<ICrosswordCatalogRepository>(sp => sp.GetRequiredService<InMemoryCrosswordCatalogRepository>());
+        services.AddOptions<CrosswordRankingOptions>();
+        services.AddSingleton<ICrosswordProgressRepository>(sp => new InMemoryCrosswordProgressRepository(
+            sp.GetRequiredService<InMemoryCrosswordCatalogRepository>(), sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CrosswordRankingOptions>>().Value));
         services.TryAddSingleton<SearchIndexRevision>();
         var store = new SharedNewsStore(SampleNewsData.CreateSeedArticles());
         services.AddSingleton(store);

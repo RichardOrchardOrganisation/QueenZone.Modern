@@ -19,6 +19,11 @@ public static class QueenZoneWebServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddOptions<CrosswordRankingOptions>()
+            .Bind(configuration.GetSection("Crosswords:Ranking"))
+            .Validate(options => options.MinimumSecondsPer25Cells > 0, "Crossword ranking minimum time must be positive.")
+            .ValidateOnStart();
+
         services.AddOptions<AdminOptions>()
             .Bind(configuration.GetSection(AdminOptions.SectionName))
             .ValidateOnStart();

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QueenZone.Data;
 
@@ -11,9 +12,11 @@ using QueenZone.Data;
 namespace QueenZone.Data.Migrations
 {
     [DbContext(typeof(QueenZoneDbContext))]
-    partial class QueenZoneDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261004032351_AddCrosswordProgress")]
+    partial class AddCrosswordProgress
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -202,11 +205,6 @@ namespace QueenZone.Data.Migrations
                     b.Property<int>("Height")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("PlayVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWID()");
-
                     b.Property<DateTimeOffset?>("PublishAt")
                         .HasColumnType("datetimeoffset");
 
@@ -350,9 +348,6 @@ namespace QueenZone.Data.Migrations
                         .HasColumnType("nvarchar(225)");
 
                     b.Property<Guid>("MemberId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("PlayVersion")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("RevealedCellsJson")

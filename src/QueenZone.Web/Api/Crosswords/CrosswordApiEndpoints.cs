@@ -9,11 +9,12 @@ public static class CrosswordApiEndpoints
 
     public static void MapCrosswordApiEndpoints(this WebApplication app)
     {
-        var group = app.MapApiV1Group(RootPath, "Crosswords");
+        var group = app.MapApiV1Group(RootPath, "Crosswords").DisableAntiforgery();
         group.MapPagedList<CrosswordListItemDto>("", GetListAsync, "GetCrosswords",
             "Published crosswords, including schedules whose publication time has arrived. Archives are omitted.");
         group.MapDetail<CrosswordDetailDto>("/{id:guid}", GetDetailAsync, "GetCrossword",
             "Solution-free crossword for play. Published archives remain playable by direct link with archived=true.");
+        group.MapCrosswordPlayApiEndpoints();
     }
 
     internal static async Task<IResult> GetListAsync(HttpContext context, ICrosswordCatalogRepository catalog,
@@ -24,10 +25,29 @@ public static class CrosswordApiEndpoints
             .Where(item => CrosswordVisibility.IsListed(item, now))
             .OrderByDescending(item => item.PublishedAt ?? item.PublishAt).ThenBy(item => item.Seed.Slug, StringComparer.Ordinal)
             .ToArray();
+        var viewer = await ContentApiEndpoints.TryGetViewerMemberIdAsync(context);
+        var repository = context.RequestServices.GetRequiredService<ICrosswordProgressRepository>();
+        var saved = viewer is { } member ? await repository.GetForMemberAsync(member, cancellationToken) : [];
+        var completed = viewer is { } completedMember
+            ? await repository.GetCompletionsAsync(null, completedMember, cancellationToken) : [];
+        var progress = saved.ToDictionary(row => row.CrosswordId);
+        var completions = completed.ToDictionary(row => row.CrosswordId);
         context.Response.Headers.CacheControl = "no-store";
         return ApiV1EndpointHelpers.OkPagedSlice(items, page, pageSize, source => source.Select(item =>
-            new CrosswordListItemDto(item.Id, item.Seed.Slug, item.Seed.Title, item.Seed.Difficulty,
-                item.Seed.Grid.Width, item.Seed.Grid.Height, item.PublishedAt ?? item.PublishAt)).ToArray());
+            ListItem(item, viewer.HasValue, progress, completions)).ToArray());
+    }
+
+    private static CrosswordListItemDto ListItem(CrosswordCatalogItem item, bool member,
+        IReadOnlyDictionary<Guid, CrosswordProgress> progress, IReadOnlyDictionary<Guid, CrosswordCompletion> completions)
+    {
+        progress.TryGetValue(item.Id, out var saved);
+        completions.TryGetValue(item.Id, out var completed);
+        var state = !member ? null : completed is not null ? "completed" : saved is not null ? "inProgress" : "notStarted";
+        int? percent = saved is null ? null : (int)(100d * saved.Letters.Count(char.IsAsciiLetterUpper)
+            / string.Concat(item.Seed.Grid.Rows).Count(cell => cell != '#'));
+        return new(item.Id, item.Seed.Slug, item.Seed.Title, item.Seed.Difficulty, item.Seed.Grid.Width,
+            item.Seed.Grid.Height, item.PublishedAt ?? item.PublishAt, state, percent,
+            completed?.ElapsedSeconds ?? saved?.ElapsedSeconds);
     }
 
     internal static async Task<IResult> GetDetailAsync(HttpContext context, ICrosswordCatalogRepository catalog,
@@ -54,7 +74,7 @@ public static class CrosswordApiEndpoints
         context.Response.Headers.CacheControl = "no-store";
         return Results.Ok(new CrosswordDetailDto(item.Id, item.Seed.Slug, item.Seed.Title, item.Seed.Description,
             item.Seed.Difficulty, item.Seed.Style, grid.Width, grid.Height, item.Status == CrosswordStatus.Archived,
-            string.Concat(grid.Rows).Select(cell => cell == '#').ToArray(), numbering, clues));
+            string.Concat(grid.Rows).Select(cell => cell == '#').ToArray(), numbering, clues, item.PlayVersion));
     }
 
     private static TimeProvider Clock(HttpContext context) =>

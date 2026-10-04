@@ -129,6 +129,12 @@ Failed writes (validation, 403, 404, 429) do not persist a receipt.
 
 ## OpenAPI
 
+### Crossword play versions
+
+Crossword detail includes an opaque `playVersion` GUID. Clients send the current nonempty value on every check, reveal, progress save and completion request. These mutation routes are new and have no installed legacy callers; there is no versionless compatibility path. Missing or empty versions return 400 and obsolete versions return 409, including when the member has no saved attempt. Reload the detail on 409 before continuing. Check, reveal, progress and completion responses carry the version so clients can discard responses for a grid they have already replaced.
+
+Changes to grid dimensions or solution rows replace the version. Clue, explanation and other editorial text changes preserve it. Publication status changes preserve it, while normal visibility checks still apply. Progress writes read the playable puzzle and validate its version in the same Serializable transaction on SQL, or under the catalog lock in memory. Endpoints also recheck version and visibility before returning. A grid edit cannot accept an obsolete save simply because the editorial reset removed its previous progress row. The editorial workflow must reset in-progress saves atomically with the grid edit while preserving first completion records.
+
 `GET /openapi/v1.json` is generated from endpoint metadata at runtime. Only endpoints with group name `v1` are included, so Razor Pages, `/health`, and `/api/uploads/editor-image` stay out of the spec.
 
 The discovery document (`GET /api/v1`) points at that URL so the React Native client and backend share one contract.

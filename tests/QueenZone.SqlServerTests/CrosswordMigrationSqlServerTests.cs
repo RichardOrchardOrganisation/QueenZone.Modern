@@ -27,7 +27,8 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
         await empty.Database.EnsureCreatedAsync();
         db = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure()).Options);
-        var operations = new AddCrosswords().UpOperations.Concat(new AddCrosswordDraftRows().UpOperations).ToArray();
+        var operations = new AddCrosswords().UpOperations.Concat(new AddCrosswordDraftRows().UpOperations)
+            .Concat(new AddCrosswordProgress().UpOperations).Concat(new AddCrosswordPlayVersions().UpOperations).ToArray();
         var commands = db.GetService<IMigrationsSqlGenerator>().Generate(operations, db.Model);
         foreach (var command in commands)
         {
@@ -115,6 +116,47 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
         db.Crosswords.Remove(await db.Crosswords.SingleAsync(item => item.Id == original.Id));
         await db.SaveChangesAsync();
         Assert.Empty(await catalog.GetAuditAsync(original.Id));
+    }
+
+    [Fact]
+    public async Task Progress_transactions_preserve_assists_first_completion_and_server_rowversion()
+    {
+        var catalog = new EfCrosswordCatalogRepository(db, TimeProvider.System);
+        await catalog.ImportAsync([CrosswordSampleData.Load()[0]], Guid.NewGuid(), "sql-import", publish: true);
+        var puzzle = Assert.Single(await catalog.GetAllAsync());
+        var member = Guid.NewGuid();
+        var repository = new EfCrosswordProgressRepository(db, TimeProvider.System, new());
+        var now = DateTimeOffset.UtcNow;
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, now, puzzle.PlayVersion);
+        Assert.NotEqual(Guid.Empty, puzzle.PlayVersion);
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveAsync(puzzle.Id, member, write with { PlayVersion = Guid.Empty }));
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.SaveAsync(puzzle.Id, member, write with { PlayVersion = Guid.NewGuid() }));
+        Assert.Null(await repository.GetAsync(puzzle.Id, member));
+        await repository.SaveAsync(puzzle.Id, member, write);
+        var originalVersion = (await db.CrosswordProgress.AsNoTracking().SingleAsync()).RowVersion;
+        Assert.NotEmpty(originalVersion);
+        var cell = CrosswordPlayRules.SelectCells(puzzle.Seed.Grid, new("grid"))[0];
+        await repository.MarkAssistanceAsync(puzzle.Id, member, [cell], true, puzzle.PlayVersion);
+        var assistedVersion = (await db.CrosswordProgress.AsNoTracking().SingleAsync()).RowVersion;
+        Assert.False(originalVersion.SequenceEqual(assistedVersion));
+        await repository.SaveAsync(puzzle.Id, member, write with { ElapsedSeconds = 1, UpdatedAt = now.AddSeconds(-1) });
+        var saved = (await repository.GetAsync(puzzle.Id, member))!;
+        Assert.Equal(puzzle.PlayVersion, saved.PlayVersion);
+        Assert.Equal(120, saved.ElapsedSeconds);
+        Assert.Equal(new[] { cell }, saved.RevealedCells);
+        Assert.True(saved.AutoCheckUsed);
+        var solved = write with { Letters = string.Concat(puzzle.Seed.Grid.Rows), UpdatedAt = now.AddSeconds(1) };
+        var first = await repository.CompleteAsync(puzzle.Id, member, solved);
+        Assert.True(first.Correct);
+        Assert.False(first.Completion!.Clean);
+        Assert.False(first.Completion.RankingEligible);
+        var repeat = await repository.CompleteAsync(puzzle.Id, member, solved with { ElapsedSeconds = 240, UpdatedAt = now.AddMinutes(1) });
+        Assert.Equal(first.Completion, repeat.Completion);
+        Assert.Single(await db.CrosswordCompletions.ToListAsync());
+        db.Crosswords.Remove(await db.Crosswords.SingleAsync());
+        await db.SaveChangesAsync();
+        Assert.Empty(await db.CrosswordProgress.ToListAsync());
+        Assert.Empty(await db.CrosswordCompletions.ToListAsync());
     }
 
     private sealed class EmptyContext(DbContextOptions<EmptyContext> options) : DbContext(options);

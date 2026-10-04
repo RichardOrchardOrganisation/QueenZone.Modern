@@ -29,6 +29,7 @@ public sealed class CrosswordEntityConfiguration(bool sqlServer) : IEntityTypeCo
         builder.HasIndex(puzzle => new { puzzle.Status, puzzle.PublishAt });
         if (sqlServer)
         {
+            builder.Property(puzzle => puzzle.PlayVersion).HasDefaultValueSql("NEWID()");
             builder.Property(puzzle => puzzle.RowVersion).IsRowVersion();
         }
         else
