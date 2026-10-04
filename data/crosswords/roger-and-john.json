@@ -1,0 +1,80 @@
+{
+  "slug": "roger-and-john",
+  "title": "Roger and John",
+  "description": "A Queen-themed crossword about Roger and John.",
+  "difficulty": "medium",
+  "width": 11,
+  "height": 11,
+  "style": "british",
+  "grid": [
+    "#BIOLOGY##T",
+    "####E#####H",
+    "####I#R#D#E",
+    "####C#A#E#C",
+    "C###E#D#N#R",
+    "H###S#I#T#O",
+    "ELECTRONICS",
+    "L###E#G#S#S",
+    "S###R#A#T##",
+    "E#####G#R##",
+    "A###DEACY##"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "across",
+      "answer": "BIOLOGY",
+      "clue": "Degree Roger switched to",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 2,
+      "direction": "down",
+      "answer": "LEICESTER",
+      "clue": "John's home city",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 3,
+      "direction": "down",
+      "answer": "THECROSS",
+      "clue": "Roger's side band of the late 1980s",
+      "enumeration": "(3,5)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "RADIOGAGA",
+      "clue": "Roger's 1984 hit",
+      "enumeration": "(5,2,2)"
+    },
+    {
+      "number": 5,
+      "direction": "down",
+      "answer": "DENTISTRY",
+      "clue": "Roger's first course of study",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 6,
+      "direction": "down",
+      "answer": "CHELSEA",
+      "clue": "College where John studied",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 7,
+      "direction": "across",
+      "answer": "ELECTRONICS",
+      "clue": "John's degree subject",
+      "enumeration": "(11)"
+    },
+    {
+      "number": 8,
+      "direction": "across",
+      "answer": "DEACY",
+      "clue": "John's nickname",
+      "enumeration": "(5)"
+    }
+  ]
+}

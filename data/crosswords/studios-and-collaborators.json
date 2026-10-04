@@ -1,0 +1,112 @@
+{
+  "slug": "studios-and-collaborators",
+  "title": "Studios and Collaborators",
+  "description": "A Queen-themed crossword about Studios and Collaborators.",
+  "difficulty": "hard",
+  "width": 15,
+  "height": 15,
+  "style": "british",
+  "grid": [
+    "#B#############",
+    "MONTREUX###MACK",
+    "#W####N######A#",
+    "#I#TRIDENT###P#",
+    "#E####E######I#",
+    "######R##B#E#T#",
+    "######P##A#M#O#",
+    "###E##ROCKFIELD",
+    "###L##E##E#####",
+    "###E##S##R#####",
+    "###K##S########",
+    "###T#MUSICLAND#",
+    "###R##R########",
+    "#STAFFELL######",
+    "###############"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "BOWIE",
+      "clue": "Co-writer of \"Under Pressure\"",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 2,
+      "direction": "across",
+      "answer": "MONTREUX",
+      "clue": "Swiss town of Mountain Studios",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 3,
+      "direction": "down",
+      "answer": "UNDERPRESSURE",
+      "clue": "1981 duet single",
+      "enumeration": "(5,8)"
+    },
+    {
+      "number": 4,
+      "direction": "across",
+      "answer": "MACK",
+      "clue": "Reinhold, Munich-based producer",
+      "enumeration": "(4)"
+    },
+    {
+      "number": 5,
+      "direction": "down",
+      "answer": "CAPITOL",
+      "clue": "US label from 1983",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 6,
+      "direction": "across",
+      "answer": "TRIDENT",
+      "clue": "London studio of the first album",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 7,
+      "direction": "down",
+      "answer": "BAKER",
+      "clue": "Roy Thomas, producer of the early albums",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 8,
+      "direction": "down",
+      "answer": "EMI",
+      "clue": "UK record label",
+      "enumeration": "(3)"
+    },
+    {
+      "number": 9,
+      "direction": "down",
+      "answer": "ELEKTRA",
+      "clue": "US label until 1983",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 10,
+      "direction": "across",
+      "answer": "ROCKFIELD",
+      "clue": "Welsh studio of \"Bohemian Rhapsody\" sessions",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 11,
+      "direction": "across",
+      "answer": "MUSICLAND",
+      "clue": "Mack's Munich studio",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 12,
+      "direction": "across",
+      "answer": "STAFFELL",
+      "clue": "Tim of Smile",
+      "enumeration": "(8)"
+    }
+  ]
+}

@@ -30,4 +30,8 @@
     <ProjectReference Include="..\..\src\QueenZone.NewsAgent\QueenZone.NewsAgent.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\data\crosswords\*.json" Link="data\crosswords\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

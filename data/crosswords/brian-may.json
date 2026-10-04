@@ -1,0 +1,87 @@
+{
+  "slug": "brian-may",
+  "title": "Brian May",
+  "description": "A Queen-themed crossword about Brian May.",
+  "difficulty": "medium",
+  "width": 11,
+  "height": 11,
+  "style": "british",
+  "grid": [
+    "N##S#######",
+    "ANITA######",
+    "S##E#######",
+    "A##R#P#S#I#",
+    "#B#E#H#I#M#",
+    "HAROLD#X#P#",
+    "#D#####P#E#",
+    "#G#####E#R#",
+    "#E#####N#I#",
+    "#REDSPECIAL",
+    "#S#####E#L#"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "NASA",
+      "clue": "Agency behind New Horizons, which he worked with",
+      "enumeration": "(4)"
+    },
+    {
+      "number": 2,
+      "direction": "down",
+      "answer": "STEREO",
+      "clue": "Kind of photography (and viewers) he champions",
+      "enumeration": "(6)"
+    },
+    {
+      "number": 3,
+      "direction": "across",
+      "answer": "ANITA",
+      "clue": "Wife, actress Ms Dobson",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "PHD",
+      "clue": "Doctorate he completed in 2007",
+      "enumeration": "(3)"
+    },
+    {
+      "number": 5,
+      "direction": "down",
+      "answer": "SIXPENCE",
+      "clue": "Coin used as a plectrum",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 6,
+      "direction": "down",
+      "answer": "IMPERIAL",
+      "clue": "London college that awarded his doctorate",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 7,
+      "direction": "down",
+      "answer": "BADGERS",
+      "clue": "Animals he has campaigned to protect",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 8,
+      "direction": "across",
+      "answer": "HAROLD",
+      "clue": "Father who helped build the guitar",
+      "enumeration": "(6)"
+    },
+    {
+      "number": 9,
+      "direction": "across",
+      "answer": "REDSPECIAL",
+      "clue": "Guitar Brian built with his father",
+      "enumeration": "(3,7)"
+    }
+  ]
+}

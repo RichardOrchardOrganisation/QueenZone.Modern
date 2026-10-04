@@ -1,0 +1,94 @@
+{
+  "slug": "a-night-at-the-opera",
+  "title": "Bohemian Rhapsody",
+  "description": "A Queen-themed crossword about Bohemian Rhapsody.",
+  "difficulty": "easy",
+  "width": 11,
+  "height": 11,
+  "style": "british",
+  "grid": [
+    "##FANDANGO#",
+    "B#I########",
+    "I#G#G#R###B",
+    "SCARAMOUCHE",
+    "M#R#L#C###E",
+    "I#O#I#K###L",
+    "L###L#F###Z",
+    "L###E#I#M#E",
+    "A###OPERA#B",
+    "H#####L#M#U",
+    "#BALLAD#A#B"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "across",
+      "answer": "FANDANGO",
+      "clue": "Spanish dance Scaramouche is asked to do",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "FIGARO",
+      "clue": "Barber of Seville, name-checked in the song",
+      "enumeration": "(6)"
+    },
+    {
+      "number": 2,
+      "direction": "down",
+      "answer": "BISMILLAH",
+      "clue": "Arabic phrase sung in the opera section",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 3,
+      "direction": "down",
+      "answer": "GALILEO",
+      "clue": "Astronomer whose name echoes through the operatic section",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "ROCKFIELD",
+      "clue": "Welsh studio where recording began",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 5,
+      "direction": "down",
+      "answer": "BEELZEBUB",
+      "clue": "Devil said to have one put aside",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 6,
+      "direction": "across",
+      "answer": "SCARAMOUCHE",
+      "clue": "Stock clown asked to do the fandango",
+      "enumeration": "(11)"
+    },
+    {
+      "number": 7,
+      "direction": "down",
+      "answer": "MAMA",
+      "clue": "Who the narrator addresses in the ballad",
+      "enumeration": "(4)"
+    },
+    {
+      "number": 8,
+      "direction": "across",
+      "answer": "OPERA",
+      "clue": "Middle section style; also part of the album title",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 9,
+      "direction": "across",
+      "answer": "BALLAD",
+      "clue": "Style of the song's opening section",
+      "enumeration": "(6)"
+    }
+  ]
+}

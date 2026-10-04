@@ -1,0 +1,62 @@
+{
+  "slug": "meet-the-band",
+  "title": "Meet the Band",
+  "description": "A Queen-themed crossword about Meet the Band.",
+  "difficulty": "easy",
+  "width": 7,
+  "height": 7,
+  "style": "british",
+  "grid": [
+    "D###F##",
+    "ROGER##",
+    "U###E#J",
+    "MAY#D#O",
+    "S###D#H",
+    "##BRIAN",
+    "####E##"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "DRUMS",
+      "clue": "Taylor's kit",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 2,
+      "direction": "down",
+      "answer": "FREDDIE",
+      "clue": "Lead singer born in Zanzibar",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 3,
+      "direction": "across",
+      "answer": "ROGER",
+      "clue": "Drummer who also sang the high parts",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "JOHN",
+      "clue": "Bass player, the last to join",
+      "enumeration": "(4)"
+    },
+    {
+      "number": 5,
+      "direction": "across",
+      "answer": "MAY",
+      "clue": "Guitarist's surname, also a month",
+      "enumeration": "(3)"
+    },
+    {
+      "number": 6,
+      "direction": "across",
+      "answer": "BRIAN",
+      "clue": "Guitarist with a home-made guitar",
+      "enumeration": "(5)"
+    }
+  ]
+}

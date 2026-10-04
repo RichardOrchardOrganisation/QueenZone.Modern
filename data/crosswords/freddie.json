@@ -1,0 +1,80 @@
+{
+  "slug": "freddie",
+  "title": "Freddie Mercury",
+  "description": "A Queen-themed crossword about Freddie Mercury.",
+  "difficulty": "medium",
+  "width": 11,
+  "height": 11,
+  "style": "british",
+  "grid": [
+    "##Z########",
+    "#BARCELONA#",
+    "E#N#A######",
+    "A#Z#B##F###",
+    "L#I#A##A###",
+    "I#BULSARA##",
+    "N#A#L##R###",
+    "GARDENLODGE",
+    "#######K###",
+    "#DELILAH###",
+    "###########"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "ZANZIBAR",
+      "clue": "Island of Freddie's birth",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 2,
+      "direction": "across",
+      "answer": "BARCELONA",
+      "clue": "1988 duet album and Olympic anthem",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 3,
+      "direction": "down",
+      "answer": "CABALLE",
+      "clue": "Montserrat, Spanish soprano and duet partner",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "EALING",
+      "clue": "Art college where he studied graphic design",
+      "enumeration": "(6)"
+    },
+    {
+      "number": 5,
+      "direction": "down",
+      "answer": "FARROKH",
+      "clue": "Freddie's given first name",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 6,
+      "direction": "across",
+      "answer": "BULSARA",
+      "clue": "Freddie's family surname",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 7,
+      "direction": "across",
+      "answer": "GARDENLODGE",
+      "clue": "Kensington home",
+      "enumeration": "(6,5)"
+    },
+    {
+      "number": 8,
+      "direction": "across",
+      "answer": "DELILAH",
+      "clue": "Cat who got her own song on Innuendo",
+      "enumeration": "(7)"
+    }
+  ]
+}
