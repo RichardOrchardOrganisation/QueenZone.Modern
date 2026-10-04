@@ -24,6 +24,7 @@ public sealed class CrosswordReplayTests : E2EPageTest
         await Expect(Page.Locator("[data-practice]")).ToBeVisibleAsync();
         await Expect(Page.Locator("[data-timer]")).ToHaveTextAsync("0:00");
         await Expect(Page.Locator("[data-cell='0'] [data-letter]")).ToHaveTextAsync("");
+        await Expect(Page.Locator("[data-auto-check]")).Not.ToBeCheckedAsync();
         await Page.Locator("[data-cell='0']").ClickAsync(); await Page.Keyboard.TypeAsync("D");
         await Page.ReloadAsync();
         await Expect(Page.Locator("[data-practice]")).ToBeVisibleAsync();
@@ -49,6 +50,7 @@ public sealed class CrosswordReplayTests : E2EPageTest
         await Page.ReloadAsync();
         await Page.WaitForFunctionAsync("async () => (await caches.match(location.href))?.headers.get('X-QueenZone-Crossword-Shell') === 'public'");
         await Page.Locator("[data-cell='0']").ClickAsync(); await Page.Keyboard.TypeAsync("Z");
+        await Page.Locator("[data-auto-check]").CheckAsync();
         EventHandler<IDialog> cancel = async (_, dialog) => await dialog.DismissAsync(); Page.Dialog += cancel;
         await Page.GetByRole(AriaRole.Button, new() { Name = "Reset current attempt" }).ClickAsync();
         await Expect(Page.Locator("[data-cell='0'] [data-letter]")).ToHaveTextAsync("Z"); Page.Dialog -= cancel;
@@ -56,6 +58,7 @@ public sealed class CrosswordReplayTests : E2EPageTest
         await Context.SetOfflineAsync(true);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Reset current attempt" }).ClickAsync();
         await Expect(Page.Locator("[data-cell='0'] [data-letter]")).ToHaveTextAsync("");
+        await Expect(Page.Locator("[data-auto-check]")).Not.ToBeCheckedAsync();
         await Page.Locator("[data-cell='0']").ClickAsync(); await Page.Keyboard.TypeAsync("D");
         await Page.ReloadAsync();
         await Expect(Page.Locator("[data-practice]")).ToBeVisibleAsync();

@@ -78,6 +78,7 @@ async function initialise(root) {
 
     function render() {
         find('[data-practice]').hidden = !practice;
+        find('[data-auto-check]').checked = state.autoCheck;
         const entry = model.entries[state.entry];
         for (const cell of cells) {
             const index = Number(cell.dataset.cell);
@@ -296,6 +297,10 @@ async function initialise(root) {
     async function refreshSession() {
         const session = await request('Session');
         if (memberId !== session.memberId) {
+            attemptGeneration++;
+            clearTimeout(saveTimeout);
+            clearTimeout(autoCheckTimeout);
+            checkingCompletion = false;
             completed = false;
             attemptedLetters = null;
             explanations.clear();
