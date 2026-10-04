@@ -1,7 +1,8 @@
 namespace QueenZone.Web;
 
 public sealed record CrosswordListItemDto(Guid Id, string Slug, string Title, string Difficulty,
-    int Width, int Height, DateTimeOffset? PublishedAt);
+    int Width, int Height, DateTimeOffset? PublishedAt, string? Progress = null,
+    int? ProgressPercent = null, int? ElapsedSeconds = null);
 
 public sealed record CrosswordPlayClueDto(int Number, string Direction, int Row, int Column,
     int Length, string Clue, string Enumeration);

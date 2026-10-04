@@ -64,6 +64,9 @@ export const crosswordListItemSchema = z.object({
   width: z.number().int().min(5).max(15),
   height: z.number().int().min(5).max(15),
   publishedAt: isoDateTime.nullable(),
+  progress: z.enum(['notStarted', 'inProgress', 'completed']).nullish(),
+  progressPercent: z.number().int().min(0).max(100).nullish(),
+  elapsedSeconds: z.number().int().nonnegative().nullish(),
 });
 
 export const crosswordDetailSchema = crosswordListItemSchema.omit({ publishedAt: true }).extend({
@@ -83,6 +86,31 @@ export const crosswordDetailSchema = crosswordListItemSchema.omit({ publishedAt:
   })),
 }).refine(detail => detail.blocks.length === detail.width * detail.height
   && detail.numbering.length === detail.blocks.length, 'Grid arrays must match its dimensions');
+
+const crosswordCellIndex = z.number().int().min(0).max(224);
+const crosswordExplanationSchema = z.object({
+  number: z.number().int().positive(), direction: z.enum(['across', 'down']), explanation: z.string().max(300),
+});
+export const crosswordCheckResultSchema = z.object({
+  cells: z.array(z.object({ index: crosswordCellIndex, status: z.enum(['correct', 'incorrect', 'empty']) })).max(225),
+  explanations: z.array(crosswordExplanationSchema), complete: z.boolean(),
+});
+export const crosswordRevealResultSchema = z.object({
+  cells: z.array(z.object({ index: crosswordCellIndex, letter: z.string().regex(/^[A-Z]$/) })).max(225),
+  explanations: z.array(crosswordExplanationSchema), clean: z.boolean(),
+});
+export const crosswordProgressSchema = z.object({
+  letters: z.string().max(225).regex(/^[A-Z.#]+$/), elapsedSeconds: z.number().int().nonnegative(),
+  revealedCells: z.array(crosswordCellIndex).max(225), autoCheckUsed: z.boolean(),
+  updatedAt: isoDateTime, startedAt: isoDateTime,
+});
+export const crosswordCompletionResultSchema = z.object({
+  correct: z.boolean(),
+  completion: z.object({ elapsedSeconds: z.number().int().nonnegative(), clean: z.boolean(),
+    rankingEligible: z.boolean(), completedAt: isoDateTime }).nullable(),
+  review: z.array(z.object({ number: z.number().int().positive(), direction: z.enum(['across', 'down']),
+    answer: z.string().regex(/^[A-Z]{3,15}$/), explanation: z.string().max(300).nullable() })),
+});
 
 export const newsListItemSchema = z.object({
   id: z.number().int(),

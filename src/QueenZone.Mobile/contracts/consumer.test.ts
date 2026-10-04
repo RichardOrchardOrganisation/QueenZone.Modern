@@ -11,7 +11,8 @@ import {
   fetchPhotoDetail,
 } from '../src/api/content.ts';
 import { fetchSearchPage } from '../src/api/search.ts';
-import { fetchCrosswordDetail, fetchCrosswordsPage } from '../src/api/crosswords.ts';
+import { fetchCrosswordDetail, fetchCrosswordsPage, checkCrossword, revealCrossword,
+  fetchCrosswordProgress, saveCrosswordProgress, completeCrossword } from '../src/api/crosswords.ts';
 import {
   createForumReply,
   fetchForumTopic,
@@ -38,6 +39,10 @@ import {
   conversationDetailSchema,
   crosswordListItemSchema,
   crosswordDetailSchema,
+  crosswordCheckResultSchema,
+  crosswordRevealResultSchema,
+  crosswordProgressSchema,
+  crosswordCompletionResultSchema,
   expectedField,
   expectedStatus,
   fanPerformanceSchema,
@@ -110,6 +115,36 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
     const archived = parseContract('GET archived crossword', crosswordDetailSchema,
       await fetchCrosswordDetail(fixture.archivedCrosswordId));
     assert.equal(archived.archived, true);
+  });
+  it('checks, reveals, restores progress and completes through the live crossword contract', async () => {
+    const id = fixture.crosswordId;
+    const detail = await fetchCrosswordDetail(id);
+    const letters = detail.blocks.map(block => block ? '#' : '.').join('');
+    const check = parseContract('POST crossword check', crosswordCheckResultSchema,
+      await checkCrossword(id, letters, { scope: 'grid' }));
+    assert.equal(check.complete, false);
+    assert.ok(check.cells.every(cell => cell.status === 'empty'));
+    const reveal = parseContract('POST crossword reveal', crosswordRevealResultSchema,
+      await revealCrossword(id, { scope: 'grid' }, { accessToken: token }));
+    assert.equal(reveal.clean, false);
+    const filled = [...letters];
+    for (const cell of reveal.cells) filled[cell.index] = cell.letter;
+    const write = { letters: filled.join(''), elapsedSeconds: 120, revealedCells: [], autoCheckUsed: false,
+      updatedAt: new Date().toISOString() };
+    const saved = parseContract('PUT crossword progress', crosswordProgressSchema,
+      await saveCrosswordProgress(id, write, token));
+    assert.equal(saved.revealedCells.length, reveal.cells.length);
+    const restored = parseContract('GET crossword progress', crosswordProgressSchema,
+      await fetchCrosswordProgress(id, token));
+    assert.equal(restored.letters, write.letters);
+    const complete = parseContract('POST crossword complete', crosswordCompletionResultSchema,
+      await completeCrossword(id, write, token));
+    assert.equal(complete.correct, true);
+    assert.equal(complete.completion?.clean, false);
+    assert.equal(complete.completion?.rankingEligible, false);
+    const page = parseContract('GET personal crossword status', pagedSchema(crosswordListItemSchema),
+      await fetchCrosswordsPage({ accessToken: token, pageSize: 100 }));
+    assert.equal(page.items.find(item => item.id === id)?.progress, 'completed');
   });
   it('reads a paged news list and a published news detail', async () => {
     const page = parseContract(
