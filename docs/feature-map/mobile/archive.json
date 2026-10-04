@@ -542,6 +542,24 @@
       "selectors": [],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone-mobile/features/crosswords.md"
+    },
+    {
+      "id": "mobile.crosswords.leaderboard",
+      "name": "Crossword leaderboard",
+      "screen": "ArchiveStack/CrosswordLeaderboard",
+      "entry": "Crossword \u2192 Leaderboard",
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordLeaderboardScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordResultsScreens.test.tsx"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/crossword-results.md"
     }
   ]
 }

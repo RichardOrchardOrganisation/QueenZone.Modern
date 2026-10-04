@@ -49,6 +49,7 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `mobile.archive.timeline` — Timeline (ArchiveStack/Timeline)
 - `mobile.archive.timelineEvent` — Timeline event (ArchiveStack/TimelineEvent)
 - `mobile.archive.trivia` — Trivia (ArchiveStack/Trivia)
+- `mobile.crosswords.leaderboard` — Crossword leaderboard (ArchiveStack/CrosswordLeaderboard)
 - `mobile.crosswords.list` — Crossword list (ArchiveStack/CrosswordList)
 - `mobile.crosswords.play` — Crossword play (ArchiveStack/CrosswordPlay)
 
@@ -70,6 +71,7 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `mobile.account.saved` — Library (HomeStack/SavedList)
 - `mobile.account.settings` — Settings (HomeStack/Settings)
 - `mobile.account.submissions` — My submissions (HomeStack/MySubmissions)
+- `mobile.crosswords.history` — My crosswords (HomeStack/MyCrosswords)
 
 ### messages
 

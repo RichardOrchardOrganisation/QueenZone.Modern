@@ -1,6 +1,6 @@
 import {
   fetchCrosswordDetail, fetchCrosswordBySlug, fetchCrosswordsPage, checkCrossword, revealCrossword,
-  fetchCrosswordProgress, saveCrosswordProgress, completeCrossword,
+  fetchCrosswordProgress, saveCrosswordProgress, completeCrossword, fetchCrosswordLeaderboard, fetchMyCrosswords,
 } from './crosswords';
 import { jsonResponse } from '../test/fixtures';
 
@@ -90,4 +90,15 @@ it('sends server-side difficulty and size filters with personal bearer status', 
   await fetchCrosswordsPage({ difficulty: 'hard', size: 'large', accessToken: 'member-token' });
   expect(String(fetchMock.mock.calls[0][0])).toBe('http://qz.test/api/v1/crosswords?difficulty=hard&size=large');
   expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer member-token' });
+});
+
+it('loads results with escaped puzzle identity and actual member authentication without persisting private history', async () => {
+  fetchMock.mockResolvedValueOnce(jsonResponse({ top: [], viewer: null, totalMembers: 0 }));
+  await fetchCrosswordLeaderboard('id/one', undefined, 'member-token');
+  expect(String(fetchMock.mock.calls[0][0])).toBe('http://qz.test/api/v1/crosswords/id%2Fone/leaderboard');
+  expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer member-token' });
+  fetchMock.mockResolvedValueOnce(jsonResponse({ items: [], totalCompleted: 0, weeklyStreak: 0, weekTimeZone: 'UTC' }));
+  await fetchMyCrosswords('member-token');
+  expect(String(fetchMock.mock.calls[1][0])).toBe('http://qz.test/api/v1/crosswords/mine');
+  expect(fetchMock.mock.calls[1][1]?.headers).toMatchObject({ Authorization: 'Bearer member-token' });
 });

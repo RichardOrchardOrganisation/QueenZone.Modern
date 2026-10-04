@@ -151,6 +151,7 @@ export function ProfileScreen({ navigation }: Props) {
       <View style={{ paddingHorizontal: space.xl, paddingTop: space.xxl, paddingBottom: space.md }}>
         <Eyebrow tone="muted">Account</Eyebrow>
       </View>
+      <SettingsRow title="My crosswords" onPress={() => navigation.navigate('MyCrosswords')} />
       <SettingsRow title="Account settings" onPress={() => navigation.navigate('Settings')} />
       <SettingsRow
         title="Appearance"

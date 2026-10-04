@@ -181,6 +181,24 @@
       "name": "My submissions",
       "screen": "HomeStack/MySubmissions",
       "entry": "Profile \u2192 My submissions"
+    },
+    {
+      "id": "mobile.crosswords.history",
+      "name": "My crosswords",
+      "screen": "HomeStack/MyCrosswords",
+      "entry": "Profile \u2192 My crosswords",
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/account/MyCrosswordsScreen.tsx"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordResultsScreens.test.tsx"
+      ],
+      "selectors": [],
+      "signIn": "member",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/crossword-results.md"
     }
   ]
 }

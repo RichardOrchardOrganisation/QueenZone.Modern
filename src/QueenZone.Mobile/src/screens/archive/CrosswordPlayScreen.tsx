@@ -22,7 +22,7 @@ export function CrosswordPlayScreen({ route, navigation }: Props) {
   const load = useCallback((signal: AbortSignal) => fetchJsonWithOfflineCache<CrosswordDetail>(`/crosswords/by-slug/${encodeURIComponent(slug)}`,
     { cacheKey: `crosswords:detail:${slug}`, signal, invalidateOn: [404] }), [slug]);
   const { data: puzzle, error, loading, reload } = useDetailQuery(load);
-  useLayoutEffect(() => { navigation.setOptions({ title: puzzle?.title ?? 'Crossword' }); }, [navigation, puzzle?.title]);
+  useLayoutEffect(() => { navigation.setOptions({ title: puzzle?.title ?? 'Crossword', headerRight: puzzle ? () => <Button label="Leaderboard" size="sm" variant="ghost" onPress={() => navigation.navigate('CrosswordLeaderboard', { id: puzzle.id, title: puzzle.title })} /> : undefined }); }, [navigation, puzzle?.title]);
   if (loading) return <LoadingBlock label="Loading crossword…" />;
   if (error || !puzzle) return <ErrorBlock message={error ?? 'This crossword is unavailable on this server.'} onRetry={reload} />;
   return <CrosswordSolver key={`${puzzle.id}:${puzzle.playVersion}:${profile?.memberId ?? 'guest'}`} puzzle={puzzle}

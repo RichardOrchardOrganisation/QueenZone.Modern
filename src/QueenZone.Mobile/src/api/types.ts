@@ -689,3 +689,8 @@ export type ForumPoll = {
   canViewerClose: boolean;
   options: ForumPollOption[];
 };
+
+export interface CrosswordLeaderboardEntry { rank: number; displayName: string; elapsedSeconds: number; completedAt: string }
+export interface CrosswordLeaderboard { top: CrosswordLeaderboardEntry[]; viewer: CrosswordLeaderboardEntry | null; totalMembers: number }
+export interface CrosswordHistoryEntry { id: string; slug: string | null; title: string; elapsedSeconds: number; clean: boolean; completedAt: string; playable: boolean }
+export interface CrosswordHistory { items: CrosswordHistoryEntry[]; totalCompleted: number; weeklyStreak: number; weekTimeZone: string }
