@@ -18,7 +18,7 @@ public sealed class ContentApiSongsTests : IClassFixture<QueenZoneWebApplication
     {
         using var client = factory.CreateAnonymousClient();
 
-        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/songs");
+        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/songs?pageSize=100");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var payload = await response.Content.ReadFromJsonAsync<ApiPagedResponse<SongListItemDto>>();
