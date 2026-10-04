@@ -11,7 +11,7 @@ import {
   fetchPhotoDetail,
 } from '../src/api/content.ts';
 import { fetchSearchPage } from '../src/api/search.ts';
-import { fetchCrosswordDetail, fetchCrosswordsPage, checkCrossword, revealCrossword,
+import { fetchCrosswordDetail, fetchCrosswordBySlug, fetchCrosswordsPage, checkCrossword, revealCrossword,
   fetchCrosswordProgress, saveCrosswordProgress, completeCrossword } from '../src/api/crosswords.ts';
 import {
   createForumReply,
@@ -103,6 +103,8 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
     assert.ok(!page.items.some(item => item.id === fixture.archivedCrosswordId));
     const raw = await fetchCrosswordDetail(fixture.crosswordId);
     const detail = parseContract('GET /api/v1/crosswords/{id}', crosswordDetailSchema, raw);
+    const bySlug = parseContract('GET /api/v1/crosswords/by-slug/{slug}', crosswordDetailSchema, await fetchCrosswordBySlug(detail.slug));
+    assert.equal(bySlug.id, detail.id);
     assert.equal(detail.archived, false);
     assert.ok(detail.clues.length > 0);
     assert.equal(detail.blocks.length, detail.width * detail.height);

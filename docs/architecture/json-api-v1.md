@@ -146,3 +146,9 @@ Public, unauthenticated `/api/v1` routes are included in the live-site read-only
 ## Optional forum video descriptors
 
 Forum post responses add optional `youtubeVideos` metadata (`provider`, `videoId`, `watchUrl`, nullable `startSeconds`, zero-based `anchorIndex`). The sanitized `body` and all existing fields retain their meaning and readable links; installed clients can ignore the new property. Missing/empty metadata preserves ordinary rendering. `anchorIndex` counts all anchors in the parsed post body, including ineligible links and image wrappers. Clients validate IDs/start/provider and generate fixed player URLs only after explicit activation; they must not load arbitrary API URLs as embeds. See [shared policy](forum-youtube-policy.md) for eligibility, deduplication, the three-card limit, timestamp bounds and fixtures. No server network lookup or stored-content rewrite occurs.
+
+### Crossword discovery for installed apps
+
+`GET /api/v1/crosswords` accepts optional `difficulty=easy|medium|hard` and `size=small|large` filters before paging. Small grids have both dimensions at most nine cells; large grids have either dimension above nine. Unknown filter values produce an empty page. A bearer token adds only that member's status to list cards.
+
+`GET /api/v1/crosswords/by-slug/{slug}` resolves canonical web/app deep links directly, including archived puzzles. Drafts and scheduled puzzles before their publication time return 404. The response has the same safe detail shape as the ID route, no answer grid or explanations, and `Cache-Control: no-store`. App offline caches contain this public shape; account progress and durable queued writes remain separate member partitions.
