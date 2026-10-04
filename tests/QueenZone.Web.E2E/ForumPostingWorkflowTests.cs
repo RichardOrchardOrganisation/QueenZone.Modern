@@ -159,6 +159,36 @@ public class ForumPostingWorkflowTests : E2EPageTest
         await Expect(Page.GetByRole(AriaRole.Link, new() { Name = fileName, Exact = false })).ToHaveCountAsync(0);
     }
 
+    [Test]
+    public async Task ReplyToSeedTopicKeepsSingleLinkInCategoryAndRecentActivity()
+    {
+        var reply = $"Seed overlay regression {Guid.NewGuid():N}";
+        await Page.GotoAsync("/forum/topic/1002/ranking-every-studio-album");
+        await FillRichTextEditorAsync(reply);
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Reply", Exact = true }).ClickAsync();
+        await Expect(Page.Locator(".qz-forum-post").Filter(new() { HasText = reply })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/forum/1/the-music");
+        var ranking = Page.GetByRole(AriaRole.Link, new() { Name = "Ranking every studio album", Exact = true });
+        await Expect(ranking).ToHaveCountAsync(1);
+        await Expect(ranking).ToBeVisibleAsync();
+        await Page.ScreenshotAsync(new PageScreenshotOptions
+        {
+            Path = Path.Combine(E2EArtifactPaths.EnsureDirectory(), "forum-seed-overlay-category.png"),
+            FullPage = true,
+        });
+        await ranking.ClickAsync();
+        await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Ranking every studio album", Level = 1 })).ToBeVisibleAsync();
+        await Page.GotoAsync("/forum");
+        await Expect(ranking).ToHaveCountAsync(1);
+        await Expect(ranking).ToBeVisibleAsync();
+        await Page.ScreenshotAsync(new PageScreenshotOptions
+        {
+            Path = Path.Combine(E2EArtifactPaths.EnsureDirectory(), "forum-seed-overlay-index.png"),
+            FullPage = true,
+        });
+    }
+
     private async Task FillRichTextEditorAsync(string text)
     {
         var editor = Page.Locator("[data-testid='rich-text-editor']").Last;
