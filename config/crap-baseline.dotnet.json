@@ -72,6 +72,6 @@
     "src/QueenZone.Web/Pages/Quizzes/Sprint.cshtml|QueenZone.Web.Pages.Quizzes.Pages_Quizzes_Sprint|ExecuteAsync": 48.0,
     "src/QueenZone.Web/Pages/Search.cshtml|QueenZone.Web.Pages.Pages_Search|ExecuteAsync": 36.0,
     "src/QueenZone.Web/Pages/Shared/_SprintCallout.cshtml|QueenZone.Web.Pages.Shared.Pages_Shared__SprintCallout|ExecuteAsync": 72.0,
-    "src/QueenZone.Web/Sitemap/CoreSitemapBuilder.cs|QueenZone.Web.Sitemap.CoreSitemapBuilder|BuildSectionAsync": 62.5
+    "src/QueenZone.Web/Sitemap/CoreSitemapBuilder.cs|QueenZone.Web.Sitemap.CoreSitemapBuilder|BuildSectionAsync": 48.2
   }
 }
