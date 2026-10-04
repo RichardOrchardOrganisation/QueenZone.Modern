@@ -21,3 +21,7 @@ On Veronica, explicitly select a dedicated simulator using `IOS_SIM_UDID` and `M
 ## Gotchas
 
 Answers are never in the cached detail. Checks, reveals and completion need a connection. Every mutation sends a current nonempty playVersion; old versions need a reload. A cached puzzle remains playable offline, with saves partitioned by guest/member. Signed-out writes cannot be queued for a previous account. Reveal word/grid requires confirmation and permanently marks assistance. Crosses, strike-through and triangles distinguish statuses without colour alone. Universal web links additionally require the website/app signing association, which must be verified independently from the custom scheme.
+
+## Approved small-phone layout clarification (4 October 2026)
+
+Richard approved normal phone QWERTY widths with at least 44 pt key heights, a zoomable grid, and keeping the selected cell and active clue visible. Long Down answers scroll instead of fitting wholly above the keyboard. This is a scoped acceptance clarification, not a waiver of other accessibility checks. Verify lower grid rows are reachable on both platforms and selected cells remain visible after zoom. On a shared Mac set `QZ_SMOKE_SHARED_ADB=1` and a dedicated `ANDROID_SERIAL`/`MAESTRO_TARGET_DEVICE`; a transport fault stops proof without killing or restarting the shared ADB server.

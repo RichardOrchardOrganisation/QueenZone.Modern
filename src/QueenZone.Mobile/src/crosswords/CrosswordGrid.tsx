@@ -17,21 +17,33 @@ export function CrosswordGrid({ puzzle, model, state, disabled, onCell }: Props)
   const horizontal = useRef<ScrollView>(null);
   const vertical = useRef<ScrollView>(null);
   const fitted = puzzle.width <= 9 ? Math.min(viewport.width, Math.max(100, viewport.height - 44)) : viewport.width;
+  const boardHeight = Math.max(56, viewport.height - 44);
   const cellSize = Math.max(16, fitted / puzzle.width) * scale;
   const entry = model.entries[state.entry];
-  const pinch = useMemo(() => Gesture.Simultaneous(Gesture.Native(), Gesture.Pinch().runOnJS(true)
-    .onBegin(() => { baseline.current = currentScale.current; })
-    .onUpdate(event => setScale(Math.min(4, Math.max(1, baseline.current * event.scale))))), []);
+  const gestures = useMemo(() => {
+    const horizontalScroll = Gesture.Native();
+    const verticalScroll = Gesture.Native();
+    const pinch = Gesture.Pinch().runOnJS(true)
+      .onBegin(() => { baseline.current = currentScale.current; })
+      .onUpdate(event => setScale(Math.min(4, Math.max(1, baseline.current * event.scale))))
+      .simultaneousWithExternalGesture(horizontalScroll, verticalScroll);
+    horizontalScroll.simultaneousWithExternalGesture(pinch, verticalScroll);
+    verticalScroll.simultaneousWithExternalGesture(pinch, horizontalScroll);
+    return { pinch, horizontalScroll, verticalScroll };
+  }, []);
   useEffect(() => {
     const x = (state.cell % puzzle.width) * cellSize;
     const y = Math.floor(state.cell / puzzle.width) * cellSize;
     horizontal.current?.scrollTo({ x: Math.max(0, x - viewport.width / 2 + cellSize / 2), animated: true });
-    vertical.current?.scrollTo({ y: Math.max(0, y - viewport.height / 2 + cellSize / 2), animated: true });
-  }, [state.cell, cellSize, puzzle.width, viewport]);
+    vertical.current?.scrollTo({ y: Math.max(0, y - boardHeight / 2 + cellSize / 2), animated: true });
+  }, [state.cell, cellSize, puzzle.width, viewport, boardHeight]);
   return <View style={styles.frame} onLayout={event => setViewport(event.nativeEvent.layout)}>
-    <GestureDetector gesture={pinch}>
-      <ScrollView ref={horizontal} horizontal bounces={false} style={styles.scroll} contentContainerStyle={{ minWidth: viewport.width }}>
-        <ScrollView ref={vertical} bounces={false} style={{ width: puzzle.width * cellSize }}>
+    <GestureDetector gesture={gestures.pinch}>
+      <View style={styles.scroll} collapsable={false}>
+      <GestureDetector gesture={gestures.horizontalScroll}>
+      <ScrollView ref={horizontal} horizontal nestedScrollEnabled bounces={false} style={styles.scroll} contentContainerStyle={{ minWidth: viewport.width, height: boardHeight }}>
+        <GestureDetector gesture={gestures.verticalScroll}>
+        <ScrollView ref={vertical} nestedScrollEnabled bounces={false} style={{ width: puzzle.width * cellSize, height: boardHeight }}>
           <View testID={testIds.crosswordGrid} accessibilityLabel={`${puzzle.title} crossword grid. Pinch to zoom or use Zoom in.`}>
             {Array.from({ length: puzzle.height }, (_, row) => <View key={row} style={styles.row}>
               {Array.from({ length: puzzle.width }, (_, column) => {
@@ -54,7 +66,10 @@ export function CrosswordGrid({ puzzle, model, state, disabled, onCell }: Props)
             </View>)}
           </View>
         </ScrollView>
+        </GestureDetector>
       </ScrollView>
+      </GestureDetector>
+      </View>
     </GestureDetector>
     <View style={styles.zoom}>
       <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" onPress={() => setScale(value => Math.max(1, value - 0.5))} style={styles.zoomButton}><Text style={{ color: c.accentPrimary }}>−</Text></Pressable>

@@ -27,6 +27,8 @@ appId: org.queenzone.mobile
       id: crossword-play-screen
     timeout: 20000
 - tapOn:
+    id: crossword-cell-37
+- tapOn:
     id: crossword-key-B
 - tapOn:
     id: crossword-key-R
@@ -36,11 +38,16 @@ appId: org.queenzone.mobile
     id: crossword-key-A
 - tapOn:
     id: crossword-key-N
+- tapOn:
+    id: crossword-cell-37
+- assertVisible:
+    text: "6 across:.*"
 - tapOn: Check
 - tapOn:
     id: crossword-check-entry
 - assertVisible:
     id: crossword-status
+- assertVisible: No incorrect letters in this selection.
 - takeScreenshot: crossword-typed-checked
 - tapOn: Clues
 - assertVisible: Auto check

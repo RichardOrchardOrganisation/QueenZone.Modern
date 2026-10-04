@@ -1,22 +1,35 @@
-import { act, render, waitFor } from '@testing-library/react-native';
-import * as Linking from 'expo-linking';
+import { act, render } from '@testing-library/react-native';
+import { addEventListener } from 'expo-linking';
 import { CrosswordLinkBridge } from './CrosswordLinkBridge';
 const mockNavigate = jest.fn();
+let mockUrl: string | null = null;
 jest.mock('@react-navigation/native', () => ({ useNavigation: () => ({ navigate: mockNavigate }) }));
-jest.mock('expo-linking', () => ({ getInitialURL: jest.fn(), addEventListener: jest.fn() }));
-it('routes cold and warm links and removes its listener when the navigator unmounts', async () => {
-  const remove = jest.fn(); let handler!: (event: { url: string }) => void;
-  (Linking.getInitialURL as jest.Mock).mockResolvedValue('queenzone://crosswords/meet-the-band');
-  (Linking.addEventListener as jest.Mock).mockImplementation((_name, listener) => { handler = listener; return { remove }; });
-  const view = render(<CrosswordLinkBridge />); await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
-  act(() => handler({ url: 'https://www.queenzone.org/crosswords/live-aid' }));
+jest.mock('expo-linking', () => ({ useLinkingURL: () => mockUrl, addEventListener: jest.fn() }));
+beforeEach(() => { mockNavigate.mockClear(); mockUrl = null; (addEventListener as jest.Mock).mockReturnValue({ remove: jest.fn() }); });
+it('routes Expo scene-cached cold links and subsequent native URL events', () => {
+  mockUrl = 'queenzone://crosswords/meet-the-band';
+  const view = render(<CrosswordLinkBridge />);
+  expect(mockNavigate).toHaveBeenCalledTimes(1);
+  mockUrl = 'https://www.queenzone.org/crosswords/live-aid'; view.rerender(<CrosswordLinkBridge />);
   expect(mockNavigate).toHaveBeenLastCalledWith('Tabs', expect.objectContaining({ screen: 'ArchiveTab', params: expect.objectContaining({ params: { slug: 'live-aid' } }) }));
-  act(() => handler({ url: 'queenzone://auth/callback' })); expect(mockNavigate).toHaveBeenCalledTimes(2);
-  view.unmount(); expect(remove).toHaveBeenCalledTimes(1);
+  mockUrl = 'queenzone://auth/callback'; view.rerender(<CrosswordLinkBridge />);
+  expect(mockNavigate).toHaveBeenCalledTimes(2);
+  view.unmount();
 });
-it('tolerates missing or failed initial URL lookup', async () => {
-  mockNavigate.mockClear(); (Linking.getInitialURL as jest.Mock).mockRejectedValueOnce(new Error('Unavailable'));
-  (Linking.addEventListener as jest.Mock).mockReturnValue({ remove: jest.fn() });
-  const view = render(<CrosswordLinkBridge />); await act(async () => { await Promise.resolve(); });
+it('ignores absent URLs and unrelated website links', () => {
+  const view = render(<CrosswordLinkBridge />);
+  mockUrl = 'https://queenzone.com/crosswords/live-aid'; view.rerender(<CrosswordLinkBridge />);
   expect(mockNavigate).not.toHaveBeenCalled(); view.unmount();
+});
+
+it('reopens a repeated warm URL after leaving the puzzle, deduplicates hook/event delivery and cleans up', () => {
+  const remove = jest.fn(); let listener!: (event: { url: string }) => void;
+  (addEventListener as jest.Mock).mockImplementation((_type, handler) => { listener = handler; return { remove }; });
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
+  mockUrl = 'queenzone://crosswords/meet-the-band';
+  const view = render(<CrosswordLinkBridge />);
+  act(() => listener({ url: mockUrl! })); expect(mockNavigate).toHaveBeenCalledTimes(1);
+  now.mockReturnValue(2000); act(() => listener({ url: mockUrl! }));
+  expect(mockNavigate).toHaveBeenCalledTimes(2);
+  view.unmount(); expect(remove).toHaveBeenCalledTimes(1); now.mockRestore();
 });

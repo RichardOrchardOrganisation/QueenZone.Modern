@@ -1,15 +1,25 @@
 import { useNavigation } from '@react-navigation/native';
-import * as Linking from 'expo-linking';
+import { addEventListener, useLinkingURL } from 'expo-linking';
 import { useEffect, useRef } from 'react';
 import { openCrosswordLink, type CrosswordNavigation } from './deepLink';
 export function CrosswordLinkBridge() {
   const navigation = useNavigation<CrosswordNavigation>();
+  const url = useLinkingURL();
   const current = useRef(navigation);
   current.current = navigation;
+  const lastDelivery = useRef({ url: '', at: 0 });
+  const handle = useRef((value: string) => {
+    const at = Date.now();
+    if (lastDelivery.current.url === value && at - lastDelivery.current.at < 500) return;
+    if (openCrosswordLink(current.current, value)) lastDelivery.current = { url: value, at };
+  });
   useEffect(() => {
-    const handle = (url: string) => { openCrosswordLink(current.current, url); };
-    void Linking.getInitialURL().then(url => { if (url) handle(url); }).catch(() => {});
-    const subscription = Linking.addEventListener('url', event => handle(event.url));
+    if (url) handle.current(url);
+  }, [url]);
+  // Native events also handle reopening the same URL after leaving the puzzle;
+  // the scene-aware hook's string value would otherwise remain unchanged.
+  useEffect(() => {
+    const subscription = addEventListener('url', event => handle.current(event.url));
     return () => subscription.remove();
   }, []);
   return null;

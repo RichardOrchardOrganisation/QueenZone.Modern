@@ -533,7 +533,8 @@
       ],
       "flows": [
         "src/QueenZone.Mobile/maestro/flows/31-crossword.yaml",
-        "src/QueenZone.Mobile/maestro/flows/32-crossword-large.yaml"
+        "src/QueenZone.Mobile/maestro/flows/32-crossword-large.yaml",
+        "src/QueenZone.Mobile/maestro/flows/33-crossword-theme.yaml"
       ],
       "specs": [
         "src/QueenZone.Mobile/src/screens/archive/CrosswordPlayScreen.test.tsx"

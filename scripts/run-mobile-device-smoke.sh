@@ -210,6 +210,10 @@ run_with_timeout() {
 # reconnect / kill-server / start-server share one deadline so a wedged
 # daemon cannot sit on start-server until the job timeout (#1529).
 android_recover_adb() {
+  if [[ "${QZ_SMOKE_SHARED_ADB:-0}" == "1" ]]; then
+    echo "Shared-host proof refuses global ADB recovery; stop and inspect only the selected device." >&2
+    return 1
+  fi
   echo "Recovering ADB (deadline ${ANDROID_ADB_TIMEOUT_SECONDS}s)..."
   if run_with_timeout "$ANDROID_ADB_TIMEOUT_SECONDS" bash -c '
     adb reconnect offline || true
