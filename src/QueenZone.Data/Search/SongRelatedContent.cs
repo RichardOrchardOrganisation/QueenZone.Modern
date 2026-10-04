@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
@@ -8,36 +9,47 @@ namespace QueenZone.Data;
 /// </summary>
 public static class SongRelatedContent
 {
-    public static bool IsRelatedType(string? contentType) => contentType switch
-    {
-        SiteSearchContentType.Forum => true,
-        SiteSearchContentType.News => true,
-        SiteSearchContentType.Article => true,
-        SiteSearchContentType.LegacyArticle => true,
-        SiteSearchContentType.Photo => true,
-        SiteSearchContentType.Timeline => true,
-        SiteSearchContentType.Tribute => true,
-        SiteSearchContentType.FreddieTribute => true,
-        _ => false,
-    };
+    private static readonly FrozenSet<string> RelatedTypes = FrozenSet.ToFrozenSet(
+        [
+            SiteSearchContentType.Forum,
+            SiteSearchContentType.News,
+            SiteSearchContentType.Article,
+            SiteSearchContentType.LegacyArticle,
+            SiteSearchContentType.Photo,
+            SiteSearchContentType.Timeline,
+            SiteSearchContentType.Tribute,
+            SiteSearchContentType.FreddieTribute,
+        ],
+        StringComparer.Ordinal);
 
-    public static string SectionKey(string contentType) => contentType switch
+    private static readonly FrozenDictionary<string, string> SectionKeys = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        SiteSearchContentType.Article or SiteSearchContentType.LegacyArticle => "articles",
-        SiteSearchContentType.Tribute or SiteSearchContentType.FreddieTribute => "tribute",
-        _ => contentType,
-    };
+        [SiteSearchContentType.Article] = "articles",
+        [SiteSearchContentType.LegacyArticle] = "articles",
+        [SiteSearchContentType.Tribute] = "tribute",
+        [SiteSearchContentType.FreddieTribute] = "tribute",
+    }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    public static string SectionLabel(string contentType) => contentType switch
+    private static readonly FrozenDictionary<string, string> SectionLabels = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        SiteSearchContentType.News => "News",
-        SiteSearchContentType.Forum => "Forum",
-        SiteSearchContentType.Article or SiteSearchContentType.LegacyArticle => "Articles",
-        SiteSearchContentType.Photo => "Photography",
-        SiteSearchContentType.Timeline => "Timeline",
-        SiteSearchContentType.Tribute or SiteSearchContentType.FreddieTribute => "Freddie Tribute",
-        _ => contentType,
-    };
+        [SiteSearchContentType.News] = "News",
+        [SiteSearchContentType.Forum] = "Forum",
+        [SiteSearchContentType.Article] = "Articles",
+        [SiteSearchContentType.LegacyArticle] = "Articles",
+        [SiteSearchContentType.Photo] = "Photography",
+        [SiteSearchContentType.Timeline] = "Timeline",
+        [SiteSearchContentType.Tribute] = "Freddie Tribute",
+        [SiteSearchContentType.FreddieTribute] = "Freddie Tribute",
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    public static bool IsRelatedType(string? contentType) =>
+        contentType is not null && RelatedTypes.Contains(contentType);
+
+    public static string SectionKey(string contentType) =>
+        SectionKeys.TryGetValue(contentType, out var key) ? key : contentType;
+
+    public static string SectionLabel(string contentType) =>
+        SectionLabels.TryGetValue(contentType, out var label) ? label : contentType;
 
     public static IReadOnlyList<SongRelatedSection> ForTitle(
         IEnumerable<SearchDocumentEntity> documents,

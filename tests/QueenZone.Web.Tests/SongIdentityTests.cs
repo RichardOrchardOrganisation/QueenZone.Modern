@@ -107,4 +107,45 @@ public sealed class SongIdentityTests
         Assert.Equal("News", news.Label);
         Assert.Equal("/news/1/bohemian-rhapsody", Assert.Single(news.Links).Url);
     }
+
+    [Theory]
+    [InlineData(SiteSearchContentType.Forum)]
+    [InlineData(SiteSearchContentType.News)]
+    [InlineData(SiteSearchContentType.Article)]
+    [InlineData(SiteSearchContentType.LegacyArticle)]
+    [InlineData(SiteSearchContentType.Photo)]
+    [InlineData(SiteSearchContentType.Timeline)]
+    [InlineData(SiteSearchContentType.Tribute)]
+    [InlineData(SiteSearchContentType.FreddieTribute)]
+    public void Related_types_are_title_match_candidates(string contentType)
+    {
+        Assert.True(SongRelatedContent.IsRelatedType(contentType));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(SiteSearchContentType.Song)]
+    [InlineData(SiteSearchContentType.Discography)]
+    [InlineData(SiteSearchContentType.Biography)]
+    public void Song_and_unrelated_document_types_are_not_related(string? contentType)
+    {
+        Assert.False(SongRelatedContent.IsRelatedType(contentType));
+    }
+
+    [Theory]
+    [InlineData(SiteSearchContentType.Article, "articles", "Articles")]
+    [InlineData(SiteSearchContentType.LegacyArticle, "articles", "Articles")]
+    [InlineData(SiteSearchContentType.Tribute, "tribute", "Freddie Tribute")]
+    [InlineData(SiteSearchContentType.FreddieTribute, "tribute", "Freddie Tribute")]
+    [InlineData(SiteSearchContentType.News, "news", "News")]
+    [InlineData(SiteSearchContentType.Forum, "forum", "Forum")]
+    [InlineData(SiteSearchContentType.Photo, "photo", "Photography")]
+    [InlineData(SiteSearchContentType.Timeline, "timeline", "Timeline")]
+    [InlineData("unknown", "unknown", "unknown")]
+    public void Related_sections_use_locked_keys_and_labels(string contentType, string key, string label)
+    {
+        Assert.Equal(key, SongRelatedContent.SectionKey(contentType));
+        Assert.Equal(label, SongRelatedContent.SectionLabel(contentType));
+    }
 }
