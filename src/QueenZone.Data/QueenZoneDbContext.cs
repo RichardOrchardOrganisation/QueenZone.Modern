@@ -46,6 +46,10 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<QuizEntity> Quizzes => Set<QuizEntity>();
 
+    public DbSet<CrosswordEntity> Crosswords => Set<CrosswordEntity>();
+
+    public DbSet<CrosswordEntryEntity> CrosswordEntries => Set<CrosswordEntryEntity>();
+
     public DbSet<QuizQuestionEntity> QuizQuestions => Set<QuizQuestionEntity>();
 
     public DbSet<QuizOptionEntity> QuizOptions => Set<QuizOptionEntity>();
@@ -162,8 +166,10 @@ public sealed class QueenZoneDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(QueenZoneDbContext).Assembly,
             type => type != typeof(QueenHistoryEventEntityConfiguration)
-                && type != typeof(NewsAgentGuidanceRevisionEntityConfiguration));
+                && type != typeof(NewsAgentGuidanceRevisionEntityConfiguration)
+                && type != typeof(CrosswordEntityConfiguration));
         modelBuilder.ApplyConfiguration(new QueenHistoryEventEntityConfiguration(sqlServer));
         modelBuilder.ApplyConfiguration(new NewsAgentGuidanceRevisionEntityConfiguration(sqlServer));
+        modelBuilder.ApplyConfiguration(new CrosswordEntityConfiguration(sqlServer));
     }
 }

@@ -1,0 +1,84 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using QueenZone.Data;
+using QueenZone.Data.Entities;
+using QueenZone.Data.Migrations;
+
+namespace QueenZone.SqlServerTests;
+
+/// <summary>Applies the actual crossword migration to a disposable SQL Server database, never legacy or production rows.</summary>
+public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
+{
+    private readonly string databaseName = $"QueenZoneCrosswordTests_{Guid.NewGuid():N}";
+    private QueenZoneDbContext db = null!;
+
+    private string ConnectionString => new SqlConnectionStringBuilder(
+        Environment.GetEnvironmentVariable("ConnectionStrings__SqlServerTest")
+        ?? "Server=(localdb)\\MSSQLLocalDB;Trusted_Connection=True;TrustServerCertificate=True")
+    {
+        InitialCatalog = databaseName
+    }.ConnectionString;
+
+    public async Task InitializeAsync()
+    {
+        await using var empty = new EmptyContext(new DbContextOptionsBuilder<EmptyContext>().UseSqlServer(ConnectionString).Options);
+        await empty.Database.EnsureCreatedAsync();
+        db = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlServer(ConnectionString).Options);
+        var commands = db.GetService<IMigrationsSqlGenerator>().Generate(new AddCrosswords().UpOperations, db.Model);
+        foreach (var command in commands)
+        {
+            await db.Database.ExecuteSqlRawAsync(command.CommandText);
+        }
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (db is not null)
+        {
+            await db.DisposeAsync();
+        }
+        await using var empty = new EmptyContext(new DbContextOptionsBuilder<EmptyContext>().UseSqlServer(ConnectionString).Options);
+        await empty.Database.EnsureDeletedAsync();
+    }
+
+    [Fact]
+    public async Task Migration_round_trip_and_server_rowversion_rejects_a_stale_writer()
+    {
+        var puzzle = new CrosswordEntity
+        {
+            Id = Guid.NewGuid(), Slug = "sql-crossword", Title = "SQL crossword", Description = "Migration fixture",
+            Width = 5, Height = 5, Difficulty = "easy", Style = "british", BlockMask = ".....####################",
+            Status = CrosswordStatus.Draft, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            Entries = [new CrosswordEntryEntity
+            {
+                Id = Guid.NewGuid(), Number = 1, Direction = CrosswordDirection.Across, Row = 0, Column = 0,
+                Answer = "BRIAN", Clue = "Queen guitarist's first name", Enumeration = "(5)", Explanation = "Brian May."
+            }]
+        };
+        db.Crosswords.Add(puzzle);
+        await db.SaveChangesAsync();
+        Assert.NotEmpty(puzzle.RowVersion);
+        await using var stale = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlServer(ConnectionString).Options);
+        var other = await stale.Crosswords.SingleAsync();
+        var originalVersion = puzzle.RowVersion.ToArray();
+        puzzle.Title = "Edited";
+        await db.SaveChangesAsync();
+        Assert.False(originalVersion.SequenceEqual(puzzle.RowVersion));
+        other.Title = "Stale edit";
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => stale.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+        var loaded = await db.Crosswords.Include(item => item.Entries).SingleAsync();
+        Assert.Equal("Edited", loaded.Title);
+        var entry = Assert.Single(loaded.Entries);
+        Assert.Equal("BRIAN", entry.Answer);
+        Assert.Equal("(5)", entry.Enumeration);
+        Assert.Equal("Brian May.", entry.Explanation);
+        db.Crosswords.Remove(loaded);
+        await db.SaveChangesAsync();
+        Assert.Empty(await db.CrosswordEntries.ToListAsync());
+    }
+
+    private sealed class EmptyContext(DbContextOptions<EmptyContext> options) : DbContext(options);
+}
