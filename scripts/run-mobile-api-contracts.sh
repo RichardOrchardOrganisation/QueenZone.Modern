@@ -31,7 +31,7 @@ if [[ "$no_build" != true ]]; then
   dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
 fi
 
-log="$(mktemp /tmp/queenzone-mobile-api-contract-host.XXXXXX.log)"
+log="$(mktemp /tmp/queenzone-mobile-api-contract-host.XXXXXX)"
 host_pid=""
 
 cleanup() {

@@ -164,6 +164,75 @@ public sealed class CrosswordCatalogRepositoryTests
         Assert.Equal(2, (await repository.GetAllAsync()).Count);
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Publication_schedule_archive_and_unpublish_share_visibility_and_audit_rules(bool ef) => Run(ef, async (repository, clock) =>
+    {
+        var id = await repository.CreateDraftAsync(CrosswordSampleData.Load()[0], Creator, "editor");
+        var item = (await repository.GetByIdAsync(id))!;
+        Assert.False(CrosswordVisibility.IsPlayable(item, clock.GetUtcNow()));
+        var publishAt = clock.GetUtcNow().AddHours(1);
+        await repository.SetPublicationAsync(id, CrosswordStatus.Scheduled, publishAt, item.RowVersion, "editor");
+        item = (await repository.GetByIdAsync(id))!;
+        Assert.False(CrosswordVisibility.IsListed(item, clock.GetUtcNow()));
+        clock.Advance(TimeSpan.FromHours(1));
+        Assert.True(CrosswordVisibility.IsListed(item, clock.GetUtcNow()));
+        Assert.True(CrosswordVisibility.IsPlayable(item, clock.GetUtcNow()));
+        await repository.SetPublicationAsync(id, CrosswordStatus.Archived, null, item.RowVersion, "editor");
+        item = (await repository.GetByIdAsync(id))!;
+        Assert.False(CrosswordVisibility.IsListed(item, clock.GetUtcNow()));
+        Assert.True(CrosswordVisibility.IsPlayable(item, clock.GetUtcNow()));
+        Assert.Equal(publishAt, item.PublishedAt);
+        await repository.SetPublicationAsync(id, CrosswordStatus.Draft, null, item.RowVersion, "editor");
+        item = (await repository.GetByIdAsync(id))!;
+        Assert.False(CrosswordVisibility.IsPlayable(item, clock.GetUtcNow()));
+        Assert.Null(item.PublishAt);
+        Assert.Equal(new[] { "Created", "Scheduled", "Archived", "Unpublished" }.Order(),
+            (await repository.GetAuditAsync(id)).Select(log => log.Action).Order());
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Publish_now_rejects_stale_changes_without_extra_audit(bool ef) => Run(ef, async (repository, clock) =>
+    {
+        var id = await repository.CreateDraftAsync(CrosswordSampleData.Load()[0], Creator, "editor");
+        var original = (await repository.GetByIdAsync(id))!;
+        await repository.SetPublicationAsync(id, CrosswordStatus.Published, null, original.RowVersion, "publisher");
+        var published = (await repository.GetByIdAsync(id))!;
+        Assert.Equal(clock.GetUtcNow(), published.PublishedAt);
+        Assert.True(CrosswordVisibility.IsListed(published, clock.GetUtcNow()));
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.SetPublicationAsync(
+            id, CrosswordStatus.Archived, null, original.RowVersion, "stale"));
+        Assert.Equal(CrosswordStatus.Published, (await repository.GetByIdAsync(id))!.Status);
+        Assert.Equal(2, (await repository.GetAuditAsync(id)).Count);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Invalid_publication_or_never_published_archive_preserves_draft(bool ef) => Run(ef, async (repository, clock) =>
+    {
+        var seed = CrosswordSampleData.Load()[0];
+        var id = await repository.CreateDraftAsync(seed, Creator, "editor");
+        var item = (await repository.GetByIdAsync(id))!;
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SetPublicationAsync(id,
+            (CrosswordStatus)99, null, item.RowVersion, "editor"));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SetPublicationAsync(id,
+            CrosswordStatus.Scheduled, null, item.RowVersion, "editor"));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SetPublicationAsync(id,
+            CrosswordStatus.Scheduled, clock.GetUtcNow(), item.RowVersion, "editor"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SetPublicationAsync(id,
+            CrosswordStatus.Archived, null, item.RowVersion, "editor"));
+        await repository.SaveDraftAsync(id, seed with { Grid = seed.Grid with { Clues = [] } }, item.RowVersion, "editor");
+        item = (await repository.GetByIdAsync(id))!;
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SetPublicationAsync(id,
+            CrosswordStatus.Published, null, item.RowVersion, "editor"));
+        Assert.Equal(CrosswordStatus.Draft, (await repository.GetByIdAsync(id))!.Status);
+        Assert.Equal(2, (await repository.GetAuditAsync(id)).Count);
+    });
+
     private static async Task Run(bool ef, Func<ICrosswordCatalogRepository, FakeTimeProvider, Task> scenario)
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 4, 0, 0, 0, TimeSpan.Zero));

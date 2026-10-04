@@ -11,6 +11,7 @@ import {
   fetchPhotoDetail,
 } from '../src/api/content.ts';
 import { fetchSearchPage } from '../src/api/search.ts';
+import { fetchCrosswordDetail, fetchCrosswordsPage } from '../src/api/crosswords.ts';
 import {
   createForumReply,
   fetchForumTopic,
@@ -35,6 +36,8 @@ import { parseNewsSuggestionCreated, newsSuggestionsPath } from '../src/api/news
 import { parsePhotoSubmissionCreated, photoSubmissionsPath } from '../src/api/photoSubmissionForm.ts';
 import {
   conversationDetailSchema,
+  crosswordListItemSchema,
+  crosswordDetailSchema,
   expectedField,
   expectedStatus,
   fanPerformanceSchema,
@@ -88,6 +91,26 @@ async function expectApiError(
 }
 
 describe('mobile API consumer contracts', { concurrency: false }, () => {
+  it('reads solution-free crossword play data and retains archived direct links', async () => {
+    const page = parseContract('GET /api/v1/crosswords', pagedSchema(crosswordListItemSchema),
+      await fetchCrosswordsPage({ page: 1, pageSize: 100 }));
+    assert.ok(page.items.some(item => item.id === fixture.crosswordId));
+    assert.ok(!page.items.some(item => item.id === fixture.archivedCrosswordId));
+    const raw = await fetchCrosswordDetail(fixture.crosswordId);
+    const detail = parseContract('GET /api/v1/crosswords/{id}', crosswordDetailSchema, raw);
+    assert.equal(detail.archived, false);
+    assert.ok(detail.clues.length > 0);
+    assert.equal(detail.blocks.length, detail.width * detail.height);
+    for (const key of Object.keys(raw)) {
+      assert.ok(!/answer|solution|explanation/i.test(key), 'Private solution field leaked');
+    }
+    for (const clue of raw.clues) {
+      assert.ok(!('answer' in clue) && !('explanation' in clue), 'Private clue field leaked');
+    }
+    const archived = parseContract('GET archived crossword', crosswordDetailSchema,
+      await fetchCrosswordDetail(fixture.archivedCrosswordId));
+    assert.equal(archived.archived, true);
+  });
   it('reads a paged news list and a published news detail', async () => {
     const page = parseContract(
       'GET /api/v1/content/news',

@@ -119,6 +119,7 @@ public static class MobileApiContractHost
         var polls = scope.ServiceProvider.GetRequiredService<IForumPollRepository>();
         var adminNews = scope.ServiceProvider.GetRequiredService<IAdminNewsRepository>();
         var privateMessages = scope.ServiceProvider.GetRequiredService<IPrivateMessageRepository>();
+        var crosswords = scope.ServiceProvider.GetRequiredService<ICrosswordCatalogRepository>();
 
         await EnsureMemberAsync(
             members,
@@ -191,6 +192,8 @@ public static class MobileApiContractHost
                 unread.ErrorMessage ?? "Contract host could not seed an unread inbox conversation.");
         }
 
+        var crosswordId = await EnsureCrosswordAsync(crosswords, "meet-the-band", archived: false, cancellationToken);
+        var archivedCrosswordId = await EnsureCrosswordAsync(crosswords, "live-aid", archived: true, cancellationToken);
         return new MobileApiContractSeed(
             MemberToken: issuer.IssueAccessToken(MemberId, MemberEmail, MemberDisplayName),
             OtherMemberToken: issuer.IssueAccessToken(OtherMemberId, OtherMemberEmail, OtherMemberDisplayName),
@@ -201,7 +204,9 @@ public static class MobileApiContractHost
             PollTopicId: created.TopicId,
             PollOptionId: poll.Options[0].OptionId,
             AttachTopicId: attach.TopicId,
-            DiscussionTopicId: discussionTopicId);
+            DiscussionTopicId: discussionTopicId,
+            CrosswordId: crosswordId,
+            ArchivedCrosswordId: archivedCrosswordId);
     }
 
     public static MobileApiContractFixture BuildFixture(string baseUrl, MobileApiContractSeed seed) =>
@@ -226,7 +231,31 @@ public static class MobileApiContractHost
             seed.PollTopicId,
             seed.PollOptionId.ToString("D"),
             seed.AttachTopicId,
-            seed.DiscussionTopicId);
+            seed.DiscussionTopicId,
+            seed.CrosswordId,
+            seed.ArchivedCrosswordId);
+
+    private static async Task<Guid> EnsureCrosswordAsync(ICrosswordCatalogRepository catalog, string slug,
+        bool archived, CancellationToken cancellationToken)
+    {
+        var item = (await catalog.GetAllAsync(cancellationToken)).Single(puzzle => puzzle.Seed.Slug == slug);
+        var target = archived ? CrosswordStatus.Archived : CrosswordStatus.Published;
+        if (item.Status == target)
+        {
+            return item.Id;
+        }
+        if (item.Status != CrosswordStatus.Published)
+        {
+            await catalog.SetPublicationAsync(item.Id, CrosswordStatus.Published, null,
+                item.RowVersion, "contract-fixture", cancellationToken);
+            item = (await catalog.GetByIdAsync(item.Id, cancellationToken))!;
+        }
+        if (archived)
+        {
+            await catalog.SetPublicationAsync(item.Id, target, null, item.RowVersion, "contract-fixture", cancellationToken);
+        }
+        return item.Id;
+    }
 
     public static void WriteFixture(string path, MobileApiContractFixture fixture)
     {
@@ -353,7 +382,9 @@ public sealed record MobileApiContractSeed(
     int PollTopicId,
     Guid PollOptionId,
     int AttachTopicId,
-    int DiscussionTopicId);
+    int DiscussionTopicId,
+    Guid CrosswordId = default,
+    Guid ArchivedCrosswordId = default);
 
 public sealed record MobileApiContractMemberFixture(
     string Id,
@@ -370,7 +401,9 @@ public sealed record MobileApiContractFixture(
     int PollTopicId,
     string PollOptionId,
     int AttachTopicId,
-    int DiscussionTopicId);
+    int DiscussionTopicId,
+    Guid CrosswordId = default,
+    Guid ArchivedCrosswordId = default);
 
 /// <summary>
 /// Writes the contract fixture after the Testing host is listening. Registered only

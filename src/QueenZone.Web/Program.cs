@@ -316,6 +316,7 @@ app.MapQueenZoneApiV1();
 app.MapAdminApiEndpoints();
 app.MapMobileAuthEndpoints();
 app.MapContentApiEndpoints();
+app.MapCrosswordApiEndpoints();
 app.MapSearchApiEndpoints();
 app.MapForumApiEndpoints();
 app.MapContactApiEndpoints();

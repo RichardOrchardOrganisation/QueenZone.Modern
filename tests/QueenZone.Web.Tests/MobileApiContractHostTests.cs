@@ -113,6 +113,10 @@ public sealed class MobileApiContractHostTests : IClassFixture<QueenZoneWebAppli
         var second = await MobileApiContractHost.SeedAsync(factory.Services);
 
         Assert.Equal(first.DiscussionTopicId, second.DiscussionTopicId);
+        Assert.Equal(first.CrosswordId, second.CrosswordId);
+        Assert.Equal(first.ArchivedCrosswordId, second.ArchivedCrosswordId);
+        Assert.NotEqual(Guid.Empty, first.CrosswordId);
+        Assert.NotEqual(Guid.Empty, first.ArchivedCrosswordId);
         Assert.NotEqual(first.AttachTopicId, second.AttachTopicId);
     }
 

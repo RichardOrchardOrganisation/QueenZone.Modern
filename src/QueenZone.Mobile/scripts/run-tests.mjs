@@ -59,6 +59,9 @@ function runNodeTest(files, { coverage = false } = {}) {
 
 function runJest(files, { coverage = false } = {}) {
   const args = [jestBin, '--ci', '--watchAll=false', '--runInBand'];
+  if (process.argv.includes('--no-watchman')) {
+    args.push('--watchman=false');
+  }
   if (coverage) {
     mkdirSync(jestCoverageDir, { recursive: true });
     args.push('--coverage', `--coverageDirectory=${jestCoverageDir}`);

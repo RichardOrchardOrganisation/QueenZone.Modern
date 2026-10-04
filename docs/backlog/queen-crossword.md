@@ -20,7 +20,7 @@ The crossword should copy the **Quiz** feature's shape rather than invent a new 
 
 ### What "desktop app" means here
 
-There is no native desktop client in this repo. The website already ships a PWA (`wwwroot/manifest.webmanifest`, `display: standalone`, `sw.js`). This plan treats **desktop app = the installed PWA on Windows/macOS (Edge/Chrome) plus normal desktop browsers**. If a native desktop wrapper (Electron/Tauri/MAUI) is actually wanted, that is a separate decision and a separate epic — see [Open questions](#open-questions).
+There is no native desktop client in this repo. The website already ships a PWA (`wwwroot/manifest.webmanifest`, `display: standalone`, `sw.js`). This plan treats **desktop app = the installed PWA on Windows/macOS (Edge/Chrome) plus normal desktop browsers**. If a native desktop wrapper (Electron/Tauri/MAUI) is actually wanted, that is a separate decision and a separate epic — see [Open questions](#confirmed-choices-and-open-questions).
 
 ### Target surfaces
 
@@ -108,7 +108,7 @@ There is no native desktop client in this repo. The website already ships a PWA 
 - `POST /api/v1/crosswords/{id}/reveal` — body names a cell, entry, or `grid`; returns the revealed letters and marks the attempt as not clean.
 - `GET/PUT /api/v1/crosswords/{id}/progress` (member only) — save/load in-progress letters, elapsed seconds, reveal flags, `updatedAt`.
 - `POST /api/v1/crosswords/{id}/complete` (member only) — server re-checks the grid; records time and clean/not-clean.
-- Draft, Scheduled (before `PublishAt`), and Archived puzzles return 404 to non-admins.
+- Draft and Scheduled (before `PublishAt`) puzzles return 404 to non-admins. Archived puzzles are omitted from public lists but remain playable by direct link with an **Archived** banner (Richard approved on 2026-10-04; this supersedes the conflicting archived-404 wording in #2051).
 - Every new `POST`/`PUT` is classified in [`mutation-rate-limiting.md`](../architecture/mutation-rate-limiting.md) with a named rate-limit policy; `MutationEndpointInventoryTests` passes.
 - Endpoints appear in OpenAPI. Changes are additive to v1 ([ADR 0019](../decisions/0019-api-versioning-convention.md)).
 
@@ -451,7 +451,7 @@ Admin access uses the existing admin scheme and `Admin:AllowedEmails`. Admin pag
 
 - *Publish now* and *Schedule for…* (date/time, site time zone shown). Both blocked while the validator has errors.
 - Scheduled puzzles become visible at `PublishAt` without a deploy or restart (query filters on `PublishAt <= now`, and public cache entries for the list and home teaser are invalidated or short-lived enough).
-- *Unpublish* returns a puzzle to Draft; members' progress is kept. *Archive* hides it from public lists but keeps direct links working with an "archived" banner (open question).
+- *Unpublish* returns a puzzle to Draft; members' progress is kept. *Archive* hides it from public lists but keeps direct links working with an "archived" banner (confirmed by Richard on 2026-10-04).
 - Bulk action on the list: *Publish selected* (to release seeded puzzles in one go).
 
 **Verification**
@@ -576,14 +576,14 @@ Admin access uses the existing admin scheme and `Admin:AllowedEmails`. Admin pag
 
 ---
 
-## Open questions
+## Confirmed choices and open questions
 
-1. **Desktop app.** Is the installed PWA enough, or is a native desktop wrapper wanted? This plan assumes PWA.
-2. **Answer secrecy vs offline checking.** Recommended: answers stay server-side (check/reveal endpoints) so the leaderboard is meaningful; the cost is no checking while offline. Alternative: ship answers to the client and accept that the leaderboard is honour-system.
-3. **Seeded puzzle status.** Recommended: import as Draft so an admin reviews before release. Alternative: publish all 10 at launch, or schedule one a week for 10 weeks.
-4. **Style.** American (every cell checked, symmetric) vs British (unchecked cells allowed). The validator supports both; the seed set should pick one per puzzle and say so.
+1. **Desktop app — confirmed.** Use the installed PWA and normal desktop browsers.
+2. **Answer secrecy — confirmed.** Answers stay server-side; check/reveal require a connection.
+3. **Seeded puzzle status — confirmed.** Import as Draft for editorial review before release.
+4. **Style — confirmed.** Richard approved British-style grids with unchecked cells for the first ten seeds on 2026-10-04.
 5. **Cryptic clues.** Out of scope for v1 (straight clues only); a future "cryptic" difficulty could reuse everything here.
-6. **Archived puzzle links.** Should direct links to archived puzzles keep working (with a banner) or 404?
+6. **Archived puzzle links — confirmed.** Richard approved playable direct links with an Archived banner on 2026-10-04. Archives remain hidden from public lists.
 
 ## Non-goals (v1)
 
