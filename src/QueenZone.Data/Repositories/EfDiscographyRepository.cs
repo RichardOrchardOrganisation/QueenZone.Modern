@@ -125,7 +125,8 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
             ArtistName: album.ARTIST_NAME,
             GeneralNotes: string.IsNullOrWhiteSpace(album.GENERAL_NOTES) ? null : album.GENERAL_NOTES,
             CoverUrl: AlbumCoverUrl.Build(album.PICTURE_URL) ?? AlbumCoverUrl.Build(album.THUMB_URL),
-            Songs: songItems);
+            Songs: songItems,
+            ReleaseDate: album.RELEASE_DATE);
     }
 
     private static bool IsExec(string sql) =>

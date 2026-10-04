@@ -32,6 +32,8 @@ import type {
   QuizSprintRound,
   RandomQuote,
   RandomTrivia,
+  SongDetail,
+  SongListItem,
   TimelineEvent,
 } from './types';
 
@@ -137,6 +139,18 @@ export function fetchAlbumDetail(id: number, signal?: AbortSignal): Promise<Albu
   return fetchJsonWithOfflineCache(`/content/discography/${id}`, {
     signal,
     cacheKey: `discography:${id}`,
+  });
+}
+
+export function fetchSongsPage(query: PageQuery = {}): Promise<ApiPagedResponse<SongListItem>> {
+  return fetchJson('/content/songs', { query: pageParams(query), signal: query.signal });
+}
+
+/** Network-first; caches successful responses for offline re-open. */
+export function fetchSongDetail(slug: string, signal?: AbortSignal): Promise<SongDetail> {
+  return fetchJsonWithOfflineCache(`/content/songs/${encodeURIComponent(slug)}`, {
+    signal,
+    cacheKey: `song:${slug}`,
   });
 }
 

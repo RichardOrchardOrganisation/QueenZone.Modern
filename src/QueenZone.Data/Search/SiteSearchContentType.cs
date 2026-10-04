@@ -12,6 +12,7 @@ public static class SiteSearchContentType
     public const string Forum = "forum";
     public const string Biography = "biography";
     public const string Discography = "discography";
+    public const string Song = "song";
     public const string Photo = "photo";
     public const string Timeline = "timeline";
     public const string FanPerformance = "fan-performance";
@@ -29,7 +30,7 @@ public static class SiteSearchContentType
 
     public static readonly IReadOnlyList<string> All =
     [
-        News, Article, LegacyArticle, Forum, Biography, Discography, Photo, Timeline, FanPerformance,
+        News, Article, LegacyArticle, Forum, Biography, Discography, Song, Photo, Timeline, FanPerformance,
     ];
 
     public static string? Normalize(string? value)
@@ -66,6 +67,7 @@ public static class SiteSearchContentType
         Forum => "Forum",
         Biography => "Biography",
         Discography => "Discography",
+        Song => "Songs",
         Photo => "Photography",
         Timeline => "Timeline",
         FanPerformance => "Fan Performances",

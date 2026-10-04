@@ -26,4 +26,13 @@ public interface ISearchIndexService
 
     /// <summary>Total indexed document count, grouped by content type. Used by the admin reindex page.</summary>
     Task<IReadOnlyDictionary<string, int>> GetContentTypeCountsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Documents whose title equals <paramref name="title"/> (ordinal ignore-case). Used for
+    /// song-page related content. Default is empty so test doubles stay source-compatible.
+    /// </summary>
+    Task<IReadOnlyList<SearchDocumentEntity>> FindByExactTitleAsync(
+        string title,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<SearchDocumentEntity>>([]);
 }

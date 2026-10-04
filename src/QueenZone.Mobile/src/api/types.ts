@@ -119,6 +119,38 @@ export type AlbumSong = {
   isSingle: boolean;
   lyrics: string | null;
   notes: string | null;
+  detailPath?: string | null;
+};
+
+export type SongListItem = {
+  slug: string;
+  title: string;
+  appearanceCount: number;
+  detailPath: string;
+};
+
+export type SongAppearance = {
+  albumId: number;
+  albumName: string;
+  releaseYear: number | null;
+  isSingle: boolean;
+  notes: string | null;
+  albumPath: string;
+};
+
+export type SongRelatedItem = {
+  contentType: string;
+  title: string;
+  url: string;
+};
+
+export type SongDetail = {
+  slug: string;
+  title: string;
+  lyrics: string | null;
+  detailPath: string;
+  appearances: SongAppearance[];
+  related: SongRelatedItem[];
 };
 
 export type AlbumDetail = {

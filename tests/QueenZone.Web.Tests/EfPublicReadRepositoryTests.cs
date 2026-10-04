@@ -151,6 +151,63 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Discography_song_catalog_dedupes_same_title_and_keeps_parenthetical()
+    {
+        dbContext.Database.ExecuteSqlRaw(
+            """
+            CREATE TABLE IF NOT EXISTS AlbumSongByAlbum (
+                Q_ALBUM_SONG_ID INTEGER NOT NULL,
+                Q_ALBUM_ID INTEGER NOT NULL,
+                SONG_TITLE TEXT NOT NULL,
+                IS_SINGLE INTEGER NOT NULL,
+                SONG_LYRICS TEXT,
+                SONG_NOTES TEXT
+            );
+            INSERT INTO AlbumList (Q_ALBUM_ID, ALBUM_NAME, release_year, thumb_url)
+            VALUES (10, 'Queen', 1973, NULL), (11, 'Queen II', 1974, NULL), (12, 'A Night at the Opera', 1975, NULL);
+            INSERT INTO AlbumDisplay (Q_ALBUM_ID, ALBUM_NAME, RELEASE_DATE, GENERAL_NOTES, ARTIST_NAME, THUMB_URL, PICTURE_URL, ACTIVE)
+            VALUES
+                (10, 'Queen', '1973-07-13', NULL, 'Queen', NULL, NULL, 1),
+                (11, 'Queen II', '1974-03-08', NULL, 'Queen', NULL, NULL, 1),
+                (12, 'A Night at the Opera', '1975-11-21', NULL, 'Queen', NULL, NULL, 1),
+                (13, 'Hidden', '1970-01-01', NULL, 'Queen', NULL, NULL, 0);
+            INSERT INTO AlbumSongByAlbum (Q_ALBUM_SONG_ID, Q_ALBUM_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES)
+            VALUES
+                (101, 10, 'Seven Seas of Rhye', 0, 'Early lyrics', NULL),
+                (111, 11, 'Seven Seas of Rhye', 0, 'Later lyrics', 'II notes'),
+                (121, 12, 'Death on Two Legs (Dedicated to...)', 0, NULL, NULL),
+                (131, 13, 'Seven Seas of Rhye', 0, 'Hidden lyrics', NULL);
+            """);
+
+        var repository = new EfDiscographyRepository(
+            dbContext,
+            listSql: "SELECT Q_ALBUM_ID, ALBUM_NAME, release_year, thumb_url FROM AlbumList WHERE Q_ALBUM_ID IN (10, 11, 12)",
+            displaySql: id => $"""
+                SELECT Q_ALBUM_ID, ALBUM_NAME, RELEASE_DATE, GENERAL_NOTES, ARTIST_NAME, THUMB_URL, PICTURE_URL, ACTIVE
+                FROM AlbumDisplay WHERE Q_ALBUM_ID = {id}
+                """,
+            songsSql: id => $"""
+                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES
+                FROM AlbumSongByAlbum
+                WHERE Q_ALBUM_ID = {id}
+                """);
+
+        var songs = await repository.GetSongsAsync();
+        Assert.Equal(2, songs.Count);
+
+        var sevenSeas = await repository.GetSongBySlugAsync("seven-seas-of-rhye");
+        Assert.NotNull(sevenSeas);
+        Assert.Equal("Seven Seas of Rhye", sevenSeas.Title);
+        Assert.Equal("Early lyrics", sevenSeas.Lyrics);
+        Assert.Equal(2, sevenSeas.Appearances.Count);
+        Assert.Equal("II notes", sevenSeas.Appearances[1].Notes);
+
+        var dedicated = await repository.GetSongBySlugAsync("death-on-two-legs-dedicated-to");
+        Assert.NotNull(dedicated);
+        Assert.Null(await repository.GetSongBySlugAsync("death-on-two-legs"));
+    }
+
+    [Fact]
     public async Task FanPerformance_maps_page_count_and_detail()
     {
         dbContext.Database.ExecuteSqlRaw(

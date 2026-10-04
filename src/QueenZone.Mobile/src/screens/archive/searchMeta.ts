@@ -18,6 +18,7 @@ export const searchTypeFilters = [
   { type: 'legacy-article', label: 'Legacy articles' },
   { type: 'biography', label: 'Biography' },
   { type: 'discography', label: 'Discography' },
+  { type: 'song', label: 'Songs' },
   { type: 'timeline', label: 'Timeline' },
   { type: 'fan-performance', label: 'Fan performances' },
 ] as const;

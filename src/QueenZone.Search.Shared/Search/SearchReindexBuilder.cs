@@ -14,7 +14,7 @@ namespace QueenZone.Search.Shared;
 /// </summary>
 /// <remarks>
 /// Covers News, Forum threads, Community Articles, legacy Articles, Biography, Discography,
-/// Timeline, and Fan Performances. Photography is not yet wired in — it needs the same
+/// Songs, Timeline, and Fan Performances. Photography is not yet wired in — it needs the same
 /// three-step treatment (paginate the existing public repository, map to
 /// <see cref="SearchDocumentEntity"/>, call <see cref="ISearchIndexService.ReplaceContentTypeAsync"/>)
 /// and can be added as an additional <c>Reindex*Async</c> method following the pattern below.
@@ -50,6 +50,7 @@ public sealed class SearchReindexBuilder(
         await RunContentTypeAsync(SiteSearchContentType.LegacyArticle, () => ReindexLegacyArticlesAsync(cancellationToken), onContentTypeStarted);
         await RunContentTypeAsync(SiteSearchContentType.Biography, () => ReindexBiographyAsync(cancellationToken), onContentTypeStarted);
         await RunContentTypeAsync(SiteSearchContentType.Discography, () => ReindexDiscographyAsync(cancellationToken), onContentTypeStarted);
+        await RunContentTypeAsync(SiteSearchContentType.Song, () => ReindexSongsAsync(cancellationToken), onContentTypeStarted);
         await RunContentTypeAsync(SiteSearchContentType.Timeline, () => ReindexTimelineAsync(cancellationToken), onContentTypeStarted);
         await RunContentTypeAsync(SiteSearchContentType.FanPerformance, () => ReindexFanPerformancesAsync(cancellationToken), onContentTypeStarted);
         await searchIndexService.ReplaceContentTypeAsync(SiteSearchContentType.Tribute, [], cancellationToken);
@@ -155,6 +156,13 @@ public sealed class SearchReindexBuilder(
         await searchIndexService.ReplaceContentTypeAsync(SiteSearchContentType.Discography, documents, cancellationToken);
     }
 
+    public async Task ReindexSongsAsync(CancellationToken cancellationToken = default)
+    {
+        var songs = await discographyRepository.GetSongsAsync(cancellationToken);
+        var documents = songs.Select(MapSong).ToList();
+        await searchIndexService.ReplaceContentTypeAsync(SiteSearchContentType.Song, documents, cancellationToken);
+    }
+
     public async Task ReindexTimelineAsync(CancellationToken cancellationToken = default)
     {
         var events = await queenHistoryRepository.GetAllPublishedAsync(cancellationToken);
@@ -233,6 +241,23 @@ public sealed class SearchReindexBuilder(
             Url = DiscographyRoutes.GetAlbumPath(album),
             PublishedAt = album.ReleaseYear.HasValue
                 ? new DateTimeOffset(album.ReleaseYear.Value, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                : null,
+        };
+    }
+
+    private static SearchDocumentEntity MapSong(SongSummary song)
+    {
+        var body = string.Join('\n', new[] { song.Title }.Concat(song.AlbumNames));
+        return new SearchDocumentEntity
+        {
+            SourceKey = SearchDocumentSourceKey.ForSong(song.Slug),
+            ContentType = SiteSearchContentType.Song,
+            Title = song.Title,
+            Body = body,
+            Summary = song.Title,
+            Url = SongRoutes.GetSongPath(song.Slug),
+            PublishedAt = song.EarliestReleaseYear.HasValue
+                ? new DateTimeOffset(song.EarliestReleaseYear.Value, 1, 1, 0, 0, 0, TimeSpan.Zero)
                 : null,
         };
     }

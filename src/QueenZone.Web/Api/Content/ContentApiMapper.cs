@@ -1,4 +1,5 @@
 using QueenZone.Data;
+using QueenZone.Routing;
 
 namespace QueenZone.Web;
 
@@ -236,8 +237,37 @@ public static class ContentApiMapper
                 song.Title,
                 song.IsSingle,
                 song.Lyrics is null ? null : LyricsFormatter.Format(song.Lyrics),
-                song.Notes))
+                song.Notes,
+                SongRoutes.GetSongPath(NewsSlug.Slugify(song.Title))))
             .ToList();
+
+    public static SongListItemDto ToSongListItem(SongSummary song) =>
+        new(song.Slug, song.Title, song.AppearanceCount, SongRoutes.GetSongPath(song.Slug));
+
+    public static IReadOnlyList<SongListItemDto> ToSongListItems(IEnumerable<SongSummary> songs) =>
+        songs.Select(ToSongListItem).ToList();
+
+    public static SongDetailDto ToSongDetail(SongDetail song, IReadOnlyList<SongRelatedSection>? related = null) =>
+        new(
+            song.Slug,
+            song.Title,
+            song.Lyrics is null ? null : LyricsFormatter.Format(song.Lyrics),
+            SongRoutes.GetSongPath(song.Slug),
+            song.Appearances
+                .Select(appearance => new SongAppearanceDto(
+                    appearance.AlbumId,
+                    appearance.AlbumName,
+                    appearance.ReleaseYear,
+                    appearance.IsSingle,
+                    appearance.Notes,
+                    DiscographyRoutes.GetAlbumPath(appearance.AlbumId, appearance.AlbumSlug)))
+                .ToList(),
+            (related ?? [])
+                .SelectMany(section => section.Links.Select(link => new SongRelatedItemDto(
+                    link.ContentType,
+                    link.Title,
+                    link.Url)))
+                .ToList());
 
     public static FreddieTributeDto ToFreddieTributeDto(FreddieTribute tribute) =>
         new(

@@ -138,6 +138,27 @@
     },
     {
       "aliases": [
+        "track",
+        "song detail"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/SongScreen.tsx"
+      ],
+      "testIds": [
+        "songScreen"
+      ],
+      "flows": [],
+      "specs": [],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "mobile.archive.song",
+      "name": "Song",
+      "screen": "ArchiveStack/Song",
+      "entry": "Archive → Discography → album → track"
+    },
+    {
+      "aliases": [
         "history timeline"
       ],
       "sources": [

@@ -8,4 +8,5 @@ public sealed record AlbumDetail(
     string ArtistName,
     string? GeneralNotes,
     string? CoverUrl,
-    IReadOnlyList<AlbumSong> Songs);
+    IReadOnlyList<AlbumSong> Songs,
+    DateTime? ReleaseDate = null);

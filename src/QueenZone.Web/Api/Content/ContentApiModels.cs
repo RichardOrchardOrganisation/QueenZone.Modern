@@ -157,7 +157,52 @@ public sealed record AlbumDetailDto(
 /// A single track within an <see cref="AlbumDetailDto"/>. <c>Lyrics</c> is encoded display HTML
 /// via <see cref="LyricsFormatter.Format"/>; <c>Notes</c> remains plain text.
 /// </summary>
-public sealed record AlbumSongDto(int SongId, string Title, bool IsSingle, string? Lyrics, string? Notes);
+public sealed record AlbumSongDto(
+    int SongId,
+    string Title,
+    bool IsSingle,
+    string? Lyrics,
+    string? Notes,
+    string? DetailPath = null);
+
+/// <summary>
+/// List-card shape for <c>/api/v1/content/songs</c>. Identity is the slug from
+/// <see cref="NewsSlug.Slugify"/> of the canonical title.
+/// </summary>
+public sealed record SongListItemDto(
+    string Slug,
+    string Title,
+    int AppearanceCount,
+    string DetailPath);
+
+/// <summary>
+/// One active-album appearance on <c>/api/v1/content/songs/{slug}</c>.
+/// Notes stay per appearance and are plain text.
+/// </summary>
+public sealed record SongAppearanceDto(
+    int AlbumId,
+    string AlbumName,
+    int? ReleaseYear,
+    bool IsSingle,
+    string? Notes,
+    string AlbumPath);
+
+/// <summary>
+/// Related archive hit whose search-document title equals the canonical song title.
+/// </summary>
+public sealed record SongRelatedItemDto(string ContentType, string Title, string Url);
+
+/// <summary>
+/// Detail shape for <c>/api/v1/content/songs/{slug}</c>. <c>Lyrics</c> is encoded
+/// display HTML via <see cref="LyricsFormatter.Format"/> when present.
+/// </summary>
+public sealed record SongDetailDto(
+    string Slug,
+    string Title,
+    string? Lyrics,
+    string DetailPath,
+    IReadOnlyList<SongAppearanceDto> Appearances,
+    IReadOnlyList<SongRelatedItemDto> Related);
 
 /// <summary>
 /// List-card shape for <c>/api/v1/content/freddietribute</c>. No detail endpoint: the

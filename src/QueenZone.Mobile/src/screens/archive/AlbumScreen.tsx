@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError, fetchAlbumDetail, toPlainText, type AlbumDetail } from '../../api';
 import type { ArchiveStackParamList } from '../../navigation/types';
 import { ArchiveImage } from '../../ui/ArchiveImage';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { radius, space, type, useTheme } from '../../theme';
+import { songSlugFromAlbumTrack } from './SongScreen';
 
 type Props = NativeStackScreenProps<ArchiveStackParamList, 'Album'>;
 
@@ -87,25 +88,45 @@ export function AlbumScreen({ navigation, route }: Props) {
       ) : null}
       <Text style={[type.eyebrow, { color: c.textSecondary, marginTop: space.xxl }]}>Track list</Text>
       <View style={{ marginTop: space.md }}>
-        {album.songs.map((song, index) => (
-          <View
-            key={song.songId}
-            style={[styles.track, { borderTopColor: c.hairline }]}
-          >
-            <Text style={[type.meta, { color: c.textMuted, width: 28 }]}>{index + 1}</Text>
-            <View style={styles.trackBody}>
-              <Text style={[type.listTitle, { color: c.textPrimary }]}>{song.title}</Text>
-              {song.isSingle ? (
-                <Text style={[type.meta, { color: c.accentPrimary, marginTop: space.xs }]}>Single</Text>
-              ) : null}
-              {song.notes ? (
-                <Text style={[type.caption, { color: c.textSecondary, marginTop: space.xs }]}>
-                  {toPlainText(song.notes)}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        ))}
+        {album.songs.map((song, index) => {
+          const songSlug = songSlugFromAlbumTrack(song.detailPath);
+          const row = (
+            <>
+              <Text style={[type.meta, { color: c.textMuted, width: 28 }]}>{index + 1}</Text>
+              <View style={styles.trackBody}>
+                <Text style={[type.listTitle, { color: c.textPrimary }]}>{song.title}</Text>
+                {song.isSingle ? (
+                  <Text style={[type.meta, { color: c.accentPrimary, marginTop: space.xs }]}>Single</Text>
+                ) : null}
+                {song.notes ? (
+                  <Text style={[type.caption, { color: c.textSecondary, marginTop: space.xs }]}>
+                    {toPlainText(song.notes)}
+                  </Text>
+                ) : null}
+              </View>
+            </>
+          );
+
+          if (!songSlug) {
+            return (
+              <View key={song.songId} style={[styles.track, { borderTopColor: c.hairline }]}>
+                {row}
+              </View>
+            );
+          }
+
+          return (
+            <Pressable
+              key={song.songId}
+              onPress={() => navigation.navigate('Song', { slug: songSlug })}
+              style={[styles.track, { borderTopColor: c.hairline }]}
+              accessibilityRole="button"
+              accessibilityLabel={song.title}
+            >
+              {row}
+            </Pressable>
+          );
+        })}
       </View>
       <View style={{ height: space.section }} />
     </ScrollView>

@@ -190,11 +190,18 @@ public sealed class CoreSitemapBuilder(
     private async Task AddDiscographyEntriesAsync(List<SitemapEntry> entries, CancellationToken cancellationToken)
     {
         entries.Add(new(DiscographyRoutes.GetIndexPath()));
+        entries.Add(new(SongRoutes.GetIndexPath()));
 
         var albums = await discographyRepository.GetAlbumsAsync(cancellationToken);
         foreach (var album in albums)
         {
             entries.Add(new(DiscographyRoutes.GetAlbumPath(album)));
+        }
+
+        var songs = await discographyRepository.GetSongsAsync(cancellationToken);
+        foreach (var song in songs)
+        {
+            entries.Add(new(SongRoutes.GetSongPath(song.Slug)));
         }
     }
 }

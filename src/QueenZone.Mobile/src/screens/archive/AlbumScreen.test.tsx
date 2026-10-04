@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { fetchAlbumDetail } from '../../api';
 import type { AlbumDetail } from '../../api/types';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
@@ -23,19 +23,30 @@ function albumDetailFixture(overrides: Partial<AlbumDetail> = {}): AlbumDetail {
     generalNotes: 'Studio album.',
     coverUrl: 'https://cdn.queenzone.org/discography/7-cover.jpg',
     detailPath: '/discography/7',
-    songs: [{ songId: 1, title: 'Bohemian Rhapsody', isSingle: true, lyrics: null, notes: null }],
+    songs: [
+      {
+        songId: 1,
+        title: 'Bohemian Rhapsody',
+        isSingle: true,
+        lyrics: null,
+        notes: null,
+        detailPath: '/songs/bohemian-rhapsody',
+      },
+    ],
     ...overrides,
   };
 }
 
 function renderAlbum(id = 7) {
-  return renderWithProviders(
+  const navigation = fakeNavigation();
+  renderWithProviders(
     <AlbumScreen
-      navigation={fakeNavigation() as never}
+      navigation={navigation as never}
       route={{ key: 'album', name: 'Album', params: { id } } as never}
     />,
     { navigation: false },
   );
+  return navigation;
 }
 
 describe('AlbumScreen', () => {
@@ -55,5 +66,12 @@ describe('AlbumScreen', () => {
     expect(cover.props.priority).toBe('normal');
     expect(cover.props.recyclingKey).toBe('7');
     expect(cover.props.accessibilityIgnoresInvertColors).toBe(true);
+  });
+
+  it('opens the song screen from a track with detailPath', async () => {
+    const navigation = renderAlbum();
+    await waitFor(() => expect(screen.getByText('Bohemian Rhapsody')).toBeOnTheScreen());
+    fireEvent.press(screen.getByLabelText('Bohemian Rhapsody'));
+    expect(navigation.navigate).toHaveBeenCalledWith('Song', { slug: 'bohemian-rhapsody' });
   });
 });

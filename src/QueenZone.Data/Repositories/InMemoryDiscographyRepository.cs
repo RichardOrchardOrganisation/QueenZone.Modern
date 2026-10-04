@@ -53,7 +53,8 @@ public sealed class InMemoryDiscographyRepository : IDiscographyRepository
             ArtistName: "Queen",
             GeneralNotes: seed.GeneralNotes,
             CoverUrl: AlbumCoverUrl.Build($"{slug}-cover.jpg"),
-            Songs: songs);
+            Songs: songs,
+            ReleaseDate: new DateTime(seed.ReleaseYear, 1, 1));
 
         return Task.FromResult<AlbumDetail?>(detail);
     }

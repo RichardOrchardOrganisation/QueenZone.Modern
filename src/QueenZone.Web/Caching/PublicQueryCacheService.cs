@@ -267,6 +267,23 @@ public sealed class PublicQueryCacheService(
             () => discographyRepository.GetAlbumByIdAsync(albumId, cancellationToken),
             cancellationToken);
 
+    public Task<IReadOnlyList<SongSummary>> GetSongsAsync(
+        CancellationToken cancellationToken = default) =>
+        GetOrCreateAsync(
+            PublicQueryCacheKeys.Songs,
+            options.Value.CatalogCacheDuration,
+            () => discographyRepository.GetSongsAsync(cancellationToken),
+            cancellationToken);
+
+    public Task<SongDetail?> GetSongBySlugAsync(
+        string slug,
+        CancellationToken cancellationToken = default) =>
+        GetOrCreateAsync(
+            PublicQueryCacheKeys.Song(slug.Trim().ToLowerInvariant()),
+            options.Value.CatalogCacheDuration,
+            () => discographyRepository.GetSongBySlugAsync(slug, cancellationToken),
+            cancellationToken);
+
     public Task<IReadOnlyList<PhotoCategory>> GetPhotoCategoriesAsync(CancellationToken cancellationToken = default)
     {
         var version = GetPhotoCacheVersion();
@@ -450,7 +467,11 @@ public sealed class PublicQueryCacheService(
     /// Evicts the public discography album list. No admin write path exists today;
     /// TTL is the freshness fallback until a sync/admin writer is wired.
     /// </summary>
-    public void InvalidateDiscographyCache() => cache.Remove(PublicQueryCacheKeys.DiscographyAlbums);
+    public void InvalidateDiscographyCache()
+    {
+        cache.Remove(PublicQueryCacheKeys.DiscographyAlbums);
+        cache.Remove(PublicQueryCacheKeys.Songs);
+    }
 
     /// <summary>
     /// Bumps the photo cache version so category lists and paged grids refresh after admin writes.

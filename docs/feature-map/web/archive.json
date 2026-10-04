@@ -182,6 +182,50 @@
       "entry": "Discography → album"
     },
     {
+      "aliases": [
+        "song index",
+        "track list"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Songs/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.Tests/SongPageTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.songs",
+      "name": "Songs",
+      "page": "Pages/Songs/Index.cshtml",
+      "url": "/songs",
+      "entry": "Open /songs, or Discography → browse every song"
+    },
+    {
+      "aliases": [
+        "song page",
+        "lyrics"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Songs/Detail.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.Tests/SongPageTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": "",
+      "id": "web.archive.song",
+      "name": "Song",
+      "page": "Pages/Songs/Detail.cshtml",
+      "url": "/songs/{slug}",
+      "entry": "Songs → title, or Album → track"
+    },
+    {
       "aliases": [],
       "sources": [
         "src/QueenZone.Web/Pages/Discography/RareDiscography.cshtml"

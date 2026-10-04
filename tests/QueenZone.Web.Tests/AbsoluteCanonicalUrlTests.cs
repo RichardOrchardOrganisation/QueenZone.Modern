@@ -55,6 +55,7 @@ public sealed class AbsoluteCanonicalUrlTests : IClassFixture<PreviewPublicBaseU
     [InlineData("/biography", "https://preview.queenzone.test/biography")]
     [InlineData("/photography", "https://preview.queenzone.test/photography")]
     [InlineData("/discography", "https://preview.queenzone.test/discography")]
+    [InlineData("/songs", "https://preview.queenzone.test/songs")]
     [InlineData("/fan-performances", "https://preview.queenzone.test/fan-performances")]
     [InlineData("/timeline", "https://preview.queenzone.test/timeline")]
     [InlineData("/trivia", "https://preview.queenzone.test/trivia")]
@@ -75,6 +76,7 @@ public sealed class AbsoluteCanonicalUrlTests : IClassFixture<PreviewPublicBaseU
     [InlineData("/photography/brian-may", "https://preview.queenzone.test/photography/brian-may")]
     [InlineData("/photography/brian-may/101", "https://preview.queenzone.test/photography/brian-may/101")]
     [InlineData("/discography/albums/4/a-night-at-the-opera", "https://preview.queenzone.test/discography/albums/4/a-night-at-the-opera")]
+    [InlineData("/songs/bohemian-rhapsody", "https://preview.queenzone.test/songs/bohemian-rhapsody")]
     [InlineData("/biography/2/1970", "https://preview.queenzone.test/biography/2/1970")]
     public async Task PublicDetailPagesEmitSelfReferentialCanonical(string path, string expectedCanonical)
     {

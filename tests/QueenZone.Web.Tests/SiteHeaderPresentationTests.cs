@@ -123,13 +123,13 @@ public sealed class SiteHeaderPresentationTests
     }
 
     [Fact]
-    public void Navigation_PreservesTheThreeGroupsAndAllTwelveDestinations()
+    public void Navigation_PreservesTheThreeGroupsAndAllDestinations()
     {
         var groups = SiteHeaderNavigation.Groups;
         Assert.Equal(new[] { "band", "archive", "community" }, groups.Select(group => group.Id));
         Assert.Equal(new[]
         {
-            "/biography", "/discography", "/discography/rare-discography", "/timeline", "/trivia",
+            "/biography", "/discography", "/songs", "/discography/rare-discography", "/timeline", "/trivia",
             "/news", "/articles", "/photography", "/links", "/forum", "/fan-performances", "/freddie-mercury-tribute",
         }, groups.SelectMany(group => group.Items).Select(item => item.Href));
     }

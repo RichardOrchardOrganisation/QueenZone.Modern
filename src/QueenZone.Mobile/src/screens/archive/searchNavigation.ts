@@ -17,10 +17,20 @@ export type SearchTabTarget =
   | { kind: 'tab'; tab: 'ForumTab'; screen: 'Thread'; params: { id: number } }
   | { kind: 'tab'; tab: 'ArchiveTab'; screen: 'BiographyChapter'; params: { id: number } }
   | { kind: 'tab'; tab: 'ArchiveTab'; screen: 'Album'; params: { id: number } }
+  | { kind: 'tab'; tab: 'ArchiveTab'; screen: 'Song'; params: { slug: string } }
   | { kind: 'tab'; tab: 'ArchiveTab'; screen: 'Timeline'; params?: { focusId: number } }
   | { kind: 'tab'; tab: 'ArchiveTab'; screen: 'FanPerformanceDetail'; params: { id: number } };
 
 export type SearchOpenTarget = SearchTabTarget | { kind: 'web'; url: string } | { kind: 'unsupported' };
+
+function songSlugFromSourceKey(sourceKey: string): string | null {
+  const prefix = 'song:';
+  if (!sourceKey.toLowerCase().startsWith(prefix)) {
+    return null;
+  }
+  const slug = sourceKey.slice(prefix.length).trim();
+  return slug.length > 0 ? slug : null;
+}
 
 function positiveId(value: number | null | undefined): number | null {
   if (value == null || !Number.isInteger(value) || value <= 0) {
@@ -71,6 +81,15 @@ export function targetForSearchResult(item: SearchResult, apiBaseUrl: string): S
       item,
       apiBaseUrl,
       id ? { kind: 'tab', tab: 'ArchiveTab', screen: 'Album', params: { id } } : null,
+    );
+  }
+
+  if (contentType === 'song') {
+    const slug = songSlugFromSourceKey(item.sourceKey);
+    return tabOrWeb(
+      item,
+      apiBaseUrl,
+      slug ? { kind: 'tab', tab: 'ArchiveTab', screen: 'Song', params: { slug } } : null,
     );
   }
 
