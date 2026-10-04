@@ -15,6 +15,7 @@ public static class CrosswordApiEndpoints
         group.MapDetail<CrosswordDetailDto>("/{id:guid}", GetDetailAsync, "GetCrossword",
             "Solution-free crossword for play. Published archives remain playable by direct link with archived=true.");
         group.MapCrosswordPlayApiEndpoints();
+        group.MapCrosswordResultsApiEndpoints();
     }
 
     internal static async Task<IResult> GetListAsync(HttpContext context, ICrosswordCatalogRepository catalog,

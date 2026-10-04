@@ -139,6 +139,7 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `web.archive.submitTriviaConfirmation` — Trivia submission confirmation (Pages/Submit/TriviaConfirmation.cshtml — /submit/trivia/confirmation/{id})
 - `web.archive.timeline` — Timeline (Pages/Timeline/Index.cshtml — /timeline)
 - `web.archive.trivia` — Trivia (Pages/Trivia/Index.cshtml — /trivia)
+- `web.crosswords.leaderboard` — Crossword leaderboard (Pages/Crosswords/Leaderboard.cshtml — /crosswords/meet-the-band/leaderboard)
 - `web.crosswords.list` — Crossword list (Pages/Crosswords/Index.cshtml — /crosswords)
 - `web.crosswords.play` — Crossword play (Pages/Crosswords/Play.cshtml — /crosswords/meet-the-band)
 
@@ -167,6 +168,7 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `web.account.profile` — Member profile (Pages/Members/Profile.cshtml — /members/{memberId})
 - `web.account.settings` — Account settings (Pages/Account/Settings.cshtml — /account/settings)
 - `web.account.submissions` — My submissions (Pages/Account/MySubmissions.cshtml — /account/my-submissions)
+- `web.crosswords.history` — My crosswords (Pages/Account/Crosswords.cshtml — /account/crosswords)
 
 ### messages
 

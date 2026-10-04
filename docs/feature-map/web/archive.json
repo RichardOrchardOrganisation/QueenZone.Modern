@@ -58,7 +58,7 @@
       "name": "Articles page",
       "page": "Pages/Articles/Page.cshtml",
       "url": "/articles/page/{pageNumber}",
-      "entry": "Articles → next page"
+      "entry": "Articles \u2192 next page"
     },
     {
       "aliases": [],
@@ -75,7 +75,7 @@
       "name": "Archive article",
       "page": "Pages/Articles/Detail.cshtml",
       "url": "/articles/{id}/{slug}",
-      "entry": "Articles → editorial article"
+      "entry": "Articles \u2192 editorial article"
     },
     {
       "aliases": [],
@@ -92,7 +92,7 @@
       "name": "Community article",
       "page": "Pages/Articles/CommunityDetail.cshtml",
       "url": "/articles/{slug}",
-      "entry": "Articles → community article slug"
+      "entry": "Articles \u2192 community article slug"
     },
     {
       "aliases": [
@@ -145,7 +145,7 @@
       "name": "Biography chapter",
       "page": "Pages/Biography/Detail.cshtml",
       "url": "/biography/{id}/{slug}",
-      "entry": "Biography → chapter"
+      "entry": "Biography \u2192 chapter"
     },
     {
       "aliases": [],
@@ -179,7 +179,7 @@
       "name": "Album",
       "page": "Pages/Discography/Album.cshtml",
       "url": "/discography/albums/{id}/{slug}",
-      "entry": "Discography → album"
+      "entry": "Discography \u2192 album"
     },
     {
       "aliases": [
@@ -201,7 +201,7 @@
       "name": "Songs",
       "page": "Pages/Songs/Index.cshtml",
       "url": "/songs",
-      "entry": "Open /songs, or Discography → browse every song"
+      "entry": "Open /songs, or Discography \u2192 browse every song"
     },
     {
       "aliases": [
@@ -223,7 +223,7 @@
       "name": "Song",
       "page": "Pages/Songs/Detail.cshtml",
       "url": "/songs/{slug}",
-      "entry": "Songs → title, or Album → track"
+      "entry": "Songs \u2192 title, or Album \u2192 track"
     },
     {
       "aliases": [],
@@ -240,7 +240,7 @@
       "name": "Rare discography",
       "page": "Pages/Discography/RareDiscography.cshtml",
       "url": "/discography/rare-discography",
-      "entry": "Discography → rare discography"
+      "entry": "Discography \u2192 rare discography"
     },
     {
       "aliases": [],
@@ -293,7 +293,7 @@
       "name": "Freddie Tribute page",
       "page": "Pages/FreddieTribute/Page.cshtml",
       "url": "/freddie-mercury-tribute/page/{pageNumber}",
-      "entry": "Freddie Tribute → next page"
+      "entry": "Freddie Tribute \u2192 next page"
     },
     {
       "aliases": [],
@@ -344,7 +344,7 @@
       "name": "Quiz play",
       "page": "Pages/Quizzes/Play.cshtml",
       "url": "/quizzes/{id}",
-      "entry": "Quizzes → play"
+      "entry": "Quizzes \u2192 play"
     },
     {
       "aliases": [],
@@ -361,7 +361,7 @@
       "name": "Quiz leaderboard",
       "page": "Pages/Quizzes/Leaderboard.cshtml",
       "url": "/quizzes/leaderboard",
-      "entry": "Quizzes → leaderboard"
+      "entry": "Quizzes \u2192 leaderboard"
     },
     {
       "aliases": [],
@@ -412,7 +412,7 @@
       "name": "Fan performances page",
       "page": "Pages/FanPerformances/Page.cshtml",
       "url": "/fan-performances/page/{pageNumber}",
-      "entry": "Fan performances → next page"
+      "entry": "Fan performances \u2192 next page"
     },
     {
       "aliases": [],
@@ -429,7 +429,7 @@
       "name": "Report a fan performance",
       "page": "Pages/FanPerformances/Report.cshtml",
       "url": "/fan-performances/{id}/report",
-      "entry": "Fan performances → report"
+      "entry": "Fan performances \u2192 report"
     },
     {
       "aliases": [
@@ -484,7 +484,7 @@
       "name": "Article submission confirmation",
       "page": "Pages/Submit/ArticleConfirmation.cshtml",
       "url": "/submit/article/confirmation/{id}",
-      "entry": "Submit article → confirmation"
+      "entry": "Submit article \u2192 confirmation"
     },
     {
       "aliases": [],
@@ -518,7 +518,7 @@
       "name": "Trivia submission confirmation",
       "page": "Pages/Submit/TriviaConfirmation.cshtml",
       "url": "/submit/trivia/confirmation/{id}",
-      "entry": "Submit trivia → confirmation"
+      "entry": "Submit trivia \u2192 confirmation"
     },
     {
       "aliases": [],
@@ -552,7 +552,7 @@
       "name": "Quiz question confirmation",
       "page": "Pages/Submit/QuizQuestionConfirmation.cshtml",
       "url": "/submit/quiz-question/confirmation/{id}",
-      "entry": "Submit quiz question → confirmation"
+      "entry": "Submit quiz question \u2192 confirmation"
     },
     {
       "aliases": [],
@@ -586,7 +586,7 @@
       "name": "Fan performance confirmation",
       "page": "Pages/Submit/FanPerformanceConfirmation.cshtml",
       "url": "/submit/fan-performance/confirmation/{id}",
-      "entry": "Submit fan performance → confirmation"
+      "entry": "Submit fan performance \u2192 confirmation"
     },
     {
       "id": "web.crosswords.list",
@@ -635,6 +635,28 @@
       ],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/crosswords.md"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Crosswords/Leaderboard.cshtml",
+        "src/QueenZone.Web/Pages/Crosswords/Leaderboard.cshtml.cs"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CrosswordResultsTests.cs"
+      ],
+      "selectors": [
+        "#main-content"
+      ],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/crossword-results.md",
+      "id": "web.crosswords.leaderboard",
+      "name": "Crossword leaderboard",
+      "page": "Pages/Crosswords/Leaderboard.cshtml",
+      "url": "/crosswords/meet-the-band/leaderboard",
+      "entry": "Completed crossword \u2192 Leaderboard"
     }
   ]
 }
