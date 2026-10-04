@@ -13,6 +13,12 @@ public sealed class EfCrosswordProgressRepository(QueenZoneDbContext db, TimePro
         return entity is null ? null : CrosswordProgressMapping.Read(entity);
     }
 
+    public async Task<IReadOnlyList<CrosswordProgress>> GetForPuzzleAsync(Guid crosswordId, CancellationToken cancellationToken = default)
+    {
+        var rows = await db.CrosswordProgress.AsNoTracking().Where(row => row.CrosswordId == crosswordId).ToListAsync(cancellationToken);
+        return rows.Select(CrosswordProgressMapping.Read).ToArray();
+    }
+
     public async Task<IReadOnlyList<CrosswordProgress>> GetForMemberAsync(Guid memberId, CancellationToken cancellationToken = default)
     {
         var rows = await db.CrosswordProgress.AsNoTracking().Where(row => row.MemberId == memberId).ToListAsync(cancellationToken);

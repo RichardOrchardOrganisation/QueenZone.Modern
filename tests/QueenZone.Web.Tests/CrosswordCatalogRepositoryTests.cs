@@ -13,6 +13,29 @@ public sealed class CrosswordCatalogRepositoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public Task Bulk_publication_validates_every_token_and_grid_before_changing_any_puzzle(bool ef) => Run(ef, async (repository, clock) =>
+    {
+        var seeds = CrosswordSampleData.Load();
+        await repository.ImportAsync(seeds.Take(2).ToArray(), Creator, "fixture");
+        var items = await repository.GetAllAsync();
+        var invalid = items[1].Seed with { Grid = items[1].Seed.Grid with { Clues = [] } };
+        await repository.SaveDraftAsync(items[1].Id, invalid, items[1].RowVersion, "editor");
+        var invalidItem = (await repository.GetByIdAsync(items[1].Id))!;
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.PublishSelectedAsync([new(items[0].Id, items[0].RowVersion), new(invalidItem.Id, invalidItem.RowVersion)], "publisher"));
+        Assert.All(await repository.GetAllAsync(), item => Assert.Equal(CrosswordStatus.Draft, item.Status));
+        Assert.DoesNotContain(await repository.GetAuditAsync(items[0].Id), row => row.Action == "Published");
+        await repository.SaveDraftAsync(invalidItem.Id, items[1].Seed, invalidItem.RowVersion, "editor");
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.PublishSelectedAsync([new(items[0].Id, items[0].RowVersion), new(invalidItem.Id, invalidItem.RowVersion)], "publisher"));
+        Assert.All(await repository.GetAllAsync(), item => Assert.Equal(CrosswordStatus.Draft, item.Status));
+        var current = await repository.GetAllAsync();
+        await repository.PublishSelectedAsync(current.Select(row => new CrosswordPublishSelection(row.Id, row.RowVersion)).ToArray(), "publisher");
+        Assert.All(await repository.GetAllAsync(), item => Assert.Equal(CrosswordStatus.Published, item.Status));
+        foreach (var item in current) Assert.Single(await repository.GetAuditAsync(item.Id), row => row.Action == "Published");
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public Task Imports_ten_as_drafts_with_lossless_grids_and_one_audit_each(bool ef) => Run(ef, async (repository, clock) =>
     {
         var seeds = CrosswordSampleData.Load();

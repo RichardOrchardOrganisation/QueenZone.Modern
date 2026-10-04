@@ -20,6 +20,8 @@ public sealed record CrosswordImportResult(IReadOnlyList<string> Imported, IRead
 
 public sealed record CrosswordAuditItem(Guid Id, string Actor, string Action, DateTimeOffset CreatedAt, string Summary);
 
+public sealed record CrosswordPublishSelection(Guid Id, byte[] RowVersion);
+
 public interface ICrosswordCatalogRepository
 {
     Task<IReadOnlyList<CrosswordCatalogItem>> GetAllAsync(CancellationToken cancellationToken = default);
@@ -27,8 +29,13 @@ public interface ICrosswordCatalogRepository
     Task<IReadOnlyList<CrosswordAuditItem>> GetAuditAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Guid> CreateDraftAsync(CrosswordSeed draft, Guid creatorId, string actor,
         CancellationToken cancellationToken = default);
+    Task<Guid> DuplicateAsync(Guid id, string newSlug, Guid creatorId, string actor,
+        CancellationToken cancellationToken = default);
     Task SaveDraftAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor,
         CancellationToken cancellationToken = default);
+    Task SaveEditorialAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor,
+        bool confirmProgressReset = false, CancellationToken cancellationToken = default);
+    Task PublishSelectedAsync(IReadOnlyList<CrosswordPublishSelection> selection, string actor, CancellationToken cancellationToken = default);
     Task SetPublicationAsync(Guid id, CrosswordStatus status, DateTimeOffset? publishAt,
         byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default);
     Task<CrosswordImportResult> ImportAsync(IReadOnlyList<CrosswordSeed> seeds, Guid creatorId, string actor,

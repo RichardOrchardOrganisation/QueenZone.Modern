@@ -62,6 +62,16 @@ internal static class CrosswordCatalogMapping
         return entity;
     }
 
+    public static bool PrepareEditorial(CrosswordEntity entity, CrosswordSeed seed, bool confirmProgressReset)
+    {
+        var changed = entity.Width != seed.Grid.Width || entity.Height != seed.Grid.Height ||
+            entity.SolutionRowsJson != JsonSerializer.Serialize(seed.Grid.Rows);
+        if (entity.Status != CrosswordStatus.Draft) Normalize(seed, playable: true);
+        if (changed && (entity.Status != CrosswordStatus.Draft || entity.PublishedAt is not null) && !confirmProgressReset)
+            throw new InvalidOperationException("Members with progress on this puzzle will have their progress reset. Confirm before saving.");
+        return changed;
+    }
+
     public static void Apply(CrosswordEntity entity, CrosswordSeed seed, string actor, DateTimeOffset now)
     {
         var rows = JsonSerializer.Serialize(seed.Grid.Rows);
@@ -137,7 +147,7 @@ internal static class CrosswordCatalogMapping
         return status == CrosswordStatus.Draft ? "Unpublished" : status.ToString();
     }
 
-    private static void ValidatePublication(CrosswordEntity entity, CrosswordStatus status,
+    internal static void ValidatePublication(CrosswordEntity entity, CrosswordStatus status,
         DateTimeOffset? publishAt, DateTimeOffset now)
     {
         if (!Enum.IsDefined(status))

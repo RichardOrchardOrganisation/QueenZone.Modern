@@ -196,6 +196,57 @@ public sealed class CrosswordProgressRepositoryTests
         Assert.Equal(puzzle.PlayVersion, saved.PlayVersion);
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Live_grid_edit_requires_confirmation_and_atomically_preserves_completions(bool ef) => Run(ef, async (repository, catalog, clock, puzzle) =>
+    {
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
+        await repository.SaveAsync(puzzle.Id, Member, write);
+        var solved = await repository.CompleteAsync(puzzle.Id, Other, write with { Letters = string.Concat(puzzle.Seed.Grid.Rows) });
+        Assert.True(solved.Correct);
+        var completion = Assert.Single(await repository.GetCompletionsAsync(puzzle.Id, Other));
+        var alternate = CrosswordSampleData.Load().Single(seed => seed.Slug == "live-aid") with { Slug = puzzle.Seed.Slug };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.SaveEditorialAsync(puzzle.Id, alternate, puzzle.RowVersion, "editor"));
+        Assert.NotNull(await repository.GetAsync(puzzle.Id, Member));
+        Assert.Equal(puzzle.PlayVersion, (await catalog.GetByIdAsync(puzzle.Id))!.PlayVersion);
+        await catalog.SaveEditorialAsync(puzzle.Id, alternate, puzzle.RowVersion, "editor", confirmProgressReset: true);
+        var updated = (await catalog.GetByIdAsync(puzzle.Id))!;
+        Assert.NotEqual(puzzle.PlayVersion, updated.PlayVersion);
+        Assert.Equal(CrosswordStatus.Published, updated.Status);
+        Assert.Equal(updated.PlayVersion, (await repository.GetAsync(puzzle.Id, Member))!.PlayVersion);
+        var reset = (await repository.GetAsync(puzzle.Id, Other))!;
+        Assert.Equal(updated.PlayVersion, reset.PlayVersion);
+        Assert.Equal(CrosswordPlayRules.EmptyLetters(updated.Seed.Grid), reset.Letters);
+        Assert.Equal(0, reset.ElapsedSeconds);
+        Assert.Empty(reset.RevealedCells);
+        Assert.False(reset.AutoCheckUsed);
+        await repository.MarkAssistanceAsync(puzzle.Id, Other, [], true, updated.PlayVersion);
+        var replay = await repository.CompleteAsync(puzzle.Id, Other, write with { Letters = string.Concat(updated.Seed.Grid.Rows), PlayVersion = updated.PlayVersion });
+        Assert.Equal(completion, replay.Completion);
+        Assert.Equal(completion, Assert.Single(await repository.GetCompletionsAsync(puzzle.Id, Other)));
+        Assert.Single(await catalog.GetAuditAsync(puzzle.Id), row => row.Action == "Edited");
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => repository.SaveAsync(puzzle.Id, Member, write));
+        Assert.Equal(updated.PlayVersion, (await repository.GetAsync(puzzle.Id, Member))!.PlayVersion);
+        await repository.SaveAsync(puzzle.Id, Member, write with { Letters = CrosswordPlayRules.EmptyLetters(updated.Seed.Grid), PlayVersion = updated.PlayVersion });
+        Assert.NotNull(await repository.GetAsync(puzzle.Id, Member));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Live_clue_edits_keep_version_and_progress_but_reject_stale_admin_tokens(bool ef) => Run(ef, async (repository, catalog, clock, puzzle) =>
+    {
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid), 120, [], false, clock.GetUtcNow(), puzzle.PlayVersion);
+        await repository.SaveAsync(puzzle.Id, Member, write);
+        var edited = puzzle.Seed with { Grid = puzzle.Seed.Grid with { Clues = puzzle.Seed.Grid.Clues.Select(clue => clue with { Clue = "Updated clue", Explanation = "Editorial explanation" }).ToArray() } };
+        await catalog.SaveEditorialAsync(puzzle.Id, edited, puzzle.RowVersion, "editor");
+        Assert.Equal(puzzle.PlayVersion, (await catalog.GetByIdAsync(puzzle.Id))!.PlayVersion);
+        Assert.NotNull(await repository.GetAsync(puzzle.Id, Member));
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => catalog.SaveEditorialAsync(puzzle.Id, edited, puzzle.RowVersion, "other-editor"));
+        Assert.Single(await catalog.GetAuditAsync(puzzle.Id), row => row.Action == "Edited");
+    });
+
     private static async Task Run(bool ef, Func<ICrosswordProgressRepository, ICrosswordCatalogRepository, FakeTimeProvider, CrosswordCatalogItem, Task> scenario)
     {
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 4, 0, 0, 0, TimeSpan.Zero));

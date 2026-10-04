@@ -1,0 +1,12 @@
+@page "/admin/crosswords/import"
+@model ImportModel
+<div class="admin-shell"><p><a href="/admin/crosswords">Crosswords</a></p><h1>Import crossword JSON</h1>
+<p>Imports create a new Draft and never overwrite a puzzle. The 256 KB JSON format includes solutions.</p>
+@if (Model.Error is not null) { <p role="alert">@Model.Error</p> }
+<form method="post" enctype="multipart/form-data" asp-page-handler="Preview"><label>JSON file <input type="file" name="Upload" accept="application/json,.json" required /></label><button>Validate and preview</button></form>
+@if (Model.Preview is { } preview) {
+<h2>Validation</h2><ul>@foreach (var issue in preview.Errors) { <li>Error — @issue.Code: @issue.Message</li> }@foreach (var issue in preview.Warnings) { <li>Warning — @issue.Code: @issue.Message</li> }</ul>
+@if (preview.Seed is { } seed) { <h2>@seed.Title</h2><p>@seed.Description</p><p>@seed.Difficulty · @seed.Grid.Width × @seed.Grid.Height</p><pre>@string.Join("\n", seed.Grid.Rows)</pre><ol>@foreach (var clue in seed.Grid.Clues) { <li>@clue.Number @clue.Direction — @clue.Clue @clue.Enumeration — @clue.Answer</li> }</ol> }
+@if (preview.IsValid) { <form method="post" asp-page-handler="Create"><input type="hidden" name="SeedJson" value="@Model.SeedJson" /><label>Slug <input name="NewSlug" value="@Model.NewSlug" maxlength="100" required /></label><button>Create new Draft</button></form> }
+}
+</div>
