@@ -49,6 +49,33 @@ public sealed class ImportCrosswordsCommandTests
     }
 
     [Fact]
+    public async Task Cli_reports_invalid_options_and_corrupt_batch_without_attempting_database_access()
+    {
+        var directory = CopySeeds();
+        var originalOutput = Console.Out;
+        var originalError = Console.Error;
+        using var output = new StringWriter();
+        using var errors = new StringWriter();
+        try
+        {
+            Console.SetOut(output);
+            Console.SetError(errors);
+            Assert.Equal(2, await ToolsApp.RunAsync(["import-crosswords", "--dry-run"]));
+            await File.WriteAllTextAsync(Path.Combine(directory, "broken.json"), "{");
+            Assert.Equal(2, await ToolsApp.RunAsync(["import-crosswords", "--dir", directory, "--dry-run"]));
+            Assert.Contains("--dir is required", errors.ToString(), StringComparison.Ordinal);
+            Assert.Contains("broken.json", errors.ToString(), StringComparison.Ordinal);
+            Assert.Contains("No database changes", output.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public async Task Second_run_skips_ten_existing_slugs_without_overwriting_edits()
     {
         var batch = await ImportCrosswordsCommand.ReadBatchAsync(SeedsDirectory);

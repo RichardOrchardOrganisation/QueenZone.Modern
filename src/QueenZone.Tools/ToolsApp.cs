@@ -5,87 +5,37 @@ namespace QueenZone.Tools;
 
 internal static class ToolsApp
 {
+    private static readonly IReadOnlyDictionary<string, Func<string[], Task<int>>> Commands =
+        new Dictionary<string, Func<string[], Task<int>>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["import-crosswords"] = args => ImportCrosswordsCommand.RunAsync(args[1..]),
+            ["backfill-fan-performance-durations"] = args => BackfillFanPerformanceDurationsCommand.RunAsync(args[1..]),
+            ["check-photos"] = args => CheckPhotosCommand.RunAsync(args[1..]),
+            ["generate-photo-thumbs"] = args => GeneratePhotoThumbsCommand.RunAsync(args[1..]),
+            ["check-links"] = args => CheckLinksCommand.RunAsync(args[1..]),
+            ["photo-dim-inventory"] = args => PhotoDimInventoryCommand.RunAsync(args[1..]),
+            ["backfill-photo-dimensions"] = args => BackfillPhotoDimensionsCommand.RunAsync(args[1..]),
+            ["convert-legacy-bbcode"] = args => ConvertLegacyBbCodeCommand.RunAsync(args[1..]),
+            ["create-reviewer-account"] = CreateReviewerAccountCommand.RunAsync,
+            ["dev-snapshot"] = args => DevSnapshotCommand.RunAsync(args[1..]),
+            ["minify-css"] = args => MinifyCssCommand.RunAsync(args[1..]),
+            ["bundle-css"] = args => BundleCssCommand.RunAsync(args[1..]),
+            ["import-quotes"] = RunImportQuotesAsync,
+            ["import-trivia"] = RunImportTriviaAsync,
+            ["import-quiz-questions"] = RunImportQuizQuestionsAsync,
+            ["import-history"] = RunImportHistoryAsync
+        };
+
     public static async Task<int> RunAsync(string[] args)
     {
-        if (args.Length > 0 && string.Equals(args[0], "import-crosswords", StringComparison.OrdinalIgnoreCase))
-        {
-            return await ImportCrosswordsCommand.RunAsync(args[1..]);
-        }
-        if (args.Length > 0 && string.Equals(args[0], "backfill-fan-performance-durations", StringComparison.OrdinalIgnoreCase))
-        {
-            return await BackfillFanPerformanceDurationsCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "check-photos", StringComparison.OrdinalIgnoreCase))
-        {
-            return await CheckPhotosCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "generate-photo-thumbs", StringComparison.OrdinalIgnoreCase))
-        {
-            return await GeneratePhotoThumbsCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "check-links", StringComparison.OrdinalIgnoreCase))
-        {
-            return await CheckLinksCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "photo-dim-inventory", StringComparison.OrdinalIgnoreCase))
-        {
-            return await PhotoDimInventoryCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "backfill-photo-dimensions", StringComparison.OrdinalIgnoreCase))
-        {
-            return await BackfillPhotoDimensionsCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "convert-legacy-bbcode", StringComparison.OrdinalIgnoreCase))
-        {
-            return await ConvertLegacyBbCodeCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "create-reviewer-account", StringComparison.OrdinalIgnoreCase))
-        {
-            return await CreateReviewerAccountCommand.RunAsync(args);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "dev-snapshot", StringComparison.OrdinalIgnoreCase))
-        {
-            return await DevSnapshotCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "minify-css", StringComparison.OrdinalIgnoreCase))
-        {
-            return await MinifyCssCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "bundle-css", StringComparison.OrdinalIgnoreCase))
-        {
-            return await BundleCssCommand.RunAsync(args[1..]);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "import-quotes", StringComparison.OrdinalIgnoreCase))
-        {
-            return await RunImportQuotesAsync(args);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "import-trivia", StringComparison.OrdinalIgnoreCase))
-        {
-            return await RunImportTriviaAsync(args);
-        }
-
-        if (args.Length > 0 && string.Equals(args[0], "import-quiz-questions", StringComparison.OrdinalIgnoreCase))
-        {
-            return await RunImportQuizQuestionsAsync(args);
-        }
-
-        if (args.Length == 0 || string.Equals(args[0], "import-history", StringComparison.OrdinalIgnoreCase))
+        if (args.Length == 0)
         {
             return await RunImportHistoryAsync(args);
         }
-
+        if (Commands.TryGetValue(args[0], out var command))
+        {
+            return await command(args);
+        }
         PrintUsage($"Unknown command '{args[0]}'.");
         return 2;
     }

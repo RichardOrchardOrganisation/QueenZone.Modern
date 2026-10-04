@@ -33,6 +33,11 @@ internal static class ImportCrosswordsCommand
             Console.WriteLine("Dry run only. No database changes were made.");
             return 0;
         }
+        return await ImportValidatedBatchAsync(options, batch);
+    }
+
+    private static async Task<int> ImportValidatedBatchAsync(CrosswordImportOptions options, CrosswordBatch batch)
+    {
         var dbOptions = new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlServer(options.ConnectionString,
             sql => sql.EnableRetryOnFailure()).Options;
         await using var db = new QueenZoneDbContext(dbOptions);
