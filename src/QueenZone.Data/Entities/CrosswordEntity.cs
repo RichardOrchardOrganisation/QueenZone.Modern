@@ -14,6 +14,8 @@ public sealed class CrosswordEntity
     public int Height { get; set; }
     /// <summary>Row-major mask: # is a block, . is a white cell. Answers live only on entries.</summary>
     public string BlockMask { get; set; } = "";
+    /// <summary>Private solution/draft rows, including unfinished cells; never projected into public payloads.</summary>
+    public string SolutionRowsJson { get; set; } = "[]";
     public CrosswordStatus Status { get; set; }
     public DateTimeOffset? PublishAt { get; set; }
     public DateTimeOffset? PublishedAt { get; set; }
@@ -38,4 +40,14 @@ public sealed class CrosswordEntryEntity
     public string Enumeration { get; set; } = "";
     public string? Explanation { get; set; }
     public CrosswordEntity? Crossword { get; set; }
+}
+
+public sealed class CrosswordAuditLogEntity
+{
+    public Guid Id { get; set; }
+    public Guid CrosswordId { get; set; }
+    public string Actor { get; set; } = "";
+    public string Action { get; set; } = "";
+    public DateTimeOffset CreatedAt { get; set; }
+    public string Summary { get; set; } = "";
 }

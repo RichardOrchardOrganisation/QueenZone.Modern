@@ -50,6 +50,8 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<CrosswordEntryEntity> CrosswordEntries => Set<CrosswordEntryEntity>();
 
+    public DbSet<CrosswordAuditLogEntity> CrosswordAuditLogs => Set<CrosswordAuditLogEntity>();
+
     public DbSet<QuizQuestionEntity> QuizQuestions => Set<QuizQuestionEntity>();
 
     public DbSet<QuizOptionEntity> QuizOptions => Set<QuizOptionEntity>();

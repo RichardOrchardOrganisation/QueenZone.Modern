@@ -23,4 +23,8 @@
     <ProjectReference Include="..\..\src\QueenZone.Tools\QueenZone.Tools.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\data\crosswords\*.json" Link="data\crosswords\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

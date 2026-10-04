@@ -33,6 +33,7 @@ public sealed class CrosswordEntityTests
         AssertLimit(puzzle, nameof(CrosswordEntity.Difficulty), 20);
         AssertLimit(puzzle, nameof(CrosswordEntity.Style), 20);
         AssertLimit(puzzle, nameof(CrosswordEntity.BlockMask), 225);
+        AssertLimit(puzzle, nameof(CrosswordEntity.SolutionRowsJson), 2000);
         AssertLimit(puzzle, nameof(CrosswordEntity.UpdatedByEmail), 320);
         AssertLimit(entry, nameof(CrosswordEntryEntity.Answer), 15);
         AssertLimit(entry, nameof(CrosswordEntryEntity.Clue), 500);
@@ -96,6 +97,7 @@ public sealed class CrosswordEntityTests
         Assert.Equal(puzzle.Width, loaded.Width);
         Assert.Equal(puzzle.Height, loaded.Height);
         Assert.Equal(puzzle.BlockMask, loaded.BlockMask);
+        Assert.Equal(puzzle.SolutionRowsJson, loaded.SolutionRowsJson);
         Assert.Equal(puzzle.Status, loaded.Status);
         Assert.Equal(puzzle.PublishAt, loaded.PublishAt);
         Assert.Equal(puzzle.PublishedAt, loaded.PublishedAt);

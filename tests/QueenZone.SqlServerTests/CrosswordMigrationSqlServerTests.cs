@@ -25,8 +25,10 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
     {
         await using var empty = new EmptyContext(new DbContextOptionsBuilder<EmptyContext>().UseSqlServer(ConnectionString).Options);
         await empty.Database.EnsureCreatedAsync();
-        db = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>().UseSqlServer(ConnectionString).Options);
-        var commands = db.GetService<IMigrationsSqlGenerator>().Generate(new AddCrosswords().UpOperations, db.Model);
+        db = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
+            .UseSqlServer(ConnectionString, sql => sql.EnableRetryOnFailure()).Options);
+        var operations = new AddCrosswords().UpOperations.Concat(new AddCrosswordDraftRows().UpOperations).ToArray();
+        var commands = db.GetService<IMigrationsSqlGenerator>().Generate(operations, db.Model);
         foreach (var command in commands)
         {
             await db.Database.ExecuteSqlRawAsync(command.CommandText);
@@ -78,6 +80,33 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
         db.Crosswords.Remove(loaded);
         await db.SaveChangesAsync();
         Assert.Empty(await db.CrosswordEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Catalog_import_and_draft_edits_use_retry_safe_transactions_and_server_rowversions()
+    {
+        var catalog = new EfCrosswordCatalogRepository(db, TimeProvider.System);
+        var seeds = CrosswordSampleData.Load();
+        var imported = await catalog.ImportAsync(seeds, Guid.NewGuid(), "sql-import");
+        Assert.Equal(10, imported.Imported.Count);
+        var repeated = await catalog.ImportAsync(seeds, Guid.NewGuid(), "sql-import");
+        Assert.Empty(repeated.Imported);
+        Assert.Equal(10, repeated.Skipped.Count);
+        var original = (await catalog.GetAllAsync())[0];
+        var edited = original.Seed with { Title = "SQL draft edit" };
+        await catalog.SaveDraftAsync(original.Id, edited, original.RowVersion, "sql-editor");
+        var saved = await catalog.GetByIdAsync(original.Id);
+        Assert.NotNull(saved);
+        Assert.Equal("SQL draft edit", saved.Seed.Title);
+        Assert.False(original.RowVersion.SequenceEqual(saved.RowVersion));
+        Assert.Equal(original.Seed.Grid.Rows, saved.Seed.Grid.Rows);
+        Assert.Equal(original.Seed.Grid.Clues, saved.Seed.Grid.Clues);
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() =>
+            catalog.SaveDraftAsync(original.Id, original.Seed, original.RowVersion, "stale-editor"));
+        Assert.Equal(2, (await catalog.GetAuditAsync(original.Id)).Count);
+        db.Crosswords.Remove(await db.Crosswords.SingleAsync(item => item.Id == original.Id));
+        await db.SaveChangesAsync();
+        Assert.Empty(await catalog.GetAuditAsync(original.Id));
     }
 
     private sealed class EmptyContext(DbContextOptions<EmptyContext> options) : DbContext(options);

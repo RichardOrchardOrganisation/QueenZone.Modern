@@ -24,7 +24,12 @@ public static partial class CrosswordSeedJson
 {
     public const int MaxBytes = 256 * 1024;
 
-    public static CrosswordSeedParseResult Parse(ReadOnlyMemory<byte> json)
+    public static CrosswordSeedParseResult Parse(ReadOnlyMemory<byte> json) => ParseCore(json, false);
+
+    /// <summary>Retains structurally sound drafts with grid errors, which must still block publication.</summary>
+    public static CrosswordSeedParseResult ParseDraft(ReadOnlyMemory<byte> json) => ParseCore(json, true);
+
+    private static CrosswordSeedParseResult ParseCore(ReadOnlyMemory<byte> json, bool allowInvalidGrid)
     {
         if (json.Length > MaxBytes)
         {
@@ -33,7 +38,7 @@ public static partial class CrosswordSeedJson
         try
         {
             using var document = JsonDocument.Parse(json);
-            return ParseDocument(document.RootElement);
+            return ParseDocument(document.RootElement, allowInvalidGrid);
         }
         catch (JsonException)
         {
@@ -62,7 +67,7 @@ public static partial class CrosswordSeedJson
         })
     }, new JsonSerializerOptions { WriteIndented = true });
 
-    private static CrosswordSeedParseResult ParseDocument(JsonElement root)
+    private static CrosswordSeedParseResult ParseDocument(JsonElement root, bool allowInvalidGrid)
     {
         if (root.ValueKind != JsonValueKind.Object)
         {
@@ -89,18 +94,18 @@ public static partial class CrosswordSeedJson
         var width = ReadInteger(root, "width", errors);
         var height = ReadInteger(root, "height", errors);
         var rows = ReadRows(root, errors);
-        var entries = ReadEntries(root, errors);
+        var entries = ReadEntries(root, errors, allowInvalidGrid);
         if (errors.Count > 0)
         {
             return new(null, errors, []);
         }
         var grid = new CrosswordGrid(width, height, rows, entries);
         var validation = CrosswordGridValidator.Validate(grid);
-        if (!validation.IsValid)
+        if (!validation.IsValid && (!allowInvalidGrid || validation.Errors.Any(error => error.Code == "dimensions")))
         {
             return new(null, validation.Errors, validation.Warnings);
         }
-        return new(new(slug, title, description, difficulty, style, grid), [], validation.Warnings);
+        return new(new(slug, title, description, difficulty, style, grid), validation.Errors, validation.Warnings);
     }
 
     private static string ReadString(JsonElement element, string field,
@@ -157,7 +162,7 @@ public static partial class CrosswordSeedJson
         return rows;
     }
 
-    private static List<CrosswordClue> ReadEntries(JsonElement root, List<CrosswordGridIssue> errors)
+    private static List<CrosswordClue> ReadEntries(JsonElement root, List<CrosswordGridIssue> errors, bool draft)
     {
         var clues = new List<CrosswordClue>();
         if (!root.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
@@ -174,25 +179,25 @@ public static partial class CrosswordSeedJson
                 errors.Add(new(prefix.TrimEnd('.'), "Supply a clue object."));
                 continue;
             }
-            clues.Add(ReadClue(entry, prefix, errors));
+            clues.Add(ReadClue(entry, prefix, errors, draft));
         }
         return clues;
     }
 
-    private static CrosswordClue ReadClue(JsonElement entry, string prefix, List<CrosswordGridIssue> errors)
+    private static CrosswordClue ReadClue(JsonElement entry, string prefix, List<CrosswordGridIssue> errors, bool draft)
     {
         var number = ReadInteger(entry, "number", errors, prefix);
         var direction = ReadString(entry, "direction", errors, 6, prefix);
-        var answer = ReadString(entry, "answer", errors, 15, prefix);
-        var clue = ReadString(entry, "clue", errors, 500, prefix);
-        var enumeration = ReadString(entry, "enumeration", errors, 50, prefix);
+        var answer = ReadString(entry, "answer", errors, 15, prefix, optional: draft);
+        var clue = ReadString(entry, "clue", errors, 500, prefix, optional: draft);
+        var enumeration = ReadString(entry, "enumeration", errors, 50, prefix, optional: draft);
         var explanation = ReadString(entry, "explanation", errors, 300, prefix, optional: true);
         if (direction is not ("across" or "down"))
         {
             errors.Add(new(prefix + "direction", "Direction must be across or down."));
         }
-        if (!EnumerationPattern().IsMatch(enumeration)
-            || !EnumerationMatches(enumeration, answer.Length))
+        if (!draft && (!EnumerationPattern().IsMatch(enumeration)
+            || !EnumerationMatches(enumeration, answer.Length)))
         {
             errors.Add(new(prefix + "enumeration", "Enumeration must show word lengths matching the answer, such as (3,5) or (3-5)."));
         }
