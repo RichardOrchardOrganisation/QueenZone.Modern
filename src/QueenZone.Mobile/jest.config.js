@@ -1,6 +1,8 @@
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'jest-expo',
+  // External shared sources resolve transformed Babel helpers from this app.
+  modulePaths: ['<rootDir>/node_modules'],
   transform: {
     'OnThisDayWidget\\.ios\\.tsx$': '<rootDir>/scripts/widget-view-test-transformer.cjs',
   },
