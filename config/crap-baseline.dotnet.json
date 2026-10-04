@@ -34,7 +34,6 @@
     "src/QueenZone.Tools/DevSnapshot/DevSnapshotConfig.cs|QueenZone.Tools.DevSnapshotConfig|Validate": 30.5,
     "src/QueenZone.Tools/GeneratePhotoThumbsCommand.cs|QueenZone.Tools.GeneratePhotoThumbsOptions|Parse": 63.3,
     "src/QueenZone.Tools/PhotoDimInventoryCommand.cs|QueenZone.Tools.PhotoDimInventoryCommand|LoadDimensionsFromSqlAsync": 210.0,
-    "src/QueenZone.Tools/ToolsApp.cs|QueenZone.Tools.ToolsApp|RunAsync": 60.0,
     "src/QueenZone.Web/Admin/FanPerformanceSubmissionService.cs|QueenZone.Web.FanPerformanceSubmissionService|SubmitAsync": 32.0,
     "src/QueenZone.Web/Api/Me/MeApiEndpoints.cs|QueenZone.Web.MeApiEndpoints|RequestDeletionAsync": 34.5,
     "src/QueenZone.Web/Api/MobileAuthEndpoints.cs|QueenZone.Web.MobileAuthEndpoints|CallbackAsync": 60.6,

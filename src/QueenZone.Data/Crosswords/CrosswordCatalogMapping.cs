@@ -113,26 +113,8 @@ internal static class CrosswordCatalogMapping
     public static string SetPublication(CrosswordEntity entity, CrosswordStatus status,
         DateTimeOffset? publishAt, string actor, DateTimeOffset now)
     {
-        if (!Enum.IsDefined(status))
-        {
-            throw new ArgumentException("Unknown crossword publication status.", nameof(status));
-        }
-        if (status != CrosswordStatus.Draft)
-        {
-            Normalize(Read(entity).Seed, playable: true);
-        }
-        if (status == CrosswordStatus.Scheduled && (publishAt is null || publishAt <= now))
-        {
-            throw new ArgumentException("Scheduled publication must be in the future.", nameof(publishAt));
-        }
-        if (status == CrosswordStatus.Archived && entity.PublishedAt is null)
-        {
-            if (entity.Status != CrosswordStatus.Scheduled || entity.PublishAt is null || entity.PublishAt > now)
-            {
-                throw new InvalidOperationException("Only a previously published crossword can remain playable as archived.");
-            }
-            entity.PublishedAt = entity.PublishAt;
-        }
+        ValidatePublication(entity, status, publishAt, now);
+        SetArchivedPublicationDate(entity, status, now);
         entity.Status = status;
         entity.PublishAt = status switch
         {
@@ -149,4 +131,35 @@ internal static class CrosswordCatalogMapping
         entity.UpdatedByEmail = actor;
         return status == CrosswordStatus.Draft ? "Unpublished" : status.ToString();
     }
+
+    private static void ValidatePublication(CrosswordEntity entity, CrosswordStatus status,
+        DateTimeOffset? publishAt, DateTimeOffset now)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentException("Unknown crossword publication status.", nameof(status));
+        }
+        if (status != CrosswordStatus.Draft)
+        {
+            Normalize(Read(entity).Seed, playable: true);
+        }
+        if (status == CrosswordStatus.Scheduled && (publishAt is null || publishAt <= now))
+        {
+            throw new ArgumentException("Scheduled publication must be in the future.", nameof(publishAt));
+        }
+    }
+
+    private static void SetArchivedPublicationDate(CrosswordEntity entity, CrosswordStatus status, DateTimeOffset now)
+    {
+        if (status != CrosswordStatus.Archived || entity.PublishedAt is not null)
+        {
+            return;
+        }
+        if (entity.Status != CrosswordStatus.Scheduled || entity.PublishAt is null || entity.PublishAt > now)
+        {
+            throw new InvalidOperationException("Only a previously published crossword can remain playable as archived.");
+        }
+        entity.PublishedAt = entity.PublishAt;
+    }
+
 }
