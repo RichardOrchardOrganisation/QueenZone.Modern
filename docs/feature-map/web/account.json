@@ -129,6 +129,28 @@
       "page": "Pages/DataDeletion.cshtml",
       "url": "/data-deletion",
       "entry": "Open /data-deletion"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Account/Crosswords.cshtml",
+        "src/QueenZone.Web/Pages/Account/Crosswords.cshtml.cs"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CrosswordResultsTests.cs"
+      ],
+      "selectors": [
+        "#main-content"
+      ],
+      "signIn": "member",
+      "recipe": ".cursor/skills/verify-queenzone/features/crossword-results.md",
+      "id": "web.crosswords.history",
+      "name": "My crosswords",
+      "page": "Pages/Account/Crosswords.cshtml",
+      "url": "/account/crosswords",
+      "entry": "Account settings \u2192 My crosswords"
     }
   ]
 }
