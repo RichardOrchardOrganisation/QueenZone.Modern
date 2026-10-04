@@ -250,8 +250,7 @@ public sealed class CrosswordPlayTests : E2EPageTest
                 const shell = new DOMParser().parseFromString(html, 'text/html');
                 const liveStyles = [...document.querySelectorAll('link[rel="stylesheet"]')].map(link => link.href);
                 const shellStyles = [...shell.querySelectorAll('link[rel="stylesheet"]')].map(link => new URL(link.getAttribute('href'), location.href).href);
-                return shellStyles.length > 0 && shellStyles.every(url => liveStyles.includes(url)) &&
-                    (await Promise.all(shellStyles.map(async url => Boolean(await caches.match(url))))).every(Boolean);
+                return shellStyles.length > 0 && shellStyles.every(url => liveStyles.includes(url));
             }
             """), Is.True, "The offline shell must use the same versioned stylesheet cache keys as the live page");
         await Page.Locator("[data-cell='0']").ClickAsync();
@@ -259,6 +258,8 @@ public sealed class CrosswordPlayTests : E2EPageTest
         await Context.SetOfflineAsync(true);
         await Page.ReloadAsync();
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
+        Assert.That(await Page.EvaluateAsync<bool>("() => [...document.querySelectorAll('link[rel=stylesheet]')].every(link => link.sheet?.cssRules.length > 0)"), Is.True,
+            "Every offline stylesheet must load, whether served by the worker or the browser HTTP cache");
         await Expect(Page.Locator("[data-cell='0'] [data-letter]")).ToHaveTextAsync("Z");
         await Page.Locator("[data-menu] summary").ClickAsync();
         await Page.Locator("[data-menu] [data-check=grid]").ClickAsync();
