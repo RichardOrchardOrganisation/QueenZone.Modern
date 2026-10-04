@@ -56,6 +56,34 @@ export const searchResultSchema = z.object({
   id: z.number().int().nullish(),
 });
 
+export const crosswordListItemSchema = z.object({
+  id: guid,
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  difficulty: z.enum(['easy', 'medium', 'hard']),
+  width: z.number().int().min(5).max(15),
+  height: z.number().int().min(5).max(15),
+  publishedAt: isoDateTime.nullable(),
+});
+
+export const crosswordDetailSchema = crosswordListItemSchema.omit({ publishedAt: true }).extend({
+  description: z.string(),
+  style: z.enum(['american', 'british']),
+  archived: z.boolean(),
+  blocks: z.array(z.boolean()).max(225),
+  numbering: z.array(z.number().int().nonnegative()).max(225),
+  clues: z.array(z.object({
+    number: z.number().int().positive(),
+    direction: z.enum(['across', 'down']),
+    row: z.number().int().min(0).max(14),
+    column: z.number().int().min(0).max(14),
+    length: z.number().int().min(3).max(15),
+    clue: z.string().min(1),
+    enumeration: z.string().min(1),
+  })),
+}).refine(detail => detail.blocks.length === detail.width * detail.height
+  && detail.numbering.length === detail.blocks.length, 'Grid arrays must match its dimensions');
+
 export const newsListItemSchema = z.object({
   id: z.number().int(),
   title: z.string().min(1),

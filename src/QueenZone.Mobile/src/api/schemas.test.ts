@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   articleDetailSchema,
+  crosswordDetailSchema,
+  crosswordListItemSchema,
   articleListItemSchema,
   newsDetailSchema,
   newsListItemSchema,
@@ -12,6 +14,18 @@ import {
 } from './schemas.ts';
 
 describe('parseContract', () => {
+  it('rejects malformed crossword coordinates and mismatched grid arrays', () => {
+    const metadata = { id: '11111111-2222-4333-8444-555555555555', slug: 'a-puzzle', title: 'A puzzle',
+      difficulty: 'easy', width: 5, height: 5 };
+    assert.ok(crosswordListItemSchema.safeParse({ ...metadata, publishedAt: '2026-10-04T00:00:00Z' }).success);
+    const detail = { ...metadata, description: '', style: 'british', archived: true,
+      blocks: Array<boolean>(25).fill(false), numbering: Array<number>(25).fill(0),
+      clues: [{ number: 1, direction: 'across', row: 0, column: 0, length: 5, clue: 'A clue', enumeration: '(5)' }] };
+    assert.ok(crosswordDetailSchema.safeParse(detail).success);
+    assert.ok(!crosswordDetailSchema.safeParse({ ...detail, blocks: [] }).success);
+    assert.ok(!crosswordDetailSchema.safeParse({ ...detail, clues: [{ ...detail.clues[0], row: 15 }] }).success);
+    assert.ok(!crosswordListItemSchema.safeParse({ ...metadata, difficulty: 'unknown', publishedAt: null }).success);
+  });
   it('names the endpoint and missing field when a payload is incompatible', () => {
     assert.throws(
       () => parseContract('GET /api/v1/content/news', newsListItemSchema, { id: 1, excerpt: '', publishedAt: '2026-01-01', detailPath: '/news/1' }),

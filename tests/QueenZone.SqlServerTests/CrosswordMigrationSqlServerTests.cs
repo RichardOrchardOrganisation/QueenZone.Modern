@@ -104,6 +104,14 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
         await Assert.ThrowsAsync<OptimisticConcurrencyException>(() =>
             catalog.SaveDraftAsync(original.Id, original.Seed, original.RowVersion, "stale-editor"));
         Assert.Equal(2, (await catalog.GetAuditAsync(original.Id)).Count);
+        await catalog.SetPublicationAsync(original.Id, CrosswordStatus.Published, null, saved.RowVersion, "sql-publisher");
+        var published = (await catalog.GetByIdAsync(original.Id))!;
+        Assert.True(CrosswordVisibility.IsListed(published, DateTimeOffset.UtcNow));
+        await catalog.SetPublicationAsync(original.Id, CrosswordStatus.Archived, null, published.RowVersion, "sql-publisher");
+        var archived = (await catalog.GetByIdAsync(original.Id))!;
+        Assert.False(CrosswordVisibility.IsListed(archived, DateTimeOffset.UtcNow));
+        Assert.True(CrosswordVisibility.IsPlayable(archived, DateTimeOffset.UtcNow));
+        Assert.Equal(4, (await catalog.GetAuditAsync(original.Id)).Count);
         db.Crosswords.Remove(await db.Crosswords.SingleAsync(item => item.Id == original.Id));
         await db.SaveChangesAsync();
         Assert.Empty(await catalog.GetAuditAsync(original.Id));

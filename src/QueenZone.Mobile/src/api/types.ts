@@ -20,6 +20,41 @@ export type ProblemDetails = {
   code?: string;
 };
 
+export type CrosswordListItem = {
+  id: string;
+  slug: string;
+  title: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  width: number;
+  height: number;
+  publishedAt: string | null;
+};
+
+export type CrosswordPlayClue = {
+  number: number;
+  direction: 'across' | 'down';
+  row: number;
+  column: number;
+  length: number;
+  clue: string;
+  enumeration: string;
+};
+
+export type CrosswordDetail = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  style: 'american' | 'british';
+  width: number;
+  height: number;
+  archived: boolean;
+  blocks: boolean[];
+  numbering: number[];
+  clues: CrosswordPlayClue[];
+};
+
 export type NewsListItem = {
   id: number;
   title: string;

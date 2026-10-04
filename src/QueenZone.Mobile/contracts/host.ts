@@ -19,6 +19,8 @@ export type ContractFixture = {
   pollOptionId: string;
   attachTopicId: number;
   discussionTopicId: number;
+  crosswordId: string;
+  archivedCrosswordId: string;
 };
 
 function fixturePath(): string {
