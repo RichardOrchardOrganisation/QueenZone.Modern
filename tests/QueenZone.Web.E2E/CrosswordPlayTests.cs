@@ -1,7 +1,7 @@
-using Microsoft.Playwright;
-using QueenZone.Data;
 using Deque.AxeCore.Commons;
 using Deque.AxeCore.Playwright;
+using Microsoft.Playwright;
+using QueenZone.Data;
 
 namespace QueenZone.Web.E2E;
 
@@ -9,6 +9,84 @@ namespace QueenZone.Web.E2E;
 [Category(E2ECategories.Deterministic)]
 public sealed class CrosswordPlayTests : E2EPageTest
 {
+    [Test]
+    public async Task Mobile_keyboard_viewport_keeps_the_input_anchor_and_selected_letter_visible()
+    {
+        var options = new BrowserNewContextOptions(Playwright.Devices["iPhone 13"])
+        { BaseURL = BaseUrl, ViewportSize = new() { Width = 390, Height = 844 } };
+        if (BrowserType.Name == "firefox") options.IsMobile = false;
+        var context = await CreateExtraContextAsync(options);
+        await context.AddInitScriptAsync("""
+            const keyboardViewport = Object.assign(new EventTarget(), { height: 844, width: 390, offsetTop: 0, offsetLeft: 0 });
+            Object.defineProperty(window, 'visualViewport', { value: keyboardViewport });
+            window.crosswordKeyboardViewport = keyboardViewport;
+            """);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/crosswords/meet-the-band");
+        await Expect(page.Locator("[data-toolbar]")).ToBeVisibleAsync();
+        await page.Locator("[data-clue='3-across']").ClickAsync();
+        await page.EvaluateAsync("""
+            () => {
+                window.crosswordKeyboardViewport.height = 360;
+                window.crosswordKeyboardViewport.offsetTop = 110;
+                window.scrollBy(0, 240);
+                window.crosswordKeyboardViewport.dispatchEvent(new Event('resize'));
+                window.crosswordKeyboardViewport.dispatchEvent(new Event('scroll'));
+            }
+            """);
+        await page.WaitForFunctionAsync("() => document.querySelector('[data-crossword]').classList.contains('keyboard-open')");
+        await page.Locator("[data-input]").DispatchEventAsync("keydown", new { key = " ", code = "Space", keyCode = 32 });
+        await page.Locator("[data-input]").FillAsync("ROG");
+        await Expect(page.Locator("[data-active-clue]")).ToContainTextAsync("3 across:");
+        await page.WaitForFunctionAsync("""
+            () => {
+                const cell = document.querySelector('[data-cell].is-selected').getBoundingClientRect();
+                const clue = document.querySelector('[data-active-clue]').getBoundingClientRect();
+                const input = document.querySelector('[data-input]').getBoundingClientRect();
+                return document.querySelector('[data-crossword]').classList.contains('keyboard-open') &&
+                    cell.top >= 110 && cell.bottom <= clue.top && clue.bottom <= 470 &&
+                    Math.abs(input.top - cell.top) <= 1 && Math.abs(input.left - cell.left) <= 1;
+            }
+            """, null, new() { Timeout = 5000 });
+        await Expect(page.Locator("[data-cell='9'] [data-letter]")).ToHaveTextAsync("G");
+    }
+
+    [Test]
+    public async Task Mobile_soft_keyboard_space_keeps_the_selected_clue_direction_and_backspace()
+    {
+        var options = new BrowserNewContextOptions(Playwright.Devices["iPhone 13"]) { BaseURL = BaseUrl };
+        if (BrowserType.Name == "firefox") options.IsMobile = false;
+        var context = await CreateExtraContextAsync(options);
+        var page = await context.NewPageAsync();
+        await page.EmulateMediaAsync(new() { ColorScheme = ColorScheme.Dark });
+        await page.GotoAsync("/crosswords/meet-the-band");
+        await Expect(page.Locator("[data-toolbar]")).ToBeVisibleAsync();
+        await page.Locator("[data-clue='3-across']").ClickAsync();
+        // Mobile IMEs can emit a space without a physical Space key.
+        await page.Locator("[data-input]").DispatchEventAsync("keydown", new { key = " ", code = "Unidentified" });
+        await page.Locator("[data-input]").FillAsync("ROG");
+        await Expect(page.Locator("[data-active-clue]")).ToContainTextAsync("3 across:");
+        await Expect(page.Locator("[data-cell='7'] [data-letter]")).ToHaveTextAsync("R");
+        await Expect(page.Locator("[data-cell='8'] [data-letter]")).ToHaveTextAsync("O");
+        await Expect(page.Locator("[data-cell='9'] [data-letter]")).ToHaveTextAsync("G");
+        await page.Locator("[data-clue='2-down']").ClickAsync();
+        await page.Locator("[data-input]").DispatchEventAsync("keydown", new { key = " ", code = "Unidentified" });
+        await page.Locator("[data-input]").FillAsync("MER");
+        await Expect(page.Locator("[data-active-clue]")).ToContainTextAsync("2 down:");
+        await Expect(page.Locator("[data-cell='4'] [data-letter]")).ToHaveTextAsync("M");
+        await Expect(page.Locator("[data-cell='11'] [data-letter]")).ToHaveTextAsync("E");
+        await Expect(page.Locator("[data-cell='18'] [data-letter]")).ToHaveTextAsync("R");
+        await page.Locator("[data-input]").EvaluateAsync("input => input.dispatchEvent(new InputEvent('beforeinput', { inputType: 'deleteContentBackward', bubbles: true, cancelable: true }))");
+        await Expect(page.Locator("[data-cell='18'] [data-letter]")).ToHaveTextAsync("");
+        await page.Locator("[data-input]").FillAsync("R");
+        await Expect(page.Locator("[data-cell='18'] [data-letter]")).ToHaveTextAsync("R");
+        await page.Locator("[data-cell='11']").ClickAsync();
+        await Expect(page.Locator("[data-active-clue]")).ToContainTextAsync("2 down:");
+        await page.Locator("[data-cell='11']").ClickAsync();
+        await Expect(page.Locator("[data-active-clue]")).ToContainTextAsync("3 across:");
+        await StrictFeatureAccessibilityAsync(page);
+    }
+
     [Test]
     public async Task List_and_play_have_no_blocking_accessibility_violations()
     {
