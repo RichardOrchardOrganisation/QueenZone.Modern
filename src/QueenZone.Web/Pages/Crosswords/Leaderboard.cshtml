@@ -1,0 +1,11 @@
+@page "/crosswords/{slug}/leaderboard"
+@model CrosswordLeaderboardModel
+<section class="qz-section"><div class="qz-container">
+<p><a href="/crosswords/@Model.Puzzle.Seed.Slug">Back to crossword</a></p><h1>@Model.Puzzle.Seed.Title leaderboard</h1>
+<p>Fastest 50 clean first solves. Reveals, auto-check and implausibly short times are excluded from ranking.</p>
+@if (Model.Leaderboard.Viewer is { } mine) { <p>Your rank: @mine.Rank of @Model.Leaderboard.TotalMembers — @TimeSpan.FromSeconds(mine.ElapsedSeconds).ToString(@"h\:mm\:ss")</p> }
+@if (Model.Leaderboard.Top.Count == 0) { <p>No ranked solves yet. Be the first!</p> }
+else { <table><caption>Clean solves</caption><thead><tr><th scope="col">Rank</th><th scope="col">Member</th><th scope="col">Time</th><th scope="col">Completed (UTC)</th></tr></thead><tbody>
+@foreach (var solve in Model.Leaderboard.Top) { <tr><td>@solve.Rank</td><td>@solve.DisplayName</td><td>@TimeSpan.FromSeconds(solve.ElapsedSeconds).ToString(@"h\:mm\:ss")</td><td>@solve.CompletedAt.ToString("u")</td></tr> }
+</tbody></table> }
+</div></section>

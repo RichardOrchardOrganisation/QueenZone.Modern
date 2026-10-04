@@ -636,6 +636,28 @@
       ],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/crosswords.md"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Crosswords/Leaderboard.cshtml",
+        "src/QueenZone.Web/Pages/Crosswords/Leaderboard.cshtml.cs"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CrosswordResultsTests.cs"
+      ],
+      "selectors": [
+        "#main-content"
+      ],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/crossword-results.md",
+      "id": "web.crosswords.leaderboard",
+      "name": "Crossword leaderboard",
+      "page": "Pages/Crosswords/Leaderboard.cshtml",
+      "url": "/crosswords/meet-the-band/leaderboard",
+      "entry": "Completed crossword \u2192 Leaderboard"
     }
   ]
 }

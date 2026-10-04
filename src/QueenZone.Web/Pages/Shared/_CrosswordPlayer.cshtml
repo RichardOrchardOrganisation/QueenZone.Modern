@@ -40,6 +40,7 @@
         <div class="qz-crossword-completion" data-completion hidden>
           <h2>Crossword complete</h2><p data-completion-message></p>
           <button type="button" data-play-again>Play again</button><button type="button" data-share>Share result</button><a href="/crosswords">Next crossword</a>
+          @if (!Model.Preview) { <a href="/crosswords/@puzzle.Slug/leaderboard">Leaderboard</a> }
           @if (Model.MemberId is null) { <p><a href="/account/login?returnUrl=@Uri.EscapeDataString("/crosswords/" + puzzle.Slug)">Sign in to save progress across devices</a></p> }
         </div>
       </div>
