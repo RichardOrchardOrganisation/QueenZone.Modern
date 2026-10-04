@@ -15,7 +15,19 @@ async function initialise(root) {
     const clues = [...root.querySelectorAll('[data-clue]')];
     const input = find('[data-input]');
     const storage = { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value) };
-    let key = core.progressStorageKey(puzzle.id, memberId);
+    let baseKey = core.progressStorageKey(puzzle.id, memberId);
+    let practice = practiceEnabled();
+    let key = practice ? `${baseKey}:practice` : baseKey;
+    let attemptGeneration = 0;
+    function practiceEnabled() {
+        try { return storage.getItem(`${baseKey}:practice-mode`) === puzzle.playVersion; } catch { return false; }
+    }
+    function setPractice(enabled) {
+        practice = enabled;
+        key = enabled ? `${baseKey}:practice` : baseKey;
+        try { storage.setItem(`${baseKey}:practice-mode`, enabled ? puzzle.playVersion : ''); }
+        catch { announce('Device storage is unavailable. Keep this page open to retain practice.'); }
+    }
     let requestToken = find('[data-antiforgery] input')?.value;
     let updatedAt = Date.now();
     let state = core.createPlayState(model);
@@ -48,11 +60,13 @@ async function initialise(root) {
 
     async function request(handler, body) {
         if (!navigator.onLine) throw new Error('Needs a connection');
+        const generation = attemptGeneration;
         const response = await fetch(`${location.pathname}?handler=${handler}`, {
             method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
-            headers: { ...(memberId ? { 'X-Crossword-Member': memberId } : {}), ...(body ? { 'Content-Type': 'application/json', RequestVerificationToken: requestToken ?? '' } : {}) },
+            headers: { ...(memberId && (!practice || handler === 'Session') ? { 'X-Crossword-Member': memberId } : {}), ...(body ? { 'Content-Type': 'application/json', RequestVerificationToken: requestToken ?? '' } : {}) },
             body: body ? JSON.stringify(body) : undefined,
         });
+        if (generation !== attemptGeneration) throw new Error('The previous attempt has ended.');
         if (response.status === 204) return null;
         if (response.status === 409) throw new Error('This crossword has changed. Reload the page before continuing.');
         if (response.status === 401) throw new Error('Sign in to sync progress. Your letters are saved on this device.');
@@ -63,6 +77,7 @@ async function initialise(root) {
     }
 
     function render() {
+        find('[data-practice]').hidden = !practice;
         const entry = model.entries[state.entry];
         for (const cell of cells) {
             const index = Number(cell.dataset.cell);
@@ -100,7 +115,7 @@ async function initialise(root) {
         const write = snapshot();
         const saved = await core.saveLocalProgress(storage, key, write);
         if (!saved) announce('Device storage is unavailable. Keep this page open to keep your letters.');
-        if (memberId && sync && navigator.onLine && !completed) {
+        if (memberId && !practice && sync && navigator.onLine && !completed) {
             try { await request('Save', write); }
             catch (error) { announce(error.message); }
         }
@@ -159,7 +174,7 @@ async function initialise(root) {
         checkingCompletion = true;
         attemptedLetters = state.letters;
         try {
-            const result = memberId ? await request('Complete', snapshot()) :
+            const result = memberId && !practice ? await request('Complete', snapshot()) :
                 await request('Check', { letters: state.letters, selection: { scope: 'grid' }, playVersion: puzzle.playVersion });
             if (state.letters !== attemptedLetters) return;
             if (!(result.correct ?? result.complete)) {
@@ -215,6 +230,40 @@ async function initialise(root) {
     root.querySelectorAll('[data-check]').forEach(button => button.addEventListener('click', () => { void check(button.dataset.check); }));
     root.querySelectorAll('[data-reveal]').forEach(button => button.addEventListener('click', () => { void reveal(button.dataset.reveal); }));
     find('[data-print]').addEventListener('click', () => window.print());
+    function clearAttempt() {
+        attemptGeneration++;
+        clearTimeout(saveTimeout);
+        clearTimeout(autoCheckTimeout);
+        completed = false;
+        checkingCompletion = false;
+        attemptedLetters = null;
+        explanations.clear();
+        review([]);
+        find('[data-check-shortcut]').hidden = true;
+        find('[data-completion]').hidden = true;
+        find('[data-toolbar]').hidden = false;
+    }
+    root.querySelectorAll('[data-play-again]').forEach(button => button.addEventListener('click', async () => {
+        if (!window.confirm('Start again with a blank grid and timer on this device? This practice attempt will not replace your saved progress or first leaderboard result.')) return;
+        clearAttempt();
+        setPractice(true);
+        state = core.createPlayState(model);
+        timer = core.createTimer();
+        updatedAt = Date.now();
+        render();
+        await save();
+        announce('Practice started. Your saved attempt and first result are preserved.');
+        cells.find(cell => Number(cell.dataset.cell) === state.cell)?.focus();
+    }));
+    find('[data-resume-saved]').addEventListener('click', async () => {
+        if (!window.confirm('Return to your saved attempt? Your practice letters stay on this device.')) return;
+        await save();
+        clearAttempt();
+        setPractice(false);
+        await restoreProgress(false);
+        void maybeComplete();
+        announce('Saved attempt restored.');
+    });
     find('[data-share]').addEventListener('click', async () => {
         const text = `I finished ${puzzle.title} on QueenZone: ${find('[data-completion-message]').textContent}.`;
         try { if (navigator.share) await navigator.share({ title: puzzle.title, text, url: location.href });
@@ -258,16 +307,18 @@ async function initialise(root) {
         memberId = session.memberId;
         rememberAccount(memberId);
         requestToken = session.tokens;
-        key = core.progressStorageKey(puzzle.id, memberId);
+        baseKey = core.progressStorageKey(puzzle.id, memberId);
+        practice = practiceEnabled();
+        key = practice ? `${baseKey}:practice` : baseKey;
     }
 
     async function restoreProgress(offerGuest) {
         const local = await core.loadLocalProgress(storage, key, model, puzzle.playVersion);
         let remote = null;
-        if (memberId && navigator.onLine) { try { remote = await request('Progress'); } catch (error) { announce(error.message); } }
+        if (memberId && !practice && navigator.onLine) { try { remote = await request('Progress'); } catch (error) { announce(error.message); } }
         const chosen = core.chooseProgress(model, puzzle.playVersion, local, remote);
         let restored = chosen.progress;
-        if (offerGuest && memberId && !local && !remote) {
+        if (offerGuest && memberId && !practice && !local && !remote) {
             const guest = await core.loadLocalProgress(storage, core.progressStorageKey(puzzle.id), model, puzzle.playVersion);
             if (guest && window.confirm('Keep progress from this device?')) restored = guest;
         }
