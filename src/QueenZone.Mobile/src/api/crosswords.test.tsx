@@ -1,5 +1,5 @@
 import {
-  fetchCrosswordDetail, fetchCrosswordsPage, checkCrossword, revealCrossword,
+  fetchCrosswordDetail, fetchCrosswordBySlug, fetchCrosswordsPage, checkCrossword, revealCrossword,
   fetchCrosswordProgress, saveCrosswordProgress, completeCrossword,
 } from './crosswords';
 import { jsonResponse } from '../test/fixtures';
@@ -74,5 +74,20 @@ it('loads, saves and completes private progress through the shared authenticated
 it('forwards bearer identity when requesting personal list status', async () => {
   fetchMock.mockResolvedValueOnce(jsonResponse({ items: [] }));
   await fetchCrosswordsPage({ accessToken: 'member-token' });
+  expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer member-token' });
+});
+
+it('resolves a canonical deep-link slug without downloading the list and forwards cancellation', async () => {
+  const controller = new AbortController();
+  fetchMock.mockResolvedValueOnce(jsonResponse({ archived: true, playVersion }));
+  const result = await fetchCrosswordBySlug('puzzle/other?query=1', controller.signal);
+  expect(result.archived).toBe(true);
+  expect(String(fetchMock.mock.calls[0][0])).toBe('http://qz.test/api/v1/crosswords/by-slug/puzzle%2Fother%3Fquery%3D1');
+});
+
+it('sends server-side difficulty and size filters with personal bearer status', async () => {
+  fetchMock.mockResolvedValueOnce(jsonResponse({ items: [] }));
+  await fetchCrosswordsPage({ difficulty: 'hard', size: 'large', accessToken: 'member-token' });
+  expect(String(fetchMock.mock.calls[0][0])).toBe('http://qz.test/api/v1/crosswords?difficulty=hard&size=large');
   expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer member-token' });
 });

@@ -14,16 +14,18 @@ public static class CrosswordApiEndpoints
             "Published crosswords, including schedules whose publication time has arrived. Archives are omitted.");
         group.MapDetail<CrosswordDetailDto>("/{id:guid}", GetDetailAsync, "GetCrossword",
             "Solution-free crossword for play. Published archives remain playable by direct link with archived=true.");
+        group.MapDetail<CrosswordDetailDto>("/by-slug/{slug}", GetBySlugAsync, "GetCrosswordBySlug",
+            "Solution-free playable crossword resolved by its canonical slug, including published archives.");
         group.MapCrosswordPlayApiEndpoints();
         group.MapCrosswordResultsApiEndpoints();
     }
 
     internal static async Task<IResult> GetListAsync(HttpContext context, ICrosswordCatalogRepository catalog,
-        int? page, int? pageSize, CancellationToken cancellationToken)
+        int? page, int? pageSize, string? difficulty, string? size, CancellationToken cancellationToken)
     {
         var now = Clock(context).GetUtcNow();
         var items = (await catalog.GetAllAsync(cancellationToken))
-            .Where(item => CrosswordVisibility.IsListed(item, now))
+            .Where(item => CrosswordVisibility.IsListed(item, now) && MatchesFilter(item, difficulty, size))
             .OrderByDescending(item => item.PublishedAt ?? item.PublishAt).ThenBy(item => item.Seed.Slug, StringComparer.Ordinal)
             .ToArray();
         var viewer = await ContentApiEndpoints.TryGetViewerMemberIdAsync(context);
@@ -38,6 +40,18 @@ public static class CrosswordApiEndpoints
             ListItem(item, viewer.HasValue, progress, completions)).ToArray());
     }
 
+    private static bool MatchesFilter(CrosswordCatalogItem item, string? difficulty, string? size) =>
+        (string.IsNullOrEmpty(difficulty) || string.Equals(item.Seed.Difficulty, difficulty, StringComparison.OrdinalIgnoreCase))
+        && MatchesSize(item.Seed.Grid, size);
+
+    private static bool MatchesSize(CrosswordGrid grid, string? size) => size switch
+    {
+        null or "" => true,
+        "small" => grid.Width <= 9 && grid.Height <= 9,
+        "large" => grid.Width > 9 || grid.Height > 9,
+        _ => false
+    };
+
     private static CrosswordListItemDto ListItem(CrosswordCatalogItem item, bool member,
         IReadOnlyDictionary<Guid, CrosswordProgress> progress, IReadOnlyDictionary<Guid, CrosswordCompletion> completions)
     {
@@ -49,6 +63,15 @@ public static class CrosswordApiEndpoints
         return new(item.Id, item.Seed.Slug, item.Seed.Title, item.Seed.Difficulty, item.Seed.Grid.Width,
             item.Seed.Grid.Height, item.PublishedAt ?? item.PublishAt, state, percent,
             completed?.ElapsedSeconds ?? saved?.ElapsedSeconds);
+    }
+
+    internal static async Task<IResult> GetBySlugAsync(HttpContext context, ICrosswordCatalogRepository catalog,
+        string slug, CancellationToken cancellationToken)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        var item = (await catalog.GetAllAsync(cancellationToken)).SingleOrDefault(puzzle => puzzle.Seed.Slug == slug);
+        return item is null ? ApiV1EndpointHelpers.NotFound("No playable crossword with that slug.")
+            : await GetDetailAsync(context, catalog, item.Id, cancellationToken);
     }
 
     internal static async Task<IResult> GetDetailAsync(HttpContext context, ICrosswordCatalogRepository catalog,

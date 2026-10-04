@@ -57,6 +57,9 @@ function chain(kind) {
     failOffsetY() {
       return gesture;
     },
+    simultaneousWithExternalGesture() {
+      return gesture;
+    },
     runOnJS(value) {
       config.runOnJS = value;
       return gesture;
@@ -74,6 +77,7 @@ module.exports = {
   GestureHandlerRootView: passthrough,
   GestureDetector: passthrough,
   Gesture: {
+    Native: () => chain('native'),
     Pinch: () => {
       recorded.pan = null;
       recorded.zoomPan = null;

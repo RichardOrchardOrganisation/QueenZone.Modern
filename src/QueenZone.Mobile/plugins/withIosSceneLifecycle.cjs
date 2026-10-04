@@ -42,10 +42,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     window = nextWindow
     // React Native helpers still consult UIApplicationDelegate.window.
     appDelegate.window = nextWindow
+    // Preserve scene-delivered cold-start URLs for Linking.getInitialURL().
+    let launchOptions: [UIApplication.LaunchOptionsKey: Any]? = connectionOptions.urlContexts.first.map { [.url: $0.url] }
     factory.startReactNative(
       withModuleName: "main",
       in: nextWindow,
-      launchOptions: nil)
+      launchOptions: launchOptions)
 
     if !connectionOptions.urlContexts.isEmpty {
       self.scene(scene, openURLContexts: connectionOptions.urlContexts)
@@ -91,7 +93,7 @@ const LEGACY_STARTUP_PATTERN =
 
 function applySceneLifecycleToAppDelegate(contents) {
   if (contents.includes(TAG)) {
-    return contents;
+    return contents.replace(new RegExp(`// @generated begin ${TAG}[\\s\\S]*?// @generated end ${TAG}`), SCENE_DELEGATE_CLASS.trimEnd());
   }
   if (!LEGACY_STARTUP_PATTERN.test(contents)) {
     throw new Error(

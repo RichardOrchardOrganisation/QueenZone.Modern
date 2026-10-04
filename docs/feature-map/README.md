@@ -49,6 +49,8 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `mobile.archive.timeline` — Timeline (ArchiveStack/Timeline)
 - `mobile.archive.timelineEvent` — Timeline event (ArchiveStack/TimelineEvent)
 - `mobile.archive.trivia` — Trivia (ArchiveStack/Trivia)
+- `mobile.crosswords.list` — Crossword list (ArchiveStack/CrosswordList)
+- `mobile.crosswords.play` — Crossword play (ArchiveStack/CrosswordPlay)
 
 ### forum
 

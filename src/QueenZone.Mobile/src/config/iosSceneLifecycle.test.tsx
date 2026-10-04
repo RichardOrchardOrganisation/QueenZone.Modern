@@ -46,6 +46,10 @@ describe('iOS 27 scene lifecycle config plugin', () => {
     expect(first).toContain('scene(_ scene: UIScene, openURLContexts');
     expect(first).toContain('scene(_ scene: UIScene, continue userActivity');
     expect(first).toContain('if #unavailable(iOS 13.0)');
+    expect(first).toContain('connectionOptions.urlContexts.first.map { [.url: $0.url] }');
+    expect(first).toContain('in: nextWindow,\n      launchOptions: launchOptions)');
+    const old = first.replace('in: nextWindow,\n      launchOptions: launchOptions)', 'in: nextWindow,\n      launchOptions: nil)');
+    expect(sceneLifecycle.applySceneLifecycleToAppDelegate(old)).toBe(first);
     expect(sceneLifecycle.applySceneLifecycleToAppDelegate(first)).toBe(first);
   });
 

@@ -114,9 +114,10 @@ describe('archive hub destinations', () => {
       'recently-restored',
       'trivia',
       'quiz',
+      'crosswords',
       'about',
     ]);
-    assert.equal(ARCHIVE_HUB_IDS.length, 10);
+    assert.equal(ARCHIVE_HUB_IDS.length, 11);
     assert.deepEqual(
       archiveDestinations.map((row) => row.id),
       [...ARCHIVE_HUB_IDS],

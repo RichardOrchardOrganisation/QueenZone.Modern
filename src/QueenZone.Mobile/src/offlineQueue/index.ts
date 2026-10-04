@@ -1,3 +1,5 @@
+import type { CrosswordProgressWrite } from '../api/types';
+import { isCrosswordProgressWrite } from '../crosswords/progressValidation';
 import { useEffect, useState } from 'react';
 import { newOperationId } from './ids';
 import {
@@ -38,6 +40,7 @@ async function enqueue(input: {
   target: OfflineQueueTarget;
   body: string;
   operationId?: string;
+  crossword?: CrosswordProgressWrite;
 }): Promise<OfflineQueueItem> {
   const now = new Date().toISOString();
   const item: OfflineQueueItem = {
@@ -46,7 +49,7 @@ async function enqueue(input: {
     memberId: input.memberId,
     kind: input.kind,
     target: input.target,
-    payload: { body: input.body },
+    payload: { body: input.body, ...(input.crossword ? { crossword: input.crossword } : {}) },
     createdAt: now,
     updatedAt: now,
     attemptCount: 0,
@@ -97,6 +100,16 @@ export function enqueueMessageCompose(input: {
     body: input.body,
     operationId: input.operationId,
   });
+}
+
+export function enqueueCrosswordProgress(input: {
+  memberId: string;
+  crosswordId: string;
+  progress: CrosswordProgressWrite;
+}): Promise<OfflineQueueItem> {
+  if (!isCrosswordProgressWrite(input.progress)) throw new Error('A valid current-version crossword save is required.');
+  return enqueue({ memberId: input.memberId, kind: 'crossword.progress', target: { crosswordId: input.crosswordId },
+    body: '', crossword: input.progress });
 }
 
 export function useOfflineQueue(memberId: string | null): OfflineQueueItem[] {
