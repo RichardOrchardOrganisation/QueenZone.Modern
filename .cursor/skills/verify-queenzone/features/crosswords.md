@@ -31,3 +31,5 @@ Preconditions: isolated Testing host with `CrosswordBrowserFixture__Enabled=true
 - Cached play HTML is a public shell with no member identity or anti-forgery token. Member identity hints partition local progress and never authorise requests.
 - Browser mobile emulation does not prove a real soft keyboard, VoiceOver, TalkBack or native mobile app.
 - Chromium captures actual A4/Letter PDFs for pagination and print-media screenshots. Physical PWA installation remains a manual check.
+
+Replay/reset: toolbar Reset current attempt and completion Play again require confirmation. They start blank device-local Practice with a zero timer; practice uses a separate owner/version storage key, never ranked Save/Complete writes and never replaces the first result. Check/reveal still require connection. Reload/offline persistence keeps practice. Resume saved attempt restores the preserved original local/member attempt. Test guests and members with disposable fixtures only; never reset real progress.

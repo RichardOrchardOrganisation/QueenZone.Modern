@@ -68,7 +68,7 @@
   .qz-crossword { --text-primary: #111; --text-secondary: #333; --surface-page: #fff; --surface-raised: #fff; --link: #111; color: #111; background: #fff; color-scheme: light; }
   [data-review], [data-check-shortcut] { display: none !important; }
   @page { size: auto; margin: 12mm; }
-  body > :not(main), .qz-crossword nav, .qz-crossword noscript, .qz-crossword-heading button, .qz-crossword-toolbar, .qz-crossword-input,
+  body > :not(main), .qz-crossword nav, .qz-crossword noscript, .qz-crossword [data-practice], .qz-crossword-heading button, .qz-crossword-toolbar, .qz-crossword-input,
   .qz-crossword-active, .qz-crossword-banner, .qz-crossword-pause, .qz-crossword-completion, .qz-crossword [role=status] { display: none !important; }
   .qz-section { padding: 0; }
   .qz-crossword-heading { margin: 0 0 4mm; }

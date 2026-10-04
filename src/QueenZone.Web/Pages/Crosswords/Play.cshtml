@@ -20,6 +20,7 @@
     <div class="qz-crossword-toolbar" hidden data-toolbar>
       <span aria-label="Elapsed time" data-timer>0:00</span>
       <button type="button" data-pause>Pause</button>
+      <button type="button" data-play-again>Reset current attempt</button>
       <label><input type="checkbox" data-auto-check /> Auto-check (assisted solve)</label>
       <details data-menu>
         <summary>Check or reveal</summary>
@@ -35,6 +36,7 @@
     </div>
     <p role="status" aria-live="polite" data-status></p>
     <button type="button" class="qz-button" data-check="grid" data-check-shortcut hidden>Check grid</button>
+    <p data-practice hidden>Practice on this device. Your saved attempt and first leaderboard result are preserved. <button type="button" class="qz-button" data-resume-saved>Resume saved attempt</button></p>
     <div class="qz-crossword-layout">
       <div class="qz-crossword-board">
         <p class="qz-crossword-active" id="crossword-active-clue" data-active-clue aria-live="polite">Select a clue to begin.</p>
@@ -44,7 +46,7 @@
         <div class="qz-crossword-pause" data-paused hidden><h2>Paused</h2><p>The timer has stopped and your letters are hidden.</p><button type="button" data-resume>Resume crossword</button></div>
         <div class="qz-crossword-completion" data-completion hidden>
           <h2>Crossword complete</h2><p data-completion-message></p>
-          <button type="button" data-share>Share result</button><a href="/crosswords">Next crossword</a>
+          <button type="button" data-play-again>Play again</button><button type="button" data-share>Share result</button><a href="/crosswords">Next crossword</a>
           @if (Model.MemberId is null) { <p><a href="/account/login?returnUrl=@Uri.EscapeDataString("/crosswords/" + puzzle.Slug)">Sign in to save progress across devices</a></p> }
         </div>
       </div>
