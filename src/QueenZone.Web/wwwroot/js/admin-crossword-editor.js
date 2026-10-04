@@ -127,7 +127,7 @@ if (root) {
           // Revalidate after generated entries have been included in the draft.
           changed();
         } else showIssues(result.errors ?? [], result.warnings ?? []);
-      } catch (error) { if (error.name !== 'AbortError') validationPanel.textContent = error.message; }
+      } catch (error) { if (request === validationRequest && error.name !== 'AbortError') validationPanel.textContent = error.message; }
     }
     form.addEventListener('submit', sync); drawGrid(); void validate();
   }
