@@ -11,6 +11,32 @@ namespace QueenZone.Web.Tests;
 public sealed class AdminCrosswordRoutesTests
 {
     [Fact]
+    public async Task Bulk_publication_validates_the_entire_selection_and_tokens_before_any_write()
+    {
+        await using var host = new QueenZoneWebApplicationFactory(); using var admin = host.CreateAdminClient();
+        var catalog = host.Services.GetRequiredService<ICrosswordCatalogRepository>();
+        var puzzles = (await catalog.GetAllAsync()).Take(2).ToArray();
+        var fields = new Dictionary<string, string> {
+            ["ids[0]"] = puzzles[0].Id.ToString(), ["ids[1]"] = puzzles[1].Id.ToString(),
+            ["rowVersions[0]"] = Convert.ToBase64String(puzzles[0].RowVersion), ["rowVersions[1]"] = Convert.ToBase64String([7])
+        };
+        var path = "/admin/crosswords?handler=PublishSelected";
+        Assert.Equal(HttpStatusCode.OK, (await AdminHttpTestHelpers.PostArticleAsync(admin, "/admin/crosswords", path, fields)).StatusCode);
+        Assert.All(await catalog.GetAllAsync(), puzzle => Assert.Equal(CrosswordStatus.Draft, puzzle.Status));
+        fields.Remove("rowVersions[1]");
+        var invalid = await AdminHttpTestHelpers.PostArticleAsync(admin, "/admin/crosswords", path, fields);
+        Assert.Contains("Invalid selection", await invalid.Content.ReadAsStringAsync());
+        fields["rowVersions[1]"] = Convert.ToBase64String(puzzles[1].RowVersion);
+        Assert.Equal(HttpStatusCode.Redirect, (await AdminHttpTestHelpers.PostArticleAsync(admin, "/admin/crosswords", path, fields)).StatusCode);
+        foreach (var puzzle in puzzles) {
+            Assert.Equal(CrosswordStatus.Published, (await catalog.GetByIdAsync(puzzle.Id))!.Status);
+            Assert.Single(await catalog.GetAuditAsync(puzzle.Id), row => row.Action == "Published");
+        }
+        var missing = new Dictionary<string, string> { ["ids[0]"] = Guid.NewGuid().ToString(), ["rowVersions[0]"] = Convert.ToBase64String([7]) };
+        Assert.Equal(HttpStatusCode.NotFound, (await AdminHttpTestHelpers.PostArticleAsync(admin, "/admin/crosswords", path, missing)).StatusCode);
+    }
+
+    [Fact]
     public async Task List_filters_all_ten_drafts_and_requires_existing_admin_policy()
     {
         await using var host = new QueenZoneWebApplicationFactory();
