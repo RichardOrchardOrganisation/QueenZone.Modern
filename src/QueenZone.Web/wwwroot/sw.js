@@ -77,7 +77,7 @@ async function cacheFirst(request) {
 
   const response = await fetch(request);
   if (response.ok) {
-    cache.put(request, response.clone());
+    try { await cache.put(request, response.clone()); } catch { /* Cache failure must not discard a live response. */ }
   }
   return response;
 }
@@ -87,7 +87,7 @@ async function networkFirstWithCacheFallback(request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
-      cache.put(request, response.clone());
+      try { await cache.put(request, response.clone()); } catch { /* Cache failure must not discard a live response. */ }
     }
     return response;
   } catch {

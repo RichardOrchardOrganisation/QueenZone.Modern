@@ -628,7 +628,8 @@
         "src/QueenZone.Web/wwwroot/css/crossword.css",
         "src/QueenZone.Web/wwwroot/sw.js",
         "src/QueenZone.Web/wwwroot/js/crossword-core.js",
-        "src/QueenZone.Web/wwwroot/js/crossword-account.js"
+        "src/QueenZone.Web/wwwroot/js/crossword-account.js",
+        "src/QueenZone.Web/Pages/Shared/_CrosswordOfflineLayout.cshtml"
       ],
       "testIds": [],
       "flows": [],

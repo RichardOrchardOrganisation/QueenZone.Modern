@@ -244,6 +244,16 @@ public sealed class CrosswordPlayTests : E2EPageTest
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
         await Page.WaitForFunctionAsync("async () => { const response = await caches.match(location.href); return response?.headers.get('X-QueenZone-Crossword-Shell') === 'public'; }");
         Assert.That(await Page.EvaluateAsync<bool>("async () => { const html = await (await caches.match(location.href)).text(); return html.includes('__RequestVerificationToken'); }"), Is.False);
+        Assert.That(await Page.EvaluateAsync<bool>("""
+            async () => {
+                const html = await (await caches.match(location.href)).text();
+                const shell = new DOMParser().parseFromString(html, 'text/html');
+                const liveStyles = [...document.querySelectorAll('link[rel="stylesheet"]')].map(link => link.href);
+                const shellStyles = [...shell.querySelectorAll('link[rel="stylesheet"]')].map(link => new URL(link.getAttribute('href'), location.href).href);
+                return shellStyles.length > 0 && shellStyles.every(url => liveStyles.includes(url)) &&
+                    (await Promise.all(shellStyles.map(async url => Boolean(await caches.match(url))))).every(Boolean);
+            }
+            """), Is.True, "The offline shell must use the same versioned stylesheet cache keys as the live page");
         await Page.Locator("[data-cell='0']").ClickAsync();
         await Page.Keyboard.TypeAsync("Z");
         await Context.SetOfflineAsync(true);
