@@ -543,6 +543,52 @@
       "page": "Pages/Submit/FanPerformanceConfirmation.cshtml",
       "url": "/submit/fan-performance/confirmation/{id}",
       "entry": "Submit fan performance → confirmation"
+    },
+    {
+      "id": "web.crosswords.list",
+      "name": "Crossword list",
+      "page": "Pages/Crosswords/Index.cshtml",
+      "url": "/crosswords",
+      "entry": "Crosswords in the site navigation, or /crosswords",
+      "aliases": [
+        "crossword"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Crosswords/Index.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CrosswordPlayTests.cs"
+      ],
+      "selectors": [
+        "#crossword-list"
+      ],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/crosswords.md"
+    },
+    {
+      "id": "web.crosswords.play",
+      "name": "Crossword play",
+      "page": "Pages/Crosswords/Play.cshtml",
+      "url": "/crosswords/meet-the-band",
+      "entry": "Crosswords in the site navigation, or /crosswords/meet-the-band",
+      "aliases": [
+        "crossword"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Crosswords/Play.cshtml"
+      ],
+      "testIds": [],
+      "flows": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/CrosswordPlayTests.cs"
+      ],
+      "selectors": [
+        "#crossword-play"
+      ],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone/features/crosswords.md"
     }
   ]
 }

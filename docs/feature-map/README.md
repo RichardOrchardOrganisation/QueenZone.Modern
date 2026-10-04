@@ -136,6 +136,8 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 - `web.archive.submitTriviaConfirmation` — Trivia submission confirmation (Pages/Submit/TriviaConfirmation.cshtml — /submit/trivia/confirmation/{id})
 - `web.archive.timeline` — Timeline (Pages/Timeline/Index.cshtml — /timeline)
 - `web.archive.trivia` — Trivia (Pages/Trivia/Index.cshtml — /trivia)
+- `web.crosswords.list` — Crossword list (Pages/Crosswords/Index.cshtml — /crosswords)
+- `web.crosswords.play` — Crossword play (Pages/Crosswords/Play.cshtml — /crosswords/meet-the-band)
 
 ### forum
 
