@@ -7,6 +7,10 @@ internal static class ToolsApp
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], "import-crosswords", StringComparison.OrdinalIgnoreCase))
+        {
+            return await ImportCrosswordsCommand.RunAsync(args[1..]);
+        }
         if (args.Length > 0 && string.Equals(args[0], "backfill-fan-performance-durations", StringComparison.OrdinalIgnoreCase))
         {
             return await BackfillFanPerformanceDurationsCommand.RunAsync(args[1..]);
@@ -219,6 +223,7 @@ internal static class ToolsApp
         ToolArgs.WriteUsage(
             errorMessage,
             "Usage:",
+            "  dotnet run --project src/QueenZone.Tools -- import-crosswords --dir data/crosswords [--dry-run] [--publish] [--connection-string <connection-string>]",
             "  dotnet run --project src/QueenZone.Tools -- import-history --csv <path> --connection-string <connection-string>",
             "  dotnet run --project src/QueenZone.Tools -- import-history --csv <path> --dry-run",
             "  dotnet run --project src/QueenZone.Tools -- import-quotes --csv <path> --connection-string <connection-string>",

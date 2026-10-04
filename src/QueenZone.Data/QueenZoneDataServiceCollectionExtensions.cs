@@ -70,6 +70,8 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IForumPollRepository, EfForumPollRepository>();
         services.AddScoped<IHomePollRepository, EfHomePollRepository>();
         services.AddScoped<IQuizRepository, EfQuizRepository>();
+        services.AddScoped<ICrosswordCatalogRepository>(sp => new EfCrosswordCatalogRepository(
+            sp.GetRequiredService<QueenZoneDbContext>(), sp.GetService<TimeProvider>() ?? TimeProvider.System));
         services.AddScoped<IQuizQuestionSubmissionRepository, EfQuizQuestionSubmissionRepository>();
         services.AddScoped<INewsDiscoveryRepository, EfNewsDiscoveryRepository>();
         services.AddScoped<INewsAgentGuidanceRepository, EfNewsAgentGuidanceRepository>();
@@ -114,6 +116,12 @@ public static class QueenZoneDataServiceCollectionExtensions
 
     public static IServiceCollection AddQueenZoneInMemoryData(this IServiceCollection services)
     {
+        services.AddSingleton<ICrosswordCatalogRepository>(sp =>
+        {
+            var catalog = new InMemoryCrosswordCatalogRepository(sp.GetService<TimeProvider>() ?? TimeProvider.System);
+            catalog.ImportAsync(CrosswordSampleData.Load(), Guid.Empty, "sample-seed").GetAwaiter().GetResult();
+            return catalog;
+        });
         services.TryAddSingleton<SearchIndexRevision>();
         var store = new SharedNewsStore(SampleNewsData.CreateSeedArticles());
         services.AddSingleton(store);

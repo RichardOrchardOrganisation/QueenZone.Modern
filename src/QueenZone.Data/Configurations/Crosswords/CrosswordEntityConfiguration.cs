@@ -23,6 +23,7 @@ public sealed class CrosswordEntityConfiguration(bool sqlServer) : IEntityTypeCo
         builder.Property(puzzle => puzzle.Difficulty).HasMaxLength(20).IsRequired();
         builder.Property(puzzle => puzzle.Style).HasMaxLength(20).IsRequired();
         builder.Property(puzzle => puzzle.BlockMask).HasMaxLength(225).IsRequired();
+        builder.Property(puzzle => puzzle.SolutionRowsJson).HasMaxLength(2000).IsRequired();
         builder.Property(puzzle => puzzle.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(puzzle => puzzle.UpdatedByEmail).HasMaxLength(320).IsRequired();
         builder.HasIndex(puzzle => new { puzzle.Status, puzzle.PublishAt });
@@ -51,5 +52,19 @@ public sealed class CrosswordEntryEntityConfiguration : IEntityTypeConfiguration
         builder.Property(entry => entry.Clue).HasMaxLength(500).IsRequired();
         builder.Property(entry => entry.Enumeration).HasMaxLength(50).IsRequired();
         builder.Property(entry => entry.Explanation).HasMaxLength(300);
+    }
+}
+
+public sealed class CrosswordAuditLogEntityConfiguration : IEntityTypeConfiguration<CrosswordAuditLogEntity>
+{
+    public void Configure(EntityTypeBuilder<CrosswordAuditLogEntity> builder)
+    {
+        builder.ToTable("CrosswordAuditLogs");
+        builder.HasKey(log => log.Id);
+        builder.Property(log => log.Actor).HasMaxLength(320).IsRequired();
+        builder.Property(log => log.Action).HasMaxLength(20).IsRequired();
+        builder.Property(log => log.Summary).HasMaxLength(1000).IsRequired();
+        builder.HasIndex(log => new { log.CrosswordId, log.CreatedAt });
+        builder.HasOne<CrosswordEntity>().WithMany().HasForeignKey(log => log.CrosswordId).OnDelete(DeleteBehavior.Cascade);
     }
 }
