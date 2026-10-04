@@ -1,4 +1,4 @@
-const CACHE_NAME = "qz-static-v1";
+const CACHE_NAME = "qz-static-v2";
 const STATIC_PATTERNS = [/\/css\//, /\/design-system\//, /\/js\//, /favicon/, /apple-touch-icon/];
 
 self.addEventListener("install", () => {
@@ -31,9 +31,35 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
+    if (/^\/crosswords\/[^/]+$/.test(url.pathname)) {
+      event.respondWith(crosswordNetworkFirst(request));
+      return;
+    }
     event.respondWith(networkFirstWithCacheFallback(request));
   }
 });
+
+async function crosswordNetworkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const shellUrl = new URL(request.url);
+      shellUrl.search = '?handler=OfflineShell';
+      // Never store the authenticated HTML, header or antiforgery token.
+      try {
+        const shell = await fetch(shellUrl, { credentials: 'omit', cache: 'no-store' });
+        if (shell.ok && shell.headers.get('X-QueenZone-Crossword-Shell') === 'public')
+          await cache.put(request, shell.clone());
+      } catch { /* A cache refresh failure must not replace a successful live page. */ }
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw new Error('Needs a connection to open this crossword for the first time.');
+  }
+}
 
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);

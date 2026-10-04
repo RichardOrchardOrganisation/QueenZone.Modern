@@ -1,0 +1,15 @@
+@model QueenZone.Web.CrosswordDetailDto
+@{ var puzzle = Model; }
+      <div class="qz-crossword-clues">
+        @foreach (var direction in new[] { "across", "down" })
+        {
+          <section aria-label="@direction clues"><h2>@(direction == "across" ? "Across" : "Down")</h2>
+            <ol class="qz-crossword-clue-list">
+              @foreach (var clue in puzzle.Clues.Where(clue => clue.Direction == direction).OrderBy(clue => clue.Number))
+              {
+                <li><button type="button" data-clue="@clue.Number-@clue.Direction"><strong>@clue.Number.</strong> @clue.Clue @clue.Enumeration <span data-clue-tick aria-hidden="true"></span></button></li>
+              }
+            </ol>
+          </section>
+        }
+      </div>

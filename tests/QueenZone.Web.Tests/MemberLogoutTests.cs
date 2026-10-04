@@ -34,6 +34,7 @@ public sealed partial class MemberLogoutTests : IClassFixture<ExternalCookieWebA
         Assert.Equal(HttpStatusCode.Redirect, logoutResponse.StatusCode);
         Assert.Equal("/account/login?signedOut=1", logoutResponse.Headers.Location!.OriginalString);
 
+        Assert.Contains("data-crossword-member=\"\"", await client.GetStringAsync("/account/login?signedOut=1"));
         var probeResponse = await client.GetAsync("/account/member-probe");
         Assert.Equal(HttpStatusCode.Redirect, probeResponse.StatusCode);
         Assert.Contains("/account/login", probeResponse.Headers.Location!.OriginalString);
@@ -49,6 +50,7 @@ public sealed partial class MemberLogoutTests : IClassFixture<ExternalCookieWebA
         Assert.Equal(HttpStatusCode.Redirect, logoutResponse.StatusCode);
         Assert.Equal("/account/login?signedOut=1", logoutResponse.Headers.Location!.OriginalString);
 
+        Assert.Contains("data-crossword-member=\"\"", await client.GetStringAsync("/account/login?signedOut=1"));
         var probeResponse = await client.GetAsync("/account/member-probe");
         Assert.Equal(HttpStatusCode.Redirect, probeResponse.StatusCode);
     }

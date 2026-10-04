@@ -1,0 +1,46 @@
+@page "/crosswords"
+@model CrosswordsIndexModel
+@section Head {
+  <link rel="stylesheet" href="~/css/crossword.css" asp-append-version="true" />
+}
+
+<partial name="_PageHero" model='@(("Play", "Queen crosswords", "Clues from the music, people and story of Queen. Pick a puzzle and take your time.", "Across & Down"))' />
+<section class="qz-section qz-crossword">
+  <div class="qz-container">
+    <form method="get" class="qz-crossword-filters" aria-label="Filter crosswords">
+      <label>Difficulty
+        <select name="difficulty">
+          <option value="">All difficulties</option>
+          @foreach (var difficulty in new[] { "Easy", "Medium", "Hard" })
+          {
+            <option value="@difficulty.ToLowerInvariant()" selected="@(Model.Difficulty == difficulty.ToLowerInvariant())">@difficulty</option>
+          }
+        </select>
+      </label>
+      <label>Size
+        <select name="size">
+          <option value="">All sizes</option>
+          <option value="small" selected="@(Model.Size == "small")">Up to 9 × 9</option>
+          <option value="large" selected="@(Model.Size == "large")">Larger grids</option>
+        </select>
+      </label>
+      <button class="qz-button" type="submit">Apply filters</button>
+    </form>
+    @if (Model.Items.Count == 0)
+    {
+      <p>No crosswords are available with these filters yet.</p>
+    }
+    <div id="crossword-list" class="qz-crossword-cards">
+      @foreach (var puzzle in Model.Items)
+      {
+        <article class="qz-crossword-card">
+          <p>@puzzle.Difficulty · @puzzle.Width × @puzzle.Height</p>
+          <h2><a href="/crosswords/@puzzle.Slug">@puzzle.Title</a></h2>
+          <p>@puzzle.Description</p>
+          @if (Model.SignedIn) { <p>@puzzle.Status</p> }
+          <a class="qz-button" href="/crosswords/@puzzle.Slug">@(puzzle.Status == "In progress" ? "Continue" : "Play")<span class="visually-hidden"> @puzzle.Title</span></a>
+        </article>
+      }
+    </div>
+  </div>
+</section>

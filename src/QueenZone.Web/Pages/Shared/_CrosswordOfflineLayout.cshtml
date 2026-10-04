@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>@ViewData["Title"]</title>
+  <link rel="stylesheet" href="/design-system/tokens/tokens.min.css" />
+  <link rel="stylesheet" href="/css/site.min.css" />
+  @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+  <a class="qz-skip-link" href="#main-content">Skip to crossword</a>
+  <header class="qz-container"><a href="/">QueenZone</a> · <a href="/crosswords">Crosswords</a></header>
+  <main id="main-content" tabindex="-1">@RenderBody()</main>
+  @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
