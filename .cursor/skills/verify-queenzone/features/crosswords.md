@@ -33,3 +33,5 @@ Preconditions: isolated Testing host with `CrosswordBrowserFixture__Enabled=true
 - Chromium captures actual A4/Letter PDFs for pagination and print-media screenshots. Physical PWA installation remains a manual check.
 
 Replay/reset: toolbar Reset current attempt and completion Play again require confirmation. They start blank device-local Practice with a zero timer; practice uses a separate owner/version storage key, never ranked Save/Complete writes and never replaces the first result. Check/reveal still require connection. Reload/offline persistence keeps practice. Resume saved attempt restores the preserved original local/member attempt. Test guests and members with disposable fixtures only; never reset real progress.
+
+Installed-module update regression: poison the existing public core/account module cache, verify online fetch replaces both obsolete entries, then verify both modules remain fetchable offline and Across typing works after reconnect. Run `Installed_solver_modules_refresh_online_and_remain_available_offline` with the existing offline shell/member partitioning tests; no cache eviction or new accessibility exception is required.

@@ -25,6 +25,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // ES module imports do not receive Razor's content-hash query. Revalidate
+  // these public dependencies online; retain the last working copy offline.
+  if (/^\/js\/crossword-(core|account)\.js$/.test(url.pathname) && !url.searchParams.has("v")) {
+    event.respondWith(networkFirstWithCacheFallback(new Request(request, { cache: "no-cache" })));
+    return;
+  }
+
   if (STATIC_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
     event.respondWith(cacheFirst(request));
     return;

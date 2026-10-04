@@ -10,6 +10,40 @@ namespace QueenZone.Web.E2E;
 public sealed class CrosswordPlayTests : E2EPageTest
 {
     [Test]
+    public async Task Installed_solver_modules_refresh_online_and_remain_available_offline()
+    {
+        await Page.GotoAsync("/crosswords/meet-the-band");
+        await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
+        await Page.WaitForFunctionAsync("navigator.serviceWorker.controller !== null");
+        await Page.EvaluateAsync("""
+            async () => {
+                const cache = await caches.open('qz-static-v2');
+                for (const module of ['core', 'account'])
+                    await cache.put(`/js/crossword-${module}.js`, new Response('obsolete solver module', { headers: { 'Content-Type': 'application/javascript' } }));
+            }
+            """);
+        foreach (var module in new[] { "core", "account" })
+        {
+            var refreshed = await Page.EvaluateAsync<string>("async module => (await fetch(`/js/crossword-${module}.js`)).text()", module);
+            Assert.That(refreshed, Does.Contain("export").And.Not.Contain("obsolete solver module"));
+            var cached = await Page.EvaluateAsync<string>("async module => (await caches.match(`/js/crossword-${module}.js`)).text()", module);
+            Assert.That(cached, Is.EqualTo(refreshed));
+        }
+        await Context.SetOfflineAsync(true);
+        foreach (var module in new[] { "core", "account" })
+        {
+            var cached = await Page.EvaluateAsync<string>("async module => (await fetch(`/js/crossword-${module}.js`)).text()", module);
+            Assert.That(cached, Does.Contain("export").And.Not.Contain("obsolete solver module"));
+        }
+        await Context.SetOfflineAsync(false);
+        await Page.ReloadAsync();
+        await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
+        await Page.Locator("[data-clue='3-across']").ClickAsync();
+        await Page.Keyboard.TypeAsync("ROG");
+        await Expect(Page.Locator("[data-cell='9'] [data-letter]")).ToHaveTextAsync("G");
+    }
+
+    [Test]
     public async Task List_and_play_have_no_blocking_accessibility_violations()
     {
         await Page.GotoAsync("/crosswords");

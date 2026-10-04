@@ -623,7 +623,10 @@
       "sources": [
         "src/QueenZone.Web/Pages/Crosswords/Play.cshtml",
         "src/QueenZone.Web/Pages/Crosswords/_CrosswordGrid.cshtml",
-        "src/QueenZone.Web/Pages/Crosswords/_CrosswordClues.cshtml"
+        "src/QueenZone.Web/Pages/Crosswords/_CrosswordClues.cshtml",
+        "src/QueenZone.Web/wwwroot/sw.js",
+        "src/QueenZone.Web/wwwroot/js/crossword-core.js",
+        "src/QueenZone.Web/wwwroot/js/crossword-account.js"
       ],
       "testIds": [],
       "flows": [],
