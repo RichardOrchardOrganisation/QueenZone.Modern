@@ -129,6 +129,12 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
             ReleaseDate: album.RELEASE_DATE);
     }
 
+    public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
+        SongCatalog.GetSongsAsync(this, cancellationToken);
+
+    public Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
+        SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
+
     private static bool IsExec(string sql) =>
         sql.TrimStart().StartsWith("EXEC", StringComparison.OrdinalIgnoreCase);
 

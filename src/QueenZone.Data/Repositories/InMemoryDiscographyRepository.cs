@@ -58,4 +58,10 @@ public sealed class InMemoryDiscographyRepository : IDiscographyRepository
 
         return Task.FromResult<AlbumDetail?>(detail);
     }
+
+    public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
+        SongCatalog.GetSongsAsync(this, cancellationToken);
+
+    public Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
+        SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
 }

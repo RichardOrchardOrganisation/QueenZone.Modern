@@ -55,11 +55,11 @@
         </div>
       }
 
-      @foreach (var section in Model.Related)
+      @foreach (var related in Model.Related)
       {
-        <h2 class="qz-eyebrow">@section.Label</h2>
+        <h2 class="qz-eyebrow">@related.Label</h2>
         <ul class="qz-song-related">
-          @foreach (var link in section.Links)
+          @foreach (var link in related.Links)
           {
             <li><a href="@link.Url">@link.Title</a></li>
           }

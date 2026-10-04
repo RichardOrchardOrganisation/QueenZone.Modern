@@ -9,9 +9,7 @@ public interface IDiscographyRepository
     /// <summary>
     /// Canonical songs grouped by <see cref="NewsSlug.Slugify"/> of active-album track titles.
     /// </summary>
-    Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
-        SongCatalog.GetSongsAsync(this, cancellationToken);
+    Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default);
 
-    Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
-        SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
+    Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default);
 }
