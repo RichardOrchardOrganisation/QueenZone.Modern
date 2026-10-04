@@ -66,6 +66,7 @@ public sealed class DeleteModel(
             DateTime.UtcNow,
             cancellationToken);
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.MembersCookie);
+        CrosswordAccountHint.Write(HttpContext, null);
         return Redirect(Immediate
             ? "/account/deletion-status?receipt=" + Uri.EscapeDataString(deletionReceipts.Issue(account.Id))
             : "/account/deletion-requested");

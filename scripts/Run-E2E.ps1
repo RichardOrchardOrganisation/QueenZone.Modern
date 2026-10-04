@@ -228,6 +228,9 @@ function Start-AppWindows {
         "set ASPNETCORE_URLS=$Urls",
         "set ASPNETCORE_CONTENTROOT=$AppDir"
     )
+    if ($EnvironmentName -eq "Testing") {
+        $envAssignments += "set CrosswordBrowserFixture__Enabled=true"
+    }
     if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
         $envAssignments += "set ConnectionStrings__QueenZoneLegacy=$ConnectionString"
     }
@@ -295,6 +298,9 @@ function Start-AppMacOS {
     $psi.EnvironmentVariables["ASPNETCORE_ENVIRONMENT"] = $EnvironmentName
     $psi.EnvironmentVariables["ASPNETCORE_URLS"] = $Urls
     $psi.EnvironmentVariables["ASPNETCORE_CONTENTROOT"] = $AppDir
+    if ($EnvironmentName -eq "Testing") {
+        $psi.EnvironmentVariables["CrosswordBrowserFixture__Enabled"] = "true"
+    }
     if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
         $psi.EnvironmentVariables["ConnectionStrings__QueenZoneLegacy"] = $ConnectionString
     }

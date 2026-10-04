@@ -1,0 +1,96 @@
+@page "/crosswords/{slug}"
+@model CrosswordPlayModel
+@using System.Text.Json
+@{
+  var puzzle = Model.Puzzle;
+  Layout = Model.OfflineShell ? "_CrosswordOfflineLayout" : "_Layout";
+}
+@section Head {
+  <link rel="stylesheet" href="~/css/crossword.css" asp-append-version="true" />
+}
+<section id="crossword-play" class="qz-section qz-crossword" data-crossword>
+  <div class="qz-container">
+    <nav aria-label="Breadcrumb"><a href="/crosswords">Crosswords</a> / @puzzle.Title</nav>
+    <header class="qz-crossword-heading">
+      <div><p>@puzzle.Difficulty · @puzzle.Width × @puzzle.Height</p><h1>@puzzle.Title</h1><p>@puzzle.Description</p></div>
+      <button type="button" class="qz-button" data-print>Print blank puzzle</button>
+    </header>
+    @if (puzzle.Archived) { <p class="qz-crossword-banner">Archived puzzle — still available to play.</p> }
+    <noscript><p>Turn on JavaScript to enter letters. You can still read the clues and print this blank grid.</p></noscript>
+    <div class="qz-crossword-toolbar" hidden data-toolbar>
+      <span aria-label="Elapsed time" data-timer>0:00</span>
+      <button type="button" data-pause>Pause</button>
+      <label><input type="checkbox" data-auto-check /> Auto-check (assisted solve)</label>
+      <details data-menu>
+        <summary>Check or reveal</summary>
+        <div class="qz-crossword-menu">
+          @foreach (var scope in new[] { "cell", "entry", "grid" })
+          {
+            var label = scope == "entry" ? "word" : scope;
+            <button type="button" data-check="@scope">Check @label</button>
+            <button type="button" data-reveal="@scope">Reveal @label</button>
+          }
+        </div>
+      </details>
+    </div>
+    <p role="status" aria-live="polite" data-status></p>
+    <button type="button" class="qz-button" data-check="grid" data-check-shortcut hidden>Check grid</button>
+    <div class="qz-crossword-layout">
+      <div class="qz-crossword-board">
+        <p class="qz-crossword-active" id="crossword-active-clue" data-active-clue aria-live="polite">Select a clue to begin.</p>
+        <div class="qz-crossword-grid-scroll" data-grid-scroll>
+          <div class="qz-crossword-grid qz-crossword-size-@puzzle.Width" role="grid" aria-label="@puzzle.Title crossword" aria-rowcount="@puzzle.Height" aria-colcount="@puzzle.Width">
+            @for (var row = 0; row < puzzle.Height; row++)
+            {
+              <div role="row" class="qz-crossword-row">
+                @for (var column = 0; column < puzzle.Width; column++)
+                {
+                  var cell = row * puzzle.Width + column;
+                  if (puzzle.Blocks[cell])
+                  {
+                    <span role="gridcell" class="qz-crossword-block" aria-label="Block" aria-rowindex="@(row + 1)" aria-colindex="@(column + 1)"></span>
+                  }
+                  else
+                  {
+                    <button type="button" role="gridcell" class="qz-crossword-cell" data-cell="@cell" aria-label="Row @(row + 1), column @(column + 1), blank" aria-rowindex="@(row + 1)" aria-colindex="@(column + 1)" tabindex="-1" disabled>
+                      <span class="qz-crossword-number">@(puzzle.Numbering[cell] > 0 ? puzzle.Numbering[cell].ToString() : "")</span>
+                      <span class="qz-crossword-letter" data-letter></span>
+                      <span class="qz-crossword-marker" aria-hidden="true" data-marker></span>
+                    </button>
+                  }
+                }
+              </div>
+            }
+          </div>
+        </div>
+        <label class="visually-hidden" for="crossword-input">Type a letter in the selected cell</label>
+        <input class="qz-crossword-input visually-hidden" id="crossword-input" data-input type="text" inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" aria-describedby="crossword-active-clue" />
+        <div class="qz-crossword-pause" data-paused hidden><h2>Paused</h2><p>The timer has stopped and your letters are hidden.</p><button type="button" data-resume>Resume crossword</button></div>
+        <div class="qz-crossword-completion" data-completion hidden>
+          <h2>Crossword complete</h2><p data-completion-message></p>
+          <button type="button" data-share>Share result</button><a href="/crosswords">Next crossword</a>
+          @if (Model.MemberId is null) { <p><a href="/account/login?returnUrl=@Uri.EscapeDataString("/crosswords/" + puzzle.Slug)">Sign in to save progress across devices</a></p> }
+        </div>
+      </div>
+      <div class="qz-crossword-clues">
+        @foreach (var direction in new[] { "across", "down" })
+        {
+          <section aria-label="@direction clues"><h2>@(direction == "across" ? "Across" : "Down")</h2>
+            <ol class="qz-crossword-clue-list">
+              @foreach (var clue in puzzle.Clues.Where(clue => clue.Direction == direction).OrderBy(clue => clue.Number))
+              {
+                <li><button type="button" data-clue="@clue.Number-@clue.Direction"><strong>@clue.Number.</strong> @clue.Clue @clue.Enumeration <span data-clue-tick aria-hidden="true"></span></button></li>
+              }
+            </ol>
+          </section>
+        }
+      </div>
+    </div>
+    <section data-review hidden aria-label="Clue explanations"><h2>Clue explanations</h2><dl data-review-list></dl></section>
+    @if (!Model.OfflineShell) { <form hidden data-antiforgery>@Html.AntiForgeryToken()</form> }
+    <script type="application/json" data-puzzle>@Html.Raw(JsonSerializer.Serialize(new { puzzle, memberId = Model.MemberId, offlineShell = Model.OfflineShell }, new JsonSerializerOptions(JsonSerializerDefaults.Web)))</script>
+  </div>
+</section>
+@section Scripts {
+  <script type="module" src="~/js/crossword-play.js" asp-append-version="true"></script>
+}

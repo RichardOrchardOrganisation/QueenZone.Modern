@@ -1,0 +1,12 @@
+@model QueenZone.Web.CrosswordTeaserViewModel
+<section class="qz-home-quiz-callout" id="crossword-callout" aria-label="Latest crossword">
+  <div class="qz-home-quiz-callout__copy">
+    <p class="qz-home-eyebrow">Across &amp; Down · @Model.Width × @Model.Height</p>
+    <h2 class="qz-home-quiz-callout__title">@Model.Title</h2>
+    <p class="qz-home-quiz-callout__body">A Queen crossword to enjoy at your own pace.</p>
+  </div>
+  <div class="qz-home-quiz-callout__actions">
+    <a class="qz-button qz-button--cta" href="/crosswords/@Model.Slug">@(Model.Continue ? "Continue crossword" : "Play crossword")</a>
+    <a class="qz-home-quiz-callout__link" href="/crosswords">All crosswords</a>
+  </div>
+</section>
