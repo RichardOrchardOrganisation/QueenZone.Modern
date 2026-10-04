@@ -138,7 +138,6 @@ public sealed class CrosswordPagesTests
         using var anonymous = host.CreateAnonymousClient(allowAutoRedirect: false);
         anonymous.DefaultRequestHeaders.Add("RequestVerificationToken", AdminHttpTestHelpers.ExtractAntiforgeryToken(await anonymous.GetStringAsync(Path(puzzle))));
         var guessed = Guid.NewGuid().ToString();
-        anonymous.DefaultRequestHeaders.Add("Cookie", CrosswordAccountHint.CookieName + "=" + guessed);
         anonymous.DefaultRequestHeaders.Add("X-Crossword-Member", guessed);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync(Path(puzzle) + "?handler=Save", Write(puzzle))).StatusCode);
         using var member = Member(host);
@@ -170,16 +169,16 @@ public sealed class CrosswordPagesTests
     }
 
     [Fact]
-    public async Task Local_progress_hint_is_a_session_partition_with_strict_same_site()
+    public async Task Online_layout_refreshes_account_partition_but_public_offline_shell_has_no_identity()
     {
         await using var host = new QueenZoneWebApplicationFactory();
         var puzzle = await Publish(host);
         using var client = Member(host);
-        using var page = await client.GetAsync(Path(puzzle));
-        var hint = page.Headers.GetValues("Set-Cookie").Single(cookie => cookie.StartsWith(CrosswordAccountHint.CookieName + "=", StringComparison.Ordinal));
-        Assert.Contains("samesite=strict", hint, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("expires=", hint, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("max-age=", hint, StringComparison.OrdinalIgnoreCase);
+        var member = client.DefaultRequestHeaders.GetValues(TestMemberAuthHandler.MemberIdHeader).Single();
+        Assert.Contains("data-crossword-member=\"" + member + "\"", await client.GetStringAsync(Path(puzzle)));
+        Assert.DoesNotContain("data-crossword-member", await client.GetStringAsync(Path(puzzle) + "?handler=OfflineShell"));
+        using var anonymous = host.CreateAnonymousClient();
+        Assert.Contains("data-crossword-member=\"\"", await anonymous.GetStringAsync("/account/login"));
     }
 
     private static string Path(CrosswordCatalogItem puzzle) => "/crosswords/" + puzzle.Seed.Slug;

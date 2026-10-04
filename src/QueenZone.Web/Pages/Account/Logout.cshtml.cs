@@ -23,7 +23,6 @@ public sealed class LogoutModel : PageModel
 
     private async Task SignOutMemberAsync()
     {
-        CrosswordAccountHint.Write(HttpContext, null);
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.MembersCookie);
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
         await HttpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalLinkCookie);

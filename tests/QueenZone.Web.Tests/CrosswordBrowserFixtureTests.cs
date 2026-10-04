@@ -14,8 +14,10 @@ public sealed class CrosswordBrowserFixtureTests
     [InlineData("Testing", false)]
     public async Task Fixture_is_disabled_without_both_testing_environment_and_explicit_opt_in(string environment, bool enabled)
     {
-        using var services = new ServiceCollection().BuildServiceProvider();
-        await CrosswordBrowserFixture.SeedAsync(new Host(environment), enabled, services);
+        var catalog = System.Reflection.DispatchProxy.Create<ICrosswordCatalogRepository, RejectCatalog>();
+        using var guarded = new ServiceCollection().AddSingleton(catalog).BuildServiceProvider();
+        await CrosswordBrowserFixture.SeedAsync(new Host(environment), enabled, guarded);
+        Assert.Equal(0, ((RejectCatalog)catalog).Calls);
     }
 
     [Fact]

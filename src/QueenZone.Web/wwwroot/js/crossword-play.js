@@ -1,13 +1,14 @@
 import * as core from './crossword-core.js';
+import { accountHint, rememberAccount } from './crossword-account.js';
 
 const root = document.querySelector('[data-crossword]');
-if (root) initialise(root);
+if (root) await initialise(root);
 
 async function initialise(root) {
     const config = JSON.parse(root.querySelector('[data-puzzle]').textContent);
     const puzzle = config.puzzle;
-    const hint = document.cookie.split('; ').find(cookie => cookie.startsWith('qz-crossword-account='))?.split('=')[1];
-    let memberId = config.memberId ?? (config.offlineShell && /^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(hint ?? '') ? hint : null);
+    let memberId = config.memberId ?? (config.offlineShell ? accountHint() : null);
+    if (!config.offlineShell) rememberAccount(memberId);
     const model = core.createModel(puzzle);
     const find = selector => root.querySelector(selector);
     const cells = [...root.querySelectorAll('[data-cell]')];
@@ -112,12 +113,12 @@ async function initialise(root) {
         updatedAt = Date.now();
         if (before !== state.letters) timer = core.startTimer(timer, Date.now());
         render();
-        save();
+        void save();
         clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => save(true), 2000);
+        saveTimeout = setTimeout(() => { void save(true); }, 2000);
         clearTimeout(autoCheckTimeout);
-        if (state.autoCheck && before !== state.letters) autoCheckTimeout = setTimeout(() => check('grid', true), 500);
-        maybeComplete();
+        if (state.autoCheck && before !== state.letters) autoCheckTimeout = setTimeout(() => { void check('grid', true); }, 500);
+        void maybeComplete();
     }
 
     function selection(scope) {
@@ -149,7 +150,7 @@ async function initialise(root) {
             render();
             announce('Revealed letters are marked with triangles. This is an assisted solve.');
             await save(true);
-            maybeComplete();
+            void maybeComplete();
         } catch (error) { announce(error.message); }
     }
 
@@ -200,19 +201,19 @@ async function initialise(root) {
     root.addEventListener('keydown', event => {
         if (event.key === 'Escape') { find('[data-menu]').open = false; return; }
         if (event.target !== input && !event.target.matches('[data-cell]')) return;
-        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); check('entry'); }
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void check('entry'); }
         else if (event.key === 'Tab') { event.preventDefault(); state = core.nextEntry(model, state, event.shiftKey ? -1 : 1); render(); focusCell(); }
         else if (event.key === ' ') { event.preventDefault(); state = core.toggleDirection(model, state); render(); }
         else if (event.key.startsWith('Arrow')) { event.preventDefault(); state = core.arrow(model, state, event.key); render(); focusCell(); }
         else if (event.key === 'Backspace' || event.key === 'Delete') { event.preventDefault(); changed(core.deleteLetter(model, state)); }
         else if (event.target !== input && /^[a-z]$/i.test(event.key)) { event.preventDefault(); changed(core.typeLetter(model, state, event.key)); }
     });
-    function pause() { updatedAt = Date.now(); timer = core.setPaused(timer, !timer.paused, Date.now()); render(); save(true); }
+    function pause() { updatedAt = Date.now(); timer = core.setPaused(timer, !timer.paused, Date.now()); render(); void save(true); }
     find('[data-pause]').addEventListener('click', pause);
     find('[data-resume]').addEventListener('click', () => { pause(); focusCell(); });
-    find('[data-auto-check]').addEventListener('change', event => { state = core.setAutoCheck(state, event.target.checked); updatedAt = Date.now(); save(true); if (state.autoCheck) check('grid', true); });
-    root.querySelectorAll('[data-check]').forEach(button => button.addEventListener('click', () => check(button.dataset.check)));
-    root.querySelectorAll('[data-reveal]').forEach(button => button.addEventListener('click', () => reveal(button.dataset.reveal)));
+    find('[data-auto-check]').addEventListener('change', event => { state = core.setAutoCheck(state, event.target.checked); updatedAt = Date.now(); void save(true); if (state.autoCheck) void check('grid', true); });
+    root.querySelectorAll('[data-check]').forEach(button => button.addEventListener('click', () => { void check(button.dataset.check); }));
+    root.querySelectorAll('[data-reveal]').forEach(button => button.addEventListener('click', () => { void reveal(button.dataset.reveal); }));
     find('[data-print]').addEventListener('click', () => window.print());
     find('[data-share]').addEventListener('click', async () => {
         const text = `I finished ${puzzle.title} on QueenZone: ${find('[data-completion-message]').textContent}.`;
@@ -220,8 +221,8 @@ async function initialise(root) {
             else { await navigator.clipboard.writeText(`${text} ${location.href}`); announce('Result copied.'); } }
         catch { announce('Sharing was cancelled or unavailable.'); }
     });
-    document.addEventListener('visibilitychange', () => { timer = core.setVisible(timer, !document.hidden, Date.now()); save(true); });
-    window.addEventListener('pagehide', () => { timer = core.setVisible(timer, false, Date.now()); save(); });
+    document.addEventListener('visibilitychange', () => { timer = core.setVisible(timer, !document.hidden, Date.now()); void save(true); });
+    window.addEventListener('pagehide', () => { timer = core.setVisible(timer, false, Date.now()); void save(); });
     window.addEventListener('online', async () => {
         await save();
         try { await refreshSession(); } catch (error) { announce(error.message); return; }
@@ -230,7 +231,7 @@ async function initialise(root) {
         timer = core.setPaused(timer, paused, Date.now());
         render();
         await save(true);
-        maybeComplete();
+        void maybeComplete();
     });
     const viewport = window.visualViewport;
     function keyboard() {
@@ -255,6 +256,7 @@ async function initialise(root) {
             find('[data-toolbar]').hidden = false;
         }
         memberId = session.memberId;
+        rememberAccount(memberId);
         requestToken = session.tokens;
         key = core.progressStorageKey(puzzle.id, memberId);
     }
@@ -282,5 +284,5 @@ async function initialise(root) {
     const restored = await restoreProgress(true);
     find('[data-toolbar]').hidden = false;
     if (restored && navigator.onLine) await save(true);
-    maybeComplete();
+    void maybeComplete();
 }

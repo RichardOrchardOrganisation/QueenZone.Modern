@@ -28,7 +28,6 @@ public sealed class CrosswordPlayModel(ICrosswordCatalogRepository catalog, ICro
         else
         {
             MemberId = await HttpContext.AuthenticateMemberIdAsync();
-            CrosswordAccountHint.Write(HttpContext, MemberId);
         }
         ViewData["Title"] = Puzzle.Title + " | Queen crosswords";
         ViewData["CanonicalPath"] = "/crosswords/" + Puzzle.Slug;
@@ -38,7 +37,6 @@ public sealed class CrosswordPlayModel(ICrosswordCatalogRepository catalog, ICro
     public Task<IActionResult> OnGetSessionAsync(string slug, CancellationToken cancellationToken) =>
         WithPlayableAsync(slug, false, (puzzle, member) =>
         {
-            CrosswordAccountHint.Write(HttpContext, member);
             var tokens = HttpContext.RequestServices.GetRequiredService<IAntiforgery>().GetAndStoreTokens(HttpContext);
             return Task.FromResult<object?>(new { MemberId = member, Tokens = tokens.RequestToken, puzzle.PlayVersion });
         }, cancellationToken, checkAccount: false);

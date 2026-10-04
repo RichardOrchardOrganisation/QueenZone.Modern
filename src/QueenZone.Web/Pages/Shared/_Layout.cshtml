@@ -78,7 +78,7 @@
   </environment>
 @await RenderSectionAsync("Head", required: false)
 </head>
-<body>
+<body data-crossword-member="@((await Context.AuthenticateMemberIdAsync())?.ToString("D") ?? "")">
   <a class="qz-skip-link" href="#main-content">Skip to content</a>
   <partial name="_EnvironmentBanner" />
   <partial name="_SiteHeader" />
@@ -87,6 +87,7 @@
   </main>
   <partial name="_SiteFooter" />
   <partial name="_BuildStamp" />
+  <script type="module" src="/js/crossword-account.js" asp-append-version="true"></script>
   <script src="/js/site.js" asp-append-version="true" defer></script>
   @await RenderSectionAsync("Scripts", required: false)
   @* Analytics after body content / site.js so it stays off the LCP critical path. *@

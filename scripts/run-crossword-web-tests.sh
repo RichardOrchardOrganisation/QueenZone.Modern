@@ -14,7 +14,7 @@ qz_host_log="$qz_run_dir/host.log"
 unset ConnectionStrings__QueenZoneLegacy ConnectionStrings__BlobStorage ConnectionStrings__SqlServerTest || true
 unset QUEENZONE_MOBILE_CONTRACT_HOST QUEENZONE_MOBILE_CONTRACT_FIXTURE || true
 export ASPNETCORE_ENVIRONMENT=Testing ASPNETCORE_URLS=http://127.0.0.1:0
-export CrosswordBrowserFixture__Enabled=true
+export CROSSWORDBROWSERFIXTURE__ENABLED=true
 ASPNETCORE_CONTENTROOT="$qz_publish_dir" dotnet "$qz_publish_dir/QueenZone.Web.dll" >"$qz_host_log" 2>&1 &
 qz_host_pid=$!
 trap 'kill "$qz_host_pid" 2>/dev/null || true; wait "$qz_host_pid" 2>/dev/null || true' EXIT
@@ -24,7 +24,7 @@ for qz_attempt in $(seq 1 60); do
     echo "Owned Testing host exited; inspect $qz_host_log." >&2
     exit 2
   fi
-  E2E_BASE_URL=$(python3 -c 'import re,sys;from pathlib import Path;m=re.search(r"Now listening on: (http://127\.0\.0\.1:\d+)",Path(sys.argv[1]).read_text());print(m.group(1) if m else "")' "$qz_host_log")
+  E2E_BASE_URL=$(python3 -c 'import re,sys;from pathlib import Path;from urllib.parse import urlparse;m=re.search(r"Now listening on: (\S+)",Path(sys.argv[1]).read_text());u=m.group(1) if m else "";p=urlparse(u);print(u if p.hostname=="127.0.0.1" and p.scheme=="http" else "")' "$qz_host_log")
   if [[ -n "$E2E_BASE_URL" ]] && curl -sf "$E2E_BASE_URL/health" >/dev/null; then break; fi
   sleep 1
 done

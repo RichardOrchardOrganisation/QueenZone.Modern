@@ -27,10 +27,15 @@ public sealed class CrosswordsIndexModel(ICrosswordCatalogRepository catalog, IC
             .Where(item => Size.Length == 0 || (Size == "small" ? item.Seed.Grid.Width <= 9 : item.Seed.Grid.Width > 9))
             .OrderByDescending(item => item.PublishAt ?? item.PublishedAt).ThenBy(item => item.Seed.Title)
             .Select(item => new CrosswordCard(item.Seed.Slug, item.Seed.Title, item.Seed.Description, item.Seed.Difficulty,
-                item.Seed.Grid.Width, item.Seed.Grid.Height, completed.Any(row => row.CrosswordId == item.Id) ? "Completed" :
-                saved.Any(row => row.CrosswordId == item.Id && row.PlayVersion == item.PlayVersion) ? "In progress" : "Not started"))
+                item.Seed.Grid.Width, item.Seed.Grid.Height, GetStatus(item, saved, completed)))
             .ToArray();
     }
+    private static string GetStatus(CrosswordCatalogItem item, IReadOnlyList<CrosswordProgress> saved, IReadOnlyList<CrosswordCompletion> completed)
+    {
+        if (completed.Any(row => row.CrosswordId == item.Id)) return "Completed";
+        return saved.Any(row => row.CrosswordId == item.Id && row.PlayVersion == item.PlayVersion) ? "In progress" : "Not started";
+    }
+
 }
 
 public sealed record CrosswordCard(string Slug, string Title, string Description, string Difficulty, int Width, int Height, string Status);

@@ -181,6 +181,12 @@ public sealed class CrosswordPlayTests : E2EPageTest
         await Expect(Page.Locator("[data-cell='0'] [data-letter]")).ToHaveTextAsync("Z");
         await Expect(Page.Locator("[data-cell='7'] [data-letter]")).ToHaveTextAsync("R");
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
+        await Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string>());
+        await Page.ReloadAsync();
+        await Expect(Page.Locator("[data-cell='0'] [data-letter]")).ToHaveTextAsync("");
+        await Context.SetOfflineAsync(true);
+        await Page.ReloadAsync();
+        await Expect(Page.Locator("[data-cell='0'] [data-letter]")).ToHaveTextAsync("");
     }
 
     [Test]
