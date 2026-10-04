@@ -29,7 +29,12 @@ if (root) {
       });
     });
     function sync() { source.value = JSON.stringify(seed); }
-    function changed() { sync(); clearTimeout(timer); timer = setTimeout(() => { void validate(); }, 180); }
+    function changed() {
+      // An edit invalidates the in-flight snapshot immediately, including while
+      // the next validation is still waiting for the debounce timer.
+      validationRequest++; controller?.abort();
+      sync(); clearTimeout(timer); timer = setTimeout(() => { void validate(); }, 180);
+    }
     function cellValue(index) { return seed.grid[Math.floor(index / seed.width)][index % seed.width]; }
     function setCell(index, value) {
       const row = Math.floor(index / seed.width), column = index % seed.width;

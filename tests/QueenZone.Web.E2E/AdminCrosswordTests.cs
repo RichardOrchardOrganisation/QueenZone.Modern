@@ -19,6 +19,12 @@ public sealed class AdminCrosswordTests : E2EPageTest
     [Test]
     public async Task Catalogue_and_visual_builder_are_accessible_and_save_a_five_by_five_draft()
     {
+        await Page.RouteAsync("**/*?handler=Validate", async route =>
+        {
+            var response = await route.FetchAsync();
+            await Task.Delay(300); // Old snapshots can return during the next edit.
+            await route.FulfillAsync(new() { Response = response });
+        });
         await Page.GotoAsync("/admin/crosswords");
         await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Crosswords", Exact = true })).ToBeVisibleAsync();
         await AssertAccessibleAsync();
@@ -29,10 +35,11 @@ public sealed class AdminCrosswordTests : E2EPageTest
         await Page.GetByLabel("Slug", new() { Exact = true }).FillAsync(slug);
         await Page.GetByRole(AriaRole.Radio, new() { Name = "Letters", Exact = true }).CheckAsync();
         await Page.Locator("[data-grid] button").First.ClickAsync();
-        await Page.Keyboard.TypeAsync(new string('A', 25));
+        await Page.Keyboard.TypeAsync(new string('A', 25), new() { Delay = 20 });
         await Expect(Page.Locator("[data-clues] fieldset")).ToHaveCountAsync(10);
         var clues = Page.Locator("[data-clues]").GetByLabel("Clue", new() { Exact = true });
         for (var index = 0; index < 10; index++) await clues.Nth(index).FillAsync("The first letter repeated five times");
+        for (var index = 0; index < 10; index++) await Expect(clues.Nth(index)).ToHaveValueAsync("The first letter repeated five times");
         await Expect(Page.Locator("[data-validation]")).Not.ToContainTextAsync("Error:");
         await AssertAccessibleAsync();
         await Page.GetByRole(AriaRole.Button, new() { Name = "Save draft", Exact = true }).ClickAsync();
