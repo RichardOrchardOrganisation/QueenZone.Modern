@@ -117,6 +117,15 @@ export const crosswordCompletionResultSchema = z.object({
     answer: z.string().regex(/^[A-Z]{3,15}$/), explanation: z.string().max(300).nullable() })),
 });
 
+const crosswordRankedSolveSchema = z.object({ rank: z.number().int().positive(), displayName: z.string(),
+  elapsedSeconds: z.number().int().nonnegative(), completedAt: isoDateTime }).strict();
+export const crosswordLeaderboardSchema = z.object({ top: z.array(crosswordRankedSolveSchema).max(50),
+  viewer: crosswordRankedSolveSchema.nullable(), totalMembers: z.number().int().nonnegative() });
+export const crosswordHistorySchema = z.object({ items: z.array(z.object({ id: guid, slug: z.string().nullable(),
+  title: z.string(), elapsedSeconds: z.number().int().nonnegative(), clean: z.boolean(), completedAt: isoDateTime,
+  playable: z.boolean() }).strict()), totalCompleted: z.number().int().nonnegative(),
+  weeklyStreak: z.number().int().nonnegative(), weekTimeZone: z.string().min(1) });
+
 export const newsListItemSchema = z.object({
   id: z.number().int(),
   title: z.string().min(1),

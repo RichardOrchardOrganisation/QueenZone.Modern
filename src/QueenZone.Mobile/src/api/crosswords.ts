@@ -46,3 +46,10 @@ export function fetchCrosswordDetail(id: string, signal?: AbortSignal): Promise<
 export function fetchCrosswordBySlug(slug: string, signal?: AbortSignal): Promise<CrosswordDetail> {
   return fetchJson(`/crosswords/by-slug/${encodeURIComponent(slug)}`, { signal });
 }
+
+export function fetchCrosswordLeaderboard(id: string, signal?: AbortSignal, accessToken?: string | null): Promise<import('./types').CrosswordLeaderboard> {
+  return fetchJson(path(id, 'leaderboard'), { signal, accessToken });
+}
+export function fetchMyCrosswords(accessToken: string, signal?: AbortSignal): Promise<import('./types').CrosswordHistory> {
+  return fetchJson('/crosswords/mine', { accessToken, signal });
+}

@@ -1,0 +1,74 @@
+appId: org.queenzone.mobile
+---
+- scrollUntilVisible:
+    element:
+      id: home-profile
+    direction: UP
+- runFlow: open-smoke-auth.yaml
+- openLink: queenzone://crosswords/meet-the-band
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 20000
+- tapOn: Leaderboard
+- extendedWaitUntil:
+    visible: No ranked solves yet. Be the first!
+    timeout: 20000
+- takeScreenshot: crossword-leaderboard-empty
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: '^Meet the Band$'
+- tapOn: Reveal
+- tapOn:
+    id: crossword-reveal-grid
+- extendedWaitUntil:
+    visible: Reveal this selection?
+    timeout: 5000
+# iOS exposes both the obscured toolbar and the native alert button.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: '^Reveal$'
+          index: 1
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          text: '^Reveal$'
+- extendedWaitUntil:
+    visible: Crossword complete
+    timeout: 20000
+- assertVisible:
+    text: '.*Assisted solve.*'
+- tapOn: Leaderboard
+- assertVisible: No ranked solves yet. Be the first!
+- tapOn:
+    id: tab-home
+- tapOn:
+    id: home-profile
+- scrollUntilVisible:
+    element:
+      text: My crosswords
+    direction: DOWN
+- tapOn: My crosswords
+- extendedWaitUntil:
+    visible:
+      text: '.*1 completed.*'
+    timeout: 20000
+- assertVisible:
+    text: '.*Meet the Band.*Assisted solve.*'
+- assertVisible:
+    text: 'Weeks start Monday.*'
+- takeScreenshot: crossword-private-history-assisted

@@ -8,6 +8,8 @@ import {
   crosswordRevealResultSchema,
   crosswordProgressSchema,
   crosswordCompletionResultSchema,
+  crosswordLeaderboardSchema,
+  crosswordHistorySchema,
   articleListItemSchema,
   newsDetailSchema,
   newsListItemSchema,
@@ -208,4 +210,14 @@ describe('parseContract', () => {
     assert.equal(prefs.forumReply, true);
     assert.equal(prefs.news, false);
   });
+});
+
+it('validates results contracts and rejects private identity fields or more than 50 leaderboard rows', () => {
+  const solve = { rank: 1, displayName: 'Queen fan', elapsedSeconds: 120, completedAt: '2026-10-04T00:00:00Z' };
+  assert.ok(crosswordLeaderboardSchema.safeParse({ top: [solve], viewer: { ...solve, rank: 61 }, totalMembers: 61 }).success);
+  assert.ok(!crosswordLeaderboardSchema.safeParse({ top: [{ ...solve, memberId: 'private' }], viewer: null, totalMembers: 1 }).success);
+  assert.ok(!crosswordLeaderboardSchema.safeParse({ top: Array(51).fill(solve), viewer: null, totalMembers: 51 }).success);
+  const item = { id: '11111111-2222-4333-8444-555555555555', slug: null, title: 'Unavailable puzzle', elapsedSeconds: 120, clean: false, completedAt: solve.completedAt, playable: false };
+  assert.ok(crosswordHistorySchema.safeParse({ items: [item], totalCompleted: 1, weeklyStreak: 1, weekTimeZone: 'UTC' }).success);
+  assert.ok(!crosswordHistorySchema.safeParse({ items: [{ ...item, email: 'private@example.test' }], totalCompleted: 1, weeklyStreak: 1, weekTimeZone: 'UTC' }).success);
 });
