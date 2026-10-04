@@ -577,7 +577,9 @@
         "crossword"
       ],
       "sources": [
-        "src/QueenZone.Web/Pages/Crosswords/Play.cshtml"
+        "src/QueenZone.Web/Pages/Crosswords/Play.cshtml",
+        "src/QueenZone.Web/Pages/Crosswords/_CrosswordGrid.cshtml",
+        "src/QueenZone.Web/Pages/Crosswords/_CrosswordClues.cshtml"
       ],
       "testIds": [],
       "flows": [],

@@ -71,28 +71,43 @@ public sealed class CrosswordPlayModel(ICrosswordCatalogRepository catalog, ICro
         Func<CrosswordCatalogItem, Guid?, Task<object?>> action, CancellationToken cancellationToken, bool checkAccount = true)
     {
         Response.Headers.CacheControl = "no-store";
-        var member = await HttpContext.AuthenticateMemberIdAsync();
-        if (memberRequired && member is null) return Unauthorized();
-        if (checkAccount && member is not null &&
-            (!Guid.TryParse(Request.Headers["X-Crossword-Member"], out var expected) || expected != member))
-        {
-            if (memberRequired) return Problem("Account changed. Reload before continuing.", 409);
-            member = null;
-        }
+        var (member, error) = await ResolveMemberAsync(memberRequired, checkAccount);
+        if (error is not null) return error;
         if (!ModelState.IsValid) return Problem("Invalid crossword input", 400);
         try
         {
             var puzzle = await FindPlayableAsync(slug, cancellationToken);
             if (puzzle is null) return NotFound();
             var result = await action(puzzle, member);
-            var latest = await catalog.GetByIdAsync(puzzle.Id, cancellationToken);
-            if (latest is null || !CrosswordVisibility.IsPlayable(latest, clock.GetUtcNow())) return NotFound();
-            if (latest.PlayVersion != puzzle.PlayVersion) return Problem("Crossword changed. Reload before continuing.", 409);
+            var changed = await ValidateLatestAsync(puzzle, cancellationToken);
+            if (changed is not null) return changed;
             return result is null ? new NoContentResult() : new JsonResult(result);
         }
         catch (ArgumentException) { return Problem("Invalid crossword input", 400); }
         catch (OptimisticConcurrencyException) { return Problem("Crossword changed. Reload before continuing.", 409); }
         catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    private async Task<(Guid? Member, IActionResult? Error)> ResolveMemberAsync(bool required, bool checkAccount)
+    {
+        var member = await HttpContext.AuthenticateMemberIdAsync();
+        if (required && member is null) return (null, Unauthorized());
+        if (checkAccount && member is { } id && !MatchesExpectedMember(id))
+        {
+            if (required) return (null, Problem("Account changed. Reload before continuing.", 409));
+            member = null;
+        }
+        return (member, null);
+    }
+
+    private bool MatchesExpectedMember(Guid member) =>
+        Guid.TryParse(Request.Headers["X-Crossword-Member"], out var expected) && expected == member;
+
+    private async Task<IActionResult?> ValidateLatestAsync(CrosswordCatalogItem puzzle, CancellationToken cancellationToken)
+    {
+        var latest = await catalog.GetByIdAsync(puzzle.Id, cancellationToken);
+        if (latest is null || !CrosswordVisibility.IsPlayable(latest, clock.GetUtcNow())) return NotFound();
+        return latest.PlayVersion != puzzle.PlayVersion ? Problem("Crossword changed. Reload before continuing.", 409) : null;
     }
 
     private static ObjectResult Problem(string title, int status) => new(new ProblemDetails { Title = title, Status = status }) { StatusCode = status };
