@@ -8,7 +8,7 @@ namespace QueenZone.Web;
 /// (issues #726 / #743 / #747 / #1100 / #1186). <see cref="MapContentApiEndpoints"/>
 /// creates the content group and registers news, articles, timeline, quotes,
 /// trivia, the Home poll, quizzes, biography, discography, Freddie Tribute,
-/// photos, and fan performances from sibling endpoint types. Paths and route
+/// photos, songs, and fan performances from sibling endpoint types. Paths and route
 /// names are unchanged.
 /// </summary>
 public static class ContentApiEndpoints
@@ -31,6 +31,7 @@ public static class ContentApiEndpoints
         group.MapContentQuizApiEndpoints();
         group.MapContentBiographyApiEndpoints();
         group.MapContentDiscographyApiEndpoints();
+        group.MapContentSongsApiEndpoints();
         group.MapContentFreddieTributeApiEndpoints();
         group.MapContentPhotoApiEndpoints();
         group.MapContentFanPerformanceApiEndpoints();

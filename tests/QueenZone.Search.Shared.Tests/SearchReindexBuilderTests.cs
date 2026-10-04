@@ -253,6 +253,28 @@ public sealed class SearchReindexBuilderTests
     }
 
     [Fact]
+    public async Task ReindexSongsAsync_IndexesCanonicalSongsWithoutLyrics()
+    {
+        var (builder, store) = CreateBuilder();
+
+        await builder.ReindexSongsAsync();
+
+        var documents = store.GetAll().Where(d => d.ContentType == SiteSearchContentType.Song).ToList();
+        Assert.NotEmpty(documents);
+        var rhapsody = Assert.Single(documents, doc => doc.SourceKey == "song:bohemian-rhapsody");
+        Assert.Equal("Bohemian Rhapsody", rhapsody.Title);
+        Assert.Equal("/songs/bohemian-rhapsody", rhapsody.Url);
+        Assert.Contains("A Night at the Opera", rhapsody.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("</li>", rhapsody.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("First line of", rhapsody.Body, StringComparison.Ordinal);
+
+        var sevenSeas = Assert.Single(documents, doc => doc.SourceKey == "song:seven-seas-of-rhye");
+        Assert.Equal(1, documents.Count(doc => doc.SourceKey == "song:seven-seas-of-rhye"));
+        Assert.Contains("Queen", sevenSeas.Body, StringComparison.Ordinal);
+        Assert.Contains("Queen II", sevenSeas.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReindexArticlesAsync_DoesNotAliasArticleTypeToLegacyArticle()
     {
         var store = new SharedSearchIndexStore();

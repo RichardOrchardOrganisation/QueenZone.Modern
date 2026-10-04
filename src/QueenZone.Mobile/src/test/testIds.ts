@@ -67,6 +67,7 @@ export const testIds = {
   photoViewerWallpaperCancel: 'photo-viewer-wallpaper-cancel',
 
   archiveHubScreen: 'archive-hub-screen',
+  songScreen: 'song-screen',
   articleStoryScreen: 'article-story-screen',
   timelineBack: 'timeline-back',
   timelineEventScreen: 'timeline-event-screen',

@@ -64,4 +64,13 @@ public sealed class InMemorySearchIndexService(SharedSearchIndexStore store, Sea
         return Task.FromResult(counts);
     }
 
+    public Task<IReadOnlyList<SearchDocumentEntity>> FindByExactTitleAsync(
+        string title,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<SearchDocumentEntity> matches = store.GetAll()
+            .Where(document => string.Equals(document.Title, title, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        return Task.FromResult(matches);
+    }
 }

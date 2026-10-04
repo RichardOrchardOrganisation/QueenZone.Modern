@@ -125,8 +125,15 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
             ArtistName: album.ARTIST_NAME,
             GeneralNotes: string.IsNullOrWhiteSpace(album.GENERAL_NOTES) ? null : album.GENERAL_NOTES,
             CoverUrl: AlbumCoverUrl.Build(album.PICTURE_URL) ?? AlbumCoverUrl.Build(album.THUMB_URL),
-            Songs: songItems);
+            Songs: songItems,
+            ReleaseDate: album.RELEASE_DATE);
     }
+
+    public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
+        SongCatalog.GetSongsAsync(this, cancellationToken);
+
+    public Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
+        SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
 
     private static bool IsExec(string sql) =>
         sql.TrimStart().StartsWith("EXEC", StringComparison.OrdinalIgnoreCase);

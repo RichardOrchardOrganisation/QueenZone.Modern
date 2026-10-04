@@ -35,6 +35,7 @@ public sealed class DiscographyPageTests : IClassFixture<QueenZoneWebApplication
         var body = await client.GetStringAsync("/discography");
 
         Assert.Contains("/discography/rare-discography", body);
+        Assert.Contains("/songs", body);
         Assert.Contains("John S Stuart", body);
     }
 

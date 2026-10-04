@@ -60,6 +60,7 @@ describe('shouldHideTabBar', () => {
       'TimelineEvent',
       'BiographyChapter',
       'Album',
+      'Song',
       'Thread',
       'PhotoViewer',
       'Profile',

@@ -254,4 +254,26 @@ public sealed class SitemapEndpointsTests : IClassFixture<QueenZoneWebApplicatio
         Assert.Contains($"{BaseUrl}/photography/brian-may/101", xml);
         Assert.Contains($"{BaseUrl}/photography/queen/201", xml);
     }
+
+    [Fact]
+    public async Task DiscographySitemap_IncludesAlbumAndSongUrls()
+    {
+        var client = factory.CreateClient();
+
+        var xml = await client.GetStringAsync("/sitemap-discography.xml");
+        var document = XDocument.Parse(xml);
+        XNamespace ns = "http://www.sitemaps.org/schemas/sitemap/0.9";
+
+        var locations = document
+            .Descendants(ns + "loc")
+            .Select(element => element.Value)
+            .ToList();
+
+        Assert.Contains($"{BaseUrl}/discography", locations);
+        Assert.Contains($"{BaseUrl}/discography/albums/4/a-night-at-the-opera", locations);
+        Assert.Contains($"{BaseUrl}/songs", locations);
+        Assert.Contains($"{BaseUrl}/songs/bohemian-rhapsody", locations);
+        Assert.Contains($"{BaseUrl}/songs/seven-seas-of-rhye", locations);
+        Assert.Equal(1, locations.Count(location => location == $"{BaseUrl}/songs/seven-seas-of-rhye"));
+    }
 }

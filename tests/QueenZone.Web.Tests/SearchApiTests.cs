@@ -141,6 +141,25 @@ public sealed class SearchApiTests :
     }
 
     [Fact]
+    public async Task Search_type_song_returns_canonical_song_for_bohemian_rhapsody()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        using var response = await client.GetAsync($"{SearchApiEndpoints.Path}?q=Bohemian%20Rhapsody&type=song");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ApiPagedResponse<SearchResultDto>>();
+        Assert.NotNull(payload);
+        Assert.NotEmpty(payload!.Items);
+        Assert.All(payload.Items, item => Assert.Equal(SiteSearchContentType.Song, item.ContentType));
+        Assert.Contains(
+            payload.Items,
+            item => item.Title == "Bohemian Rhapsody"
+                && item.SourceKey == "song:bohemian-rhapsody"
+                && item.Url == "/songs/bohemian-rhapsody");
+    }
+
+    [Fact]
     public async Task Search_type_discography_returns_album_for_album_name()
     {
         using var client = factory.CreateAnonymousClient();

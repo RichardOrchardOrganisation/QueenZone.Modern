@@ -1627,6 +1627,12 @@ public sealed class PublicQueryCacheServiceTests
                 ? new AlbumDetail(1, "Cached album", "cached-album", 1975, "Queen", null, null, [])
                 : null);
         }
+
+        public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
+            SongCatalog.GetSongsAsync(this, cancellationToken);
+
+        public Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
+            SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
     }
 
     private sealed class ConcurrentEntryGate(int expected)

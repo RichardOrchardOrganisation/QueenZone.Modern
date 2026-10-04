@@ -87,6 +87,23 @@ describe('targetForSearchResult', () => {
     );
     assert.deepEqual(
       targetForSearchResult(
+        hit({
+          contentType: 'song',
+          sourceKey: 'song:bohemian-rhapsody',
+          url: '/songs/bohemian-rhapsody',
+          id: null,
+        }),
+        origin,
+      ),
+      {
+        kind: 'tab',
+        tab: 'ArchiveTab',
+        screen: 'Song',
+        params: { slug: 'bohemian-rhapsody' },
+      },
+    );
+    assert.deepEqual(
+      targetForSearchResult(
         hit({ contentType: 'fan-performance', sourceKey: 'fan-performance:187', id: 187 }),
         origin,
       ),

@@ -23,6 +23,7 @@ import { BiographyScreen } from '../screens/archive/BiographyScreen';
 import { BiographyChapterScreen } from '../screens/archive/BiographyChapterScreen';
 import { DiscographyScreen } from '../screens/archive/DiscographyScreen';
 import { AlbumScreen } from '../screens/archive/AlbumScreen';
+import { SongScreen } from '../screens/archive/SongScreen';
 import { TimelineScreen } from '../screens/archive/TimelineScreen';
 import { TimelineEventScreen } from '../screens/archive/TimelineEventScreen';
 import { FreddieTributeScreen } from '../screens/archive/FreddieTributeScreen';
@@ -215,6 +216,7 @@ export function ArchiveStack() {
       <Archive.Screen name="BiographyChapter" component={BiographyChapterScreen} options={{ title: 'Chapter' }} />
       <Archive.Screen name="Discography" component={DiscographyScreen} />
       <Archive.Screen name="Album" component={AlbumScreen} options={{ title: 'Album' }} />
+      <Archive.Screen name="Song" component={SongScreen} options={{ title: 'Song' }} />
       <Archive.Screen name="Timeline" component={TimelineScreen} />
       <Archive.Screen name="TimelineEvent" component={TimelineEventScreen} />
       <Archive.Screen

@@ -1,0 +1,32 @@
+@page "/songs"
+@model IndexModel
+
+<partial name="_PageHero" model='@(("The Queenzone.com Archive", "Songs", "One page for each Queen song.", $"{Model.Songs.Count} songs"))' />
+
+<section class="qz-section">
+  <div class="qz-container">
+    <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+    <p class="qz-song-index__intro">
+      <a href="@DiscographyRoutes.GetIndexPath()">Studio albums</a> still have their own pages. Track titles there now link here.
+    </p>
+    @if (Model.Songs.Count == 0)
+    {
+      <p>No songs are available yet.</p>
+    }
+    else
+    {
+      <ul class="qz-song-index">
+        @foreach (var song in Model.Songs)
+        {
+          <li class="qz-song-index__item">
+            <a href="@SongRoutes.GetSongPath(song.Slug)">@song.Title</a>
+            @if (song.AppearanceCount > 1)
+            {
+              <span class="qz-song-index__count">@song.AppearanceCount appearances</span>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</section>

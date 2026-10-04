@@ -41,7 +41,7 @@
         {
           <li class="qz-album-track">
             <div class="qz-album-track__row">
-              <span class="qz-album-tracklist__title">@track.Title</span>
+              <a class="qz-album-tracklist__title-link" href="@SongRoutes.GetSongPath(NewsSlug.Slugify(track.Title))">@track.Title</a>
               @if (track.IsSingle)
               {
                 <span class="qz-album-tracklist__single">Single</span>

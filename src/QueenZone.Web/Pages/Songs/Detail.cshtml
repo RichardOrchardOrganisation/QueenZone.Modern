@@ -1,0 +1,72 @@
+@page "/songs/{slug}"
+@model DetailModel
+
+@if (Model.Song is not null)
+{
+  <section class="qz-album-hero">
+    <div class="qz-container qz-album-hero__content qz-breadcrumbs-on-dark">
+      <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+      <div class="qz-eyebrow">Song</div>
+      <h1>@Model.Song.Title</h1>
+      <div class="qz-meta">
+        @Model.Song.Appearances.Count
+        @(Model.Song.Appearances.Count == 1 ? " appearance" : " appearances")
+      </div>
+    </div>
+  </section>
+
+  <section class="qz-section">
+    <div class="qz-container">
+      <h2 class="qz-eyebrow">Appearances</h2>
+      <ol class="qz-album-tracklist">
+        @foreach (var appearance in Model.Song.Appearances)
+        {
+          <li class="qz-album-track">
+            <div class="qz-album-track__row">
+              <a class="qz-album-tracklist__title-link" href="@DiscographyRoutes.GetAlbumPath(appearance.AlbumId, appearance.AlbumSlug)">@appearance.AlbumName</a>
+              @if (appearance.IsSingle)
+              {
+                <span class="qz-album-tracklist__single">Single</span>
+              }
+            </div>
+            <p class="qz-album-track__notes">
+              @if (appearance.ReleaseYear is int year)
+              {
+                @year
+              }
+              @if (appearance.Notes is not null)
+              {
+                @if (appearance.ReleaseYear is not null)
+                {
+                  @(" · ")
+                }
+                @appearance.Notes
+              }
+            </p>
+          </li>
+        }
+      </ol>
+
+      @if (Model.Song.Lyrics is not null)
+      {
+        <h2 class="qz-eyebrow">Lyrics</h2>
+        <div class="qz-song-lyrics">
+          <p>@Html.Raw(LyricsFormatter.Format(Model.Song.Lyrics))</p>
+        </div>
+      }
+
+      @foreach (var related in Model.Related)
+      {
+        <h2 class="qz-eyebrow">@related.Label</h2>
+        <ul class="qz-song-related">
+          @foreach (var link in related.Links)
+          {
+            <li><a href="@link.Url">@link.Title</a></li>
+          }
+        </ul>
+      }
+
+      <a href="@SongRoutes.GetIndexPath()">All songs</a>
+    </div>
+  </section>
+}

@@ -14,6 +14,8 @@ public static class SearchDocumentSourceKey
 
     public static string ForBiography(int chapterId) => $"biography:{chapterId}";
 
+    public static string ForSong(string slug) => $"song:{slug}";
+
     public static string ForForumThread(int topicId) => $"forum-thread:{topicId}";
 
     /// <summary>Stable identity for a Freddie tribute row, e.g. <c>tribute:187</c>.</summary>

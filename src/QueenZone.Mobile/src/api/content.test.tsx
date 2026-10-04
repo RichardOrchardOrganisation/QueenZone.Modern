@@ -1,5 +1,7 @@
 import {
   fetchAlbumDetail,
+  fetchSongDetail,
+  fetchSongsPage,
   fetchArticleDetail,
   fetchArticlesPage,
   fetchBiographyChapter,
@@ -131,6 +133,18 @@ describe('fetchDiscographyPage and fetchAlbumDetail', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ albumId: 5 }));
     await fetchAlbumDetail(5);
     expect(lastUrl()).toBe('http://qz.test/api/v1/content/discography/5');
+  });
+});
+
+describe('fetchSongsPage and fetchSongDetail', () => {
+  it('builds the list and song-detail URLs', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [] }));
+    await fetchSongsPage();
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/songs');
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ slug: 'bohemian-rhapsody' }));
+    await fetchSongDetail('bohemian-rhapsody');
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/songs/bohemian-rhapsody');
   });
 });
 

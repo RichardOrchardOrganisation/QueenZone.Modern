@@ -20,6 +20,7 @@ public sealed class PageSeoTests : IClassFixture<PreviewPublicBaseUrlWebApplicat
     [InlineData("/photography", "Photography | QueenZone", "Browse Queen photograph collections")]
     [InlineData("/fan-performances", "Fan Performances | QueenZone", "Fan recordings of Queen songs")]
     [InlineData("/discography", "Discography | QueenZone", "Every Queen studio album")]
+    [InlineData("/songs", "Songs | QueenZone", "Every Queen song on one page")]
     [InlineData("/forum", "Forum | QueenZone", "QueenZone community discussions and archive")]
     [InlineData("/biography", "QueenZone biography", "The story of Queen")]
     [InlineData("/timeline", "Queen History Timeline · Queenzone", "Five decades of Queen history")]

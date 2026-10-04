@@ -126,4 +126,23 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext, SearchInd
             .Select(g => new { ContentType = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.ContentType, g => g.Count, cancellationToken);
 
+    public async Task<IReadOnlyList<SearchDocumentEntity>> FindByExactTitleAsync(
+        string title,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return [];
+        }
+
+        var needle = title.ToLowerInvariant();
+        var candidates = await dbContext.SearchDocuments
+            .AsNoTracking()
+            .Where(document => document.Title.ToLower() == needle)
+            .ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(document => string.Equals(document.Title, title, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
 }

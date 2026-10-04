@@ -5397,11 +5397,62 @@ select.qz-input {
   gap: var(--space-3);
 }
 
+.qz-album-tracklist__title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.qz-album-tracklist__title-link:hover,
+.qz-album-tracklist__title-link:focus-visible {
+  text-decoration: underline;
+}
+
 .qz-album-tracklist__single {
   font: var(--type-meta);
   letter-spacing: var(--ls-caps);
   text-transform: uppercase;
   color: var(--qz-gold);
+}
+
+.qz-song-index {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: var(--container-text);
+}
+
+.qz-song-index__intro {
+  margin: 0 0 var(--space-5);
+}
+
+.qz-song-index__item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.qz-song-index__count {
+  color: var(--text-secondary);
+  font: var(--type-meta);
+}
+
+.qz-song-lyrics {
+  max-width: var(--container-text);
+  margin: 0 0 var(--space-6);
+}
+
+.qz-song-related {
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  max-width: var(--container-text);
+}
+
+.qz-song-related li {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hairline);
 }
 
 .qz-album-track__notes {

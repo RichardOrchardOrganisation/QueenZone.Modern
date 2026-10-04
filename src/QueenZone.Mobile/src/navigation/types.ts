@@ -56,6 +56,7 @@ export type ArchiveStackParamList = {
   BiographyChapter: { id: number };
   Discography: undefined;
   Album: { id: number };
+  Song: { slug: string };
   Timeline: { focusId?: number } | undefined;
   TimelineEvent: { id: number };
   FreddieTribute: undefined;
