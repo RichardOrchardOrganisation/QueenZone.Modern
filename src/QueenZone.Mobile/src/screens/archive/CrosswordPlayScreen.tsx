@@ -55,14 +55,7 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
       <Button label="Reveal" size="sm" variant="ghost" disabled={!connected} onPress={() => menu('reveal')} />
       <Button label="Clues" size="sm" variant="ghost" disabled={!play.ready} onPress={() => setShowClues(true)} />
     </View>
-    {play.completion ? <View style={{ flex: 1, justifyContent: 'center', padding: 20, gap: 12 }}>
-      <Text style={[type.pageTitle, { color: c.textPrimary }]}>Crossword complete</Text>
-      <Text style={[type.body, { color: c.textPrimary }]}>{play.completion.elapsedSeconds} seconds · {play.completion.clean ? 'Clean solve ✓' : 'Assisted solve'}</Text>
-      {!memberId ? <Text style={[type.body, { color: c.textSecondary }]}>Guest progress is saved on this device. Sign in to keep future solves across devices.</Text> : null}
-      <Button label="Share result" onPress={() => { void Share.share({ message: `I finished ${puzzle.title} on QueenZone: ${play.completion?.elapsedSeconds} seconds · ${play.completion?.clean ? 'clean solve' : 'assisted solve'}. https://www.queenzone.org/crosswords/${puzzle.slug}` }).catch(() => {}); }} />
-      <Button label="Next crossword" onPress={onNext} />
-      {play.review.length ? <Button label="Review clues" variant="outline" onPress={() => setShowReview(true)} /> : null}
-    </View> : play.timer.paused ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+    {play.completion ? <CompletionPanel puzzle={puzzle} memberId={memberId} play={play} onNext={onNext} onReview={() => setShowReview(true)} /> : play.timer.paused ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
       <Text style={[type.pageTitle, { color: c.textPrimary }]}>Paused</Text><Button label="Resume crossword" onPress={play.pause} />
     </View> : <CrosswordGrid puzzle={puzzle} model={play.model} state={play.state} disabled={disabled} onCell={cell => play.select(core.selectCell(play.model, play.state, cell))} />}
     <View accessibilityLiveRegion="polite" style={{ paddingHorizontal: 12 }}>
@@ -110,4 +103,19 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
       </View>
     </Modal>
   </View>;
+}
+
+function CompletionPanel({ puzzle, memberId, play, onNext, onReview }: Pick<SolverProps, 'puzzle' | 'memberId' | 'onNext'> & {
+  play: ReturnType<typeof useCrosswordPlay>; onReview: () => void;
+}) {
+  const { c } = useTheme();
+  if (!play.completion) return null;
+  return <View style={{ flex: 1, justifyContent: 'center', padding: 20, gap: 12 }}>
+      <Text style={[type.pageTitle, { color: c.textPrimary }]}>Crossword complete</Text>
+      <Text style={[type.body, { color: c.textPrimary }]}>{play.completion.elapsedSeconds} seconds · {play.completion.clean ? 'Clean solve ✓' : 'Assisted solve'}</Text>
+      {!memberId ? <Text style={[type.body, { color: c.textSecondary }]}>Guest progress is saved on this device. Sign in to keep future solves across devices.</Text> : null}
+      <Button label="Share result" onPress={() => { void Share.share({ message: `I finished ${puzzle.title} on QueenZone: ${play.completion?.elapsedSeconds} seconds · ${play.completion?.clean ? 'clean solve' : 'assisted solve'}. https://www.queenzone.org/crosswords/${puzzle.slug}` }).catch(() => {}); }} />
+      <Button label="Next crossword" onPress={onNext} />
+      {play.review.length ? <Button label="Review clues" variant="outline" onPress={onReview} /> : null}
+    </View>;
 }
