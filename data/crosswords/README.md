@@ -10,11 +10,11 @@ The files follow Appendix B. Entry positions and reading-order numbers are deriv
 from the solution rows by `CrosswordGridValidator`; the JSON parser checks the supplied
 answers and enumerations against those runs. Richard approved British style for the
 first ten puzzles on 2026-10-04; unchecked-cell and symmetry warnings are allowed.
-Per-puzzle editorial fact-check remains pending before publication.
+The other nine puzzles still require per-puzzle editorial fact-check before publication.
 
 | Puzzle | Size | Entries | Editorial fact-check |
 | --- | --- | --- | --- |
-| Meet the Band | 7 × 7 | 6 | Pending |
+| Meet the Band | 7 × 7 | 6 | [Reviewed for the approved dev sample](meet-the-band-editorial.md) |
 | Bohemian Rhapsody | 11 × 11 | 10 | Pending |
 | The Studio Albums | 15 × 15 | 10 | Pending |
 | Freddie Mercury | 11 × 11 | 8 | Pending |
@@ -28,8 +28,8 @@ Per-puzzle editorial fact-check remains pending before publication.
 Review each retained clue against the biography/discography archive or an authoritative
 source and record one editorial sign-off per puzzle on epic #2050 before publication.
 Import must default to Draft, never overwrite existing slugs, and validate the entire
-batch before writing. The CLI importer and Testing sample-data loading are subsequent
-implementation slices; these files alone do not add playable public pages or write data.
+batch before writing. The merged CLI importer and Testing sample-data loading use these files.
+Committing a seed file does not itself write database content or publish a puzzle.
 
 `CrosswordSeedJson` enforces the 256 KB interchange limit, required fields, bounded
 metadata, direction values and enumeration lengths. It shares grid validation with
