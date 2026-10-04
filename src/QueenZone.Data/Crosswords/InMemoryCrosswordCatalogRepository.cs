@@ -63,6 +63,21 @@ public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICr
         }
     }
 
+    public Task SetPublicationAsync(Guid id, CrosswordStatus status, DateTimeOffset? publishAt,
+        byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default)
+    {
+        CrosswordCatalogMapping.ValidateActor(actor);
+        lock (gate)
+        {
+            var entity = puzzles[id];
+            QueenZoneConcurrency.EnsureRequiredRowVersion<OptimisticConcurrencyException>(entity.RowVersion, expectedRowVersion);
+            var action = CrosswordCatalogMapping.SetPublication(entity, status, publishAt, actor, clock.GetUtcNow());
+            entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
+            AddAudit(id, actor, action, "Publication status changed to " + status + ".");
+            return Task.CompletedTask;
+        }
+    }
+
     public Task<CrosswordImportResult> ImportAsync(IReadOnlyList<CrosswordSeed> seeds, Guid creatorId, string actor,
         bool publish = false, CancellationToken cancellationToken = default)
     {

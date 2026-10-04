@@ -28,6 +28,8 @@ public interface ICrosswordCatalogRepository
         CancellationToken cancellationToken = default);
     Task SaveDraftAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor,
         CancellationToken cancellationToken = default);
+    Task SetPublicationAsync(Guid id, CrosswordStatus status, DateTimeOffset? publishAt,
+        byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default);
     Task<CrosswordImportResult> ImportAsync(IReadOnlyList<CrosswordSeed> seeds, Guid creatorId, string actor,
         bool publish = false, CancellationToken cancellationToken = default);
 }

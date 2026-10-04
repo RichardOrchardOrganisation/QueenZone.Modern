@@ -65,6 +65,25 @@ public sealed class EfCrosswordCatalogRepository(QueenZoneDbContext db, TimeProv
         }, cancellationToken);
     }
 
+    public async Task SetPublicationAsync(Guid id, Entities.CrosswordStatus status, DateTimeOffset? publishAt,
+        byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default)
+    {
+        CrosswordCatalogMapping.ValidateActor(actor);
+        await QueenZoneDbTransactions.ExecuteAsync(db, async token =>
+        {
+            var entity = await db.Crosswords.Include(puzzle => puzzle.Entries).SingleAsync(puzzle => puzzle.Id == id, token);
+            QueenZoneConcurrency.EnsureRequiredRowVersion<OptimisticConcurrencyException>(entity.RowVersion, expectedRowVersion);
+            var action = CrosswordCatalogMapping.SetPublication(entity, status, publishAt, actor, clock.GetUtcNow());
+            if (!db.Database.IsSqlServer())
+            {
+                entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
+            }
+            AddAudit(id, actor, action, "Publication status changed to " + status + ".");
+            await QueenZoneConcurrency.SaveChangesAsync(db, token);
+            return true;
+        }, cancellationToken);
+    }
+
     public Task<CrosswordImportResult> ImportAsync(IReadOnlyList<CrosswordSeed> seeds, Guid creatorId, string actor,
         bool publish = false, CancellationToken cancellationToken = default)
     {

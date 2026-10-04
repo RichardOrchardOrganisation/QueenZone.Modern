@@ -109,4 +109,44 @@ internal static class CrosswordCatalogMapping
 
     private static string ReplaceLettersWithWhiteCells(this string rows) =>
         new(rows.Select(cell => cell == '#' ? '#' : '.').ToArray());
+
+    public static string SetPublication(CrosswordEntity entity, CrosswordStatus status,
+        DateTimeOffset? publishAt, string actor, DateTimeOffset now)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentException("Unknown crossword publication status.", nameof(status));
+        }
+        if (status != CrosswordStatus.Draft)
+        {
+            Normalize(Read(entity).Seed, playable: true);
+        }
+        if (status == CrosswordStatus.Scheduled && (publishAt is null || publishAt <= now))
+        {
+            throw new ArgumentException("Scheduled publication must be in the future.", nameof(publishAt));
+        }
+        if (status == CrosswordStatus.Archived && entity.PublishedAt is null)
+        {
+            if (entity.Status != CrosswordStatus.Scheduled || entity.PublishAt is null || entity.PublishAt > now)
+            {
+                throw new InvalidOperationException("Only a previously published crossword can remain playable as archived.");
+            }
+            entity.PublishedAt = entity.PublishAt;
+        }
+        entity.Status = status;
+        entity.PublishAt = status switch
+        {
+            CrosswordStatus.Draft => null,
+            CrosswordStatus.Published => now,
+            CrosswordStatus.Scheduled => publishAt,
+            _ => entity.PublishAt
+        };
+        if (status == CrosswordStatus.Published)
+        {
+            entity.PublishedAt ??= now;
+        }
+        entity.UpdatedAt = now;
+        entity.UpdatedByEmail = actor;
+        return status == CrosswordStatus.Draft ? "Unpublished" : status.ToString();
+    }
 }
