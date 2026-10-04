@@ -18,8 +18,7 @@ public sealed class InMemoryForumRepository(
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var topics = SampleForumData.CreateSeedTopics(forumId)
-            .Concat(GetCreatedTopics(forumId))
+        var topics = GetTopics(forumId)
             .OrderByDescending(topic => topic.IsSticky)
             .ThenByDescending(topic => topic.LastActivityAt)
             .ToList();
@@ -70,8 +69,7 @@ public sealed class InMemoryForumRepository(
         var take = Math.Clamp(count, 1, 50);
         var items = seedCategories
             .Where(category => category.Id != ForumRecentThreadsPolicy.WebsiteDiscussionBoardId)
-            .SelectMany(category => SampleForumData.CreateSeedTopics(category.Id)
-                .Concat(GetCreatedTopics(category.Id))
+            .SelectMany(category => GetTopics(category.Id)
                 .Select(topic => new ForumRecentThreadItem(
                     topic.Id,
                     topic.Title,
@@ -133,8 +131,7 @@ public sealed class InMemoryForumRepository(
         }
 
         var allResults = seedCategories
-            .SelectMany(category => SampleForumData.CreateSeedTopics(category.Id)
-                .Concat(GetCreatedTopics(category.Id))
+            .SelectMany(category => GetTopics(category.Id)
                 .Where(topic => topic.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
                 .Select(topic => new ForumSearchResult(
                     topic.Id,
@@ -195,6 +192,22 @@ public sealed class InMemoryForumRepository(
             .Concat(created)
             .OrderBy(item => item.TopicId)
             .ToList();
+    }
+
+    private IReadOnlyList<ForumTopicItem> GetTopics(int forumId)
+    {
+        var seeds = SampleForumData.CreateSeedTopics(forumId);
+        var updated = GetCreatedTopics(forumId).Select(topic =>
+        {
+            var seed = seeds.FirstOrDefault(seed => seed.Id == topic.Id);
+            return seed is null ? topic : seed with
+            {
+                LastActivityAt = topic.LastActivityAt,
+                ReplyCount = topic.ReplyCount,
+                LastPostUsername = topic.LastPostUsername
+            };
+        });
+        return updated.Concat(seeds).DistinctBy(topic => topic.Id).ToArray();
     }
 
     private IReadOnlyList<ForumTopicItem> GetCreatedTopics(int forumId) =>
