@@ -48,6 +48,24 @@ public sealed class CrosswordEntityTests
         Assert.True(token.IsConcurrencyToken);
         Assert.Equal(sqlServer ? ValueGenerated.OnAddOrUpdate : ValueGenerated.Never, token.ValueGenerated);
         Assert.Equal(DeleteBehavior.Cascade, Assert.Single(entry.GetForeignKeys()).DeleteBehavior);
+        var progress = db.Model.FindEntityType(typeof(CrosswordProgressEntity))!;
+        var completion = db.Model.FindEntityType(typeof(CrosswordCompletionEntity))!;
+        Assert.Equal("CrosswordProgress", progress.GetTableName());
+        Assert.Equal("CrosswordCompletions", completion.GetTableName());
+        AssertLimit(progress, nameof(CrosswordProgressEntity.GridFingerprint), 64);
+        AssertLimit(progress, nameof(CrosswordProgressEntity.Letters), 225);
+        AssertLimit(progress, nameof(CrosswordProgressEntity.RevealedCellsJson), 2000);
+        var progressToken = progress.FindProperty(nameof(CrosswordProgressEntity.RowVersion))!;
+        Assert.True(progressToken.IsConcurrencyToken);
+        Assert.Equal(sqlServer ? ValueGenerated.OnAddOrUpdate : ValueGenerated.Never, progressToken.ValueGenerated);
+        foreach (var type in new[] { progress, completion })
+        {
+            Assert.Contains(type.GetIndexes(), index => index.IsUnique && index.Properties.Select(property => property.Name)
+                .SequenceEqual(["CrosswordId", "MemberId"]));
+            var foreignKey = Assert.Single(type.GetForeignKeys());
+            Assert.Equal(typeof(CrosswordEntity), foreignKey.PrincipalEntityType.ClrType);
+            Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
+        }
     }
 
     [Fact]

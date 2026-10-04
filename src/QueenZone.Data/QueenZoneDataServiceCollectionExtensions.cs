@@ -72,6 +72,10 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IQuizRepository, EfQuizRepository>();
         services.AddScoped<ICrosswordCatalogRepository>(sp => new EfCrosswordCatalogRepository(
             sp.GetRequiredService<QueenZoneDbContext>(), sp.GetService<TimeProvider>() ?? TimeProvider.System));
+        services.AddScoped<ICrosswordProgressRepository>(sp => new EfCrosswordProgressRepository(
+            sp.GetRequiredService<QueenZoneDbContext>(), sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CrosswordRankingOptions>>().Value));
+        services.AddOptions<CrosswordRankingOptions>();
         services.AddScoped<IQuizQuestionSubmissionRepository, EfQuizQuestionSubmissionRepository>();
         services.AddScoped<INewsDiscoveryRepository, EfNewsDiscoveryRepository>();
         services.AddScoped<INewsAgentGuidanceRepository, EfNewsAgentGuidanceRepository>();
@@ -122,6 +126,10 @@ public static class QueenZoneDataServiceCollectionExtensions
             catalog.ImportAsync(CrosswordSampleData.Load(), Guid.Empty, "sample-seed").GetAwaiter().GetResult();
             return catalog;
         });
+        services.AddOptions<CrosswordRankingOptions>();
+        services.AddSingleton<ICrosswordProgressRepository>(sp => new InMemoryCrosswordProgressRepository(
+            sp.GetRequiredService<ICrosswordCatalogRepository>(), sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CrosswordRankingOptions>>().Value));
         services.TryAddSingleton<SearchIndexRevision>();
         var store = new SharedNewsStore(SampleNewsData.CreateSeedArticles());
         services.AddSingleton(store);

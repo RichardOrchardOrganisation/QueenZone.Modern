@@ -52,6 +52,10 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<CrosswordAuditLogEntity> CrosswordAuditLogs => Set<CrosswordAuditLogEntity>();
 
+    public DbSet<CrosswordProgressEntity> CrosswordProgress => Set<CrosswordProgressEntity>();
+
+    public DbSet<CrosswordCompletionEntity> CrosswordCompletions => Set<CrosswordCompletionEntity>();
+
     public DbSet<QuizQuestionEntity> QuizQuestions => Set<QuizQuestionEntity>();
 
     public DbSet<QuizOptionEntity> QuizOptions => Set<QuizOptionEntity>();
@@ -169,9 +173,11 @@ public sealed class QueenZoneDbContext : DbContext
             typeof(QueenZoneDbContext).Assembly,
             type => type != typeof(QueenHistoryEventEntityConfiguration)
                 && type != typeof(NewsAgentGuidanceRevisionEntityConfiguration)
-                && type != typeof(CrosswordEntityConfiguration));
+                && type != typeof(CrosswordEntityConfiguration)
+                && type != typeof(CrosswordProgressEntityConfiguration));
         modelBuilder.ApplyConfiguration(new QueenHistoryEventEntityConfiguration(sqlServer));
         modelBuilder.ApplyConfiguration(new NewsAgentGuidanceRevisionEntityConfiguration(sqlServer));
         modelBuilder.ApplyConfiguration(new CrosswordEntityConfiguration(sqlServer));
+        modelBuilder.ApplyConfiguration(new CrosswordProgressEntityConfiguration(sqlServer));
     }
 }
