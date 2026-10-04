@@ -40,7 +40,7 @@
       "id": "mobile.archive.articles",
       "name": "Articles index",
       "screen": "ArchiveStack/Articles",
-      "entry": "Archive tab → Articles"
+      "entry": "Archive tab \u2192 Articles"
     },
     {
       "aliases": [
@@ -61,7 +61,7 @@
       "id": "mobile.archive.story",
       "name": "Archive article",
       "screen": "ArchiveStack/Story",
-      "entry": "Archive → Articles → story"
+      "entry": "Archive \u2192 Articles \u2192 story"
     },
     {
       "aliases": [
@@ -79,7 +79,7 @@
       "id": "mobile.archive.biography",
       "name": "Biography",
       "screen": "ArchiveStack/Biography",
-      "entry": "Archive tab → Biography"
+      "entry": "Archive tab \u2192 Biography"
     },
     {
       "aliases": [
@@ -97,7 +97,7 @@
       "id": "mobile.archive.biographyChapter",
       "name": "Biography chapter",
       "screen": "ArchiveStack/BiographyChapter",
-      "entry": "Archive → Biography → chapter"
+      "entry": "Archive \u2192 Biography \u2192 chapter"
     },
     {
       "aliases": [
@@ -115,7 +115,7 @@
       "id": "mobile.archive.discography",
       "name": "Discography",
       "screen": "ArchiveStack/Discography",
-      "entry": "Archive tab → Discography"
+      "entry": "Archive tab \u2192 Discography"
     },
     {
       "aliases": [
@@ -134,7 +134,7 @@
       "id": "mobile.archive.album",
       "name": "Album",
       "screen": "ArchiveStack/Album",
-      "entry": "Archive → Discography → album"
+      "entry": "Archive \u2192 Discography \u2192 album"
     },
     {
       "aliases": [
@@ -155,7 +155,7 @@
       "id": "mobile.archive.song",
       "name": "Song",
       "screen": "ArchiveStack/Song",
-      "entry": "Archive → Discography → album → track"
+      "entry": "Archive \u2192 Discography \u2192 album \u2192 track"
     },
     {
       "aliases": [
@@ -175,7 +175,7 @@
       "id": "mobile.archive.timeline",
       "name": "Timeline",
       "screen": "ArchiveStack/Timeline",
-      "entry": "Archive tab → Timeline"
+      "entry": "Archive tab \u2192 Timeline"
     },
     {
       "aliases": [
@@ -198,7 +198,7 @@
       "id": "mobile.archive.timelineEvent",
       "name": "Timeline event",
       "screen": "ArchiveStack/TimelineEvent",
-      "entry": "Archive → Timeline → event"
+      "entry": "Archive \u2192 Timeline \u2192 event"
     },
     {
       "aliases": [
@@ -216,7 +216,7 @@
       "id": "mobile.archive.freddieTribute",
       "name": "Freddie Tribute",
       "screen": "ArchiveStack/FreddieTribute",
-      "entry": "Archive tab → Freddie Tribute"
+      "entry": "Archive tab \u2192 Freddie Tribute"
     },
     {
       "aliases": [
@@ -240,7 +240,7 @@
       "id": "mobile.archive.fanPerformances",
       "name": "Fan performances",
       "screen": "ArchiveStack/FanPerformances",
-      "entry": "Archive tab → Fan performances"
+      "entry": "Archive tab \u2192 Fan performances"
     },
     {
       "aliases": [
@@ -260,7 +260,7 @@
       "id": "mobile.archive.fanPerformanceDetail",
       "name": "Fan performance",
       "screen": "ArchiveStack/FanPerformanceDetail",
-      "entry": "Archive → Fan performances → item"
+      "entry": "Archive \u2192 Fan performances \u2192 item"
     },
     {
       "aliases": [
@@ -282,7 +282,7 @@
       "id": "mobile.archive.fanPerformanceSubmit",
       "name": "Submit a fan performance",
       "screen": "ArchiveStack/FanPerformanceSubmit",
-      "entry": "Archive → Fan performances → submit"
+      "entry": "Archive \u2192 Fan performances \u2192 submit"
     },
     {
       "aliases": [
@@ -303,7 +303,7 @@
       "id": "mobile.archive.fanPerformanceDownloads",
       "name": "Fan performance downloads",
       "screen": "ArchiveStack/FanPerformanceDownloads",
-      "entry": "Archive → Fan performances → downloads"
+      "entry": "Archive \u2192 Fan performances \u2192 downloads"
     },
     {
       "aliases": [
@@ -325,7 +325,7 @@
       "id": "mobile.archive.trivia",
       "name": "Trivia",
       "screen": "ArchiveStack/Trivia",
-      "entry": "Archive tab → Trivia"
+      "entry": "Archive tab \u2192 Trivia"
     },
     {
       "aliases": [
@@ -345,7 +345,7 @@
       "id": "mobile.archive.quizList",
       "name": "Quiz list",
       "screen": "ArchiveStack/QuizList",
-      "entry": "Archive tab → Quiz"
+      "entry": "Archive tab \u2192 Quiz"
     },
     {
       "aliases": [
@@ -368,7 +368,7 @@
       "id": "mobile.archive.quizPlay",
       "name": "Quiz play",
       "screen": "ArchiveStack/QuizPlay",
-      "entry": "Archive → Quiz → start"
+      "entry": "Archive \u2192 Quiz \u2192 start"
     },
     {
       "aliases": [
@@ -390,7 +390,7 @@
       "id": "mobile.archive.quizLeaderboard",
       "name": "Quiz leaderboard",
       "screen": "ArchiveStack/QuizLeaderboard",
-      "entry": "Archive → Quiz → leaderboard"
+      "entry": "Archive \u2192 Quiz \u2192 leaderboard"
     },
     {
       "aliases": [
@@ -413,7 +413,7 @@
       "id": "mobile.archive.quizSprint",
       "name": "Quiz Sprint",
       "screen": "ArchiveStack/QuizSprint",
-      "entry": "Archive tab → Quiz Sprint, or Home sprint card"
+      "entry": "Archive tab \u2192 Quiz Sprint, or Home sprint card"
     },
     {
       "aliases": [
@@ -434,7 +434,7 @@
       "id": "mobile.archive.quizSprintLeaderboard",
       "name": "Quiz Sprint leaderboard",
       "screen": "ArchiveStack/QuizSprintLeaderboard",
-      "entry": "Archive → Quiz Sprint → leaderboard"
+      "entry": "Archive \u2192 Quiz Sprint \u2192 leaderboard"
     },
     {
       "aliases": [
@@ -452,7 +452,7 @@
       "id": "mobile.archive.about",
       "name": "About the archive",
       "screen": "ArchiveStack/AboutArchive",
-      "entry": "Archive tab → The archive"
+      "entry": "Archive tab \u2192 The archive"
     },
     {
       "aliases": [
@@ -489,6 +489,58 @@
       "drive": {
         "search": "src/QueenZone.Mobile/maestro/flows/06-archive-search.yaml"
       }
+    },
+    {
+      "id": "mobile.crosswords.list",
+      "name": "Crossword list",
+      "screen": "ArchiveStack/CrosswordList",
+      "entry": "Archive \u2192 Crosswords \u2192 Meet the band",
+      "aliases": [
+        "crosswords"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordListScreen.tsx"
+      ],
+      "testIds": [
+        "crosswordListScreen"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/31-crossword.yaml"
+      ],
+      "specs": [
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordListScreen.test.tsx"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/crosswords.md"
+    },
+    {
+      "id": "mobile.crosswords.play",
+      "name": "Crossword play",
+      "screen": "ArchiveStack/CrosswordPlay",
+      "entry": "Archive \u2192 Crosswords \u2192 Meet the band",
+      "aliases": [
+        "crossword play"
+      ],
+      "sources": [
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordPlayScreen.tsx",
+        "src/QueenZone.Mobile/src/crosswords/CrosswordGrid.tsx",
+        "src/QueenZone.Mobile/src/crosswords/CrosswordKeyboard.tsx",
+        "src/QueenZone.Mobile/src/crosswords/CrosswordLinkBridge.tsx"
+      ],
+      "testIds": [
+        "crosswordPlayScreen"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/31-crossword.yaml",
+        "src/QueenZone.Mobile/maestro/flows/32-crossword-large.yaml"
+      ],
+      "specs": [
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordPlayScreen.test.tsx"
+      ],
+      "selectors": [],
+      "signIn": "none",
+      "recipe": ".cursor/skills/verify-queenzone-mobile/features/crosswords.md"
     }
   ]
 }

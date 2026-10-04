@@ -83,6 +83,10 @@ async function resolveSenders(): Promise<QueueSenders> {
   };
 }
 
+export function isOfflineQueueOwnerCurrent(memberId: string): boolean {
+  return auth?.getMemberId() === memberId;
+}
+
 export function configureOfflineQueueAuth(next: OfflineQueueAuth | null): void {
   invalidateOfflineQueueFlush();
   auth = next;

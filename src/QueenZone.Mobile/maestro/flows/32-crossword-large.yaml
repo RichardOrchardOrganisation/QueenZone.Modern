@@ -1,0 +1,23 @@
+appId: org.queenzone.mobile
+---
+- launchApp
+- openLink: queenzone://crosswords/studios-and-collaborators
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: crossword-cell-203
+    direction: DOWN
+- tapOn:
+    id: crossword-cell-203
+- assertVisible:
+    text: "12 across:.*"
+- tapOn: Zoom in
+- tapOn: Zoom in
+- assertVisible:
+    id: crossword-cell-203
+- takeScreenshot: crossword-large-selected
+- tapOn: Fit grid
+- takeScreenshot: crossword-large-fitted

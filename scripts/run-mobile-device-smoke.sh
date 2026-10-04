@@ -501,7 +501,7 @@ collect_diagnostics() {
     fi
   fi
   if [[ "$platform" = "ios" ]]; then
-    xcrun simctl spawn booted log show --last 5m --style compact \
+    xcrun simctl spawn "${IOS_SIM_UDID:-booted}" log show --last 5m --style compact \
       > "$results_dir/simulator.log" 2>/dev/null || true
   fi
   if [[ -f "$host_log" ]]; then
@@ -633,7 +633,7 @@ push_attach_fixture() {
     )"
   else
     local data
-    data="$(xcrun simctl get_app_container booted org.queenzone.mobile data)"
+    data="$(xcrun simctl get_app_container "${IOS_SIM_UDID:-booted}" org.queenzone.mobile data)"
     if [[ -z "$data" ]] || [[ ! -d "$data" ]]; then
       echo "Could not resolve the iOS Simulator data container for org.queenzone.mobile." >&2
       exit 1
@@ -710,7 +710,15 @@ build_ios() {
     cd ios
     workspace="$(ls -d *.xcworkspace | head -n 1)"
     scheme="$(basename "$workspace" .xcworkspace)"
-    xcodebuild \
+    qz_ios_job_args=()
+    if [[ -n "${QZ_SMOKE_BUILD_JOBS:-}" ]]; then
+      if [[ ! "$QZ_SMOKE_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+        echo "QZ_SMOKE_BUILD_JOBS must be a positive integer." >&2
+        exit 2
+      fi
+      qz_ios_job_args=(-jobs "$QZ_SMOKE_BUILD_JOBS")
+    fi
+    xcodebuild "${qz_ios_job_args[@]}" \
       -workspace "$workspace" \
       -scheme "$scheme" \
       -sdk iphonesimulator \
@@ -780,9 +788,9 @@ else
   if [[ "$suite" = "journeys" ]]; then
     # A Simulator install preserves an existing data container. Remove the
     # prior install so journeys start clean before their fixture is copied.
-    xcrun simctl uninstall booted org.queenzone.mobile >/dev/null 2>&1 || true
+    xcrun simctl uninstall "${IOS_SIM_UDID:-booted}" org.queenzone.mobile >/dev/null 2>&1 || true
   fi
-  xcrun simctl install booted "$app"
+  xcrun simctl install "${IOS_SIM_UDID:-booted}" "$app"
 fi
 
 if [[ "$suite" = "journeys" ]]; then
@@ -847,6 +855,9 @@ fi
 
 echo "Running Maestro ($flow ${proof_flows[*]}). Selector and assertion failures are not retried."
 maestro_args=()
+if [[ "$platform" = "ios" ]] && [[ -n "${IOS_SIM_UDID:-}" ]]; then
+  export MAESTRO_TARGET_DEVICE="$IOS_SIM_UDID"
+fi
 if [[ -n "${MAESTRO_TARGET_DEVICE:-}" ]]; then
   maestro_args+=(--device "$MAESTRO_TARGET_DEVICE")
 fi
@@ -1022,7 +1033,7 @@ write_proof_bundle() {
   if [[ "$platform" = "android" ]] && command -v adb >/dev/null; then
     adb exec-out screencap -p > "$proof_dir/screenshot.png" 2>/dev/null || true
   elif [[ "$platform" = "ios" ]] && command -v xcrun >/dev/null; then
-    xcrun simctl io booted screenshot "$proof_dir/screenshot.png" >/dev/null 2>&1 || true
+    xcrun simctl io "${IOS_SIM_UDID:-booted}" screenshot "$proof_dir/screenshot.png" >/dev/null 2>&1 || true
   fi
   if [[ "$maestro_status" -eq 0 ]]; then
     result="PASS"

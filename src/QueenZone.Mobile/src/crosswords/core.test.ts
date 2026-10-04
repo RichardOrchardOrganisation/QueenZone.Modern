@@ -244,3 +244,15 @@ describe('shared crossword timer', () => {
     assert.equal(setPaused(createTimer(), false, 0).runningSince, null);
   });
 });
+
+it('keeps assists from both same-version snapshots while choosing whole-grid letters by timestamp', () => {
+  const version = '11111111-2222-4333-8444-555555555555';
+  const local = { playVersion: version, letters: emptyLetters(model), elapsedSeconds: 12, revealedCells: [0], autoCheckUsed: true, updatedAt: '2026-10-04T00:00:00Z' };
+  const remote = { ...local, revealedCells: [], autoCheckUsed: false, updatedAt: '2026-10-04T01:00:00Z' };
+  const chosen = chooseProgress(model, version, local, remote);
+  assert.equal(chosen.restoredFromServer, true);
+  assert.equal(chosen.progress?.letters, remote.letters);
+  assert.deepEqual(chosen.progress?.revealedCells, [0]);
+  assert.equal(chosen.progress?.autoCheckUsed, true);
+  assert.equal(chooseProgress(model, version, { ...local, playVersion: '00000000-0000-0000-0000-000000000000' }, remote).progress?.autoCheckUsed, false);
+});

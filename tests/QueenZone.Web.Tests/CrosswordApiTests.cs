@@ -162,6 +162,27 @@ public sealed class CrosswordApiTests
         Assert.Equal(count, page.Items.Count);
     }
 
+    [Fact]
+    public async Task Fifteen_cell_grid_public_payload_stays_below_twenty_kilobytes_without_solutions()
+    {
+        await using var factory = new CrosswordFactory();
+        var catalog = factory.Services.GetRequiredService<ICrosswordCatalogRepository>();
+        var seed = CrosswordSampleData.Load().Single(seed => seed.Slug == "studios-and-collaborators");
+        var id = await catalog.CreateDraftAsync(seed with { Slug = "payload-" + Guid.NewGuid().ToString("N") }, Guid.NewGuid(), "editor");
+        var item = (await catalog.GetByIdAsync(id))!;
+        await catalog.SetPublicationAsync(id, CrosswordStatus.Published, null, item.RowVersion, "publisher");
+        using var client = factory.CreateAnonymousClient();
+        var response = await client.GetAsync($"{CrosswordApiEndpoints.RootPath}/{id}");
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadAsByteArrayAsync();
+        Assert.True(payload.Length < 20 * 1024, $"Public 15 by 15 payload was {payload.Length} bytes.");
+        var detail = JsonSerializer.Deserialize<CrosswordDetailDto>(payload, JsonOptions)!;
+        Assert.Equal(15, detail.Width);
+        Assert.Equal(225, detail.Blocks.Count);
+        Assert.DoesNotContain("answer", System.Text.Encoding.UTF8.GetString(payload), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("explanation", System.Text.Encoding.UTF8.GetString(payload), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task<ApiPagedResponse<CrosswordListItemDto>> ListAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<ApiPagedResponse<CrosswordListItemDto>>(CrosswordApiEndpoints.RootPath, JsonOptions))!;
 

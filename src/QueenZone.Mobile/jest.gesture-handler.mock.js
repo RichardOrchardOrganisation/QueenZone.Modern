@@ -74,6 +74,7 @@ module.exports = {
   GestureHandlerRootView: passthrough,
   GestureDetector: passthrough,
   Gesture: {
+    Native: () => chain('native'),
     Pinch: () => {
       recorded.pan = null;
       recorded.zoomPan = null;
