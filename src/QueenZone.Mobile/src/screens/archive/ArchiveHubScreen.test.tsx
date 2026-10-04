@@ -1,5 +1,5 @@
 import { archiveDestinations } from '../../content/archiveHub';
-import { screen, userEvent } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent } from '@testing-library/react-native';
 import { fakeNavigation, flushVirtualizedList, renderWithProviders } from '../../test/render';
 import { ArchiveHubScreen } from './ArchiveHubScreen';
 
@@ -101,11 +101,13 @@ describe('complete archive destination navigation', () => {
     ['stories', 'Articles'], ['timeline', 'Timeline'], ['biography', 'Biography'],
     ['discography', 'Discography'], ['tribute', 'FreddieTribute'],
     ['fan-performances', 'FanPerformances'], ['recently-restored', 'PhotosTab'],
-    ['trivia', 'Trivia'], ['quiz', 'QuizSprint'], ['about', 'AboutArchive'],
+    ['trivia', 'Trivia'], ['quiz', 'QuizSprint'], ['crosswords', 'CrosswordList'], ['about', 'AboutArchive'],
   ])('opens %s through %s', async (id, route) => {
     const row = archiveDestinations.find((destination) => destination.id === id)!;
     const navigation = fakeNavigation();
     renderWithProviders(<ArchiveHubScreen navigation={navigation as never} route={{ key: 'archive', name: 'ArchiveHub' } as never} />, { navigation: false });
+    fireEvent(screen.getByTestId('archive-hub-screen'), 'layout', { nativeEvent: { layout: { height: 2500, width: 320, x: 0, y: 0 } } });
+    fireEvent(screen.getByTestId('archive-hub-screen'), 'contentSizeChange', 320, 2500);
     await flushVirtualizedList();
     await userEvent.setup().press(screen.getByRole('button', { name: new RegExp(`${row.kicker}\\. ${row.title}\\.`) }));
     if (id === 'recently-restored') {

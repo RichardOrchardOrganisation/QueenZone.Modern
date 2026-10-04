@@ -12,6 +12,7 @@ export const ARCHIVE_HUB_IDS = [
   'recently-restored',
   'trivia',
   'quiz',
+  'crosswords',
   'about',
 ] as const;
 
@@ -98,6 +99,14 @@ export const archiveDestinations: ArchiveDestination[] = [
     kicker: 'Test yourself',
     kickerRole: 'archive',
     meta: ['60-second timed quiz', 'Daily leaderboard'],
+    icon: 'quiz',
+  },
+  {
+    id: 'crosswords',
+    title: 'Crosswords',
+    kicker: 'Solve together',
+    kickerRole: 'archive',
+    meta: ['Queen clues', 'Save your progress'],
     icon: 'quiz',
   },
   {

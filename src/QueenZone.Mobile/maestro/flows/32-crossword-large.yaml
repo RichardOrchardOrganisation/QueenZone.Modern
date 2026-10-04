@@ -1,0 +1,32 @@
+appId: org.queenzone.mobile
+---
+- launchApp
+- openLink: queenzone://crosswords/studios-and-collaborators
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 20000
+- swipe:
+    start: "50%,42%"
+    end: "50%,28%"
+    duration: 500
+- swipe:
+    start: "50%,42%"
+    end: "50%,28%"
+    duration: 500
+- scrollUntilVisible:
+    element:
+      id: crossword-cell-203
+    direction: DOWN
+- tapOn:
+    id: crossword-cell-203
+- assertVisible:
+    text: "(?i)12 across:.*"
+- tapOn: Zoom in
+- tapOn: Zoom in
+- assertVisible:
+    id: crossword-cell-203
+- takeScreenshot: crossword-large-selected
+- tapOn: Fit grid
+- takeScreenshot: crossword-large-fitted

@@ -222,6 +222,7 @@ These stories apply to **every** surface. Surface-specific behaviour is in Epics
 - Web grid uses `role="grid"` / `gridcell`; each cell's accessible name reads e.g. "14 Across, 7 letters, letter 3, blank. Also 3 Down." Live region announces clue changes and check results.
 - Mobile cells expose `accessibilityLabel` with the same information; VoiceOver/TalkBack can move cell to cell and type.
 - Touch targets ≥ 44×44 pt on mobile (achieved via zoom for large grids, see XW-3.3).
+- Small-phone clarification approved by Richard on 4 October 2026: QWERTY keys use normal phone-keyboard widths with at least 44 pt height. The grid remains zoomable to 44×44 pt cells; the selected cell and active clue stay visible. Long Down answers scroll instead of requiring the whole entry above the keyboard. This applies only to that small-phone layout conflict; other accessibility criteria still apply.
 - Respects reduced motion (no celebratory animation) and OS text size for clues.
 
 **Verification**
@@ -273,7 +274,7 @@ These stories apply to **every** surface. Surface-specific behaviour is in Epics
 **Acceptance criteria**
 
 - Grids larger than 9×9 open fitted-to-width; pinch-zoom and pan supported; selecting a cell auto-scrolls it into view above the clue bar.
-- At default zoom the active entry is fully visible.
+- At default zoom keep the selected cell and active clue visible. Long Down answers may scroll on small phones, as clarified above.
 - No conflict with the existing `react-native-reanimated` pins (#1782).
 
 **Verification**

@@ -29,7 +29,7 @@ const {
   removeOfflineItem,
   setOfflineQueueStorageForTests,
 } = await import('./store.ts');
-const { enqueueForumReply, enqueueMessageReply } = await import('./index.ts');
+const { enqueueForumReply, enqueueMessageReply, enqueueCrosswordProgress } = await import('./index.ts');
 const {
   configureOfflineQueueAuth,
   flushOfflineQueue,
@@ -398,5 +398,89 @@ describe('classifyQueueFailure', () => {
     assert.equal(classifyQueueFailure(ApiError.http(404, 'gone')), 'permanent');
     assert.equal(classifyQueueFailure(ApiError.http(403, 'no')), 'permanent');
     assert.equal(classifyQueueFailure(ApiError.http(500, 'boom')), 'systemic');
+  });
+});
+
+const puzzleId = '11111111-2222-4333-8444-555555555555';
+const puzzleVersion = '66666666-7777-4888-8999-aaaaaaaaaaaa';
+function crosswordWrite(letter = '.', updatedAt = '2026-10-04T01:00:00Z') {
+  return { playVersion: puzzleVersion, letters: letter + '.'.repeat(24), elapsedSeconds: 12, revealedCells: [] as number[], autoCheckUsed: false, updatedAt };
+}
+
+describe('crossword offline progress', () => {
+  it('requires a nonempty current version before storing a mutation', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    for (const playVersion of ['', '00000000-0000-0000-0000-000000000000', 'not-a-version'])
+      assert.throws(() => enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: { ...crosswordWrite(), playVersion } }));
+    assert.deepEqual(await listOfflineQueue(), []);
+  });
+
+  it('coalesces whole-grid LWW snapshots and preserves assistance without touching other members or puzzles', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: { ...crosswordWrite('N', '2026-10-04T02:00:00Z'), revealedCells: [1] } });
+    await enqueueCrosswordProgress({ memberId: memberB, crosswordId: puzzleId, progress: crosswordWrite('B') });
+    await enqueueCrosswordProgress({ memberId: memberA, crosswordId: 'other', progress: crosswordWrite('C') });
+    await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: { ...crosswordWrite('O'), autoCheckUsed: true, revealedCells: [2] } });
+    const own = await listOfflineQueue(memberA);
+    assert.equal(own.length, 2);
+    const saved = own.find(row => 'crosswordId' in row.target && row.target.crosswordId === puzzleId)!;
+    assert.equal(saved.payload.crossword?.letters[0], 'N');
+    assert.deepEqual(saved.payload.crossword?.revealedCells, [1, 2]);
+    assert.equal(saved.payload.crossword?.autoCheckUsed, true);
+    assert.equal((await listOfflineQueue(memberB))[0]?.payload.crossword?.letters[0], 'B');
+  });
+
+  it('a new grid version discards obsolete pending coordinates and assistance', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: { ...crosswordWrite('A'), revealedCells: [1], autoCheckUsed: true } });
+    const next = { ...crosswordWrite('B'), playVersion: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff' };
+    await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: next });
+    const rows = await listOfflineQueue(memberA);
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0]?.payload.crossword, next);
+  });
+
+  it('flushes only the authenticated owner with the stored version and retains another member', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    const sent: unknown[] = [];
+    setOfflineQueueSendersForTests({ createForumReply: async () => {}, replyToConversation: async () => {}, composeMessage: async () => {},
+      saveCrosswordProgress: async (id, progress, token) => { sent.push({ id, progress, token }); } });
+    configureOfflineQueueAuth({ getMemberId: () => memberA, getAccessToken: () => 'own-token', refreshAccessToken: async () => 'own-token' });
+    await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: crosswordWrite('A') });
+    await enqueueCrosswordProgress({ memberId: memberB, crosswordId: puzzleId, progress: crosswordWrite('B') });
+    await flushOfflineQueue();
+    assert.deepEqual(sent, [{ id: puzzleId, progress: crosswordWrite('A'), token: 'own-token' }]);
+    assert.deepEqual(await listOfflineQueue(memberA), []);
+    assert.equal((await listOfflineQueue(memberB)).length, 1);
+  });
+
+  it('does not lose a newer snapshot when an older send is already in flight', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    const started = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    setOfflineQueueSendersForTests({ createForumReply: async () => {}, replyToConversation: async () => {}, composeMessage: async () => {},
+      saveCrosswordProgress: async () => { started.resolve(); await release.promise; } });
+    configureOfflineQueueAuth({ getMemberId: () => memberA, getAccessToken: () => 'own-token', refreshAccessToken: async () => 'own-token' });
+    const original = await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: crosswordWrite('A') });
+    const flushing = flushOfflineQueue();
+    await started.promise;
+    const next = await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: crosswordWrite('B', '2026-10-04T03:00:00Z') });
+    assert.notEqual(next.operationId, original.operationId);
+    assert.equal((await listOfflineQueue(memberA)).length, 2);
+    release.resolve();
+    await flushing;
+    const remaining = await listOfflineQueue(memberA);
+    assert.equal(remaining.length, 1);
+    assert.equal(remaining[0]?.payload.crossword?.letters[0], 'B');
+  });
+
+  it('a stale grid response stays visible for attention and never silently drops the write', async () => {
+    setOfflineQueueStorageForTests(createMemoryStorage());
+    setOfflineQueueSendersForTests({ createForumReply: async () => {}, replyToConversation: async () => {}, composeMessage: async () => {},
+      saveCrosswordProgress: async () => { throw new ApiError(409, 'Crossword changed'); } });
+    configureOfflineQueueAuth({ getMemberId: () => memberA, getAccessToken: () => 'own-token', refreshAccessToken: async () => 'own-token' });
+    await enqueueCrosswordProgress({ memberId: memberA, crosswordId: puzzleId, progress: crosswordWrite('A') });
+    await flushOfflineQueue();
+    assert.equal((await listOfflineQueue(memberA))[0]?.state, 'needs_attention');
   });
 });

@@ -34,6 +34,8 @@ import { FanPerformanceDownloadsScreen } from '../screens/archive/FanPerformance
 import { StoryScreen } from '../screens/archive/StoryScreen';
 import { AboutArchiveScreen } from '../screens/archive/AboutArchiveScreen';
 import { TriviaScreen } from '../screens/archive/TriviaScreen';
+import { CrosswordListScreen } from '../screens/archive/CrosswordListScreen';
+import { CrosswordPlayScreen } from '../screens/archive/CrosswordPlayScreen';
 import { QuizListScreen } from '../screens/archive/QuizListScreen';
 import { QuizPlayScreen } from '../screens/archive/QuizPlayScreen';
 import { QuizLeaderboardScreen } from '../screens/archive/QuizLeaderboardScreen';
@@ -251,6 +253,8 @@ export function ArchiveStack() {
         component={QuizSprintLeaderboardScreen}
         options={{ title: 'Leaderboard' }}
       />
+      <Archive.Screen name="CrosswordList" component={CrosswordListScreen} options={{ title: 'Crosswords' }} />
+      <Archive.Screen name="CrosswordPlay" component={CrosswordPlayScreen} options={{ title: 'Crossword' }} />
       <Archive.Screen name="QuizList" component={QuizListScreen} options={{ title: 'Quiz' }} />
       <Archive.Screen name="QuizPlay" component={QuizPlayScreen} options={{ title: 'Quiz' }} />
       <Archive.Screen

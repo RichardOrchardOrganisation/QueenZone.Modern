@@ -5,9 +5,9 @@ import type {
 } from './types';
 import type { PageQuery } from './content';
 
-export function fetchCrosswordsPage(query: PageQuery & { accessToken?: string | null } = {}): Promise<ApiPagedResponse<CrosswordListItem>> {
+export function fetchCrosswordsPage(query: PageQuery & { accessToken?: string | null; difficulty?: 'easy' | 'medium' | 'hard'; size?: 'small' | 'large' } = {}): Promise<ApiPagedResponse<CrosswordListItem>> {
   return fetchJson('/crosswords', {
-    query: { page: query.page, pageSize: query.pageSize },
+    query: { page: query.page, pageSize: query.pageSize, difficulty: query.difficulty, size: query.size },
     signal: query.signal,
     accessToken: query.accessToken,
   });
@@ -41,4 +41,8 @@ export function completeCrossword(id: string, progress: CrosswordProgressWrite, 
 
 export function fetchCrosswordDetail(id: string, signal?: AbortSignal): Promise<CrosswordDetail> {
   return fetchJson(`/crosswords/${encodeURIComponent(id)}`, { signal });
+}
+
+export function fetchCrosswordBySlug(slug: string, signal?: AbortSignal): Promise<CrosswordDetail> {
+  return fetchJson(`/crosswords/by-slug/${encodeURIComponent(slug)}`, { signal });
 }

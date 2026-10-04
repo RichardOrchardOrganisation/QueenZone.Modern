@@ -1,3 +1,4 @@
+import type { CrosswordProgressWrite } from '../api/types';
 import { classifyQueueFailure, exhaustedRetries, nextRetryAt } from './retry';
 import {
   isOfflineQueueItemDiscarded,
@@ -8,6 +9,7 @@ import {
 import type { OfflineQueueAuth, OfflineQueueItem } from './types';
 
 type QueueSenders = {
+  saveCrosswordProgress?: (id: string, progress: CrosswordProgressWrite, accessToken: string, signal?: AbortSignal) => Promise<unknown>;
   createForumReply: (
     topicId: number,
     input: { body: string },
@@ -72,11 +74,17 @@ async function resolveSenders(): Promise<QueueSenders> {
   }
   const forum = await import('../api/forum');
   const messages = await import('../api/messages');
+  const crosswords = await import('../api/crosswords');
   return {
     createForumReply: forum.createForumReply,
     replyToConversation: messages.replyToConversation,
     composeMessage: messages.composeMessage,
+    saveCrosswordProgress: crosswords.saveCrosswordProgress,
   };
+}
+
+export function isOfflineQueueOwnerCurrent(memberId: string): boolean {
+  return auth?.getMemberId() === memberId;
 }
 
 export function configureOfflineQueueAuth(next: OfflineQueueAuth | null): void {
@@ -93,6 +101,7 @@ export function invalidateOfflineQueueFlush(): void {
 }
 
 function targetKey(item: OfflineQueueItem): string {
+  if ('crosswordId' in item.target) return `crossword:${item.target.crosswordId}`;
   if ('topicId' in item.target) {
     return `forum:${item.target.topicId}`;
   }
@@ -111,6 +120,11 @@ async function sendItem(
   const body = item.payload.body;
   const active = await resolveSenders();
   if (!isCurrent() || isOfflineQueueItemDiscarded(item)) return;
+  if (item.kind === 'crossword.progress' && 'crosswordId' in item.target) {
+    if (!item.payload.crossword || !active.saveCrosswordProgress) throw new Error('Crossword progress sender is unavailable.');
+    await active.saveCrosswordProgress(item.target.crosswordId, item.payload.crossword, accessToken, signal);
+    return;
+  }
   if (item.kind === 'forum.reply' && 'topicId' in item.target) {
     await active.createForumReply(
       item.target.topicId,

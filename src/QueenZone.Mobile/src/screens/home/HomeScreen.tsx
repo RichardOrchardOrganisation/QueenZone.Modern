@@ -23,6 +23,7 @@ import { HomeMessagesSection } from './HomeMessagesSection';
 import { HomeNewsSection } from './HomeNewsSection';
 import { HomeOnThisDaySection } from './HomeOnThisDaySection';
 import { HomePollCard } from './HomePollCard';
+import { HomeCrosswordCard } from './HomeCrosswordCard';
 import { HomeSprintCard } from './HomeSprintCard';
 import { HomeQueenQuoteSection } from './HomeQueenQuoteSection';
 import { HomeWidgetPrompt } from './HomeWidgetPrompt';
@@ -38,7 +39,7 @@ type Props = CompositeScreenProps<
 export function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
-  const { isSignedIn, accessToken } = useSession();
+  const { isSignedIn, accessToken, profile } = useSession();
   const appConfig = getAppConfig();
   const { apiBaseUrl, appEnv } = appConfig;
   const [filter, setFilter] = useState<HomeFilterKey>('all');
@@ -114,6 +115,7 @@ export function HomeScreen({ navigation }: Props) {
             </View>
           ) : null}
 
+          <HomeCrosswordCard key={profile?.memberId ?? 'guest'} onPlay={slug => navigation.navigate('ArchiveTab', nestedTabParams('CrosswordPlay', { slug }))} />
           <HomeSprintCard onPlay={() => navigation.navigate('ArchiveTab', nestedTabParams('QuizSprint'))} />
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>

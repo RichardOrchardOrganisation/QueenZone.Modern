@@ -1,3 +1,4 @@
+import { isCrosswordProgressWrite } from '../crosswords/progressValidation';
 import { createMemoryStorage, type KeyValueStorage } from '../cache/storage';
 import {
   OFFLINE_QUEUE_SCHEMA_VERSION,
@@ -136,6 +137,7 @@ function isItem(value: unknown): value is OfflineQueueItem {
     typeof row.memberId === 'string' &&
     typeof row.kind === 'string' &&
     typeof row.payload?.body === 'string' &&
+    (row.kind !== 'crossword.progress' || (row.target !== null && typeof row.target === 'object' && 'crosswordId' in row.target && typeof row.target.crosswordId === 'string' && isCrosswordProgressWrite(row.payload.crossword))) &&
     (row.state === 'queued' || row.state === 'sending' || row.state === 'needs_attention')
   );
 }
@@ -176,6 +178,26 @@ export async function listOfflineQueue(memberId?: string | null): Promise<Offlin
   });
 }
 
+function coalesceCrosswordProgress(items: OfflineQueueItem[], incoming: OfflineQueueItem): void {
+  if (incoming.kind !== 'crossword.progress' || !incoming.payload.crossword || !('crosswordId' in incoming.target)) return;
+  const targetId = incoming.target.crosswordId;
+  let progress = incoming.payload.crossword;
+  for (let index = items.length - 1; index >= 0; index--) {
+    const queued = items[index];
+    if (queued.kind !== 'crossword.progress' || queued.memberId !== incoming.memberId || queued.state === 'sending'
+      || !('crosswordId' in queued.target) || queued.target.crosswordId !== targetId || !queued.payload.crossword) continue;
+    const old = queued.payload.crossword;
+    if (old.playVersion === progress.playVersion) {
+      const newer = Date.parse(old.updatedAt) > Date.parse(progress.updatedAt) ? old : progress;
+      progress = { ...newer,
+        revealedCells: [...new Set([...old.revealedCells, ...progress.revealedCells])].sort((a, b) => a - b),
+        autoCheckUsed: old.autoCheckUsed || progress.autoCheckUsed };
+    }
+    items.splice(index, 1);
+  }
+  incoming.payload = { ...incoming.payload, crossword: progress };
+}
+
 export async function enqueueOfflineItem(item: OfflineQueueItem): Promise<void> {
   const sequence = ++enqueueSequence;
   return serializeStorage(async (target) => {
@@ -188,6 +210,7 @@ export async function enqueueOfflineItem(item: OfflineQueueItem): Promise<void> 
       throw new Error('Offline queue operation was discarded.');
     }
     const next = items.filter((row) => row.operationId !== item.operationId);
+    coalesceCrosswordProgress(next, item);
     next.push(item);
     next.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     await writeAll(target, next);

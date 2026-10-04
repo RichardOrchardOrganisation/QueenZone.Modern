@@ -1,0 +1,29 @@
+appId: org.queenzone.mobile
+---
+- tapOn:
+    id: tab-home
+- tapOn:
+    id: home-profile
+- scrollUntilVisible:
+    element:
+      text: Appearance
+    direction: DOWN
+- tapOn: Appearance
+- tapOn: Dark
+- openLink: queenzone://crosswords/meet-the-band
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 20000
+- takeScreenshot: crossword-dark
+- tapOn:
+    id: tab-home
+- tapOn: Light
+- openLink: queenzone://crosswords/meet-the-band
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 20000
+- takeScreenshot: crossword-light-repeated-link

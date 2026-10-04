@@ -1,0 +1,70 @@
+appId: org.queenzone.mobile
+---
+- launchApp
+- tapOn:
+    id: tab-archive
+- extendedWaitUntil:
+    visible:
+      id: archive-hub-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: '.*Crosswords.*'
+    direction: DOWN
+- tapOn: '.*Crosswords.*'
+- extendedWaitUntil:
+    visible:
+      id: crossword-list-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: crossword-list-meet-the-band
+    direction: DOWN
+- tapOn:
+    id: crossword-list-meet-the-band
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 20000
+- tapOn:
+    id: crossword-cell-37
+- tapOn:
+    id: crossword-key-B
+- tapOn:
+    id: crossword-key-R
+- tapOn:
+    id: crossword-key-I
+- tapOn:
+    id: crossword-key-A
+- tapOn:
+    id: crossword-key-N
+- tapOn:
+    id: crossword-cell-37
+- assertVisible:
+    text: "6 across:.*"
+- tapOn: Check
+- tapOn:
+    id: crossword-check-entry
+- assertVisible:
+    id: crossword-status
+- assertVisible: No incorrect letters in this selection.
+- takeScreenshot: crossword-typed-checked
+- tapOn: Clues
+- assertVisible: Auto check
+- tapOn: Close
+- tapOn: Pause
+- assertVisible: Paused
+- tapOn: Resume crossword
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: '^Crosswords$'
+- assertVisible:
+    id: crossword-list-screen
