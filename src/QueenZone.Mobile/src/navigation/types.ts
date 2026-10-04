@@ -33,6 +33,7 @@ export type HomeStackParamList = {
   SavedList: { kind: 'articles' | 'photographs' | 'offline' | 'history' };
   DeleteAccount: undefined;
   MySubmissions: undefined;
+  MyCrosswords: undefined;
   SuggestNews: undefined;
 } & CommonStackParamList &
   StoryRouteParamList;
@@ -67,6 +68,7 @@ export type ArchiveStackParamList = {
   Trivia: undefined;
   CrosswordList: undefined;
   CrosswordPlay: { slug: string };
+  CrosswordLeaderboard: { id: string; title: string };
   QuizList: undefined;
   QuizPlay: { id: string };
   QuizLeaderboard: undefined;

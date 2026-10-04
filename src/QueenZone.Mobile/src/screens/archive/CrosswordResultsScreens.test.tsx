@@ -1,0 +1,54 @@
+import { NavigationContainer } from '@react-navigation/native';
+import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fetchCrosswordLeaderboard, fetchMyCrosswords } from '../../api/crosswords';
+import { createMockSession } from '../../test/mockSession';
+import { renderWithProviders } from '../../test/render';
+import { CrosswordLeaderboardScreen } from './CrosswordLeaderboardScreen';
+import { MyCrosswordsScreen } from '../account/MyCrosswordsScreen';
+import { openCrosswordLink } from '../../crosswords/deepLink';
+const mockSession = createMockSession();
+jest.mock('../../session/SessionContext', () => ({ useSession: () => mockSession }));
+jest.mock('../../api/crosswords', () => ({ fetchCrosswordLeaderboard: jest.fn(), fetchMyCrosswords: jest.fn() }));
+jest.mock('../../crosswords/deepLink', () => ({ openCrosswordLink: jest.fn() }));
+const leaderboard = jest.mocked(fetchCrosswordLeaderboard);
+const history = jest.mocked(fetchMyCrosswords);
+const item = { id: 'one', slug: 'meet-the-band', title: 'Meet the Band', elapsedSeconds: 120, clean: true, completedAt: '2026-10-04T00:00:00Z', playable: true };
+const props = { route: { params: { id: 'one', title: 'Meet the Band' } }, navigation: {} } as unknown as import('react').ComponentProps<typeof CrosswordLeaderboardScreen>;
+beforeEach(() => { jest.clearAllMocks(); mockSession.isSignedIn = false; mockSession.accessToken = null; mockSession.profile = null; });
+it('shows a viewer rank outside the top 50 and reloads a failed public leaderboard', async () => {
+  leaderboard.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ top: [{ rank: 1, displayName: 'Queen fan', elapsedSeconds: 60, completedAt: item.completedAt }], viewer: { rank: 61, displayName: 'Me', elapsedSeconds: 120, completedAt: item.completedAt }, totalMembers: 61 });
+  renderWithProviders(<CrosswordLeaderboardScreen {...props} />);
+  await waitFor(() => expect(screen.getByText('Something went wrong.')).toBeOnTheScreen());
+  await userEvent.setup().press(screen.getByRole('button', { name: 'Try again' }));
+  await waitFor(() => expect(screen.getByText('Your rank: 61 of 61 · 120 seconds')).toBeOnTheScreen());
+  expect(screen.getByText('1. Queen fan · 60 seconds')).toBeOnTheScreen();
+  expect(leaderboard).toHaveBeenCalledWith('one', expect.any(AbortSignal), null);
+});
+it('shows the empty ranking and gates history before any private request', async () => {
+  leaderboard.mockResolvedValue({ top: [], viewer: null, totalMembers: 0 });
+  const rendered = renderWithProviders(<CrosswordLeaderboardScreen {...props} />);
+  await waitFor(() => expect(screen.getByText('No ranked solves yet. Be the first!')).toBeOnTheScreen());
+  rendered.unmount(); renderWithProviders(<MyCrosswordsScreen />);
+  expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen(); expect(history).not.toHaveBeenCalled();
+});
+it('uses the actual member token, marks clean solves and leaves unavailable puzzles unlinked', async () => {
+  mockSession.isSignedIn = true; mockSession.accessToken = 'member-token'; mockSession.profile = { memberId: 'member-one' } as never;
+  history.mockResolvedValue({ items: [item, { ...item, id: 'two', title: 'Unavailable puzzle', clean: false, playable: false, slug: null }], totalCompleted: 2, weeklyStreak: 3, weekTimeZone: 'UTC' });
+  renderWithProviders(<MyCrosswordsScreen />);
+  await waitFor(() => expect(screen.getByText('2 completed · 3 consecutive weeks')).toBeOnTheScreen());
+  expect(history).toHaveBeenCalledWith('member-token', expect.any(AbortSignal));
+  expect(screen.getByText(/Meet the Band · 120 seconds · Clean solve/)).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: 'Play Unavailable puzzle' })).toBeNull();
+  await userEvent.setup().press(screen.getByRole('button', { name: 'Play Meet the Band' }));
+  expect(openCrosswordLink).toHaveBeenCalledWith(expect.anything(), 'queenzone://crosswords/meet-the-band');
+});
+it('clears the previous member history before another member request resolves', async () => {
+  mockSession.isSignedIn = true; mockSession.accessToken = 'token-one'; mockSession.profile = { memberId: 'member-one' } as never;
+  history.mockResolvedValueOnce({ items: [item], totalCompleted: 1, weeklyStreak: 1, weekTimeZone: 'UTC' });
+  const rendered = renderWithProviders(<MyCrosswordsScreen />);
+  await waitFor(() => expect(screen.getByText('1 completed · 1 consecutive weeks')).toBeOnTheScreen());
+  mockSession.accessToken = 'token-two'; mockSession.profile = { memberId: 'member-two' } as never;
+  history.mockImplementation(() => new Promise(() => {})); rendered.rerender(<NavigationContainer><MyCrosswordsScreen /></NavigationContainer>);
+  expect(screen.queryByText('1 completed · 1 consecutive weeks')).toBeNull();
+  await waitFor(() => expect(history).toHaveBeenLastCalledWith('token-two', expect.any(AbortSignal)));
+});

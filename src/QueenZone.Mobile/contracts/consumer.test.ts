@@ -12,7 +12,7 @@ import {
 } from '../src/api/content.ts';
 import { fetchSearchPage } from '../src/api/search.ts';
 import { fetchCrosswordDetail, fetchCrosswordBySlug, fetchCrosswordsPage, checkCrossword, revealCrossword,
-  fetchCrosswordProgress, saveCrosswordProgress, completeCrossword } from '../src/api/crosswords.ts';
+  fetchCrosswordProgress, saveCrosswordProgress, completeCrossword, fetchCrosswordLeaderboard, fetchMyCrosswords } from '../src/api/crosswords.ts';
 import {
   createForumReply,
   fetchForumTopic,
@@ -43,6 +43,8 @@ import {
   crosswordRevealResultSchema,
   crosswordProgressSchema,
   crosswordCompletionResultSchema,
+  crosswordLeaderboardSchema,
+  crosswordHistorySchema,
   expectedField,
   expectedStatus,
   fanPerformanceSchema,
@@ -149,6 +151,23 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
     const page = parseContract('GET personal crossword status', pagedSchema(crosswordListItemSchema),
       await fetchCrosswordsPage({ accessToken: token, pageSize: 100 }));
     assert.equal(page.items.find(item => item.id === id)?.progress, 'completed');
+  });
+  it('reads ranked crossword results and private member history through real consumer contracts', async () => {
+    const id = fixture.crosswordId;
+    const detail = await fetchCrosswordDetail(id);
+    assert.ok(detail.playVersion);
+    const reveal = await revealCrossword(id, detail.playVersion, { scope: 'grid' }, { accessToken: token });
+    const letters: string[] = detail.blocks.map(block => block ? '#' : '.');
+    for (const cell of reveal.cells) letters[cell.index] = cell.letter;
+    await completeCrossword(id, { playVersion: detail.playVersion, letters: letters.join(''), elapsedSeconds: 120,
+      revealedCells: reveal.cells.map(cell => cell.index), autoCheckUsed: false, updatedAt: new Date().toISOString() }, token);
+    const board = parseContract('GET crossword leaderboard', crosswordLeaderboardSchema, await fetchCrosswordLeaderboard(id, undefined, token));
+    assert.equal(board.viewer, null, 'Assisted first completion must not rank');
+    const mine = parseContract('GET crossword mine', crosswordHistorySchema, await fetchMyCrosswords(token));
+    assert.ok(mine.totalCompleted >= 1);
+    assert.equal(mine.items.find(item => item.id === id)?.clean, false);
+    assert.ok(mine.weekTimeZone.includes('UTC'));
+    await expectApiError('Guest crossword history', 401, () => fetchJson('/crosswords/mine'));
   });
   it('reads a paged news list and a published news detail', async () => {
     const page = parseContract(

@@ -12,6 +12,8 @@ import { AnalyticsSettingsScreen } from '../screens/account/AnalyticsSettingsScr
 import { ContactScreen } from '../screens/account/ContactScreen';
 import { DeleteAccountScreen } from '../screens/account/DeleteAccountScreen';
 import { SavedListScreen } from '../screens/account/SavedListScreen';
+import { MyCrosswordsScreen } from '../screens/account/MyCrosswordsScreen';
+import { CrosswordLeaderboardScreen } from '../screens/archive/CrosswordLeaderboardScreen';
 import { MySubmissionsScreen } from '../screens/account/MySubmissionsScreen';
 import { InboxScreen } from '../screens/messages/InboxScreen';
 import { ArchivedScreen } from '../screens/messages/ArchivedScreen';
@@ -139,6 +141,7 @@ export function HomeStack() {
       <Home.Screen name="Conversation" component={ConversationScreen} />
       <Home.Screen name="ComposeMessage" component={ComposeMessageScreen} options={{ title: 'New message' }} />
       <Home.Screen name="SavedList" component={SavedListScreen} options={{ title: 'Library' }} />
+      <Home.Screen name="MyCrosswords" component={MyCrosswordsScreen} options={{ title: 'My crosswords' }} />
       <Home.Screen name="MySubmissions" component={MySubmissionsScreen} options={{ title: 'My submissions' }} />
       <Home.Screen name="SuggestNews" component={SuggestNewsScreen} options={{ title: 'Suggest news' }} />
     </Home.Navigator>
@@ -254,6 +257,7 @@ export function ArchiveStack() {
         options={{ title: 'Leaderboard' }}
       />
       <Archive.Screen name="CrosswordList" component={CrosswordListScreen} options={{ title: 'Crosswords' }} />
+      <Archive.Screen name="CrosswordLeaderboard" component={CrosswordLeaderboardScreen} options={{ title: 'Crossword leaderboard' }} />
       <Archive.Screen name="CrosswordPlay" component={CrosswordPlayScreen} options={{ title: 'Crossword' }} />
       <Archive.Screen name="QuizList" component={QuizListScreen} options={{ title: 'Quiz' }} />
       <Archive.Screen name="QuizPlay" component={QuizPlayScreen} options={{ title: 'Quiz' }} />
