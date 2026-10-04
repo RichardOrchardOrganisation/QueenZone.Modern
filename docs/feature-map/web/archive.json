@@ -628,7 +628,8 @@
       "testIds": [],
       "flows": [],
       "specs": [
-        "tests/QueenZone.Web.E2E/CrosswordPlayTests.cs"
+        "tests/QueenZone.Web.E2E/CrosswordPlayTests.cs",
+        "tests/QueenZone.Web.E2E/CrosswordReplayTests.cs"
       ],
       "selectors": [
         "#crossword-play"

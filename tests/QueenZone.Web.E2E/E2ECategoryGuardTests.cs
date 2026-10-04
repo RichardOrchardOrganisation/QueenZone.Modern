@@ -66,6 +66,7 @@ public class E2ECategoryGuardTests
             nameof(AxeSeriousExceptionTests),
             nameof(CrosswordPlayTests),
             nameof(CrosswordResultsTests),
+            nameof(CrosswordReplayTests),
             nameof(CuratedPageLayoutSmokeTests),
             nameof(E2ECategoryGuardTests),
             nameof(EditorWorkflowTests),
