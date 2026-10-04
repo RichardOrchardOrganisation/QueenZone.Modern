@@ -1,0 +1,89 @@
+{
+  "slug": "silver-screen",
+  "title": "Queen on Screen",
+  "description": "A Queen-themed crossword about Queen on Screen.",
+  "difficulty": "medium",
+  "width": 13,
+  "height": 13,
+  "style": "british",
+  "grid": [
+    "#############",
+    "##W##########",
+    "#MALEK#######",
+    "##Y####M#H###",
+    "MING###A#I#H#",
+    "##E####Z#G#E#",
+    "#OSCAR#Z#H#A#",
+    "##W####E#L#D#",
+    "BIOPIC#L#A#B#",
+    "##R####L#N#A#",
+    "#FLASHGORDON#",
+    "##D######E#G#",
+    "#########R###"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "WAYNESWORLD",
+      "clue": "1992 film that revived \"Bohemian Rhapsody\"",
+      "enumeration": "(6,5)"
+    },
+    {
+      "number": 2,
+      "direction": "across",
+      "answer": "MALEK",
+      "clue": "Rami who played Freddie",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 3,
+      "direction": "down",
+      "answer": "MAZZELLO",
+      "clue": "Joe who played John Deacon",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "HIGHLANDER",
+      "clue": "1986 film of immortals",
+      "enumeration": "(10)"
+    },
+    {
+      "number": 5,
+      "direction": "across",
+      "answer": "MING",
+      "clue": "Flash Gordon's merciless foe",
+      "enumeration": "(4)"
+    },
+    {
+      "number": 6,
+      "direction": "down",
+      "answer": "HEADBANG",
+      "clue": "What the car crew famously did in Wayne's World",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 7,
+      "direction": "across",
+      "answer": "OSCAR",
+      "clue": "Award Rami Malek won for playing Freddie",
+      "enumeration": "(5)"
+    },
+    {
+      "number": 8,
+      "direction": "across",
+      "answer": "BIOPIC",
+      "clue": "2018 film genre",
+      "enumeration": "(6)"
+    },
+    {
+      "number": 9,
+      "direction": "across",
+      "answer": "FLASHGORDON",
+      "clue": "1980 film with a Queen score",
+      "enumeration": "(5,6)"
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "slug": "studio-albums",
+  "title": "The Studio Albums",
+  "description": "A Queen-themed crossword about The Studio Albums.",
+  "difficulty": "medium",
+  "width": 15,
+  "height": 15,
+  "style": "british",
+  "grid": [
+    "############T##",
+    "####I#######H##",
+    "####N#THEGAME##",
+    "####N#######M##",
+    "####U##F####I##",
+    "####E##L####R##",
+    "#Q##N#JAZZ##A##",
+    "#U##D##S####C##",
+    "NEWSOFTHEWORLD#",
+    "#E#####G####E##",
+    "#N#THEWORKS####",
+    "#I#####R#######",
+    "#I#AKINDOFMAGIC",
+    "#######O#######",
+    "##MADEINHEAVEN#"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "THEMIRACLE",
+      "clue": "1989 album with a four-headed cover",
+      "enumeration": "(3,7)"
+    },
+    {
+      "number": 2,
+      "direction": "down",
+      "answer": "INNUENDO",
+      "clue": "1991 album, the last released in Freddie's lifetime",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 3,
+      "direction": "across",
+      "answer": "THEGAME",
+      "clue": "1980 album with \"Another One Bites the Dust\"",
+      "enumeration": "(3,4)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "FLASHGORDON",
+      "clue": "1980 soundtrack album",
+      "enumeration": "(5,6)"
+    },
+    {
+      "number": 5,
+      "direction": "down",
+      "answer": "QUEENII",
+      "clue": "1974 album with \"white\" and \"black\" sides",
+      "enumeration": "(5,2)"
+    },
+    {
+      "number": 6,
+      "direction": "across",
+      "answer": "JAZZ",
+      "clue": "1978 album featuring \"Bicycle Race\"",
+      "enumeration": "(4)"
+    },
+    {
+      "number": 7,
+      "direction": "across",
+      "answer": "NEWSOFTHEWORLD",
+      "clue": "1977 album with a giant robot on the cover",
+      "enumeration": "(4,2,3,5)"
+    },
+    {
+      "number": 8,
+      "direction": "across",
+      "answer": "THEWORKS",
+      "clue": "1984 album with \"Radio Ga Ga\"",
+      "enumeration": "(3,5)"
+    },
+    {
+      "number": 9,
+      "direction": "across",
+      "answer": "AKINDOFMAGIC",
+      "clue": "1986 album tied to Highlander",
+      "enumeration": "(1,4,2,5)"
+    },
+    {
+      "number": 10,
+      "direction": "across",
+      "answer": "MADEINHEAVEN",
+      "clue": "1995 album completed after Freddie's death",
+      "enumeration": "(4,2,6)"
+    }
+  ]
+}

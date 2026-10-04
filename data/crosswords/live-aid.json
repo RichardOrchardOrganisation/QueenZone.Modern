@@ -1,0 +1,71 @@
+{
+  "slug": "live-aid",
+  "title": "Live Aid, 1985",
+  "description": "A Queen-themed crossword about Live Aid, 1985.",
+  "difficulty": "easy",
+  "width": 9,
+  "height": 9,
+  "style": "british",
+  "grid": [
+    "##ROCKYOU",
+    "E###H####",
+    "T###A##G#",
+    "H#WEMBLEY",
+    "I###P##L#",
+    "O#G#I##D#",
+    "PIANO##O#",
+    "I#G#N##F#",
+    "A#A#S####"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "across",
+      "answer": "ROCKYOU",
+      "clue": "\"We Will ___ ___\"",
+      "enumeration": "(4,3)"
+    },
+    {
+      "number": 2,
+      "direction": "down",
+      "answer": "CHAMPIONS",
+      "clue": "\"We Are the ___\", the closer",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 3,
+      "direction": "down",
+      "answer": "ETHIOPIA",
+      "clue": "Country the concert raised famine relief for",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "GELDOF",
+      "clue": "Bob who organised the concert",
+      "enumeration": "(6)"
+    },
+    {
+      "number": 5,
+      "direction": "across",
+      "answer": "WEMBLEY",
+      "clue": "London stadium of the 1985 set",
+      "enumeration": "(7)"
+    },
+    {
+      "number": 6,
+      "direction": "down",
+      "answer": "GAGA",
+      "clue": "\"Radio ___\", second song of the set",
+      "enumeration": "(4)"
+    },
+    {
+      "number": 7,
+      "direction": "across",
+      "answer": "PIANO",
+      "clue": "Instrument the set opened at",
+      "enumeration": "(5)"
+    }
+  ]
+}

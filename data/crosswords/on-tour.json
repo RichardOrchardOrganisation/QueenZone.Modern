@@ -1,0 +1,89 @@
+{
+  "slug": "on-tour",
+  "title": "On Tour",
+  "description": "A Queen-themed crossword about On Tour.",
+  "difficulty": "hard",
+  "width": 13,
+  "height": 13,
+  "style": "british",
+  "grid": [
+    "#####M##P####",
+    "###RIO##A#A##",
+    "#A###T##U#R#B",
+    "#D###T##L#G#U",
+    "MAGICTOUR#E#D",
+    "#M###H##O#N#A",
+    "#L###E##D#T#P",
+    "#A###H##G#I#E",
+    "#MILTONKEYNES",
+    "#B###O##R#A#T",
+    "#E###P##S####",
+    "#R###L#######",
+    "#T#KNEBWORTH#"
+  ],
+  "entries": [
+    {
+      "number": 1,
+      "direction": "down",
+      "answer": "MOTTTHEHOOPLE",
+      "clue": "Band Queen supported in 1973",
+      "enumeration": "(4,3,6)"
+    },
+    {
+      "number": 2,
+      "direction": "down",
+      "answer": "PAULRODGERS",
+      "clue": "Singer for Queen + in the 2000s",
+      "enumeration": "(4,7)"
+    },
+    {
+      "number": 3,
+      "direction": "across",
+      "answer": "RIO",
+      "clue": "Rock in ___, January 1985",
+      "enumeration": "(3)"
+    },
+    {
+      "number": 4,
+      "direction": "down",
+      "answer": "ARGENTINA",
+      "clue": "South American country of the 1981 stadium shows",
+      "enumeration": "(9)"
+    },
+    {
+      "number": 5,
+      "direction": "down",
+      "answer": "ADAMLAMBERT",
+      "clue": "Singer with Queen since 2011",
+      "enumeration": "(4,7)"
+    },
+    {
+      "number": 6,
+      "direction": "down",
+      "answer": "BUDAPEST",
+      "clue": "N\u00e9pstadion city, 1986",
+      "enumeration": "(8)"
+    },
+    {
+      "number": 7,
+      "direction": "across",
+      "answer": "MAGICTOUR",
+      "clue": "1986 tour",
+      "enumeration": "(5,4)"
+    },
+    {
+      "number": 8,
+      "direction": "across",
+      "answer": "MILTONKEYNES",
+      "clue": "Bowl venue filmed in 1982",
+      "enumeration": "(6,6)"
+    },
+    {
+      "number": 9,
+      "direction": "across",
+      "answer": "KNEBWORTH",
+      "clue": "1986 venue of Freddie's last show with Queen",
+      "enumeration": "(9)"
+    }
+  ]
+}
