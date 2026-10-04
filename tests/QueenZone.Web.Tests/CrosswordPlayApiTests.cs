@@ -343,6 +343,13 @@ public sealed class CrosswordPlayApiTests
         public Task<IReadOnlyList<CrosswordAuditItem>> GetAuditAsync(Guid id, CancellationToken cancellationToken = default) => inner.GetAuditAsync(id, cancellationToken);
         public Task<Guid> CreateDraftAsync(CrosswordSeed draft, Guid creatorId, string actor, CancellationToken cancellationToken = default) => inner.CreateDraftAsync(draft, creatorId, actor, cancellationToken);
         public Task SaveDraftAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default) => inner.SaveDraftAsync(id, draft, expectedRowVersion, actor, cancellationToken);
+        public Task<Guid> DuplicateAsync(Guid id, string newSlug, Guid creatorId, string actor, CancellationToken cancellationToken = default) =>
+            inner.DuplicateAsync(id, newSlug, creatorId, actor, cancellationToken);
+        public Task SaveEditorialAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor,
+            bool confirmProgressReset = false, CancellationToken cancellationToken = default) =>
+            inner.SaveEditorialAsync(id, draft, expectedRowVersion, actor, confirmProgressReset, cancellationToken);
+        public Task PublishSelectedAsync(IReadOnlyList<CrosswordPublishSelection> selection, string actor, CancellationToken cancellationToken = default) =>
+            inner.PublishSelectedAsync(selection, actor, cancellationToken);
         public Task SetPublicationAsync(Guid id, CrosswordStatus status, DateTimeOffset? publishAt, byte[] expectedRowVersion, string actor, CancellationToken cancellationToken = default) => inner.SetPublicationAsync(id, status, publishAt, expectedRowVersion, actor, cancellationToken);
         public Task<CrosswordImportResult> ImportAsync(IReadOnlyList<CrosswordSeed> seeds, Guid creatorId, string actor, bool publish = false, CancellationToken cancellationToken = default) => inner.ImportAsync(seeds, creatorId, actor, publish, cancellationToken);
     }

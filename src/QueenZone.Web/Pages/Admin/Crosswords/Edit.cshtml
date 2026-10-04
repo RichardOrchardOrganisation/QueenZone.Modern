@@ -1,0 +1,5 @@
+@page "/admin/crosswords/{id:guid}/edit"
+@model EditModel
+<partial name="_CrosswordEditor" model="Model" />
+@section Head { <link rel="stylesheet" href="~/css/admin-crossword.css" asp-append-version="true" /> }
+@section Scripts { <script type="module" src="~/js/admin-crossword-editor.js" asp-append-version="true"></script> }

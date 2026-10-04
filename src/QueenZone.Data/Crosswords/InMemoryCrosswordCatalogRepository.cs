@@ -5,6 +5,7 @@ namespace QueenZone.Data;
 public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICrosswordCatalogRepository
 {
     private readonly object gate = new();
+    internal event Action<CrosswordCatalogItem>? ResetInProgress;
     private readonly Dictionary<Guid, CrosswordEntity> puzzles = [];
     private readonly Dictionary<Guid, List<CrosswordAuditItem>> audit = [];
 
@@ -44,6 +45,19 @@ public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICr
     }
 
     public Task<Guid> CreateDraftAsync(CrosswordSeed draft, Guid creatorId, string actor,
+        CancellationToken cancellationToken = default) =>
+        CreateDraftCoreAsync(draft, creatorId, actor, "Created", cancellationToken);
+
+    public async Task<Guid> DuplicateAsync(Guid id, string newSlug, Guid creatorId, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        var source = await GetByIdAsync(id, cancellationToken) ?? throw new KeyNotFoundException("Crossword not found.");
+        var title = "Copy of " + source.Seed.Title;
+        var draft = source.Seed with { Slug = newSlug, Title = title[..Math.Min(200, title.Length)] };
+        return await CreateDraftCoreAsync(draft, creatorId, actor, "Duplicated", cancellationToken);
+    }
+
+    private Task<Guid> CreateDraftCoreAsync(CrosswordSeed draft, Guid creatorId, string actor, string auditAction,
         CancellationToken cancellationToken = default)
     {
         draft = CrosswordCatalogMapping.Normalize(draft, playable: false);
@@ -54,7 +68,7 @@ public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICr
             var entity = CrosswordCatalogMapping.Create(draft, creatorId, actor, clock.GetUtcNow(), publish: false);
             entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
             puzzles.Add(entity.Id, entity);
-            AddAudit(entity.Id, actor, "Created", "Draft created.");
+            AddAudit(entity.Id, actor, auditAction, auditAction == "Duplicated" ? "Grid and clues copied into a new Draft; no attempts copied." : "Draft created.");
             return Task.FromResult(entity.Id);
         }
     }
@@ -76,6 +90,50 @@ public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICr
             CrosswordCatalogMapping.Apply(entity, draft, actor, clock.GetUtcNow());
             entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
             AddAudit(id, actor, "Edited", "Draft grid and clues edited.");
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task SaveEditorialAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor,
+        bool confirmProgressReset = false, CancellationToken cancellationToken = default)
+    {
+        draft = CrosswordCatalogMapping.Normalize(draft, playable: false);
+        CrosswordCatalogMapping.ValidateActor(actor);
+        lock (gate)
+        {
+            var entity = puzzles[id];
+            QueenZoneConcurrency.EnsureRequiredRowVersion<OptimisticConcurrencyException>(entity.RowVersion, expectedRowVersion);
+            EnsureAvailableSlug(draft.Slug, id);
+            var changed = CrosswordCatalogMapping.PrepareEditorial(entity, draft, confirmProgressReset);
+            CrosswordCatalogMapping.Apply(entity, draft, actor, clock.GetUtcNow());
+            if (changed) ResetInProgress?.Invoke(CrosswordCatalogMapping.Read(entity));
+            entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
+            AddAudit(id, actor, "Edited", changed ? "Grid/answers edited; saved grids reset; completed attempts preserved." : "Editorial metadata and clues edited.");
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task PublishSelectedAsync(IReadOnlyList<CrosswordPublishSelection> selection, string actor, CancellationToken cancellationToken = default)
+    {
+        CrosswordCatalogMapping.ValidateActor(actor);
+        if (selection.Count > 100 || selection.Select(row => row.Id).Distinct().Count() != selection.Count)
+            throw new ArgumentException("Select up to 100 distinct puzzles.", nameof(selection));
+        lock (gate)
+        {
+            var now = clock.GetUtcNow();
+            foreach (var row in selection)
+            {
+                var entity = puzzles[row.Id];
+                QueenZoneConcurrency.EnsureRequiredRowVersion<OptimisticConcurrencyException>(entity.RowVersion, row.RowVersion);
+                CrosswordCatalogMapping.ValidatePublication(entity, CrosswordStatus.Published, null, now);
+            }
+            foreach (var row in selection)
+            {
+                var entity = puzzles[row.Id];
+                CrosswordCatalogMapping.SetPublication(entity, CrosswordStatus.Published, null, actor, now);
+                entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
+                AddAudit(row.Id, actor, "Published", "Published from admin selection.");
+            }
             return Task.CompletedTask;
         }
     }

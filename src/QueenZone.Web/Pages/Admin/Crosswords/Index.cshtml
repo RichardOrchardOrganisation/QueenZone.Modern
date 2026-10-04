@@ -1,0 +1,23 @@
+@page "/admin/crosswords"
+@model IndexModel
+@using QueenZone.Data.Entities
+<div class="admin-shell">
+<h1>Crosswords</h1>
+<p><a href="/admin/crosswords/new">New crossword</a> · <a href="/admin/crosswords/import">Import JSON</a></p>
+@if (Model.Error is not null) { <p role="alert">@Model.Error</p> }
+<form method="get"><label>Title <input name="search" value="@Model.Search" /></label>
+<label>Status <select name="status"><option value="">All statuses</option>@foreach (var status in Enum.GetValues<CrosswordStatus>()) { <option value="@status" selected="@(Model.Status == status.ToString())">@status</option> }</select></label>
+<label>Publish date <select name="sort"><option value="newest">Newest first</option><option value="oldest" selected="@(Model.Sort == "oldest")">Oldest first</option></select></label><button>Filter</button></form>
+<form method="post" asp-page-handler="PublishSelected" id="crossword-bulk"><button>Publish selected</button></form>
+<div style="overflow-x:auto"><table class="admin-table"><caption>Crossword catalogue</caption><thead><tr><th>Select</th><th>Title / slug</th><th>Difficulty / size</th><th>Status / publish date (UTC)</th><th>Last edited</th><th>Starts / completions</th><th>Actions</th></tr></thead><tbody>
+@foreach (var puzzle in Model.Puzzles) {
+<tr><td><label><span class="visually-hidden">Select @puzzle.Seed.Title</span><input type="checkbox" name="ids" value="@puzzle.Id" form="crossword-bulk" data-token="@Convert.ToBase64String(puzzle.RowVersion)" /></label></td><td>@puzzle.Seed.Title<br /><small>@puzzle.Seed.Slug</small></td><td>@puzzle.Seed.Difficulty · @puzzle.Seed.Grid.Width × @puzzle.Seed.Grid.Height</td><td>@puzzle.Status<br />@puzzle.PublishAt?.ToString("u")</td><td>@puzzle.UpdatedByEmail<br />@puzzle.UpdatedAt.ToString("u")</td><td>@Model.Counts[puzzle.Id].Starts / @Model.Counts[puzzle.Id].Completions</td><td>
+<a href="/admin/crosswords/@puzzle.Id/edit">Edit</a> · <a href="/admin/crosswords/@puzzle.Id/preview">Preview</a>
+<form method="post" asp-page-handler="Publication"><input type="hidden" name="id" value="@puzzle.Id" /><input type="hidden" name="rowVersion" value="@Convert.ToBase64String(puzzle.RowVersion)" />
+<button name="status" value="Published">Publish now</button><button name="status" value="Draft">Unpublish</button><button name="status" value="Archived">Archive</button>
+<label>Schedule (UTC) <input type="datetime-local" name="publishAt" /></label><button name="status" value="Scheduled">Schedule</button></form>
+<form method="post" asp-page-handler="Duplicate"><input type="hidden" name="id" value="@puzzle.Id" /><label>New slug <input name="newSlug" required value="@puzzle.Seed.Slug-copy" /></label><button>Duplicate</button></form>
+</td></tr> }
+</tbody></table></div>
+</div>
+@section Scripts { <script src="~/js/admin-crossword-list.js" asp-append-version="true"></script> }

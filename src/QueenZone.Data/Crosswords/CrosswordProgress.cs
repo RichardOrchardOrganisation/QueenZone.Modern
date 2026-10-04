@@ -20,6 +20,7 @@ public sealed class CrosswordRankingOptions
 public interface ICrosswordProgressRepository
 {
     Task<CrosswordProgress?> GetAsync(Guid crosswordId, Guid memberId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CrosswordProgress>> GetForPuzzleAsync(Guid crosswordId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CrosswordProgress>> GetForMemberAsync(Guid memberId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CrosswordCompletion>> GetCompletionsAsync(Guid? crosswordId, Guid? memberId,
         CancellationToken cancellationToken = default);
@@ -51,6 +52,17 @@ internal static class CrosswordProgressMapping
             StartedAt = now,
             UpdatedAt = DateTimeOffset.MinValue
         };
+    }
+
+    public static void Reset(CrosswordProgressEntity entity, CrosswordCatalogItem puzzle)
+    {
+        entity.PlayVersion = puzzle.PlayVersion;
+        entity.GridFingerprint = CrosswordPlayRules.GridFingerprint(puzzle.Seed.Grid);
+        entity.Letters = CrosswordPlayRules.EmptyLetters(puzzle.Seed.Grid);
+        entity.RevealedCellsJson = "[]";
+        entity.ElapsedSeconds = 0;
+        entity.AutoCheckUsed = false;
+        entity.UpdatedAt = DateTimeOffset.MinValue;
     }
 
     public static CrosswordProgress Read(CrosswordProgressEntity entity) => new(entity.CrosswordId, entity.Letters,

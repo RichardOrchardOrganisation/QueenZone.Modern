@@ -1,0 +1,30 @@
+@model QueenZone.Web.Pages.Admin.Crosswords.EditModel
+<div class="admin-shell" data-crossword-editor>
+<p><a href="/admin/crosswords">Crosswords</a></p><h1>@(Model.Puzzle is null ? "New crossword" : "Edit crossword")</h1>
+@if (Model.Error is not null) { <p role="alert">@Model.Error</p> }
+<form method="post" data-editor-form>
+<input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+<label data-json-label>Crossword JSON (available without JavaScript)<textarea name="SeedJson" data-seed rows="15">@Model.SeedJson</textarea></label>
+<div data-builder hidden>
+<label>Title <input data-field="title" maxlength="200" required /></label><label>Slug <input data-field="slug" maxlength="100" required pattern="[a-z0-9]+(-[a-z0-9]+)*" /></label>
+<label>Description <textarea data-field="description" maxlength="1000"></textarea></label>
+<label>Difficulty <select data-field="difficulty"><option>easy</option><option>medium</option><option>hard</option></select></label>
+<label>Style <select data-field="style"><option>british</option><option>american</option></select></label>
+<label>Width <input type="number" data-field="width" min="5" max="15" required /></label><label>Height <input type="number" data-field="height" min="5" max="15" required /></label>
+<fieldset><legend>Builder mode</legend><label><input type="radio" name="mode" value="blocks" checked /> Blocks</label><label><input type="radio" name="mode" value="letters" /> Letters</label><label><input type="checkbox" data-symmetry checked /> 180° block symmetry</label></fieldset>
+<p>Choose a cell. In Letters mode, type A–Z; Backspace clears. Arrow keys move. Block changes recalculate entries; check every clue after changing the grid.</p>
+<div class="admin-crossword-builder"><div data-grid role="group" aria-label="Solution grid"></div><section aria-labelledby="builder-clues"><h2 id="builder-clues">Clues and explanations</h2><div data-clues></div></section></div>
+<section aria-labelledby="builder-validation"><h2 id="builder-validation">Validation</h2><div data-validation role="status" aria-live="polite"></div></section>
+</div>
+@if (Model.Puzzle is not null) { <label><input type="checkbox" name="ConfirmProgressReset" value="true" /> Members with progress on this puzzle will have their progress reset if I change the grid or answers. Completed attempts are kept.</label> }
+<button type="submit">Save @(Model.Puzzle is null || Model.Puzzle.Status == QueenZone.Data.Entities.CrosswordStatus.Draft ? "draft" : "changes")</button>
+</form>
+@if (Model.Puzzle is not null) {
+<p><a href="/admin/crosswords/@Model.Puzzle.Id/preview">Preview as a solver</a> · <a href="?handler=Export">Export JSON with answers</a></p>
+@if (Model.Statistics is { } stats) {
+<h2>Member statistics</h2><dl><dt>Starts</dt><dd>@stats.Starts</dd><dt>Completions</dt><dd>@stats.Completions</dd><dt>Completion rate</dt><dd>@stats.CompletionRate.ToString("P1")</dd><dt>Clean-solve rate</dt><dd>@stats.CleanSolveRate.ToString("P1")</dd><dt>Median solve time</dt><dd>@(stats.MedianSeconds is { } seconds ? seconds.ToString("0.##") + " seconds" : "No completed solves")</dd></dl>
+<h3>Most-revealed entries in the current grid</h3><ol>@foreach (var entry in stats.MostRevealed) { <li>@entry.Number @entry.Direction — @entry.Count members</li> }</ol>
+}
+<h2>Audit log</h2><ol>@foreach (var entry in Model.Audit) { <li>@entry.CreatedAt.ToString("u") — @entry.Actor — @entry.Action: @entry.Summary</li> }</ol>
+}
+</div>

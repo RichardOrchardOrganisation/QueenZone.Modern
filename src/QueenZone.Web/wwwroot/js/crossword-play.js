@@ -7,14 +7,16 @@ if (root) await initialise(root);
 async function initialise(root) {
     const config = JSON.parse(root.querySelector('[data-puzzle]').textContent);
     const puzzle = config.puzzle;
-    let memberId = config.memberId ?? (config.offlineShell ? accountHint() : null);
-    if (!config.offlineShell) rememberAccount(memberId);
+    let memberId = config.preview ? null : config.memberId ?? (config.offlineShell ? accountHint() : null);
+    if (!config.offlineShell && !config.preview) rememberAccount(memberId);
     const model = core.createModel(puzzle);
     const find = selector => root.querySelector(selector);
     const cells = [...root.querySelectorAll('[data-cell]')];
     const clues = [...root.querySelectorAll('[data-clue]')];
     const input = find('[data-input]');
-    const storage = { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value) };
+    const previewStorage = new Map();
+    const storage = config.preview ? { getItem: key => previewStorage.get(key) ?? null, setItem: (key, value) => previewStorage.set(key, value) } :
+        { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value) };
     let key = core.progressStorageKey(puzzle.id, memberId);
     let requestToken = find('[data-antiforgery] input')?.value;
     let updatedAt = Date.now();
@@ -245,6 +247,7 @@ async function initialise(root) {
     setInterval(updateTime, 1000);
 
     async function refreshSession() {
+        if (config.preview) return;
         const session = await request('Session');
         if (memberId !== session.memberId) {
             completed = false;

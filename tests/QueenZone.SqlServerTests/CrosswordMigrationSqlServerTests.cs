@@ -159,5 +159,35 @@ public sealed class CrosswordMigrationSqlServerTests : IAsyncLifetime
         Assert.Empty(await db.CrosswordCompletions.ToListAsync());
     }
 
+    [Fact]
+    public async Task Live_editorial_answer_change_resets_all_saved_grids_and_keeps_immutable_completion()
+    {
+        var catalog = new EfCrosswordCatalogRepository(db, TimeProvider.System);
+        var seed = CrosswordSampleData.Load().Single(seed => seed.Slug == "meet-the-band");
+        await catalog.ImportAsync([seed], Guid.NewGuid(), "sql-import", publish: true);
+        var puzzle = Assert.Single(await catalog.GetAllAsync());
+        var progress = new EfCrosswordProgressRepository(db, TimeProvider.System, new());
+        var active = Guid.NewGuid(); var completed = Guid.NewGuid(); var now = DateTimeOffset.UtcNow;
+        var write = new CrosswordProgressWrite(CrosswordPlayRules.EmptyLetters(seed.Grid), 120, [], false, now, puzzle.PlayVersion);
+        await progress.SaveAsync(puzzle.Id, active, write);
+        var finished = await progress.CompleteAsync(puzzle.Id, completed, write with { Letters = string.Concat(seed.Grid.Rows) });
+        var replacement = CrosswordSampleData.Load().Single(seed => seed.Slug == "live-aid") with { Slug = seed.Slug };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.SaveEditorialAsync(puzzle.Id, replacement, puzzle.RowVersion, "editor"));
+        Assert.NotNull(await progress.GetAsync(puzzle.Id, active));
+        await catalog.SaveEditorialAsync(puzzle.Id, replacement, puzzle.RowVersion, "editor", confirmProgressReset: true);
+        var updated = (await catalog.GetByIdAsync(puzzle.Id))!;
+        Assert.NotEqual(puzzle.PlayVersion, updated.PlayVersion); Assert.Equal(CrosswordStatus.Published, updated.Status);
+        Assert.Equal(updated.PlayVersion, (await progress.GetAsync(puzzle.Id, active))!.PlayVersion); Assert.Equal(updated.PlayVersion, (await progress.GetAsync(puzzle.Id, completed))!.PlayVersion);
+        Assert.Equal(CrosswordPlayRules.EmptyLetters(updated.Seed.Grid), (await progress.GetAsync(puzzle.Id, completed))!.Letters);
+        await progress.MarkAssistanceAsync(puzzle.Id, completed, [], true, updated.PlayVersion);
+        Assert.Equal(finished.Completion, Assert.Single(await progress.GetCompletionsAsync(puzzle.Id, completed)));
+        await Assert.ThrowsAsync<OptimisticConcurrencyException>(() => progress.SaveAsync(puzzle.Id, active, write));
+        Assert.Equal(updated.PlayVersion, (await progress.GetAsync(puzzle.Id, active))!.PlayVersion);
+        var fresh = write with { Letters = CrosswordPlayRules.EmptyLetters(updated.Seed.Grid), PlayVersion = updated.PlayVersion };
+        await progress.SaveAsync(puzzle.Id, active, fresh);
+        Assert.Equal(updated.PlayVersion, (await progress.GetAsync(puzzle.Id, active))!.PlayVersion);
+        Assert.Single(await catalog.GetAuditAsync(puzzle.Id), audit => audit.Action == "Edited");
+    }
+
     private sealed class EmptyContext(DbContextOptions<EmptyContext> options) : DbContext(options);
 }
