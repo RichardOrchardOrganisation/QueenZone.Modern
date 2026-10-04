@@ -60,6 +60,7 @@ public class E2ECategoryGuardTests
         var expected = new[]
         {
             nameof(AccessibilitySmokeTests),
+            nameof(AdminCrosswordTests),
             nameof(AdminEditReloadDiagnosticsTests),
             nameof(AdminSearchGotoDiagnosticsTests),
             nameof(AdminSmokeTests),

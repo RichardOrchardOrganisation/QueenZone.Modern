@@ -52,8 +52,13 @@ public sealed class EditModel(ICrosswordCatalogRepository catalog, ICrosswordPro
     {
         var parsed = CrosswordSeedJson.ParseDraft(Encoding.UTF8.GetBytes(seed.GetRawText()));
         var validation = parsed.Seed is null ? null : CrosswordGridValidator.Validate(parsed.Seed.Grid);
-        return new JsonResult(new { parsed.Errors, parsed.Warnings, Runs = validation?.Runs.Select(run => new
-            { run.Number, Direction = run.Direction == CrosswordDirection.Across ? "across" : "down", run.Row, run.Column, run.Answer }) });
+        return new JsonResult(new
+        {
+            parsed.Errors,
+            parsed.Warnings,
+            Runs = validation?.Runs.Select(run => new
+            { run.Number, Direction = run.Direction == CrosswordDirection.Across ? "across" : "down", run.Row, run.Column, run.Answer })
+        });
     }
     public async Task<IActionResult> OnGetExportAsync(Guid id, CancellationToken cancellationToken)
     {

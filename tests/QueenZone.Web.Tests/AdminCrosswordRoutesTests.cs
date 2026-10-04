@@ -16,9 +16,12 @@ public sealed class AdminCrosswordRoutesTests
         await using var host = new QueenZoneWebApplicationFactory(); using var admin = host.CreateAdminClient();
         var catalog = host.Services.GetRequiredService<ICrosswordCatalogRepository>();
         var puzzles = (await catalog.GetAllAsync()).Take(2).ToArray();
-        var fields = new Dictionary<string, string> {
-            ["ids[0]"] = puzzles[0].Id.ToString(), ["ids[1]"] = puzzles[1].Id.ToString(),
-            ["rowVersions[0]"] = Convert.ToBase64String(puzzles[0].RowVersion), ["rowVersions[1]"] = Convert.ToBase64String([7])
+        var fields = new Dictionary<string, string>
+        {
+            ["ids[0]"] = puzzles[0].Id.ToString(),
+            ["ids[1]"] = puzzles[1].Id.ToString(),
+            ["rowVersions[0]"] = Convert.ToBase64String(puzzles[0].RowVersion),
+            ["rowVersions[1]"] = Convert.ToBase64String([7])
         };
         var path = "/admin/crosswords?handler=PublishSelected";
         Assert.Equal(HttpStatusCode.OK, (await AdminHttpTestHelpers.PostArticleAsync(admin, "/admin/crosswords", path, fields)).StatusCode);
@@ -28,7 +31,8 @@ public sealed class AdminCrosswordRoutesTests
         Assert.Contains("Invalid selection", await invalid.Content.ReadAsStringAsync());
         fields["rowVersions[1]"] = Convert.ToBase64String(puzzles[1].RowVersion);
         Assert.Equal(HttpStatusCode.Redirect, (await AdminHttpTestHelpers.PostArticleAsync(admin, "/admin/crosswords", path, fields)).StatusCode);
-        foreach (var puzzle in puzzles) {
+        foreach (var puzzle in puzzles)
+        {
             Assert.Equal(CrosswordStatus.Published, (await catalog.GetByIdAsync(puzzle.Id))!.Status);
             Assert.Single(await catalog.GetAuditAsync(puzzle.Id), row => row.Action == "Published");
         }
