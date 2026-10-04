@@ -9,6 +9,10 @@ appId: org.queenzone.mobile
     visible:
       id: home-screen
     timeout: 45000
+- scrollUntilVisible:
+    element:
+      id: home-hero
+    direction: DOWN
 - extendedWaitUntil:
     visible:
       id: home-hero

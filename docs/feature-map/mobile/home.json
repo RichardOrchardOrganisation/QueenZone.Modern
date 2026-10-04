@@ -10,7 +10,8 @@
         "home screen"
       ],
       "sources": [
-        "src/QueenZone.Mobile/src/screens/home/HomeScreen.tsx"
+        "src/QueenZone.Mobile/src/screens/home/HomeScreen.tsx",
+        "src/QueenZone.Mobile/src/screens/home/HomeCrosswordCard.tsx"
       ],
       "testIds": [
         "homeScreen",
@@ -18,7 +19,8 @@
         "homeQuote",
         "homeSearch",
         "homeMessages",
-        "tabHome"
+        "tabHome",
+        "homeCrosswordCard"
       ],
       "flows": [
         "src/QueenZone.Mobile/maestro/flows/01-launch.yaml",
@@ -63,7 +65,7 @@
       "id": "mobile.home.quote",
       "name": "Quote",
       "screen": "HomeStack/Quote",
-      "entry": "Home → quote card"
+      "entry": "Home \u2192 quote card"
     }
   ]
 }

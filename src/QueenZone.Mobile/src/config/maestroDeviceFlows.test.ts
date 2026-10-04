@@ -456,11 +456,13 @@ describe('device-smoke harness (#1281)', () => {
     const script = readRepo('run-mobile-device-smoke.sh', scriptsDir);
     const attach = readMaestro('flows/10-forum-attach.yaml');
     const androidClearIdx = script.indexOf('adb shell pm clear org.queenzone.mobile');
-    const iosClearIdx = script.indexOf('simctl uninstall booted org.queenzone.mobile');
+    const iosClearIdx = script.indexOf('simctl uninstall "${IOS_SIM_UDID:-booted}" org.queenzone.mobile');
     const fixtureIdx = script.lastIndexOf('push_attach_fixture');
 
     assert.ok(androidClearIdx >= 0 && androidClearIdx < fixtureIdx);
     assert.ok(iosClearIdx >= 0 && iosClearIdx < fixtureIdx);
+    assert.doesNotMatch(script, /xcrun simctl (?:install|uninstall|get_app_container|spawn|io) booted/);
+    assert.ok(script.includes('export MAESTRO_TARGET_DEVICE="$IOS_SIM_UDID"'));
     assert.doesNotMatch(script, /adb push/);
     assert.match(script, /file:\/\/\/data\/user\/0\/org\.queenzone\.mobile\/cache\/attach\.txt/);
     assert.doesNotMatch(attach, /clearState: true/);

@@ -234,7 +234,10 @@ export function chooseProgress(model, playVersion, local, server) {
     const device = parseProgress(model, playVersion, local);
     const remote = parseProgress(model, playVersion, server);
     const restoredFromServer = remote !== null && (device === null || Date.parse(remote.updatedAt) > Date.parse(device.updatedAt));
-    return { progress: restoredFromServer ? remote : device ?? remote, restoredFromServer };
+    const chosen = restoredFromServer ? remote : device ?? remote;
+    if (chosen === null) return { progress: null, restoredFromServer };
+    const revealedCells = [...new Set([...(device?.revealedCells ?? []), ...(remote?.revealedCells ?? [])])].sort((a, b) => a - b);
+    return { progress: { ...chosen, revealedCells, autoCheckUsed: Boolean(device?.autoCheckUsed || remote?.autoCheckUsed) }, restoredFromServer };
 }
 
 export function progressStorageKey(puzzleId, memberId = null) {

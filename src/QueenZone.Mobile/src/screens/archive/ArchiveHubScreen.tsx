@@ -27,6 +27,7 @@ const archiveRoutes: Record<ArchiveDestination['id'], (navigation: Props['naviga
   'fan-performances': (navigation) => navigation.navigate('FanPerformances'),
   'recently-restored': (navigation) => navigation.navigate('PhotosTab', { screen: 'PhotoIndex' }),
   'trivia': (navigation) => navigation.navigate('Trivia'),
+  'crosswords': (navigation) => navigation.navigate('CrosswordList'),
   'quiz': (navigation) => navigation.navigate('QuizSprint'),
   'about': (navigation) => navigation.navigate('AboutArchive'),
 };

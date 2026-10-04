@@ -850,8 +850,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         Alert.alert(
           inspectionFailed ? 'Unable to check pending sends' : 'Discard pending sends?',
           inspectionFailed
-            ? 'Pending messages and replies could not be checked. Sign out and discard any pending sends when storage is available?'
-            : 'Messages and replies waiting to send will be deleted.',
+            ? 'Pending messages, replies and crossword saves could not be checked. Sign out and discard pending changes when storage is available?'
+            : 'Messages, replies and crossword saves waiting to sync will be deleted.',
           [
             { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
             { text: 'Sign out', style: 'destructive', onPress: () => resolve(true) },
