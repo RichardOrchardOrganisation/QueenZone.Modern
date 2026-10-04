@@ -37,7 +37,10 @@ reveal records the revealed cells before returning letters. Neither is classifie
 as read-only. Cookie identity is not used for these optional API mutations.
 Member-only `PUT /api/v1/crosswords/{id}/progress` and `POST .../complete` use
 `qz-authenticated-write` and the mobile bearer policy. Website equivalents use
-antiforgery-protected Razor handlers. Progress writes retain assistance flags even
+antiforgery-protected Razor handlers: the `/crosswords/{slug}` play page applies
+`qz-anonymous-write` to its Check, Reveal, Save and Complete POSTs, including
+member calls. This keeps the entire mixed public/member page IP-limited while
+all GET handlers bypass mutation counting. Progress writes retain assistance flags even
 when an older device sends a clean flag, and completion is checked server-side.
 
 The following non-admin surfaces opt in. Website and API equivalents use the

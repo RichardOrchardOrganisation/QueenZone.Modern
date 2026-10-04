@@ -6,6 +6,7 @@
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#111111",
+  "shortcuts": [{ "name": "Crosswords", "short_name": "Crosswords", "url": "/crosswords" }],
   "icons": [
     {
       "src": "/apple-touch-icon.png",
