@@ -35,7 +35,8 @@ public sealed class AdminCrosswordTests : E2EPageTest
         await Page.GetByLabel("Slug", new() { Exact = true }).FillAsync(slug);
         await Page.GetByRole(AriaRole.Radio, new() { Name = "Letters", Exact = true }).CheckAsync();
         await Page.Locator("[data-grid] button").First.ClickAsync();
-        await Page.Keyboard.TypeAsync(new string('A', 25), new() { Delay = 20 });
+        // Physical key presses also exercise WebKit's non-text grid buttons.
+        for (var index = 0; index < 25; index++) await Page.Keyboard.PressAsync("A");
         await Expect(Page.Locator("[data-clues] fieldset")).ToHaveCountAsync(10);
         var clues = Page.Locator("[data-clues]").GetByLabel("Clue", new() { Exact = true });
         for (var index = 0; index < 10; index++) await clues.Nth(index).FillAsync("The first letter repeated five times");

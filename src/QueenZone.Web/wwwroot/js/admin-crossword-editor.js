@@ -55,7 +55,7 @@ if (root) {
         button.append(document.createTextNode(cellValue(index) === '.' ? '' : cellValue(index)));
         button.setAttribute('aria-label', `Row ${Math.floor(index / seed.width) + 1}, column ${index % seed.width + 1}, ${cellValue(index) === '#' ? 'block' : cellValue(index) === '.' ? 'empty' : cellValue(index)}${number ? `, number ${number}` : ''}`);
         button.addEventListener('click', () => {
-          selected = index;
+          selected = index; button.focus();
           if (form.querySelector('input[name=mode]:checked').value !== 'blocks') return;
           const value = cellValue(index) === '#' ? '.' : '#'; setCell(index, value);
           if (root.querySelector('[data-symmetry]').checked) setCell(seed.width * seed.height - index - 1, value);
