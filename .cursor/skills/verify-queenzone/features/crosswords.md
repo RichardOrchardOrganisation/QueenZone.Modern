@@ -15,7 +15,7 @@ Visitors browse published puzzles and solve them with keyboard or touch, check o
 
 ## Driving it with the browser
 
-Preconditions: isolated Testing host with `CrosswordBrowserFixture__Enabled=true`; ten published in-memory samples. The normal Testing catalogue has drafts only. Automated journeys use their own PID-scoped published Testing host, never an existing shared listener.
+Preconditions: isolated Testing host with `CrosswordBrowserFixture__Enabled=true`; ten published in-memory samples. The normal Testing catalogue has drafts only. Automated journeys use `scripts/run-crossword-web-tests.sh` with `QZ_CROSSWORD_PUBLISH_DIR` pointing at licensed published Web output and a built E2E project. It creates a PID-scoped Testing host on a random loopback port, never an existing shared listener. `QZ_TEST_BROWSER` chooses Chromium, Firefox or WebKit; `QZ_TEST_FILTER=TestCategory=Deterministic` runs the ordinary browser regression suite.
 
 - Browse: open `/crosswords`; confirm Queen crosswords and choose Meet the band. Change filters and check the visible cards.
 - Keyboard: select a grid cell, type a letter, use Space, arrows, Tab, Shift+Tab and Backspace. Confirm the active clue and letters. Use Ctrl/Command+Enter to check the word.
@@ -30,4 +30,4 @@ Preconditions: isolated Testing host with `CrosswordBrowserFixture__Enabled=true
 - Only disposable Testing fixtures can publish samples for this recipe; never edit live data to enable proof.
 - Cached play HTML is a public shell with no member identity or anti-forgery token. Member identity hints partition local progress and never authorise requests.
 - Browser mobile emulation does not prove a real soft keyboard, VoiceOver, TalkBack or native mobile app.
-- Print-media screenshots do not establish actual A4/Letter pagination; physical PWA installation remains a manual check.
+- Chromium captures actual A4/Letter PDFs for pagination and print-media screenshots. Physical PWA installation remains a manual check.

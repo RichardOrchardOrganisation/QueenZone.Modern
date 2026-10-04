@@ -7,7 +7,6 @@ namespace QueenZone.Web.E2E;
 
 [TestFixture]
 [Category(E2ECategories.Deterministic)]
-[Category(E2ECategories.ReadOnly)]
 public sealed class CrosswordPlayTests : E2EPageTest
 {
     [Test]
