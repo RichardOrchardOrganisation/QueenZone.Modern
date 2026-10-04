@@ -1,0 +1,9 @@
+# Admin crosswords (#2055)
+
+Use the existing admin scheme and AllowedEmails policy. Never enable a live database for browser fixtures. The Testing-only crossword fixture can publish disposable sample puzzles for solver proof.
+
+From an admin session open `/admin/crosswords`; filter status/title and inspect publish dates (UTC), edit actor/time and member starts/completions. Create a 5×5 using Blocks/180° symmetry or Letters, inspect numbered generated clues, and fix validator errors. Drafts may retain errors; publication must reject them. Save/reload must retain grid/clue/explanation data. A stale edit token must show conflict without overwriting.
+
+For an existing valid Draft, Preview uses the real solver. Type/check/reveal, toggle Show answers and choose 360px/mobile or desktop. Verify preview localStorage is unchanged and no progress/completion rows are created. Export/import JSON with answers; validate before creating a new Draft. Slug collisions must never overwrite. Duplicate copies grid/clues into a new Draft with no attempts and exactly one Duplicated audit row. Published grid/answer edits require the explicit progress-reset checkbox, reset all saved grids to the current version atomically (retaining start timestamps) and retain immutable completed attempts. Clue-only edits keep playVersion and progress stable.
+
+Portable Veronica proof: licensed publish, then `QZ_CROSSWORD_PUBLISH_DIR=<published-dir> QZ_TEST_CONFIGURATION=Release QZ_TEST_FILTER='FullyQualifiedName~AdminCrosswordTests|FullyQualifiedName~CrosswordPlayTests' bash scripts/run-crossword-web-tests.sh`. The runner owns its loopback host PID; do not use Run-E2E.ps1 broad process termination. Strict main-content WCAG 2.1 checks have no new exception; existing site-chrome exceptions are unchanged. SQL Server live-edit reset must also run in the normal SQL CI shard; SQLite is not proof of SQL Server transaction and rowversion behavior.

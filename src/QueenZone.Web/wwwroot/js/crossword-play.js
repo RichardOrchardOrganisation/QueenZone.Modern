@@ -7,14 +7,16 @@ if (root) await initialise(root);
 async function initialise(root) {
     const config = JSON.parse(root.querySelector('[data-puzzle]').textContent);
     const puzzle = config.puzzle;
-    let memberId = config.memberId ?? (config.offlineShell ? accountHint() : null);
-    if (!config.offlineShell) rememberAccount(memberId);
+    let memberId = config.preview ? null : config.memberId ?? (config.offlineShell ? accountHint() : null);
+    if (!config.offlineShell && !config.preview) rememberAccount(memberId);
     const model = core.createModel(puzzle);
     const find = selector => root.querySelector(selector);
     const cells = [...root.querySelectorAll('[data-cell]')];
     const clues = [...root.querySelectorAll('[data-clue]')];
     const input = find('[data-input]');
-    const storage = { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value) };
+    const previewStorage = new Map();
+    const storage = config.preview ? { getItem: key => previewStorage.get(key) ?? null, setItem: (key, value) => previewStorage.set(key, value) } :
+        { getItem: key => window.localStorage.getItem(key), setItem: (key, value) => window.localStorage.setItem(key, value) };
     let baseKey = core.progressStorageKey(puzzle.id, memberId);
     let practice = practiceEnabled();
     let key = practice ? `${baseKey}:practice` : baseKey;
@@ -105,6 +107,8 @@ async function initialise(root) {
         find('[data-pause]').textContent = timer.paused ? 'Resume' : 'Pause';
         previousEntry = state.entry;
         updateTime();
+        positionInput();
+        if (document.activeElement === input) requestAnimationFrame(keepSelectionVisible);
     }
 
     function updateTime() {
@@ -199,9 +203,38 @@ async function initialise(root) {
         finally { checkingCompletion = false; }
     }
 
+    function selectedCell() { return cells.find(cell => Number(cell.dataset.cell) === state.cell); }
+    function positionInput() {
+        const cell = selectedCell();
+        if (!cell) return;
+        const bounds = cell.getBoundingClientRect();
+        const board = find('.qz-crossword-board').getBoundingClientRect();
+        input.style.top = `${bounds.top - board.top}px`;
+        input.style.left = `${bounds.left - board.left}px`;
+    }
+    function keepSelectionVisible() {
+        if (document.activeElement !== input || timer.paused || completed) return;
+        const cell = selectedCell();
+        if (!cell) return;
+        const scroller = find('[data-grid-scroll]');
+        let bounds = cell.getBoundingClientRect();
+        const gridBounds = scroller.getBoundingClientRect();
+        if (bounds.left < gridBounds.left + 4) scroller.scrollLeft += bounds.left - gridBounds.left - 4;
+        else if (bounds.right > gridBounds.right - 4) scroller.scrollLeft += bounds.right - gridBounds.right + 4;
+        bounds = cell.getBoundingClientRect();
+        const top = Math.max(viewport?.offsetTop ?? 0, document.querySelector('[data-masthead]')?.getBoundingClientRect().bottom ?? 0) + 12;
+        const bottom = root.classList.contains('keyboard-open') ? find('[data-active-clue]').getBoundingClientRect().top - 12 :
+            (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight) - 12;
+        if (bottom - top >= bounds.height) {
+            if (bounds.bottom > bottom) window.scrollBy({ top: bounds.bottom - bottom, behavior: 'instant' });
+            else if (bounds.top < top) window.scrollBy({ top: bounds.top - top, behavior: 'instant' });
+        }
+        positionInput();
+    }
     function focusCell() {
-        cells.find(cell => Number(cell.dataset.cell) === state.cell)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        positionInput();
         input.focus({ preventScroll: true });
+        requestAnimationFrame(keepSelectionVisible);
     }
 
     cells.forEach(cell => cell.addEventListener('click', () => {
@@ -214,12 +247,16 @@ async function initialise(root) {
         for (const letter of input.value) changed(core.typeLetter(model, state, letter));
         input.value = '';
     });
+    input.addEventListener('beforeinput', event => {
+        if (event.inputType !== 'deleteContentBackward' && event.inputType !== 'deleteContentForward') return;
+        event.preventDefault(); changed(core.deleteLetter(model, state)); input.value = '';
+    });
     root.addEventListener('keydown', event => {
         if (event.key === 'Escape') { find('[data-menu]').open = false; return; }
         if (event.target !== input && !event.target.matches('[data-cell]')) return;
         if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void check('entry'); }
         else if (event.key === 'Tab') { event.preventDefault(); state = core.nextEntry(model, state, event.shiftKey ? -1 : 1); render(); focusCell(); }
-        else if (event.key === ' ') { event.preventDefault(); state = core.toggleDirection(model, state); render(); }
+        else if (event.key === ' ' && event.code === 'Space' && !event.isComposing && !root.classList.contains('keyboard-open')) { event.preventDefault(); state = core.toggleDirection(model, state); render(); }
         else if (event.key.startsWith('Arrow')) { event.preventDefault(); state = core.arrow(model, state, event.key); render(); focusCell(); }
         else if (event.key === 'Backspace' || event.key === 'Delete') { event.preventDefault(); changed(core.deleteLetter(model, state)); }
         else if (event.target !== input && /^[a-z]$/i.test(event.key)) { event.preventDefault(); changed(core.typeLetter(model, state, event.key)); }
@@ -284,17 +321,23 @@ async function initialise(root) {
         void maybeComplete();
     });
     const viewport = window.visualViewport;
+    let unfocusedViewportHeight = viewport?.height ?? window.innerHeight;
     function keyboard() {
-        const inset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+        const focused = document.activeElement === input;
+        if (!focused) unfocusedViewportHeight = Math.max(unfocusedViewportHeight, viewport?.height ?? window.innerHeight);
+        const inset = viewport ? Math.max(0, document.documentElement.clientHeight - viewport.height - viewport.offsetTop) : 0;
         root.style.setProperty('--keyboard-inset', `${inset}px`);
-        root.classList.toggle('keyboard-open', inset > 100);
-        if (inset > 100) cells.find(cell => Number(cell.dataset.cell) === state.cell)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        root.classList.toggle('keyboard-open', focused && (inset > 100 || unfocusedViewportHeight - (viewport?.height ?? window.innerHeight) > 100));
+        requestAnimationFrame(keepSelectionVisible);
     }
     viewport?.addEventListener('resize', keyboard);
     viewport?.addEventListener('scroll', keyboard);
+    input.addEventListener('focus', keyboard);
+    input.addEventListener('blur', keyboard);
     setInterval(updateTime, 1000);
 
     async function refreshSession() {
+        if (config.preview) return;
         const session = await request('Session');
         if (memberId !== session.memberId) {
             attemptGeneration++;

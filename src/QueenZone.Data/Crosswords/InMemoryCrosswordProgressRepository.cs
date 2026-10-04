@@ -2,12 +2,32 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-public sealed class InMemoryCrosswordProgressRepository(InMemoryCrosswordCatalogRepository catalog, TimeProvider clock,
-    CrosswordRankingOptions options) : ICrosswordProgressRepository
+public sealed class InMemoryCrosswordProgressRepository : ICrosswordProgressRepository
 {
     private readonly object gate = new();
     private readonly Dictionary<(Guid Puzzle, Guid Member), CrosswordProgressEntity> progress = [];
     private readonly Dictionary<(Guid Puzzle, Guid Member), CrosswordCompletionEntity> completions = [];
+
+    private readonly InMemoryCrosswordCatalogRepository catalog;
+    private readonly TimeProvider clock;
+    private readonly CrosswordRankingOptions options;
+
+    public InMemoryCrosswordProgressRepository(InMemoryCrosswordCatalogRepository catalog, TimeProvider clock, CrosswordRankingOptions options)
+    {
+        this.catalog = catalog;
+        this.clock = clock;
+        this.options = options;
+        catalog.ResetInProgress += Reset;
+    }
+
+    private void Reset(CrosswordCatalogItem puzzle)
+    {
+        lock (gate)
+        {
+            foreach (var row in progress.Values.Where(row => row.CrosswordId == puzzle.Id))
+                CrosswordProgressMapping.Reset(row, puzzle);
+        }
+    }
 
     public Task<CrosswordProgress?> GetAsync(Guid crosswordId, Guid memberId, CancellationToken cancellationToken = default)
     {
@@ -15,6 +35,16 @@ public sealed class InMemoryCrosswordProgressRepository(InMemoryCrosswordCatalog
         {
             return Task.FromResult(progress.TryGetValue((crosswordId, memberId), out var entity)
                 ? CrosswordProgressMapping.Read(entity) : null);
+        }
+    }
+
+    public Task<IReadOnlyList<CrosswordProgress>> GetForPuzzleAsync(Guid crosswordId, CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            IReadOnlyList<CrosswordProgress> rows = progress.Values.Where(row => row.CrosswordId == crosswordId)
+                .Select(CrosswordProgressMapping.Read).ToArray();
+            return Task.FromResult(rows);
         }
     }
 

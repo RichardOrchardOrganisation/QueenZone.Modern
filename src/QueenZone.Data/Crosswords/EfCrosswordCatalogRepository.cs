@@ -18,20 +18,35 @@ public sealed class EfCrosswordCatalogRepository(QueenZoneDbContext db, TimeProv
         return entity is null ? null : CrosswordCatalogMapping.Read(entity);
     }
 
-    public async Task<Guid> CreateDraftAsync(CrosswordSeed draft, Guid creatorId, string actor,
+    public Task<Guid> CreateDraftAsync(CrosswordSeed draft, Guid creatorId, string actor,
+        CancellationToken cancellationToken = default) =>
+        CreateDraftCoreAsync(draft, creatorId, actor, "Created", cancellationToken);
+
+    public async Task<Guid> DuplicateAsync(Guid id, string newSlug, Guid creatorId, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        var source = await GetByIdAsync(id, cancellationToken) ?? throw new KeyNotFoundException("Crossword not found.");
+        var title = "Copy of " + source.Seed.Title;
+        var draft = source.Seed with { Slug = newSlug, Title = title[..Math.Min(200, title.Length)] };
+        return await CreateDraftCoreAsync(draft, creatorId, actor, "Duplicated", cancellationToken);
+    }
+
+    private async Task<Guid> CreateDraftCoreAsync(CrosswordSeed draft, Guid creatorId, string actor, string auditAction,
         CancellationToken cancellationToken = default)
     {
         draft = CrosswordCatalogMapping.Normalize(draft, playable: false);
         CrosswordCatalogMapping.ValidateActor(actor);
         return await QueenZoneDbTransactions.ExecuteAsync(db, async token =>
         {
+            if (await db.Crosswords.AnyAsync(row => row.Slug == draft.Slug, token))
+                throw new InvalidOperationException("A crossword with this slug already exists. Choose a new slug.");
             var entity = CrosswordCatalogMapping.Create(draft, creatorId, actor, clock.GetUtcNow(), publish: false);
             if (!db.Database.IsSqlServer())
             {
                 entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
             }
             db.Crosswords.Add(entity);
-            AddAudit(entity.Id, actor, "Created", "Draft created.");
+            AddAudit(entity.Id, actor, auditAction, auditAction == "Duplicated" ? "Grid and clues copied into a new Draft; no attempts copied." : "Draft created.");
             await db.SaveChangesAsync(token);
             return entity.Id;
         }, cancellationToken);
@@ -61,6 +76,62 @@ public sealed class EfCrosswordCatalogRepository(QueenZoneDbContext db, TimeProv
             await QueenZoneConcurrency.SaveChangesAsync(db, token);
             AddAudit(id, actor, "Edited", "Draft grid and clues edited.");
             await db.SaveChangesAsync(token);
+            return true;
+        }, cancellationToken);
+    }
+
+    public async Task SaveEditorialAsync(Guid id, CrosswordSeed draft, byte[] expectedRowVersion, string actor,
+        bool confirmProgressReset = false, CancellationToken cancellationToken = default)
+    {
+        draft = CrosswordCatalogMapping.Normalize(draft, playable: false);
+        CrosswordCatalogMapping.ValidateActor(actor);
+        await QueenZoneDbTransactions.ExecuteAsync(db, IsolationLevel.Serializable, async token =>
+        {
+            var entity = await db.Crosswords.Include(puzzle => puzzle.Entries).SingleAsync(puzzle => puzzle.Id == id, token);
+            QueenZoneConcurrency.EnsureRequiredRowVersion<OptimisticConcurrencyException>(entity.RowVersion, expectedRowVersion);
+            if (await db.Crosswords.AnyAsync(row => row.Id != id && row.Slug == draft.Slug, token))
+                throw new InvalidOperationException("A crossword with this slug already exists. Choose a new slug.");
+            var changed = CrosswordCatalogMapping.PrepareEditorial(entity, draft, confirmProgressReset);
+            db.CrosswordEntries.RemoveRange(entity.Entries);
+            await db.SaveChangesAsync(token);
+            CrosswordCatalogMapping.Apply(entity, draft, actor, clock.GetUtcNow());
+            db.CrosswordEntries.AddRange(entity.Entries);
+            if (changed)
+            {
+                var saved = await db.CrosswordProgress.Where(row => row.CrosswordId == id).ToListAsync(token);
+                var puzzle = CrosswordCatalogMapping.Read(entity);
+                foreach (var row in saved) CrosswordProgressMapping.Reset(row, puzzle);
+            }
+            if (!db.Database.IsSqlServer()) entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
+            AddAudit(id, actor, "Edited", changed ? "Grid/answers edited; saved grids reset; completed attempts preserved." : "Editorial metadata and clues edited.");
+            await QueenZoneConcurrency.SaveChangesAsync(db, token);
+            return true;
+        }, cancellationToken);
+    }
+
+    public async Task PublishSelectedAsync(IReadOnlyList<CrosswordPublishSelection> selection, string actor, CancellationToken cancellationToken = default)
+    {
+        CrosswordCatalogMapping.ValidateActor(actor);
+        if (selection.Count > 100 || selection.Select(row => row.Id).Distinct().Count() != selection.Count)
+            throw new ArgumentException("Select up to 100 distinct puzzles.", nameof(selection));
+        await QueenZoneDbTransactions.ExecuteAsync(db, IsolationLevel.Serializable, async token =>
+        {
+            var ids = selection.Select(row => row.Id).ToArray();
+            var entities = await db.Crosswords.Include(row => row.Entries).Where(row => ids.Contains(row.Id)).ToDictionaryAsync(row => row.Id, token);
+            var now = clock.GetUtcNow();
+            foreach (var row in selection)
+            {
+                if (!entities.TryGetValue(row.Id, out var entity)) throw new KeyNotFoundException("Crossword not found.");
+                QueenZoneConcurrency.EnsureRequiredRowVersion<OptimisticConcurrencyException>(entity.RowVersion, row.RowVersion);
+                CrosswordCatalogMapping.ValidatePublication(entity, Entities.CrosswordStatus.Published, null, now);
+            }
+            foreach (var entity in entities.Values)
+            {
+                CrosswordCatalogMapping.SetPublication(entity, Entities.CrosswordStatus.Published, null, actor, now);
+                if (!db.Database.IsSqlServer()) entity.RowVersion = QueenZoneConcurrency.NewClientRowVersion();
+                AddAudit(entity.Id, actor, "Published", "Published from admin selection.");
+            }
+            await QueenZoneConcurrency.SaveChangesAsync(db, token);
             return true;
         }, cancellationToken);
     }

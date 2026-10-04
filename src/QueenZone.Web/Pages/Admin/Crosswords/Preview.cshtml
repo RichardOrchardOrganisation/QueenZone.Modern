@@ -1,0 +1,15 @@
+@page "/admin/crosswords/{id:guid}/preview"
+@model PreviewModel
+@using System.Text.Json
+@section Head { <link rel="stylesheet" href="~/css/crossword.css" asp-append-version="true" /><link rel="stylesheet" href="~/css/admin-crossword.css" asp-append-version="true" /> }
+<div class="admin-shell"><p><a href="/admin/crosswords/@RouteData.Values["id"]/edit">Back to builder</a></p>
+<p class="qz-crossword-banner">Preview — not published. This play-test is never saved or ranked.</p>
+@if (Model.Error is not null) { <p role="alert">@Model.Error</p> }
+@if (Model.Player is not null) {
+<label><input type="checkbox" data-show-answers /> Show answers</label>
+<label>Width preset <select data-preview-width><option value="100%">Desktop</option><option value="360px">Mobile (360 px)</option><option value="768px">Tablet (768 px)</option></select></label>
+<div data-preview-player><partial name="_CrosswordPlayer" model="Model.Player" /></div>
+<script type="application/json" data-preview-answers>@Html.Raw(JsonSerializer.Serialize(Model.Answers))</script>
+}
+</div>
+@section Scripts { <script type="module" src="~/js/crossword-play.js" asp-append-version="true"></script><script src="~/js/admin-crossword-preview.js" asp-append-version="true"></script> }
