@@ -192,7 +192,9 @@
         "src/QueenZone.Mobile/src/screens/account/MyCrosswordsScreen.tsx"
       ],
       "testIds": [],
-      "flows": [],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/34-crossword-results.yaml"
+      ],
       "specs": [
         "src/QueenZone.Mobile/src/screens/archive/CrosswordResultsScreens.test.tsx"
       ],
