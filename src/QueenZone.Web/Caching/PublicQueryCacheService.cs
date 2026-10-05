@@ -190,16 +190,20 @@ public sealed class PublicQueryCacheService(
             .Select(key => key.CommunityId)
             .ToList();
 
-        var archiveTask = archiveIds.Count == 0
-            ? Task.FromResult<IReadOnlyList<ArticleItem>>([])
-            : articlesRepository.GetPublishedByIdsAsync(archiveIds, cancellationToken);
-        var communityTask = communityIds.Count == 0
-            ? Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>([])
-            : communityArticleRepository.GetPublishedByIdsAsync(communityIds, cancellationToken);
-        await Task.WhenAll(archiveTask, communityTask).ConfigureAwait(false);
+        // Both repositories share the request-scoped QueenZoneDbContext.
+        // Load them sequentially so a mixed page cannot start a second EF operation
+        // on the same context (#322 / #335).
+        IReadOnlyList<ArticleItem> archiveItems = archiveIds.Count == 0
+            ? []
+            : await articlesRepository.GetPublishedByIdsAsync(archiveIds, cancellationToken)
+                .ConfigureAwait(false);
+        IReadOnlyList<PublishedArticleSubmission> communityItems = communityIds.Count == 0
+            ? []
+            : await communityArticleRepository.GetPublishedByIdsAsync(communityIds, cancellationToken)
+                .ConfigureAwait(false);
 
-        var archiveMap = archiveTask.Result.ToDictionary(item => item.Id);
-        var communityMap = communityTask.Result.ToDictionary(item => item.Id);
+        var archiveMap = archiveItems.ToDictionary(item => item.Id);
+        var communityMap = communityItems.ToDictionary(item => item.Id);
         var items = new List<ArticleArchiveItem>(keys.Count);
         foreach (var key in keys)
         {

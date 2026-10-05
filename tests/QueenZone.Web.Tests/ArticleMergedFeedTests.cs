@@ -118,7 +118,6 @@ public sealed class ArticleMergedFeedTests
         var first = await cache.GetMergedArticleFeedIndexAsync();
         Assert.Equal([5], first.Select(key => key.ArchiveId));
 
-        cache.InvalidateArticlesCache();
         var second = await cache.GetMergedArticleFeedIndexAsync();
         Assert.Equal([5], second.Select(key => key.ArchiveId));
         Assert.NotSame(first, second);
