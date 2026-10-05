@@ -146,6 +146,91 @@ describe('news share session', () => {
     }
   });
 
+  it('observes a failed background patch, preserves flush rejection, and recovers on the next write', async () => {
+    const store = createNewsShareStore(createMemoryStorage());
+    const session = createNewsShareController(store, async () => created);
+    await session.openBlank();
+    const form = session.view();
+    expect(form.kind).toBe('form');
+    if (form.kind !== 'form') {
+      return;
+    }
+    const error = new Error('Storage unavailable');
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const write = jest.spyOn(store, 'write').mockRejectedValueOnce(error);
+    try {
+      form.patch({ title: 'Unsaved title' });
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(warning).toHaveBeenCalledWith('Could not persist the news suggestion draft.', error);
+      await expect(session.flush()).rejects.toBe(error);
+      form.patch({ title: 'Recovered title' });
+      await session.flush();
+      const saved = await store.read();
+      expect(saved?.kind === 'form' ? saved.draft.title : null).toBe('Recovered title');
+      expect(write).toHaveBeenCalledTimes(2);
+    } finally {
+      warning.mockRestore();
+      write.mockRestore();
+    }
+  });
+
+  it('observes a failed cancel clear and notifies subscribers without an unhandled rejection', async () => {
+    const store = createNewsShareStore(createMemoryStorage());
+    const session = createNewsShareController(store, async () => created);
+    await session.openBlank();
+    const form = session.view();
+    expect(form.kind).toBe('form');
+    if (form.kind !== 'form') {
+      return;
+    }
+    const error = new Error('Storage unavailable');
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const clear = jest.spyOn(store, 'clear').mockRejectedValueOnce(error);
+    const listener = jest.fn();
+    const unsubscribe = session.subscribe(listener);
+    try {
+      form.cancel();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      await expect(session.flush()).rejects.toBe(error);
+      expect(warning).toHaveBeenCalledWith('Could not persist the news suggestion draft.', error);
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(session.view().kind).toBe('idle');
+    } finally {
+      unsubscribe();
+      warning.mockRestore();
+      clear.mockRestore();
+    }
+  });
+
+  it('reports a failed chosen draft without leaving an unhandled rejection', async () => {
+    const store = createNewsShareStore(createMemoryStorage());
+    const session = createNewsShareController(store, async () => created);
+    await session.capture({ text: 'https://example.com/a https://example.com/b', hasFiles: false });
+    const chooser = session.view();
+    expect(chooser.kind).toBe('choose');
+    if (chooser.kind !== 'choose') {
+      return;
+    }
+    const error = new Error('Storage unavailable');
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const write = jest.spyOn(store, 'write').mockRejectedValueOnce(error);
+    try {
+      chooser.choose('https://example.com/a');
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      await expect(session.flush()).rejects.toBe(error);
+      const failed = session.view();
+      expect(failed.kind).toBe('failed');
+      if (failed.kind === 'failed') {
+        expect(failed.error.message).toBe('Storage unavailable');
+        expect(failed.draft.url).toBe('https://example.com/a');
+      }
+      expect(warning).toHaveBeenCalledWith('Could not persist the news suggestion draft.', error);
+    } finally {
+      warning.mockRestore();
+      write.mockRestore();
+    }
+  });
+
   it('maps submit errors for 400, 409, 429, 401, and network', async () => {
     const cases: { error: unknown; code: string }[] = [
       { error: new ApiError(400, 'Bad Request'), code: 'invalid' },
