@@ -223,20 +223,25 @@ public static partial class ForumVideoContent
         }
         else if (element.LocalName is "span" or "strong" or "b" or "em" or "i" or "u")
         {
-            if (element.ClassList.Contains("qz-bbcode-quote"))
-            {
-                line.Add(element);
-                return;
-            }
-
-            foreach (var child in element.ChildNodes)
-            {
-                VisitEligibleNode(child, line, eligible);
-            }
+            VisitFormattingChildren(element, line, eligible);
         }
         else
         {
             line.Add(element);
+        }
+    }
+
+    private static void VisitFormattingChildren(IElement element, List<INode> line, HashSet<IElement> eligible)
+    {
+        if (element.ClassList.Contains("qz-bbcode-quote"))
+        {
+            line.Add(element);
+            return;
+        }
+
+        foreach (var child in element.ChildNodes)
+        {
+            VisitEligibleNode(child, line, eligible);
         }
     }
 

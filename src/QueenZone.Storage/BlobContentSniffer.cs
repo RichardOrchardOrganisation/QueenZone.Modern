@@ -12,6 +12,10 @@ internal static class BlobContentSniffer
     /// <summary>OLE compound document (legacy .doc/.xls/.ppt). Not a public MIME type.</summary>
     public const string OleCompoundContentType = "application/x-cfbf";
 
+    private static ReadOnlySpan<byte> PngSignature => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    private static ReadOnlySpan<byte> OleCompoundSignature => [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+
     public static string? TryDetectContentType(ReadOnlySpan<byte> header)
     {
         var imageContentType = TryDetectImageContentType(header);
@@ -21,11 +25,7 @@ internal static class BlobContentSniffer
         }
 
         // %PDF
-        if (header.Length >= 4
-            && header[0] == 0x25
-            && header[1] == 0x50
-            && header[2] == 0x44
-            && header[3] == 0x46)
+        if (header.StartsWith("%PDF"u8))
         {
             return "application/pdf";
         }
@@ -41,20 +41,13 @@ internal static class BlobContentSniffer
         }
 
         // ID3v2 tag (MP3). JPEG already returned above (0xFF 0xD8 0xFF).
-        if (header.Length >= 3
-            && header[0] == (byte)'I'
-            && header[1] == (byte)'D'
-            && header[2] == (byte)'3')
+        if (header.StartsWith("ID3"u8))
         {
             return "audio/mpeg";
         }
 
         // FLAC stream marker.
-        if (header.Length >= 4
-            && header[0] == (byte)'f'
-            && header[1] == (byte)'L'
-            && header[2] == (byte)'a'
-            && header[3] == (byte)'C')
+        if (header.StartsWith("fLaC"u8))
         {
             return "audio/flac";
         }
@@ -66,15 +59,7 @@ internal static class BlobContentSniffer
 
         // OLE compound file (legacy Word/Excel/PowerPoint). Checked before text so
         // embedded NULs are not required for a positive signature.
-        if (header.Length >= 8
-            && header[0] == 0xD0
-            && header[1] == 0xCF
-            && header[2] == 0x11
-            && header[3] == 0xE0
-            && header[4] == 0xA1
-            && header[5] == 0xB1
-            && header[6] == 0x1A
-            && header[7] == 0xE1)
+        if (header.StartsWith(OleCompoundSignature))
         {
             return OleCompoundContentType;
         }
@@ -94,15 +79,7 @@ internal static class BlobContentSniffer
             return "image/jpeg";
         }
 
-        if (header.Length >= 8
-            && header[0] == 0x89
-            && header[1] == 0x50
-            && header[2] == 0x4E
-            && header[3] == 0x47
-            && header[4] == 0x0D
-            && header[5] == 0x0A
-            && header[6] == 0x1A
-            && header[7] == 0x0A)
+        if (header.StartsWith(PngSignature))
         {
             return "image/png";
         }
