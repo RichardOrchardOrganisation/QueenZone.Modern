@@ -31,16 +31,12 @@ public sealed class SearchReindexBuilderTests
         var queenHistoryRepository = new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents());
         var fanPerformanceRepository = new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances());
 
-        var builder = new SearchReindexBuilder(
-            indexService,
+        var builder = new SearchReindexBuilder(indexService,
             newsRepository,
             forumRepository,
             articleRepository,
             articlesRepository,
-            biographyRepository,
-            discographyRepository,
-            queenHistoryRepository,
-            fanPerformanceRepository);
+            new CatalogSearchReindexer(indexService, biographyRepository, discographyRepository, queenHistoryRepository, fanPerformanceRepository));
         return (builder, store);
     }
 
@@ -90,16 +86,12 @@ public sealed class SearchReindexBuilderTests
             "<p>Body</p>",
             createdAt));
 
-        var builder = new SearchReindexBuilder(
-            indexService,
+        var builder = new SearchReindexBuilder(indexService,
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             forumRepository,
             new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-            new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+            new CatalogSearchReindexer(indexService, new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()), new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()), new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()), new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances())));
 
         await builder.ReindexForumAsync();
 
@@ -138,16 +130,12 @@ public sealed class SearchReindexBuilderTests
             null, authorId, "Still a draft", "Excerpt text", "Body text", null, null));
 
         var articleRepository = new InMemoryArticleRepository(articleSubmissionRepository);
-        var builder = new SearchReindexBuilder(
-            indexService,
+        var builder = new SearchReindexBuilder(indexService,
             newsRepository,
             forumRepository,
             articleRepository,
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-            new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+            new CatalogSearchReindexer(indexService, new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()), new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()), new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()), new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances())));
 
         await builder.ReindexArticlesAsync();
 
@@ -200,8 +188,7 @@ public sealed class SearchReindexBuilderTests
     {
         var store = new SharedSearchIndexStore();
         var innerBiography = new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters());
-        var builder = new SearchReindexBuilder(
-            new InMemorySearchIndexService(store, new SearchIndexRevision()),
+        var builder = new SearchReindexBuilder(new InMemorySearchIndexService(store, new SearchIndexRevision()),
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryForumRepository(
                 SampleForumData.CreateSeedCategories(),
@@ -210,10 +197,7 @@ public sealed class SearchReindexBuilderTests
                 new InMemoryForumAttachmentRepository()),
             new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new ListOmitsBodyBiographyRepository(innerBiography),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-            new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+            new CatalogSearchReindexer(new InMemorySearchIndexService(store, new SearchIndexRevision()), new ListOmitsBodyBiographyRepository(innerBiography), new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()), new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()), new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances())));
 
         await builder.ReindexBiographyAsync();
 
@@ -291,8 +275,7 @@ public sealed class SearchReindexBuilderTests
         await articleSubmissionRepository.UpdateStatusAsync(
             published.Id, ArticleSubmissionStatus.Published, "reviewer@queenzone.test", null, null);
 
-        var builder = new SearchReindexBuilder(
-            indexService,
+        var builder = new SearchReindexBuilder(indexService,
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryForumRepository(
                 SampleForumData.CreateSeedCategories(),
@@ -301,10 +284,7 @@ public sealed class SearchReindexBuilderTests
                 new InMemoryForumAttachmentRepository()),
             new InMemoryArticleRepository(articleSubmissionRepository),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-            new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+            new CatalogSearchReindexer(indexService, new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()), new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()), new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()), new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances())));
 
         await builder.ReindexArticlesAsync();
 
@@ -345,8 +325,7 @@ public sealed class SearchReindexBuilderTests
         var hiddenEvent = seedEvents[0] with { Id = 9001, Title = "Unpublished draft event", IsPublished = false };
         var queenHistoryRepository = new InMemoryQueenHistoryRepository([.. seedEvents, hiddenEvent]);
 
-        var builder = new SearchReindexBuilder(
-            indexService,
+        var builder = new SearchReindexBuilder(indexService,
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryForumRepository(
                 SampleForumData.CreateSeedCategories(),
@@ -355,10 +334,7 @@ public sealed class SearchReindexBuilderTests
                 new InMemoryForumAttachmentRepository()),
             new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            queenHistoryRepository,
-            new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+            new CatalogSearchReindexer(indexService, new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()), new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()), queenHistoryRepository, new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances())));
 
         await builder.ReindexTimelineAsync();
 

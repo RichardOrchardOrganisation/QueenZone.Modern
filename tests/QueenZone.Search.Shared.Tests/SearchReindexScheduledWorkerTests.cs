@@ -126,8 +126,7 @@ public sealed class SearchReindexScheduledWorkerTests
         SharedSearchReindexRunRequestStore requestStore,
         ISearchIndexService? searchIndexService = null)
     {
-        var searchReindexBuilder = new SearchReindexBuilder(
-            searchIndexService ?? new InMemorySearchIndexService(new SharedSearchIndexStore(), new SearchIndexRevision()),
+        var searchReindexBuilder = new SearchReindexBuilder(searchIndexService ?? new InMemorySearchIndexService(new SharedSearchIndexStore(), new SearchIndexRevision()),
             new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
             new InMemoryForumRepository(
                 SampleForumData.CreateSeedCategories(),
@@ -136,10 +135,7 @@ public sealed class SearchReindexScheduledWorkerTests
                 new InMemoryForumAttachmentRepository()),
             new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-            new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+            new CatalogSearchReindexer(searchIndexService ?? new InMemorySearchIndexService(new SharedSearchIndexStore(), new SearchIndexRevision()), new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()), new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()), new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()), new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances())));
 
         return new SearchReindexScheduledWorker(
             searchReindexBuilder,

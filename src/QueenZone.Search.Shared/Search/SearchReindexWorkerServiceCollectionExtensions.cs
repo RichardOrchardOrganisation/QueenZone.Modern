@@ -28,6 +28,7 @@ public static class SearchReindexWorkerServiceCollectionExtensions
         }
 
         services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<CatalogSearchReindexer>();
         services.AddScoped<SearchReindexBuilder>();
         services.AddScoped<SearchReindexScheduledWorker>();
         return services;

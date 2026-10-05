@@ -184,15 +184,13 @@ public sealed class AdminFanPerformanceWriteServiceTests
 
     private static CoreSitemapService CreateSitemapService(IOutputCacheStore outputCache, IMemoryCache cache) =>
         new(
-            new CoreSitemapBuilder(
-                new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
-                new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-                new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
-                new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-                new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
-                new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
-                new InMemoryFanPerformanceRepository([]),
-                new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums())),
+            new CoreSitemapBuilder(new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
+            new ArticleSitemapEntriesBuilder(new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()), new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository())),
+            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
+            new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
+            new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
+            new InMemoryFanPerformanceRepository([]),
+            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums())),
             cache,
             Options.Create(new SitemapOptions()),
             outputCache);

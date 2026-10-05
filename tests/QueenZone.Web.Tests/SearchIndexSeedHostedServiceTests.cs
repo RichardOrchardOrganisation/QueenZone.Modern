@@ -27,6 +27,7 @@ public sealed class SearchIndexSeedHostedServiceTests
         services.AddSingleton<IDiscographyRepository>(new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()));
         services.AddSingleton<IQueenHistoryRepository>(new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()));
         services.AddSingleton<IFanPerformanceRepository>(new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+        services.AddTransient<CatalogSearchReindexer>();
         services.AddTransient<SearchReindexBuilder>();
         await using var provider = services.BuildServiceProvider();
 
