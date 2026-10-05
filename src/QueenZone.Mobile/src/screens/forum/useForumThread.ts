@@ -57,6 +57,28 @@ export function useForumThread(id: number | null, accessToken: string | null, na
     const networkOnly = topicNetworkOnlyRef.current;
     topicNetworkOnlyRef.current = false;
     setTopicError(null);
+    async function loadWatch(topicId: number): Promise<boolean> {
+      if (accessToken) {
+        try {
+          const watch = await fetchForumTopicWatch(topicId, accessToken, controller.signal);
+          setWatching(watch.watching);
+          setWatchError(null);
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            return false;
+          }
+          setWatching(false);
+          if (!(err instanceof ApiError && err.status === 404)) {
+            setWatchError(messageFromUnknownError(err));
+          }
+        }
+      } else {
+        setWatching(false);
+        setWatchError(null);
+      }
+      return true;
+    }
+
     fetchForumTopicResult(id, controller.signal, { networkOnly })
       .then(async (result) => {
         setTopic(result.data);
@@ -69,24 +91,7 @@ export function useForumThread(id: number | null, accessToken: string | null, na
           setPollError(null);
           return;
         }
-        if (accessToken) {
-          try {
-            const watch = await fetchForumTopicWatch(id, accessToken, controller.signal);
-            setWatching(watch.watching);
-            setWatchError(null);
-          } catch (err: unknown) {
-            if (err instanceof Error && err.name === 'AbortError') {
-              return;
-            }
-            setWatching(false);
-            if (!(err instanceof ApiError && err.status === 404)) {
-              setWatchError(messageFromUnknownError(err));
-            }
-          }
-        } else {
-          setWatching(false);
-          setWatchError(null);
-        }
+        if (!await loadWatch(id)) return;
         if (!shouldLoadPoll(result.data.hasPoll)) {
           setPoll(null);
           setPollError(null);

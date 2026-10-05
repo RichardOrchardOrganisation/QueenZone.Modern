@@ -20,9 +20,7 @@ public sealed class NewsAiRunExecutor(
     public async Task<NewsAiRunExecutionResult> ExecuteAsync(
         int candidateId,
         NewsAiRunKind kind,
-        NewsAiModelRole modelRole,
-        string promptVersion,
-        IReadOnlyList<NewsAiChatMessage> messages,
+        NewsAiChatRequest request,
         DateTime? runAtUtc = null,
         CancellationToken cancellationToken = default,
         NewsAgentGuidanceSnapshot? guidance = null)
@@ -36,7 +34,7 @@ public sealed class NewsAiRunExecutor(
         budgetGuard.RegisterCandidateAttempt();
         await budgetGuard.EnsureWithinBudgetAsync(utcNow, cancellationToken);
 
-        var modelId = options.Value.ResolveModel(modelRole);
+        var modelId = options.Value.ResolveModel(request.ModelRole);
         var recordedGuidance = guidance is { HasRevision: true } ? guidance : null;
         var aiRunId = await repository.CreateAiRunAsync(
             new NewsAiRunCreateRequest(
@@ -44,7 +42,7 @@ public sealed class NewsAiRunExecutor(
                 kind,
                 ModelProvider,
                 modelId,
-                promptVersion,
+                request.PromptVersion,
                 utcNow,
                 recordedGuidance?.RevisionId,
                 recordedGuidance?.RevisionNumber,
@@ -55,7 +53,7 @@ public sealed class NewsAiRunExecutor(
         try
         {
             completion = await aiClient.CompleteChatAsync(
-                new NewsAiChatRequest(modelRole, promptVersion, messages),
+                request,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -71,13 +69,6 @@ public sealed class NewsAiRunExecutor(
                     ex.Message,
                     DateTime.UtcNow),
                 cancellationToken);
-
-            logger.LogError(
-                ex,
-                "AI run {AiRunId} failed for candidate {CandidateId} using model {ModelId}.",
-                aiRunId,
-                candidateId,
-                modelId);
 
             throw;
         }

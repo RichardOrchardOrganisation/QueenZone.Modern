@@ -26,6 +26,18 @@ internal static class OpenRouterChatCompletionParser
             }
         }
 
+        var (inputTokens, outputTokens, estimatedCostUsd) = ParseUsage(root);
+
+        return new NewsAiChatCompletion(
+            content,
+            modelId,
+            inputTokens,
+            outputTokens,
+            estimatedCostUsd,
+            DryRun: false);
+    }
+    private static (int InputTokens, int OutputTokens, decimal? EstimatedCostUsd) ParseUsage(JsonElement root)
+    {
         var inputTokens = 0;
         var outputTokens = 0;
         decimal? estimatedCostUsd = null;
@@ -56,12 +68,7 @@ internal static class OpenRouterChatCompletionParser
             }
         }
 
-        return new NewsAiChatCompletion(
-            content,
-            modelId,
-            inputTokens,
-            outputTokens,
-            estimatedCostUsd,
-            DryRun: false);
+        return (inputTokens, outputTokens, estimatedCostUsd);
     }
+
 }

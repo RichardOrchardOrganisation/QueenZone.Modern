@@ -26,9 +26,7 @@ public sealed class NewsAiRunExecutorTests
         var result = await executor.ExecuteAsync(
             candidateId,
             NewsAiRunKind.Triage,
-            NewsAiModelRole.Triage,
-            "triage-v1",
-            [new NewsAiChatMessage("user", "Classify headline.")]);
+            new NewsAiChatRequest(NewsAiModelRole.Triage, "triage-v1", [new NewsAiChatMessage("user", "Classify headline.")]));
 
         Assert.Equal("""{"relevant":true}""", result.Completion.Content);
         var runs = await repository.GetAiRunsForCandidateAsync(candidateId);
@@ -52,9 +50,7 @@ public sealed class NewsAiRunExecutorTests
         await Assert.ThrowsAsync<HttpRequestException>(() => executor.ExecuteAsync(
             candidateId,
             NewsAiRunKind.Triage,
-            NewsAiModelRole.Triage,
-            "triage-v1",
-            [new NewsAiChatMessage("user", "Classify headline.")]));
+            new NewsAiChatRequest(NewsAiModelRole.Triage, "triage-v1", [new NewsAiChatMessage("user", "Classify headline.")])));
 
         var runs = await repository.GetAiRunsForCandidateAsync(candidateId);
         Assert.Single(runs);
@@ -74,9 +70,7 @@ public sealed class NewsAiRunExecutorTests
         await Assert.ThrowsAsync<NewsAiDisabledException>(() => executor.ExecuteAsync(
             candidateId,
             NewsAiRunKind.Triage,
-            NewsAiModelRole.Triage,
-            "triage-v1",
-            [new NewsAiChatMessage("user", "Classify headline.")]));
+            new NewsAiChatRequest(NewsAiModelRole.Triage, "triage-v1", [new NewsAiChatMessage("user", "Classify headline.")])));
     }
 
     [Fact]
@@ -98,9 +92,7 @@ public sealed class NewsAiRunExecutorTests
         await Assert.ThrowsAsync<NewsAiBudgetExceededException>(() => executor.ExecuteAsync(
             candidateId,
             NewsAiRunKind.Triage,
-            NewsAiModelRole.Triage,
-            "triage-v1",
-            [new NewsAiChatMessage("user", "Classify headline.")]));
+            new NewsAiChatRequest(NewsAiModelRole.Triage, "triage-v1", [new NewsAiChatMessage("user", "Classify headline.")])));
 
         var runs = await repository.GetAiRunsForCandidateAsync(candidateId);
         Assert.Single(runs);
@@ -110,9 +102,7 @@ public sealed class NewsAiRunExecutorTests
         await Assert.ThrowsAsync<NewsAiBudgetExceededException>(() => executor.ExecuteAsync(
             candidateId,
             NewsAiRunKind.Triage,
-            NewsAiModelRole.Triage,
-            "triage-v1",
-            [new NewsAiChatMessage("user", "Classify headline again.")]));
+            new NewsAiChatRequest(NewsAiModelRole.Triage, "triage-v1", [new NewsAiChatMessage("user", "Classify headline again.")])));
         Assert.Equal(1, aiClient.CallCount);
     }
 
@@ -135,9 +125,7 @@ public sealed class NewsAiRunExecutorTests
         await executor.ExecuteAsync(
             candidateId,
             NewsAiRunKind.Triage,
-            NewsAiModelRole.Triage,
-            "triage-v2",
-            [new NewsAiChatMessage("user", "Classify headline.")],
+            new NewsAiChatRequest(NewsAiModelRole.Triage, "triage-v2", [new NewsAiChatMessage("user", "Classify headline.")]),
             guidance: new NewsAgentGuidanceSnapshot(12, 4, "abc123", "prefer member-news"));
 
         var runs = await repository.GetAiRunsForCandidateAsync(candidateId);

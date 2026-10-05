@@ -51,6 +51,25 @@ internal static class ImageUploadPipeline
             throw new InvalidOperationException(policy.InvalidTypeError);
         }
 
+        ValidateExtension(originalFileName, sniffed, policy);
+
+        try
+        {
+            using var image = await Image.LoadAsync(buffer, cancellationToken);
+            return await process(image, buffer, sniffed, cancellationToken);
+        }
+        catch (UnknownImageFormatException)
+        {
+            throw new InvalidOperationException(policy.InvalidTypeError);
+        }
+        catch (InvalidImageContentException)
+        {
+            throw new InvalidOperationException(policy.InvalidContentError);
+        }
+    }
+
+    private static void ValidateExtension(string originalFileName, string sniffed, Policy policy)
+    {
         var extension = Path.GetExtension(originalFileName);
         if (!string.IsNullOrWhiteSpace(extension))
         {
@@ -75,19 +94,6 @@ internal static class ImageUploadPipeline
             }
         }
 
-        try
-        {
-            using var image = await Image.LoadAsync(buffer, cancellationToken);
-            return await process(image, buffer, sniffed, cancellationToken);
-        }
-        catch (UnknownImageFormatException)
-        {
-            throw new InvalidOperationException(policy.InvalidTypeError);
-        }
-        catch (InvalidImageContentException)
-        {
-            throw new InvalidOperationException(policy.InvalidContentError);
-        }
     }
 
     private static bool ContentTypesAgree(string left, string right) =>

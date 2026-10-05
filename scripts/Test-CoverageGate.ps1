@@ -106,6 +106,12 @@ function Get-ChangedLines {
         throw "Unable to calculate changed lines against '$resolvedBaseRef'."
     }
 
+    return ConvertFrom-CoverageDiff -DiffLines $diffLines
+}
+
+function ConvertFrom-CoverageDiff {
+    param([AllowEmptyCollection()][string[]]$DiffLines)
+
     $changedLines = @{}
     $currentFile = $null
 
@@ -118,21 +124,21 @@ function Get-ChangedLines {
             continue
         }
 
-        if ($null -eq $currentFile) {
-            continue
-        }
-
+        if ($null -eq $currentFile) { continue }
         if ($line -match '^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@') {
-            $startLine = [int]$Matches[1]
-            $lineCount = if ($Matches[2]) { [int]$Matches[2] } else { 1 }
-
-            for ($offset = 0; $offset -lt $lineCount; $offset++) {
-                [void]$changedLines[$currentFile].Add($startLine + $offset)
-            }
+            Add-CoverageHunk -Lines $changedLines[$currentFile] -StartLine ([int]$Matches[1]) -CountText $Matches[2]
         }
     }
 
     return $changedLines
+}
+
+function Add-CoverageHunk {
+    param([System.Collections.Generic.HashSet[int]]$Lines, [int]$StartLine, [string]$CountText)
+    $lineCount = if ($CountText) { [int]$CountText } else { 1 }
+    for ($offset = 0; $offset -lt $lineCount; $offset++) {
+        [void]$Lines.Add($StartLine + $offset)
+    }
 }
 
 # Coverlet writes UTF-8 coverage.cobertura.xml under a GUID folder. The TRX
@@ -248,6 +254,8 @@ function Invoke-BaseShaSelfTest {
         $gitIdentity = @("-c", "user.name=Coverage Gate Self-Test", "-c", "user.email=self-test@example.invalid", "-c", "commit.gpgsign=false")
         git init --quiet --initial-branch=main 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Self-test failed: git init failed." }
+        # Git resolves macOS /var -> /private/var; use the same root as child processes.
+        $repoRoot = (git rev-parse --show-toplevel).Trim()
 
         $sampleDir = Join-Path $repoRoot "src/QueenZone.Web"
         New-Item -ItemType Directory -Path $sampleDir | Out-Null

@@ -65,7 +65,7 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
   }
 
   return <View testID={testIds.crosswordPlayScreen} style={{ flex: 1, backgroundColor: c.surfacePage }}>
-    {puzzle.archived ? <Text style={[type.meta, { color: c.textSecondary, paddingHorizontal: 12 }]}>Archived crossword · still playable</Text> : null}
+    {puzzle.archived && <Text style={[type.meta, { color: c.textSecondary, paddingHorizontal: 12 }]}>Archived crossword · still playable</Text>}
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' }}>
       <Text testID={testIds.crosswordTimer} style={[type.meta, { color: c.textPrimary }]}>{Math.floor(play.seconds / 60)}:{String(play.seconds % 60).padStart(2, '0')}</Text>
       <Button label={play.timer.paused ? 'Resume' : 'Pause'} size="sm" variant="ghost" disabled={!play.ready || !!play.completion} onPress={play.pause} />
@@ -76,10 +76,10 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
     {solverContent}
     <View accessibilityLiveRegion="polite" style={{ paddingHorizontal: 12 }}>
       <Text testID={testIds.crosswordStatus} style={[type.meta, { color: c.textSecondary }]}>{status}</Text>
-      {play.needsAttention ? <Button label="Crossword changed — reload" size="sm" variant="ghost" onPress={onReload} /> : null}
-      {play.guest ? <Button label="Keep progress from this device?" size="sm" variant="ghost" onPress={play.keepGuest} /> : null}
+      {play.needsAttention && <Button label="Crossword changed — reload" size="sm" variant="ghost" onPress={onReload} />}
+      {play.guest && <Button label="Keep progress from this device?" size="sm" variant="ghost" onPress={play.keepGuest} />}
     </View>
-    {!play.completion ? <>
+    {!play.completion && <>
       <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 0.5, borderColor: c.hairline }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Previous clue" disabled={disabled} onPress={() => play.select(core.nextEntry(play.model, play.state, -1))} style={{ padding: 12, minWidth: 44 }}><Text style={{ color: c.accentPrimary }}>‹</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Toggle clue direction" disabled={disabled} onPress={() => play.select(core.toggleDirection(play.model, play.state))} style={{ flex: 1, minHeight: 48, justifyContent: 'center' }}>
@@ -88,7 +88,7 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
         <Pressable accessibilityRole="button" accessibilityLabel="Next clue" disabled={disabled} onPress={() => play.select(core.nextEntry(play.model, play.state))} style={{ padding: 12, minWidth: 44 }}><Text style={{ color: c.accentPrimary }}>›</Text></Pressable>
       </View>
       <CrosswordKeyboard disabled={disabled} onLetter={letter => play.change(core.typeLetter(play.model, play.state, letter))} onBackspace={() => play.change(core.deleteLetter(play.model, play.state))} />
-    </> : null}
+    </>}
     <Modal visible={actionMenu !== null} transparent onRequestClose={() => setActionMenu(null)}>
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
         <View style={{ backgroundColor: c.surfaceCard, padding: 20, gap: 12 }} accessibilityViewIsModal>
@@ -106,15 +106,15 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
           <Text style={[type.pageTitle, { color: c.textPrimary }]}>{showReview ? 'Review clues' : 'Clues'}</Text>
           {showReview ? play.review.map(item => <View key={`${item.number}-${item.direction}`} style={{ paddingVertical: 12 }}>
             <Text style={[type.listTitle, { color: c.textPrimary }]}>{item.number} {item.direction}{item.answer ? `: ${item.answer}` : ''}</Text>
-            {item.explanation ? <Text style={[type.body, { color: c.textSecondary }]}>{item.explanation}</Text> : null}
+            {Boolean(item.explanation) && <Text style={[type.body, { color: c.textSecondary }]}>{item.explanation}</Text>}
           </View>) : play.model.entries.map((clue, index) => <Pressable key={clue.key} accessibilityRole="button"
             accessibilityLabel={`${clue.number} ${clue.direction} ${clue.clue} ${clue.enumeration}`} onPress={() => { play.select(core.jumpToEntry(play.model, play.state, index)); setShowClues(false); }} style={{ paddingVertical: 12, minHeight: 44 }}>
             <Text style={[type.body, { color: c.textPrimary }]}>{clue.number} {clue.direction} · {clue.clue} {clue.enumeration}{core.entryFilled(play.model, play.state, index) ? ' ✓' : ''}</Text>
           </Pressable>)}
-          {!showReview ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Text style={[type.body, { color: c.textPrimary }]}>Auto check</Text><Switch accessibilityLabel="Auto check" value={play.state.autoCheck} disabled={!connected} onValueChange={play.setAutoCheck} /></View> : null}
-          {!showReview && connected ? <Button label="Check grid" onPress={() => { void play.check('grid'); setShowClues(false); }} variant="outline" /> : null}
-          {play.review.length && !showReview ? <Button label="Review explanations" onPress={() => { setShowClues(false); setShowReview(true); }} variant="ghost" /> : null}
-          {core.isFilled(play.model, play.state) && !play.completion ? <Button label="Try finish again" onPress={play.retryFinish} /> : null}
+          {!showReview && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><Text style={[type.body, { color: c.textPrimary }]}>Auto check</Text><Switch accessibilityLabel="Auto check" value={play.state.autoCheck} disabled={!connected} onValueChange={play.setAutoCheck} /></View>}
+          {Boolean(!showReview && connected) && <Button label="Check grid" onPress={() => { void play.check('grid'); setShowClues(false); }} variant="outline" />}
+          {Boolean(play.review.length && !showReview) && <Button label="Review explanations" onPress={() => { setShowClues(false); setShowReview(true); }} variant="ghost" />}
+          {Boolean(core.isFilled(play.model, play.state) && !play.completion) && <Button label="Try finish again" onPress={play.retryFinish} />}
         </ScrollView>
       </View>
     </Modal>
@@ -129,9 +129,9 @@ function CompletionPanel({ puzzle, memberId, play, onNext, onReview }: Pick<Solv
   return <View style={{ flex: 1, justifyContent: 'center', padding: 20, gap: 12 }}>
       <Text style={[type.pageTitle, { color: c.textPrimary }]}>Crossword complete</Text>
       <Text style={[type.body, { color: c.textPrimary }]}>{play.completion.elapsedSeconds} seconds · {play.completion.clean ? 'Clean solve ✓' : 'Assisted solve'}</Text>
-      {!memberId ? <Text style={[type.body, { color: c.textSecondary }]}>Guest progress is saved on this device. Sign in to keep future solves across devices.</Text> : null}
+      {!memberId && <Text style={[type.body, { color: c.textSecondary }]}>Guest progress is saved on this device. Sign in to keep future solves across devices.</Text>}
       <Button label="Share result" onPress={() => { void Share.share({ message: `I finished ${puzzle.title} on QueenZone: ${play.completion?.elapsedSeconds} seconds · ${play.completion?.clean ? 'clean solve' : 'assisted solve'}. https://www.queenzone.org/crosswords/${puzzle.slug}` }).catch(() => {}); }} />
       <Button label="Next crossword" onPress={onNext} />
-      {play.review.length ? <Button label="Review clues" variant="outline" onPress={onReview} /> : null}
+      {Boolean(play.review.length) && <Button label="Review clues" variant="outline" onPress={onReview} />}
     </View>;
 }
