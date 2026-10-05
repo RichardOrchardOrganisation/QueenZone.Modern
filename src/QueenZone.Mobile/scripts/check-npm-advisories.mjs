@@ -80,6 +80,33 @@ export function parseAuditJson(text) {
   return parsed;
 }
 
+function collectAdvisory(byKey, pkgName, vuln, via) {
+  if (!via || typeof via !== 'object') {
+    throw new Error(`Malformed npm audit via entry for ${pkgName}.`);
+  }
+
+  const severity = String(via.severity || vuln.severity || '').toLowerCase();
+  if (!ACTIONABLE.has(severity) && !INFORMATIONAL.has(severity)) {
+    throw new Error(`Malformed npm audit severity for ${pkgName}.`);
+  }
+
+  const ghsa = extractGhsa(via.url || via.ghsa || '');
+  const key = ghsa || `missing:${pkgName}:${via.source || via.title || 'unknown'}`;
+  if (!byKey.has(key)) {
+    byKey.set(key, {
+      ghsa,
+      package: via.name || via.dependency || vuln.name || pkgName,
+      severity,
+      title: via.title || '',
+      url: via.url || '',
+      range: via.range || vuln.range || '',
+      nodes: [],
+    });
+  }
+
+  byKey.get(key).nodes.push(pkgName);
+}
+
 export function collectAdvisories(audit) {
   const parsed = audit && audit.vulnerabilities ? audit : parseAuditJson(JSON.stringify(audit));
   const byKey = new Map();
@@ -91,30 +118,7 @@ export function collectAdvisories(audit) {
         continue;
       }
 
-      if (!via || typeof via !== 'object') {
-        throw new Error(`Malformed npm audit via entry for ${pkgName}.`);
-      }
-
-      const severity = String(via.severity || vuln.severity || '').toLowerCase();
-      if (!ACTIONABLE.has(severity) && !INFORMATIONAL.has(severity)) {
-        throw new Error(`Malformed npm audit severity for ${pkgName}.`);
-      }
-
-      const ghsa = extractGhsa(via.url || via.ghsa || '');
-      const key = ghsa || `missing:${pkgName}:${via.source || via.title || 'unknown'}`;
-      if (!byKey.has(key)) {
-        byKey.set(key, {
-          ghsa,
-          package: via.name || via.dependency || vuln.name || pkgName,
-          severity,
-          title: via.title || '',
-          url: via.url || '',
-          range: via.range || vuln.range || '',
-          nodes: [],
-        });
-      }
-
-      byKey.get(key).nodes.push(pkgName);
+      collectAdvisory(byKey, pkgName, vuln, via);
     }
   }
 
@@ -123,6 +127,46 @@ export function collectAdvisories(audit) {
 
 function nonEmptyString(value) {
   return typeof value === 'string' && value.trim() !== '';
+}
+
+function validateAllowlistEntry(row, index, seen, today) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    throw new Error(`Malformed allowlist: advisories[${index}] must be an object.`);
+  }
+
+  for (const field of REQUIRED_FIELDS) {
+    if (!nonEmptyString(row[field])) {
+      throw new Error(`Malformed allowlist: advisories[${index}].${field} is required.`)
+    }
+  }
+
+  const ghsa = row.ghsa.trim().toUpperCase();
+  if (!GHSA_RE.test(ghsa)) {
+    throw new Error(`Malformed allowlist: advisories[${index}].ghsa is not a GHSA id.`);
+  }
+
+  if (seen.has(ghsa)) {
+    throw new Error(`Malformed allowlist: duplicate ${ghsa}.`);
+  }
+  seen.add(ghsa);
+
+  const expires = parseIsoDate(row.expires);
+  if (!expires) {
+    throw new Error(`Malformed allowlist: advisories[${index}].expires must be YYYY-MM-DD.`);
+  }
+
+  if (expires < today) {
+    throw new Error(`Expired allowlist entry ${ghsa} (expired ${expires}).`);
+  }
+
+  return {
+    ghsa,
+    package: row.package.trim(),
+    via: row.via.trim(),
+    exploitability: row.exploitability.trim(),
+    owner: row.owner.trim(),
+    expires,
+  };
 }
 
 export function validateAllowlist(allowlist, now = new Date()) {
@@ -139,43 +183,7 @@ export function validateAllowlist(allowlist, now = new Date()) {
   const entries = [];
 
   for (const [index, row] of allowlist.advisories.entries()) {
-    if (!row || typeof row !== 'object' || Array.isArray(row)) {
-      throw new Error(`Malformed allowlist: advisories[${index}] must be an object.`);
-    }
-
-    for (const field of REQUIRED_FIELDS) {
-      if (!nonEmptyString(row[field])) {
-        throw new Error(`Malformed allowlist: advisories[${index}].${field} is required.`);
-      }
-    }
-
-    const ghsa = row.ghsa.trim().toUpperCase();
-    if (!GHSA_RE.test(ghsa)) {
-      throw new Error(`Malformed allowlist: advisories[${index}].ghsa is not a GHSA id.`);
-    }
-
-    if (seen.has(ghsa)) {
-      throw new Error(`Malformed allowlist: duplicate ${ghsa}.`);
-    }
-    seen.add(ghsa);
-
-    const expires = parseIsoDate(row.expires);
-    if (!expires) {
-      throw new Error(`Malformed allowlist: advisories[${index}].expires must be YYYY-MM-DD.`);
-    }
-
-    if (expires < today) {
-      throw new Error(`Expired allowlist entry ${ghsa} (expired ${expires}).`);
-    }
-
-    entries.push({
-      ghsa,
-      package: row.package.trim(),
-      via: row.via.trim(),
-      exploitability: row.exploitability.trim(),
-      owner: row.owner.trim(),
-      expires,
-    });
+    entries.push(validateAllowlistEntry(row, index, seen, today));
   }
 
   return entries;
