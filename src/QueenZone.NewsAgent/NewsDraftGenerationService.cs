@@ -101,9 +101,7 @@ public sealed class NewsDraftGenerationService(
         var execution = await aiRunExecutor.ExecuteAsync(
             candidate.Id,
             NewsAiRunKind.DraftGeneration,
-            NewsAiModelRole.Drafting,
-            NewsDraftPrompt.Version,
-            messages,
+            new NewsAiChatRequest(NewsAiModelRole.Drafting, NewsDraftPrompt.Version, messages),
             cancellationToken: cancellationToken,
             guidance: guidance);
 
