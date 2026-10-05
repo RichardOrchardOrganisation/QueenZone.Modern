@@ -126,16 +126,19 @@ function ConvertFrom-CoverageDiff {
 
         if ($null -eq $currentFile) { continue }
         if ($line -match '^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@') {
-            $startLine = [int]$Matches[1]
-            $lineCount = if ($Matches[2]) { [int]$Matches[2] } else { 1 }
-
-            for ($offset = 0; $offset -lt $lineCount; $offset++) {
-                [void]$changedLines[$currentFile].Add($startLine + $offset)
-            }
+            Add-CoverageHunk -Lines $changedLines[$currentFile] -StartLine ([int]$Matches[1]) -CountText $Matches[2]
         }
     }
 
     return $changedLines
+}
+
+function Add-CoverageHunk {
+    param([System.Collections.Generic.HashSet[int]]$Lines, [int]$StartLine, [string]$CountText)
+    $lineCount = if ($CountText) { [int]$CountText } else { 1 }
+    for ($offset = 0; $offset -lt $lineCount; $offset++) {
+        [void]$Lines.Add($StartLine + $offset)
+    }
 }
 
 # Coverlet writes UTF-8 coverage.cobertura.xml under a GUID folder. The TRX
