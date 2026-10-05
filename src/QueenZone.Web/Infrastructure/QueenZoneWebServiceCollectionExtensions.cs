@@ -326,6 +326,7 @@ public static class QueenZoneWebServiceCollectionExtensions
 
     public static IServiceCollection AddQueenZoneWebAppServices(this IServiceCollection services)
     {
+        services.AddScoped<MemberAccountDeletionService>();
         services.AddScoped<MemberAccountService>();
         services.AddScoped<AppleAccountTokenService>();
         services.AddScoped<MemberDeletionReceiptService>();
@@ -393,6 +394,8 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<AdminDashboardService>();
         services.AddSingleton<MobileAuthAuthorizationSessionStore>();
         services.AddSingleton<MobileAuthTokenIssuer>();
+        services.AddScoped<MobileAuthGrantAccountAccess>();
+        services.AddScoped<MobileAuthGrantProcessingService>();
         services.AddScoped<MobileAuthService>();
         // Header name used by the rich-text editor fetch() upload helper.
         services.AddAntiforgery(options =>

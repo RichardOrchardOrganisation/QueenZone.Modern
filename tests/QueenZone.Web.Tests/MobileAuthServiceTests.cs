@@ -1332,17 +1332,16 @@ public sealed class MobileAuthServiceTests
                 clock,
                 Options.Create(new UploadQuotaOptions { Enabled = false })));
 
-        return new MobileAuthService(
-            new MobileAuthAuthorizationSessionStore(clock),
-            grants ?? new InMemoryMobileAuthGrantRepository(new SharedMobileAuthGrantStore()),
-            new MobileAuthTokenIssuer(options, site, environment, clock),
-            members,
-            new MobileAuthAccountRateLimiter(
+        var accountRateLimiter = new MobileAuthAccountRateLimiter(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(
                     new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
                 clock,
                 Options.Create(authLimits ?? new AuthRateLimitingOptions()),
-                logger ?? NullLogger<MobileAuthAccountRateLimiter>.Instance),
+                logger ?? NullLogger<MobileAuthAccountRateLimiter>.Instance);
+        var processing = new MobileAuthGrantProcessingService(
+            grants ?? new InMemoryMobileAuthGrantRepository(new SharedMobileAuthGrantStore()),
+            new MobileAuthTokenIssuer(options, site, environment, clock),
+            new MobileAuthGrantAccountAccess(members, accountRateLimiter),
             new MobileAuthReplayRecoveryLimiter(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(
                     new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
@@ -1351,6 +1350,7 @@ public sealed class MobileAuthServiceTests
             options,
             clock,
             serviceLogger ?? NullLogger<MobileAuthService>.Instance);
+        return new MobileAuthService(new MobileAuthAuthorizationSessionStore(clock), members, options, processing);
     }
 
     private sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
