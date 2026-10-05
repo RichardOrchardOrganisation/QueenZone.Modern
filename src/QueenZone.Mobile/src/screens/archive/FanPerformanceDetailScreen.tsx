@@ -112,18 +112,18 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
           .filter(Boolean)
           .join(' · ')}
       </Text>
-      {(track.contributorDisplayName) && (
+      {Boolean(track.contributorDisplayName) && (
         <Text style={[type.meta, { color: c.textMuted, marginTop: space.sm }]}>
           Submitted by {track.contributorDisplayName}
         </Text>
       )}
-      {(description) && (
+      {Boolean(description) && (
         <Text style={[type.body, { color: c.textSecondary, marginTop: space.xl }]}>{description}</Text>
       )}
 
       {playerContent}
 
-      {(accessToken || isSignedIn) && (
+      {Boolean(accessToken || isSignedIn) && (
         <View style={styles.report} testID={testIds.fanPerformanceReport}>
           <Text style={[type.cardTitle, { color: c.textPrimary }]}>Report this performance</Text>
           {reportStatus ? (
