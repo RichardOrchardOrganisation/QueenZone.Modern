@@ -300,6 +300,7 @@ describe('SettingsScreen notifications', () => {
       avatarPath: '/account/avatar/11111111-1111-1111-1111-111111111111',
       avatarThumbPath: null,
       messagePrivacy: 'members',
+      themePreference: 'system',
       linkedProviders: [],
       legacyLink: { kind: 'none', match: null, claimableMatches: [], unavailableMatches: [] },
       scheduledDeletionAt: null,

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -249,6 +250,159 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
             .GetRequiredService<IMemberAccountRepository>()
             .FindByEmailAsync("settings-privacy@example.com");
         Assert.Equal(MemberMessagePrivacy.Followed, member!.MessagePrivacy);
+    }
+
+    [Fact]
+    public async Task Get_ShowsAppearanceOptions_AndNoThemeOverrideByDefault()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "settings-theme-default@example.com",
+            displayName: "Theme Default",
+            subject: "google-settings-theme-default");
+
+        var body = await client.GetStringAsync("/account/settings");
+
+        Assert.Contains("Appearance", body);
+        Assert.Contains("Use device setting", body);
+        Assert.Contains("Save appearance", body);
+        Assert.DoesNotContain("data-theme=", body);
+    }
+
+    [Fact]
+    public async Task PostUpdateThemePreference_SavesToProfileAndAppliesToEveryPage()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "settings-theme@example.com",
+            displayName: "Theme Fan",
+            subject: "google-settings-theme",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        var formPage = await client.GetStringAsync("/account/settings");
+        var response = await client.PostAsync(
+            "/account/settings?handler=UpdateThemePreference",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["ThemePreference"] = nameof(MemberThemePreference.Dark),
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var updated = await client.GetStringAsync("/account/settings");
+        Assert.Contains("Appearance updated.", updated);
+        Assert.Contains("<html lang=\"en\" data-theme=\"dark\">", updated);
+        var home = await client.GetStringAsync("/");
+        Assert.Contains("data-theme=\"dark\"", home);
+        using var scope = factory.Services.CreateScope();
+        var member = await scope.ServiceProvider
+            .GetRequiredService<IMemberAccountRepository>()
+            .FindByEmailAsync("settings-theme@example.com");
+        Assert.Equal(MemberThemePreference.Dark, member!.ThemePreference);
+    }
+
+    [Theory]
+    [InlineData(MemberThemePreference.Light, "light", "#FFFFFF")]
+    [InlineData(MemberThemePreference.Dark, "dark", "#111111")]
+    public async Task Get_applies_external_account_change_on_first_response(
+        MemberThemePreference preference, string attribute, string chrome)
+    {
+        var identity = Guid.NewGuid().ToString("N");
+        using var client = await CreateSignedInMemberClientAsync(
+            email: identity + "@example.com", displayName: "Theme Sync", subject: identity);
+        using var scope = factory.Services.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
+        var account = await repository.FindByEmailAsync(identity + "@example.com");
+        await repository.UpdateThemePreferenceAsync(account!.Id, preference);
+        var first = await client.GetStringAsync("/account/settings");
+        Assert.Contains($"data-theme=\"{attribute}\"", first);
+        Assert.Contains($"name=\"theme-color\" content=\"{chrome}\"", first);
+        Assert.Contains($"data-theme=\"{attribute}\"", await client.GetStringAsync("/"));
+    }
+
+    [Fact]
+    public async Task PostUpdateDeviceTheme_OverridesAccountPreferenceOnThisBrowserOnly()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "settings-device-theme@example.com",
+            displayName: "Device Theme",
+            subject: "google-settings-device-theme",
+            options: new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        var formPage = await client.GetStringAsync("/account/settings");
+        await client.PostAsync(
+            "/account/settings?handler=UpdateThemePreference",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["ThemePreference"] = nameof(MemberThemePreference.Dark),
+            }));
+
+        formPage = await client.GetStringAsync("/account/settings");
+        Assert.Contains("data-theme=\"dark\"", formPage);
+        var deviceResponse = await client.PostAsync(
+            "/account/settings?handler=UpdateDeviceTheme",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["DeviceTheme"] = nameof(DeviceThemeChoice.Light),
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, deviceResponse.StatusCode);
+        Assert.Contains(
+            deviceResponse.Headers.GetValues("Set-Cookie"),
+            header => header.StartsWith("qz_theme=light", StringComparison.Ordinal));
+        var home = await client.GetStringAsync("/");
+        Assert.Contains("data-theme=\"light\"", home);
+        using var scope = factory.Services.CreateScope();
+        var member = await scope.ServiceProvider
+            .GetRequiredService<IMemberAccountRepository>()
+            .FindByEmailAsync("settings-device-theme@example.com");
+        Assert.Equal(MemberThemePreference.Dark, member!.ThemePreference);
+        var prepared = await client.GetFromJsonAsync<Dictionary<string, string>>("/appearance?handler=Token");
+        using var systemRequest = new HttpRequestMessage(HttpMethod.Post, "/appearance")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["DeviceTheme"] = "System" }),
+        };
+        systemRequest.Headers.Add("RequestVerificationToken", prepared!["token"]);
+        Assert.Equal(HttpStatusCode.Redirect, (await client.SendAsync(systemRequest)).StatusCode);
+        Assert.Contains("data-theme=\"system\"", await client.GetStringAsync("/"));
+        Assert.Equal(MemberThemePreference.Dark, member.ThemePreference);
+
+        formPage = await client.GetStringAsync("/account/settings");
+        var cleared = await client.PostAsync(
+            "/account/settings?handler=UpdateDeviceTheme",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["DeviceTheme"] = nameof(DeviceThemeChoice.Account),
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
+        Assert.Contains("data-theme=\"dark\"", await client.GetStringAsync("/"));
+    }
+
+    [Fact]
+    public async Task DeviceThemeCookie_AppliesToSignedOutVisitorsAndIgnoresUnknownValues()
+    {
+        var client = factory.CreateClient();
+
+        using var forced = new HttpRequestMessage(HttpMethod.Get, "/");
+        forced.Headers.Add("Cookie", "qz_theme=dark");
+        var forcedBody = await (await client.SendAsync(forced)).Content.ReadAsStringAsync();
+        Assert.Contains("<html lang=\"en\" data-theme=\"dark\">", forcedBody);
+
+        using var bogus = new HttpRequestMessage(HttpMethod.Get, "/");
+        bogus.Headers.Add("Cookie", "qz_theme=\"><script>");
+        var bogusBody = await (await client.SendAsync(bogus)).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("data-theme=", bogusBody);
     }
 
     [Fact]
@@ -511,6 +665,48 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
         Assert.Contains("value=\"9101\"", body);
         Assert.Contains("value=\"9102\"", body);
         Assert.Contains("Claim legacy account", body);
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(1, true)]
+    public async Task Get_explains_occupied_legacy_matches_without_offering_them_for_claim(
+        int occupiedCount, bool hasFreeMatch)
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var matches = Enumerable.Range(0, occupiedCount + (hasFreeMatch ? 1 : 0))
+            .Select(index => new LegacyMemberMatch(9600 + occupiedCount * 10 + (hasFreeMatch ? 100 : 0) + index,
+                "Archive" + index)).ToArray();
+        for (var index = 0; index < occupiedCount; index++)
+        {
+            using var owner = await CreateSignedInMemberClientWithLegacyMatchesAsync(
+                "owner-" + suffix + index + "@example.com", "Archive owner", "owner-" + suffix + index,
+                [matches[index]]);
+            var form = await owner.GetStringAsync("/account/settings");
+            var claimed = await owner.PostAsync("/account/settings?handler=ClaimLegacy",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = ExtractAntiforgeryToken(form),
+                    ["SelectedLegacyUserId"] = matches[index].UserId.ToString(),
+                }));
+            Assert.Equal(HttpStatusCode.OK, claimed.StatusCode);
+            Assert.Contains("Linked to legacy forum account", await claimed.Content.ReadAsStringAsync());
+        }
+        using var member = await CreateSignedInMemberClientWithLegacyMatchesAsync(
+            "member-" + suffix + "@example.com", "Modern fan", "member-" + suffix, matches);
+        var body = await member.GetStringAsync("/account/settings");
+        Assert.Contains("already linked to", body);
+        Assert.Contains("Archive0", body);
+        if (hasFreeMatch)
+        {
+            Assert.Contains("Claim legacy account", body);
+            Assert.Contains("name=\"SelectedLegacyUserId\" value=\"" + matches[^1].UserId + "\"", body);
+        }
+        else
+        {
+            Assert.DoesNotContain("Claim legacy account</button>", body);
+        }
     }
 
     [Fact]

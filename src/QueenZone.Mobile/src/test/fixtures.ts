@@ -29,6 +29,7 @@ export function memberProfileFixture(overrides: Partial<MemberProfile> = {}): Me
     avatarPath: null,
     avatarThumbPath: null,
     messagePrivacy: 'members',
+    themePreference: 'system',
     linkedProviders: ['Google'],
     legacyLink: {
       kind: 'none',

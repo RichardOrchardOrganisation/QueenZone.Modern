@@ -83,6 +83,20 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task UpdateThemePreferenceAsync_PersistsSetting()
+    {
+        var account = await SeedAccountAsync("theme-ef@example.com", "EF Theme");
+        Assert.Equal(MemberThemePreference.System, account.ThemePreference);
+
+        var updated = await repository.UpdateThemePreferenceAsync(account.Id, MemberThemePreference.Light);
+        Assert.Equal(MemberThemePreference.Light, updated!.ThemePreference);
+
+        var reloaded = await repository.FindByIdAsync(account.Id);
+        Assert.Equal(MemberThemePreference.Light, reloaded!.ThemePreference);
+        Assert.Null(await repository.UpdateThemePreferenceAsync(Guid.NewGuid(), MemberThemePreference.Dark));
+    }
+
+    [Fact]
     public async Task UpdateAvatarUrlAsync_PersistsAndClearsPath()
     {
         var account = await SeedAccountAsync("avatar-ef@example.com", "EF Avatar");

@@ -50,6 +50,14 @@ public interface IMemberAccountRepository : IAppleRevocationRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Updates the member's light/dark appearance override.
+    /// </summary>
+    Task<MemberAccount?> UpdateThemePreferenceAsync(
+        Guid memberId,
+        MemberThemePreference themePreference,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the modern account already linked to the given legacy USERS_T id, if any.
     /// </summary>
     Task<MemberAccount?> FindByLinkedLegacyUserIdAsync(int legacyUserId, CancellationToken cancellationToken = default);

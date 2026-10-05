@@ -47,6 +47,56 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('accent')).toHaveTextContent('#244A8F');
   });
 
+  it('clears the device override when the choice returns to system', async () => {
+    await AsyncStorage.setItem(themePreferenceStorageKey, 'light');
+    function Reset() {
+      const { setPreference, devicePreference } = useTheme();
+      return (
+        <Text testID="device" onPress={() => setPreference('system')}>
+          {devicePreference}
+        </Text>
+      );
+    }
+    render(
+      <ThemeProvider>
+        <Reset />
+      </ThemeProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('device')).toHaveTextContent('light'));
+
+    await act(async () => {
+      screen.getByTestId('device').props.onPress();
+    });
+
+    expect(screen.getByTestId('device')).toHaveTextContent('system');
+    await waitFor(() => expect(AsyncStorage.getItem(themePreferenceStorageKey)).resolves.toBeNull());
+  });
+
+  it('serializes delayed storage writes so the latest repeated choice persists', async () => {
+    let finishFirst!: () => void;
+    const original = jest.mocked(AsyncStorage.setItem).getMockImplementation()!;
+    const writes = jest.spyOn(AsyncStorage, 'setItem');
+    writes.mockClear();
+    writes.mockImplementationOnce((key, value) => new Promise<void>((resolve) => {
+      finishFirst = () => { void original(key, value).then(resolve); };
+    }));
+    function RepeatedChoice() {
+      const { setPreference } = useTheme();
+      return <Text testID="repeat" onPress={() => {
+        setPreference('light');
+        setPreference('dark');
+      }}>Choose</Text>;
+    }
+    render(<ThemeProvider><RepeatedChoice /></ThemeProvider>);
+    await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalledWith(themePreferenceStorageKey));
+    await act(async () => { screen.getByTestId('repeat').props.onPress(); });
+    expect(writes).toHaveBeenCalledTimes(1);
+    await act(async () => { finishFirst(); });
+    await waitFor(() => expect(AsyncStorage.getItem(themePreferenceStorageKey)).resolves.toBe('dark'));
+    expect(writes).toHaveBeenCalledTimes(2);
+    writes.mockRestore();
+  });
+
   it('applies and persists a new choice', async () => {
     render(
       <ThemeProvider>

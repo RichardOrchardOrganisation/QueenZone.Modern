@@ -216,6 +216,12 @@ public sealed class MemberAccountDeletionHostedServiceTests
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<MemberAccount?> UpdateThemePreferenceAsync(
+            Guid memberId,
+            MemberThemePreference themePreference,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<MemberAccount?> FindByLinkedLegacyUserIdAsync(
             int legacyUserId,
             CancellationToken cancellationToken = default) =>

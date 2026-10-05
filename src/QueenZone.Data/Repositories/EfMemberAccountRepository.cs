@@ -205,6 +205,23 @@ public sealed class EfMemberAccountRepository : IMemberAccountRepository
         return account;
     }
 
+    public async Task<MemberAccount?> UpdateThemePreferenceAsync(
+        Guid memberId,
+        MemberThemePreference themePreference,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await dbContext.MemberAccounts
+            .SingleOrDefaultAsync(a => a.Id == memberId, cancellationToken);
+        if (account is null)
+        {
+            return null;
+        }
+
+        account.ThemePreference = themePreference;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return account;
+    }
+
     public async Task<MemberAccount?> FindByLinkedLegacyUserIdAsync(
         int legacyUserId,
         CancellationToken cancellationToken = default) =>

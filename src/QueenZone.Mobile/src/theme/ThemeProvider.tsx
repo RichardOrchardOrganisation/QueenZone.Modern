@@ -34,8 +34,14 @@ type ThemeContextValue = {
   /** Resolved colours for the active mode. */
   c: ColorScheme;
   mode: ThemeMode;
+  /** Effective choice: this device's override, else the signed-in account's, else the system. */
   preference: ThemePreference;
+  /** This device's own override. `system` clears it so the account setting (or the system) applies. */
+  devicePreference: ThemePreference;
   setPreference: (preference: ThemePreference) => void;
+  /** The signed-in member's saved choice. Held in memory only; the account is the source of truth. */
+  accountPreference: ThemePreference;
+  setAccountPreference: (preference: ThemePreference) => void;
   palette: typeof palette;
   type: typeof type;
   fonts: typeof fonts;
@@ -63,9 +69,12 @@ export function ThemeProvider(props: Props) {
   const { children, preference: preferenceProp = 'system' } = props;
   const systemScheme = useColorScheme();
   const [savedPreference, setSavedPreference] = useState<ThemePreference>(preferenceProp);
+  const [accountPreference, setAccountPreference] = useState<ThemePreference>('system');
   const changedByUser = useRef(false);
+  const storageWrites = useRef<Promise<void>>(Promise.resolve());
   const isControlled = props.preference !== undefined;
-  const preference = isControlled ? preferenceProp : savedPreference;
+  const devicePreference = isControlled ? preferenceProp : savedPreference;
+  const preference = devicePreference === 'system' ? accountPreference : devicePreference;
 
   useEffect(() => {
     if (isControlled) {
@@ -88,8 +97,12 @@ export function ThemeProvider(props: Props) {
   const setPreference = useCallback((next: ThemePreference) => {
     changedByUser.current = true;
     setSavedPreference(next);
-    void AsyncStorage.setItem(themePreferenceStorageKey, next).catch(() => {
-      // The in-memory choice still applies for this session.
+    // Keep repeated changes ordered even if native storage completes slowly.
+    storageWrites.current = storageWrites.current.then(async () => {
+      if (next === 'system') await AsyncStorage.removeItem(themePreferenceStorageKey);
+      else await AsyncStorage.setItem(themePreferenceStorageKey, next);
+    }).catch(() => {
+      // The in-memory choice still applies for this session; later writes may retry.
     });
   }, []);
 
@@ -101,7 +114,10 @@ export function ThemeProvider(props: Props) {
       c: mode === 'light' ? light : dark,
       mode,
       preference,
+      devicePreference,
       setPreference,
+      accountPreference,
+      setAccountPreference,
       palette,
       type,
       fonts,
@@ -112,7 +128,7 @@ export function ThemeProvider(props: Props) {
       chrome,
       imagery,
     }),
-    [mode, preference, setPreference],
+    [mode, preference, devicePreference, setPreference, accountPreference],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

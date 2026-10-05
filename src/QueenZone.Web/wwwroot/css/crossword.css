@@ -1,18 +1,6 @@
 .qz-crossword { color: var(--text-primary); background: var(--surface-page); }
 .qz-crossword button, .qz-crossword select { color: var(--text-primary); background-color: var(--surface-raised); }
 .qz-crossword .qz-button { color: var(--surface-page); background: var(--text-primary); }
-@media (prefers-color-scheme: dark) {
-  .qz-crossword {
-    color-scheme: dark;
-    --surface-page: var(--surface-inverse);
-    --surface-raised: var(--qz-charcoal);
-    --surface-card: var(--surface-inverse);
-    --text-primary: var(--text-on-dark);
-    --text-secondary: var(--qz-grey-400);
-    --link: var(--text-on-dark);
-    --link-hover: var(--qz-grey-200);
-  }
-}
 .qz-crossword-heading, .qz-crossword-toolbar, .qz-crossword-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-block: 1.5rem; }
 .qz-crossword-heading { justify-content: space-between; align-items: flex-start; }
 .qz-crossword a { text-decoration: underline; }

@@ -976,6 +976,7 @@ function profileFromIdentityShell(identity: StoredIdentityShell | null | undefin
     avatarPath: identity.avatarPath ?? null,
     avatarThumbPath: null,
     messagePrivacy: 'members',
+    themePreference: 'system',
     linkedProviders: [],
     legacyLink: { kind: 'none', match: null, claimableMatches: [], unavailableMatches: [] },
     scheduledDeletionAt: null,

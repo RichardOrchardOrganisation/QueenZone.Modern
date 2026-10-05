@@ -50,7 +50,9 @@
 
   --text-primary:        var(--qz-charcoal);
   --text-secondary:      var(--qz-grey-600);
-  --text-muted:          var(--qz-grey-500);
+  --text-muted:          var(--qz-grey-600);
+  --text-body:           var(--qz-grey-700);   /* long-form reading text */
+  --text-faint:          var(--qz-grey-600);   /* placeholders, ordinal numbers */
   --text-on-dark:        var(--qz-white);
   --text-on-dark-muted:  rgba(255, 255, 255, 0.66);
 
@@ -61,11 +63,129 @@
 
   --link:                var(--qz-blue);
   --link-hover:          var(--qz-blue-deep);
+  --link-on-dark:        var(--qz-gold);
+  --accent-special-text: #78601F;
+  --border-control:      var(--qz-grey-500);
 
   --accent-archive:      var(--qz-purple);   /* historical / timeline      */
   --accent-editorial:    var(--qz-burgundy); /* featured / premium articles */
   --accent-cta:          var(--qz-blue);     /* primary actions            */
   --accent-special:      var(--qz-gold);     /* anniversaries / badges      */
 
-  --focus-ring:          rgba(36, 74, 143, 0.45);
+  --focus-ring:          var(--qz-blue);
+
+  /* ---- Theme-aware extras (see "Light / dark theming" below) ---- */
+  --surface-inverse-deep: var(--qz-black);          /* dark bands: footer, mastheads, heroes */
+  --surface-accent-tint:  var(--qz-blue-tint);      /* faint wash for active / selected rows */
+  --surface-editorial-tint: var(--qz-burgundy-tint);
+  --surface-special-tint: var(--qz-gold-tint);
+  --text-on-accent:       var(--qz-white);          /* text on --accent-cta fills */
+  --accent-cta-hover:     var(--qz-grey-900);       /* hover fill for primary CTAs */
+  --border-inverse:       var(--qz-black);          /* border of solid "inverse" buttons */
+  --accent-editorial-text: var(--qz-burgundy);      /* burgundy used as TEXT */
+  --accent-archive-text:   var(--qz-purple);        /* purple used as TEXT */
+  --danger:               #8E2F2F;
+  --success:              #287A58;
+
+  color-scheme: light;
+}
+
+/* ============================================================
+   LIGHT / DARK THEMING
+   Default: follow the visitor's system setting (prefers-color-scheme).
+   Override: <html data-theme="light|dark"> forces a mode. Signed-in members
+   choose System / Light / Dark in Account settings; the choice is stored on
+   the member profile and shared with the mobile app.
+   Values mirror the mobile `dark` scheme (src/QueenZone.Mobile/src/theme/tokens.ts).
+   The two dark blocks below MUST stay identical.
+   On dark, Antique Gold replaces Royal Blue for links, active state and CTAs
+   (Royal Blue fails contrast on #111). Dark mid-bands (--surface-inverse*) stay
+   darker than the page so the alternating section rhythm survives.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-page:        #111111;
+    --surface-raised:      #161616;
+    --surface-card:        #1A1A1A;
+    --surface-inverse:     #0A0A0A;
+    --surface-inverse-deep: #0A0A0A;
+    --surface-overlay:     rgba(0, 0, 0, 0.62);
+
+    --text-primary:        #FFFFFF;
+    --text-secondary:      rgba(255, 255, 255, 0.66);
+    --text-muted:          rgba(255, 255, 255, 0.50);
+    --text-on-accent:      #111111;
+    --text-body:           rgba(255, 255, 255, 0.80);
+    --text-faint:          rgba(255, 255, 255, 0.55);
+    --accent-editorial-text: #E0A0B0;
+    --accent-archive-text:   #B79BE0;
+
+    --border-default:      rgba(255, 255, 255, 0.16);
+    --border-strong:       rgba(255, 255, 255, 0.28);
+    --hairline:            rgba(255, 255, 255, 0.12);
+
+    --accent-special-text: var(--qz-gold);
+    --border-control:      rgba(255, 255, 255, 0.50);
+    --link:                var(--qz-gold);
+    --link-hover:          #D3B868;
+    --accent-cta:          var(--qz-gold);
+    --accent-cta-hover:    #D3B868;
+    --border-inverse:      rgba(255, 255, 255, 0.28);
+    --surface-accent-tint: rgba(184, 154, 74, 0.20);
+    --surface-editorial-tint: rgba(107, 31, 51, 0.40);
+    --surface-special-tint: rgba(184, 154, 74, 0.16);
+    --focus-ring:          #D3B868;
+
+    --danger:              #D98A8A;
+    --success:             #6EE7B7;
+
+    --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.40);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.40);
+    --shadow-lift: 0 4px 12px rgba(0, 0, 0, 0.50), 0 18px 48px rgba(0, 0, 0, 0.50);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface-page:        #111111;
+  --surface-raised:      #161616;
+  --surface-card:        #1A1A1A;
+  --surface-inverse:     #0A0A0A;
+  --surface-inverse-deep: #0A0A0A;
+  --surface-overlay:     rgba(0, 0, 0, 0.62);
+
+  --text-primary:        #FFFFFF;
+  --text-secondary:      rgba(255, 255, 255, 0.66);
+  --text-muted:          rgba(255, 255, 255, 0.50);
+  --text-on-accent:      #111111;
+  --text-body:           rgba(255, 255, 255, 0.80);
+  --text-faint:          rgba(255, 255, 255, 0.55);
+  --accent-editorial-text: #E0A0B0;
+  --accent-archive-text:   #B79BE0;
+
+  --border-default:      rgba(255, 255, 255, 0.16);
+  --border-strong:       rgba(255, 255, 255, 0.28);
+  --hairline:            rgba(255, 255, 255, 0.12);
+
+  --accent-special-text: var(--qz-gold);
+  --border-control:      rgba(255, 255, 255, 0.50);
+  --link:                var(--qz-gold);
+  --link-hover:          #D3B868;
+  --accent-cta:          var(--qz-gold);
+  --accent-cta-hover:    #D3B868;
+  --border-inverse:      rgba(255, 255, 255, 0.28);
+  --surface-accent-tint: rgba(184, 154, 74, 0.20);
+  --surface-editorial-tint: rgba(107, 31, 51, 0.40);
+  --surface-special-tint: rgba(184, 154, 74, 0.16);
+  --focus-ring:          #D3B868;
+
+  --danger:              #D98A8A;
+  --success:             #6EE7B7;
+
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-lift: 0 4px 12px rgba(0, 0, 0, 0.50), 0 18px 48px rgba(0, 0, 0, 0.50);
+
+  color-scheme: dark;
 }

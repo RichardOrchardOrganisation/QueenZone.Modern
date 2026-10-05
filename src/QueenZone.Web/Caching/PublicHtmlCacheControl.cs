@@ -48,6 +48,12 @@ public static class PublicHtmlCacheControl
             return false;
         }
 
+        if (DeviceThemeCookie.Read(context.Request) is not null)
+        {
+            context.Response.Headers.CacheControl = "private, no-store";
+            return false;
+        }
+
         if (!PublicOutputCachePolicies.IsPublicReadOnlyRequest(context))
         {
             return false;

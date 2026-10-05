@@ -245,6 +245,24 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
         }
     }
 
+    public Task<MemberAccount?> UpdateThemePreferenceAsync(
+        Guid memberId,
+        MemberThemePreference themePreference,
+        CancellationToken cancellationToken = default)
+    {
+        lock (gate)
+        {
+            var account = accounts.FirstOrDefault(a => a.Id == memberId);
+            if (account is null)
+            {
+                return Task.FromResult<MemberAccount?>(null);
+            }
+
+            account.ThemePreference = themePreference;
+            return Task.FromResult<MemberAccount?>(account);
+        }
+    }
+
     public Task<MemberAccount?> FindByLinkedLegacyUserIdAsync(
         int legacyUserId,
         CancellationToken cancellationToken = default)

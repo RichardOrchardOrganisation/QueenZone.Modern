@@ -1,0 +1,81 @@
+@model QueenZone.Web.Pages.Account.SettingsModel
+<section class="qz-account-settings__legacy" aria-labelledby="social-profiles-heading">
+  <h2 id="social-profiles-heading" class="qz-account-settings__section-title">Social profiles</h2>
+  <p>
+    Add a handle or https profile URL for the networks you use. Empty fields stay hidden
+    on your public profile. Only these six networks are accepted.
+  </p>
+  <form method="post"
+        asp-page-handler="UpdateSocialLinks"
+        class="qz-account-form"
+        novalidate
+        data-busy-submit
+        data-busy-label="Saving…">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="qz-account-form__errors" role="alert"></div>
+    <label class="qz-account-form__field">
+      <span>X</span>
+      <input asp-for="SocialX"
+             type="text"
+             maxlength="@MemberSocialLinkUrl.MaxInputLength"
+             autocomplete="off"
+             spellcheck="false"
+             placeholder="@@queen or https://x.com/queen" />
+      <span asp-validation-for="SocialX" class="qz-account-form__field-error"></span>
+    </label>
+    <label class="qz-account-form__field">
+      <span>Instagram</span>
+      <input asp-for="SocialInstagram"
+             type="text"
+             maxlength="@MemberSocialLinkUrl.MaxInputLength"
+             autocomplete="off"
+             spellcheck="false"
+             placeholder="@@queen or https://www.instagram.com/queen" />
+      <span asp-validation-for="SocialInstagram" class="qz-account-form__field-error"></span>
+    </label>
+    <label class="qz-account-form__field">
+      <span>Facebook</span>
+      <input asp-for="SocialFacebook"
+             type="text"
+             maxlength="@MemberSocialLinkUrl.MaxInputLength"
+             autocomplete="off"
+             spellcheck="false"
+             placeholder="queen or https://www.facebook.com/queen" />
+      <span asp-validation-for="SocialFacebook" class="qz-account-form__field-error"></span>
+    </label>
+    <label class="qz-account-form__field">
+      <span>YouTube</span>
+      <input asp-for="SocialYouTube"
+             type="text"
+             maxlength="@MemberSocialLinkUrl.MaxInputLength"
+             autocomplete="off"
+             spellcheck="false"
+             placeholder="@@QueenOfficial or https://www.youtube.com/@@QueenOfficial" />
+      <span asp-validation-for="SocialYouTube" class="qz-account-form__field-error"></span>
+    </label>
+    <label class="qz-account-form__field">
+      <span>TikTok</span>
+      <input asp-for="SocialTikTok"
+             type="text"
+             maxlength="@MemberSocialLinkUrl.MaxInputLength"
+             autocomplete="off"
+             spellcheck="false"
+             placeholder="@@queen or https://www.tiktok.com/@@queen" />
+      <span asp-validation-for="SocialTikTok" class="qz-account-form__field-error"></span>
+    </label>
+    <label class="qz-account-form__field">
+      <span>Bluesky</span>
+      <input asp-for="SocialBluesky"
+             type="text"
+             maxlength="@MemberSocialLinkUrl.MaxInputLength"
+             autocomplete="off"
+             spellcheck="false"
+             placeholder="name.bsky.social or https://bsky.app/profile/name.bsky.social" />
+      <span asp-validation-for="SocialBluesky" class="qz-account-form__field-error"></span>
+    </label>
+    <div class="qz-account-form__actions">
+      <button type="submit" class="qz-button">Save social profiles</button>
+    </div>
+    <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
+  </form>
+</section>

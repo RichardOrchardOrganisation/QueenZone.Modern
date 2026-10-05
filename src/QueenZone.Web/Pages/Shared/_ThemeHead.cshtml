@@ -1,0 +1,11 @@
+@if (ViewData["ThemeAttribute"] is string forcedTheme && forcedTheme is "light" or "dark")
+{
+  <meta name="theme-color" content="@(forcedTheme == "dark" ? "#111111" : "#FFFFFF")">
+}
+else
+{
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
+}
+@* Run before styles so the public offline shell restores the last resolved choice without a flash. *@
+<script src="/js/theme.js" asp-append-version="true"></script>

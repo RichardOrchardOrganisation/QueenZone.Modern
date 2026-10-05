@@ -1,0 +1,17 @@
+@page "/appearance"
+@model AppearanceModel
+<partial name="_PageHero" model='@(("Appearance", "This device", "Choose how QueenZone looks in this browser.", ""))' />
+<section class="qz-section"><div class="qz-container qz-prose">
+  <p>System follows your OS. Light and Dark override it in this browser, including when signed out.
+     Account setting clears the browser override and uses your signed-in account preference, or the OS when signed out.</p>
+  <form method="post" class="qz-account-form">
+    <fieldset>
+      <legend>Appearance for this device</legend>
+      <label><input asp-for="DeviceTheme" type="radio" value="System" /> System</label>
+      <label><input asp-for="DeviceTheme" type="radio" value="Light" /> Light</label>
+      <label><input asp-for="DeviceTheme" type="radio" value="Dark" /> Dark</label>
+      <label><input asp-for="DeviceTheme" type="radio" value="Account" /> Account setting</label>
+    </fieldset>
+    <button class="qz-button" type="submit">Save for this device</button>
+  </form>
+</div></section>

@@ -1306,6 +1306,11 @@ namespace QueenZone.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<byte>("ThemePreference")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint")
+                        .HasDefaultValue((byte)0);
+
                     b.HasKey("Id");
 
                     b.HasIndex("IsSuspended")

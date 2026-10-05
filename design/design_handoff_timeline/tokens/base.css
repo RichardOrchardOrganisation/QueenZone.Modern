@@ -46,7 +46,7 @@ img { max-width: 100%; display: block; }
   max-width: var(--container-text);
   font: var(--type-body);
   line-height: var(--lh-relaxed);
-  color: var(--qz-grey-700);
+  color: var(--text-body);
 }
 .qz-prose p { margin: 0 0 var(--space-5); }
 .qz-prose a { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }

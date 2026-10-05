@@ -385,6 +385,7 @@ export const memberProfileSchema = z.object({
   avatarPath: z.string().nullable(),
   avatarThumbPath: z.string().nullable(),
   messagePrivacy: z.enum(['members', 'followed', 'nobody']),
+  themePreference: z.enum(['system', 'light', 'dark']).default('system'),
   linkedProviders: z.array(z.string()),
   legacyLink: z.object({
     kind: z.enum(['none', 'linked', 'claimable', 'unavailable']),

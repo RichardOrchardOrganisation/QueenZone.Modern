@@ -1,8 +1,22 @@
 ﻿@using Microsoft.Extensions.Options
 @using QueenZone.Web.Sitemap
 @inject IOptions<SiteOptions> SiteOptionsAccessor
+@{
+  // Light/dark: a data-theme attribute forces a mode; without one CSS follows prefers-color-scheme.
+  var memberAuth = await Context.AuthenticateMemberAsync();
+  // Precedence: this browser's own choice, then the member's account setting, then the system.
+  var accountThemeAttribute = memberAuth.Succeeded
+    ? MemberThemeClaim.ToAttributeValue(MemberThemeClaim.Read(memberAuth.Principal))
+    : null;
+  if (ViewData["AccountThemePreference"] is QueenZone.Data.MemberThemePreference accountTheme)
+  {
+    accountThemeAttribute = MemberThemeClaim.ToAttributeValue(accountTheme);
+  }
+  var themeAttribute = DeviceThemeCookie.Read(Context.Request) ?? accountThemeAttribute;
+  ViewData["ThemeAttribute"] = themeAttribute;
+}
 <!doctype html>
-<html lang="en">
+<html lang="en"@(themeAttribute is null ? null : Html.Raw($" data-theme=\"{themeAttribute}\""))>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

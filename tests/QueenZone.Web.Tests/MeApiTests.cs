@@ -69,6 +69,7 @@ public sealed class MeApiTests :
         Assert.False(profile.HasAvatar);
         Assert.Null(profile.AvatarPath);
         Assert.Equal(MemberMessagePrivacy.Members, profile.MessagePrivacy);
+        Assert.Equal(MemberThemePreference.System, profile.ThemePreference);
         Assert.Equal(MemberAccountService.MinDisplayNameLength, profile.Limits.MinDisplayNameLength);
         Assert.Equal(MemberAccountService.MaxDisplayNameLength, profile.Limits.MaxDisplayNameLength);
         Assert.Equal(MemberAvatarPaths.MaxUploadBytes, profile.Limits.MaxAvatarBytes);
@@ -119,6 +120,24 @@ public sealed class MeApiTests :
         var profile = await response.Content.ReadFromJsonAsync<MemberProfileDto>(JsonOptions);
         Assert.Equal(MemberMessagePrivacy.Followed, profile!.MessagePrivacy);
         Assert.Equal("Private Fan", profile.DisplayName);
+    }
+
+    [Fact]
+    public async Task Patch_UpdatesThemePreference()
+    {
+        var memberId = Guid.NewGuid();
+        await SeedMemberAsync(memberId, "Theme Fan", "theme-me@example.com");
+        using var client = CreateBearerClient(memberId, "Theme Fan", "theme-me@example.com");
+
+        using var response = await client.PatchAsJsonAsync(
+            MeApiEndpoints.Path,
+            new { themePreference = "dark" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var profile = await response.Content.ReadFromJsonAsync<MemberProfileDto>(JsonOptions);
+        Assert.Equal(MemberThemePreference.Dark, profile!.ThemePreference);
+        Assert.Equal(MemberMessagePrivacy.Members, profile.MessagePrivacy);
+        Assert.Equal("Theme Fan", profile.DisplayName);
     }
 
     [Fact]
