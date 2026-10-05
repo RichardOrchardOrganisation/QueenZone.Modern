@@ -33,23 +33,17 @@ public sealed class EfArticlesRepository : IArticlesRepository
     /// </summary>
     internal EfArticlesRepository(
         QueenZoneDbContext dbContext,
-        string latestSql,
-        string countSql,
-        string archivePageSql,
-        string byIdSql,
-        string sitemapSql,
-        IEditorialArticleRepository? editorialArticles = null,
-        string? feedKeysSql = null,
-        string? byIdsSql = null)
+        ArticleRepositorySqlTemplates templates,
+        IEditorialArticleRepository? editorialArticles = null)
     {
         this.dbContext = dbContext;
-        this.latestSql = latestSql;
-        this.countSql = countSql;
-        this.archivePageSql = archivePageSql;
-        this.byIdSql = byIdSql;
-        this.sitemapSql = sitemapSql;
-        this.feedKeysSql = feedKeysSql ?? string.Empty;
-        this.byIdsSql = byIdsSql ?? string.Empty;
+        this.latestSql = templates.LatestSql;
+        this.countSql = templates.CountSql;
+        this.archivePageSql = templates.ArchivePageSql;
+        this.byIdSql = templates.ByIdSql;
+        this.sitemapSql = templates.SitemapSql;
+        this.feedKeysSql = templates.FeedKeysSql;
+        this.byIdsSql = templates.ByIdsSql;
         this.editorialArticles = editorialArticles;
     }
 
@@ -235,4 +229,15 @@ public sealed class EfArticlesRepository : IArticlesRepository
 
         public bool IsPublished { get; set; }
     }
+}
+
+internal sealed record ArticleRepositorySqlTemplates(
+    string LatestSql,
+    string CountSql,
+    string ArchivePageSql,
+    string ByIdSql,
+    string SitemapSql)
+{
+    public string FeedKeysSql { get; init; } = "";
+    public string ByIdsSql { get; init; } = "";
 }

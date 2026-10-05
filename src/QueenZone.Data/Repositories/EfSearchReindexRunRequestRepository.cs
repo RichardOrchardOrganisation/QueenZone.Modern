@@ -4,9 +4,21 @@ using static QueenZone.Data.RunRequestText;
 namespace QueenZone.Data;
 
 public sealed class EfSearchReindexRunRequestRepository(QueenZoneDbContext dbContext)
-    : EfRunRequestRepositoryBase<SearchReindexRunRequestEntity, SearchReindexRunRequestStatus, SearchReindexRunRequest>(dbContext),
+    : EfRunRequestRepositoryBase<SearchReindexRunRequestEntity, SearchReindexRunRequestStatus>(dbContext),
         ISearchReindexRunRequestRepository
 {
+    public async Task<SearchReindexRunRequest?> ClaimNextAsync(string runnerId, CancellationToken cancellationToken = default)
+    {
+        var entity = await ClaimNextEntityAsync(runnerId, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
+    public async Task<IReadOnlyList<SearchReindexRunRequest>> ListRecentAsync(int limit = 10, CancellationToken cancellationToken = default)
+    {
+        var entities = await ListRecentEntitiesAsync(limit, cancellationToken);
+        return entities.ConvertAll(Map);
+    }
+
     protected override SearchReindexRunRequestStatus Pending => SearchReindexRunRequestStatus.Pending;
 
     protected override SearchReindexRunRequestStatus Running => SearchReindexRunRequestStatus.Running;
@@ -32,10 +44,10 @@ public sealed class EfSearchReindexRunRequestRepository(QueenZoneDbContext dbCon
         };
 
         var (queued, wasCreated) = await QueueCoreAsync(entity, singleActive: true, cancellationToken);
-        return new SearchReindexRunRequestQueueResult(queued, wasCreated);
+        return new SearchReindexRunRequestQueueResult(Map(queued), wasCreated);
     }
 
-    protected override SearchReindexRunRequest Map(SearchReindexRunRequestEntity request) =>
+    private static SearchReindexRunRequest Map(SearchReindexRunRequestEntity request) =>
         new(
             request.Id,
             request.Status,

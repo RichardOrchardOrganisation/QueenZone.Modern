@@ -86,16 +86,20 @@ public sealed class ArticleMergedFeedEfTests : IDisposable
             """;
         var archive = new EfArticlesRepository(
             dbContext,
-            latestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
-            countSql: "SELECT COUNT(*) AS Value FROM Articles WHERE IsPublished = 1",
-            archivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
-            byIdSql: listSelect + " AND Id = {0}",
-            sitemapSql: """
+            new ArticleRepositorySqlTemplates(
+                LatestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
+                CountSql: "SELECT COUNT(*) AS Value FROM Articles WHERE IsPublished = 1",
+                ArchivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
+                ByIdSql: listSelect + " AND Id = {0}",
+                SitemapSql: """
                 SELECT Id, Title, PublishedAt, CAST(NULL AS TEXT) AS Slug
                 FROM Articles WHERE IsPublished = 1
-                """,
-            feedKeysSql: "SELECT Id, PublishedAt FROM Articles WHERE IsPublished = 1",
-            byIdsSql: listSelect + " AND Id = {0}");
+                """
+            )
+            {
+                FeedKeysSql = "SELECT Id, PublishedAt FROM Articles WHERE IsPublished = 1",
+                ByIdsSql = listSelect + " AND Id = {0}"
+            });
         var community = new EfArticleRepository(dbContext);
         var cache = PublicQueryCacheServiceTests.CreateService(
             new MemoryCache(new MemoryCacheOptions()),

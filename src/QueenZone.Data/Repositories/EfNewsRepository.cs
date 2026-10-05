@@ -55,26 +55,19 @@ public sealed class EfNewsRepository : INewsRepository
     /// </summary>
     internal EfNewsRepository(
         QueenZoneDbContext dbContext,
-        string latestSql,
-        string countSql,
-        string archivePageSql,
-        string byIdSql,
-        string sitemapSql,
-        INewsSuggestionRepository? newsSuggestionRepository = null,
-        string archivePageByDecadeSql = "",
-        string countByDecadeSql = "",
-        string archiveYearRangeSql = "")
+        NewsRepositorySqlTemplates templates,
+        INewsSuggestionRepository? newsSuggestionRepository = null)
     {
         this.dbContext = dbContext;
-        this.latestSql = latestSql;
-        this.countSql = countSql;
-        this.archivePageSql = archivePageSql;
-        this.byIdSql = byIdSql;
-        this.sitemapSql = sitemapSql;
+        this.latestSql = templates.LatestSql;
+        this.countSql = templates.CountSql;
+        this.archivePageSql = templates.ArchivePageSql;
+        this.byIdSql = templates.ByIdSql;
+        this.sitemapSql = templates.SitemapSql;
         this.newsSuggestionRepository = newsSuggestionRepository;
-        this.archivePageByDecadeSql = archivePageByDecadeSql;
-        this.countByDecadeSql = countByDecadeSql;
-        this.archiveYearRangeSql = archiveYearRangeSql;
+        this.archivePageByDecadeSql = templates.ArchivePageByDecadeSql;
+        this.countByDecadeSql = templates.CountByDecadeSql;
+        this.archiveYearRangeSql = templates.ArchiveYearRangeSql;
     }
 
     public async Task<IReadOnlyList<NewsItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default)
@@ -330,4 +323,16 @@ public sealed class EfNewsRepository : INewsRepository
 
         public DateTime? MaxPublishedAt { get; set; }
     }
+}
+
+internal sealed record NewsRepositorySqlTemplates(
+    string LatestSql,
+    string CountSql,
+    string ArchivePageSql,
+    string ByIdSql,
+    string SitemapSql)
+{
+    public string ArchivePageByDecadeSql { get; init; } = "";
+    public string CountByDecadeSql { get; init; } = "";
+    public string ArchiveYearRangeSql { get; init; } = "";
 }

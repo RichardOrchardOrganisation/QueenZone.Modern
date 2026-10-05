@@ -401,17 +401,21 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var repository = new EfArticlesRepository(
             dbContext,
-            latestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
-            countSql: "SELECT COUNT(*) AS Value FROM Articles WHERE IsPublished = 1",
-            archivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
-            byIdSql: detailSelect + " AND Id = {0}",
-            sitemapSql: """
+            new ArticleRepositorySqlTemplates(
+                LatestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
+                CountSql: "SELECT COUNT(*) AS Value FROM Articles WHERE IsPublished = 1",
+                ArchivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
+                ByIdSql: detailSelect + " AND Id = {0}",
+                SitemapSql: """
                 SELECT Id, Title, PublishedAt, CAST(NULL AS TEXT) AS Slug
                 FROM Articles WHERE IsPublished = 1
                 ORDER BY PublishedAt DESC, Id DESC
-                """,
-            feedKeysSql: "SELECT Id, PublishedAt FROM Articles WHERE IsPublished = 1",
-            byIdsSql: listSelect + " AND Id = {0}");
+                """
+            )
+            {
+                FeedKeysSql = "SELECT Id, PublishedAt FROM Articles WHERE IsPublished = 1",
+                ByIdsSql = listSelect + " AND Id = {0}"
+            });
 
         var latest = await repository.GetLatestAsync(10);
         Assert.Equal(2, latest.Count);
@@ -473,14 +477,15 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var repository = new EfArticlesRepository(
             dbContext,
-            latestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
-            countSql: "SELECT COUNT(*) AS Value FROM ArticlesPreview WHERE IsPublished = 1",
-            archivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
-            byIdSql: listSelect + " AND Id = {0}",
-            sitemapSql: """
+            new ArticleRepositorySqlTemplates(
+                LatestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
+                CountSql: "SELECT COUNT(*) AS Value FROM ArticlesPreview WHERE IsPublished = 1",
+                ArchivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
+                ByIdSql: listSelect + " AND Id = {0}",
+                SitemapSql: """
                 SELECT Id, Title, PublishedAt, CAST(NULL AS TEXT) AS Slug
                 FROM ArticlesPreview WHERE IsPublished = 1
-                """);
+                """));
 
         var latest = await repository.GetLatestAsync(1);
         Assert.Single(latest);
@@ -541,14 +546,16 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var repository = new EfArticlesRepository(
             dbContext,
-            latestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
-            countSql: "SELECT COUNT(*) AS Value FROM ArticlesPaged WHERE IsPublished = 1",
-            archivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
-            byIdSql: listSelect + " AND Id = {0}",
-            sitemapSql: """
+            new ArticleRepositorySqlTemplates(
+                LatestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
+                CountSql: "SELECT COUNT(*) AS Value FROM ArticlesPaged WHERE IsPublished = 1",
+                ArchivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
+                ByIdSql: listSelect + " AND Id = {0}",
+                SitemapSql: """
                 SELECT Id, Title, PublishedAt, CAST(NULL AS TEXT) AS Slug
                 FROM ArticlesPaged WHERE IsPublished = 1
-                """,
+                """
+            ),
             editorialArticles: editorial);
 
         Assert.Equal(120, await repository.GetPublishedCountAsync());
@@ -897,14 +904,15 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var repository = new EfNewsRepository(
             dbContext,
-            latestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
-            countSql: "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1",
-            archivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
-            byIdSql: detailSelect + " AND Id = {0}",
-            sitemapSql: """
+            new NewsRepositorySqlTemplates(
+                LatestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
+                CountSql: "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1",
+                ArchivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
+                ByIdSql: detailSelect + " AND Id = {0}",
+                SitemapSql: """
                 SELECT Id, Title, PublishedAt, Slug FROM NewsRows WHERE IsPublished = 1
                 ORDER BY PublishedAt DESC, Id DESC
-                """,
+                """),
             newsSuggestionRepository: suggestions);
 
         var latest = await repository.GetLatestAsync(5);
@@ -984,16 +992,19 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var repository = new EfNewsRepository(
             dbContext,
-            latestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
-            countSql: "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1",
-            archivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
-            byIdSql: listSelect + " AND Id = {0}",
-            sitemapSql: "SELECT Id, Title, PublishedAt, Slug FROM NewsRows WHERE IsPublished = 1",
-            archivePageByDecadeSql: listSelect +
+            new NewsRepositorySqlTemplates(
+                LatestSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {0}",
+                CountSql: "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1",
+                ArchivePageSql: listSelect + " ORDER BY PublishedAt DESC, Id DESC LIMIT {1} OFFSET {0}",
+                ByIdSql: listSelect + " AND Id = {0}",
+                SitemapSql: "SELECT Id, Title, PublishedAt, Slug FROM NewsRows WHERE IsPublished = 1")
+            {
+                ArchivePageByDecadeSql = listSelect +
                 " AND date(PublishedAt) >= date({0}) AND date(PublishedAt) < date({1})" +
                 " ORDER BY PublishedAt DESC, Id DESC LIMIT {3} OFFSET {2}",
-            countByDecadeSql: "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1" +
-                " AND date(PublishedAt) >= date({0}) AND date(PublishedAt) < date({1})");
+                CountByDecadeSql = "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1" +
+                " AND date(PublishedAt) >= date({0}) AND date(PublishedAt) < date({1})"
+            });
 
         // Unfiltered default page never contains the 2008 row.
         var unfilteredFirstPage = await repository.GetArchivePageAsync(1, 20);
@@ -1042,12 +1053,15 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var repository = new EfNewsRepository(
             dbContext,
-            latestSql: "SELECT Id, Title, Excerpt, Body, PublishedAt, SourceUrl, IsPublished, Slug, CAST(NULL AS TEXT) AS ImageBlobKey, CAST(NULL AS INTEGER) AS ImageGalleryPicId, CAST(NULL AS INTEGER) AS ForumTopicId FROM NewsRows WHERE IsPublished = 1 LIMIT {0}",
-            countSql: "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1",
-            archivePageSql: "SELECT Id, Title, Excerpt, Body, PublishedAt, SourceUrl, IsPublished, Slug, CAST(NULL AS TEXT) AS ImageBlobKey, CAST(NULL AS INTEGER) AS ImageGalleryPicId, CAST(NULL AS INTEGER) AS ForumTopicId FROM NewsRows WHERE IsPublished = 1 LIMIT {1} OFFSET {0}",
-            byIdSql: "SELECT Id, Title, Excerpt, Body, PublishedAt, SourceUrl, IsPublished, Slug, CAST(NULL AS TEXT) AS ImageBlobKey, CAST(NULL AS INTEGER) AS ImageGalleryPicId, CAST(NULL AS INTEGER) AS ForumTopicId FROM NewsRows WHERE IsPublished = 1 AND Id = {0}",
-            sitemapSql: "SELECT Id, Title, PublishedAt, Slug FROM NewsRows WHERE IsPublished = 1",
-            archiveYearRangeSql: "SELECT MIN(PublishedAt) AS MinPublishedAt, MAX(PublishedAt) AS MaxPublishedAt FROM NewsRows WHERE IsPublished = 1");
+            new NewsRepositorySqlTemplates(
+                LatestSql: "SELECT Id, Title, Excerpt, Body, PublishedAt, SourceUrl, IsPublished, Slug, CAST(NULL AS TEXT) AS ImageBlobKey, CAST(NULL AS INTEGER) AS ImageGalleryPicId, CAST(NULL AS INTEGER) AS ForumTopicId FROM NewsRows WHERE IsPublished = 1 LIMIT {0}",
+                CountSql: "SELECT COUNT(*) AS Value FROM NewsRows WHERE IsPublished = 1",
+                ArchivePageSql: "SELECT Id, Title, Excerpt, Body, PublishedAt, SourceUrl, IsPublished, Slug, CAST(NULL AS TEXT) AS ImageBlobKey, CAST(NULL AS INTEGER) AS ImageGalleryPicId, CAST(NULL AS INTEGER) AS ForumTopicId FROM NewsRows WHERE IsPublished = 1 LIMIT {1} OFFSET {0}",
+                ByIdSql: "SELECT Id, Title, Excerpt, Body, PublishedAt, SourceUrl, IsPublished, Slug, CAST(NULL AS TEXT) AS ImageBlobKey, CAST(NULL AS INTEGER) AS ImageGalleryPicId, CAST(NULL AS INTEGER) AS ForumTopicId FROM NewsRows WHERE IsPublished = 1 AND Id = {0}",
+                SitemapSql: "SELECT Id, Title, PublishedAt, Slug FROM NewsRows WHERE IsPublished = 1")
+            {
+                ArchiveYearRangeSql = "SELECT MIN(PublishedAt) AS MinPublishedAt, MAX(PublishedAt) AS MaxPublishedAt FROM NewsRows WHERE IsPublished = 1"
+            });
 
         var range = await repository.GetArchiveYearRangeAsync();
 

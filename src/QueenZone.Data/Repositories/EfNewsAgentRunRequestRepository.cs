@@ -5,9 +5,21 @@ using static QueenZone.Data.RunRequestText;
 namespace QueenZone.Data;
 
 public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext)
-    : EfRunRequestRepositoryBase<NewsAgentRunRequestEntity, NewsAgentRunRequestStatus, NewsAgentRunRequest>(dbContext),
+    : EfRunRequestRepositoryBase<NewsAgentRunRequestEntity, NewsAgentRunRequestStatus>(dbContext),
         INewsAgentRunRequestRepository
 {
+    public async Task<NewsAgentRunRequest?> ClaimNextAsync(string runnerId, CancellationToken cancellationToken = default)
+    {
+        var entity = await ClaimNextEntityAsync(runnerId, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
+    public async Task<IReadOnlyList<NewsAgentRunRequest>> ListRecentAsync(int limit = 10, CancellationToken cancellationToken = default)
+    {
+        var entities = await ListRecentEntitiesAsync(limit, cancellationToken);
+        return entities.ConvertAll(Map);
+    }
+
     protected override NewsAgentRunRequestStatus Pending => NewsAgentRunRequestStatus.Pending;
 
     protected override NewsAgentRunRequestStatus Running => NewsAgentRunRequestStatus.Running;
@@ -39,7 +51,7 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
         };
 
         var (queued, wasCreated) = await QueueCoreAsync(entity, singleActive: isGathering, cancellationToken);
-        return new NewsAgentRunRequestQueueResult(queued, wasCreated);
+        return new NewsAgentRunRequestQueueResult(Map(queued), wasCreated);
     }
 
     public Task RecordHeartbeatAsync(
@@ -107,7 +119,7 @@ public sealed class EfNewsAgentRunRequestRepository(QueenZoneDbContext dbContext
         }
     }
 
-    protected override NewsAgentRunRequest Map(NewsAgentRunRequestEntity request) =>
+    private static NewsAgentRunRequest Map(NewsAgentRunRequestEntity request) =>
         new(
             request.Id,
             request.Status,
