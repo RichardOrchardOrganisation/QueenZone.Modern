@@ -9,7 +9,8 @@ export function websiteUrl(apiBaseUrl: string, path: string): string | null {
     return path;
   }
   const origin = trimTrailingChar(apiBaseUrl, '/');
-  return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  const relativePath = path.startsWith('/') ? path : '/' + path;
+  return `${origin}${relativePath}`;
 }
 
 export type SearchTabTarget =
@@ -47,70 +48,50 @@ function tabOrWeb(item: SearchResult, apiBaseUrl: string, tab: SearchTabTarget |
   return url ? { kind: 'web', url } : { kind: 'unsupported' };
 }
 
+type IdSearchRoute<T = SearchTabTarget> = T extends { params: { id: number } }
+  ? Omit<T, 'kind' | 'params'>
+  : never;
+
+const idSearchReaders: ReadonlyMap<string, IdSearchRoute> = new Map([
+  ['news', { tab: 'NewsTab', screen: 'Story' }],
+  ['forum', { tab: 'ForumTab', screen: 'Thread' }],
+  ['biography', { tab: 'ArchiveTab', screen: 'BiographyChapter' }],
+  ['discography', { tab: 'ArchiveTab', screen: 'Album' }],
+  ['fan-performance', { tab: 'ArchiveTab', screen: 'FanPerformanceDetail' }],
+]);
+
 /** Maps a live search hit to a native reader, or the website URL when no reader exists. */
 export function targetForSearchResult(item: SearchResult, apiBaseUrl: string): SearchOpenTarget {
   const contentType = item.contentType.trim().toLowerCase();
   const id = positiveId(item.id);
 
-  if (contentType === 'news') {
-    return tabOrWeb(
-      item,
-      apiBaseUrl,
-      id ? { kind: 'tab', tab: 'NewsTab', screen: 'Story', params: { id } } : null,
-    );
+  const reader = idSearchReaders.get(contentType);
+  if (reader) {
+    return tabOrWeb(item, apiBaseUrl, id ? { kind: 'tab', ...reader, params: { id } } : null);
   }
 
-  if (contentType === 'forum') {
-    return tabOrWeb(
-      item,
-      apiBaseUrl,
-      id ? { kind: 'tab', tab: 'ForumTab', screen: 'Thread', params: { id } } : null,
-    );
-  }
+  switch (contentType) {
+    case 'song': {
+      const slug = songSlugFromSourceKey(item.sourceKey);
+      return tabOrWeb(
+        item,
+        apiBaseUrl,
+        slug ? { kind: 'tab', tab: 'ArchiveTab', screen: 'Song', params: { slug } } : null,
+      );
+    }
 
-  if (contentType === 'biography') {
-    return tabOrWeb(
-      item,
-      apiBaseUrl,
-      id ? { kind: 'tab', tab: 'ArchiveTab', screen: 'BiographyChapter', params: { id } } : null,
-    );
-  }
+    case 'timeline': {
+      return {
+        kind: 'tab',
+        tab: 'ArchiveTab',
+        screen: 'Timeline',
+        params: id ? { focusId: id } : undefined,
+      };
+    }
 
-  if (contentType === 'discography') {
-    return tabOrWeb(
-      item,
-      apiBaseUrl,
-      id ? { kind: 'tab', tab: 'ArchiveTab', screen: 'Album', params: { id } } : null,
-    );
+    default:
+      return tabOrWeb(item, apiBaseUrl, null);
   }
-
-  if (contentType === 'song') {
-    const slug = songSlugFromSourceKey(item.sourceKey);
-    return tabOrWeb(
-      item,
-      apiBaseUrl,
-      slug ? { kind: 'tab', tab: 'ArchiveTab', screen: 'Song', params: { slug } } : null,
-    );
-  }
-
-  if (contentType === 'timeline') {
-    return {
-      kind: 'tab',
-      tab: 'ArchiveTab',
-      screen: 'Timeline',
-      params: id ? { focusId: id } : undefined,
-    };
-  }
-
-  if (contentType === 'fan-performance') {
-    return tabOrWeb(
-      item,
-      apiBaseUrl,
-      id ? { kind: 'tab', tab: 'ArchiveTab', screen: 'FanPerformanceDetail', params: { id } } : null,
-    );
-  }
-
-  return tabOrWeb(item, apiBaseUrl, null);
 }
 
 type TabNavigate = (

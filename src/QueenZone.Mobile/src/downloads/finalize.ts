@@ -103,6 +103,21 @@ export type DownloadHopSignals = {
   tinyComplete: boolean;
 };
 
+function classifyProgressAgainstProbe(
+  probe: number | null,
+  progress: number | null,
+): DownloadHopSignals['progressVsProbe'] {
+  const hasProbe = probe != null && probe > 0;
+  const hasProgress = progress != null && progress > 0;
+  if (!hasProbe) return hasProgress ? 'progress-only' : 'unknown';
+  if (!hasProgress) return 'probe-only';
+  if (progress < MIN_PLAUSIBLE_AUDIO_BYTES && probe > MIN_PLAUSIBLE_AUDIO_BYTES) {
+    return 'tiny-vs-probe';
+  }
+  if (progress >= probe * 0.95 && progress <= probe * 1.05) return 'match';
+  return progress < probe * 0.5 ? 'tiny-vs-probe' : 'unknown';
+}
+
 /**
  * Compare Range-probe size, native-task progress total, and final bytes.
  * A Cloudflare Worker in front of the full GET can advertise a short
@@ -129,20 +144,7 @@ export function downloadHopSignals(input: {
   const destMismatch = Boolean(returned && returned !== input.destUri);
   const probe = input.probeExpected;
   const progress = input.progressTotal;
-  let progressVsProbe: DownloadHopSignals['progressVsProbe'] = 'unknown';
-  if (probe != null && probe > 0 && progress != null && progress > 0) {
-    if (progress < MIN_PLAUSIBLE_AUDIO_BYTES && probe > MIN_PLAUSIBLE_AUDIO_BYTES) {
-      progressVsProbe = 'tiny-vs-probe';
-    } else if (progress >= probe * 0.95 && progress <= probe * 1.05) {
-      progressVsProbe = 'match';
-    } else {
-      progressVsProbe = progress < probe * 0.5 ? 'tiny-vs-probe' : 'unknown';
-    }
-  } else if (probe != null && probe > 0) {
-    progressVsProbe = 'probe-only';
-  } else if (progress != null && progress > 0) {
-    progressVsProbe = 'progress-only';
-  }
+  const progressVsProbe = classifyProgressAgainstProbe(probe, progress);
   let sizeVsProgress: DownloadHopSignals['sizeVsProgress'] = 'unknown';
   if (progress != null && progress > 0 && input.finalSize > 0) {
     sizeVsProgress = input.finalSize >= progress * 0.95 ? 'match' : 'short';
