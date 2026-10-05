@@ -79,6 +79,18 @@ test('redact masks emails, addresses, tokens, connection-string pairs, and long 
   assert.match(long, /…$/);
 });
 
+test('redact masks every connection credential and location alias without exposing nested values', () => {
+  const keys = ['Password', 'Pwd', 'Pass', 'User ID', 'UserId', 'Username', 'UID', 'AccountKey',
+    'SharedAccessSignature', 'SharedAccessKey', 'Server', 'Data Source', 'Initial Catalog', 'Database'];
+  for (const key of keys) {
+    for (const spelling of [key, key.toLowerCase(), key.toUpperCase()]) {
+      assert.equal(redact(`${spelling}=privateValue;`, { maxLength: 0 }), `${spelling}=[secret];`);
+    }
+  }
+  assert.equal(redact('Password=Database=privateValue;Server=host', { maxLength: 0 }), 'Password=[secret];Server=[secret]');
+  assert.equal(redact('bEaReR MixedCASE_123456789'), '[token]');
+});
+
 test('dedupe keys follow the architecture lock', () => {
   assert.equal(sentryKey(12345), 'sentry:12345');
   assert.equal(exceptionKey('System.NullReferenceException at Home'), 'ai:exc:System.NullReferenceException_at_Home');

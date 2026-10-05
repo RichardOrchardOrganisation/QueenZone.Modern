@@ -258,7 +258,7 @@ export function sentryNextPageUrl(linkHeader, { allowedHost = 'sentry.io' } = {}
       if (url.hostname.toLowerCase() !== allowedHost) {
         return '';
       }
-      return url;
+      return url.href;
     } catch {
       return '';
     }
@@ -321,14 +321,14 @@ export function candidatesFromAzureFiles({
   const rows = [];
   for (const [rule, list] of Object.entries(evidence || {})) {
     const parsed = parseEvidenceRows(rule, Array.isArray(list) ? list : []);
-    const matchingAlerts = (alerts || []).filter((alert) => alert.rule === rule);
+    const matchingAlert = (alerts || []).find((alert) => alert.rule === rule);
     for (const row of parsed) {
       rows.push(candidateFromEvidence(row, {
         featureMap,
         areas,
         areaForFile,
         deployedTip,
-        alert: matchingAlerts[0],
+        alert: matchingAlert,
       }));
     }
   }

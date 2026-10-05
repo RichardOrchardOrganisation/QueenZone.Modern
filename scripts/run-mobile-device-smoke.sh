@@ -712,7 +712,7 @@ build_ios() {
     echo "Baking iOS Simulator Release smoke app for ${EXPO_PUBLIC_API_BASE_URL}"
     npx expo prebuild --platform ios --clean
     cd ios
-    workspace="$(ls -d *.xcworkspace | head -n 1)"
+    workspace="$(ls -d ./*.xcworkspace | head -n 1)"
     scheme="$(basename "$workspace" .xcworkspace)"
     qz_ios_job_args=()
     if [[ -n "${QZ_SMOKE_BUILD_JOBS:-}" ]]; then

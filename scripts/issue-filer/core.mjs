@@ -345,15 +345,13 @@ export function unregisteredRules(candidates, findingRules = []) {
   const known = new Set(findingRules.map((rule) => rule.id));
   const ids = new Set();
   for (const candidate of candidates) {
-    if (candidate.rule && isValidFinding({
+    if (candidate.rule && !known.has(candidate.rule) && (candidate.source === 'review' || isValidFinding({
       level: candidate.level || 'L5',
       rule: candidate.rule,
       repeat: candidate.repeat || 'no',
       file: candidate.file || 'unknown',
       verdict: candidate.verdict || 'nit',
-    }) && !known.has(candidate.rule)) {
-      ids.add(candidate.rule);
-    } else if (candidate.rule && !known.has(candidate.rule) && candidate.source === 'review') {
+    }))) {
       ids.add(candidate.rule);
     }
   }

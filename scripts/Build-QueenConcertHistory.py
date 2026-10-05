@@ -36,16 +36,17 @@ SHOW = re.compile(
     r' title="(?P<title>[^"]+)">(?P<date>[^<]+)</a></td>\s*'
     r'<td class="qc-tour-place"><a href="[^"]+"[^>]*>(?P<place>[^<]+)</a></td>'
 )
+LONDON_UK = "London, UK"
 SPECIAL_SHOWS = [
     # The tour itineraries omit these actual performances. Mimed television
     # appearances and private post-Freddie guest sets are intentionally omitted.
-    ("1977-10-06", "New London Theatre", "London, UK",
+    ("1977-10-06", "New London Theatre", LONDON_UK,
      "https://www.queenconcerts.com/live/queen/other.html",
      "Queen played a short live set for fans after filming the 'We Are the Champions' video."),
-    ("1985-07-13", "Wembley Stadium", "London, UK",
+    ("1985-07-13", "Wembley Stadium", LONDON_UK,
      "https://www.queenconcerts.com/live/queen/other.html",
      "Queen performed at Live Aid at Wembley Stadium in London."),
-    ("1992-04-20", "Wembley Stadium", "London, UK",
+    ("1992-04-20", "Wembley Stadium", LONDON_UK,
      "https://www.queenonline.com/live/1992-present",
      "Brian May, Roger Taylor and John Deacon performed with guests at the Freddie Mercury Tribute Concert in London."),
     ("1993-09-18", "Cowdray Park", "Midhurst, UK",
