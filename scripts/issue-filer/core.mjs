@@ -184,6 +184,85 @@ function stormCandidate(ranked, loop, now) {
   };
 }
 
+function candidateSkip(candidate, { loop, minOccurrences, active, findingRules }) {
+  if (!candidate?.keys?.length || !candidate.title) {
+    return { candidate, reason: 'invalid' };
+  }
+  if (loop !== 'telemetry' && (candidate.count || 0) < minOccurrences) {
+    return { candidate, reason: 'below-min-occurrences' };
+  }
+  const ignoreHit = active.find((entry) => matchIgnore(candidate, entry));
+  if (ignoreHit) {
+    return { candidate, reason: 'ignored', ignore: ignoreHit };
+  }
+  if (isCheckGap(candidate, findingRules)) {
+    return { candidate, reason: 'check-gap' };
+  }
+  return null;
+}
+
+function planMatchedCandidate(candidate, match, policy, state) {
+  const { clock, maxComments, cooldownHours, reopenDays, config } = policy;
+  const { create, comment, reopen, skipped } = state;
+  if (match.state === 'open') {
+    if (state.commentsUsed >= maxComments) {
+      skipped.push({ candidate, reason: 'comment-cap', issue: match.number });
+      return;
+    }
+    if (commentedRecently(match, clock, cooldownHours)) {
+      skipped.push({ candidate, reason: 'comment-cooldown', issue: match.number });
+      return;
+    }
+    comment.push({
+      issueNumber: match.number,
+      candidate,
+      kind: 'update',
+      existingBody: match.body,
+    });
+    state.commentsUsed += 1;
+    return;
+  }
+
+  const reason = match.stateReason || '';
+  if (reason === 'not_planned') {
+    skipped.push({
+      candidate,
+      reason: 'closed-not-planned',
+      issue: match.number,
+      suggestIgnore: true,
+    });
+    return;
+  }
+
+  const daysClosed = match.closedAt ? (clock - asDate(match.closedAt)) / MS_DAY : Number.POSITIVE_INFINITY;
+  if (reason === 'completed' && daysClosed <= reopenDays) {
+    if (state.commentsUsed >= maxComments) {
+      skipped.push({ candidate, reason: 'comment-cap', issue: match.number });
+      return;
+    }
+    reopen.push({
+      issueNumber: match.number,
+      candidate,
+      labels: [config.labels.regression || 'regression'],
+    });
+    comment.push({
+      issueNumber: match.number,
+      candidate,
+      kind: 'regression',
+      existingBody: match.body,
+    });
+    state.commentsUsed += 1;
+    return;
+  }
+
+  if (state.remaining <= 0) {
+    skipped.push({ candidate, reason: 'cap', issue: match.number });
+    return;
+  }
+  create.push({ candidate, previousIssue: match.number });
+  state.remaining -= 1;
+}
+
 /**
  * Pure planner. No I/O.
  * @returns {{ create: object[], comment: object[], reopen: object[], skipped: object[], expiredIgnores: object[] }}
@@ -207,25 +286,11 @@ export function planFilings({
   const skipped = [];
   const eligible = [];
 
+  const eligibility = { loop, minOccurrences, active, findingRules };
   for (const candidate of candidates) {
-    if (!candidate?.keys?.length || !candidate.title) {
-      skipped.push({ candidate, reason: 'invalid' });
-      continue;
-    }
-    if (loop !== 'telemetry' && (candidate.count || 0) < minOccurrences) {
-      skipped.push({ candidate, reason: 'below-min-occurrences' });
-      continue;
-    }
-    const ignoreHit = active.find((entry) => matchIgnore(candidate, entry));
-    if (ignoreHit) {
-      skipped.push({ candidate, reason: 'ignored', ignore: ignoreHit });
-      continue;
-    }
-    if (isCheckGap(candidate, findingRules)) {
-      skipped.push({ candidate, reason: 'check-gap' });
-      continue;
-    }
-    eligible.push(candidate);
+    const skip = candidateSkip(candidate, eligibility);
+    if (skip) skipped.push(skip);
+    else eligible.push(candidate);
   }
 
   const ranked = rankCandidates(eligible);
@@ -233,7 +298,7 @@ export function planFilings({
   const comment = [];
   const reopen = [];
   let remaining = remainingCap({ existing, config, loop, now: clock, maxIssues });
-  let commentsUsed = 0;
+  const commentsUsed = 0;
   const maxComments = config.caps?.commentsPerRun ?? 10;
   const cooldownHours = config.match?.commentCooldownHours ?? 24;
   const reopenDays = config.match?.closedCompletedReopenDays ?? 30;
@@ -260,65 +325,12 @@ export function planFilings({
     matched,
   });
 
+  const state = { create, comment, reopen, skipped, remaining, commentsUsed };
+  const policy = { clock, maxComments, cooldownHours, reopenDays, config };
   for (const { candidate, match } of matched) {
-    if (match.state === 'open') {
-      if (commentsUsed >= maxComments) {
-        skipped.push({ candidate, reason: 'comment-cap', issue: match.number });
-        continue;
-      }
-      if (commentedRecently(match, clock, cooldownHours)) {
-        skipped.push({ candidate, reason: 'comment-cooldown', issue: match.number });
-        continue;
-      }
-      comment.push({
-        issueNumber: match.number,
-        candidate,
-        kind: 'update',
-        existingBody: match.body,
-      });
-      commentsUsed += 1;
-      continue;
-    }
-
-    const reason = match.stateReason || '';
-    if (reason === 'not_planned') {
-      skipped.push({
-        candidate,
-        reason: 'closed-not-planned',
-        issue: match.number,
-        suggestIgnore: true,
-      });
-      continue;
-    }
-
-    const daysClosed = match.closedAt ? (clock - asDate(match.closedAt)) / MS_DAY : Number.POSITIVE_INFINITY;
-    if (reason === 'completed' && daysClosed <= reopenDays) {
-      if (commentsUsed >= maxComments) {
-        skipped.push({ candidate, reason: 'comment-cap', issue: match.number });
-        continue;
-      }
-      reopen.push({
-        issueNumber: match.number,
-        candidate,
-        labels: [config.labels.regression || 'regression'],
-      });
-      comment.push({
-        issueNumber: match.number,
-        candidate,
-        kind: 'regression',
-        existingBody: match.body,
-      });
-      commentsUsed += 1;
-      continue;
-    }
-
-    if (remaining <= 0) {
-      skipped.push({ candidate, reason: 'cap', issue: match.number });
-      continue;
-    }
-    create.push({ candidate, previousIssue: match.number });
-    remaining -= 1;
+    planMatchedCandidate(candidate, match, policy, state);
   }
+  remaining = state.remaining;
 
   for (const candidate of createQueue) {
     if (remaining <= 0) {

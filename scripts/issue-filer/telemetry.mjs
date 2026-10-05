@@ -440,6 +440,17 @@ function asStringList(value) {
   return [String(value)];
 }
 
+function addDimensions(map, item) {
+  const dimensions = item?.dimensions || (item?.name && item?.value != null ? [item] : []);
+  for (const dimension of dimensions) {
+    const name = dimension?.name || dimension?.Name;
+    const value = dimension?.value || dimension?.Value;
+    if (name && value != null) {
+      map[name] = value;
+    }
+  }
+}
+
 function dimensionMap(alert) {
   const buckets = [
     alert?.essentials?.dimensions,
@@ -451,14 +462,7 @@ function dimensionMap(alert) {
   for (const bucket of buckets) {
     const list = Array.isArray(bucket) ? bucket : [];
     for (const item of list) {
-      const dimensions = item?.dimensions || (item?.name && item?.value != null ? [item] : []);
-      for (const dimension of dimensions) {
-        const name = dimension?.name || dimension?.Name;
-        const value = dimension?.value || dimension?.Value;
-        if (name && value != null) {
-          map[name] = value;
-        }
-      }
+      addDimensions(map, item);
     }
   }
   return map;
@@ -607,27 +611,22 @@ export function extractTraceId(event) {
   );
 }
 
-export function inAppFrames(event) {
-  const frames = [];
-  const entries = event?.entries || [];
-  for (const entry of entries) {
-    const values = entry?.data?.values || entry?.data?.exception?.values || [];
-    for (const value of values) {
-      for (const frame of value?.stacktrace?.frames || []) {
-        if (frame?.in_app || String(frame?.filename || '').includes('QueenZone')) {
-          frames.push(frame);
-        }
-      }
-    }
-  }
-  const exceptionValues = event?.exception?.values || [];
-  for (const value of exceptionValues) {
+function appendInAppFrames(frames, values) {
+  for (const value of values) {
     for (const frame of value?.stacktrace?.frames || []) {
       if (frame?.in_app || String(frame?.filename || '').includes('QueenZone')) {
         frames.push(frame);
       }
     }
   }
+}
+
+export function inAppFrames(event) {
+  const frames = [];
+  for (const entry of event?.entries || []) {
+    appendInAppFrames(frames, entry?.data?.values || entry?.data?.exception?.values || []);
+  }
+  appendInAppFrames(frames, event?.exception?.values || []);
   return frames.slice(-5).reverse();
 }
 

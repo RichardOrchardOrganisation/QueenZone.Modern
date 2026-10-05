@@ -58,27 +58,32 @@ export function parseArgs(argv) {
   const list = [...argv];
   while (list.length > 0) {
     const flag = list.shift();
-    if (flag === '--dry-run') {
-      args.dryRun = true;
-    } else if (flag === '--validate') {
-      args.validate = true;
-    } else if (flag === '--lookback-days') {
-      args.lookbackDays = Number(list.shift());
-    } else if (flag === '--lookback-hours') {
-      args.lookbackHours = Number(list.shift());
-    } else if (flag === '--max-issues') {
-      args.maxIssues = Number(list.shift());
-    } else if (flag === '--loop') {
-      args.loop = list.shift();
-    } else if (flag === '--ingest-findings') {
-      const next = list[0];
-      if (next && !next.startsWith('--')) {
-        args.ingestFindings = list.shift();
-      } else {
-        args.ingestFindings = DEFAULT_INGEST_FINDINGS;
+    switch (flag) {
+      case '--dry-run':
+        args.dryRun = true;
+        break;
+      case '--validate':
+        args.validate = true;
+        break;
+      case '--lookback-days':
+        args.lookbackDays = Number(list.shift());
+        break;
+      case '--lookback-hours':
+        args.lookbackHours = Number(list.shift());
+        break;
+      case '--max-issues':
+        args.maxIssues = Number(list.shift());
+        break;
+      case '--loop':
+        args.loop = list.shift();
+        break;
+      case '--ingest-findings': {
+        const next = list[0];
+        args.ingestFindings = next && !next.startsWith('--') ? list.shift() : DEFAULT_INGEST_FINDINGS;
+        break;
       }
-    } else {
-      throw new Error(`Unknown argument: ${flag}`);
+      default:
+        throw new Error(`Unknown argument: ${flag}`);
     }
   }
   if (!Number.isFinite(args.lookbackDays) || args.lookbackDays < 1) {
@@ -208,6 +213,51 @@ async function postLog(github, config, plan) {
   }));
 }
 
+async function writePlan(github, config, plan, loop) {
+  await ensureKnownLabels(
+    github,
+    config,
+    plan.create.flatMap((item) => buildIssue({
+      candidate: item.candidate,
+      config,
+      previousIssue: item.previousIssue,
+      loop,
+    }).labels),
+    loop,
+  );
+
+  for (const item of plan.create) {
+    const issue = buildIssue({
+      candidate: item.candidate,
+      config,
+      previousIssue: item.previousIssue,
+      loop,
+    });
+    await github.createIssue(issue);
+  }
+  for (const item of plan.reopen) {
+    await github.reopen(item.issueNumber);
+    await github.addLabels(item.issueNumber, item.labels);
+  }
+  for (const item of plan.comment) {
+    await github.comment(item.issueNumber, buildComment(item));
+    const previous = parseFilerMarker(item.existingBody)?.keys || [];
+    const merged = mergedMarkerKeys(item.existingBody, item.candidate);
+    if (item.existingBody && merged.length > previous.length && github.updateIssue) {
+      await github.updateIssue(item.issueNumber, {
+        body: replaceFilerMarker(item.existingBody, {
+          keys: merged,
+          source: item.candidate.source,
+        }),
+      });
+    }
+  }
+
+  if (plan.create.length + plan.reopen.length > 0) {
+    await postLog(github, config, plan);
+  }
+}
+
 export async function runFiler(options = {}) {
   const root = options.root || repoRootFrom();
   const now = options.now instanceof Date ? options.now : new Date(options.now || Date.now());
@@ -318,48 +368,7 @@ export async function runFiler(options = {}) {
     throw new Error('GitHub client is required to write issues');
   }
 
-  await ensureKnownLabels(
-    github,
-    config,
-    plan.create.flatMap((item) => buildIssue({
-      candidate: item.candidate,
-      config,
-      previousIssue: item.previousIssue,
-      loop,
-    }).labels),
-    loop,
-  );
-
-  for (const item of plan.create) {
-    const issue = buildIssue({
-      candidate: item.candidate,
-      config,
-      previousIssue: item.previousIssue,
-      loop,
-    });
-    await github.createIssue(issue);
-  }
-  for (const item of plan.reopen) {
-    await github.reopen(item.issueNumber);
-    await github.addLabels(item.issueNumber, item.labels);
-  }
-  for (const item of plan.comment) {
-    await github.comment(item.issueNumber, buildComment(item));
-    const previous = parseFilerMarker(item.existingBody)?.keys || [];
-    const merged = mergedMarkerKeys(item.existingBody, item.candidate);
-    if (item.existingBody && merged.length > previous.length && github.updateIssue) {
-      await github.updateIssue(item.issueNumber, {
-        body: replaceFilerMarker(item.existingBody, {
-          keys: merged,
-          source: item.candidate.source,
-        }),
-      });
-    }
-  }
-
-  if (plan.create.length + plan.reopen.length > 0) {
-    await postLog(github, config, plan);
-  }
+  await writePlan(github, config, plan, loop);
 
   if (lookbackDays >= 60 && config.reportIssueNumber) {
     await github.comment(config.reportIssueNumber, buildRankedReport(candidates));

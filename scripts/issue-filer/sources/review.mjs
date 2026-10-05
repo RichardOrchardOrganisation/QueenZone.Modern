@@ -72,6 +72,55 @@ export function ingestedCandidates(filePath, { config, findingRules } = {}) {
     .map((candidate) => ({ ...candidate, ingested: true }));
 }
 
+async function collectPullFindings(ctx, pull, findings, malformed) {
+  const extra = {
+    pr: pull.number,
+    url: evidenceUrl(pull),
+    at: pull.updated_at || pull.updatedAt || '',
+  };
+  const fromBody = parseFindings(pull.body || '', extra);
+  findings.push(...fromBody.findings);
+  malformed.push(...fromBody.malformed);
+
+  const issueComments = ctx.issueComments?.[pull.number] || (ctx.github ? await ctx.github.listIssueComments(pull.number) : []);
+  for (const comment of issueComments) {
+    const parsed = parseFindings(comment.body || '', {
+      pr: pull.number,
+      url: evidenceUrl(comment) || extra.url,
+      at: comment.created_at || comment.createdAt || extra.at,
+    });
+    findings.push(...parsed.findings);
+    malformed.push(...parsed.malformed);
+  }
+
+  const reviewComments = ctx.reviewComments?.[pull.number] || (ctx.github ? await ctx.github.listReviewComments(pull.number) : []);
+  for (const comment of reviewComments) {
+    const parsed = parseFindings(comment.body || '', {
+      pr: pull.number,
+      url: evidenceUrl(comment) || extra.url,
+      at: comment.created_at || comment.createdAt || extra.at,
+    });
+    for (const finding of parsed.findings) {
+      if (!finding.file && comment.path) {
+        finding.file = comment.path;
+      }
+    }
+    findings.push(...parsed.findings);
+    malformed.push(...parsed.malformed);
+  }
+
+  const reviews = ctx.reviews?.[pull.number] || (ctx.github ? await ctx.github.listReviews(pull.number) : []);
+  for (const review of reviews) {
+    const parsed = parseFindings(review.body || '', {
+      pr: pull.number,
+      url: evidenceUrl(review) || extra.url,
+      at: review.submitted_at || review.submittedAt || extra.at,
+    });
+    findings.push(...parsed.findings);
+    malformed.push(...parsed.malformed);
+  }
+}
+
 export async function collect(ctx) {
   const findings = [];
   const malformed = ctx.malformed || [];
@@ -86,52 +135,7 @@ export async function collect(ctx) {
       }
       continue;
     }
-    const extra = {
-      pr: pull.number,
-      url: evidenceUrl(pull),
-      at: pull.updated_at || pull.updatedAt || '',
-    };
-    const fromBody = parseFindings(pull.body || '', extra);
-    findings.push(...fromBody.findings);
-    malformed.push(...fromBody.malformed);
-
-    const issueComments = ctx.issueComments?.[pull.number] || (ctx.github ? await ctx.github.listIssueComments(pull.number) : []);
-    for (const comment of issueComments) {
-      const parsed = parseFindings(comment.body || '', {
-        pr: pull.number,
-        url: evidenceUrl(comment) || extra.url,
-        at: comment.created_at || comment.createdAt || extra.at,
-      });
-      findings.push(...parsed.findings);
-      malformed.push(...parsed.malformed);
-    }
-
-    const reviewComments = ctx.reviewComments?.[pull.number] || (ctx.github ? await ctx.github.listReviewComments(pull.number) : []);
-    for (const comment of reviewComments) {
-      const parsed = parseFindings(comment.body || '', {
-        pr: pull.number,
-        url: evidenceUrl(comment) || extra.url,
-        at: comment.created_at || comment.createdAt || extra.at,
-      });
-      for (const finding of parsed.findings) {
-        if (!finding.file && comment.path) {
-          finding.file = comment.path;
-        }
-      }
-      findings.push(...parsed.findings);
-      malformed.push(...parsed.malformed);
-    }
-
-    const reviews = ctx.reviews?.[pull.number] || (ctx.github ? await ctx.github.listReviews(pull.number) : []);
-    for (const review of reviews) {
-      const parsed = parseFindings(review.body || '', {
-        pr: pull.number,
-        url: evidenceUrl(review) || extra.url,
-        at: review.submitted_at || review.submittedAt || extra.at,
-      });
-      findings.push(...parsed.findings);
-      malformed.push(...parsed.malformed);
-    }
+    await collectPullFindings(ctx, pull, findings, malformed);
   }
 
   if ((ctx.lookbackDays || 0) >= 60 && ctx.root) {

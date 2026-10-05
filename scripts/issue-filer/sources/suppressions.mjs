@@ -4,30 +4,33 @@ import { areaForFile } from '../config.mjs';
 
 const execFileAsync = promisify(execFile);
 
+function readDiffHeader(line, state) {
+  const commitMatch = line.match(/^commit\s+([0-9a-f]{7,40})\b/i);
+  if (commitMatch) {
+    state.commit = commitMatch[1];
+    return true;
+  }
+  if (line.startsWith('Date: ')) {
+    const dateText = line.slice('Date: '.length).trim();
+    const parsed = Date.parse(dateText);
+    state.date = Number.isNaN(parsed) ? dateText : new Date(parsed).toISOString();
+    return true;
+  }
+  if (line.startsWith('diff --git a/')) {
+    const separator = line.indexOf(' b/', 'diff --git a/'.length);
+    if (separator !== -1) {
+      state.file = line.slice(separator + 3);
+    }
+    return true;
+  }
+  return false;
+}
+
 export function parseSuppressionDiff(patch, patterns, { config } = {}) {
   const groups = new Map();
-  let file = '';
-  let commit = '';
-  let date = '';
+  const state = { file: '', commit: '', date: '' };
   for (const line of String(patch || '').split(/\r?\n/)) {
-    const commitMatch = line.match(/^commit\s+([0-9a-f]{7,40})\b/i);
-    if (commitMatch) {
-      commit = commitMatch[1];
-      continue;
-    }
-    if (line.startsWith('Date: ')) {
-      const dateText = line.slice('Date: '.length).trim();
-      const parsed = Date.parse(dateText);
-      date = Number.isNaN(parsed) ? dateText : new Date(parsed).toISOString();
-      continue;
-    }
-    if (line.startsWith('diff --git a/')) {
-      const separator = line.indexOf(' b/', 'diff --git a/'.length);
-      if (separator !== -1) {
-        file = line.slice(separator + 3);
-      }
-      continue;
-    }
+    if (readDiffHeader(line, state)) continue;
     if (!line.startsWith('+') || line.startsWith('+++')) {
       continue;
     }
@@ -37,7 +40,7 @@ export function parseSuppressionDiff(patch, patterns, { config } = {}) {
         continue;
       }
       const bucket = groups.get(pattern.id) || [];
-      bucket.push({ file, commit, date, line: added.trim() });
+      bucket.push({ ...state, line: added.trim() });
       groups.set(pattern.id, bucket);
     }
   }
