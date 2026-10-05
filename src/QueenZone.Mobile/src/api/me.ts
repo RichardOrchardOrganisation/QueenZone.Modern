@@ -83,8 +83,9 @@ export function avatarUrl(apiBaseUrl: string, avatarPath: string | null, cacheTo
   const origin = trimTrailingChar(apiBaseUrl, '/');
   const path = avatarPath.startsWith('/') ? avatarPath : `/${avatarPath}`;
   const url = `${origin}${path}`;
-  const querySeparator = path.includes('?') ? '&' : '?';
-  return cacheToken ? `${url}${querySeparator}v=${encodeURIComponent(cacheToken)}` : url;
+  if (!cacheToken) return url;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${url}${separator}v=${encodeURIComponent(cacheToken)}`;
 }
 
 export function formatMemberSince(createdAt: string): string {
@@ -94,6 +95,43 @@ export function formatMemberSince(createdAt: string): string {
   }
 
   return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+function parseProfileLimits(payload: unknown): MemberProfileLimits {
+  const limitsRaw = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  return {
+    minDisplayNameLength: readPositiveInt(limitsRaw.minDisplayNameLength, fallbackProfileLimits.minDisplayNameLength),
+    maxDisplayNameLength: readPositiveInt(limitsRaw.maxDisplayNameLength, fallbackProfileLimits.maxDisplayNameLength),
+    maxAvatarBytes: readPositiveInt(limitsRaw.maxAvatarBytes, fallbackProfileLimits.maxAvatarBytes),
+    allowedAvatarContentTypes: Array.isArray(limitsRaw.allowedAvatarContentTypes)
+      ? limitsRaw.allowedAvatarContentTypes.filter((item): item is string => typeof item === 'string')
+      : fallbackProfileLimits.allowedAvatarContentTypes,
+    deletionRetentionDays: readPositiveInt(
+      limitsRaw.deletionRetentionDays,
+      fallbackProfileLimits.deletionRetentionDays,
+    ),
+  };
+}
+
+function parseAccountDeletionInfo(payload: unknown): AccountDeletionInfo {
+  const deletionRaw = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  return {
+    confirmationPhrase:
+      typeof deletionRaw.confirmationPhrase === 'string' ? deletionRaw.confirmationPhrase : 'DELETE',
+    confirmationHint:
+      typeof deletionRaw.confirmationHint === 'string'
+        ? deletionRaw.confirmationHint
+        : 'Type DELETE to schedule deletion of the account.',
+    requestedTitle:
+      typeof deletionRaw.requestedTitle === 'string' ? deletionRaw.requestedTitle : 'Account deletion scheduled',
+    requestedMessage:
+      typeof deletionRaw.requestedMessage === 'string'
+        ? deletionRaw.requestedMessage
+        : 'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.',
+    whatHappens: Array.isArray(deletionRaw.whatHappens)
+      ? deletionRaw.whatHappens.filter((item): item is string => typeof item === 'string')
+      : [],
+  };
 }
 
 export function parseMemberProfile(payload: unknown): MemberProfile {
@@ -106,8 +144,6 @@ export function parseMemberProfile(payload: unknown): MemberProfile {
     throw new Error('Profile response was missing member identity.');
   }
 
-  const limitsRaw = raw.limits && typeof raw.limits === 'object' ? (raw.limits as Record<string, unknown>) : {};
-  const deletionRaw = raw.deletion && typeof raw.deletion === 'object' ? (raw.deletion as Record<string, unknown>) : {};
   const legacyRaw = raw.legacyLink && typeof raw.legacyLink === 'object' ? (raw.legacyLink as Record<string, unknown>) : {};
 
   return {
@@ -130,35 +166,8 @@ export function parseMemberProfile(payload: unknown): MemberProfile {
       unavailableMatches: parseLegacyMatches(legacyRaw.unavailableMatches),
     },
     scheduledDeletionAt: typeof raw.scheduledDeletionAt === 'string' ? raw.scheduledDeletionAt : null,
-    limits: {
-      minDisplayNameLength: readPositiveInt(limitsRaw.minDisplayNameLength, fallbackProfileLimits.minDisplayNameLength),
-      maxDisplayNameLength: readPositiveInt(limitsRaw.maxDisplayNameLength, fallbackProfileLimits.maxDisplayNameLength),
-      maxAvatarBytes: readPositiveInt(limitsRaw.maxAvatarBytes, fallbackProfileLimits.maxAvatarBytes),
-      allowedAvatarContentTypes: Array.isArray(limitsRaw.allowedAvatarContentTypes)
-        ? limitsRaw.allowedAvatarContentTypes.filter((item): item is string => typeof item === 'string')
-        : fallbackProfileLimits.allowedAvatarContentTypes,
-      deletionRetentionDays: readPositiveInt(
-        limitsRaw.deletionRetentionDays,
-        fallbackProfileLimits.deletionRetentionDays,
-      ),
-    },
-    deletion: {
-      confirmationPhrase:
-        typeof deletionRaw.confirmationPhrase === 'string' ? deletionRaw.confirmationPhrase : 'DELETE',
-      confirmationHint:
-        typeof deletionRaw.confirmationHint === 'string'
-          ? deletionRaw.confirmationHint
-          : 'Type DELETE to schedule deletion of the account.',
-      requestedTitle:
-        typeof deletionRaw.requestedTitle === 'string' ? deletionRaw.requestedTitle : 'Account deletion scheduled',
-      requestedMessage:
-        typeof deletionRaw.requestedMessage === 'string'
-          ? deletionRaw.requestedMessage
-          : 'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.',
-      whatHappens: Array.isArray(deletionRaw.whatHappens)
-        ? deletionRaw.whatHappens.filter((item): item is string => typeof item === 'string')
-        : [],
-    },
+    limits: parseProfileLimits(raw.limits),
+    deletion: parseAccountDeletionInfo(raw.deletion),
   };
 }
 
@@ -172,16 +181,17 @@ export function parseDeletionRequested(payload: unknown): DeletionRequested {
     throw new Error('Deletion was not confirmed.');
   }
 
-  const defaultTitle = raw.scheduledDeletionAt === null ? 'Account deletion requested' : 'Account deletion scheduled';
-  const defaultMessage = raw.scheduledDeletionAt === null
+  const fallbackTitle = raw.scheduledDeletionAt === null ? 'Account deletion requested' : 'Account deletion scheduled';
+  const fallbackMessage = raw.scheduledDeletionAt === null
     ? 'Your account has been disabled and your personal data is being removed.'
     : 'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.';
+
   return {
     requested: true,
     scheduledDeletionAt: raw.scheduledDeletionAt,
     statusReceipt: typeof raw.statusReceipt === 'string' ? raw.statusReceipt : null,
-    title: typeof raw.title === 'string' ? raw.title : defaultTitle,
-    message: typeof raw.message === 'string' ? raw.message : defaultMessage,
+    title: typeof raw.title === 'string' ? raw.title : fallbackTitle,
+    message: typeof raw.message === 'string' ? raw.message : fallbackMessage,
   };
 }
 
