@@ -25,15 +25,15 @@ Invoke-SyncLegacyDbSelfTest
 
 # Observe retry timing without sleeping. The last configured delay must be reused.
 $delays = [System.Collections.Generic.List[int]]::new()
-function Start-Sleep {
+$sleeper = {
     param([int]$Seconds)
     $delays.Add($Seconds)
 }
-Wait-SqlPackageRetry -PhaseName Extract -Attempt 1 -MaxAttempts 5 -BackoffSeconds @(5, 15)
-Wait-SqlPackageRetry -PhaseName Extract -Attempt 2 -MaxAttempts 5 -BackoffSeconds @(5, 15)
-Wait-SqlPackageRetry -PhaseName Extract -Attempt 4 -MaxAttempts 5 -BackoffSeconds @(5, 15)
-Wait-SqlPackageRetry -PhaseName Extract -Attempt 1 -MaxAttempts 2 -BackoffSeconds @(0)
-Wait-SqlPackageRetry -PhaseName Extract -Attempt 1 -MaxAttempts 2 -BackoffSeconds @()
+Wait-SqlPackageRetry -PhaseName Extract -Attempt 1 -MaxAttempts 5 -BackoffSeconds @(5, 15) -Sleeper $sleeper
+Wait-SqlPackageRetry -PhaseName Extract -Attempt 2 -MaxAttempts 5 -BackoffSeconds @(5, 15) -Sleeper $sleeper
+Wait-SqlPackageRetry -PhaseName Extract -Attempt 4 -MaxAttempts 5 -BackoffSeconds @(5, 15) -Sleeper $sleeper
+Wait-SqlPackageRetry -PhaseName Extract -Attempt 1 -MaxAttempts 2 -BackoffSeconds @(0) -Sleeper $sleeper
+Wait-SqlPackageRetry -PhaseName Extract -Attempt 1 -MaxAttempts 2 -BackoffSeconds @() -Sleeper $sleeper
 if (($delays -join ',') -ne '5,15,15') { throw "Retry delays changed: $($delays -join ',')." }
 
 # Hooks must run before every attempt, including retries, with arguments preserved.

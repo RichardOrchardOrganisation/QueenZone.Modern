@@ -301,13 +301,19 @@ function Invoke-SqlPackageProcess {
 }
 
 function Wait-SqlPackageRetry {
-    param([string]$PhaseName, [int]$Attempt, [int]$MaxAttempts, [int[]]$BackoffSeconds)
+    param(
+        [string]$PhaseName,
+        [int]$Attempt,
+        [int]$MaxAttempts,
+        [int[]]$BackoffSeconds,
+        [scriptblock]$Sleeper = { param([int]$Seconds) Start-Sleep -Seconds $Seconds }
+    )
 
     $delayIndex = [Math]::Min($attempt - 1, $BackoffSeconds.Length - 1)
     $delay = [int]$BackoffSeconds[$delayIndex]
     Write-Information -InformationAction Continue "Transient TCP/transport error during sqlpackage $PhaseName (attempt $attempt of $MaxAttempts). Retrying the failed phase in ${delay}s..."
     if ($delay -gt 0) {
-        Start-Sleep -Seconds $delay
+        & $Sleeper $delay
     }
 }
 
