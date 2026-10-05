@@ -360,6 +360,9 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<MemberUploadQuotaService>();
         services.AddScoped<ForumAttachmentValidator>();
         services.AddScoped<ForumAttachmentUploadService>();
+        services.AddScoped<ForumPostContentService>();
+        services.AddScoped<ForumPostWriteEffects>();
+        services.AddScoped<ForumPostModerationService>();
         services.AddScoped<ForumPostWriteService>();
         services.AddScoped<ForumPostReportService>();
         services.AddScoped<HomePollVoteService>();

@@ -43,8 +43,7 @@ public sealed class ForumApiUpdatePostConcurrencyTests
         {
             var result = await ForumApiEndpoints.UpdatePostAsync(
                 user,
-                existing.TopicId,
-                existing.PostId,
+                new ForumPostRouteIds(existing.TopicId, existing.PostId),
                 new ForumPostUpdateRequestDto { Body = "Updated body text." },
                 new StatusForumWriteRepository(existing, status),
                 ugc,
@@ -56,8 +55,7 @@ public sealed class ForumApiUpdatePostConcurrencyTests
 
         var anonymous = await ForumApiEndpoints.UpdatePostAsync(
             new ClaimsPrincipal(),
-            3,
-            10,
+            new ForumPostRouteIds(3, 10),
             new ForumPostUpdateRequestDto { Body = "Updated body text." },
             new StatusForumWriteRepository(existing, ForumPostUpdateStatus.Success),
             ugc,
