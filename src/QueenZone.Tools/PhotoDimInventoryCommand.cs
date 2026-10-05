@@ -188,9 +188,9 @@ internal sealed class PhotoDimInventoryOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (string.Equals(arg, "--connection-string", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
             {
-                connectionString = args[++index];
+                connectionString = connectionStringArgument;
                 continue;
             }
 
@@ -205,9 +205,9 @@ internal sealed class PhotoDimInventoryOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--category-slug", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--category-slug", out var categorySlugArgument))
             {
-                categorySlug = args[++index];
+                categorySlug = categorySlugArgument;
                 continue;
             }
 
@@ -222,9 +222,9 @@ internal sealed class PhotoDimInventoryOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--output", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--output", out var outputArgument))
             {
-                outputPath = args[++index];
+                outputPath = outputArgument;
                 continue;
             }
 

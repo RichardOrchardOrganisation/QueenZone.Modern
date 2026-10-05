@@ -224,15 +224,15 @@ internal sealed class ImportOptions
         for (var index = 1; index < args.Length; index++)
         {
             var arg = args[index];
-            if (string.Equals(arg, "--csv", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--csv", out var csvArgument))
             {
-                csvPath = args[++index];
+                csvPath = csvArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--connection-string", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
             {
-                connectionString = args[++index];
+                connectionString = connectionStringArgument;
                 continue;
             }
 

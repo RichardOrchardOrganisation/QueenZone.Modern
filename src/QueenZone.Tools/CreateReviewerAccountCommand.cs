@@ -111,27 +111,27 @@ internal sealed class CreateReviewerAccountOptions
         for (var index = 1; index < args.Length; index++)
         {
             var arg = args[index];
-            if (string.Equals(arg, "--email", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--email", out var emailArgument))
             {
-                email = args[++index];
+                email = emailArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--password", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--password", out var passwordArgument))
             {
-                password = args[++index];
+                password = passwordArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--display-name", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--display-name", out var displayNameArgument))
             {
-                displayName = args[++index];
+                displayName = displayNameArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--connection-string", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
             {
-                connectionString = args[++index];
+                connectionString = connectionStringArgument;
                 continue;
             }
 
