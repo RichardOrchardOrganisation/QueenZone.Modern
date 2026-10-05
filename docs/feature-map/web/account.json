@@ -6,7 +6,10 @@
       "aliases": [],
       "sources": [
         "src/QueenZone.Web/Pages/Account/Settings.cshtml",
-        "src/QueenZone.Web/Pages/Shared/_AccountAppearanceSettings.cshtml"
+        "src/QueenZone.Web/Pages/Shared/_AccountAppearanceSettings.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_AccountLegacySettings.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_AccountSocialProfilesSettings.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_AccountMessagePrivacySettings.cshtml"
       ],
       "testIds": [],
       "flows": [],

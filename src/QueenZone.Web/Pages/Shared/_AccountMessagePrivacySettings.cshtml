@@ -1,0 +1,36 @@
+@model QueenZone.Web.Pages.Account.SettingsModel
+<section class="qz-account-settings__legacy" aria-labelledby="message-privacy-heading">
+  <h2 id="message-privacy-heading" class="qz-account-settings__section-title">Who can message me</h2>
+  <p>
+    This controls who may start a new private conversation. Replies in existing conversations
+    still work unless you block that member. Follow members from their profile to use the
+    “people I follow” option and to see their public contributions on
+    <a href="/following">Following</a>.
+  </p>
+  <form method="post"
+        asp-page-handler="UpdateMessagePrivacy"
+        class="qz-account-form"
+        data-busy-submit
+        data-busy-label="Saving…">
+    @Html.AntiForgeryToken()
+    <fieldset class="qz-account-form__legacy-choices">
+      <legend class="qz-account-form__legend">Who may start a new conversation</legend>
+      <label class="qz-account-form__radio">
+        <input asp-for="MessagePrivacy" type="radio" value="@MemberMessagePrivacy.Members" />
+        <span>Signed-in members</span>
+      </label>
+      <label class="qz-account-form__radio">
+        <input asp-for="MessagePrivacy" type="radio" value="@MemberMessagePrivacy.Followed" />
+        <span>People I follow</span>
+      </label>
+      <label class="qz-account-form__radio">
+        <input asp-for="MessagePrivacy" type="radio" value="@MemberMessagePrivacy.Nobody" />
+        <span>Nobody</span>
+      </label>
+    </fieldset>
+    <div class="qz-account-form__actions">
+      <button type="submit" class="qz-button">Save messaging privacy</button>
+    </div>
+    <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
+  </form>
+</section>

@@ -1,0 +1,128 @@
+@model QueenZone.Web.Pages.Account.SettingsModel
+<section class="qz-account-settings__legacy" aria-labelledby="legacy-heading">
+  <h2 id="legacy-heading" class="qz-account-settings__section-title">Legacy forum account</h2>
+  @if (Model.LegacyLink.Kind == LegacyAccountLinkKind.Linked && Model.LegacyLink.Match is not null)
+  {
+    <output class="qz-status-block qz-account-settings__legacy-status">
+      Linked to legacy forum account
+      <strong>@Model.LegacyLink.Match.Username</strong>
+      <span class="qz-meta">(id @Model.LegacyLink.Match.UserId)</span>.
+    </output>
+    <p class="qz-meta">
+      Unlink if this is the wrong classic account. You can then claim another match for your email,
+      if one is free.
+    </p>
+    <form method="post"
+          asp-page-handler="UnlinkLegacy"
+          class="qz-account-form"
+          data-busy-submit
+          data-busy-label="Unlinking…">
+      @Html.AntiForgeryToken()
+      <div class="qz-account-form__actions">
+        <button type="submit" class="qz-button qz-button--outline">Unlink legacy account</button>
+      </div>
+      <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
+    </form>
+  }
+  else if (Model.LegacyLink.Kind == LegacyAccountLinkKind.Claimable && Model.LegacyLink.ClaimableMatches.Count > 0)
+  {
+    @if (Model.LegacyLink.HasMultipleClaimable)
+    {
+      <p>
+        We found multiple classic QueenZone forum accounts matching your email.
+        Choose which one to claim so your modern membership connects to the right archive history.
+      </p>
+    }
+    else
+    {
+      var sole = Model.LegacyLink.ClaimableMatches[0];
+      <p>
+        We found a classic QueenZone forum account matching your email:
+        <strong>@sole.Username</strong>.
+        Claim it to connect your modern membership with your archive history.
+      </p>
+    }
+    <form method="post"
+          asp-page-handler="ClaimLegacy"
+          class="qz-account-form"
+          data-busy-submit
+          data-busy-label="Claiming…">
+      @Html.AntiForgeryToken()
+      @if (Model.LegacyLink.HasMultipleClaimable)
+      {
+        <fieldset class="qz-account-form__legacy-choices">
+          <legend class="qz-account-form__legend">Legacy accounts for your email</legend>
+          @foreach (var option in Model.LegacyLink.ClaimableMatches)
+          {
+            var optionId = $"legacy-option-{option.UserId}";
+            var isSelected = Model.SelectedLegacyUserId == option.UserId
+                || (Model.SelectedLegacyUserId is null
+                    && option.UserId == Model.LegacyLink.ClaimableMatches[0].UserId);
+            <label class="qz-account-form__radio" for="@optionId">
+              <input id="@optionId"
+                     type="radio"
+                     name="SelectedLegacyUserId"
+                     value="@option.UserId"
+                     @(isSelected ? "checked" : null) />
+              <span>
+                <strong>@option.Username</strong>
+                <span class="qz-meta">(id @option.UserId)</span>
+              </span>
+            </label>
+          }
+        </fieldset>
+        <span asp-validation-for="SelectedLegacyUserId" class="qz-account-form__field-error"></span>
+      }
+      else
+      {
+        <input type="hidden" name="SelectedLegacyUserId" value="@Model.LegacyLink.ClaimableMatches[0].UserId" />
+      }
+      <label class="qz-account-form__checkbox">
+        <input asp-for="AdoptLegacyDisplayName" type="checkbox" />
+        @if (Model.LegacyLink.HasMultipleClaimable)
+        {
+          <span>Use the selected legacy username as my display name</span>
+        }
+        else
+        {
+          <span>Use legacy username <strong>@Model.LegacyLink.ClaimableMatches[0].Username</strong> as my display name</span>
+        }
+      </label>
+      <div class="qz-account-form__actions">
+        <button type="submit" class="qz-button">Claim legacy account</button>
+      </div>
+      <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
+    </form>
+    @if (Model.LegacyLink.UnavailableMatches.Count > 0)
+    {
+      <p class="qz-account-settings__legacy-status qz-meta">
+        Also matching this email but already linked to another modern member:
+        @string.Join(", ", Model.LegacyLink.UnavailableMatches.Select(m => $"{m.Username} (id {m.UserId})")).
+      </p>
+    }
+  }
+  else if (Model.LegacyLink.Kind == LegacyAccountLinkKind.Unavailable && Model.LegacyLink.UnavailableMatches.Count > 0)
+  {
+    @if (Model.LegacyLink.UnavailableMatches.Count == 1)
+    {
+      var taken = Model.LegacyLink.UnavailableMatches[0];
+      <p class="qz-account-settings__legacy-status">
+        A legacy account for <strong>@taken.Username</strong> matches your email,
+        but it is already linked to another modern member.
+      </p>
+    }
+    else
+    {
+      <p class="qz-account-settings__legacy-status">
+        Legacy accounts matching your email are already linked to other modern members:
+        @string.Join(", ", Model.LegacyLink.UnavailableMatches.Select(m => $"{m.Username} (id {m.UserId})")).
+      </p>
+    }
+  }
+  else
+  {
+    <p class="qz-account-settings__legacy-status qz-meta">
+      No legacy forum account is linked to this email.
+    </p>
+  }
+</section>

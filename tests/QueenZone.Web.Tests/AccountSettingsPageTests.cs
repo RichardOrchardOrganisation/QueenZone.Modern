@@ -667,6 +667,48 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
         Assert.Contains("Claim legacy account", body);
     }
 
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(1, true)]
+    public async Task Get_explains_occupied_legacy_matches_without_offering_them_for_claim(
+        int occupiedCount, bool hasFreeMatch)
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var matches = Enumerable.Range(0, occupiedCount + (hasFreeMatch ? 1 : 0))
+            .Select(index => new LegacyMemberMatch(9600 + occupiedCount * 10 + (hasFreeMatch ? 100 : 0) + index,
+                "Archive" + index)).ToArray();
+        for (var index = 0; index < occupiedCount; index++)
+        {
+            using var owner = await CreateSignedInMemberClientWithLegacyMatchesAsync(
+                "owner-" + suffix + index + "@example.com", "Archive owner", "owner-" + suffix + index,
+                [matches[index]]);
+            var form = await owner.GetStringAsync("/account/settings");
+            var claimed = await owner.PostAsync("/account/settings?handler=ClaimLegacy",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = ExtractAntiforgeryToken(form),
+                    ["SelectedLegacyUserId"] = matches[index].UserId.ToString(),
+                }));
+            Assert.Equal(HttpStatusCode.OK, claimed.StatusCode);
+            Assert.Contains("Linked to legacy forum account", await claimed.Content.ReadAsStringAsync());
+        }
+        using var member = await CreateSignedInMemberClientWithLegacyMatchesAsync(
+            "member-" + suffix + "@example.com", "Modern fan", "member-" + suffix, matches);
+        var body = await member.GetStringAsync("/account/settings");
+        Assert.Contains("already linked to", body);
+        Assert.Contains("Archive0", body);
+        if (hasFreeMatch)
+        {
+            Assert.Contains("Claim legacy account", body);
+            Assert.Contains("name=\"SelectedLegacyUserId\" value=\"" + matches[^1].UserId + "\"", body);
+        }
+        else
+        {
+            Assert.DoesNotContain("Claim legacy account</button>", body);
+        }
+    }
+
     [Fact]
     public async Task PostClaimLegacy_ClaimsSelectedAccount_WhenMultipleMatches()
     {
