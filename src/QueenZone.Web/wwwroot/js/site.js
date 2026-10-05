@@ -132,6 +132,7 @@
       return;
     }
 
+    menu.close();
     menu.hidden = true;
     document.body.classList.remove("qz-menu-lock");
     menuOpen?.setAttribute("aria-expanded", "false");
@@ -143,12 +144,18 @@
       return;
     }
 
-    lastFocus = document.activeElement;
+    lastFocus = menuOpen;
     menu.hidden = false;
+    menu.showModal();
     document.body.classList.add("qz-menu-lock");
     menuOpen.setAttribute("aria-expanded", "true");
     menu.querySelector(focusableSelector)?.focus();
   };
+
+  menu?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeMenu();
+  });
 
   menuOpen?.addEventListener("click", openMenu);
   menuClose.forEach((control) => control.addEventListener("click", closeMenu));

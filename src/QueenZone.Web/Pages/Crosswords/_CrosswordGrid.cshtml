@@ -1,27 +1,31 @@
 @model QueenZone.Web.CrosswordDetailDto
 @{ var puzzle = Model; }
         <div class="qz-crossword-grid-scroll" data-grid-scroll>
-          <div class="qz-crossword-grid qz-crossword-size-@puzzle.Width" role="grid" aria-label="@puzzle.Title crossword" aria-rowcount="@puzzle.Height" aria-colcount="@puzzle.Width">
+          <table class="qz-crossword-grid qz-crossword-size-@puzzle.Width" role="grid" aria-label="@puzzle.Title crossword" aria-rowcount="@puzzle.Height" aria-colcount="@puzzle.Width">
+            <tbody>
             @for (var row = 0; row < puzzle.Height; row++)
             {
-              <div role="row" class="qz-crossword-row">
+              <tr class="qz-crossword-row">
                 @for (var column = 0; column < puzzle.Width; column++)
                 {
                   var cell = row * puzzle.Width + column;
                   if (puzzle.Blocks[cell])
                   {
-                    <span role="gridcell" class="qz-crossword-block" aria-label="Block" aria-rowindex="@(row + 1)" aria-colindex="@(column + 1)"></span>
+                    <td role="gridcell" class="qz-crossword-block" aria-label="Block" aria-rowindex="@(row + 1)" aria-colindex="@(column + 1)"></td>
                   }
                   else
                   {
-                    <button type="button" role="gridcell" class="qz-crossword-cell" data-cell="@cell" aria-label="Row @(row + 1), column @(column + 1), blank" aria-rowindex="@(row + 1)" aria-colindex="@(column + 1)" tabindex="-1" disabled>
+                    <td role="gridcell" class="qz-crossword-slot" aria-rowindex="@(row + 1)" aria-colindex="@(column + 1)">
+                    <button type="button" class="qz-crossword-cell" data-cell="@cell" aria-label="Row @(row + 1), column @(column + 1), blank" tabindex="-1" disabled>
                       <span class="qz-crossword-number">@(puzzle.Numbering[cell] > 0 ? puzzle.Numbering[cell].ToString() : "")</span>
                       <span class="qz-crossword-letter" data-letter></span>
                       <span class="qz-crossword-marker" aria-hidden="true" data-marker></span>
                     </button>
+                    </td>
                   }
                 }
-              </div>
+              </tr>
             }
-          </div>
+            </tbody>
+          </table>
         </div>

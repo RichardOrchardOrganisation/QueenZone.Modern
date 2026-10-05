@@ -26,11 +26,9 @@
   const questions = [...form.querySelectorAll('[data-sprint-question]')];
   const seconds = game.querySelector('[data-sprint-seconds]');
   const progress = game.querySelector('[data-sprint-progress]');
-  const fill = game.querySelector('[data-sprint-fill]');
   const streakLabel = game.querySelector('[data-sprint-streak]');
   const scoreOutput = game.querySelector('[data-sprint-score]');
   const announcement = game.querySelector('[data-sprint-announcement]');
-  const duration = 60000;
   const feedbackMs = 620;
   const streakBonusAt = 3;
   const endsAt = performance.now() + Math.max(0, Number(game.dataset.expiresAt) - Number(game.dataset.serverNow));
@@ -118,8 +116,8 @@
     const wholeSeconds = Math.ceil(remaining / 1000);
     seconds.textContent = String(wholeSeconds);
     seconds.classList.toggle('qz-sprint__seconds--urgent', wholeSeconds <= 10);
-    progress.setAttribute('aria-valuenow', String(wholeSeconds));
-    fill.style.width = `${Math.min(100, remaining / duration * 100)}%`;
+    progress.value = Math.min(60, remaining / 1000);
+    progress.setAttribute('aria-valuetext', `${wholeSeconds} seconds remaining`);
     if (remaining <= 30000 && !warnedThirty) {
       warnedThirty = true;
       announcement.textContent = '30 seconds remaining';

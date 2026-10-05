@@ -144,6 +144,9 @@ public sealed class CrosswordPlayTests : E2EPageTest
         await Page.Locator("[data-cell='7']").ClickAsync();
         await Page.Keyboard.TypeAsync("Z");
         await Expect(Page.Locator("[data-cell='7'] [data-letter]")).ToHaveTextAsync("Z");
+        await Expect(Page.Locator("table[role=grid] td[aria-selected=true]")).ToHaveCountAsync(1);
+        await Expect(Page.Locator("[data-cell][aria-selected]")).ToHaveCountAsync(0);
+        Assert.That(await Page.Locator("table[role=grid]").EvaluateAsync<double>("element => element.getBoundingClientRect().height / element.getBoundingClientRect().width"), Is.EqualTo(1).Within(0.01));
         await Page.Locator("[data-cell='7']").ClickAsync();
         await Page.Keyboard.PressAsync("Space");
         await Expect(Page.Locator("[data-active-clue]")).ToContainTextAsync("across:");
