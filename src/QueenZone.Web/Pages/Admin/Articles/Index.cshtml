@@ -11,6 +11,10 @@
   @if (Model.EditorialArticles.Count == 0) { <p>No editorial drafts or edits.</p> }
   else { <table class="admin-table"><thead><tr><th>Title</th><th>Author</th><th>Category</th><th>Status</th><th>Updated</th></tr></thead><tbody>@foreach (var article in Model.EditorialArticles) { <tr><td><a href="/admin/articles/editor/@article.Id">@article.Title</a></td><td>@article.AuthorName</td><td>@article.Category</td><td>@article.Status</td><td>@article.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</td></tr> }</tbody></table> }
 
+  <h2>Published member articles</h2>
+  @if (Model.PublishedSubmissions.Count == 0) { <p>No published member articles awaiting editorial management.</p> }
+  else { <table class="admin-table"><thead><tr><th>Title</th><th>Author</th><th>Published</th><th></th></tr></thead><tbody>@foreach (var article in Model.PublishedSubmissions) { <tr><td><a href="/admin/articles/@article.Id">@article.Title</a></td><td>@article.AuthorDisplayName</td><td>@article.PublishedAt.ToString("yyyy-MM-dd")</td><td><a href="/admin/articles/@article.Id">Edit</a></td></tr> }</tbody></table> }
+
   <h2>Published archive</h2>
   <table class="admin-table"><thead><tr><th>Title</th><th>Category</th><th>Published</th><th></th></tr></thead><tbody>@foreach (var article in Model.LegacyArticles) { <tr><td>@article.Title</td><td>@article.CategoryName</td><td>@article.PublishedAt.ToString("yyyy-MM-dd")</td><td><a href="/admin/articles/editor?legacyId=@article.Id">Edit</a></td></tr> }</tbody></table>
 
