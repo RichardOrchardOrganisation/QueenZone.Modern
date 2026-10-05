@@ -53,6 +53,8 @@ export function downloadActionView(title: string, snapshot: DownloadUiSnapshot |
   const failed = status === 'failed';
   const downloading = status === 'downloading';
   const showCaption = !compact || downloading || failed;
+  const captionLineLimit = compact ? 2 : 3;
+  const compactCaptionVariant = failed ? 'failed' as const : 'wide' as const;
   return {
     ...view,
     label: downloadStatusLabel(status, title, sizeLabel, snapshot?.error),
@@ -62,7 +64,7 @@ export function downloadActionView(title: string, snapshot: DownloadUiSnapshot |
     captionText: compact && downloading ? sizeLabel || '…' : view.caption,
     captionStyle: compact && !failed ? 'meta' as const : 'caption' as const,
     captionTint: failed ? 'danger' as const : 'text' as const,
-    captionLines: failed ? undefined : compact ? 2 : 3,
-    compactVariant: compact && showCaption ? failed ? 'failed' as const : 'wide' as const : undefined,
+    captionLines: failed ? undefined : captionLineLimit,
+    compactVariant: compact && showCaption ? compactCaptionVariant : undefined,
   };
 }

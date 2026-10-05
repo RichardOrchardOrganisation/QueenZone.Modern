@@ -34,14 +34,18 @@ export function Button({
     justifyContent: 'center',
     opacity: disabled ? 0.4 : 1,
   };
-  const skin: ViewStyle =
-    variant === 'primary'
-      ? { backgroundColor: c.accentPrimary }
-      : variant === 'outline'
-        ? { borderWidth: 1, borderColor: c.borderStrong }
-        : {};
-  const labelColor =
-    variant === 'primary' ? c.textOnAccent : variant === 'outline' ? c.textPrimary : c.accentPrimary;
+  const skins: Record<NonNullable<Props['variant']>, ViewStyle> = {
+    primary: { backgroundColor: c.accentPrimary },
+    outline: { borderWidth: 1, borderColor: c.borderStrong },
+    ghost: {},
+  };
+  const labelColors = {
+    primary: c.textOnAccent,
+    outline: c.textPrimary,
+    ghost: c.accentPrimary,
+  };
+  const skin = skins[variant];
+  const labelColor = labelColors[variant];
 
   return (
     <Pressable
