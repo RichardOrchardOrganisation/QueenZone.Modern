@@ -145,9 +145,10 @@ public static class MeApiEndpoints
 
         var hasName = request.DisplayName is not null;
         var hasPrivacy = request.MessagePrivacy is not null;
-        if (!hasName && !hasPrivacy)
+        var hasTheme = request.ThemePreference is not null;
+        if (!hasName && !hasPrivacy && !hasTheme)
         {
-            return BadRequest("Provide a display name or messaging privacy value.");
+            return BadRequest("Provide a display name, messaging privacy or appearance value.");
         }
 
         if (hasName)
@@ -171,6 +172,18 @@ public static class MeApiEndpoints
             if (!privacy.Succeeded)
             {
                 return BadRequest(privacy.Error ?? "Could not update messaging privacy.");
+            }
+        }
+
+        if (hasTheme)
+        {
+            var theme = await memberAccountService.UpdateThemePreferenceAsync(
+                memberId,
+                request.ThemePreference!.Value,
+                cancellationToken);
+            if (!theme.Succeeded)
+            {
+                return BadRequest(theme.Error ?? "Could not update appearance.");
             }
         }
 
@@ -387,6 +400,7 @@ public static class MeApiEndpoints
             hasAvatar ? MemberAvatarPaths.GetServePath(account.Id) : null,
             hasAvatar ? MemberAvatarPaths.GetServePath(account.Id, thumb: true) : null,
             account.MessagePrivacy,
+            account.ThemePreference,
             linkedProviders,
             ToLegacyDto(legacyLink),
             scheduled,

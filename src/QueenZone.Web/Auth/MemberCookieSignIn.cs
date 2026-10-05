@@ -11,16 +11,21 @@ internal static class MemberCookieSignIn
         ArgumentNullException.ThrowIfNull(httpContext);
         ArgumentNullException.ThrowIfNull(account);
 
+        return httpContext.SignInAsync(
+            MemberAuthenticationSchemes.MembersCookie,
+            CreatePrincipal(account));
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(MemberAccount account)
+    {
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()),
             new Claim(ClaimTypes.Email, account.Email),
             new Claim(ClaimTypes.Name, account.DisplayName),
+            MemberThemeClaim.Create(account.ThemePreference),
             MemberSessionGate.CreateIssuedAtClaim(DateTimeOffset.UtcNow),
         };
-        var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie);
-        return httpContext.SignInAsync(
-            MemberAuthenticationSchemes.MembersCookie,
-            new ClaimsPrincipal(identity));
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie));
     }
 }

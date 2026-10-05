@@ -1,8 +1,15 @@
 ﻿@using Microsoft.Extensions.Options
 @using QueenZone.Web.Sitemap
 @inject IOptions<SiteOptions> SiteOptionsAccessor
+@{
+  // Signed-in members can override the device light/dark setting; otherwise CSS follows prefers-color-scheme.
+  var memberAuth = await Context.AuthenticateMemberAsync();
+  var themeAttribute = memberAuth.Succeeded
+    ? MemberThemeClaim.ToAttributeValue(MemberThemeClaim.Read(memberAuth.Principal))
+    : null;
+}
 <!doctype html>
-<html lang="en">
+<html lang="en"@(themeAttribute is null ? null : Html.Raw($" data-theme=\"{themeAttribute}\""))>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

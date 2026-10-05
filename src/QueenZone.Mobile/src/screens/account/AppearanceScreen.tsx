@@ -1,7 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import { sendJson } from '../../api/client';
+import { ApiError } from '../../api/errors';
 import type { HomeStackParamList } from '../../navigation/types';
 import { radius, space, type, useTheme, type ThemePreference } from '../../theme';
+import { useSession } from '../../session/SessionContext';
 import { Eyebrow } from '../../ui/Eyebrow';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Appearance'>;
@@ -18,6 +22,29 @@ const options: readonly { value: ThemePreference; title: string; description: st
 
 export function AppearanceScreen(_: Props) {
   const { c, preference, setPreference } = useTheme();
+  const { accessToken, refreshProfile } = useSession();
+  const [accountError, setAccountError] = useState<string | null>(null);
+
+  // The choice always applies on this device straight away; when signed in it is also saved to the
+  // account so the website and other devices follow it.
+  async function choose(next: ThemePreference) {
+    setPreference(next);
+    setAccountError(null);
+    if (!accessToken) {
+      return;
+    }
+
+    try {
+      await sendJson('/me', { method: 'PATCH', accessToken, body: { themePreference: next } });
+      await refreshProfile();
+    } catch (err) {
+      setAccountError(
+        err instanceof ApiError
+          ? err.message
+          : 'Saved on this device only. We could not update your account just now.',
+      );
+    }
+  }
 
   return (
     <ScrollView
@@ -26,7 +53,16 @@ export function AppearanceScreen(_: Props) {
     >
       <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.md, gap: space.sm }}>
         <Eyebrow tone="muted">Colour scheme</Eyebrow>
-        <Text style={[type.body, { color: c.textSecondary }]}>Choose how QueenZone looks on this device.</Text>
+        <Text style={[type.body, { color: c.textSecondary }]}>
+          {accessToken
+            ? 'Choose how QueenZone looks. Your choice is saved to your account and also applies on the website.'
+            : 'Choose how QueenZone looks on this device. Sign in to save your choice to your account.'}
+        </Text>
+        {accountError ? (
+          <Text accessibilityRole="alert" style={[type.caption, { color: c.danger }]}>
+            {accountError}
+          </Text>
+        ) : null}
       </View>
       <View style={{ paddingHorizontal: space.xl, gap: space.md }}>
         {options.map((option) => {
@@ -37,7 +73,7 @@ export function AppearanceScreen(_: Props) {
               accessibilityRole="radio"
               accessibilityState={{ selected }}
               accessibilityLabel={option.title}
-              onPress={() => setPreference(option.value)}
+              onPress={() => void choose(option.value)}
               style={{
                 minHeight: 72,
                 borderWidth: 1,

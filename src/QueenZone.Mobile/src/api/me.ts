@@ -6,6 +6,9 @@ export const meApiPath = '/me';
 
 export type MessagePrivacy = 'members' | 'followed' | 'nobody';
 
+/** Account-level appearance override shared with the website. `system` follows the device. */
+export type ThemePreferenceSetting = 'system' | 'light' | 'dark';
+
 export type LegacyLinkKind = 'none' | 'linked' | 'claimable' | 'unavailable';
 
 export type LegacyMatch = {
@@ -46,6 +49,7 @@ export type MemberProfile = {
   avatarPath: string | null;
   avatarThumbPath: string | null;
   messagePrivacy: MessagePrivacy;
+  themePreference: ThemePreferenceSetting;
   linkedProviders: string[];
   legacyLink: LegacyLink;
   scheduledDeletionAt: string | null;
@@ -156,6 +160,7 @@ export function parseMemberProfile(payload: unknown): MemberProfile {
     avatarPath: typeof raw.avatarPath === 'string' ? raw.avatarPath : null,
     avatarThumbPath: typeof raw.avatarThumbPath === 'string' ? raw.avatarThumbPath : null,
     messagePrivacy: parseMessagePrivacy(raw.messagePrivacy),
+    themePreference: parseThemePreference(raw.themePreference),
     linkedProviders: Array.isArray(raw.linkedProviders)
       ? raw.linkedProviders.filter((item): item is string => typeof item === 'string')
       : [],
@@ -213,6 +218,15 @@ export function validateDisplayName(
   }
 
   return null;
+}
+
+function parseThemePreference(value: unknown): ThemePreferenceSetting {
+  if (value === 'light' || value === 'dark' || value === 'system') {
+    return value;
+  }
+
+  // Older servers do not send the field; follow the device.
+  return 'system';
 }
 
 function parseMessagePrivacy(value: unknown): MessagePrivacy {

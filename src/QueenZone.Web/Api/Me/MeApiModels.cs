@@ -34,6 +34,7 @@ public sealed record MemberProfileDto(
     string? AvatarPath,
     string? AvatarThumbPath,
     MemberMessagePrivacy MessagePrivacy,
+    MemberThemePreference ThemePreference,
     IReadOnlyList<string> LinkedProviders,
     LegacyLinkDto LegacyLink,
     DateTimeOffset? ScheduledDeletionAt,
@@ -42,7 +43,8 @@ public sealed record MemberProfileDto(
 
 public sealed record MemberProfilePatchRequest(
     string? DisplayName,
-    MemberMessagePrivacy? MessagePrivacy);
+    MemberMessagePrivacy? MessagePrivacy,
+    MemberThemePreference? ThemePreference = null);
 
 public sealed record ClaimLegacyRequest(
     int? LegacyUserId,

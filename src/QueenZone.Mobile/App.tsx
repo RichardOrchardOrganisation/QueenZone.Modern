@@ -23,7 +23,7 @@ import {
   bootSplashReducer,
   initialBootSplashState,
 } from './src/splash/bootSplashMachine';
-import { ThemeProvider, dark, useQueenzoneFonts, useTheme } from './src/theme';
+import { ThemeAccountSync, ThemeProvider, dark, useQueenzoneFonts, useTheme } from './src/theme';
 import { trackDailyActive, trackNavigationState } from './src/analytics/telemetry';
 import { useAnalyticsConsent } from './src/analytics/consent';
 import { AnalyticsConsentPrompt } from './src/analytics/AnalyticsConsentPrompt';
@@ -140,6 +140,7 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <SessionProvider>
+            <ThemeAccountSync />
             <FanPerformancePlayerProvider>
               <AppNavigation analyticsEnabled={analyticsEnabled} />
               <AnalyticsConsentPrompt />

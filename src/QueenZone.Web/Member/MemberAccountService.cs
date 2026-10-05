@@ -530,6 +530,42 @@ public sealed class MemberAccountService(
         return MemberAccountResult.Success(updated);
     }
 
+    /// <summary>
+    /// Updates the member's light/dark appearance override (shared by web and mobile).
+    /// </summary>
+    public async Task<MemberAccountResult> UpdateThemePreferenceAsync(
+        Guid memberId,
+        MemberThemePreference themePreference,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
+        if (account is null)
+        {
+            return MemberAccountResult.Failure("Account not found.");
+        }
+
+        if (account.DeletionRequestedAt is not null)
+        {
+            return MemberAccountResult.Failure(PendingDeletionEditError);
+        }
+
+        if (!Enum.IsDefined(themePreference))
+        {
+            return MemberAccountResult.Failure("Choose a valid appearance option.");
+        }
+
+        var updated = await memberAccountRepository.UpdateThemePreferenceAsync(
+            memberId,
+            themePreference,
+            cancellationToken);
+        if (updated is null)
+        {
+            return MemberAccountResult.Failure("Account not found.");
+        }
+
+        return MemberAccountResult.Success(updated);
+    }
+
     public Task<IReadOnlyList<MemberSocialLink>> ListSocialLinksAsync(
         Guid memberId,
         CancellationToken cancellationToken = default) =>

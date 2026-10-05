@@ -252,6 +252,57 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
     }
 
     [Fact]
+    public async Task Get_ShowsAppearanceOptions_AndNoThemeOverrideByDefault()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "settings-theme-default@example.com",
+            displayName: "Theme Default",
+            subject: "google-settings-theme-default");
+
+        var body = await client.GetStringAsync("/account/settings");
+
+        Assert.Contains("Appearance", body);
+        Assert.Contains("Use device setting", body);
+        Assert.Contains("Save appearance", body);
+        Assert.DoesNotContain("data-theme=", body);
+    }
+
+    [Fact]
+    public async Task PostUpdateThemePreference_SavesToProfileAndAppliesToEveryPage()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "settings-theme@example.com",
+            displayName: "Theme Fan",
+            subject: "google-settings-theme",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        var formPage = await client.GetStringAsync("/account/settings");
+        var response = await client.PostAsync(
+            "/account/settings?handler=UpdateThemePreference",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["ThemePreference"] = nameof(MemberThemePreference.Dark),
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var updated = await client.GetStringAsync("/account/settings");
+        Assert.Contains("Appearance updated.", updated);
+        Assert.Contains("<html lang=\"en\" data-theme=\"dark\">", updated);
+        var home = await client.GetStringAsync("/");
+        Assert.Contains("data-theme=\"dark\"", home);
+        using var scope = factory.Services.CreateScope();
+        var member = await scope.ServiceProvider
+            .GetRequiredService<IMemberAccountRepository>()
+            .FindByEmailAsync("settings-theme@example.com");
+        Assert.Equal(MemberThemePreference.Dark, member!.ThemePreference);
+    }
+
+    [Fact]
     public async Task DeleteAccount_RequiresExactConfirmation()
     {
         var client = await CreateSignedInMemberClientAsync(

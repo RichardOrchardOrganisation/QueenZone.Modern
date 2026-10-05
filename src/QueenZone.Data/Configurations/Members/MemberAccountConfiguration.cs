@@ -25,6 +25,10 @@ public sealed class MemberAccountConfiguration : IEntityTypeConfiguration<Member
             .HasConversion<byte>()
             .IsRequired()
             .HasDefaultValue(MemberMessagePrivacy.Members);
+        builder.Property(account => account.ThemePreference)
+            .HasConversion<byte>()
+            .IsRequired()
+            .HasDefaultValue(MemberThemePreference.System);
         builder.Property(account => account.IsSuspended).IsRequired().HasDefaultValue(false);
         builder.Property(account => account.SuspendedAt);
         builder.Property(account => account.SuspendedReason).HasMaxLength(1000);

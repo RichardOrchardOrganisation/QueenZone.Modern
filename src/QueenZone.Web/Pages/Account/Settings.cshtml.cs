@@ -29,6 +29,9 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
     public MemberMessagePrivacy MessagePrivacy { get; set; } = MemberMessagePrivacy.Members;
 
     [BindProperty]
+    public MemberThemePreference ThemePreference { get; set; } = MemberThemePreference.System;
+
+    [BindProperty]
     public bool AdoptLegacyDisplayName { get; set; } = true;
 
     [BindProperty]
@@ -92,6 +95,16 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         await PopulatePageAsync(account, cancellationToken);
         StatusMessage = TempData[SuccessMessageKey] as string;
         ViewData["Title"] = "Account settings";
+
+        // The appearance may have been changed from the mobile app; keep the cookie the layout reads in step.
+        var signedIn = await HttpContext.AuthenticateMemberAsync();
+        if (signedIn.Succeeded
+            && signedIn.Principal.FindFirst(MemberThemeClaim.ClaimType) is not null
+            && MemberThemeClaim.Read(signedIn.Principal) != account.ThemePreference)
+        {
+            await ReissueMemberCookieAsync(account);
+        }
+
         return Page();
     }
 
@@ -169,6 +182,47 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         }
 
         TempData[SuccessMessageKey] = "Messaging privacy updated.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostUpdateThemePreferenceAsync(CancellationToken cancellationToken)
+    {
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
+        if (memberId is null)
+        {
+            return Redirect("/account/login");
+        }
+
+        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        if (account is null)
+        {
+            return Redirect("/account/login");
+        }
+
+        var submittedTheme = ThemePreference;
+        await PopulatePageAsync(account, cancellationToken);
+        ThemePreference = submittedTheme;
+        ViewData["Title"] = "Account settings";
+
+        if (!Enum.IsDefined(submittedTheme))
+        {
+            ModelState.AddModelError(nameof(ThemePreference), "Choose a valid appearance option.");
+            return Page();
+        }
+
+        var result = await memberAccountService.UpdateThemePreferenceAsync(
+            memberId.Value,
+            submittedTheme,
+            cancellationToken);
+        if (!result.Succeeded || result.Account is null)
+        {
+            ModelState.AddModelError(string.Empty, result.Error ?? "Could not update appearance.");
+            return Page();
+        }
+
+        await ReissueMemberCookieAsync(result.Account);
+
+        TempData[SuccessMessageKey] = "Appearance updated.";
         return RedirectToPage();
     }
 
@@ -362,6 +416,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         MemberId = account.Id;
         DisplayName = account.DisplayName;
         MessagePrivacy = account.MessagePrivacy;
+        ThemePreference = account.ThemePreference;
         Email = account.Email;
         HasAvatar = !string.IsNullOrWhiteSpace(account.AvatarUrl);
         LinkedProviders = await memberAccountService.ListExternalProvidersAsync(account.Id, cancellationToken);
@@ -378,6 +433,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         ModelState.Remove(nameof(DisplayName));
         ModelState.Remove(nameof(AvatarFile));
         ModelState.Remove(nameof(MessagePrivacy));
+        ModelState.Remove(nameof(ThemePreference));
         ModelState.Remove(nameof(AdoptLegacyDisplayName));
         ModelState.Remove(nameof(SelectedLegacyUserId));
     }
@@ -430,16 +486,6 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         return await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
     }
 
-    private async Task ReissueMemberCookieAsync(Data.Entities.MemberAccount account)
-    {
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()),
-            new Claim(ClaimTypes.Email, account.Email),
-            new Claim(ClaimTypes.Name, account.DisplayName),
-            MemberSessionGate.CreateIssuedAtClaim(DateTimeOffset.UtcNow),
-        };
-        var identity = new ClaimsIdentity(claims, MemberAuthenticationSchemes.MembersCookie);
-        await HttpContext.SignInAsync(MemberAuthenticationSchemes.MembersCookie, new ClaimsPrincipal(identity));
-    }
+    private Task ReissueMemberCookieAsync(Data.Entities.MemberAccount account) =>
+        MemberCookieSignIn.SignInAsync(HttpContext, account);
 }

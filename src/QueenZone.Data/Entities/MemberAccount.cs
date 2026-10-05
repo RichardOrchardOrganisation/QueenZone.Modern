@@ -41,6 +41,12 @@ public sealed class MemberAccount
     /// </summary>
     public MemberMessagePrivacy MessagePrivacy { get; set; }
 
+    /// <summary>
+    /// Light/dark override shared by the website and the mobile app. <see cref="MemberThemePreference.System"/>
+    /// means follow the device setting.
+    /// </summary>
+    public MemberThemePreference ThemePreference { get; set; }
+
     public bool IsSuspended { get; set; }
 
     public DateTime? SuspendedAt { get; set; }

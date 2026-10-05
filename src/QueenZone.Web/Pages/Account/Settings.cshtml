@@ -330,6 +330,40 @@
         </form>
       </section>
 
+      <section class="qz-account-settings__legacy" aria-labelledby="appearance-heading">
+        <h2 id="appearance-heading" class="qz-account-settings__section-title">Appearance</h2>
+        <p>
+          By default QueenZone follows your device's light or dark setting. Choose Light or Dark to
+          override it. This is saved to your account, so it also applies on the mobile app.
+        </p>
+        <form method="post"
+              asp-page-handler="UpdateThemePreference"
+              class="qz-account-form"
+              data-busy-submit
+              data-busy-label="Saving…">
+          @Html.AntiForgeryToken()
+          <fieldset class="qz-account-form__legacy-choices">
+            <legend class="qz-account-form__legend">Colour theme</legend>
+            <label class="qz-account-form__radio">
+              <input asp-for="ThemePreference" type="radio" value="@MemberThemePreference.System" />
+              <span>Use device setting</span>
+            </label>
+            <label class="qz-account-form__radio">
+              <input asp-for="ThemePreference" type="radio" value="@MemberThemePreference.Light" />
+              <span>Light</span>
+            </label>
+            <label class="qz-account-form__radio">
+              <input asp-for="ThemePreference" type="radio" value="@MemberThemePreference.Dark" />
+              <span>Dark</span>
+            </label>
+          </fieldset>
+          <div class="qz-account-form__actions">
+            <button type="submit" class="qz-button">Save appearance</button>
+          </div>
+          <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
+        </form>
+      </section>
+
       <section class="qz-account-settings__legacy" aria-labelledby="message-privacy-heading">
         <h2 id="message-privacy-heading" class="qz-account-settings__section-title">Who can message me</h2>
         <p>

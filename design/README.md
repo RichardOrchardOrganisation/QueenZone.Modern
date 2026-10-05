@@ -59,6 +59,42 @@ Extended neutral ramp: `--qz-grey-50 #FBFBFA` · `-100 #F2F1ED` · `-200 #E8E8E8
 
 **Semantic aliases** (reference these in product code): `--surface-page`, `--surface-raised`, `--surface-card`, `--surface-inverse`, `--surface-overlay`; `--text-primary/secondary/muted/on-dark/on-dark-muted`; `--border-default/strong/on-dark`, `--hairline`; `--link`, `--link-hover`; `--accent-archive/editorial/cta/special`; `--focus-ring`.
 
+### Light / dark theming
+The site and the mobile app both support a **light** and a **dark** theme. Do not confuse this with the *alternating dark / light section rhythm* above - that is a layout device that exists inside both themes.
+
+| Behaviour | Rule |
+|---|---|
+| Default | Follow the visitor's system setting (`prefers-color-scheme` on web, `useColorScheme` on mobile). |
+| Override | Signed-in members choose **System / Light / Dark** in Account settings (web) or Settings > Appearance (mobile). The choice is stored on the member profile (`MemberAccounts.ThemePreference`, `themePreference` on `/api/v1/me`) so it follows them across web and mobile. Signed-out visitors always follow the system. |
+| Web mechanism | `<html data-theme="light">` or `data-theme="dark"` forces a mode (server-rendered from the profile, so there is no flash). With no attribute, the `prefers-color-scheme: dark` block in `tokens/colors.css` applies. |
+| Mobile mechanism | `ThemeProvider` resolves `light` / `dark` from the preference. |
+
+**Rules for product code**
+- Use the **semantic aliases** (`--surface-*`, `--text-*`, `--border-*`, `--hairline`, `--link`, `--accent-cta`, `--surface-*-tint`, `--text-on-accent`, `--danger`, `--success`). They are redefined for dark. Raw `--qz-*` palette tokens do not change between themes - use them only for things that are the same colour in both (e.g. text on a permanently dark band, photography scrims).
+- Permanently dark bands (mastheads, footer, "Featured", "This Day in Queen History") use `--surface-inverse` / `--surface-inverse-deep` with `--text-on-dark*`. In dark mode they are a step darker than the page (`#0A0A0A` vs `#111111`) so the section rhythm survives.
+- **On dark, Antique Gold replaces Royal Blue** for links, active state and primary CTAs (`--link`, `--accent-cta`); Royal Blue fails contrast on `#111`. Text on a gold fill is `--text-on-accent` (`#111`).
+- Never hard-code hex/rgb colours in components; add a semantic token instead.
+
+**Dark values** (mirror `src/QueenZone.Mobile/src/theme/tokens.ts` `dark`; light values are the defaults above)
+
+| Token | Light | Dark |
+|---|---|---|
+| `--surface-page` | `#FFFFFF` | `#111111` |
+| `--surface-raised` | `#F7F6F3` | `#161616` |
+| `--surface-card` | `#FFFFFF` | `#1A1A1A` |
+| `--surface-inverse` / `-deep` | `#111111` | `#0A0A0A` |
+| `--text-primary` | `#2B2B2B` | `#FFFFFF` |
+| `--text-secondary` | `#5F5F5B` | `rgba(255,255,255,.66)` |
+| `--text-muted` | `#8A8A85` | `rgba(255,255,255,.50)` |
+| `--border-default` / `--hairline` | `#E8E8E8` | `rgba(255,255,255,.16)` / `.12` |
+| `--border-strong` | `#D6D6D2` | `rgba(255,255,255,.28)` |
+| `--link` / `--accent-cta` | Royal Blue `#244A8F` | Antique Gold `#B89A4A` |
+| `--link-hover` | `#1B3A72` | `#D3B868` |
+| `--text-on-accent` | `#FFFFFF` | `#111111` |
+| `--danger` / `--success` | `#8E2F2F` / `#287A58` | `#D98A8A` / `#6EE7B7` |
+
+The two dark blocks in `tokens/colors.css` (media query and `[data-theme="dark"]`) must stay identical; CSS cannot share one declaration between them.
+
 ### Typography
 - **Display — Cormorant Garamond** (`--font-display`): page titles, hero headlines, section headings, article standfirsts, drop-caps. Weight 400–600, tracking `-0.015em`, line-height 1.02–1.18.
 - **Body / UI — Inter** (`--font-body`): body copy, navigation, interface. Body 17px / 1.6; long-form 18px / 1.75.

@@ -756,6 +756,34 @@ public sealed class MemberAccountServiceTests
     }
 
     [Fact]
+    public async Task UpdateThemePreferenceAsync_DefaultsToSystemAndPersistsChoice()
+    {
+        var service = CreateService();
+        var registered = await service.RegisterAsync("theme@queenzone.org", "S3curePass!", "Theme Fan");
+        Assert.Equal(MemberThemePreference.System, registered.Account!.ThemePreference);
+
+        var result = await service.UpdateThemePreferenceAsync(registered.Account.Id, MemberThemePreference.Dark);
+
+        Assert.True(result.Succeeded);
+        var reloaded = await service.FindByIdAsync(registered.Account.Id);
+        Assert.Equal(MemberThemePreference.Dark, reloaded!.ThemePreference);
+    }
+
+    [Fact]
+    public async Task UpdateThemePreferenceAsync_RejectsUndefinedValue()
+    {
+        var service = CreateService();
+        var registered = await service.RegisterAsync("theme-bad@queenzone.org", "S3curePass!", "Theme Fan");
+
+        var result = await service.UpdateThemePreferenceAsync(registered.Account!.Id, (MemberThemePreference)99);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("valid", result.Error, StringComparison.OrdinalIgnoreCase);
+        var reloaded = await service.FindByIdAsync(registered.Account.Id);
+        Assert.Equal(MemberThemePreference.System, reloaded!.ThemePreference);
+    }
+
+    [Fact]
     public async Task UpdateMessagePrivacyAsync_RejectsUndefinedValue()
     {
         var service = CreateService();
@@ -1267,6 +1295,12 @@ public sealed class MemberAccountServiceTests
             MemberMessagePrivacy messagePrivacy,
             CancellationToken cancellationToken = default) =>
             inner.UpdateMessagePrivacyAsync(memberId, messagePrivacy, cancellationToken);
+
+        public Task<MemberAccount?> UpdateThemePreferenceAsync(
+            Guid memberId,
+            MemberThemePreference themePreference,
+            CancellationToken cancellationToken = default) =>
+            inner.UpdateThemePreferenceAsync(memberId, themePreference, cancellationToken);
 
         public Task<MemberAccount?> FindByLinkedLegacyUserIdAsync(int legacyUserId, CancellationToken cancellationToken = default) =>
             inner.FindByLinkedLegacyUserIdAsync(legacyUserId, cancellationToken);
