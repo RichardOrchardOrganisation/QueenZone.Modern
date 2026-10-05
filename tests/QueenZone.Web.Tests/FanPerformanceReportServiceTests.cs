@@ -82,22 +82,7 @@ public sealed class FanPerformanceReportServiceTests
         var outputCache = new NoOpOutputCacheStore();
         var write = new AdminFanPerformanceWriteService(
             new InMemoryAdminFanPerformanceRepository(store),
-            new PublicQueryCacheService(
-                memoryCache,
-                Options.Create(new PublicQueryCacheOptions()),
-                new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
-                new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-                new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
-                new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
-                new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-                new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
-                new StubLiveActivityQueryService(),
-                publicRepo,
-                new InMemoryQuoteRepository(SampleQuoteData.CreateSeedQuotes()),
-                new InMemoryTriviaRepository(SampleTriviaData.CreateSeedFacts()),
-                new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-                new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-                new InMemoryFreddieTributeRepository(new SharedFreddieTributeStore(SampleFreddieTributeData.CreateSeedTributes()))),
+            PublicQueryCacheServiceTests.CreateService(memoryCache, fanPerformanceRepository: publicRepo),
             new CoreSitemapService(
                 new CoreSitemapBuilder(
                     new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),

@@ -303,6 +303,11 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .SetVaryByQuery(PublicOutputCachePolicies.PublicHtmlQueryKeys)
                 .Tag(PublicOutputCachePolicies.PublicHtmlTag));
         });
+        services.AddScoped<PublicQueryCacheStore>();
+        services.AddScoped<PublicEditorialQueryCache>();
+        services.AddScoped<PublicForumQueryCache>();
+        services.AddScoped<PublicCatalogQueryCache>();
+        services.AddScoped<PublicMediaQueryCache>();
         services.AddScoped<PublicQueryCacheService>();
         return services;
     }

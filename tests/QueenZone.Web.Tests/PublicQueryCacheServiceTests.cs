@@ -1018,23 +1018,32 @@ public sealed class PublicQueryCacheServiceTests
         IBiographyRepository? biographyRepository = null,
         IDiscographyRepository? discographyRepository = null,
         IFreddieTributeRepository? freddieTributeRepository = null,
-        PublicQueryCacheOptions? options = null) =>
-        new(
-            memoryCache,
-            Options.Create(options ?? new PublicQueryCacheOptions()),
-            newsRepository ?? new CountingNewsRepository(),
-            articlesRepository ?? new CountingArticlesRepository(),
-            communityArticleRepository ?? new CountingCommunityArticleRepository(),
-            forumRepository ?? new CountingForumRepository(),
-            historyRepository ?? new CountingQueenHistoryRepository(),
-            photoRepository ?? new CountingPhotoRepository(),
-            liveActivityQuery ?? new CountingLiveActivityQueryService(),
-            fanPerformanceRepository ?? new CountingFanPerformanceRepository(),
-            quoteRepository ?? new CountingQuoteRepository(),
-            triviaRepository ?? new CountingTriviaRepository(),
-            biographyRepository ?? new CountingBiographyRepository(),
-            discographyRepository ?? new CountingDiscographyRepository(),
-            freddieTributeRepository ?? new UnusedFreddieTributeRepository());
+        PublicQueryCacheOptions? options = null)
+    {
+        var store = new PublicQueryCacheStore(memoryCache, Options.Create(options ?? new PublicQueryCacheOptions()));
+        return new PublicQueryCacheService(
+            new PublicEditorialQueryCache(
+                store,
+                newsRepository ?? new CountingNewsRepository(),
+                articlesRepository ?? new CountingArticlesRepository(),
+                communityArticleRepository ?? new CountingCommunityArticleRepository()),
+            new PublicForumQueryCache(
+                store,
+                forumRepository ?? new CountingForumRepository(),
+                liveActivityQuery ?? new CountingLiveActivityQueryService()),
+            new PublicCatalogQueryCache(
+                store,
+                historyRepository ?? new CountingQueenHistoryRepository(),
+                quoteRepository ?? new CountingQuoteRepository(),
+                triviaRepository ?? new CountingTriviaRepository(),
+                biographyRepository ?? new CountingBiographyRepository(),
+                discographyRepository ?? new CountingDiscographyRepository(),
+                freddieTributeRepository ?? new UnusedFreddieTributeRepository()),
+            new PublicMediaQueryCache(
+                store,
+                photoRepository ?? new CountingPhotoRepository(),
+                fanPerformanceRepository ?? new CountingFanPerformanceRepository()));
+    }
 
     private class CountingLiveActivityQueryService : ILiveActivityQueryService
     {
@@ -1055,10 +1064,10 @@ public sealed class PublicQueryCacheServiceTests
     private static object[] GetRetainedLoadGates(IEnumerable<string> keys)
     {
         var flags = BindingFlags.Static | BindingFlags.NonPublic;
-        var sync = typeof(PublicQueryCacheService).GetField("LoadGatesSync", flags)!.GetValue(null)!;
+        var sync = typeof(PublicQueryCacheStore).GetField("LoadGatesSync", flags)!.GetValue(null)!;
         lock (sync)
         {
-            var gates = (IDictionary)typeof(PublicQueryCacheService).GetField("LoadGates", flags)!.GetValue(null)!;
+            var gates = (IDictionary)typeof(PublicQueryCacheStore).GetField("LoadGates", flags)!.GetValue(null)!;
             return keys.Select(key => gates[key]).OfType<object>().ToArray();
         }
     }
