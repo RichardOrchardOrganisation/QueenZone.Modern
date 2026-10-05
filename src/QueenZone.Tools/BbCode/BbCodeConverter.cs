@@ -123,15 +123,7 @@ internal static partial class BbCodeConverter
 
                 case TokenKind.Close:
                     // Search the stack (excluding root) for the nearest matching open element.
-                    var matchIndex = -1;
-                    for (var i = stack.Count - 1; i >= 1; i--)
-                    {
-                        if (string.Equals(stack[i].Name, token.Name, StringComparison.OrdinalIgnoreCase))
-                        {
-                            matchIndex = i;
-                            break;
-                        }
-                    }
+                    var matchIndex = FindMatchingOpenTag(stack, token.Name);
 
                     if (matchIndex < 0)
                     {
@@ -149,6 +141,18 @@ internal static partial class BbCodeConverter
         }
 
         return root;
+    }
+
+    private static int FindMatchingOpenTag(IReadOnlyList<ElementNode> stack, string? name)
+    {
+        for (var i = stack.Count - 1; i >= 1; i--)
+        {
+            if (string.Equals(stack[i].Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static string ReconstructOpenTag(Token token) =>

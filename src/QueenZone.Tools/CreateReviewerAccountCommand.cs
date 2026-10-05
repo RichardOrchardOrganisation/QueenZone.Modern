@@ -138,6 +138,11 @@ internal sealed class CreateReviewerAccountOptions
             return Invalid($"Unsupported or incomplete argument: {arg}");
         }
 
+        return CompleteOptions(email, password, displayName, connectionString);
+    }
+
+    private static CreateReviewerAccountOptions CompleteOptions(string? email, string? password, string? displayName, string? connectionString)
+    {
         connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
         if (string.IsNullOrWhiteSpace(email))
         {

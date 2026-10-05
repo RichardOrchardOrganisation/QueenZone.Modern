@@ -321,35 +321,8 @@ internal sealed class CheckLinksOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--concurrency", StringComparison.OrdinalIgnoreCase)
-                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedConcurrencyArgument)
-                && int.TryParse(parsedConcurrencyArgument, out var parsedConcurrency))
+            if (TryReadExecutionLimits(args, ref index, ref concurrency, ref confirmAfter, ref timeoutSeconds, ref limit))
             {
-                concurrency = parsedConcurrency;
-                continue;
-            }
-
-            if (string.Equals(arg, "--confirm-after", StringComparison.OrdinalIgnoreCase)
-                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedConfirmAfterArgument)
-                && int.TryParse(parsedConfirmAfterArgument, out var parsedConfirmAfter))
-            {
-                confirmAfter = parsedConfirmAfter;
-                continue;
-            }
-
-            if (string.Equals(arg, "--timeout-seconds", StringComparison.OrdinalIgnoreCase)
-                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedTimeoutArgument)
-                && int.TryParse(parsedTimeoutArgument, out var parsedTimeout))
-            {
-                timeoutSeconds = parsedTimeout;
-                continue;
-            }
-
-            if (string.Equals(arg, "--limit", StringComparison.OrdinalIgnoreCase)
-                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedLimitArgument)
-                && int.TryParse(parsedLimitArgument, out var parsedLimit))
-            {
-                limit = parsedLimit;
                 continue;
             }
 
@@ -362,6 +335,18 @@ internal sealed class CheckLinksOptions
             return Invalid($"Unsupported or incomplete argument: {arg}");
         }
 
+        return CompleteOptions(connectionString, settingsFile, concurrency, confirmAfter, timeoutSeconds, limit, dryRun);
+    }
+
+    private static CheckLinksOptions CompleteOptions(
+        string? connectionString,
+        string? settingsFile,
+        int concurrency,
+        int confirmAfter,
+        int timeoutSeconds,
+        int? limit,
+        bool dryRun)
+    {
         connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -404,6 +389,43 @@ internal sealed class CheckLinksOptions
             DryRun = dryRun,
             IsValid = true,
         };
+    }
+
+    private static bool TryReadExecutionLimits(string[] args, ref int index, ref int concurrency, ref int confirmAfter, ref int timeoutSeconds, ref int? limit)
+    {
+        var arg = args[index];
+        if (string.Equals(arg, "--concurrency", StringComparison.OrdinalIgnoreCase)
+            && ToolArgs.TryReadValue(args, ref index, arg, out var parsedConcurrencyArgument)
+            && int.TryParse(parsedConcurrencyArgument, out var parsedConcurrency))
+        {
+            concurrency = parsedConcurrency;
+            return true;
+        }
+
+        if (string.Equals(arg, "--confirm-after", StringComparison.OrdinalIgnoreCase)
+            && ToolArgs.TryReadValue(args, ref index, arg, out var parsedConfirmAfterArgument)
+            && int.TryParse(parsedConfirmAfterArgument, out var parsedConfirmAfter))
+        {
+            confirmAfter = parsedConfirmAfter;
+            return true;
+        }
+
+        if (string.Equals(arg, "--timeout-seconds", StringComparison.OrdinalIgnoreCase)
+            && ToolArgs.TryReadValue(args, ref index, arg, out var parsedTimeoutArgument)
+            && int.TryParse(parsedTimeoutArgument, out var parsedTimeout))
+        {
+            timeoutSeconds = parsedTimeout;
+            return true;
+        }
+
+        if (string.Equals(arg, "--limit", StringComparison.OrdinalIgnoreCase)
+            && ToolArgs.TryReadValue(args, ref index, arg, out var parsedLimitArgument)
+            && int.TryParse(parsedLimitArgument, out var parsedLimit))
+        {
+            limit = parsedLimit;
+            return true;
+        }
+        return false;
     }
 
     private static CheckLinksOptions Invalid(string message) =>

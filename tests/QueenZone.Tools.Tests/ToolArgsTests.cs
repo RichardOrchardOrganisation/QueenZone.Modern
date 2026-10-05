@@ -196,4 +196,24 @@ public sealed class ToolArgsTests
             Console.SetOut(originalOut);
         }
     }
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task DelayIfPositiveAsync_DoesNotWaitOrObserveCancellationForNonpositiveDelay(int milliseconds)
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var wait = ToolArgs.DelayIfPositiveAsync(milliseconds, cancellation.Token);
+        Assert.True(wait.IsCompletedSuccessfully);
+        await wait;
+    }
+
+    [Fact]
+    public async Task DelayIfPositiveAsync_ObservesCancellationForPositiveDelay()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ToolArgs.DelayIfPositiveAsync(1, cancellation.Token));
+    }
+
 }

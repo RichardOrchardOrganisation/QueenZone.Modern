@@ -110,10 +110,7 @@ internal static class BackfillPhotoDimensionsCommand
                 await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: {ex.Message}");
             }
 
-            if (options.DelayMs > 0)
-            {
-                await Task.Delay(options.DelayMs, options.CancellationToken);
-            }
+            await ToolArgs.DelayIfPositiveAsync(options.DelayMs, options.CancellationToken);
         }
 
         ToolArgs.WriteBackfillSummary(

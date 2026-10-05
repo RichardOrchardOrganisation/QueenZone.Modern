@@ -88,10 +88,7 @@ internal static class ConvertLegacyBbCodeCommand
                 await Console.Error.WriteLineAsync($"  FAIL id={row.Id}: {ex.Message}");
             }
 
-            if (options.DelayMs > 0)
-            {
-                await Task.Delay(options.DelayMs, options.CancellationToken);
-            }
+            await ToolArgs.DelayIfPositiveAsync(options.DelayMs, options.CancellationToken);
         }
 
         ToolArgs.WriteBackfillSummary(
@@ -248,6 +245,11 @@ internal sealed class ConvertLegacyBbCodeOptions
             return Invalid($"Unsupported or incomplete argument: {arg}");
         }
 
+        return CompleteOptions(connectionString, limit, apply, delayMs);
+    }
+
+    private static ConvertLegacyBbCodeOptions CompleteOptions(string? connectionString, int? limit, bool apply, int delayMs)
+    {
         connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
