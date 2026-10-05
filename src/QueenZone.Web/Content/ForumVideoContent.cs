@@ -43,14 +43,8 @@ public static partial class ForumVideoContent
 
     public static ForumYoutubeVideo? TryRecognize(string? url, int anchorIndex = 0)
     {
-        // Uri normalizes escapes, dot segments, backslashes and control characters. Reject those
-        // spellings before parsing so normalization cannot turn hostile input into an approved URL.
-        if (string.IsNullOrEmpty(url) || url.Any(char.IsWhiteSpace) || url.Any(char.IsControl)
-            || url.Contains('\\') || url.Contains('%')
-            || url.Contains("/../", StringComparison.Ordinal) || url.Contains("/./", StringComparison.Ordinal)
-            || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-            || !uri.IsDefaultPort || uri.UserInfo.Length != 0)
+        var uri = TryParseSafeUrl(url);
+        if (uri is null)
         {
             return null;
         }
@@ -89,6 +83,24 @@ public static partial class ForumVideoContent
         }
 
         return new("youtube", id, watchUrl, start, anchorIndex);
+    }
+
+    // Uri normalizes escapes, dot segments, backslashes and control characters. Reject those
+    // spellings first so normalization cannot turn hostile input into an approved URL.
+    private static bool HasUnsafeUrlSpelling(string? url) =>
+        string.IsNullOrEmpty(url) || url.Any(char.IsWhiteSpace) || url.Any(char.IsControl)
+            || url.Contains('\\') || url.Contains('%')
+            || url.Contains("/../", StringComparison.Ordinal) || url.Contains("/./", StringComparison.Ordinal);
+
+    private static Uri? TryParseSafeUrl(string? url)
+    {
+        if (HasUnsafeUrlSpelling(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            || !uri.IsDefaultPort || uri.UserInfo.Length != 0)
+        {
+            return null;
+        }
+        return uri;
     }
 
     private static string? ReadVideoId(Uri uri, bool shortHost, Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
