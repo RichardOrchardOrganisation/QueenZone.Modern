@@ -22,6 +22,19 @@ internal sealed class CacheVariantArticleRepository : IArticleRepository
     public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
         Task.FromResult(Filter(tag).Count());
 
+    public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        string? tag = null, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ArticleFeedKey>>(
+            Filter(tag).Select(article => ArticleFeedKey.Community(article.Id, article.PublishedAt.UtcDateTime)).ToList());
+
+    public Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        var set = ids.ToHashSet();
+        return Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>(
+            articles.Where(article => set.Contains(article.Id)).ToList());
+    }
+
     public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
         int page, int pageSize, string? tag = null, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>(

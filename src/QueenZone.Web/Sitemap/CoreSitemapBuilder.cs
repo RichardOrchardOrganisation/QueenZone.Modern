@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Sitemap;
@@ -92,8 +93,18 @@ public sealed class CoreSitemapBuilder(
 
     private async Task AddArticleEntriesAsync(List<SitemapEntry> entries, CancellationToken cancellationToken)
     {
-        var publishedCount = await articlesRepository.GetPublishedCountAsync(cancellationToken);
-        var totalPages = ArticlesRoutes.GetArchiveTotalPages(publishedCount);
+        var archiveKeys = await articlesRepository.GetPublishedFeedKeysAsync(cancellationToken);
+        IReadOnlyList<ArticleFeedKey> communityKeys;
+        try
+        {
+            communityKeys = await communityArticleRepository.GetPublishedFeedKeysAsync(null, cancellationToken);
+        }
+        catch (SqlException)
+        {
+            communityKeys = [];
+        }
+
+        var totalPages = ArticlesRoutes.GetArchiveTotalPages(archiveKeys.Count + communityKeys.Count);
         for (var page = 1; page <= totalPages; page++)
         {
             entries.Add(new(ArticlesRoutes.GetArchiveCanonicalPath(page)));

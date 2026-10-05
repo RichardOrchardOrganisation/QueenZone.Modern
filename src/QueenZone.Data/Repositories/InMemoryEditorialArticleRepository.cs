@@ -13,6 +13,7 @@ public sealed class InMemoryEditorialArticleRepository(TimeProvider? timeProvide
     public Task<IReadOnlyList<EditorialArticle>> GetPublishedStandaloneAsync(CancellationToken ct = default) { lock (gate) return Task.FromResult<IReadOnlyList<EditorialArticle>>(live.Values.Where(x => x.LegacyArticleId is null && rows[x.Id].Status != EditorialArticleStatus.Unpublished).ToList()); }
     public Task<int> GetUnpublishedLegacyOverlayCountAsync(CancellationToken ct = default) { lock (gate) return Task.FromResult(live.Values.Count(x => x.LegacyArticleId is not null && rows[x.Id].Status == EditorialArticleStatus.Unpublished)); }
     public Task<IReadOnlyDictionary<int, EditorialArticle>> GetPublishedLegacyOverlaysAsync(IEnumerable<int> ids, CancellationToken ct = default) { lock (gate) { var set = ids.ToHashSet(); return Task.FromResult<IReadOnlyDictionary<int, EditorialArticle>>(live.Values.Where(x => x.LegacyArticleId is int id && set.Contains(id)).Select(x => x with { Status = rows[x.Id].Status }).ToDictionary(x => x.LegacyArticleId!.Value)); } }
+    public Task<IReadOnlyDictionary<int, EditorialArticle>> GetAllLegacyOverlaysAsync(CancellationToken ct = default) { lock (gate) { return Task.FromResult<IReadOnlyDictionary<int, EditorialArticle>>(live.Values.Where(x => x.LegacyArticleId is not null).Select(x => x with { Status = rows[x.Id].Status }).ToDictionary(x => x.LegacyArticleId!.Value)); } }
     public Task<EditorialArticle> SaveDraftAsync(EditorialArticleDraft draft, string editor, CancellationToken ct = default)
     {
         lock (gate)

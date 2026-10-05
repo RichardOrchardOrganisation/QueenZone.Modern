@@ -24,6 +24,22 @@ public static partial class ArticlesRoutes
     public static ArchivePaginationViewModel? GetArchivePaginationViewModel(int currentPage, int totalPages) =>
         ArchivePagination.BuildViewModel("Articles archive pagination", currentPage, totalPages, GetArchiveCanonicalPath);
 
+    public static string GetTaggedListPath(string tag, int page)
+    {
+        var encoded = Uri.EscapeDataString(tag);
+        return page <= 1 ? $"/articles?tag={encoded}" : $"/articles?tag={encoded}&page={page}";
+    }
+
+    public static ArchivePaginationViewModel? GetTaggedPaginationViewModel(
+        string tag,
+        int currentPage,
+        int totalPages) =>
+        ArchivePagination.BuildViewModel(
+            "Articles archive pagination",
+            currentPage,
+            totalPages,
+            page => GetTaggedListPath(tag, page));
+
     public static int ResolveArchiveTotalPages(int currentPage, int itemCount, int publishedCount, int totalPages) =>
         ArchivePagination.ResolveTotalPages(currentPage, itemCount, publishedCount, totalPages, ArchivePageSize);
 

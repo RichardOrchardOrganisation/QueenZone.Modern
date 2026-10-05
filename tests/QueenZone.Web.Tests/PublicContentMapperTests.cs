@@ -111,6 +111,31 @@ public sealed class PublicContentMapperTests
     }
 
     [Fact]
+    public void ToCommunityArticleArchiveItem_UsesSlugPathAndCategory()
+    {
+        var item = new PublishedArticleSubmission(
+            Guid.NewGuid(),
+            "Fan essay",
+            "fan-essay",
+            "Community excerpt",
+            "Body",
+            null,
+            null,
+            DateTimeOffset.Parse("2026-01-02T00:00:00Z"),
+            "Author",
+            80,
+            Category: "Interviews");
+
+        var view = PublicContentMapper.ToCommunityArticleArchiveItem(item);
+
+        Assert.Equal(0, view.Id);
+        Assert.Equal("Fan essay", view.Title);
+        Assert.Equal("Community excerpt", view.Excerpt);
+        Assert.Equal("Interviews", view.CategoryName);
+        Assert.Equal("/articles/fan-essay", view.DetailPath);
+    }
+
+    [Fact]
     public void ToArticleDetailItem_MapsOverlayImageAuthorAndTags()
     {
         var item = new ArticleItem(

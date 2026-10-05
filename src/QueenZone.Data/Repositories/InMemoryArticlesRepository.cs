@@ -17,6 +17,36 @@ public sealed class InMemoryArticlesRepository(IReadOnlyList<ArticleItem> seedAr
     public async Task<int> GetPublishedCountAsync(CancellationToken cancellationToken = default) =>
         (await ApplyAsync(publishedItems, cancellationToken)).Count;
 
+    public async Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (editorialArticles is null)
+        {
+            return publishedItems.Select(item => ArticleFeedKey.Archive(item.Id, item.PublishedAt)).ToList();
+        }
+
+        var overlays = await editorialArticles.GetAllLegacyOverlaysAsync(cancellationToken);
+        return publishedItems
+            .Where(item => !overlays.TryGetValue(item.Id, out var edit) || edit.Status != EditorialArticleStatus.Unpublished)
+            .Select(item => ArticleFeedKey.Archive(
+                item.Id,
+                overlays.TryGetValue(item.Id, out var edit) ? edit.PublishedAt.UtcDateTime : item.PublishedAt))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<ArticleItem>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var set = ids.ToHashSet();
+        return await ApplyAsync(publishedItems.Where(item => set.Contains(item.Id)).ToList(), cancellationToken);
+    }
+
     public async Task<ArticleItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         var item = publishedItems.SingleOrDefault(item => item.Id == id);

@@ -91,6 +91,36 @@ public static class PublicContentMapper
     public static IReadOnlyList<ArticleArchiveItem> ToArticleArchiveItems(IEnumerable<ArticleItem> items) =>
         items.Select(ToArticleArchiveItem).ToList();
 
+    public static ArticleArchiveItem ToCommunityArticleArchiveItem(PublishedArticleSubmission item) =>
+        new(
+            0,
+            item.Title,
+            item.Excerpt ?? string.Empty,
+            item.PublishedAt.UtcDateTime,
+            item.Category,
+            ArticlesRoutes.GetCommunityArticleDetailPath(item.Slug));
+
+    public static IReadOnlyList<ArticleArchiveItem> DedupeArticleArchiveItemsByDetailPath(
+        IReadOnlyList<ArticleArchiveItem> items)
+    {
+        if (items.Count <= 1)
+        {
+            return items;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var unique = new List<ArticleArchiveItem>(items.Count);
+        foreach (var item in items)
+        {
+            if (seen.Add(item.DetailPath))
+            {
+                unique.Add(item);
+            }
+        }
+
+        return unique;
+    }
+
     public static ArticleDetailItem ToArticleDetailItem(ArticleItem item) =>
         new(
             item.Id,

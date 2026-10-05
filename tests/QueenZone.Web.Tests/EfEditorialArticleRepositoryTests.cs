@@ -88,6 +88,9 @@ public sealed class EfEditorialArticleRepositoryTests : IDisposable
         Assert.Equal(EditorialArticleStatus.Unpublished, overlays[101].Status);
         Assert.Equal("Edited archive", overlays[101].Title);
         Assert.Equal(1, await repository.GetUnpublishedLegacyOverlayCountAsync());
+        var allOverlays = await repository.GetAllLegacyOverlaysAsync();
+        Assert.True(allOverlays.ContainsKey(101));
+        Assert.Equal(EditorialArticleStatus.Unpublished, allOverlays[101].Status);
     }
 
     [Fact]

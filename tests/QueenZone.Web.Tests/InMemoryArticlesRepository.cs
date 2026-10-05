@@ -24,6 +24,20 @@ internal sealed class InMemoryArticlesRepository : IArticlesRepository
     public Task<int> GetPublishedCountAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(publishedItems.Count);
 
+    public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ArticleFeedKey>>(
+            publishedItems.Select(item => ArticleFeedKey.Archive(item.Id, item.PublishedAt)).ToList());
+
+    public Task<IReadOnlyList<ArticleItem>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken = default)
+    {
+        var set = ids.ToHashSet();
+        return Task.FromResult<IReadOnlyList<ArticleItem>>(
+            publishedItems.Where(item => set.Contains(item.Id)).ToList());
+    }
+
     public Task<ArticleItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
         Task.FromResult(publishedItems.SingleOrDefault(item => item.Id == id));
 

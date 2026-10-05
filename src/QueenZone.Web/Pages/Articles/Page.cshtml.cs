@@ -1,11 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Articles;
 
-public sealed class ArchivePageModel(
-    IArticlesRepository articlesRepository,
-    PublicQueryCacheService publicQueryCache) : ArticlesArchivePageModel(articlesRepository, publicQueryCache)
+public sealed class ArchivePageModel(PublicQueryCacheService publicQueryCache) : ArticlesArchivePageModel(publicQueryCache)
 {
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; }

@@ -144,6 +144,7 @@ public sealed class SitemapEndpointsTests : IClassFixture<QueenZoneWebApplicatio
             .ToList();
 
         Assert.Contains($"{BaseUrl}/articles", locations);
+        Assert.Contains($"{BaseUrl}/articles/page/2", locations);
         Assert.Contains($"{BaseUrl}/articles/101/inside-the-making-of-bohemian-rhapsody", locations);
         Assert.DoesNotContain($"{BaseUrl}/articles/9001/hidden-moderation-draft", locations);
     }

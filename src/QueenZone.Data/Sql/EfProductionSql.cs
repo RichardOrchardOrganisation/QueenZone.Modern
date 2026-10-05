@@ -17,7 +17,9 @@ internal static class EfProductionSql
         string Count,
         string ArchivePage,
         string ById,
-        string Sitemap)
+        string Sitemap,
+        string FeedKeys,
+        string ByIds)
         CreateArticlesQueries()
     {
         // List/archive: truncated ARTICLE_TEXT only (enough for GetExcerpt). Detail: full body.
@@ -80,7 +82,18 @@ internal static class EfProductionSql
             FROM Q_ARTICLE_T a
             WHERE a.DISPLAY = 1
             ORDER BY a.DATE_CREATED DESC, a.Q_ARTICLE_ID DESC
-            """);
+            """,
+            """
+            SELECT
+                CAST(Q_ARTICLE_ID AS int) AS Id,
+                DATE_CREATED AS PublishedAt
+            FROM Q_ARTICLE_T
+            WHERE DISPLAY = 1
+            """,
+            listSelect + """
+
+                  AND a.Q_ARTICLE_ID = {0}
+                """);
     }
 
     /// <summary>

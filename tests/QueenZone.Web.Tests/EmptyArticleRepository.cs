@@ -11,6 +11,14 @@ internal sealed class EmptyArticleRepository : IArticleRepository
     public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
         Task.FromResult(0);
 
+    public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        string? tag = null, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ArticleFeedKey>>([]);
+
+    public Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>([]);
+
     public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
         int page, int pageSize, string? tag = null, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>(Array.Empty<PublishedArticleSubmission>());

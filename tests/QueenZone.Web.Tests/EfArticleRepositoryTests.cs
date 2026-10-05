@@ -261,6 +261,37 @@ public sealed class EfArticleRepositoryTests : IDisposable
     // --- GetSitemapEntriesAsync ---
 
     [Fact]
+    public async Task GetPublishedFeedKeysAsync_ProjectsCommunityIdsAndUtcDates()
+    {
+        var publishedAt = DateTimeOffset.Parse("2026-02-01T12:00:00Z");
+        AddPublished("feed-key", "Feed Key", publishedAt, tags: "queen");
+
+        var keys = await Repo().GetPublishedFeedKeysAsync();
+        var tagged = await Repo().GetPublishedFeedKeysAsync("queen");
+        var other = await Repo().GetPublishedFeedKeysAsync("roger");
+
+        var key = Assert.Single(keys);
+        Assert.Equal(ArticleFeedSource.Community, key.Source);
+        Assert.Equal(publishedAt.UtcDateTime, key.PublishedAtUtc);
+        Assert.Single(tagged);
+        Assert.Empty(other);
+    }
+
+    [Fact]
+    public async Task GetPublishedByIdsAsync_ReturnsMatchingPublishedRows()
+    {
+        AddPublished("keep-me", "Keep Me", DateTimeOffset.UtcNow.AddDays(-1));
+        AddPublished("other", "Other", DateTimeOffset.UtcNow);
+        var all = await Repo().GetPageAsync(1, 10);
+        var keep = Assert.Single(all, article => article.Slug == "keep-me");
+
+        var result = await Repo().GetPublishedByIdsAsync([keep.Id, Guid.NewGuid()]);
+
+        Assert.Equal("keep-me", Assert.Single(result).Slug);
+        Assert.Empty(await Repo().GetPublishedByIdsAsync([]));
+    }
+
+    [Fact]
     public async Task GetSitemapEntriesAsync_ReturnsPublishedArticles()
     {
         AddPublished("sitemap-1", "Sitemap Article 1", DateTimeOffset.UtcNow.AddDays(-1));

@@ -27,6 +27,8 @@ public static class PublicQueryCacheKeys
 
     public const string ArticlesArchiveSegment = Prefix + ":articles:archive";
 
+    public const string ArticleFeedIndexSegment = Prefix + ":articles:feed-index";
+
     public const string ForumCategories = Prefix + ":forum:categories";
 
     public const string ForumThreadCount = Prefix + ":forum:thread-count";
@@ -94,6 +96,9 @@ public static class PublicQueryCacheKeys
 
     public static string ArticlesArchivePage(string version, int page, int pageSize) =>
         $"{ArticlesArchiveSegment}:v{version}:{page}:{pageSize}";
+
+    public static string ArticleFeedIndex(string version, string? tag) =>
+        $"{ArticleFeedIndexSegment}:v{version}:tag={tag ?? string.Empty}";
 
     public static string PhotoCategories(string version) =>
         $"{PhotoCategoriesSegment}:v{version}";

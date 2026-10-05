@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -121,6 +122,129 @@ public sealed class PublicQueryCacheService(
             options.Value.ArticleCountCacheDuration,
             () => articlesRepository.GetArchivePageAsync(page, pageSize, cancellationToken),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Cached merged {source, id, date} index for <c>/articles</c>. Community
+    /// <see cref="SqlException"/> falls back to archive-only and is not cached.
+    /// Tag views are community-only.
+    /// </summary>
+    public async Task<IReadOnlyList<ArticleFeedKey>> GetMergedArticleFeedIndexAsync(
+        string? tag = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedTag = string.IsNullOrWhiteSpace(tag) ? null : tag;
+        var version = GetArticleCacheVersion();
+        var key = PublicQueryCacheKeys.ArticleFeedIndex(version, normalizedTag);
+        if (cache.TryGetValue(key, out IReadOnlyList<ArticleFeedKey>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var gate = RentLoadGate(key);
+        try
+        {
+            await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (cache.TryGetValue(key, out cached) && cached is not null)
+                {
+                    return cached;
+                }
+
+                var (index, cacheable) = await BuildMergedArticleFeedIndexAsync(normalizedTag, cancellationToken)
+                    .ConfigureAwait(false);
+                if (cacheable)
+                {
+                    cache.Set(key, index, options.Value.ArticleCountCacheDuration);
+                }
+
+                return index;
+            }
+            finally
+            {
+                gate.Semaphore.Release();
+            }
+        }
+        finally
+        {
+            ReturnLoadGate(key, gate);
+        }
+    }
+
+    public async Task<IReadOnlyList<ArticleArchiveItem>> HydrateArticleFeedAsync(
+        IReadOnlyList<ArticleFeedKey> keys,
+        CancellationToken cancellationToken = default)
+    {
+        if (keys.Count == 0)
+        {
+            return [];
+        }
+
+        var archiveIds = keys
+            .Where(key => key.Source == ArticleFeedSource.Archive)
+            .Select(key => key.ArchiveId)
+            .ToList();
+        var communityIds = keys
+            .Where(key => key.Source == ArticleFeedSource.Community)
+            .Select(key => key.CommunityId)
+            .ToList();
+
+        var archiveTask = archiveIds.Count == 0
+            ? Task.FromResult<IReadOnlyList<ArticleItem>>([])
+            : articlesRepository.GetPublishedByIdsAsync(archiveIds, cancellationToken);
+        var communityTask = communityIds.Count == 0
+            ? Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>([])
+            : communityArticleRepository.GetPublishedByIdsAsync(communityIds, cancellationToken);
+        await Task.WhenAll(archiveTask, communityTask).ConfigureAwait(false);
+
+        var archiveMap = archiveTask.Result.ToDictionary(item => item.Id);
+        var communityMap = communityTask.Result.ToDictionary(item => item.Id);
+        var items = new List<ArticleArchiveItem>(keys.Count);
+        foreach (var key in keys)
+        {
+            if (key.Source == ArticleFeedSource.Archive)
+            {
+                if (archiveMap.TryGetValue(key.ArchiveId, out var archive))
+                {
+                    items.Add(PublicContentMapper.ToArticleArchiveItem(archive));
+                }
+
+                continue;
+            }
+
+            if (communityMap.TryGetValue(key.CommunityId, out var community))
+            {
+                items.Add(PublicContentMapper.ToCommunityArticleArchiveItem(community));
+            }
+        }
+
+        return PublicContentMapper.DedupeArticleArchiveItemsByDetailPath(items);
+    }
+
+    private async Task<(IReadOnlyList<ArticleFeedKey> Index, bool Cacheable)> BuildMergedArticleFeedIndexAsync(
+        string? tag,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<ArticleFeedKey> communityKeys;
+        var cacheable = true;
+        try
+        {
+            communityKeys = await communityArticleRepository
+                .GetPublishedFeedKeysAsync(tag, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (SqlException)
+        {
+            communityKeys = [];
+            cacheable = false;
+        }
+
+        IReadOnlyList<ArticleFeedKey> archiveKeys = tag is null
+            ? await articlesRepository.GetPublishedFeedKeysAsync(cancellationToken).ConfigureAwait(false)
+            : [];
+
+        return (ArticleFeedOrdering.Sort(communityKeys.Concat(archiveKeys)), cacheable);
     }
 
     public Task<IReadOnlyList<ForumCategoryItem>> GetForumCategoriesAsync(CancellationToken cancellationToken = default) =>
