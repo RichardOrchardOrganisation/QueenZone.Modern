@@ -2,7 +2,6 @@
   "description": "CRAP ratchet baseline. Functions above the threshold that already existed. Lower or remove entries; never raise by hand. See AGENTS.md (Change risk).",
   "threshold": 30,
   "hotspots": {
-    "src/QueenZone.Mobile/src/downloads/manager.ts|runDownload": 32.4,
-    "src/QueenZone.Mobile/src/session/SessionContext.tsx|SessionProvider::lambda": 45.7
+    "src/QueenZone.Mobile/src/downloads/manager.ts|runDownload": 32.4
   }
 }
