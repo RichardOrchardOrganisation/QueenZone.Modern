@@ -116,11 +116,7 @@ export const ForumPostRow = memo(function ForumPostRow({
           }}
         >
           <Text style={[type.caption, { color: c.accentPrimary, marginTop: space.xs }]}>
-            {post.queueState === 'sending'
-              ? 'Sending…'
-              : post.queueState === 'needs_attention'
-                ? 'Needs attention'
-                : 'Queued'}
+            {queueLabel}
           </Text>
         </Pressable>
       ) : null}

@@ -98,7 +98,8 @@ export function resolveMediaUrl(apiBaseUrl: string, path: string | null): string
   }
 
   const origin = trimTrailingChar(apiBaseUrl, '/');
-  return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  const absolutePath = path.startsWith('/') ? path : `/${path}`;
+  return `${origin}${absolutePath}`;
 }
 
 export function parsePhotoSubmissions(payload: unknown): PagedSubmissions<PhotoSubmissionItem> {

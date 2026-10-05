@@ -9,8 +9,12 @@ public sealed record CrosswordStatistics(int Starts, int Completions, double Com
     {
         var starts = progress.Count;
         var times = completed.Select(row => row.ElapsedSeconds).Order().ToArray();
-        double? median = times.Length == 0 ? null : times.Length % 2 == 1 ? times[times.Length / 2]
-            : ((double)times[times.Length / 2 - 1] + times[times.Length / 2]) / 2;
+        double? median = times.Length switch
+        {
+            0 => null,
+            var count when count % 2 == 1 => times[count / 2],
+            var count => ((double)times[count / 2 - 1] + times[count / 2]) / 2,
+        };
         var current = progress.Where(row => row.PlayVersion == puzzle.PlayVersion).ToArray();
         var entries = CrosswordGridValidator.Validate(puzzle.Seed.Grid).Runs.Select(run =>
         {

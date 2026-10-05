@@ -1,3 +1,14 @@
+/* Native status outputs retain the paragraph layout used by their notices. */
+:where(output.qz-status-block) {
+  display: block;
+  margin: 0 0 var(--space-4);
+  text-wrap: pretty;
+}
+
+output.qz-status-block[hidden] {
+  display: none;
+}
+
 .qz-skip-link {
   position: absolute;
   z-index: 100;
@@ -1546,6 +1557,14 @@ body.qz-menu-lock .qz-masthead {
   background:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.14) 0 1px, transparent 1px 3px),
     linear-gradient(180deg, transparent 55%, rgba(13, 13, 13, 0.35));
+}
+
+/* Native grouping elements retain the layout of their existing controls. */
+:where(.qz-semantic-group) {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
 }
 
 /* Era ticker */

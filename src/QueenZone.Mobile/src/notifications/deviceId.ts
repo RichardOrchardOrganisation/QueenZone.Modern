@@ -21,7 +21,7 @@ export async function getOrCreateDeviceId(): Promise<string> {
 }
 
 /** Reads the stored device id without creating one — used before unregistering. */
-export async function peekDeviceId(): Promise<string | null> {
+export function peekDeviceId(): Promise<string | null> {
   return AsyncStorage.getItem(deviceIdKey);
 }
 

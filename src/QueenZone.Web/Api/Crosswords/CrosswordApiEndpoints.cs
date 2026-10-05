@@ -57,7 +57,13 @@ public static class CrosswordApiEndpoints
     {
         progress.TryGetValue(item.Id, out var saved);
         completions.TryGetValue(item.Id, out var completed);
-        var state = !member ? null : completed is not null ? "completed" : saved is not null ? "inProgress" : "notStarted";
+        var state = (member, completed, saved) switch
+        {
+            (false, _, _) => null,
+            (true, not null, _) => "completed",
+            (true, _, not null) => "inProgress",
+            _ => "notStarted",
+        };
         int? percent = saved is null ? null : (int)(100d * saved.Letters.Count(char.IsAsciiLetterUpper)
             / string.Concat(item.Seed.Grid.Rows).Count(cell => cell != '#'));
         return new(item.Id, item.Seed.Slug, item.Seed.Title, item.Seed.Difficulty, item.Seed.Grid.Width,

@@ -77,11 +77,14 @@ export async function defaultGitLogPatch(since, cwd) {
 export async function collect(ctx) {
   const patterns = ctx.config?.suppressionPatterns || [];
   try {
-    const patch = ctx.gitLogPatch
-      ? await ctx.gitLogPatch(ctx.since)
-      : ctx.patch != null
-        ? ctx.patch
-        : await defaultGitLogPatch(ctx.since, ctx.root);
+    let patch;
+    if (ctx.gitLogPatch) {
+      patch = await ctx.gitLogPatch(ctx.since);
+    } else if (ctx.patch != null) {
+      patch = ctx.patch;
+    } else {
+      patch = await defaultGitLogPatch(ctx.since, ctx.root);
+    }
     return parseSuppressionDiff(patch, patterns, { config: ctx.config });
   } catch (error) {
     ctx.warnings?.push(`suppressions: ${error.message}`);

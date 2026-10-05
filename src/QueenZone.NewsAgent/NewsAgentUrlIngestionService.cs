@@ -44,58 +44,8 @@ public class NewsAgentUrlIngestionService(
             var source = await EnsureManualSourceAsync(cancellationToken);
             var now = DateTime.UtcNow;
 
-            var canonicalUrl = NewsCandidateDedupe.NormalizeCanonicalUrl(finalNormalized);
-            var canonicalUrlHash = NewsCandidateDedupe.ComputeUrlHash(canonicalUrl);
-            var contentHash = NewsCandidateDedupe.ComputeContentHash(parsed.Title, evidenceExcerpt);
-
-            var existingByUrl = await discoveryRepository.GetCandidateByCanonicalUrlHashAsync(
-                canonicalUrlHash,
-                cancellationToken);
-            var existingByContent = existingByUrl is null
-                ? await discoveryRepository.GetCandidateByContentHashAsync(contentHash, cancellationToken)
-                : null;
-
-            NewsCandidate candidate;
-            var wasDuplicate = false;
-            if (existingByUrl is not null || existingByContent is not null)
-            {
-                candidate = existingByUrl ?? existingByContent!;
-                wasDuplicate = true;
-                await discoveryRepository.AddCandidateEvidenceAsync(
-                    candidate.Id,
-                    new NewsCandidateEvidenceDraft(
-                        finalNormalized,
-                        parsed.SourceName,
-                        source.TrustTier,
-                        parsed.Title,
-                        null,
-                        evidenceExcerpt,
-                        null,
-                        now),
-                    cancellationToken);
-                logger.LogInformation(
-                    "Reused existing candidate {CandidateId} for admin URL {ArticleUrl}.",
-                    candidate.Id,
-                    finalNormalized);
-            }
-            else
-            {
-                var candidateId = await discoveryRepository.CreateCandidateAsync(
-                    new NewsCandidateCreateRequest(
-                        source.Id,
-                        finalNormalized,
-                        parsed.Title,
-                        null,
-                        evidenceExcerpt,
-                        now),
-                    cancellationToken);
-                candidate = await discoveryRepository.GetCandidateByIdAsync(candidateId, cancellationToken)
-                    ?? throw new InvalidOperationException($"Created candidate {candidateId} could not be reloaded.");
-                logger.LogInformation(
-                    "Created candidate {CandidateId} from admin URL {ArticleUrl}.",
-                    candidate.Id,
-                    finalNormalized);
-            }
+            var (candidate, wasDuplicate) = await GetOrCreateCandidateAsync(
+                parsed, evidenceExcerpt, source, finalNormalized, now, cancellationToken);
 
             candidate = await discoveryRepository.GetCandidateByIdAsync(candidate.Id, cancellationToken)
                 ?? candidate;
@@ -110,62 +60,133 @@ public class NewsAgentUrlIngestionService(
                     ?? candidate;
             }
 
-            var draftGenerated = false;
-            if (generateDraft)
-            {
-                if (candidate.Status is NewsCandidateStatus.NeedsReview or NewsCandidateStatus.Drafted)
-                {
-                    // Explicit override may draft even when confidence is low; never auto-publish.
-                    var draftResult = await draftGenerationService.GenerateDraftAsync(
-                        candidate,
-                        new NewsDraftRunOptions(
-                            DryRun: false,
-                            ForceRegenerate: candidate.Status == NewsCandidateStatus.Drafted,
-                            BypassConfidenceThreshold: true),
-                        cancellationToken);
-                    draftGenerated = draftResult.Succeeded && draftResult.DraftId is not null;
-                    candidate = await discoveryRepository.GetCandidateByIdAsync(candidate.Id, cancellationToken)
-                        ?? candidate;
-                }
-                else if (candidate.Status == NewsCandidateStatus.Discovered)
-                {
-                    return new NewsAgentUrlIngestionResult(
-                        1,
-                        $"Fetched candidate #{candidate.Id}, but triage did not promote it for drafting (status remains Discovered).",
-                        candidate.Id,
-                        wasDuplicate);
-                }
-                else
-                {
-                    return new NewsAgentUrlIngestionResult(
-                        0,
-                        $"URL matched candidate #{candidate.Id} with status {candidate.Status}; draft generation was skipped.",
-                        candidate.Id,
-                        wasDuplicate);
-                }
-            }
-
-            var summary = wasDuplicate
-                ? $"Reused candidate #{candidate.Id} for {finalNormalized} (status {candidate.Status}"
-                : $"Created candidate #{candidate.Id} for {finalNormalized} (status {candidate.Status}";
-            summary += draftGenerated
-                ? "; draft generated)."
-                : generateDraft
-                    ? "; draft not generated)."
-                    : "; triage-only, no draft).";
-
-            return new NewsAgentUrlIngestionResult(
-                0,
-                summary,
-                candidate.Id,
-                wasDuplicate,
-                draftGenerated);
+            return await CompleteIngestionAsync(candidate, generateDraft, wasDuplicate, finalNormalized, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Admin URL ingestion failed for {ArticleUrl}.", normalizedUrl);
             return new NewsAgentUrlIngestionResult(1, $"URL ingestion failed: {ex.Message}");
         }
+    }
+
+    private async Task<(NewsCandidate Candidate, bool WasDuplicate)> GetOrCreateCandidateAsync(
+        ParsedArticlePage parsed,
+        string? evidenceExcerpt,
+        NewsDiscoverySource source,
+        string finalNormalized,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var canonicalUrl = NewsCandidateDedupe.NormalizeCanonicalUrl(finalNormalized);
+        var canonicalUrlHash = NewsCandidateDedupe.ComputeUrlHash(canonicalUrl);
+        var contentHash = NewsCandidateDedupe.ComputeContentHash(parsed.Title, evidenceExcerpt);
+
+        var existingByUrl = await discoveryRepository.GetCandidateByCanonicalUrlHashAsync(
+            canonicalUrlHash,
+            cancellationToken);
+        var existingByContent = existingByUrl is null
+            ? await discoveryRepository.GetCandidateByContentHashAsync(contentHash, cancellationToken)
+            : null;
+
+        NewsCandidate candidate;
+        var wasDuplicate = false;
+        if (existingByUrl is not null || existingByContent is not null)
+        {
+            candidate = existingByUrl ?? existingByContent!;
+            wasDuplicate = true;
+            await discoveryRepository.AddCandidateEvidenceAsync(
+                candidate.Id,
+                new NewsCandidateEvidenceDraft(
+                finalNormalized,
+                parsed.SourceName,
+                source.TrustTier,
+                parsed.Title,
+                null,
+                evidenceExcerpt,
+                null,
+                now),
+                cancellationToken);
+            logger.LogInformation(
+                "Reused existing candidate {CandidateId} for admin URL {ArticleUrl}.",
+                candidate.Id,
+                finalNormalized);
+        }
+        else
+        {
+            var candidateId = await discoveryRepository.CreateCandidateAsync(
+                new NewsCandidateCreateRequest(
+                source.Id,
+                finalNormalized,
+                parsed.Title,
+                null,
+                evidenceExcerpt,
+                now),
+                cancellationToken);
+            candidate = await discoveryRepository.GetCandidateByIdAsync(candidateId, cancellationToken)
+                ?? throw new InvalidOperationException($"Created candidate {candidateId} could not be reloaded.");
+            logger.LogInformation(
+                "Created candidate {CandidateId} from admin URL {ArticleUrl}.",
+                candidate.Id,
+                finalNormalized);
+        }
+
+        return (candidate, wasDuplicate);
+    }
+
+    private async Task<NewsAgentUrlIngestionResult> CompleteIngestionAsync(
+        NewsCandidate candidate,
+        bool generateDraft,
+        bool wasDuplicate,
+        string finalNormalized,
+        CancellationToken cancellationToken)
+    {
+        var draftGenerated = false;
+        if (generateDraft)
+        {
+            if (candidate.Status is NewsCandidateStatus.NeedsReview or NewsCandidateStatus.Drafted)
+            {
+                // Explicit override may draft even when confidence is low; never auto-publish.
+                var draftResult = await draftGenerationService.GenerateDraftAsync(
+                    candidate,
+                    new NewsDraftRunOptions(
+                        DryRun: false,
+                        ForceRegenerate: candidate.Status == NewsCandidateStatus.Drafted,
+                        BypassConfidenceThreshold: true),
+                    cancellationToken);
+                draftGenerated = draftResult.Succeeded && draftResult.DraftId is not null;
+                candidate = await discoveryRepository.GetCandidateByIdAsync(candidate.Id, cancellationToken)
+                    ?? candidate;
+            }
+            else if (candidate.Status == NewsCandidateStatus.Discovered)
+            {
+                return new NewsAgentUrlIngestionResult(
+                    1,
+                    $"Fetched candidate #{candidate.Id}, but triage did not promote it for drafting (status remains Discovered).",
+                    candidate.Id,
+                    wasDuplicate);
+            }
+            else
+            {
+                return new NewsAgentUrlIngestionResult(
+                    0,
+                    $"URL matched candidate #{candidate.Id} with status {candidate.Status}; draft generation was skipped.",
+                    candidate.Id,
+                    wasDuplicate);
+            }
+        }
+
+        var summary = wasDuplicate
+            ? $"Reused candidate #{candidate.Id} for {finalNormalized} (status {candidate.Status}"
+            : $"Created candidate #{candidate.Id} for {finalNormalized} (status {candidate.Status}";
+        var skippedDraftSummary = generateDraft ? "; draft not generated)." : "; triage-only, no draft).";
+        summary += draftGenerated ? "; draft generated)." : skippedDraftSummary;
+
+        return new NewsAgentUrlIngestionResult(
+            0,
+            summary,
+            candidate.Id,
+            wasDuplicate,
+            draftGenerated);
     }
 
     private async Task<NewsDiscoverySource> EnsureManualSourceAsync(CancellationToken cancellationToken)

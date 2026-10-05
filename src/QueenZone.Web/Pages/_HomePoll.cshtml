@@ -47,7 +47,7 @@
 
           <div class="qz-poll__meta-row">
             <span class="qz-poll__meta">@poll.TotalVotes.ToString("N0") vote@(poll.TotalVotes == 1 ? "" : "s")</span>
-            <span class="qz-poll__meta">@(poll.IsClosed ? "Closed" : (poll.ViewerHasVoted ? "You voted" : "Open"))</span>
+            <span class="qz-poll__meta">@((poll.IsClosed, poll.ViewerHasVoted) switch { (true, _) => "Closed", (_, true) => "You voted", _ => "Open" })</span>
           </div>
         </section>
       </div>

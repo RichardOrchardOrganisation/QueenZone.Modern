@@ -9,7 +9,8 @@ export function websiteUrl(apiBaseUrl: string, path: string): string | null {
     return path;
   }
   const origin = trimTrailingChar(apiBaseUrl, '/');
-  return `${origin}${path.startsWith('/') ? path : `/${path}`}`;
+  const absolutePath = path.startsWith('/') ? path : `/${path}`;
+  return `${origin}${absolutePath}`;
 }
 
 export type SearchTabTarget =

@@ -37,13 +37,13 @@ public sealed class E2EMirrorMigrationHostedServiceTests
     }
 
     [Fact]
-    public async Task StopAsync_completes_immediately()
+    public void StopAsync_completes_immediately()
     {
         var service = new E2EMirrorMigrationHostedService(
             new ThrowingDbContextFactory(),
             NullLogger<E2EMirrorMigrationHostedService>.Instance);
 
-        await service.StopAsync(CancellationToken.None);
+        Assert.True(service.StopAsync(CancellationToken.None).IsCompletedSuccessfully);
     }
 
     private sealed class ThrowingDbContextFactory : IDbContextFactory<QueenZoneDbContext>

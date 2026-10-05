@@ -46,14 +46,14 @@ public class ForumSafetyWorkflowTests : E2EPageTest
         await reporterPage.GetByLabel("Supporting details (optional)").FillAsync("E2E safety evidence");
         await reporterPage.GetByRole(AriaRole.Button, new() { Name = "Submit report" }).ClickAsync();
         await Expect(reporterPage).ToHaveURLAsync(new Regex(".*/forum/topic/\\d+/e2e-safety-.*#post-\\d+$"));
-        await Expect(reporterPage.Locator(".qz-account-notice[role='status']")).ToContainTextAsync("Report submitted");
+        await Expect(reporterPage.GetByRole(AriaRole.Status).Filter(new() { HasText = "Report submitted." })).ToContainTextAsync("Report submitted");
         await Expect(reportedPost.GetByRole(AriaRole.Link, new() { Name = "Report post" })).ToHaveCountAsync(0);
 
         // A second form submission remains idempotent even though the topic no longer offers the link.
         await reporterPage.GotoAsync($"/forum/post/{postId}/report");
         await reporterPage.GetByLabel("Reason").SelectOptionAsync("Other");
         await reporterPage.GetByRole(AriaRole.Button, new() { Name = "Submit report" }).ClickAsync();
-        await Expect(reporterPage.Locator(".qz-account-notice[role='status']")).ToContainTextAsync("Report already submitted");
+        await Expect(reporterPage.GetByRole(AriaRole.Status).Filter(new() { HasText = "Report already submitted" })).ToContainTextAsync("Report already submitted");
 
         var adminContext = await CreateExtraContextAsync(new BrowserNewContextOptions
         {

@@ -1,7 +1,10 @@
 namespace QueenZone.Data;
 
-public sealed class SharedNewsAgentRunRequestStore : SharedRunRequestStoreBase<NewsAgentRunRequest>
+public sealed class SharedNewsAgentRunRequestStore(TimeProvider? timeProvider = null) : SharedRunRequestStoreBase<NewsAgentRunRequest>
 {
+    private readonly TimeProvider heartbeatClock = timeProvider ?? TimeProvider.System;
+    private NewsAgentRunnerHeartbeat? latestHeartbeat;
+
     private readonly Dictionary<string, NewsAgentRunnerHeartbeat> heartbeats =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -50,7 +53,7 @@ public sealed class SharedNewsAgentRunRequestStore : SharedRunRequestStoreBase<N
     {
         lock (Gate)
         {
-            return heartbeats.Values.MaxBy(heartbeat => heartbeat.LastSeenAtUtc);
+            return latestHeartbeat;
         }
     }
 
@@ -60,6 +63,7 @@ public sealed class SharedNewsAgentRunRequestStore : SharedRunRequestStoreBase<N
         {
             ClearRequests();
             heartbeats.Clear();
+            latestHeartbeat = null;
         }
     }
 
@@ -69,11 +73,14 @@ public sealed class SharedNewsAgentRunRequestStore : SharedRunRequestStoreBase<N
 
     private void RecordHeartbeatCore(string runnerId, bool claimed)
     {
-        var now = DateTime.UtcNow;
+        var now = heartbeatClock.GetUtcNow().UtcDateTime;
         heartbeats.TryGetValue(runnerId, out var existing);
-        heartbeats[runnerId] = new NewsAgentRunnerHeartbeat(
+        var heartbeat = new NewsAgentRunnerHeartbeat(
             runnerId,
             now,
             claimed ? now : existing?.LastClaimedAtUtc);
+        heartbeats[runnerId] = heartbeat;
+        // Arrival order also resolves equal timestamps and a clock moving backwards.
+        latestHeartbeat = heartbeat;
     }
 }

@@ -142,12 +142,10 @@ export function attachmentFromPickerAsset(
 
   const name = (asset.fileName?.trim() || asset.name?.trim() || fileNameFromUri(uri) || 'attachment').trim();
   const mime = (asset.mimeType ?? '').trim().toLowerCase();
-  const type =
-    mime && mime !== 'application/octet-stream'
-      ? mime === 'image/jpg'
-        ? 'image/jpeg'
-        : mime
-      : guessForumAttachmentType(name);
+  const normalizedMime = mime === 'image/jpg' ? 'image/jpeg' : mime;
+  const type = mime && mime !== 'application/octet-stream'
+    ? normalizedMime
+    : guessForumAttachmentType(name);
 
   return { uri, name, type };
 }

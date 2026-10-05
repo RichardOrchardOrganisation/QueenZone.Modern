@@ -22,7 +22,12 @@ type Props = {
 export function ArchiveIconPlate({ name, size = 64, style }: Props) {
   const { c, radius } = useTheme();
   const glyphSize = Math.round(size * 0.4375); // 28/64 per handoff
-  const strokeWidth = glyphSize <= 20 ? 1.3 : glyphSize >= 34 ? 1.1 : 1.15;
+  let strokeWidth = 1.15;
+  if (glyphSize <= 20) {
+    strokeWidth = 1.3;
+  } else if (glyphSize >= 34) {
+    strokeWidth = 1.1;
+  }
   const s = glyphSize / 24;
   const tx = (size - glyphSize) / 2;
   const ty = tx;

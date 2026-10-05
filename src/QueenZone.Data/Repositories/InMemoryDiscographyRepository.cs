@@ -54,7 +54,7 @@ public sealed class InMemoryDiscographyRepository : IDiscographyRepository
             GeneralNotes: seed.GeneralNotes,
             CoverUrl: AlbumCoverUrl.Build($"{slug}-cover.jpg"),
             Songs: songs,
-            ReleaseDate: new DateTime(seed.ReleaseYear, 1, 1));
+            ReleaseDate: new DateTime(seed.ReleaseYear, 1, 1, 0, 0, 0, DateTimeKind.Unspecified));
 
         return Task.FromResult<AlbumDetail?>(detail);
     }

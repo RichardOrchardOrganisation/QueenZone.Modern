@@ -73,11 +73,12 @@ public static class ForumRoutes
     }
 
     public static string FormatCount(long value) =>
-        value >= 1_000_000
-            ? $"{value / 1_000_000.0:0.#}M+"
-            : value >= 1_000
-                ? $"{value / 1_000.0:0.#}k+"
-                : value.ToString("N0");
+        value switch
+        {
+            >= 1_000_000 => $"{value / 1_000_000.0:0.#}M+",
+            >= 1_000 => $"{value / 1_000.0:0.#}k+",
+            _ => value.ToString("N0"),
+        };
 
     public static ArchivePaginationViewModel? GetCategoryPaginationViewModel(
         ForumCategorySummary category,

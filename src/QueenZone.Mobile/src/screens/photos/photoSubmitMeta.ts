@@ -100,14 +100,12 @@ export function defaultPhotoFileName(mimeType: string, uri: string): string {
     return query >= 0 ? name.slice(0, query) : name;
   }
 
-  const extension =
-    mimeType === 'image/png'
-      ? 'png'
-      : mimeType === 'image/webp'
-        ? 'webp'
-        : mimeType === 'image/tiff'
-          ? 'tiff'
-          : 'jpg';
+  const extensions = new Map([
+    ['image/png', 'png'],
+    ['image/webp', 'webp'],
+    ['image/tiff', 'tiff'],
+  ]);
+  const extension = extensions.get(mimeType) ?? 'jpg';
   return `photo.${extension}`;
 }
 

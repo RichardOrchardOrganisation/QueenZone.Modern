@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { HomePoll } from '../../api';
@@ -35,6 +36,15 @@ export function HomePollCard({ poll, isSignedIn, accessToken, onVoted, onSignIn 
       setPendingOptionId(null);
     }
   };
+
+  let pollContent: ReactNode;
+  if (poll.isClosed) {
+    pollContent = 'Closed';
+  } else if (poll.viewerHasVoted) {
+    pollContent = 'You voted';
+  } else {
+    pollContent = 'Open';
+  }
 
   return (
     <View
@@ -206,7 +216,7 @@ export function HomePollCard({ poll, isSignedIn, accessToken, onVoted, onSignIn 
           {poll.totalVotes.toLocaleString()} {poll.totalVotes === 1 ? 'vote' : 'votes'}
         </Text>
         <Text style={[type.meta, { color: c.textMuted }]}>
-          {poll.isClosed ? 'Closed' : poll.viewerHasVoted ? 'You voted' : 'Open'}
+          {pollContent}
         </Text>
       </View>
     </View>

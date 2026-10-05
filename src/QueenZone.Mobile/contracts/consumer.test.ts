@@ -456,12 +456,10 @@ describe('mobile API consumer contracts', { concurrency: false }, () => {
         body: { url: 'https://www.bbc.co.uk/news/example' },
       }),
     );
-    expectedField(
-      'POST /api/v1/member/news-suggestions',
-      'problem.title',
+    assert.equal(
       unauthorized.problem?.title,
-      (value) => value === 'Unauthorized',
       'Unauthorized',
+      'Contract POST /api/v1/member/news-suggestions failed: expected problem.title Unauthorized',
     );
   });
 

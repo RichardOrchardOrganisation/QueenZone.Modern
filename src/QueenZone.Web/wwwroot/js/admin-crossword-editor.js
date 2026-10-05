@@ -53,7 +53,11 @@ if (root) {
         const number = runs.find(run => run.row * seed.width + run.column === index)?.number;
         if (number) { const badge = document.createElement('small'); badge.textContent = number; button.append(badge); }
         button.append(document.createTextNode(cellValue(index) === '.' ? '' : cellValue(index)));
-        button.setAttribute('aria-label', `Row ${Math.floor(index / seed.width) + 1}, column ${index % seed.width + 1}, ${cellValue(index) === '#' ? 'block' : cellValue(index) === '.' ? 'empty' : cellValue(index)}${number ? `, number ${number}` : ''}`);
+        let label = cellValue(index);
+        if (label === '#') label = 'block';
+        else if (label === '.') label = 'empty';
+        const numberLabel = number ? ', number ' + number : '';
+        button.setAttribute('aria-label', `Row ${Math.floor(index / seed.width) + 1}, column ${index % seed.width + 1}, ${label}${numberLabel}`);
         button.addEventListener('click', () => {
           selected = index; button.focus();
           if (form.querySelector('input[name=mode]:checked').value !== 'blocks') return;
@@ -107,7 +111,8 @@ if (root) {
           else if (run) focusCell(run.row * seed.width + run.column);
           else grid.children[selected]?.focus();
         });
-        const paragraph = document.createElement('p'); paragraph.append(button); validationPanel.append(paragraph);
+        const row = document.createElement('span'); row.className = 'admin-crossword-validation__issue';
+        row.append(button); validationPanel.append(row);
       });
     }
     async function validate() {

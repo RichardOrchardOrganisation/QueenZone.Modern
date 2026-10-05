@@ -162,5 +162,10 @@ public static class CrosswordPlayRules
     }
 
     private static string CellStatus(char letter, char solution) =>
-        letter == '.' ? "empty" : letter == solution ? "correct" : "incorrect";
+        letter switch
+        {
+            '.' => "empty",
+            _ when letter == solution => "correct",
+            _ => "incorrect",
+        };
 }

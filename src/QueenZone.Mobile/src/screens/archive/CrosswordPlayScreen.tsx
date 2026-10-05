@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { testIds } from '../../test/testIds';
 import { useCallback, useLayoutEffect, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Share, Switch, Text, View } from 'react-native';
@@ -52,6 +53,17 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
     else status = play.pending ? 'Progress waiting to sync' : ' ';
   }
   const scopeLabels = { cell: 'letter', entry: 'word', grid: 'grid' } as const;
+  let solverContent: ReactNode;
+  if (play.completion) {
+    solverContent = <CompletionPanel puzzle={puzzle} memberId={memberId} play={play} onNext={onNext} onReview={() => setShowReview(true)} />;
+  } else if (play.timer.paused) {
+    solverContent = <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={[type.pageTitle, { color: c.textPrimary }]}>Paused</Text><Button label="Resume crossword" onPress={play.pause} />
+    </View>;
+  } else {
+    solverContent = <CrosswordGrid puzzle={puzzle} model={play.model} state={play.state} disabled={disabled} onCell={cell => play.select(core.selectCell(play.model, play.state, cell))} />;
+  }
+
   return <View testID={testIds.crosswordPlayScreen} style={{ flex: 1, backgroundColor: c.surfacePage }}>
     {puzzle.archived ? <Text style={[type.meta, { color: c.textSecondary, paddingHorizontal: 12 }]}>Archived crossword · still playable</Text> : null}
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' }}>
@@ -61,9 +73,7 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
       <Button label="Reveal" size="sm" variant="ghost" disabled={!connected} onPress={() => menu('reveal')} />
       <Button label="Clues" size="sm" variant="ghost" disabled={!play.ready} onPress={() => setShowClues(true)} />
     </View>
-    {play.completion ? <CompletionPanel puzzle={puzzle} memberId={memberId} play={play} onNext={onNext} onReview={() => setShowReview(true)} /> : play.timer.paused ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={[type.pageTitle, { color: c.textPrimary }]}>Paused</Text><Button label="Resume crossword" onPress={play.pause} />
-    </View> : <CrosswordGrid puzzle={puzzle} model={play.model} state={play.state} disabled={disabled} onCell={cell => play.select(core.selectCell(play.model, play.state, cell))} />}
+    {solverContent}
     <View accessibilityLiveRegion="polite" style={{ paddingHorizontal: 12 }}>
       <Text testID={testIds.crosswordStatus} style={[type.meta, { color: c.textSecondary }]}>{status}</Text>
       {play.needsAttention ? <Button label="Crossword changed — reload" size="sm" variant="ghost" onPress={onReload} /> : null}

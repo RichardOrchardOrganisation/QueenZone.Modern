@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using QueenZone.Data;
@@ -69,7 +70,7 @@ public sealed class ForumWriteRoutesTests :
         var page = await client.GetStringAsync("/forum/c/the-music/new-thread");
 
         Assert.Contains("id=\"poll-options-label\"", page);
-        Assert.Contains("role=\"group\"", page);
+        Assert.NotNull(new HtmlParser().ParseDocument(page).QuerySelector("fieldset[aria-labelledby=\"poll-options-label\"]"));
         Assert.Contains("aria-labelledby=\"poll-options-label\"", page);
         Assert.Contains("id=\"Poll_Option_0\"", page);
         Assert.Contains("aria-label=\"Option 1\"", page);

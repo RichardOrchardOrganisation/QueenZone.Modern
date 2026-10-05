@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -27,6 +28,50 @@ export function QuizLeaderboardScreen(_props: Props) {
     leaderboard?.viewer != null &&
     entry.rank === leaderboard.viewer.rank &&
     entry.displayName === leaderboard.viewer.displayName;
+
+  let leaderboardContent: ReactNode;
+  if (loading) {
+    leaderboardContent = <LoadingBlock label="Loading leaderboard…" />;
+  } else if (error || !leaderboard) {
+    leaderboardContent = <ErrorBlock message={error ?? 'Could not load the leaderboard.'} onRetry={reload} />;
+  } else {
+    leaderboardContent = <FlatList
+      data={leaderboard.top}
+      keyExtractor={(entry) => `${entry.rank}-${entry.displayName}`}
+      ListEmptyComponent={
+        <Text style={[type.body, { color: c.textSecondary, paddingHorizontal: space.xl }]}>
+          No quiz results yet{scope === 'week' ? ' this week' : ''}.
+        </Text>
+      }
+      renderItem={({ item }) => (
+        <View
+          style={[
+            styles.row,
+            { borderTopColor: c.hairline },
+            isViewerRow(item) ? { backgroundColor: c.accentTintWeak } : null,
+          ]}
+        >
+          <Text style={[type.listTitle, { color: c.textMuted, width: 32 }]}>{item.rank}</Text>
+          <Text style={[type.listTitle, { color: c.textPrimary, flex: 1 }]}>{item.displayName}</Text>
+          <Text style={[type.listTitle, { color: c.textPrimary, fontFamily: fonts.bodySemi }]}>
+            {item.score}
+          </Text>
+        </View>
+      )}
+      ListFooterComponent={
+        <View style={styles.footer}>
+          {leaderboard.viewer && !leaderboard.top.some((entry) => isViewerRow(entry)) ? (
+            <Text style={[type.body, { color: c.textSecondary }]}>
+              Your rank: #{leaderboard.viewer.rank} · {leaderboard.viewer.score} points
+            </Text>
+          ) : null}
+          <Text style={[type.meta, { color: c.textMuted, marginTop: space.sm }]}>
+            {leaderboard.totalMembers} member{leaderboard.totalMembers === 1 ? '' : 's'} ranked.
+          </Text>
+        </View>
+      }
+    />;
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: c.surfacePage }]} testID={testIds.quizLeaderboardScreen}>
@@ -60,48 +105,7 @@ export function QuizLeaderboardScreen(_props: Props) {
         </Pressable>
       </View>
 
-      {loading ? (
-        <LoadingBlock label="Loading leaderboard…" />
-      ) : error || !leaderboard ? (
-        <ErrorBlock message={error ?? 'Could not load the leaderboard.'} onRetry={reload} />
-      ) : (
-        <FlatList
-          data={leaderboard.top}
-          keyExtractor={(entry) => `${entry.rank}-${entry.displayName}`}
-          ListEmptyComponent={
-            <Text style={[type.body, { color: c.textSecondary, paddingHorizontal: space.xl }]}>
-              No quiz results yet{scope === 'week' ? ' this week' : ''}.
-            </Text>
-          }
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.row,
-                { borderTopColor: c.hairline },
-                isViewerRow(item) ? { backgroundColor: c.accentTintWeak } : null,
-              ]}
-            >
-              <Text style={[type.listTitle, { color: c.textMuted, width: 32 }]}>{item.rank}</Text>
-              <Text style={[type.listTitle, { color: c.textPrimary, flex: 1 }]}>{item.displayName}</Text>
-              <Text style={[type.listTitle, { color: c.textPrimary, fontFamily: fonts.bodySemi }]}>
-                {item.score}
-              </Text>
-            </View>
-          )}
-          ListFooterComponent={
-            <View style={styles.footer}>
-              {leaderboard.viewer && !leaderboard.top.some((entry) => isViewerRow(entry)) ? (
-                <Text style={[type.body, { color: c.textSecondary }]}>
-                  Your rank: #{leaderboard.viewer.rank} · {leaderboard.viewer.score} points
-                </Text>
-              ) : null}
-              <Text style={[type.meta, { color: c.textMuted, marginTop: space.sm }]}>
-                {leaderboard.totalMembers} member{leaderboard.totalMembers === 1 ? '' : 's'} ranked.
-              </Text>
-            </View>
-          }
-        />
-      )}
+      {leaderboardContent}
     </View>
   );
 }

@@ -9,7 +9,7 @@
       <p class="qz-sprint__eyebrow">The daily challenge</p>
       <h2 class="qz-sprint-callout__title">The sixty-second Queen quiz</h2>
       <p class="qz-sprint-callout__body">
-        A new run every day, drawn from the archive. One minute, one streak, one place on the leaderboard.@(Model.Players > 0 ? $" {Model.Players:N0} member{(Model.Players == 1 ? " has" : "s have")} played today." : "")
+        A new run every day, drawn from the archive. One minute, one streak, one place on the leaderboard.@QueenZone.Web.HomePresentation.SprintPlayersNote(Model.Players)
       </p>
       <div class="qz-sprint__buttons">
         <a class="qz-sprint__cta" href="/quizzes/sprint">Play the sprint</a>

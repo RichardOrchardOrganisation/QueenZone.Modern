@@ -36,7 +36,7 @@ function SearchResults({
 }: {
   query: string;
   typeFilter: SearchTypeFilter;
-  onOpen?: Props['onOpen'];
+  onOpen?: NonNullable<Props['onOpen']>;
 }) {
   const paged = usePagedContent<SearchResult>(
     useCallback(

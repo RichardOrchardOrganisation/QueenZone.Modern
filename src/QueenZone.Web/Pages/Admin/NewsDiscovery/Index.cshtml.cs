@@ -122,10 +122,11 @@ public sealed class IndexModel(
                 generateDraft),
             cancellationToken);
 
+        var queuedMessage = generateDraft
+            ? "URL queued for forced triage and AI draft generation on the local Windows runner."
+            : "URL queued for forced triage on the local Windows runner (no draft generation).";
         TempData["DiscoveryMessage"] = result.WasCreated
-            ? generateDraft
-                ? "URL queued for forced triage and AI draft generation on the local Windows runner."
-                : "URL queued for forced triage on the local Windows runner (no draft generation)."
+            ? queuedMessage
             : $"URL request #{result.Request.Id} was already queued.";
         TempData["DiscoveryMessageKind"] = "success";
         return Redirect(BuildReturnUrl());

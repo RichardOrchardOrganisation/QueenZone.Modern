@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ForumRecentThread } from '../../api';
@@ -21,6 +22,39 @@ export const HomeForumSection = memo(function HomeForumSection({
   onReloadForum: () => void;
 }) {
   const { c } = useTheme();
+  let forumContent: ReactNode;
+  if (forumView.kind === 'skeleton') {
+    forumContent = <View style={styles.skeletonList}>
+      {[0, 1, 2].map((key) => (
+        <View key={key} style={[styles.skeletonRow, { backgroundColor: c.accentTintWeak }]} />
+      ))}
+    </View>;
+  } else if (forumView.kind === 'error') {
+    forumContent = <SectionErrorBlock message={forumView.message} onRetry={onReloadForum} />;
+  } else {
+    forumContent = forumView.data.map((thread, index) => (
+      <Pressable
+        key={thread.topicId}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={thread.title}
+        onPress={() => onOpenThread(thread)}
+        style={[styles.row, { borderTopColor: c.border }]}
+      >
+        <View style={[styles.avatar, { backgroundColor: c.surfaceCard, borderColor: c.borderStrong }]}>
+          <Text style={[styles.avatarLabel, { color: c.textPrimary }]}>{initials(thread.categoryName)}</Text>
+        </View>
+        <View style={styles.rowText}>
+          <Text numberOfLines={2} style={[styles.rowTitle, { color: c.textPrimary }]}>
+            {thread.title}
+          </Text>
+          <MetaLine parts={formatForumThreadMeta(thread)} />
+        </View>
+        {index === 0 ? <View style={[styles.newDot, { backgroundColor: c.accentPrimary }]} /> : null}
+      </Pressable>
+    ));
+  }
+
   return (
     <View style={[styles.section, { backgroundColor: c.surfaceRaised }]}>
       <View style={styles.header}>
@@ -35,37 +69,7 @@ export const HomeForumSection = memo(function HomeForumSection({
         </Pressable>
       </View>
 
-      {forumView.kind === 'skeleton' ? (
-        <View style={styles.skeletonList}>
-          {[0, 1, 2].map((key) => (
-            <View key={key} style={[styles.skeletonRow, { backgroundColor: c.accentTintWeak }]} />
-          ))}
-        </View>
-      ) : forumView.kind === 'error' ? (
-        <SectionErrorBlock message={forumView.message} onRetry={onReloadForum} />
-      ) : (
-        forumView.data.map((thread, index) => (
-          <Pressable
-            key={thread.topicId}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={thread.title}
-            onPress={() => onOpenThread(thread)}
-            style={[styles.row, { borderTopColor: c.border }]}
-          >
-            <View style={[styles.avatar, { backgroundColor: c.surfaceCard, borderColor: c.borderStrong }]}>
-              <Text style={[styles.avatarLabel, { color: c.textPrimary }]}>{initials(thread.categoryName)}</Text>
-            </View>
-            <View style={styles.rowText}>
-              <Text numberOfLines={2} style={[styles.rowTitle, { color: c.textPrimary }]}>
-                {thread.title}
-              </Text>
-              <MetaLine parts={formatForumThreadMeta(thread)} />
-            </View>
-            {index === 0 ? <View style={[styles.newDot, { backgroundColor: c.accentPrimary }]} /> : null}
-          </Pressable>
-        ))
-      )}
+      {forumContent}
     </View>
   );
 });
