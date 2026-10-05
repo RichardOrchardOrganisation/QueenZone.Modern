@@ -60,7 +60,7 @@ public static class LegacyNewsSchema
     /// Returns whether <c>NEWS_T.SLUG</c> exists. Result is cached for the process lifetime
     /// per connection string (same probe as <see cref="GetNewsColumnAvailability"/>).
     /// </summary>
-    internal static bool HasSlugColumn(string connectionString) =>
+    internal static bool HasLegacySlugColumn(string connectionString) =>
         GetNewsColumnAvailability(connectionString).HasSlugColumn;
 
     /// <summary>
