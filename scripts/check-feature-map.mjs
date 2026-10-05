@@ -150,27 +150,11 @@ export function parseScreenRegistrations(stacksSource, rootSource) {
   const commonBody = commonFn ? commonFn[0] : '';
   const commonAlways = [];
   const commonByStory = { news: [], archive: [] };
-  for (const match of commonBody.matchAll(/<Screen\b([\s\S]*?)\/>/g)) {
-    const attrs = match[1];
-    const name = attrs.match(/\bname=["']([^"']+)["']/)?.[1];
-    const component = attrs.match(/\bcomponent=\{(\w+)\}/)?.[1];
-    if (!name || !component) {
-      continue;
-    }
-    if (/story === ['"]news['"]/.test(match[0]) || /options\?\.story === ['"]news['"]/.test(commonBody.slice(0, match.index))) {
-      // Fall through to ternary detection below.
-    }
-    commonAlways.push({ name, component });
-  }
-
   // commonScreens always registers Search; Story is gated by options.story.
   const search = commonBody.match(/<Screen name="Search" component=\{(\w+)\}/);
   const newsStory = commonBody.match(/story === ['"]news['"][\s\S]*?<Screen name="Story" component=\{(\w+)\}/);
   const archiveStory = commonBody.match(/story === ['"]archive['"][\s\S]*?<Screen name="Story" component=\{(\w+)\}/);
 
-  commonAlways.length = 0;
-  commonByStory.news.length = 0;
-  commonByStory.archive.length = 0;
   if (search) {
     commonAlways.push({ name: 'Search', component: search[1] });
     usedComponents.add(search[1]);
@@ -392,11 +376,8 @@ function isLeafScreenComponent(name) {
   return name.endsWith('Screen') || name === 'SearchRouteScreen';
 }
 
-export function checkFeatureMap({ root, write = false } = {}) {
-  const errors = [];
-  const map = loadFeatureMap(root);
+function validateEntries(root, map, errors) {
   const ids = new Set();
-
   for (const entry of map.entries) {
     if (!entry.id || typeof entry.id !== 'string') {
       errors.push(`${entry._file}: an entry is missing id.`);
@@ -406,66 +387,83 @@ export function checkFeatureMap({ root, write = false } = {}) {
       errors.push(`Duplicate feature id ${entry.id}.`);
     }
     ids.add(entry.id);
-    if (!entry.name) {
-      errors.push(`${entry.id}: missing name.`);
-    }
-    if (!Array.isArray(entry.aliases)) {
-      errors.push(`${entry.id}: aliases must be an array.`);
-    }
-    if (!entry.entry) {
-      errors.push(`${entry.id}: missing entry (user path).`);
-    }
-    if (!Array.isArray(entry.sources) || entry.sources.length === 0) {
-      errors.push(`${entry.id}: sources[] is required.`);
-    }
-    if (!SIGN_IN.has(entry.signIn)) {
-      errors.push(`${entry.id}: signIn must be none|member|admin.`);
-    }
-    if (entry._surface === 'mobile' && entryScreens(entry).length === 0) {
-      errors.push(`${entry.id}: mobile entries need screen.`);
-    }
-    if (entry._surface === 'web') {
-      if (!entry.page) {
-        errors.push(`${entry.id}: web entries need page.`);
-      }
-      if (typeof entry.url !== 'string') {
-        errors.push(`${entry.id}: web entries need url.`);
-      }
-      const pageName = toPosix(entry.page || '');
-      const isAction = pageName.endsWith('/Action.cshtml');
-      const isLogout = pageName.endsWith('/Logout.cshtml');
-      if ((isAction || isLogout) && entry.kind !== 'handler') {
-        errors.push(`${entry.id}: Logout and */Action pages must set kind: handler.`);
-      }
-    }
+    validateEntryMetadata(entry, errors);
+    validateWebEntry(entry, errors);
+    validateEntryFiles(root, entry, errors);
+  }
+}
 
-    for (const source of asList(entry.sources)) {
-      if (!existsSync(path.join(root, source))) {
-        errors.push(`${entry.id}: source missing ${source}.`);
-      }
+function validateEntryMetadata(entry, errors) {
+  if (!entry.name) {
+    errors.push(`${entry.id}: missing name.`);
+  }
+  if (!Array.isArray(entry.aliases)) {
+    errors.push(`${entry.id}: aliases must be an array.`);
+  }
+  if (!entry.entry) {
+    errors.push(`${entry.id}: missing entry (user path).`);
+  }
+  if (!Array.isArray(entry.sources) || entry.sources.length === 0) {
+    errors.push(`${entry.id}: sources[] is required.`);
+  }
+  if (!SIGN_IN.has(entry.signIn)) {
+    errors.push(`${entry.id}: signIn must be none|member|admin.`);
+  }
+  if (entry._surface === 'mobile' && entryScreens(entry).length === 0) {
+    errors.push(`${entry.id}: mobile entries need screen.`);
+  }
+}
+
+function validateWebEntry(entry, errors) {
+  if (entry._surface === 'web') {
+    if (!entry.page) {
+      errors.push(`${entry.id}: web entries need page.`);
     }
-    for (const flow of asList(entry.flows)) {
+    if (typeof entry.url !== 'string') {
+      errors.push(`${entry.id}: web entries need url.`);
+    }
+    const pageName = toPosix(entry.page || '');
+    const isAction = pageName.endsWith('/Action.cshtml');
+    const isLogout = pageName.endsWith('/Logout.cshtml');
+    if ((isAction || isLogout) && entry.kind !== 'handler') {
+      errors.push(`${entry.id}: Logout and */Action pages must set kind: handler.`);
+    }
+  }
+}
+
+function validateEntryFiles(root, entry, errors) {
+  for (const source of asList(entry.sources)) {
+    if (!existsSync(path.join(root, source))) {
+      errors.push(`${entry.id}: source missing ${source}.`);
+    }
+  }
+  for (const flow of asList(entry.flows)) {
+    if (!existsSync(path.join(root, flow))) {
+      errors.push(`${entry.id}: flow missing ${flow}.`);
+    }
+  }
+  for (const spec of asList(entry.specs)) {
+    if (!existsSync(path.join(root, spec))) {
+      errors.push(`${entry.id}: spec missing ${spec}.`);
+    }
+  }
+  if (entry.recipe && !existsSync(path.join(root, entry.recipe))) {
+    errors.push(`${entry.id}: recipe missing ${entry.recipe}.`);
+  }
+  validateDriveFiles(root, entry, errors);
+}
+
+function validateDriveFiles(root, entry, errors) {
+  if (entry.drive && typeof entry.drive === 'object') {
+    for (const [name, flow] of Object.entries(entry.drive)) {
       if (!existsSync(path.join(root, flow))) {
-        errors.push(`${entry.id}: flow missing ${flow}.`);
-      }
-    }
-    for (const spec of asList(entry.specs)) {
-      if (!existsSync(path.join(root, spec))) {
-        errors.push(`${entry.id}: spec missing ${spec}.`);
-      }
-    }
-    if (entry.recipe && !existsSync(path.join(root, entry.recipe))) {
-      errors.push(`${entry.id}: recipe missing ${entry.recipe}.`);
-    }
-    if (entry.drive && typeof entry.drive === 'object') {
-      for (const [name, flow] of Object.entries(entry.drive)) {
-        if (!existsSync(path.join(root, flow))) {
-          errors.push(`${entry.id}: drive.${name} missing ${flow}.`);
-        }
+        errors.push(`${entry.id}: drive.${name} missing ${flow}.`);
       }
     }
   }
+}
 
+function validateMobileScreens(root, map, errors) {
   const stacksPath = path.join(root, 'src/QueenZone.Mobile/src/navigation/stacks.tsx');
   const rootNavPath = path.join(root, 'src/QueenZone.Mobile/src/navigation/RootNavigator.tsx');
   const { registrations, usedComponents } = parseScreenRegistrations(readText(stacksPath), readText(rootNavPath));
@@ -484,22 +482,10 @@ export function checkFeatureMap({ root, write = false } = {}) {
     }
   }
 
-  const screensDir = path.join(root, 'src/QueenZone.Mobile/src/screens');
-  const mappedSourceFiles = new Set();
-  for (const entry of map.entries) {
-    for (const source of asList(entry.sources)) {
-      mappedSourceFiles.add(toPosix(source));
-    }
-  }
-  for (const file of listScreenFiles(screensDir)) {
-    const rel = toPosix(path.relative(root, file));
-    const names = exportedNames(readText(file));
-    const registered = [...names].some((name) => usedComponents.has(name));
-    if (!registered && !mappedSourceFiles.has(rel)) {
-      errors.push(`Screen file is not registered or mapped: ${rel}.`);
-    }
-  }
+  validateScreenFiles(root, map, usedComponents, errors);
+}
 
+function validateTestIds(root, map, errors) {
   const testIdsPath = path.join(root, 'src/QueenZone.Mobile/src/test/testIds.ts');
   const testIdKeys = parseTestIdKeys(readText(testIdsPath));
   for (const entry of map.entries) {
@@ -509,7 +495,9 @@ export function checkFeatureMap({ root, write = false } = {}) {
       }
     }
   }
+}
 
+function validateWebPages(root, map, errors) {
   const pagesDir = path.join(root, 'src/QueenZone.Web/Pages');
   const mappedPages = new Set();
   for (const entry of map.entries) {
@@ -530,7 +518,9 @@ export function checkFeatureMap({ root, write = false } = {}) {
       errors.push(`Unmapped Razor page ${relFromWeb}.`);
     }
   }
+}
 
+function validateSelectors(root, map, errors) {
   const sharedDir = path.join(root, 'src/QueenZone.Web/Pages/Shared');
   const sharedText = walkFiles(sharedDir, (full, name) => name.endsWith('.cshtml'))
     .map((file) => readText(file))
@@ -552,7 +542,27 @@ export function checkFeatureMap({ root, write = false } = {}) {
       }
     }
   }
+}
 
+function validateScreenFiles(root, map, usedComponents, errors) {
+  const screensDir = path.join(root, 'src/QueenZone.Mobile/src/screens');
+  const mappedSourceFiles = new Set();
+  for (const entry of map.entries) {
+    for (const source of asList(entry.sources)) {
+      mappedSourceFiles.add(toPosix(source));
+    }
+  }
+  for (const file of listScreenFiles(screensDir)) {
+    const rel = toPosix(path.relative(root, file));
+    const names = exportedNames(readText(file));
+    const registered = [...names].some((name) => usedComponents.has(name));
+    if (!registered && !mappedSourceFiles.has(rel)) {
+      errors.push(`Screen file is not registered or mapped: ${rel}.`);
+    }
+  }
+}
+
+function updateFeatureIndex(root, map, write, errors) {
   const indexPath = path.join(root, 'docs/feature-map/README.md');
   const expected = generateIndexMarkdown(map);
   const actual = existsSync(indexPath) ? normalizeNewlines(readText(indexPath)) : '';
@@ -563,7 +573,19 @@ export function checkFeatureMap({ root, write = false } = {}) {
     errors.push('docs/feature-map/README.md is stale. Run node scripts/check-feature-map.mjs --write.');
   }
 
-  return { ok: errors.length === 0, errors, map, index: expected };
+  return expected;
+}
+
+export function checkFeatureMap({ root, write = false } = {}) {
+  const errors = [];
+  const map = loadFeatureMap(root);
+  validateEntries(root, map, errors);
+  validateMobileScreens(root, map, errors);
+  validateTestIds(root, map, errors);
+  validateWebPages(root, map, errors);
+  validateSelectors(root, map, errors);
+  const index = updateFeatureIndex(root, map, write, errors);
+  return { ok: errors.length === 0, errors, map, index };
 }
 
 function printFlows(entry) {

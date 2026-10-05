@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -276,6 +276,32 @@ test('checkFeatureMap fails when a page is unmapped', () => {
   const result = checkFeatureMap({ root, write: true });
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((item) => item.includes('Pages/About.cshtml')));
+});
+
+test('checkFeatureMap reports metadata and every referenced resource failure', () => {
+  const root = fixtureRoot();
+  const mapFile = path.join(root, 'docs/feature-map/mobile/home.json');
+  const doc = JSON.parse(readFileSync(mapFile, 'utf8'));
+  Object.assign(doc.entries[0], {
+    name: '', aliases: null, entry: '', signIn: 'invalid', screen: '',
+    sources: ['missing-source'], flows: ['missing-flow'], specs: ['missing-spec'],
+    recipe: 'missing-recipe', drive: { smoke: 'missing-drive' },
+    testIds: ['missingKey'], selectors: ['invalid-selector', '#missing-selector'],
+  });
+  writeFileSync(mapFile, JSON.stringify(doc));
+  const { ok, errors } = checkFeatureMap({ root, write: true });
+  assert.equal(ok, false);
+  for (const message of [
+    'missing name.', 'aliases must be an array.', 'missing entry (user path).',
+    'signIn must be none|member|admin.', 'mobile entries need screen.',
+    'source missing missing-source.', 'flow missing missing-flow.',
+    'spec missing missing-spec.', 'recipe missing missing-recipe.',
+    'drive.smoke missing missing-drive.', "testIds key 'missingKey' is missing",
+    "selector 'invalid-selector' must be a #id.", "#id selector '#missing-selector' was not found",
+    'Unmapped screen registration HomeStack/Home',
+  ]) {
+    assert.ok(errors.some((error) => error.includes(message)), message);
+  }
 });
 
 test('main --resolve prints a real repo entry', () => {
