@@ -177,12 +177,12 @@ function Wait-ForAppReady {
         [int] $SleepSeconds = 2
     )
 
-    Write-Host "Waiting for web app at $HealthUrl ..."
+    Write-Information -InformationAction Continue "Waiting for web app at $HealthUrl ..."
     for ($i = 1; $i -le $MaxAttempts; $i++) {
         if ($null -ne $ProcessId) {
             $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
             if (-not $proc) {
-                Write-Host "App process (PID $ProcessId) exited unexpectedly after $($i * $SleepSeconds)s"
+                Write-Information -InformationAction Continue "App process (PID $ProcessId) exited unexpectedly after $($i * $SleepSeconds)s"
                 break
             }
         }
@@ -190,18 +190,18 @@ function Wait-ForAppReady {
         try {
             $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2
             if ($response.StatusCode -eq 200) {
-                Write-Host "App is up after $($i * $SleepSeconds)s"
+                Write-Information -InformationAction Continue "App is up after $($i * $SleepSeconds)s"
                 return
             }
         }
         catch {
-            Write-Host "Attempt ${i}: $($_.Exception.Message)"
+            Write-Information -InformationAction Continue "Attempt ${i}: $($_.Exception.Message)"
         }
 
         Start-Sleep -Seconds $SleepSeconds
     }
 
-    Write-Host "App failed to start in time."
+    Write-Information -InformationAction Continue "App failed to start in time."
     if (Test-Path $logPath) { Get-Content $logPath -ErrorAction SilentlyContinue }
     if (Test-Path $errPath) { Get-Content $errPath -ErrorAction SilentlyContinue }
     throw "App failed to become ready at $HealthUrl"
@@ -264,7 +264,7 @@ function Start-AppWindows {
     $script:AppPid = $appPid
     $script:AppPid | Out-File -Encoding ascii $appPidFile
     $script:StartedApp = $true
-    Write-Host "Started app: cmd.exe PID $($script:CmdPid), QueenZone.Web.exe PID $($script:AppPid)"
+    Write-Information -InformationAction Continue "Started app: cmd.exe PID $($script:CmdPid), QueenZone.Web.exe PID $($script:AppPid)"
 }
 
 function Start-AppMacOS {
@@ -316,7 +316,7 @@ function Start-AppMacOS {
     $script:AppPid = [int]$proc.Id
     $script:AppPid | Out-File -Encoding ascii $appPidFile
     $script:StartedApp = $true
-    Write-Host "Started app via dotnet: QueenZone.Web.dll PID $($script:AppPid)"
+    Write-Information -InformationAction Continue "Started app via dotnet: QueenZone.Web.dll PID $($script:AppPid)"
 }
 
 function Save-MacAppLogs {
@@ -356,7 +356,7 @@ function Stop-StartedApp {
         return
     }
 
-    Write-Host "Stopping local E2E app..."
+    Write-Information -InformationAction Continue "Stopping local E2E app..."
 
     if ($null -ne $script:AppPid) {
         Stop-Process -Id $script:AppPid -Force -ErrorAction SilentlyContinue
@@ -376,7 +376,7 @@ function Stop-StartedApp {
     if (Test-IsWindowsOS) {
         for ($i = 1; $i -le 15; $i++) {
             if (-not (Get-Process -Name "QueenZone.Web" -ErrorAction SilentlyContinue)) {
-                Write-Host "QueenZone.Web.exe confirmed stopped"
+                Write-Information -InformationAction Continue "QueenZone.Web.exe confirmed stopped"
                 break
             }
             Start-Sleep -Milliseconds 500
@@ -386,7 +386,7 @@ function Stop-StartedApp {
         for ($i = 1; $i -le 15; $i++) {
             $still = & pgrep -f QueenZone.Web 2>$null
             if (-not $still) {
-                Write-Host "QueenZone.Web confirmed stopped"
+                Write-Information -InformationAction Continue "QueenZone.Web confirmed stopped"
                 break
             }
             Start-Sleep -Milliseconds 500
@@ -400,7 +400,7 @@ function Stop-StartedApp {
 function Invoke-DotNet {
     param([string[]] $Arguments)
 
-    Write-Host ">> dotnet $($Arguments -join ' ')"
+    Write-Information -InformationAction Continue ">> dotnet $($Arguments -join ' ')"
     & dotnet @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet $($Arguments[0]) failed with exit code $LASTEXITCODE"
@@ -408,8 +408,8 @@ function Invoke-DotNet {
 }
 
 function Update-SqlExpressMirrorMigrations {
-    Write-Host "Applying EF migrations to the SQL Express mirror (not production Azure SQL)."
-    Write-Host "Sync/skip_sync can leave Express without modern tables such as QuizSprintRuns."
+    Write-Information -InformationAction Continue "Applying EF migrations to the SQL Express mirror (not production Azure SQL)."
+    Write-Information -InformationAction Continue "Sync/skip_sync can leave Express without modern tables such as QuizSprintRuns."
     Invoke-DotNet -Arguments @("tool", "restore")
     # Tool restore does not write project.assets.json. Restore Data+Web via the
     # solution before ef update so a clean checkout cannot hit NETSDK1004 (#1630).
@@ -459,7 +459,7 @@ switch ($Mode) {
             throw "LiveSite mode refuses a localhost BaseUrl ('$BaseUrl'). Point -BaseUrl at the deployed site."
         }
         if ($SkipAppStart) {
-            Write-Host "SkipAppStart is implied for LiveSite; ignoring the switch."
+            Write-Information -InformationAction Continue "SkipAppStart is implied for LiveSite; ignoring the switch."
         }
     }
 }
@@ -468,7 +468,7 @@ if (-not [string]::IsNullOrWhiteSpace($CategoryFilter)) {
     $testFilter = "$testFilter&FullyQualifiedName~$CategoryFilter"
 }
 
-Write-Host "Run-E2E mode=$Mode baseUrl=$BaseUrl filter=$testFilter startsApp=$startsApp"
+Write-Information -InformationAction Continue "Run-E2E mode=$Mode baseUrl=$BaseUrl filter=$testFilter startsApp=$startsApp"
 
 # --- Build / browsers / publish ------------------------------------------------
 
@@ -492,7 +492,7 @@ if (-not (Test-Path $playwrightScript)) {
     throw "Playwright installer not found at $playwrightScript. Build the E2E project first (omit -NoBuild)."
 }
 
-Write-Host "Installing Playwright Chromium via generated playwright.ps1 ..."
+Write-Information -InformationAction Continue "Installing Playwright Chromium via generated playwright.ps1 ..."
 & $playwrightScript install chromium
 if ($LASTEXITCODE -ne 0) {
     throw "playwright.ps1 install chromium failed with exit code $LASTEXITCODE"
@@ -534,14 +534,14 @@ try {
         Wait-ForAppReady -HealthUrl "$BaseUrl/health" -ProcessId $script:AppPid
     }
     elseif ($Mode -ne "LiveSite") {
-        Write-Host "SkipAppStart: expecting an already-running app at $BaseUrl"
+        Write-Information -InformationAction Continue "SkipAppStart: expecting an already-running app at $BaseUrl"
         Wait-ForAppReady -HealthUrl "$BaseUrl/health" -ProcessId $null -MaxAttempts 15 -SleepSeconds 1
     }
 
     $env:E2E_BASE_URL = $BaseUrl
     $env:E2E_ADMIN_EMAIL = $adminEmail
     $env:E2E_ARTIFACT_DIR = $artifactDir
-    Write-Host "E2E artifact directory: $artifactDir"
+    Write-Information -InformationAction Continue "E2E artifact directory: $artifactDir"
 
     $testArgs = @(
         "test", $e2eProject,
@@ -562,17 +562,17 @@ try {
         # sweep uses at most ~2 browser contexts (main + mobile in the sitemap fixture) and
         # does not trip in-app rate limiting (AddQueenZoneRateLimiting).
         $testArgs += @("--", "NUnit.NumberOfTestWorkers=1")
-        Write-Host "LiveSite: single NUnit worker (polite load against production)."
+        Write-Information -InformationAction Continue "LiveSite: single NUnit worker (polite load against production)."
     }
 
-    Write-Host ">> dotnet $($testArgs -join ' ')"
+    Write-Information -InformationAction Continue ">> dotnet $($testArgs -join ' ')"
     & dotnet @testArgs
     $testExitCode = $LASTEXITCODE
     if ($testExitCode -ne 0) {
         throw "dotnet test failed with exit code $testExitCode"
     }
 
-    Write-Host "Run-E2E completed successfully (mode=$Mode)."
+    Write-Information -InformationAction Continue "Run-E2E completed successfully (mode=$Mode)."
 }
 finally {
     Stop-StartedApp

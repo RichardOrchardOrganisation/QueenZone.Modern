@@ -364,7 +364,7 @@ jobs:
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: |
-          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          WORKSPACE=$(ls -d ./*.xcworkspace | head -n 1)
           # Expo CNG names the app scheme after the workspace itself
           # (QueenZone.xcworkspace -> scheme QueenZone). Do not pick from
           # `xcodebuild -list`'s scheme list: a workspace lists every Pods
@@ -386,7 +386,7 @@ jobs:
         working-directory: src/QueenZone.Mobile/ios
         run: |
           cd build/Build/Products/Debug-iphonesimulator
-          APP=$(ls -d *.app | head -n 1)
+          APP=$(ls -d ./*.app | head -n 1)
           zip -r -y "$GITHUB_WORKSPACE/mobile-ios-simulator.zip" "$APP"
 
       - name: Upload iOS Simulator build

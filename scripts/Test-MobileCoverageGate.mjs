@@ -474,7 +474,7 @@ export function getChangedLines({ repoRoot, baseRef, headRef, paths }) {
   }
 
   let resolved = baseRef;
-  if (!/^origin\//.test(baseRef)) {
+  if (!baseRef.startsWith('origin/')) {
     const remoteRef = `origin/${baseRef}`;
     const probe = spawnSync('git', ['rev-parse', '--verify', '--quiet', remoteRef], { cwd: repoRoot });
     if (probe.status === 0) {

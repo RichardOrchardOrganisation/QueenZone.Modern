@@ -388,7 +388,7 @@ export function listUiSourcePaths(map) {
 }
 
 function isLeafScreenComponent(name) {
-  return /Screen$/.test(name) || name === 'SearchRouteScreen';
+  return name.endsWith('Screen') || name === 'SearchRouteScreen';
 }
 
 export function checkFeatureMap({ root, write = false } = {}) {
@@ -431,8 +431,8 @@ export function checkFeatureMap({ root, write = false } = {}) {
         errors.push(`${entry.id}: web entries need url.`);
       }
       const pageName = toPosix(entry.page || '');
-      const isAction = /\/Action\.cshtml$/.test(pageName);
-      const isLogout = /\/Logout\.cshtml$/.test(pageName);
+      const isAction = pageName.endsWith('/Action.cshtml');
+      const isLogout = pageName.endsWith('/Logout.cshtml');
       if ((isAction || isLogout) && entry.kind !== 'handler') {
         errors.push(`${entry.id}: Logout and */Action pages must set kind: handler.`);
       }

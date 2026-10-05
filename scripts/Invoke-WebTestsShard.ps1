@@ -107,7 +107,7 @@ function Invoke-DotNetTest {
         )
     }
 
-    Write-Host ">> dotnet $($dotnetArgs -join ' ')"
+    Write-Information -InformationAction Continue ">> dotnet $($dotnetArgs -join ' ')"
     & dotnet @dotnetArgs
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet test failed for $Project (exit $LASTEXITCODE)."
@@ -127,7 +127,7 @@ if ($IncludeSmallProjects -or $SmallProjectsOnly) {
 }
 
 if ($SmallProjectsOnly) {
-    Write-Host "Small test projects completed successfully."
+    Write-Information -InformationAction Continue "Small test projects completed successfully."
     return
 }
 
@@ -137,10 +137,10 @@ if ([string]::IsNullOrWhiteSpace($filter)) {
     throw "Empty shard filter for shard $ShardIndex / $ShardCount."
 }
 
-Write-Host "Web.Tests shard $ShardIndex / $ShardCount filter length=$($filter.Length)"
+Write-Information -InformationAction Continue "Web.Tests shard $ShardIndex / $ShardCount filter length=$($filter.Length)"
 
 Invoke-DotNetTest `
     -Project "tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj" `
     -Filter $filter
 
-Write-Host "Shard $ShardIndex completed successfully."
+Write-Information -InformationAction Continue "Shard $ShardIndex completed successfully."

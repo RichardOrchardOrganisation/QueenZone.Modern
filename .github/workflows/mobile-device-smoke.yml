@@ -373,7 +373,7 @@ jobs:
         run: |
           npx expo prebuild --platform ios --clean
           cd ios
-          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          WORKSPACE=$(ls -d ./*.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           xcodebuild \
             -workspace "$WORKSPACE" \
@@ -880,7 +880,7 @@ jobs:
         run: |
           npx expo prebuild --platform ios --clean
           cd ios
-          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          WORKSPACE=$(ls -d ./*.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           xcodebuild \
             -workspace "$WORKSPACE" \

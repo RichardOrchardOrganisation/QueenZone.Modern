@@ -8,12 +8,12 @@ NDK_VERSION="${ANDROID_NDK_VERSION:-27.1.12297006}"
 SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 
 if [[ -z "$SDK_ROOT" ]]; then
-  echo "::error::ANDROID_HOME / ANDROID_SDK_ROOT is not set; cannot preinstall NDK ${NDK_VERSION}."
+  echo "::error::ANDROID_HOME / ANDROID_SDK_ROOT is not set; cannot preinstall NDK ${NDK_VERSION}." >&2
   exit 1
 fi
 
 if [[ ! -d "$SDK_ROOT" ]]; then
-  echo "::error::Android SDK root does not exist: $SDK_ROOT"
+  echo "::error::Android SDK root does not exist: $SDK_ROOT" >&2
   exit 1
 fi
 
@@ -35,7 +35,7 @@ find_sdkmanager() {
 }
 
 SDKMANAGER="$(find_sdkmanager)" || {
-  echo "::error::sdkmanager not found under $SDK_ROOT"
+  echo "::error::sdkmanager not found under $SDK_ROOT" >&2
   ls -la "$SDK_ROOT/cmdline-tools" 2>/dev/null || true
   exit 1
 }
@@ -69,7 +69,7 @@ else
     rm -rf "$NDK_HOME"
     rm -rf "$SDK_ROOT/.temp" "$SDK_ROOT/.downloadIntermediates" 2>/dev/null || true
     if [[ "$attempt" -eq "$max" ]]; then
-      echo "::error::Failed to install ndk;${NDK_VERSION} after ${max} attempts"
+      echo "::error::Failed to install ndk;${NDK_VERSION} after ${max} attempts" >&2
       exit 1
     fi
     attempt=$((attempt + 1))
@@ -78,7 +78,7 @@ else
 fi
 
 if ! ndk_ok; then
-  echo "::error::NDK source.properties missing or Pkg.Revision is not ${NDK_VERSION} at $NDK_HOME"
+  echo "::error::NDK source.properties missing or Pkg.Revision is not ${NDK_VERSION} at $NDK_HOME" >&2
   if [[ -f "$NDK_HOME/source.properties" ]]; then
     cat "$NDK_HOME/source.properties"
   fi

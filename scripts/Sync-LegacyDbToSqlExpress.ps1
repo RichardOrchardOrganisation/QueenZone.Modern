@@ -197,7 +197,7 @@ function Read-SqlPackageRedirectedChunk {
     $newText = $content.Substring($Offset.Value)
     $Offset.Value = $content.Length
     if (-not [string]::IsNullOrWhiteSpace($newText)) {
-        Write-Host $newText.TrimEnd()
+        Write-Information -InformationAction Continue $newText.TrimEnd()
     }
 
     return $content
@@ -253,10 +253,10 @@ function Invoke-SqlPackageProcess {
             if (-not $sawTransient -and (Test-SqlPackageTransientTransportError $combined)) {
                 $sawTransient = $true
                 $graceDeadline = (Get-Date).AddSeconds($HungTransportGraceSeconds)
-                Write-Host "Detected a TCP/transport error in sqlpackage output. Waiting ${HungTransportGraceSeconds}s for the process to exit before retrying the failed phase (or failing the Sync job with a named TCP/transport error)."
+                Write-Information -InformationAction Continue "Detected a TCP/transport error in sqlpackage output. Waiting ${HungTransportGraceSeconds}s for the process to exit before retrying the failed phase (or failing the Sync job with a named TCP/transport error)."
             }
             if ($sawTransient -and (Get-Date) -gt $graceDeadline) {
-                Write-Host "sqlpackage did not exit after a TCP/transport error. Stopping the hung process so this phase can retry or fail clearly instead of sitting until the workflow cancels."
+                Write-Information -InformationAction Continue "sqlpackage did not exit after a TCP/transport error. Stopping the hung process so this phase can retry or fail clearly instead of sitting until the workflow cancels."
                 Stop-SqlPackageProcessTree -Process $process
                 break
             }
@@ -326,7 +326,7 @@ function Invoke-SqlPackagePhase {
             & $BeforeAttempt
         }
 
-        Write-Host "sqlpackage $PhaseName attempt $attempt of $MaxAttempts..."
+        Write-Information -InformationAction Continue "sqlpackage $PhaseName attempt $attempt of $MaxAttempts..."
         $result = & $Runner $SqlPackageArguments
         if ($null -eq $result) {
             $result = @{ ExitCode = 1; Output = "" }
@@ -340,7 +340,7 @@ function Invoke-SqlPackagePhase {
         if ($isTransient -and $attempt -lt $MaxAttempts) {
             $delayIndex = [Math]::Min($attempt - 1, $BackoffSeconds.Length - 1)
             $delay = [int]$BackoffSeconds[$delayIndex]
-            Write-Host "Transient TCP/transport error during sqlpackage $PhaseName (attempt $attempt of $MaxAttempts). Retrying the failed phase in ${delay}s..."
+            Write-Information -InformationAction Continue "Transient TCP/transport error during sqlpackage $PhaseName (attempt $attempt of $MaxAttempts). Retrying the failed phase in ${delay}s..."
             if ($delay -gt 0) {
                 Start-Sleep -Seconds $delay
             }
@@ -531,7 +531,7 @@ IF EXISTS (SELECT 1 FROM sys.databases WHERE name = '$($CopyDatabaseName.Replace
         Invoke-AzureSqlCommand -ConnectionString $MasterConnectionString -CommandText $sql -CommandTimeoutSeconds 120 | Out-Null
     }
     catch {
-        Write-Host "Failed to drop nightly database copy '$CopyDatabaseName': $($_.Exception.Message). It will be caught by the stale-copy sweep on a future run."
+        Write-Information -InformationAction Continue "Failed to drop nightly database copy '$CopyDatabaseName': $($_.Exception.Message). It will be caught by the stale-copy sweep on a future run."
     }
 }
 
@@ -563,7 +563,7 @@ function Remove-StaleAzureSqlDatabaseCopies {
     }
 
     foreach ($staleName in $staleNames) {
-        Write-Host "Removing stale leftover nightly database copy from an interrupted run: $staleName"
+        Write-Information -InformationAction Continue "Removing stale leftover nightly database copy from an interrupted run: $staleName"
         Remove-AzureSqlDatabaseCopy -MasterConnectionString $MasterConnectionString -CopyDatabaseName $staleName
     }
 }
@@ -763,7 +763,7 @@ function Invoke-SyncLegacyDbSelfTest {
         throw "Polled process-launch smoke did not print a sqlpackage version."
     }
 
-    Write-Host "Sync-LegacyDbToSqlExpress.ps1 self-test passed."
+    Write-Information -InformationAction Continue "Sync-LegacyDbToSqlExpress.ps1 self-test passed."
 }
 
 if ($SelfTest) {
@@ -827,7 +827,7 @@ WHERE principal.type <> 'R'
 Get-ChildItem -Path ([System.IO.Path]::GetTempPath()) -Filter "queenzone-legacy-*.dacpac" -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -lt (Get-Date).AddHours(-6) } |
     ForEach-Object {
-        Write-Host "Removing stale leftover dacpac from an interrupted run: $($_.Name)"
+        Write-Information -InformationAction Continue "Removing stale leftover dacpac from an interrupted run: $($_.Name)"
         Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
     }
 
@@ -840,7 +840,7 @@ if ($ExtractSource -eq "DatabaseCopy") {
         Remove-StaleAzureSqlDatabaseCopies -MasterConnectionString $masterConnectionString -NamePrefix $copyDatabaseNamePrefix -MaxAgeHours $StaleCopyMaxAgeHours
     }
     catch {
-        Write-Host "Stale nightly database copy sweep failed (continuing with this run): $($_.Exception.Message)"
+        Write-Information -InformationAction Continue "Stale nightly database copy sweep failed (continuing with this run): $($_.Exception.Message)"
     }
 }
 
@@ -850,13 +850,13 @@ try {
         $loginDiagnostics = $null
         try {
             $loginDiagnostics = Get-AzureSqlLoginDiagnostics -MasterConnectionString $masterConnectionString
-            Write-Host (Format-DatabaseCopyPermissionDiagnosticMessage $loginDiagnostics)
+            Write-Information -InformationAction Continue (Format-DatabaseCopyPermissionDiagnosticMessage $loginDiagnostics)
         }
         catch {
-            Write-Host "Could not run the CREATE DATABASE permission diagnostic (continuing - the CREATE DATABASE attempt below is the real test): $($_.Exception.Message)"
+            Write-Information -InformationAction Continue "Could not run the CREATE DATABASE permission diagnostic (continuing - the CREATE DATABASE attempt below is the real test): $($_.Exception.Message)"
         }
 
-        Write-Host "Creating nightly database copy $copyDatabaseName of $sourceDatabaseName (docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5)..."
+        Write-Information -InformationAction Continue "Creating nightly database copy $copyDatabaseName of $sourceDatabaseName (docs/decisions/0022-nightly-legacy-db-sync-strategy.md Option 5)..."
         $copyCreateStart = Get-Date
         try {
             New-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -SourceDatabaseName $sourceDatabaseName -CopyDatabaseName $copyDatabaseName
@@ -868,13 +868,13 @@ try {
         $copyCreated = $true
         Wait-AzureSqlDatabaseCopyReady -MasterConnectionString $masterConnectionString -DatabaseName $copyDatabaseName -TimeoutMinutes $CopyReadyTimeoutMinutes -PollSeconds $CopyPollSeconds
         $copyReadySeconds = [int]((Get-Date) - $copyCreateStart).TotalSeconds
-        Write-Host "Nightly database copy ready after ${copyReadySeconds}s. Extract will read from the copy, not production."
+        Write-Information -InformationAction Continue "Nightly database copy ready after ${copyReadySeconds}s. Extract will read from the copy, not production."
         $extractSourceConnectionString = ConvertTo-DatabaseConnectionString -ConnectionString $sourceConnectionString -DatabaseName $copyDatabaseName
     }
 
     $schemaUserNames = @(Get-SourceSchemaUserNames $extractSourceConnectionString)
 
-    Write-Host "Extracting legacy database (schema + data) to $dacpacPath..."
+    Write-Information -InformationAction Continue "Extracting legacy database (schema + data) to $dacpacPath..."
     $extractStart = Get-Date
     Invoke-SqlPackagePhase -PhaseName "Extract" -MaxAttempts $SqlPackageTransientAttempts -SqlPackageArguments @(
         "/Action:Extract",
@@ -884,14 +884,14 @@ try {
         "/p:VerifyExtraction=False"
     ) -BeforeAttempt {
         if (Test-Path -LiteralPath $dacpacPath) {
-            Write-Host "Removing incomplete dacpac from a previous Extract attempt: $dacpacPath"
+            Write-Information -InformationAction Continue "Removing incomplete dacpac from a previous Extract attempt: $dacpacPath"
             Remove-Item -LiteralPath $dacpacPath -Force -ErrorAction SilentlyContinue
         }
     }
     $extractSeconds = [int]((Get-Date) - $extractStart).TotalSeconds
-    Write-Host "Extract completed in ${extractSeconds}s."
+    Write-Information -InformationAction Continue "Extract completed in ${extractSeconds}s."
 
-    Write-Host "Recreating staging database $stagingDatabase..."
+    Write-Information -InformationAction Continue "Recreating staging database $stagingDatabase..."
 
     # SQL Server does not rename physical files when the staged database is
     # promoted with MODIFY NAME. A fixed staging name therefore collides on the
@@ -921,7 +921,7 @@ IF DATABASE_PRINCIPAL_ID(N'$ownerLiteral') IS NULL
         if ($LASTEXITCODE -ne 0) { throw "Staging schema-owner creation failed with exit code $LASTEXITCODE" }
     }
 
-    Write-Host "Publishing dacpac into SQLEXPRESS as staging database $stagingDatabase (excluding views and Azure security objects)..."
+    Write-Information -InformationAction Continue "Publishing dacpac into SQLEXPRESS as staging database $stagingDatabase (excluding views and Azure security objects)..."
     Invoke-SqlPackagePhase -PhaseName "Publish" -MaxAttempts $SqlPackageTransientAttempts -SqlPackageArguments @(
         "/Action:Publish",
         "/SourceFile:$dacpacPath",
@@ -942,7 +942,7 @@ IF OBJECT_ID(N'dbo.NEWS_T', N'U') IS NULL
     sqlcmd -S "localhost\$InstanceName" -b -Q $verifySql
     if ($LASTEXITCODE -ne 0) { throw "Staged mirror verification failed with exit code $LASTEXITCODE" }
 
-    Write-Host "Granting $ProbeLoginName access to the staged mirror..."
+    Write-Information -InformationAction Continue "Granting $ProbeLoginName access to the staged mirror..."
     $grantSql = @"
 USE [$stagingDatabase];
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '$ProbeLoginName')
@@ -953,13 +953,13 @@ END
 "@
     sqlcmd -S "localhost\$InstanceName" -Q $grantSql
 
-    Write-Host "Replacing $TargetDatabase with the verified staged mirror..."
+    Write-Information -InformationAction Continue "Replacing $TargetDatabase with the verified staged mirror..."
     $promoteSql = New-MirrorPromotionSql -StagingDatabase $stagingDatabase -TargetDatabase $TargetDatabase
     sqlcmd -S "localhost\$InstanceName" -b -Q $promoteSql
     if ($LASTEXITCODE -ne 0) { throw "Mirror promotion failed with exit code $LASTEXITCODE" }
     $stagingPromoted = $true
 
-    Write-Host "Sync complete: $TargetDatabase refreshed from the live legacy database."
+    Write-Information -InformationAction Continue "Sync complete: $TargetDatabase refreshed from the live legacy database."
 }
 finally {
     # Each cleanup step below is independently wrapped: with
@@ -980,11 +980,11 @@ finally {
     # there is for the local staging database below.
     if ($ExtractSource -eq "DatabaseCopy" -and $copyCreated) {
         try {
-            Write-Host "Dropping nightly database copy $copyDatabaseName..."
+            Write-Information -InformationAction Continue "Dropping nightly database copy $copyDatabaseName..."
             $copyDropStart = Get-Date
             Remove-AzureSqlDatabaseCopy -MasterConnectionString $masterConnectionString -CopyDatabaseName $copyDatabaseName
             $copyDropSeconds = [int]((Get-Date) - $copyDropStart).TotalSeconds
-            Write-Host "Nightly database copy drop attempt finished in ${copyDropSeconds}s."
+            Write-Information -InformationAction Continue "Nightly database copy drop attempt finished in ${copyDropSeconds}s."
         }
         catch {
             # Remove-AzureSqlDatabaseCopy already catches its own SQL
@@ -992,7 +992,7 @@ finally {
             # truly unexpected failure here (e.g. $masterConnectionString
             # itself somehow invalid) still can't take down the rest of
             # cleanup below.
-            Write-Host "Unexpected failure while dropping nightly database copy '$copyDatabaseName' (continuing cleanup - the stale-copy sweep will catch it on a future run): $($_.Exception.Message)"
+            Write-Information -InformationAction Continue "Unexpected failure while dropping nightly database copy '$copyDatabaseName' (continuing cleanup - the stale-copy sweep will catch it on a future run): $($_.Exception.Message)"
         }
     }
 
@@ -1009,7 +1009,7 @@ END
         }
     }
     catch {
-        Write-Host "Failed to clean up local staging database '$stagingDatabase' (continuing cleanup): $($_.Exception.Message)"
+        Write-Information -InformationAction Continue "Failed to clean up local staging database '$stagingDatabase' (continuing cleanup): $($_.Exception.Message)"
     }
 
     try {
@@ -1018,6 +1018,6 @@ END
         }
     }
     catch {
-        Write-Host "Failed to remove local dacpac '$dacpacPath' (continuing cleanup, the stale-dacpac sweep will catch it on a future run): $($_.Exception.Message)"
+        Write-Information -InformationAction Continue "Failed to remove local dacpac '$dacpacPath' (continuing cleanup, the stale-dacpac sweep will catch it on a future run): $($_.Exception.Message)"
     }
 }

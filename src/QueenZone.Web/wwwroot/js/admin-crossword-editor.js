@@ -129,6 +129,6 @@ if (root) {
         } else showIssues(result.errors ?? [], result.warnings ?? []);
       } catch (error) { if (request === validationRequest && error.name !== 'AbortError') validationPanel.textContent = error.message; }
     }
-    form.addEventListener('submit', sync); drawGrid(); void validate();
+    form.addEventListener('submit', sync); drawGrid(); await validate();
   }
 }
