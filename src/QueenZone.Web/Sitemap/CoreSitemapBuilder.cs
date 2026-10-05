@@ -25,47 +25,25 @@ public sealed class CoreSitemapBuilder(
         string section,
         CancellationToken cancellationToken = default)
     {
-        var entries = section switch
+        Func<List<SitemapEntry>, CancellationToken, Task>? buildEntries = section switch
         {
-            SitemapSections.News => new List<SitemapEntry>(),
-            SitemapSections.Articles => [],
-            SitemapSections.Biography => [],
-            SitemapSections.ForumCategories => [],
-            SitemapSections.Photography => [],
-            SitemapSections.FanPerformances => [],
-            SitemapSections.Discography => [],
+            SitemapSections.News => AddNewsEntriesAsync,
+            SitemapSections.Articles => articleEntriesBuilder.AddEntriesAsync,
+            SitemapSections.Biography => AddBiographyEntriesAsync,
+            SitemapSections.ForumCategories => AddForumEntriesAsync,
+            SitemapSections.Photography => AddPhotographyEntriesAsync,
+            SitemapSections.FanPerformances => AddFanPerformanceEntriesAsync,
+            SitemapSections.Discography => AddDiscographyEntriesAsync,
             _ => null
         };
 
-        if (entries is null)
+        if (buildEntries is null)
         {
             return null;
         }
 
-        switch (section)
-        {
-            case SitemapSections.News:
-                await AddNewsEntriesAsync(entries, cancellationToken);
-                break;
-            case SitemapSections.Articles:
-                await articleEntriesBuilder.AddEntriesAsync(entries, cancellationToken);
-                break;
-            case SitemapSections.Biography:
-                await AddBiographyEntriesAsync(entries, cancellationToken);
-                break;
-            case SitemapSections.ForumCategories:
-                await AddForumEntriesAsync(entries, cancellationToken);
-                break;
-            case SitemapSections.Photography:
-                await AddPhotographyEntriesAsync(entries, cancellationToken);
-                break;
-            case SitemapSections.FanPerformances:
-                await AddFanPerformanceEntriesAsync(entries, cancellationToken);
-                break;
-            case SitemapSections.Discography:
-                await AddDiscographyEntriesAsync(entries, cancellationToken);
-                break;
-        }
+        var entries = new List<SitemapEntry>();
+        await buildEntries(entries, cancellationToken);
 
         return entries;
     }
