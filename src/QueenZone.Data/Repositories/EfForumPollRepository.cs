@@ -82,12 +82,7 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
                 poll,
                 voteCount: _ => 0,
                 viewerSelected, // empty: canVote means the viewer has not voted
-                totalVotes: 0,
-                distinctVoters,
-                viewerHasVoted,
-                closed,
-                canVote,
-                canClose);
+                new ForumPollDisplayMetadata(0, distinctVoters, viewerHasVoted, closed, canVote, canClose));
         }
 
         var optionCounts = await dbContext.ForumPollVotes
@@ -102,12 +97,7 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
             poll,
             voteCount: optionId => optionCounts.GetValueOrDefault(optionId),
             viewerSelected,
-            totalVotes,
-            distinctVoters,
-            viewerHasVoted,
-            closed,
-            canVote,
-            canClose);
+            new ForumPollDisplayMetadata(totalVotes, distinctVoters, viewerHasVoted, closed, canVote, canClose));
     }
 
     public async Task CastVoteAsync(
@@ -306,25 +296,22 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
             poll,
             voteCount: optionId => votes.Count(vote => vote.OptionId == optionId),
             viewerSelected,
-            totalVotes,
-            distinctVoters,
-            viewerHasVoted,
-            closed,
-            canVote,
-            canClose);
+            new ForumPollDisplayMetadata(totalVotes, distinctVoters, viewerHasVoted, closed, canVote, canClose));
     }
 
     private static ForumPollResults ToResults(
         ForumPollEntity poll,
         Func<Guid, int> voteCount,
         IReadOnlySet<Guid> viewerSelected,
-        int totalVotes,
-        int distinctVoters,
-        bool viewerHasVoted,
-        bool closed,
-        bool canVote,
-        bool canClose)
+        ForumPollDisplayMetadata metadata)
     {
+        var totalVotes = metadata.TotalVotes;
+        var distinctVoters = metadata.DistinctVoters;
+        var viewerHasVoted = metadata.ViewerHasVoted;
+        var closed = metadata.Closed;
+        var canVote = metadata.CanVote;
+        var canClose = metadata.CanClose;
+
         var options = poll.Options
             .OrderBy(option => option.DisplayOrder)
             .ThenBy(option => option.OptionText)
@@ -392,4 +379,6 @@ public sealed class EfForumPollRepository(QueenZoneDbContext dbContext, TimeProv
 
         return optionCount;
     }
+    private sealed record ForumPollDisplayMetadata(
+        int TotalVotes, int DistinctVoters, bool ViewerHasVoted, bool Closed, bool CanVote, bool CanClose);
 }

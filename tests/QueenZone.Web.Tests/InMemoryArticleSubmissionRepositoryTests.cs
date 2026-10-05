@@ -161,9 +161,7 @@ public sealed class InMemoryArticleSubmissionRepositoryTests
             "editor@test.local",
             "Looks good",
             null,
-            slug: "custom-slug",
-            excerpt: "Short summary",
-            tags: "Queen, Live");
+            new ArticlePublicationDetails("custom-slug", "Short summary", "Queen, Live"));
 
         Assert.NotNull(published);
         Assert.Equal(ArticleSubmissionStatus.Published, published!.Status);

@@ -472,7 +472,7 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
         public Task<ArticleSubmission?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task<ArticleSubmission?> UpdateStatusAsync(Guid id, string status, string? re,
-            string? n, string? rr, string? sl = null, string? ex = null, string? t = null, CancellationToken ct = default) =>
+            string? n, string? rr, ArticlePublicationDetails? publication = null, CancellationToken ct = default) =>
             throw new NotSupportedException();
         public Task<SubmissionTypeCounts> GetDashboardCountsAsync(DateTimeOffset utcNow, CancellationToken ct = default) =>
             Task.FromResult(SubmissionTypeCounts.Empty);

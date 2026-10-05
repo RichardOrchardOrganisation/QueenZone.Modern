@@ -251,9 +251,7 @@ public sealed class EfArticleSubmissionRepositoryTests : IAsyncDisposable
             "editor@test.local",
             "Not suitable",
             "Off topic",
-            slug: "custom-slug",
-            excerpt: "Short summary",
-            tags: "Queen");
+            new ArticlePublicationDetails("custom-slug", "Short summary", "Queen"));
 
         Assert.NotNull(updated);
         Assert.Equal(ArticleSubmissionStatus.Rejected, updated!.Status);

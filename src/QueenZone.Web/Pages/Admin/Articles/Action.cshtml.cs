@@ -75,9 +75,7 @@ public sealed class ActionModel(
                 EditorEmail,
                 ReviewNotes,
                 rejectionReason,
-                slug: Slug,
-                excerpt: Excerpt,
-                tags: Tags,
+                new ArticlePublicationDetails(Slug, Excerpt, Tags),
                 cancellationToken);
 
             if (updated is null)
