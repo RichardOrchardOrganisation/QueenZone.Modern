@@ -8,6 +8,26 @@ public sealed class EfArticleRepository(QueenZoneDbContext dbContext, IEditorial
     public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
         WithTag(PublishedListQuery(), tag).CountAsync(ct);
 
+    public async Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        string? tag = null, CancellationToken ct = default)
+    {
+        var rows = await WithTag(PublishedListQuery(), tag).ToListAsync(ct);
+        return rows.Select(row => ArticleFeedKey.Community(row.Id, row.PublishedAt.UtcDateTime)).ToList();
+    }
+
+    public async Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var values = ids.Distinct().ToArray();
+        var rows = await PublishedListQuery().Where(row => values.Contains(row.Id)).ToListAsync(ct);
+        return rows.Select(MapList).ToList();
+    }
+
     public async Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
         int page, int pageSize, string? tag = null, CancellationToken ct = default)
     {

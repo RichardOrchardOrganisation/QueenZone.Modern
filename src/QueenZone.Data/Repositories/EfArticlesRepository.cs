@@ -16,13 +16,15 @@ public sealed class EfArticlesRepository : IArticlesRepository
     private readonly string archivePageSql;
     private readonly string byIdSql;
     private readonly string sitemapSql;
+    private readonly string feedKeysSql;
+    private readonly string byIdsSql;
     private readonly IEditorialArticleRepository? editorialArticles;
 
     public EfArticlesRepository(QueenZoneDbContext dbContext, IEditorialArticleRepository editorialArticles)
     {
         this.dbContext = dbContext;
         this.editorialArticles = editorialArticles;
-        (latestSql, countSql, archivePageSql, byIdSql, sitemapSql) = EfProductionSql.CreateArticlesQueries();
+        (latestSql, countSql, archivePageSql, byIdSql, sitemapSql, feedKeysSql, byIdsSql) = EfProductionSql.CreateArticlesQueries();
     }
 
     /// <summary>
@@ -36,7 +38,9 @@ public sealed class EfArticlesRepository : IArticlesRepository
         string archivePageSql,
         string byIdSql,
         string sitemapSql,
-        IEditorialArticleRepository? editorialArticles = null)
+        IEditorialArticleRepository? editorialArticles = null,
+        string? feedKeysSql = null,
+        string? byIdsSql = null)
     {
         this.dbContext = dbContext;
         this.latestSql = latestSql;
@@ -44,6 +48,8 @@ public sealed class EfArticlesRepository : IArticlesRepository
         this.archivePageSql = archivePageSql;
         this.byIdSql = byIdSql;
         this.sitemapSql = sitemapSql;
+        this.feedKeysSql = feedKeysSql ?? string.Empty;
+        this.byIdsSql = byIdsSql ?? string.Empty;
         this.editorialArticles = editorialArticles;
     }
 
@@ -52,6 +58,44 @@ public sealed class EfArticlesRepository : IArticlesRepository
         var take = Math.Clamp(count, 1, MaxLatestCount);
         var rows = await dbContext.Database
             .SqlQueryRaw<ArticleRow>(latestSql, take)
+            .ToListAsync(cancellationToken);
+        return await ApplyOverlaysAsync(rows.Select(MapList).ToList(), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.Database
+            .SqlQueryRaw<ArticleKeyRow>(feedKeysSql)
+            .ToListAsync(cancellationToken);
+        if (editorialArticles is null)
+        {
+            return rows.Select(row => ArticleFeedKey.Archive(row.Id, row.PublishedAt)).ToList();
+        }
+
+        var overlays = await editorialArticles.GetAllLegacyOverlaysAsync(cancellationToken);
+        return rows
+            .Where(row => !overlays.TryGetValue(row.Id, out var edit) || edit.Status != EditorialArticleStatus.Unpublished)
+            .Select(row => ArticleFeedKey.Archive(
+                row.Id,
+                overlays.TryGetValue(row.Id, out var edit) ? edit.PublishedAt.UtcDateTime : row.PublishedAt))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<ArticleItem>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var distinctIds = ids.Distinct().ToArray();
+        var sql = ExpandArticleIdEqualityToInList(byIdsSql, distinctIds.Length);
+        var parameters = Array.ConvertAll(distinctIds, static id => (object)id);
+        var rows = await dbContext.Database
+            .SqlQueryRaw<ArticleRow>(sql, parameters)
             .ToListAsync(cancellationToken);
         return await ApplyOverlaysAsync(rows.Select(MapList).ToList(), cancellationToken);
     }
@@ -136,6 +180,43 @@ public sealed class EfArticlesRepository : IArticlesRepository
         if (editorialArticles is null || items.Count == 0) return items;
         var overlays = await editorialArticles.GetPublishedLegacyOverlaysAsync(items.Select(x => x.Id), ct);
         return EditorialArticleOverlay.Apply(items, overlays);
+    }
+
+    /// <summary>
+    /// Rewrites a single-id <c>Q_ARTICLE_ID = {0}</c> or <c>Id = {0}</c> predicate
+    /// into a parameterized IN list so a page of ids is one round trip.
+    /// </summary>
+    internal static string ExpandArticleIdEqualityToInList(string byIdsSql, int idCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(idCount, 1);
+        foreach (var marker in new[] { "a.Q_ARTICLE_ID = {0}", "Id = {0}" })
+        {
+            var index = byIdsSql.LastIndexOf(marker, StringComparison.Ordinal);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            var column = marker[..marker.IndexOf('=')].Trim();
+            var placeholders = string.Join(", ", Enumerable.Range(0, idCount).Select(i => "{" + i + "}"));
+            return string.Concat(
+                byIdsSql[..index],
+                column,
+                " IN (",
+                placeholders,
+                ")",
+                byIdsSql[(index + marker.Length)..]);
+        }
+
+        throw new InvalidOperationException(
+            "Article by-ids SQL must contain an 'a.Q_ARTICLE_ID = {0}' or 'Id = {0}' predicate.");
+    }
+
+    internal sealed class ArticleKeyRow
+    {
+        public int Id { get; set; }
+
+        public DateTime PublishedAt { get; set; }
     }
 
     internal sealed class ArticleRow

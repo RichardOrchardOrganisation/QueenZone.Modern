@@ -10,6 +10,29 @@ public sealed class InMemoryArticleRepository(IArticleSubmissionRepository submi
             : all.Count(a => HasTag(a.Tags, tag));
     }
 
+    public async Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        string? tag = null, CancellationToken ct = default)
+    {
+        var all = await GetAllAsync(ct);
+        IEnumerable<PublishedArticleSubmission> filtered = string.IsNullOrWhiteSpace(tag)
+            ? all
+            : all.Where(a => HasTag(a.Tags, tag));
+        return filtered.Select(a => ArticleFeedKey.Community(a.Id, a.PublishedAt.UtcDateTime)).ToList();
+    }
+
+    public async Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var set = ids.ToHashSet();
+        var all = await GetAllAsync(ct);
+        return all.Where(a => set.Contains(a.Id)).ToList();
+    }
+
     public async Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
         int page, int pageSize, string? tag = null, CancellationToken ct = default)
     {

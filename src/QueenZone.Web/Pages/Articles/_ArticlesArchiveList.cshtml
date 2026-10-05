@@ -16,7 +16,10 @@ else
         </div>
         <div>
           <h2><a href="@item.DetailPath">@item.Title</a></h2>
-          <p>@item.Excerpt</p>
+          @if (!string.IsNullOrWhiteSpace(item.Excerpt))
+          {
+            <p>@item.Excerpt</p>
+          }
         </div>
       </li>
     }

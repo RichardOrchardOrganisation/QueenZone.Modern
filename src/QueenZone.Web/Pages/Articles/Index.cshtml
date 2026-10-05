@@ -1,6 +1,5 @@
 ﻿@page "/articles"
 @model IndexModel
-@using QueenZone.Data
 
 <partial name="_PageHero" model='@(("Long-form Archive", "Articles", "In-depth features, essays and editorial packages from the preserved Queenzone archive.", "100+ features"))' />
 
@@ -12,78 +11,23 @@
       Want to write for the archive? <a class="qz-button qz-button--cta" href="/submit/article">Write an article</a>
     </p>
 
-    @if (Model.CommunityItems.Count > 0)
+    @if (!string.IsNullOrWhiteSpace(Model.ActiveTag))
     {
-      <div class="qz-community-articles-header">
-        <h2 class="qz-section-heading">Community articles</h2>
-        @if (!string.IsNullOrWhiteSpace(Model.ActiveTag))
-        {
-          <span class="qz-tag-filter-active">
-            Filtered by: <strong>@Model.ActiveTag</strong>
-            <a href="/articles" class="qz-tag-filter-clear" aria-label="Clear filter">&times;</a>
-          </span>
-        }
-      </div>
-      <div class="qz-article-cards">
-        @foreach (var item in Model.CommunityItems)
-        {
-          <article class="qz-article-card">
-            <a href="@ArticlesRoutes.GetCommunityArticleDetailPath(item.Slug)" class="qz-article-card__link">
-              <div class="qz-article-card__body">
-                <div class="qz-card__kicker">
-                  <time datetime="@item.PublishedAt.ToString("yyyy-MM-dd")">@item.PublishedAt.ToString("dd MMMM yyyy")</time>
-                  <span>&middot; @item.ReadTimeMinutes min read</span>
-                </div>
-                <h3 class="qz-article-card__title">@item.Title</h3>
-                @if (!string.IsNullOrWhiteSpace(item.Excerpt))
-                {
-                  <p class="qz-article-card__excerpt">@item.Excerpt</p>
-                }
-              </div>
-            </a>
-            @if (item.AuthorMemberId is Guid authorMemberId && !string.IsNullOrWhiteSpace(item.AuthorDisplayName))
-            {
-              <div class="qz-article-card__author">Submitted by <a class="qz-attribution-link" href="/members/@authorMemberId">@item.AuthorDisplayName</a></div>
-            }
-            @if (!string.IsNullOrWhiteSpace(item.Tags))
-            {
-              <div class="qz-article-card__tags">
-                @foreach (var tag in item.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                  <a href="/articles?tag=@Uri.EscapeDataString(tag)" class="qz-tag">@tag</a>
-                }
-              </div>
-            }
-          </article>
-        }
-      </div>
-
-      @if (Model.CommunityTotalPages > 1)
-      {
-        <nav class="qz-pagination" aria-label="Community articles pages">
-          @if (Model.CommunityCurrentPage > 1)
-          {
-            var prevHref = string.IsNullOrWhiteSpace(Model.ActiveTag)
-              ? $"/articles?cp={Model.CommunityCurrentPage - 1}"
-              : $"/articles?cp={Model.CommunityCurrentPage - 1}&tag={Uri.EscapeDataString(Model.ActiveTag)}";
-            <a href="@prevHref" class="qz-pagination__prev" rel="prev">&lsaquo; Previous</a>
-          }
-          <span class="qz-pagination__info">Page @Model.CommunityCurrentPage of @Model.CommunityTotalPages</span>
-          @if (Model.CommunityCurrentPage < Model.CommunityTotalPages)
-          {
-            var nextHref = string.IsNullOrWhiteSpace(Model.ActiveTag)
-              ? $"/articles?cp={Model.CommunityCurrentPage + 1}"
-              : $"/articles?cp={Model.CommunityCurrentPage + 1}&tag={Uri.EscapeDataString(Model.ActiveTag)}";
-            <a href="@nextHref" class="qz-pagination__next" rel="next">Next &rsaquo;</a>
-          }
-        </nav>
-      }
-
-      <h2 class="qz-section-heading">Archive</h2>
+      <span class="qz-tag-filter-active">
+        Filtered by: <strong>@Model.ActiveTag</strong>
+        <a href="/articles" class="qz-tag-filter-clear" aria-label="Clear filter">&times;</a>
+      </span>
     }
 
     <partial name="_ArticlesArchiveList" model="Model.Items" />
 
-    <partial name="_ArchivePagination" model="ArticlesRoutes.GetArchivePaginationViewModel(Model.CurrentPage, Model.TotalPages)" />
+    @if (!string.IsNullOrWhiteSpace(Model.ActiveTag))
+    {
+      <partial name="_ArchivePagination" model="ArticlesRoutes.GetTaggedPaginationViewModel(Model.ActiveTag, Model.CurrentPage, Model.TotalPages)" />
+    }
+    else
+    {
+      <partial name="_ArchivePagination" model="ArticlesRoutes.GetArchivePaginationViewModel(Model.CurrentPage, Model.TotalPages)" />
+    }
   </div>
 </section>

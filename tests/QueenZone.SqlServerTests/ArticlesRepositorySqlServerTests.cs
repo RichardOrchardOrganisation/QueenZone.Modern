@@ -84,6 +84,12 @@ public sealed class ArticlesRepositorySqlServerTests : IAsyncLifetime
         Assert.Null(await repository.GetByIdAsync(999));
         Assert.Equal([3, 2, 1],
             (await repository.GetPublishedSitemapEntriesAsync()).Select(entry => entry.Id));
+        Assert.Equal([3, 2, 1],
+            (await repository.GetPublishedFeedKeysAsync()).Select(key => key.ArchiveId));
+        // Hydration is an IN-list, but SQL must still apply the archive list order
+        // (DATE_CREATED DESC, Q_ARTICLE_ID DESC). Requesting [1, 3] must not return PK order.
+        Assert.Equal([3, 1],
+            (await repository.GetPublishedByIdsAsync([1, 3])).Select(item => item.Id));
     }
 
     private async Task InsertAsync(string title, string source, string body, byte categoryId, bool visible, DateTime createdAt) =>

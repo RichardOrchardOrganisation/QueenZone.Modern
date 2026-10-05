@@ -1,16 +1,28 @@
 using Microsoft.AspNetCore.Mvc;
-using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Articles;
 
-public sealed class IndexModel(
-    IArticlesRepository articlesRepository,
-    IArticleRepository articleRepository,
-    PublicQueryCacheService publicQueryCache) : ArticlesArchivePageModel(articlesRepository, publicQueryCache)
+public sealed class IndexModel(PublicQueryCacheService publicQueryCache) : ArticlesArchivePageModel(publicQueryCache)
 {
     public async Task<IActionResult> OnGetAsync(
-        [Microsoft.AspNetCore.Mvc.FromQuery(Name = "cp")] int communityPage = 1,
-        [Microsoft.AspNetCore.Mvc.FromQuery(Name = "tag")] string? tag = null,
-        CancellationToken cancellationToken = default) =>
-        await LoadArchivePageAsync(1, cancellationToken, articleRepository, communityPage, tag);
+        [FromQuery(Name = "cp")] int? communityPage,
+        [FromQuery(Name = "tag")] string? tag,
+        [FromQuery(Name = "page")] int listPage = 1,
+        CancellationToken cancellationToken = default)
+    {
+        if (communityPage is not null)
+        {
+            var location = string.IsNullOrWhiteSpace(tag)
+                ? "/articles"
+                : ArticlesRoutes.GetTaggedListPath(tag, 1);
+            return RedirectPermanent(location);
+        }
+
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return await LoadArchivePageAsync(1, cancellationToken);
+        }
+
+        return await LoadArchivePageAsync(listPage, cancellationToken, tag);
+    }
 }

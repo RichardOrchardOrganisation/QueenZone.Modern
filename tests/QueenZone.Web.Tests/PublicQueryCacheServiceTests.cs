@@ -1003,7 +1003,7 @@ public sealed class PublicQueryCacheServiceTests
         return services.BuildServiceProvider();
     }
 
-    private static PublicQueryCacheService CreateService(
+    internal static PublicQueryCacheService CreateService(
         IMemoryCache memoryCache,
         INewsRepository? newsRepository = null,
         IArticlesRepository? articlesRepository = null,
@@ -1205,6 +1205,17 @@ public sealed class PublicQueryCacheServiceTests
             return Task.FromResult(1);
         }
 
+        public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ArticleFeedKey>>(
+                [ArticleFeedKey.Archive(item.Id, item.PublishedAt)]);
+
+        public Task<IReadOnlyList<ArticleItem>> GetPublishedByIdsAsync(
+            IReadOnlyCollection<int> ids,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ArticleItem>>(
+                ids.Contains(item.Id) ? [item] : []);
+
         public virtual Task<IReadOnlyList<ArticleItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default)
         {
             LatestCallCount++;
@@ -1244,6 +1255,16 @@ public sealed class PublicQueryCacheServiceTests
 
         public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
             Task.FromResult(1);
+
+        public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+            string? tag = null, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<ArticleFeedKey>>(
+                [ArticleFeedKey.Community(item.Id, item.PublishedAt.UtcDateTime)]);
+
+        public Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+            IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>(
+                ids.Contains(item.Id) ? [item] : []);
 
         public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
             int page,

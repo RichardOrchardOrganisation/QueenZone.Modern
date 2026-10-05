@@ -33,4 +33,12 @@ public sealed class ArticlesPaginationTests
         Assert.Equal("/articles", nav.PreviousHref);
         Assert.Equal("/articles/page/3", nav.NextHref);
     }
+
+    [Theory]
+    [InlineData("queen", 1, "/articles?tag=queen")]
+    [InlineData("queen", 2, "/articles?tag=queen&page=2")]
+    public void GetTaggedListPath_UsesQueryPaging(string tag, int page, string expectedPath)
+    {
+        Assert.Equal(expectedPath, ArticlesRoutes.GetTaggedListPath(tag, page));
+    }
 }

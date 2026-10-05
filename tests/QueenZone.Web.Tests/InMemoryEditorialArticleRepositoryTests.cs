@@ -41,6 +41,7 @@ public sealed class InMemoryEditorialArticleRepositoryTests
         Assert.Empty(await repo.GetPublishedLegacyOverlaysAsync([101]));
         await repo.SetStatusAsync(draft.Id, EditorialArticleStatus.Published, "admin");
         Assert.Equal("Edited archive", (await repo.GetPublishedLegacyOverlaysAsync([101]))[101].Title);
+        Assert.Equal("Edited archive", (await repo.GetAllLegacyOverlaysAsync())[101].Title);
     }
 
     [Fact]

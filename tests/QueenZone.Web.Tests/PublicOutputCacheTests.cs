@@ -46,7 +46,7 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
         var client = host.CreateClient();
 
         var first = await client.GetStringAsync("/articles");
-        var callsAfterFirstRequest = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
+        var callsAfterFirstRequest = repository.FeedKeysCallCount + repository.ByIdsCallCount;
         var second = await client.GetStringAsync("/articles");
 
         Assert.Contains("Cached archive article", first);
@@ -54,7 +54,7 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
         // an unchanged repository call count is what actually proves the page was not cached.
         Assert.Equal(StripCspNonces(first), StripCspNonces(second));
         Assert.True(callsAfterFirstRequest > 0);
-        Assert.True(repository.ArchivePageCallCount + repository.PublishedCountCallCount > callsAfterFirstRequest);
+        Assert.True(repository.FeedKeysCallCount + repository.ByIdsCallCount > callsAfterFirstRequest);
     }
 
     [Fact]
@@ -70,27 +70,27 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
 
         using var firstResponse = await client.GetAsync("/articles");
         var firstBody = await firstResponse.Content.ReadAsStringAsync();
-        var archivePageCallsAfterFirst = repository.ArchivePageCallCount;
-        var callsAfterFirst = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
+        var feedKeysAfterFirst = repository.FeedKeysCallCount;
+        var callsAfterFirst = repository.FeedKeysCallCount + repository.ByIdsCallCount;
 
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
         Assert.Contains("Cached archive article", firstBody);
         Assert.True(callsAfterFirst > 0, "First request should invoke the articles repository.");
 
-        // Archive page loads published count (query-cache eligible) and archive page (not
-        // query-cached). Unchanged totals on the second request prove the Razor page did not
+        // The merged list loads feed keys (query-cache eligible) and hydrates the page slice
+        // by id. Unchanged totals on the second request prove the Razor page did not
         // re-run — i.e. ASP.NET Core output cache served the HTML. Baselines are taken after the
         // first request (not from a "first ever call" flag on the fake) because the background
         // search-index seed job (SearchIndexSeedHostedService) also calls into this same
         // substituted repository once during host startup, before any HTTP request is made.
         using var secondResponse = await client.GetAsync("/articles");
         var secondBody = await secondResponse.Content.ReadAsStringAsync();
-        var callsAfterSecond = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
+        var callsAfterSecond = repository.FeedKeysCallCount + repository.ByIdsCallCount;
 
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
         Assert.Equal(firstBody, secondBody);
         Assert.Equal(callsAfterFirst, callsAfterSecond);
-        Assert.Equal(archivePageCallsAfterFirst, repository.ArchivePageCallCount);
+        Assert.Equal(feedKeysAfterFirst, repository.FeedKeysCallCount);
     }
 
     [Fact]
@@ -105,9 +105,9 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
         });
 
         using var firstResponse = await client.GetAsync("/articles");
-        var callsAfterFirst = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
+        var callsAfterFirst = repository.FeedKeysCallCount + repository.ByIdsCallCount;
         using var trackedResponse = await client.GetAsync("/articles?utm_source=newsletter&utm_campaign=launch");
-        var callsAfterTracked = repository.ArchivePageCallCount + repository.PublishedCountCallCount;
+        var callsAfterTracked = repository.FeedKeysCallCount + repository.ByIdsCallCount;
 
         Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, trackedResponse.StatusCode);
@@ -118,10 +118,12 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
     [Theory]
     [InlineData("/timeline?decade=1980s", "Live Aid performance", "/timeline?decade=2020s", "QueenZone modernisation milestone")]
     [InlineData("/timeline?decade=2020s", "QueenZone modernisation milestone", "/timeline?decade=1980s", "Live Aid performance")]
-    [InlineData("/articles?cp=1", "Community cache article 01", "/articles?cp=2", "Community cache article 13")]
-    [InlineData("/articles?cp=2", "Community cache article 13", "/articles?cp=1", "Community cache article 01")]
+    [InlineData("/articles", "Community cache article 01", "/articles/page/2", "Community cache article 21")]
+    [InlineData("/articles/page/2", "Community cache article 21", "/articles", "Community cache article 01")]
     [InlineData("/articles?tag=music", "Community cache article 01", "/articles?tag=live", "Community cache article 13")]
     [InlineData("/articles?tag=live", "Community cache article 13", "/articles?tag=music", "Community cache article 01")]
+    [InlineData("/articles?tag=music&page=1", "Community cache article 01", "/articles?tag=live&page=1", "Community cache article 13")]
+    [InlineData("/articles?tag=live&page=1", "Community cache article 13", "/articles?tag=music&page=1", "Community cache article 01")]
     [InlineData("/quizzes/leaderboard", "Today's leaderboard", "/quizzes/leaderboard?scope=all", "Best runs")]
     [InlineData("/quizzes/leaderboard?scope=all", "Best runs", "/quizzes/leaderboard", "Today's leaderboard")]
     [InlineData("/quizzes/leaderboard?scope=all", "Best runs", "/quizzes/leaderboard?scope=total", "Total points")]
@@ -157,8 +159,8 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
             : document.Body!.TextContent;
         Assert.Contains(expected, content);
         Assert.DoesNotContain(other, content);
-        // Article filters intentionally canonicalize to the unfiltered archive URL.
-        var canonicalPath = path.StartsWith("/articles", StringComparison.Ordinal) ? "/articles" : path;
+        // Tagged article views canonicalize to /articles; numbered archive pages keep their path.
+        var canonicalPath = path.StartsWith("/articles?", StringComparison.Ordinal) ? "/articles" : path;
         Assert.Equal(TestSiteConfiguration.PublicBaseUrl + canonicalPath,
             document.QuerySelector("link[rel=canonical]")!.GetAttribute("href"));
     }

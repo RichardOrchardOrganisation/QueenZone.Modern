@@ -53,7 +53,8 @@ parameters such as `utm_source` intentionally reuse the same rendered response.
 | `size` | Photo category/detail size filtering |
 | `slug`, `year` | Retained existing variation keys for archive routes |
 | `decade` | Timeline's visible decade and canonical URL |
-| `cp`, `tag` | Community article page and tag filter (canonical remains `/articles`) |
+| `tag` | Community article tag filter on `/articles`; tagged views page with `page=` (canonical remains `/articles`) |
+| `cp` | Legacy community pager query; `/articles?cp=N` 301s to `/articles` (tag kept) |
 | `scope` | Quiz leaderboard daily, best-run, or total-points view and canonical URL |
 | `claim` | Quiz sprint's guest-score claim notice |
 | `handler` | Razor Pages GET handler selection, including sprint's start redirect |

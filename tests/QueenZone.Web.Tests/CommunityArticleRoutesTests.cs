@@ -212,7 +212,9 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
         var listBody = await client.GetStringAsync("/articles");
         var detailBody = await client.GetStringAsync("/articles/linked-author");
 
-        Assert.Contains($"Submitted by <a class=\"qz-attribution-link\" href=\"/members/{authorMemberId}\">Test Author</a>", listBody);
+        Assert.Contains("class=\"qz-news-row\"", listBody);
+        Assert.Contains("href=\"/articles/linked-author\"", listBody);
+        Assert.Contains("Linked Author Article", listBody);
         Assert.Contains($"Submitted by <a class=\"qz-attribution-link\" href=\"/members/{authorMemberId}\">Test Author</a>", detailBody);
     }
 
@@ -321,16 +323,74 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
 
         Assert.Contains("Tagged Article", body);
         Assert.DoesNotContain("Other Article", body);
+        Assert.DoesNotContain("/articles/101/", body);
+        Assert.Contains("class=\"qz-news-row\"", body);
+        Assert.Contains(">Article<", body);
     }
 
     [Fact]
-    public async Task Get_Articles_WhenCommunityPageOutOfRange_Returns404()
+    public async Task Get_Articles_EmptyExcerpt_DoesNotRenderEmptyParagraph()
     {
-        var client = (await WithRepo([Published("only-one", "Only One", DateTimeOffset.UtcNow)])).CreateClient();
+        var client = (await WithRepo(
+        [
+            new PublishedArticleSubmission(
+                Guid.NewGuid(),
+                "No Excerpt Article",
+                "no-excerpt-article",
+                "",
+                "<p>Body.</p>",
+                null,
+                null,
+                DateTimeOffset.UtcNow.AddDays(-1),
+                "Author",
+                40,
+                Category: "Interviews"),
+        ])).CreateClient();
+
+        var body = await client.GetStringAsync("/articles");
+
+        Assert.Contains("No Excerpt Article", body);
+        Assert.Contains(">Interviews<", body);
+        Assert.DoesNotContain("<p></p>", body);
+    }
+
+    [Fact]
+    public async Task Get_Articles_TagPageOutOfRange_Returns404()
+    {
+        var client = (await WithRepo(
+            [Published("tagged-article", "Tagged Article", DateTimeOffset.UtcNow, tags: "queen")]))
+            .CreateClient();
+
+        var response = await client.GetAsync("/articles?tag=queen&page=99");
+
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_Articles_WhenLegacyCommunityPageQuery_RedirectsToArticles()
+    {
+        var client = (await WithRepo([Published("only-one", "Only One", DateTimeOffset.UtcNow)]))
+            .CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
         var response = await client.GetAsync("/articles?cp=99");
 
-        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.MovedPermanently, response.StatusCode);
+        Assert.Equal("/articles", response.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
+    public async Task Get_Articles_WhenLegacyCommunityPageQueryWithTag_KeepsTag()
+    {
+        var client = (await WithRepo(
+            [
+                Published("tagged-article", "Tagged Article", DateTimeOffset.UtcNow, tags: "queen"),
+            ]))
+            .CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var response = await client.GetAsync("/articles?cp=2&tag=queen");
+
+        Assert.Equal(System.Net.HttpStatusCode.MovedPermanently, response.StatusCode);
+        Assert.Equal("/articles?tag=queen", response.Headers.Location?.OriginalString);
     }
 
     [Fact]
@@ -432,6 +492,24 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
 
         public Task<int> GetCountAsync(string? tag = null, CancellationToken ct = default) =>
             Task.FromResult(string.IsNullOrWhiteSpace(tag) ? items.Count : items.Count(a => HasTag(a.Tags, tag)));
+
+        public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+            string? tag = null, CancellationToken ct = default)
+        {
+            IEnumerable<PublishedArticleSubmission> filtered = string.IsNullOrWhiteSpace(tag)
+                ? items
+                : items.Where(a => HasTag(a.Tags, tag));
+            return Task.FromResult<IReadOnlyList<ArticleFeedKey>>(
+                filtered.Select(a => ArticleFeedKey.Community(a.Id, a.PublishedAt.UtcDateTime)).ToList());
+        }
+
+        public Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+            IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+        {
+            var set = ids.ToHashSet();
+            return Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>(
+                items.Where(a => set.Contains(a.Id)).ToList());
+        }
 
         public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
             int page, int pageSize, string? tag = null, CancellationToken ct = default)

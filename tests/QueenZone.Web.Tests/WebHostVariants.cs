@@ -1927,10 +1927,16 @@ public sealed class CountingArticlesRepository : IArticlesRepository
 
     public int PublishedCountCallCount { get; private set; }
 
+    public int FeedKeysCallCount { get; private set; }
+
+    public int ByIdsCallCount { get; private set; }
+
     public void Reset()
     {
         ArchivePageCallCount = 0;
         PublishedCountCallCount = 0;
+        FeedKeysCallCount = 0;
+        ByIdsCallCount = 0;
     }
 
     public Task<IReadOnlyList<ArticleItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
@@ -1949,6 +1955,23 @@ public sealed class CountingArticlesRepository : IArticlesRepository
     {
         PublishedCountCallCount++;
         return Task.FromResult(1);
+    }
+
+    public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        CancellationToken cancellationToken = default)
+    {
+        FeedKeysCallCount++;
+        return Task.FromResult<IReadOnlyList<ArticleFeedKey>>(
+            [ArticleFeedKey.Archive(article.Id, article.PublishedAt)]);
+    }
+
+    public Task<IReadOnlyList<ArticleItem>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken = default)
+    {
+        ByIdsCallCount++;
+        return Task.FromResult<IReadOnlyList<ArticleItem>>(
+            ids.Contains(article.Id) ? [article] : []);
     }
 
     public Task<ArticleItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
@@ -2158,6 +2181,24 @@ internal sealed class MutableCommunityArticleRepository : IArticleRepository
     public Task<int> GetCountAsync(string? tag = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(string.IsNullOrWhiteSpace(tag) ? items.Count : items.Count(article => HasTag(article.Tags, tag)));
 
+    public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        string? tag = null, CancellationToken cancellationToken = default)
+    {
+        IEnumerable<PublishedArticleSubmission> filtered = string.IsNullOrWhiteSpace(tag)
+            ? items
+            : items.Where(article => HasTag(article.Tags, tag));
+        return Task.FromResult<IReadOnlyList<ArticleFeedKey>>(
+            filtered.Select(article => ArticleFeedKey.Community(article.Id, article.PublishedAt.UtcDateTime)).ToList());
+    }
+
+    public Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        var set = ids.ToHashSet();
+        return Task.FromResult<IReadOnlyList<PublishedArticleSubmission>>(
+            items.Where(article => set.Contains(article.Id)).ToList());
+    }
+
     public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(
         int page,
         int pageSize,
@@ -2196,6 +2237,14 @@ internal sealed class MutableCommunityArticleRepository : IArticleRepository
 internal sealed class SqlFailingCommunityArticleRepository : IArticleRepository
 {
     public Task<int> GetCountAsync(string? tag = null, CancellationToken cancellationToken = default) =>
+        throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
+
+    public Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(
+        string? tag = null, CancellationToken cancellationToken = default) =>
+        throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
+
+    public Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default) =>
         throw SqlExceptionFactory.Create(208, "Invalid object name 'ArticleSubmissions'.");
 
     public Task<IReadOnlyList<PublishedArticleSubmission>> GetPageAsync(

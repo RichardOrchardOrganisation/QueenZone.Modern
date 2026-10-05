@@ -34,6 +34,11 @@ public sealed class EfEditorialArticleRepository(QueenZoneDbContext dbContext, T
             .ToListAsync(ct)).ToDictionary(x => x.LegacyArticleId!.Value, MapLive);
     }
 
+    public async Task<IReadOnlyDictionary<int, EditorialArticle>> GetAllLegacyOverlaysAsync(CancellationToken ct = default) =>
+        (await dbContext.EditorialArticles.AsNoTracking()
+            .Where(x => x.LegacyArticleId != null && x.LiveTitle != null)
+            .ToListAsync(ct)).ToDictionary(x => x.LegacyArticleId!.Value, MapLive);
+
     public async Task<EditorialArticle> SaveDraftAsync(EditorialArticleDraft draft, string editor, CancellationToken ct = default)
     {
         var row = draft.Id is Guid id ? await dbContext.EditorialArticles.SingleAsync(x => x.Id == id, ct) : new EditorialArticleEntity { Id = Guid.NewGuid() };

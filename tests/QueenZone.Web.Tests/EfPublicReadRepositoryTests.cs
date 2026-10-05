@@ -409,7 +409,9 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 SELECT Id, Title, PublishedAt, CAST(NULL AS TEXT) AS Slug
                 FROM Articles WHERE IsPublished = 1
                 ORDER BY PublishedAt DESC, Id DESC
-                """);
+                """,
+            feedKeysSql: "SELECT Id, PublishedAt FROM Articles WHERE IsPublished = 1",
+            byIdsSql: listSelect + " AND Id = {0}");
 
         var latest = await repository.GetLatestAsync(10);
         Assert.Equal(2, latest.Count);
@@ -434,6 +436,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         var sitemap = await repository.GetPublishedSitemapEntriesAsync();
         Assert.Equal(2, sitemap.Count);
+
+        var keys = await repository.GetPublishedFeedKeysAsync();
+        Assert.Equal(new[] { 1, 2 }, keys.Select(key => key.ArchiveId).OrderBy(id => id));
+        var hydrated = await repository.GetPublishedByIdsAsync([1, 2]);
+        Assert.Equal(2, hydrated.Count);
+        Assert.All(hydrated, item => Assert.Equal(string.Empty, item.Body));
+        Assert.Empty(await repository.GetPublishedByIdsAsync([]));
     }
 
     [Fact]
@@ -734,6 +743,22 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public void Article_by_ids_sql_expands_equality_to_parameterized_in_list()
+    {
+        var queries = EfProductionSql.CreateArticlesQueries();
+        var expanded = EfArticlesRepository.ExpandArticleIdEqualityToInList(queries.ByIds, 3);
+
+        Assert.Contains("a.Q_ARTICLE_ID IN ({0}, {1}, {2})", expanded, StringComparison.Ordinal);
+        Assert.DoesNotContain("a.Q_ARTICLE_ID = {0}", expanded, StringComparison.Ordinal);
+        Assert.Contains("ORDER BY a.DATE_CREATED DESC, a.Q_ARTICLE_ID DESC", expanded, StringComparison.Ordinal);
+
+        var sqlite = EfArticlesRepository.ExpandArticleIdEqualityToInList(
+            "SELECT Id FROM Articles WHERE IsPublished = 1 AND Id = {0}",
+            2);
+        Assert.Contains("Id IN ({0}, {1})", sqlite, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Article_production_sql_splits_list_and_detail_body_projections()
     {
         var queries = EfProductionSql.CreateArticlesQueries();
@@ -779,6 +804,10 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Contains("{0}", articles.ArchivePage, StringComparison.Ordinal);
         Assert.Contains("{1}", articles.ArchivePage, StringComparison.Ordinal);
         Assert.Contains("{0}", articles.ById, StringComparison.Ordinal);
+        Assert.Contains("{0}", articles.ByIds, StringComparison.Ordinal);
+        Assert.Contains("ORDER BY a.DATE_CREATED DESC, a.Q_ARTICLE_ID DESC", articles.ByIds, StringComparison.Ordinal);
+        Assert.Contains("DATE_CREATED AS PublishedAt", articles.FeedKeys, StringComparison.Ordinal);
+        Assert.DoesNotContain("ARTICLE_TEXT", articles.FeedKeys, StringComparison.Ordinal);
     }
 
     [Fact]

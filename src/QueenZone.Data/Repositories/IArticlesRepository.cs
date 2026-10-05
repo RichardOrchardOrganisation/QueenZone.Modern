@@ -8,6 +8,12 @@ public interface IArticlesRepository
 
     Task<int> GetPublishedCountAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ArticleFeedKey>> GetPublishedFeedKeysAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ArticleItem>> GetPublishedByIdsAsync(
+        IReadOnlyCollection<int> ids,
+        CancellationToken cancellationToken = default);
+
     Task<ArticleItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(CancellationToken cancellationToken = default);
