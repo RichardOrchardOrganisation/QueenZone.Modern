@@ -64,16 +64,8 @@ public sealed class ForumAttachmentValidator(
                 continue;
             }
 
-            try
+            if (!ValidateFileContent(file, name, errors))
             {
-                blobUploadValidator.ResolveAndValidateContentType(
-                    name,
-                    ReadHeader(file),
-                    BlobUploadContainers.Forum);
-            }
-            catch (BlobUploadException ex)
-            {
-                errors.Add($"'{name}' {ex.Message}");
                 continue;
             }
 
@@ -81,6 +73,23 @@ public sealed class ForumAttachmentValidator(
         }
 
         return new ForumAttachmentValidationResult(accepted, errors);
+    }
+
+    private bool ValidateFileContent(IFormFile file, string name, List<string> errors)
+    {
+        try
+        {
+            blobUploadValidator.ResolveAndValidateContentType(
+                name,
+                ReadHeader(file),
+                BlobUploadContainers.Forum);
+        }
+        catch (BlobUploadException ex)
+        {
+            errors.Add($"'{name}' {ex.Message}");
+            return false;
+        }
+        return true;
     }
 
     private static byte[] ReadHeader(IFormFile file)
