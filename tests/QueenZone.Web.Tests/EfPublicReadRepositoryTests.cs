@@ -750,6 +750,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         Assert.Contains("a.Q_ARTICLE_ID IN ({0}, {1}, {2})", expanded, StringComparison.Ordinal);
         Assert.DoesNotContain("a.Q_ARTICLE_ID = {0}", expanded, StringComparison.Ordinal);
+        Assert.Contains("ORDER BY a.DATE_CREATED DESC, a.Q_ARTICLE_ID DESC", expanded, StringComparison.Ordinal);
 
         var sqlite = EfArticlesRepository.ExpandArticleIdEqualityToInList(
             "SELECT Id FROM Articles WHERE IsPublished = 1 AND Id = {0}",
@@ -804,6 +805,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Contains("{1}", articles.ArchivePage, StringComparison.Ordinal);
         Assert.Contains("{0}", articles.ById, StringComparison.Ordinal);
         Assert.Contains("{0}", articles.ByIds, StringComparison.Ordinal);
+        Assert.Contains("ORDER BY a.DATE_CREATED DESC, a.Q_ARTICLE_ID DESC", articles.ByIds, StringComparison.Ordinal);
         Assert.Contains("DATE_CREATED AS PublishedAt", articles.FeedKeys, StringComparison.Ordinal);
         Assert.DoesNotContain("ARTICLE_TEXT", articles.FeedKeys, StringComparison.Ordinal);
     }

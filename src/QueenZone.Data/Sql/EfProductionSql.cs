@@ -94,6 +94,7 @@ internal static class EfProductionSql
             listSelect + """
 
                   AND a.Q_ARTICLE_ID = {0}
+                ORDER BY a.DATE_CREATED DESC, a.Q_ARTICLE_ID DESC
                 """);
     }
 
