@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
@@ -189,6 +190,12 @@ public static partial class ForumVideoContent
         line.Clear();
     }
 
+    private static readonly FrozenSet<string> BlockBoundaryTags =
+        new[] { "br", "blockquote", "pre", "ul", "ol", "li", "h2", "h3", "h4" }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenSet<string> TransparentFormattingTags =
+        new[] { "span", "strong", "b", "em", "i", "u" }.ToFrozenSet(StringComparer.Ordinal);
+
     private static void VisitEligibleNode(INode node, List<INode> line, HashSet<IElement> eligible)
     {
         if (node is IText text)
@@ -217,11 +224,11 @@ public static partial class ForumVideoContent
             return;
         }
 
-        if (element.LocalName is "br" or "blockquote" or "pre" or "ul" or "ol" or "li" or "h2" or "h3" or "h4")
+        if (BlockBoundaryTags.Contains(element.LocalName))
         {
             FlushEligibleLine(line, eligible);
         }
-        else if (element.LocalName is "span" or "strong" or "b" or "em" or "i" or "u")
+        else if (TransparentFormattingTags.Contains(element.LocalName))
         {
             VisitFormattingChildren(element, line, eligible);
         }

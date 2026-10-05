@@ -16,6 +16,10 @@ internal static class BlobContentSniffer
 
     private static ReadOnlySpan<byte> OleCompoundSignature => [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
+    private static ReadOnlySpan<byte> JpegSignature => [0xFF, 0xD8, 0xFF];
+    private static ReadOnlySpan<byte> LittleEndianTiffSignature => [0x49, 0x49, 0x2A, 0x00];
+    private static ReadOnlySpan<byte> BigEndianTiffSignature => [0x4D, 0x4D, 0x00, 0x2A];
+
     public static string? TryDetectContentType(ReadOnlySpan<byte> header)
     {
         var imageContentType = TryDetectImageContentType(header);
@@ -31,11 +35,7 @@ internal static class BlobContentSniffer
         }
 
         // ZIP local file header (also used by docx/xlsx/odt packages).
-        if (header.Length >= 4
-            && header[0] == 0x50
-            && header[1] == 0x4B
-            && (header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07)
-            && (header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08))
+        if (IsZipHeader(header))
         {
             return "application/zip";
         }
@@ -72,9 +72,16 @@ internal static class BlobContentSniffer
         return null;
     }
 
+    private static bool IsZipHeader(ReadOnlySpan<byte> header) =>
+        header.Length >= 4
+            && header[0] == 0x50
+            && header[1] == 0x4B
+            && (header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07)
+            && (header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08);
+
     private static string? TryDetectImageContentType(ReadOnlySpan<byte> header)
     {
-        if (header.Length >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+        if (header.StartsWith(JpegSignature))
         {
             return "image/jpeg";
         }
@@ -84,35 +91,19 @@ internal static class BlobContentSniffer
             return "image/png";
         }
 
-        if (header.Length >= 6
-            && header[0] == 0x47
-            && header[1] == 0x49
-            && header[2] == 0x46
-            && header[3] == 0x38
-            && (header[4] == 0x37 || header[4] == 0x39)
-            && header[5] == 0x61)
+        if (header.StartsWith("GIF87a"u8) || header.StartsWith("GIF89a"u8))
         {
             return "image/gif";
         }
 
         // RIFF....WEBP
-        if (header.Length >= 12
-            && header[0] == 0x52
-            && header[1] == 0x49
-            && header[2] == 0x46
-            && header[3] == 0x46
-            && header[8] == 0x57
-            && header[9] == 0x45
-            && header[10] == 0x42
-            && header[11] == 0x50)
+        if (header.Length >= 12 && header.StartsWith("RIFF"u8) && header.Slice(8, 4).SequenceEqual("WEBP"u8))
         {
             return "image/webp";
         }
 
         // TIFF little-endian (II*\0) or big-endian (MM\0*)
-        if (header.Length >= 4
-            && ((header[0] == 0x49 && header[1] == 0x49 && header[2] == 0x2A && header[3] == 0x00)
-                || (header[0] == 0x4D && header[1] == 0x4D && header[2] == 0x00 && header[3] == 0x2A)))
+        if (header.StartsWith(LittleEndianTiffSignature) || header.StartsWith(BigEndianTiffSignature))
         {
             return "image/tiff";
         }
