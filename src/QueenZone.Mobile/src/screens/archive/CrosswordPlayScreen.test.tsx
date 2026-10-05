@@ -11,14 +11,15 @@ import { CrosswordPlayScreen } from './CrosswordPlayScreen';
 const mockSession = createMockSession();
 jest.mock('../../session/SessionContext', () => ({ useSession: () => mockSession }));
 jest.mock('../../cache', () => ({ fetchJsonWithOfflineCache: jest.fn() }));
-jest.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: true, isInternetReachable: true }) }));
+const mockNetworkState = { isConnected: true, isInternetReachable: true };
+jest.mock('expo-network', () => ({ useNetworkState: () => mockNetworkState }));
 jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../../api/crosswords', () => ({ checkCrossword: jest.fn(), revealCrossword: jest.fn(), completeCrossword: jest.fn(), fetchCrosswordProgress: jest.fn().mockResolvedValue(undefined) }));
 const fetchPuzzle = fetchJsonWithOfflineCache as jest.MockedFunction<typeof fetchJsonWithOfflineCache>;
 const check = checkCrossword as jest.MockedFunction<typeof checkCrossword>;
 const reveal = revealCrossword as jest.MockedFunction<typeof revealCrossword>;
 function renderPlay() { const navigation = fakeNavigation(); return { navigation, ...renderWithProviders(<CrosswordPlayScreen navigation={navigation as never} route={{ name: 'CrosswordPlay', params: { slug: 'meet-the-band' } } as never} />, { navigation: false }) }; }
-beforeEach(async () => { jest.clearAllMocks(); await AsyncStorage.clear(); fetchPuzzle.mockResolvedValue(crosswordFixture()); });
+beforeEach(async () => { Object.assign(mockNetworkState, { isConnected: true, isInternetReachable: true }); jest.clearAllMocks(); await AsyncStorage.clear(); fetchPuzzle.mockResolvedValue(crosswordFixture()); });
 it('loads the cached public shape and renders errors or absent older API gracefully', async () => {
   fetchPuzzle.mockImplementation(() => new Promise(() => {})); const first = renderPlay();
   expect(screen.getByText('Loading crossword…')).toBeOnTheScreen(); first.unmount();
@@ -100,4 +101,15 @@ it('checks the grid from the clues sheet and opens the returned explanations', a
   await user.press(screen.getByRole('button', { name: 'Review explanations' }));
   expect(screen.getByText('Queen guitarist explained.')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: 'Check grid' })).toBeNull();
+});
+
+it('explains offline play while keeping local letter entry available', async () => {
+  mockNetworkState.isConnected = false;
+  renderPlay();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'B' })).toBeEnabled());
+  expect(screen.getByText('Offline · letters saved on this device; checks need a connection')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Reveal' })).toBeDisabled();
+  await userEvent.setup().press(screen.getByRole('button', { name: 'B' }));
+  expect(check).not.toHaveBeenCalled();
 });

@@ -47,11 +47,7 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
     ]);
   }
   function menu(kind: 'check' | 'reveal') { setActionMenu(kind); }
-  let status = play.status;
-  if (!status) {
-    if (!play.online) status = 'Offline · letters saved on this device; checks need a connection';
-    else status = play.pending ? 'Progress waiting to sync' : ' ';
-  }
+  const status = crosswordStatus(play.status, play.online, play.pending);
   const scopeLabels = { cell: 'letter', entry: 'word', grid: 'grid' } as const;
   let solverContent: ReactNode;
   if (play.completion) {
@@ -119,6 +115,12 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
       </View>
     </Modal>
   </View>;
+}
+
+function crosswordStatus(status: string, online: boolean, pending: number): string {
+  if (status) return status;
+  if (!online) return 'Offline · letters saved on this device; checks need a connection';
+  return pending ? 'Progress waiting to sync' : ' ';
 }
 
 function CompletionPanel({ puzzle, memberId, play, onNext, onReview }: Pick<SolverProps, 'puzzle' | 'memberId' | 'onNext'> & {
