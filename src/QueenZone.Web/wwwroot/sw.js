@@ -25,6 +25,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // ES module imports do not receive Razor's content-hash query. Revalidate
+  // these public dependencies online; retain the last working copy offline.
+  if (/^\/js\/crossword-(core|account)\.js$/.test(url.pathname) && !url.searchParams.has("v")) {
+    event.respondWith(networkFirstWithCacheFallback(new Request(request, { cache: "no-cache" })));
+    return;
+  }
+
   if (STATIC_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
     event.respondWith(cacheFirst(request));
     return;
@@ -70,7 +77,7 @@ async function cacheFirst(request) {
 
   const response = await fetch(request);
   if (response.ok) {
-    cache.put(request, response.clone());
+    try { await cache.put(request, response.clone()); } catch { /* Cache failure must not discard a live response. */ }
   }
   return response;
 }
@@ -80,7 +87,7 @@ async function networkFirstWithCacheFallback(request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
-      cache.put(request, response.clone());
+      try { await cache.put(request, response.clone()); } catch { /* Cache failure must not discard a live response. */ }
     }
     return response;
   } catch {
