@@ -84,6 +84,38 @@ def download_wwwroot(user: str, password: str, host: str, destination: str) -> N
             os.remove(temporary)
 
 
+def delete_settings(user: str, password: str, host: str, names: list[str]) -> int:
+    for name in names:
+        if not name or "/" in name or "\\" in name:
+            print(f"::error::Invalid setting name '{name}'.", file=sys.stderr)
+            return 1
+        status = kudu_request(user, password, host, "DELETE", f"/api/settings/{name}")
+        if status in (200, 204, 404):
+            print(f"Kudu DELETE /api/settings/{name} → HTTP {status}")
+        else:
+            print(
+                f"::error::Kudu DELETE /api/settings/{name} returned HTTP {status}.",
+                file=sys.stderr,
+            )
+            return 1
+
+    return 0
+
+
+def restart_app(user: str, password: str, host: str) -> int:
+    status = kudu_request(user, password, host, "POST", "/api/app/restart")
+    if status in (200, 202, 204):
+        print(f"Kudu POST /api/app/restart → HTTP {status}")
+        return 0
+    if status == 404:
+        status = kudu_request(user, password, host, "POST", "/api/restart")
+        if status in (200, 202, 204):
+            print(f"Kudu POST /api/restart → HTTP {status}")
+            return 0
+    print(f"::error::Kudu restart returned HTTP {status}.", file=sys.stderr)
+    return 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--delete-setting", action="append", default=[])
@@ -113,32 +145,10 @@ def main() -> int:
         download_wwwroot(user, password, host, args.download_wwwroot)
         print(f"Downloaded deployed wwwroot to {args.download_wwwroot}.")
 
-    for name in args.delete_setting:
-        if not name or "/" in name or "\\" in name:
-            print(f"::error::Invalid setting name '{name}'.", file=sys.stderr)
-            return 1
-        status = kudu_request(user, password, host, "DELETE", f"/api/settings/{name}")
-        if status in (200, 204, 404):
-            print(f"Kudu DELETE /api/settings/{name} → HTTP {status}")
-        else:
-            print(
-                f"::error::Kudu DELETE /api/settings/{name} returned HTTP {status}.",
-                file=sys.stderr,
-            )
-            return 1
-
-    if args.restart:
-        status = kudu_request(user, password, host, "POST", "/api/app/restart")
-        if status in (200, 202, 204):
-            print(f"Kudu POST /api/app/restart → HTTP {status}")
-            return 0
-        if status == 404:
-            status = kudu_request(user, password, host, "POST", "/api/restart")
-            if status in (200, 202, 204):
-                print(f"Kudu POST /api/restart → HTTP {status}")
-                return 0
-        print(f"::error::Kudu restart returned HTTP {status}.", file=sys.stderr)
+    if delete_settings(user, password, host, args.delete_setting) != 0:
         return 1
+    if args.restart:
+        return restart_app(user, password, host)
 
     return 0
 
