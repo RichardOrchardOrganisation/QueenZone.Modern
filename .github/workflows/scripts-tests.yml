@@ -44,6 +44,7 @@ jobs:
           pwsh -File ./scripts/Get-WebTestShardFilter.ps1 -SelfTest
           pwsh -File ./scripts/Test-OrganizationOidcArguments.ps1
           pwsh -File ./scripts/Test-PowerShellRefactorHelpers.ps1
+          pwsh -File ./scripts/Test-SqlPackageRetry.ps1
           pwsh -File ./scripts/Test-CoverageGate.ps1 -SelfTest
           pwsh -File ./scripts/Test-OpenTofuPlanSafety.ps1 -SelfTest
           pwsh -File ./scripts/Get-DevAttachmentEvidence.ps1 -SelfTest
