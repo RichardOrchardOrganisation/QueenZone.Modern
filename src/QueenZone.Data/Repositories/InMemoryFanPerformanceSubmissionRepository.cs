@@ -478,11 +478,7 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
             entity.ReviewNotes = SubmissionInput.NormalizeOptional(reviewNotes, 500);
         }
 
-        if (next == FanPerformanceSubmissionStatus.Rejected)
-        {
-            entity.RejectionReason = normalizedRejection;
-        }
-        else if (normalizedRejection is not null)
+        if (next == FanPerformanceSubmissionStatus.Rejected || normalizedRejection is not null)
         {
             entity.RejectionReason = normalizedRejection;
         }

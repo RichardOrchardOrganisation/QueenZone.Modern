@@ -46,7 +46,7 @@ public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICr
 
     public Task<Guid> CreateDraftAsync(CrosswordSeed draft, Guid creatorId, string actor,
         CancellationToken cancellationToken = default) =>
-        CreateDraftCoreAsync(draft, creatorId, actor, "Created", cancellationToken);
+        CreateDraftCoreAsync(draft, creatorId, actor, "Created");
 
     public async Task<Guid> DuplicateAsync(Guid id, string newSlug, Guid creatorId, string actor,
         CancellationToken cancellationToken = default)
@@ -54,11 +54,10 @@ public sealed class InMemoryCrosswordCatalogRepository(TimeProvider clock) : ICr
         var source = await GetByIdAsync(id, cancellationToken) ?? throw new KeyNotFoundException("Crossword not found.");
         var title = "Copy of " + source.Seed.Title;
         var draft = source.Seed with { Slug = newSlug, Title = title[..Math.Min(200, title.Length)] };
-        return await CreateDraftCoreAsync(draft, creatorId, actor, "Duplicated", cancellationToken);
+        return await CreateDraftCoreAsync(draft, creatorId, actor, "Duplicated");
     }
 
-    private Task<Guid> CreateDraftCoreAsync(CrosswordSeed draft, Guid creatorId, string actor, string auditAction,
-        CancellationToken cancellationToken = default)
+    private Task<Guid> CreateDraftCoreAsync(CrosswordSeed draft, Guid creatorId, string actor, string auditAction)
     {
         draft = CrosswordCatalogMapping.Normalize(draft, playable: false);
         CrosswordCatalogMapping.ValidateActor(actor);

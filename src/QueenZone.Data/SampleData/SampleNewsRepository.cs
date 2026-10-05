@@ -4,11 +4,11 @@ public sealed class SampleNewsRepository : INewsRepository
 {
     private static readonly IReadOnlyList<NewsItem> Items = BuildItems();
 
-    private static IReadOnlyList<NewsItem> PublishedItems =>
+    private static IReadOnlyList<NewsItem> GetPublishedItems() =>
         Items.Where(item => item.IsPublished).ToList();
 
     public Task<IReadOnlyList<NewsItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<NewsItem>>(PublishedItems.Take(count).ToList());
+        Task.FromResult<IReadOnlyList<NewsItem>>(GetPublishedItems().Take(count).ToList());
 
     public Task<IReadOnlyList<NewsItem>> GetArchivePageAsync(
         int page,
@@ -16,21 +16,21 @@ public sealed class SampleNewsRepository : INewsRepository
         NewsArchiveFilter filter = default,
         CancellationToken cancellationToken = default)
     {
-        var filtered = NewsArchiveFiltering.Apply(PublishedItems, filter);
+        var filtered = NewsArchiveFiltering.Apply(GetPublishedItems(), filter);
         var skip = Math.Max(page - 1, 0) * pageSize;
         return Task.FromResult<IReadOnlyList<NewsItem>>(filtered.Skip(skip).Take(pageSize).ToList());
     }
 
     public Task<int> GetPublishedCountAsync(NewsArchiveFilter filter = default, CancellationToken cancellationToken = default) =>
-        Task.FromResult(NewsArchiveFiltering.Apply(PublishedItems, filter).Count);
+        Task.FromResult(NewsArchiveFiltering.Apply(GetPublishedItems(), filter).Count);
 
     public Task<NewsArchiveYearRange> GetArchiveYearRangeAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(NewsArchiveYearRanges.Compute(PublishedItems));
+        Task.FromResult(NewsArchiveYearRanges.Compute(GetPublishedItems()));
 
     public Task<NewsItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
         Task.FromResult(
             NewsItemOrdering.ByCreatedDateDescending(
-                    PublishedItems.Where(item => item.Id == id))
+                    GetPublishedItems().Where(item => item.Id == id))
                 .FirstOrDefault());
 
     public Task<IReadOnlyList<NewsItem>> GetByIdsAsync(
@@ -45,11 +45,11 @@ public sealed class SampleNewsRepository : INewsRepository
         var idSet = ids as ISet<int> ?? ids.ToHashSet();
         return Task.FromResult<IReadOnlyList<NewsItem>>(
             NewsItemOrdering.ByCreatedDateDescending(
-                PublishedItems.Where(item => idSet.Contains(item.Id))));
+                GetPublishedItems().Where(item => idSet.Contains(item.Id))));
     }
 
     public Task<IReadOnlyList<SitemapContentEntry>> GetPublishedSitemapEntriesAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<SitemapContentEntry>>(PublishedItems
+        Task.FromResult<IReadOnlyList<SitemapContentEntry>>(GetPublishedItems()
             .Select(item => new SitemapContentEntry(item.Id, item.Title, item.PublishedAt, item.Slug))
             .ToList());
 
@@ -61,7 +61,7 @@ public sealed class SampleNewsRepository : INewsRepository
         }
 
         var term = query.Trim();
-        var matches = PublishedItems
+        var matches = GetPublishedItems()
             .Where(item =>
                 item.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 item.Excerpt.Contains(term, StringComparison.OrdinalIgnoreCase) ||

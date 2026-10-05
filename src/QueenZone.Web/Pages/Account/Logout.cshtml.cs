@@ -14,12 +14,8 @@ public sealed class LogoutModel : PageModel
         return RedirectToSignedOutLogin();
     }
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
-    {
-        _ = cancellationToken;
-        await SignOutMemberAsync();
-        return RedirectToSignedOutLogin();
-    }
+    public Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
+        OnPostAsync(cancellationToken);
 
     private async Task SignOutMemberAsync()
     {

@@ -39,6 +39,23 @@ public sealed class NullGalleryPhotoBlobServiceTests
         Assert.Empty(await service.ListBlobsAsync("queen").ToListAsync());
     }
 
+    [Fact]
+    public async Task ListBlobsAsync_SnapshotsNamesAndTimestampsBeforeEnumeration()
+    {
+        var now = new DateTimeOffset(2026, 8, 20, 12, 0, 0, TimeSpan.Zero);
+        var service = new NullGalleryPhotoBlobService { TimeProvider = new FixedClock(now) };
+        await service.UploadAsync("queen", "original.webp", new MemoryStream([1]), "image/webp");
+
+        var listing = service.ListBlobsAsync("queen");
+        await service.DeleteAsync("queen", "original.webp");
+        await service.UploadAsync("queen", "later.webp", new MemoryStream([2]), "image/webp");
+
+        var blob = Assert.Single(await listing.ToListAsync());
+        Assert.Equal("original.webp", blob.BlobName);
+        Assert.Equal(now, blob.LastModified);
+        Assert.Equal("later.webp", Assert.Single(await service.ListBlobsAsync("queen").ToListAsync()).BlobName);
+    }
+
     private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;

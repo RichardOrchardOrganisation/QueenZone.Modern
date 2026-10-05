@@ -27,9 +27,10 @@ public abstract class AdminArticlesPageModel : PageModel
     {
         const int pageSize = 100;
         var items = new List<ArticleItem>();
-        for (var page = 1; ; page++)
+        var page = 1;
+        while (true)
         {
-            var batch = await legacyArticles.GetArchivePageAsync(page, pageSize, cancellationToken);
+            var batch = await legacyArticles.GetArchivePageAsync(page++, pageSize, cancellationToken);
             items.AddRange(batch);
             if (batch.Count < pageSize)
             {
