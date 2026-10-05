@@ -13,8 +13,8 @@
 <label>Width <input type="number" data-field="width" min="5" max="15" required /></label><label>Height <input type="number" data-field="height" min="5" max="15" required /></label>
 <fieldset><legend>Builder mode</legend><label><input type="radio" name="mode" value="blocks" checked /> Blocks</label><label><input type="radio" name="mode" value="letters" /> Letters</label><label><input type="checkbox" data-symmetry checked /> 180° block symmetry</label></fieldset>
 <p>Choose a cell. In Letters mode, type A–Z; Backspace clears. Arrow keys move. Block changes recalculate entries; check every clue after changing the grid.</p>
-<div class="admin-crossword-builder"><div data-grid role="group" aria-label="Solution grid"></div><section aria-labelledby="builder-clues"><h2 id="builder-clues">Clues and explanations</h2><div data-clues></div></section></div>
-<section aria-labelledby="builder-validation"><h2 id="builder-validation">Validation</h2><div data-validation role="status" aria-live="polite"></div></section>
+<div class="admin-crossword-builder"><fieldset class="qz-semantic-group" data-grid aria-label="Solution grid"></fieldset><section aria-labelledby="builder-clues"><h2 id="builder-clues">Clues and explanations</h2><div data-clues></div></section></div>
+<section aria-labelledby="builder-validation"><h2 id="builder-validation">Validation</h2><output class="admin-crossword-validation" data-validation aria-live="polite"></output></section>
 </div>
 @if (Model.Puzzle is not null) { <label><input type="checkbox" name="ConfirmProgressReset" value="true" /> Members with progress on this puzzle will have their progress reset if I change the grid or answers. Completed attempts are kept.</label> }
 <button type="submit">Save @(Model.Puzzle is null || Model.Puzzle.Status == QueenZone.Data.Entities.CrosswordStatus.Draft ? "draft" : "changes")</button>

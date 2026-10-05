@@ -28,7 +28,7 @@
 
     <div class="qz-field qz-field--spaced">
       <span id="poll-options-label" class="qz-label">Options</span>
-      <div class="qz-forum-poll-compose__options" role="group" aria-labelledby="poll-options-label" data-poll-options>
+      <fieldset class="qz-semantic-group qz-forum-poll-compose__options" aria-labelledby="poll-options-label" data-poll-options>
         @{
           var optionList = poll.Options is { Count: > 0 } ? poll.Options : new List<string> { "", "" };
           for (var i = 0; i < optionList.Count; i++)
@@ -45,7 +45,7 @@
             </div>
           }
         }
-      </div>
+      </fieldset>
       <p class="qz-meta">2–10 options. Votes are final.</p>
       <button type="button" class="qz-button qz-button--ghost" data-poll-add-option>Add option</button>
     </div>

@@ -14,7 +14,7 @@
 @* Sticky filter bar *@
 <div class="qz-htl-filterbar" id="qz-htl-filterbar" role="toolbar" aria-label="Filter events by category">
   <div class="qz-container qz-htl-filterbar__inner">
-    <div class="qz-htl-chips" role="group" aria-label="Category filter">
+    <fieldset class="qz-semantic-group qz-htl-chips" aria-label="Category filter">
       <button class="qz-htl-chip qz-htl-chip--active" data-filter="all" aria-pressed="true">All events</button>
       <button class="qz-htl-chip" data-filter="music" aria-pressed="false">
         <span class="qz-htl-chip__dot qz-htl-chip__dot--music"></span>Music
@@ -28,7 +28,7 @@
       <button class="qz-htl-chip" data-filter="other" aria-pressed="false">
         <span class="qz-htl-chip__dot qz-htl-chip__dot--other"></span>Other
       </button>
-    </div>
+    </fieldset>
     <span class="qz-htl-count" id="qz-htl-count" aria-live="polite">@Model.VisibleEventCount events in @Model.SelectedDecade</span>
   </div>
 </div>
@@ -101,7 +101,7 @@
                       <path d="M3 5.5L7.5 10L12 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                   </button>
-                  <div class="qz-htl-row__detail" id="detail-@row.Event.Id" role="region" aria-label="@row.Event.Title details">
+                  <section class="qz-htl-row__detail" id="detail-@row.Event.Id" aria-label="@row.Event.Title details">
                     <div class="qz-htl-row__detail-inner">
                       <span class="qz-htl-row__detail-spacer" aria-hidden="true"></span>
                       <div class="qz-htl-row__detail-content">
@@ -122,7 +122,7 @@
                         }
                       </div>
                     </div>
-                  </div>
+                  </section>
                 </article>
               }
             </div>

@@ -107,7 +107,8 @@ if (root) {
           else if (run) focusCell(run.row * seed.width + run.column);
           else grid.children[selected]?.focus();
         });
-        const paragraph = document.createElement('p'); paragraph.append(button); validationPanel.append(paragraph);
+        const row = document.createElement('span'); row.className = 'admin-crossword-validation__issue';
+        row.append(button); validationPanel.append(row);
       });
     }
     async function validate() {

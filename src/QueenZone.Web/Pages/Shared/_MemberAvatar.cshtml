@@ -20,8 +20,10 @@
 }
 else
 {
-  <span class="qz-avatar qz-avatar--initials @sizeClass"
+  <svg class="qz-avatar qz-avatar--initials @sizeClass"
         data-avatar-bg="@Model.InitialsBackgroundCss"
         role="img"
-        aria-label="@Model.AltText">@Model.Initials</span>
+        aria-label="@Model.AltText" focusable="false">
+    <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="currentColor">@Model.Initials</text>
+  </svg>
 }
