@@ -45,16 +45,7 @@ public sealed class NewsForumTopicService(
         var author = await EnsureSystemMemberAsync(cancellationToken);
         var title = ClampTitle(article.Title, article.Id);
         var body = BuildOpeningPost(article);
-        var outcome = await forumPostWrite.CreateTopicAsync(
-            author.Id,
-            options.SystemMemberDisplayName,
-            categoryId,
-            title,
-            body,
-            attachments: null,
-            poll: null,
-            cancellationToken,
-            trustedSystemAuthor: true);
+        var outcome = await forumPostWrite.CreateTopicAsync(new NewForumTopicRequest(author.Id, options.SystemMemberDisplayName, categoryId, title, body, Attachments: null, Poll: null) { TrustedSystemAuthor = true }, cancellationToken);
         if (!outcome.Succeeded)
         {
             logger.LogWarning(

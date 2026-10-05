@@ -161,14 +161,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
         using (var scope = recordingFakeWatch.Services.CreateScope())
         {
             var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
-            var topic = await write.CreateTopicAsync(
-                author,
-                "Author",
-                1,
-                "Dispatch watch thread",
-                "Starter body",
-                attachments: null,
-                poll: null);
+            var topic = await write.CreateTopicAsync(new NewForumTopicRequest(author, "Author", 1, "Dispatch watch thread", "Starter body", Attachments: null, Poll: null));
             Assert.True(topic.Succeeded);
             watch.Watchers[topic.TopicId] = [author, watcher];
 
@@ -196,14 +189,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
 
         using var scope = throwingDispatcher.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
-        var topic = await write.CreateTopicAsync(
-            author,
-            "Author",
-            1,
-            "Dispatcher throw thread",
-            "Starter body",
-            attachments: null,
-            poll: null);
+        var topic = await write.CreateTopicAsync(new NewForumTopicRequest(author, "Author", 1, "Dispatcher throw thread", "Starter body", Attachments: null, Poll: null));
         Assert.True(topic.Succeeded);
 
         var reply = await write.CreateReplyAsync(
@@ -230,14 +216,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
         using var scope = recording.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
         var watches = scope.ServiceProvider.GetRequiredService<ITopicWatchRepository>();
-        var topic = await write.CreateTopicAsync(
-            author,
-            "Author",
-            1,
-            "Persisted watch thread",
-            "Starter body",
-            attachments: null,
-            poll: null);
+        var topic = await write.CreateTopicAsync(new NewForumTopicRequest(author, "Author", 1, "Persisted watch thread", "Starter body", Attachments: null, Poll: null));
         Assert.True(topic.Succeeded);
 
         await watches.WatchAsync(watcher, topic.TopicId, DateTimeOffset.UtcNow);
@@ -278,14 +257,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
 
         using var scope = recording.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
-        var topic = await write.CreateTopicAsync(
-            Guid.NewGuid(),
-            "Author",
-            1,
-            "Empty watch thread",
-            "Starter",
-            attachments: null,
-            poll: null);
+        var topic = await write.CreateTopicAsync(new NewForumTopicRequest(Guid.NewGuid(), "Author", 1, "Empty watch thread", "Starter", Attachments: null, Poll: null));
         transport.Sends.Clear();
 
         var reply = await write.CreateReplyAsync(
@@ -309,14 +281,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
         await SeedFactoryTokenAsync(recordingAlwaysWatch, watcher, "watcher-tok");
         using var scope = recordingAlwaysWatch.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
-        var outcome = await write.CreateTopicAsync(
-            Guid.NewGuid(),
-            "Author",
-            1,
-            "No notify on start",
-            "Starter",
-            attachments: null,
-            poll: null);
+        var outcome = await write.CreateTopicAsync(new NewForumTopicRequest(Guid.NewGuid(), "Author", 1, "No notify on start", "Starter", Attachments: null, Poll: null));
 
         Assert.True(outcome.Succeeded);
         Assert.Empty(transport.Sends);
@@ -333,14 +298,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
         await SeedFactoryTokenAsync(recordingFakeWatch, watcher, "watcher-tok");
         using var scope = recordingFakeWatch.Services.CreateScope();
         var write = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
-        var topic = await write.CreateTopicAsync(
-            Guid.NewGuid(),
-            "Author",
-            1,
-            "Throwing transport thread",
-            "Starter",
-            attachments: null,
-            poll: null);
+        var topic = await write.CreateTopicAsync(new NewForumTopicRequest(Guid.NewGuid(), "Author", 1, "Throwing transport thread", "Starter", Attachments: null, Poll: null));
         watch.Watchers[topic.TopicId] = [watcher];
 
         var reply = await write.CreateReplyAsync(
