@@ -130,8 +130,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
             members,
             follows,
             rateLimiter,
-            new ThrowingNotificationDispatcher(new InvalidOperationException("dispatcher down")),
-            logger,
+            new PrivateMessageNotificationSender(new ThrowingNotificationDispatcher(new InvalidOperationException("dispatcher down")), logger),
             TimeProvider.System);
 
         var result = await service.ComposeAsync(alice.Id, bob.Id, "Still delivered despite dispatcher failure");
@@ -502,8 +501,7 @@ public sealed class NotificationDispatchWritePathTests : IClassFixture<WebHostVa
             members,
             follows,
             rateLimiter,
-            dispatcher,
-            NullLogger<PrivateMessageService>.Instance,
+            new PrivateMessageNotificationSender(dispatcher, NullLogger<PrivateMessageService>.Instance),
             TimeProvider.System);
         return (service, transport, tokens, alice, bob);
     }
