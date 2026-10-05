@@ -14,6 +14,6 @@ export const foregroundNotificationBehavior = {
 
 export function configureForegroundNotificationHandler(): void {
   Notifications.setNotificationHandler({
-    handleNotification: async () => foregroundNotificationBehavior,
+    handleNotification: () => Promise.resolve(foregroundNotificationBehavior),
   });
 }

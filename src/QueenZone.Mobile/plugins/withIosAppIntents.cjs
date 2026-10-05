@@ -1,6 +1,6 @@
 /** Add source-controlled App Intents to Expo SDK 57's generated app target. */
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { createRunOncePlugin, withAppDelegate } = require('expo/config-plugins');
 
 const TAG = 'queenzone-ios-app-intents';

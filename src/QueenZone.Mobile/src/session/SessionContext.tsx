@@ -420,23 +420,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return flight;
   }, [applyTokens, clearLocal]);
 
-  const ensureAccessToken = useCallback(async (): Promise<string | null> => {
+  const ensureAccessToken = useCallback((): Promise<string | null> => {
     const currentToken = sessionRef.current.accessToken;
     if (currentToken && expiresAtRef.current > Date.now()) {
-      return currentToken;
+      return Promise.resolve(currentToken);
     }
 
     return refreshWithStoredGrant();
   }, [refreshWithStoredGrant]);
 
   const recoverRejectedAccessToken = useCallback(
-    async (rejectedAccessToken: string): Promise<string | null> => {
+    (rejectedAccessToken: string): Promise<string | null> => {
       const current = sessionRef.current.accessToken;
       if (current && current !== rejectedAccessToken) {
-        return current;
+        return Promise.resolve(current);
       }
       if (!refreshTokenRef.current) {
-        return null;
+        return Promise.resolve(null);
       }
       return refreshWithStoredGrant();
     },

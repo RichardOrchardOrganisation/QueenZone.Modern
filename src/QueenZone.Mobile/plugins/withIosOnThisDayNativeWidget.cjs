@@ -13,8 +13,8 @@
  * (day → quote → trivia; skip missing).
  * Primary/secondary type-scale literals match widgetCopy.ts (17/22, 0.65, 6, 9/11, 2).
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { createRunOncePlugin, withXcodeProject } = require('expo/config-plugins');
 
 const TAG = 'queenzone-on-this-day-native-widget';

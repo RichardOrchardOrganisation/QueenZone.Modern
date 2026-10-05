@@ -159,20 +159,20 @@ function createNativeHost(): DownloadFileHost {
       }
       file.write(bytes);
     },
-    async readPrefix(uri, maxBytes) {
+    readPrefix(uri, maxBytes) {
       try {
         const file = fileFor(uri);
         if (!file.exists) {
-          return null;
+          return Promise.resolve(null);
         }
         const handle = file.open(FileMode.ReadOnly);
         try {
-          return handle.readBytes(maxBytes);
+          return Promise.resolve(handle.readBytes(maxBytes));
         } finally {
           handle.close();
         }
       } catch {
-        return null;
+        return Promise.resolve(null);
       }
     },
     async download({ url, destUri, headers, onProgress, signal }) {
@@ -224,9 +224,9 @@ export function createMemoryDownloadHost(
   const root = 'file:///documents/fan-performances';
   const downloadImpl =
     options.downloadImpl ??
-    (async ({ destUri }) => {
+    (({ destUri }) => {
       files.set(destUri, new Uint8Array([1, 2, 3, 4]));
-      return { uri: destUri };
+      return Promise.resolve({ uri: destUri });
     });
 
   return {
@@ -256,12 +256,12 @@ export function createMemoryDownloadHost(
     writeBytes: (uri, bytes) => {
       files.set(uri, bytes);
     },
-    readPrefix: async (uri, maxBytes) => {
+    readPrefix: (uri, maxBytes) => {
       const bytes = files.get(uri);
       if (!bytes) {
-        return null;
+        return Promise.resolve(null);
       }
-      return bytes.subarray(0, Math.min(maxBytes, bytes.length));
+      return Promise.resolve(bytes.subarray(0, Math.min(maxBytes, bytes.length)));
     },
     download: downloadImpl,
   };

@@ -11,8 +11,8 @@
  * Patches node_modules/expo-audio/ios/AudioPlayer.swift at prebuild.
  * currentTime stays on currentTime(). Android is unchanged.
  */
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { createRunOncePlugin, withDangerousMod } = require('expo/config-plugins');
 
 const TAG = 'queenzone-expo-audio-ios-current-offset-from-live';

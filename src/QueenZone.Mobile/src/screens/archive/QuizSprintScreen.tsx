@@ -47,7 +47,8 @@ function describeClaim(result: QuizSprintClaimResult): string {
   if (result.status === 'already_claimed') {
     return 'That score is already on the leaderboard.';
   }
-  return `Your score of ${result.points} was added to the leaderboard${result.rank != null ? ` (rank #${result.rank} today)` : ''}.`;
+  const rankLabel = result.rank != null ? ` (rank #${result.rank} today)` : '';
+  return `Your score of ${result.points} was added to the leaderboard${rankLabel}.`;
 }
 
 function describeClaimError(err: unknown): string {

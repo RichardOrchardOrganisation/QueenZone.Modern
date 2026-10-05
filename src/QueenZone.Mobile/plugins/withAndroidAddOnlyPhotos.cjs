@@ -6,7 +6,7 @@
 const { createRunOncePlugin, withAndroidManifest } = require('expo/config-plugins');
 
 const TAG = 'queenzone-add-only-photos';
-const READ_MEDIA = /^android\.permission\.READ_MEDIA_/;
+const READ_MEDIA_PREFIX = 'android.permission.READ_MEDIA_';
 
 function permissionName(entry) {
   return entry?.$?.['android:name'] ?? '';
@@ -16,7 +16,7 @@ function stripReadMediaEntries(list) {
   if (!Array.isArray(list)) {
     return list;
   }
-  return list.filter((entry) => !READ_MEDIA.test(permissionName(entry)));
+  return list.filter((entry) => !permissionName(entry).startsWith(READ_MEDIA_PREFIX));
 }
 
 function stripReadMediaPermissions(manifest) {
