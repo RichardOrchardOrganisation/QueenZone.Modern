@@ -1,12 +1,10 @@
-using Microsoft.Data.SqlClient;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Sitemap;
 
 public sealed class CoreSitemapBuilder(
     INewsRepository newsRepository,
-    IArticlesRepository articlesRepository,
-    IArticleRepository communityArticleRepository,
+    ArticleSitemapEntriesBuilder articleEntriesBuilder,
     IBiographyRepository biographyRepository,
     IForumRepository forumRepository,
     IPhotoRepository photoRepository,
@@ -50,8 +48,7 @@ public sealed class CoreSitemapBuilder(
                 await AddNewsEntriesAsync(entries, cancellationToken);
                 break;
             case SitemapSections.Articles:
-                await AddArticleEntriesAsync(entries, cancellationToken);
-                await AddCommunityArticleEntriesAsync(entries, cancellationToken);
+                await articleEntriesBuilder.AddEntriesAsync(entries, cancellationToken);
                 break;
             case SitemapSections.Biography:
                 await AddBiographyEntriesAsync(entries, cancellationToken);
@@ -88,43 +85,6 @@ public sealed class CoreSitemapBuilder(
             entries.Add(new(
                 NewsArticleContent.GetDetailCanonicalPath(item.Id, item.Title, item.Slug),
                 item.PublishedAt));
-        }
-    }
-
-    private async Task AddArticleEntriesAsync(List<SitemapEntry> entries, CancellationToken cancellationToken)
-    {
-        var archiveKeys = await articlesRepository.GetPublishedFeedKeysAsync(cancellationToken);
-        IReadOnlyList<ArticleFeedKey> communityKeys;
-        try
-        {
-            communityKeys = await communityArticleRepository.GetPublishedFeedKeysAsync(null, cancellationToken);
-        }
-        catch (SqlException)
-        {
-            communityKeys = [];
-        }
-
-        var totalPages = ArticlesRoutes.GetArchiveTotalPages(archiveKeys.Count + communityKeys.Count);
-        for (var page = 1; page <= totalPages; page++)
-        {
-            entries.Add(new(ArticlesRoutes.GetArchiveCanonicalPath(page)));
-        }
-
-        var articleItems = await articlesRepository.GetPublishedSitemapEntriesAsync(cancellationToken);
-        foreach (var item in articleItems)
-        {
-            entries.Add(new(
-                ArticlesRoutes.GetArticleDetailPath(item.Id, item.Title),
-                item.PublishedAt));
-        }
-    }
-
-    private async Task AddCommunityArticleEntriesAsync(List<SitemapEntry> entries, CancellationToken cancellationToken)
-    {
-        var articles = await communityArticleRepository.GetSitemapEntriesAsync(cancellationToken);
-        foreach (var article in articles)
-        {
-            entries.Add(new(ArticlesRoutes.GetCommunityArticleDetailPath(article.Slug), article.PublishedAt.UtcDateTime));
         }
     }
 

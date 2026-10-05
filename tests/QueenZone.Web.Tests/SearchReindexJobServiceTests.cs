@@ -97,8 +97,7 @@ public sealed class SearchReindexJobServiceTests
         var forumWriteRepository = new InMemoryForumWriteRepository();
         var articleSubmissionRepository = new InMemoryArticleSubmissionRepository();
 
-        return new SearchReindexBuilder(
-            indexService,
+        return new SearchReindexBuilder(indexService,
             new InMemoryNewsRepository(newsStore),
             new InMemoryForumRepository(
                 SampleForumData.CreateSeedCategories(),
@@ -107,10 +106,7 @@ public sealed class SearchReindexJobServiceTests
                 new InMemoryForumAttachmentRepository()),
             new InMemoryArticleRepository(articleSubmissionRepository),
             new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-            new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances()));
+            new CatalogSearchReindexer(indexService, new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()), new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()), new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()), new InMemoryFanPerformanceRepository(SampleFanPerformanceData.CreateSeedPerformances())));
     }
 
     /// <summary>

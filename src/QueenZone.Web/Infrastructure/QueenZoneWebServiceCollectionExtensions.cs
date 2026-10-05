@@ -311,6 +311,7 @@ public static class QueenZoneWebServiceCollectionExtensions
     {
         services.AddSingleton(TimeProvider.System);
         // Scoped: sitemap builders depend on EF-backed content repositories (scoped DbContext).
+        services.AddScoped<ArticleSitemapEntriesBuilder>();
         services.AddScoped<CoreSitemapBuilder>();
         services.AddScoped<CoreSitemapService>();
         services.AddScoped<ForumSitemapBuilder>();
@@ -406,6 +407,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         // repositories directly and do not use the Testing web host composition. E2E falls
         // through to the real legacy data branch below, but only after E2EConnectionGuard
         // confirms the connection string targets the disposable SQL Express mirror.
+        services.AddScoped<CatalogSearchReindexer>();
         services.AddScoped<SearchReindexBuilder>();
         services.AddScoped<Search.ForumSearchIndexSynchronizer>();
         // In-process single-flight job for /admin/search (single-instance hosting).
