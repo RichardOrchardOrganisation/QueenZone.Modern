@@ -51,12 +51,12 @@ public static class DevicesApiEndpoints
 
         var deviceId = request?.DeviceId?.Trim();
         var token = request?.Token?.Trim();
-        if (string.IsNullOrEmpty(deviceId) || deviceId.Length > MaxDeviceIdLength)
+        if (request is null || string.IsNullOrEmpty(deviceId) || deviceId.Length > MaxDeviceIdLength)
         {
             return BadRequest("Provide a deviceId (max 200 characters).");
         }
 
-        if (request?.Platform is null)
+        if (request.Platform is null)
         {
             return BadRequest("Provide a platform (apns or fcm).");
         }

@@ -17,6 +17,13 @@ internal static class CsvImportRowParsing
             throw new ArgumentException("CSV path is required.", nameof(csvPath));
         }
 
+        return EnumerateRows(csvPath, expectedHeaders);
+    }
+
+    private static IEnumerable<(string[] Fields, int RowNumber)> EnumerateRows(
+        string csvPath,
+        string[] expectedHeaders)
+    {
         using var parser = new TextFieldParser(csvPath);
         parser.SetDelimiters(",");
         parser.HasFieldsEnclosedInQuotes = true;

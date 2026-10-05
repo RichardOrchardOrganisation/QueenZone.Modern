@@ -120,5 +120,5 @@ public static class SongCatalog
     }
 
     private static DateTime? YearStart(int? year) =>
-        year is int value ? new DateTime(value, 1, 1) : null;
+        year is int value ? new DateTime(value, 1, 1, 0, 0, 0, DateTimeKind.Unspecified) : null;
 }

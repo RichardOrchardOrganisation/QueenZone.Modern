@@ -45,7 +45,7 @@ public sealed class CsvImportRowParsingTests
     public void ReadRows_requires_a_path()
     {
         var error = Assert.Throws<ArgumentException>(
-            () => CsvImportRowParsing.ReadRows(" ", Headers).ToList());
+            () => CsvImportRowParsing.ReadRows(" ", Headers));
 
         Assert.Equal("csvPath", error.ParamName);
     }
