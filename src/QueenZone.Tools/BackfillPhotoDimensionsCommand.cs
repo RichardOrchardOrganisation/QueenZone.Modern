@@ -367,21 +367,21 @@ internal sealed class BackfillPhotoDimensionsOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (string.Equals(arg, "--connection-string", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
             {
-                connectionString = args[++index];
+                connectionString = connectionStringArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--storage-connection-string", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringArgument))
             {
-                storageConnectionString = args[++index];
+                storageConnectionString = storageConnectionStringArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--blob-endpoint", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--blob-endpoint", out var blobEndpointArgument))
             {
-                blobEndpoint = args[++index];
+                blobEndpoint = blobEndpointArgument;
                 continue;
             }
 
@@ -396,9 +396,9 @@ internal sealed class BackfillPhotoDimensionsOptions
                 continue;
             }
 
-            if (string.Equals(arg, "--pic-ids", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--pic-ids", out var picIdsArgument))
             {
-                picIds = args[++index]
+                picIds = picIdsArgument
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Select(int.Parse)
                     .ToList();

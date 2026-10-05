@@ -62,6 +62,43 @@ public sealed class CheckLinksCommandTests
         Assert.Equal(10, options.Limit);
     }
 
+    [Theory]
+    [InlineData("--concurrency")]
+    [InlineData("--confirm-after")]
+    [InlineData("--timeout-seconds")]
+    [InlineData("--limit")]
+    public void Parse_MissingNumericValue_RejectsIncompleteOption(string flag)
+    {
+        var options = CheckLinksOptions.Parse(["--connection-string", "Server=.;Database=test;", flag]);
+
+        Assert.False(options.IsValid);
+        Assert.Equal($"Unsupported or incomplete argument: {flag}", options.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("--concurrency")]
+    [InlineData("--confirm-after")]
+    [InlineData("--timeout-seconds")]
+    [InlineData("--limit")]
+    public void Parse_NumericValueIsAnotherFlag_DoesNotConsumeAnotherOption(string flag)
+    {
+        var options = CheckLinksOptions.Parse(
+            ["--connection-string", "Server=.;Database=test;", flag, "--dry-run"]);
+
+        Assert.False(options.IsValid);
+        Assert.Equal($"Unsupported or incomplete argument: {flag}", options.ErrorMessage);
+    }
+
+    [Fact]
+    public void Parse_RepeatedMixedCaseOption_UsesLastValue()
+    {
+        var options = CheckLinksOptions.Parse(
+            ["--connection-string", "Server=.;Database=test;", "--CONCURRENCY", "2", "--concurrency", "3"]);
+
+        Assert.True(options.IsValid);
+        Assert.Equal(3, options.Concurrency);
+    }
+
     [Fact]
     public void Parse_rejects_missing_connection_string()
     {

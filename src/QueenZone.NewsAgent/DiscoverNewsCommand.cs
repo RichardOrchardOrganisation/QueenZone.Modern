@@ -80,7 +80,8 @@ public sealed record NewsAgentQueuedRunCommandOptions(string RunnerId)
         }
 
         var runnerId = Environment.MachineName;
-        for (var index = 1; index < args.Length; index++)
+        var index = 1;
+        while (index < args.Length)
         {
             if (!string.Equals(args[index], "--runner-id", StringComparison.OrdinalIgnoreCase)
                 || index + 1 >= args.Length)
@@ -88,7 +89,8 @@ public sealed record NewsAgentQueuedRunCommandOptions(string RunnerId)
                 return null;
             }
 
-            runnerId = args[++index];
+            runnerId = args[index + 1];
+            index += 2;
         }
 
         return string.IsNullOrWhiteSpace(runnerId) ? null : new NewsAgentQueuedRunCommandOptions(runnerId.Trim());

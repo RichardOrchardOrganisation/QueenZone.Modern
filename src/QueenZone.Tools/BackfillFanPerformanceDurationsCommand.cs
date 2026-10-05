@@ -20,8 +20,8 @@ internal static class BackfillFanPerformanceDurationsCommand
             switch (args[i])
             {
                 case "--apply": apply = true; break;
-                case "--connection-string" when i + 1 < args.Length: sql = args[++i]; break;
-                case "--storage-connection-string" when i + 1 < args.Length: storage = args[++i]; break;
+                case "--connection-string" when ToolArgs.TryReadValue(args, ref i, "--connection-string", out var sqlArgument): sql = sqlArgument; break;
+                case "--storage-connection-string" when ToolArgs.TryReadValue(args, ref i, "--storage-connection-string", out var storageArgument): storage = storageArgument; break;
                 default: return Usage($"Unknown or incomplete argument: {args[i]}");
             }
         }

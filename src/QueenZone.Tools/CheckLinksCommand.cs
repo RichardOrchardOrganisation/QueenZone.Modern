@@ -309,41 +309,45 @@ internal sealed class CheckLinksOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (string.Equals(arg, "--connection-string", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
             {
-                connectionString = args[++index];
+                connectionString = connectionStringArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--settings-file", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length)
+            if (ToolArgs.TryReadValue(args, ref index, "--settings-file", out var settingsFileArgument))
             {
-                settingsFile = args[++index];
+                settingsFile = settingsFileArgument;
                 continue;
             }
 
-            if (string.Equals(arg, "--concurrency", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length
-                && int.TryParse(args[++index], out var parsedConcurrency))
+            if (string.Equals(arg, "--concurrency", StringComparison.OrdinalIgnoreCase)
+                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedConcurrencyArgument)
+                && int.TryParse(parsedConcurrencyArgument, out var parsedConcurrency))
             {
                 concurrency = parsedConcurrency;
                 continue;
             }
 
-            if (string.Equals(arg, "--confirm-after", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length
-                && int.TryParse(args[++index], out var parsedConfirmAfter))
+            if (string.Equals(arg, "--confirm-after", StringComparison.OrdinalIgnoreCase)
+                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedConfirmAfterArgument)
+                && int.TryParse(parsedConfirmAfterArgument, out var parsedConfirmAfter))
             {
                 confirmAfter = parsedConfirmAfter;
                 continue;
             }
 
-            if (string.Equals(arg, "--timeout-seconds", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length
-                && int.TryParse(args[++index], out var parsedTimeout))
+            if (string.Equals(arg, "--timeout-seconds", StringComparison.OrdinalIgnoreCase)
+                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedTimeoutArgument)
+                && int.TryParse(parsedTimeoutArgument, out var parsedTimeout))
             {
                 timeoutSeconds = parsedTimeout;
                 continue;
             }
 
-            if (string.Equals(arg, "--limit", StringComparison.OrdinalIgnoreCase) && index + 1 < args.Length
-                && int.TryParse(args[++index], out var parsedLimit))
+            if (string.Equals(arg, "--limit", StringComparison.OrdinalIgnoreCase)
+                && ToolArgs.TryReadValue(args, ref index, arg, out var parsedLimitArgument)
+                && int.TryParse(parsedLimitArgument, out var parsedLimit))
             {
                 limit = parsedLimit;
                 continue;

@@ -16,21 +16,23 @@ internal sealed record DevSnapshotOptions(
         string? config = null;
         var manifest = "dev-snapshot-manifest.json";
         var summary = "dev-snapshot-summary.json";
-        for (var index = 1; index < args.Length; index++)
+        var index = 1;
+        while (index < args.Length)
         {
-            var value = args[index];
+            var value = args[index++];
             if (value is "--config" or "--manifest" or "--summary")
             {
-                if (++index >= args.Length)
+                if (index >= args.Length)
                 {
                     throw new ArgumentException($"{value} requires a value.");
                 }
 
+                var optionValue = args[index++];
                 switch (value)
                 {
-                    case "--config": config = args[index]; break;
-                    case "--manifest": manifest = args[index]; break;
-                    case "--summary": summary = args[index]; break;
+                    case "--config": config = optionValue; break;
+                    case "--manifest": manifest = optionValue; break;
+                    case "--summary": summary = optionValue; break;
                 }
 
                 continue;
