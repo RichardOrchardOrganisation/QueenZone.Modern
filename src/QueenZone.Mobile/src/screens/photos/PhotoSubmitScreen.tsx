@@ -237,26 +237,26 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
             <Text style={[type.body, { color: c.textPrimary }]} accessibilityRole="alert">
               {photoSubmitCopy.confirmationMessage}
             </Text>
-            {photo ? (
+            {(photo) && (
               <Image
                 source={{ uri: photo.uri }}
                 style={styles.preview}
                 contentFit="cover"
                 accessibilityLabel={confirmation.title}
               />
-            ) : null}
+            )}
             <MetaRow label="Title" value={confirmation.title} color={c.textPrimary} muted={c.textMuted} />
-            {description.trim() ? (
+            {(description.trim()) && (
               <MetaRow label="Description" value={description.trim()} color={c.textPrimary} muted={c.textMuted} />
-            ) : null}
-            {suggestedCategory.trim() ? (
+            )}
+            {(suggestedCategory.trim()) && (
               <MetaRow
                 label={photoSubmitCopy.categoryLabel}
                 value={suggestedCategory.trim()}
                 color={c.textPrimary}
                 muted={c.textMuted}
               />
-            ) : null}
+            )}
             <MetaRow label="Status" value={confirmation.status} color={c.textPrimary} muted={c.textMuted} />
             <MetaRow
               label="Submitted"
@@ -297,7 +297,7 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
             />
 
             <FieldLabel color={c.textMuted}>{photoSubmitCopy.categoryLabel}</FieldLabel>
-            {categoriesError ? (
+            {(categoriesError) && (
               <View>
                 <Text style={[type.body, { color: c.danger }]} accessibilityRole="alert">
                   {categoriesError}
@@ -311,8 +311,8 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
                   <Text style={[type.button, { color: c.accentPrimary, marginTop: space.xs }]}>Retry</Text>
                 </Pressable>
               </View>
-            ) : null}
-            {categories.length > 0 ? (
+            )}
+            {(categories.length > 0) && (
               <View style={styles.chips}>
                 {categories.map((category) => {
                   const active = suggestedCategory.trim() === category.name;
@@ -331,7 +331,7 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
                   );
                 })}
               </View>
-            ) : null}
+            )}
 
             <FieldLabel color={c.textMuted}>Approximate year (optional)</FieldLabel>
             <TextInput
@@ -358,9 +358,9 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
             />
 
             <FieldLabel color={c.textMuted}>Photo</FieldLabel>
-            {photo ? (
+            {(photo) && (
               <Image source={{ uri: photo.uri }} style={styles.preview} contentFit="cover" accessibilityLabel={photo.name} />
-            ) : null}
+            )}
             <View style={styles.pickerRow}>
               <Button
                 label="Take photo"
@@ -380,11 +380,11 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
             </View>
             <Text style={[type.caption, { color: c.textMuted }]}>{photoSubmitCopy.help}</Text>
 
-            {submitError ? (
+            {(submitError) && (
               <Text style={[type.body, { color: c.danger }]} accessibilityRole="alert">
                 {submitError}
               </Text>
-            ) : null}
+            )}
 
             <Button
               label={photoSubmitCopy.submitAction}

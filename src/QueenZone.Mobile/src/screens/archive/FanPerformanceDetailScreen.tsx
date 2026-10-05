@@ -85,8 +85,129 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
   const description = toPlainText(track.description);
 
+  const playerContent = renderFanPlayer({ c, player, track, queue, navigation, id, active, duration,
+    currentTime, progress, barWidth, setBarWidth, canPlay: Boolean(accessToken || isSignedIn), isRestoring });
+
+  return (
+    <KeyboardAvoidingView
+      style={[styles.scroll, { backgroundColor: c.surfacePage }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+    >
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={[type.eyebrow, { color: c.accentArchive }]}>Fan performances</Text>
+      <Text
+        style={[type.articleTitle, { color: c.textPrimary, marginTop: space.lg }]}
+        allowFontScaling
+        maxFontSizeMultiplier={1.4}
+      >
+        {track.title}
+      </Text>
+      <Text style={[type.meta, { color: c.textMuted, marginTop: space.md }]}>
+        {[`Performed by ${track.performedBy}`, formatTrackDuration(track.durationSeconds)]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
+      {Boolean(track.contributorDisplayName) && (
+        <Text style={[type.meta, { color: c.textMuted, marginTop: space.sm }]}>
+          Submitted by {track.contributorDisplayName}
+        </Text>
+      )}
+      {Boolean(description) && (
+        <Text style={[type.body, { color: c.textSecondary, marginTop: space.xl }]}>{description}</Text>
+      )}
+
+      {playerContent}
+
+      {Boolean(accessToken || isSignedIn) && (
+        <View style={styles.report} testID={testIds.fanPerformanceReport}>
+          <Text style={[type.cardTitle, { color: c.textPrimary }]}>Report this performance</Text>
+          {reportStatus ? (
+            <Text style={[type.body, { color: c.textSecondary }]}>{reportStatus}</Text>
+          ) : (
+            <>
+              <TextInput
+                value={reportReason}
+                onChangeText={setReportReason}
+                accessibilityLabel="Report reason"
+                placeholder="Why should this recording be hidden?"
+                placeholderTextColor={c.textMuted}
+                multiline
+                style={[
+                  styles.reportInput,
+                  { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard },
+                ]}
+              />
+              {(reportError) && <Text style={[type.body, { color: c.danger }]}>{reportError}</Text>}
+              <Button
+                label="Send report"
+                loading={reporting}
+                testID={testIds.fanPerformanceReportSend}
+                onPress={() => {
+                  void (async () => {
+                    if (!accessToken) {
+                      openSignIn(navigation, {
+                        tab: 'ArchiveTab',
+                        screen: 'FanPerformanceDetail',
+                        params: { id },
+                      });
+                      return;
+                    }
+                    if (!reportReason.trim()) {
+                      setReportError('A reason is required.');
+                      return;
+                    }
+                    setReporting(true);
+                    setReportError(null);
+                    try {
+                      const created = await reportFanPerformance(id, reportReason.trim(), accessToken);
+                      setReportStatus(
+                        created.alreadyReported
+                          ? 'You have already reported this performance.'
+                          : 'Thanks. The admin team will review this performance.',
+                      );
+                    } catch (err: unknown) {
+                      setReportError(err instanceof ApiError ? err.message : 'Could not send the report.');
+                    } finally {
+                      setReporting(false);
+                    }
+                  })();
+                }}
+              />
+            </>
+          )}
+        </View>
+      )}
+    </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+type PlayerPresentation = {
+  c: ReturnType<typeof useTheme>['c'];
+  player: ReturnType<typeof useFanPerformancePlayer>;
+  track: FanPerformance;
+  queue: FanPerformance[];
+  navigation: Props['navigation'];
+  id: number;
+  active: boolean;
+  duration: number;
+  currentTime: number;
+  progress: number;
+  barWidth: number;
+  setBarWidth: (width: number) => void;
+  canPlay: boolean;
+  isRestoring: boolean;
+};
+
+function renderFanPlayer({ c, player, track, queue, navigation, id, active, duration, currentTime, progress,
+  barWidth, setBarWidth, canPlay, isRestoring }: PlayerPresentation): ReactNode {
   let playerContent: ReactNode;
-  if (accessToken || isSignedIn) {
+  if (canPlay) {
     playerContent = <View style={styles.player}>
       <Pressable
         accessibilityRole="adjustable"
@@ -119,9 +240,9 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
         <Text style={[type.meta, { color: c.textMuted }]}>{formatTrackDuration(currentTime)}</Text>
         <Text style={[type.meta, { color: c.textMuted }]}>{formatTrackDuration(duration)}</Text>
       </View>
-      {player.error && active ? (
+      {(player.error && active) && (
         <Text style={[type.caption, { color: c.danger, marginTop: space.sm }]}>{player.error}</Text>
-      ) : null}
+      )}
       <View style={styles.controls}>
         <IconButton
           icon={SkipBack}
@@ -195,103 +316,7 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
     </View>;
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={[styles.scroll, { backgroundColor: c.surfacePage }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
-    >
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Text style={[type.eyebrow, { color: c.accentArchive }]}>Fan performances</Text>
-      <Text
-        style={[type.articleTitle, { color: c.textPrimary, marginTop: space.lg }]}
-        allowFontScaling
-        maxFontSizeMultiplier={1.4}
-      >
-        {track.title}
-      </Text>
-      <Text style={[type.meta, { color: c.textMuted, marginTop: space.md }]}>
-        {[`Performed by ${track.performedBy}`, formatTrackDuration(track.durationSeconds)]
-          .filter(Boolean)
-          .join(' · ')}
-      </Text>
-      {track.contributorDisplayName ? (
-        <Text style={[type.meta, { color: c.textMuted, marginTop: space.sm }]}>
-          Submitted by {track.contributorDisplayName}
-        </Text>
-      ) : null}
-      {description ? (
-        <Text style={[type.body, { color: c.textSecondary, marginTop: space.xl }]}>{description}</Text>
-      ) : null}
-
-      {playerContent}
-
-      {accessToken || isSignedIn ? (
-        <View style={styles.report} testID={testIds.fanPerformanceReport}>
-          <Text style={[type.cardTitle, { color: c.textPrimary }]}>Report this performance</Text>
-          {reportStatus ? (
-            <Text style={[type.body, { color: c.textSecondary }]}>{reportStatus}</Text>
-          ) : (
-            <>
-              <TextInput
-                value={reportReason}
-                onChangeText={setReportReason}
-                accessibilityLabel="Report reason"
-                placeholder="Why should this recording be hidden?"
-                placeholderTextColor={c.textMuted}
-                multiline
-                style={[
-                  styles.reportInput,
-                  { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceCard },
-                ]}
-              />
-              {reportError ? <Text style={[type.body, { color: c.danger }]}>{reportError}</Text> : null}
-              <Button
-                label="Send report"
-                loading={reporting}
-                testID={testIds.fanPerformanceReportSend}
-                onPress={() => {
-                  void (async () => {
-                    if (!accessToken) {
-                      openSignIn(navigation, {
-                        tab: 'ArchiveTab',
-                        screen: 'FanPerformanceDetail',
-                        params: { id },
-                      });
-                      return;
-                    }
-                    if (!reportReason.trim()) {
-                      setReportError('A reason is required.');
-                      return;
-                    }
-                    setReporting(true);
-                    setReportError(null);
-                    try {
-                      const created = await reportFanPerformance(id, reportReason.trim(), accessToken);
-                      setReportStatus(
-                        created.alreadyReported
-                          ? 'You have already reported this performance.'
-                          : 'Thanks. The admin team will review this performance.',
-                      );
-                    } catch (err: unknown) {
-                      setReportError(err instanceof ApiError ? err.message : 'Could not send the report.');
-                    } finally {
-                      setReporting(false);
-                    }
-                  })();
-                }}
-              />
-            </>
-          )}
-        </View>
-      ) : null}
-    </ScrollView>
-    </KeyboardAvoidingView>
-  );
+  return playerContent;
 }
 
 const styles = StyleSheet.create({

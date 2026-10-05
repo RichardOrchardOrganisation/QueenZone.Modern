@@ -154,6 +154,19 @@ export function ThreadScreen({ navigation, route }: Props) {
 
   const offlineSnapshot = topicSource === 'cache' || postsSource === 'cache';
 
+  const finishBlocking = useCallback((memberId: DisplayPost['authorMemberId']) => {
+    if (memberId) setBlockedMemberIds((current) => new Set(current).add(memberId));
+  }, []);
+  const finishUnblocking = useCallback((memberId: DisplayPost['authorMemberId']) => {
+    if (memberId) {
+      setBlockedMemberIds((current) => {
+        const next = new Set(current);
+        next.delete(memberId);
+        return next;
+      });
+    }
+  }, []);
+
   const renderItem = useCallback<ListRenderItem<DisplayPost>>(
     ({ item }) => {
       const isCurrentMember = Boolean(memberId && item.authorMemberId === memberId);
@@ -172,7 +185,7 @@ export function ThreadScreen({ navigation, route }: Props) {
         Alert.alert('Block member?', `${item.authorUsername} will no longer be able to contact you privately. Their forum posts will be collapsed.`, [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Block', style: 'destructive', onPress: () => void blockForumPostAuthor(accessToken, item.id).then(() => {
-            if (item.authorMemberId) setBlockedMemberIds((current) => new Set(current).add(item.authorMemberId!));
+            finishBlocking(item.authorMemberId);
           }).catch(() => Alert.alert('Could not block member', 'Try again when you have a connection.')) },
         ]);
       };
@@ -184,13 +197,7 @@ export function ThreadScreen({ navigation, route }: Props) {
         Alert.alert('Unblock member?', `${item.authorUsername} will be able to contact you privately again. Their forum posts will be shown.`, [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Unblock', onPress: () => void unblockForumPostAuthor(accessToken, item.id).then(() => {
-            if (item.authorMemberId) {
-              setBlockedMemberIds((current) => {
-                const next = new Set(current);
-                next.delete(item.authorMemberId!);
-                return next;
-              });
-            }
+            finishUnblocking(item.authorMemberId);
           }).catch(() => Alert.alert('Could not unblock member', 'Try again when you have a connection.')) },
         ]);
       };
@@ -209,7 +216,7 @@ export function ThreadScreen({ navigation, route }: Props) {
       />
       );
     },
-    [accessToken, blockedMemberIds, isSignedIn, memberId, navigation, offlineSnapshot, rawId, reportedPostIds, route.params, title, topic?.title],
+    [accessToken, blockedMemberIds, finishBlocking, finishUnblocking, isSignedIn, memberId, navigation, offlineSnapshot, rawId, reportedPostIds, route.params, title, topic?.title],
   );
 
   if (id === null) {

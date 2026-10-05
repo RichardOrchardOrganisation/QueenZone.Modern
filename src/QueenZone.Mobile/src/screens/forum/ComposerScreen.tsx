@@ -76,6 +76,32 @@ export function ComposerScreen({ navigation, route }: Props) {
   );
 }
 
+type ReplyDraft = {
+  topicId: number;
+  body: string;
+  attachment: ComposerAttachment | null;
+  accessToken: string;
+  profileMemberId: string | null | undefined;
+};
+
+async function publishReply({ topicId, body, attachment, accessToken, profileMemberId }: ReplyDraft): Promise<boolean> {
+  if (attachment) {
+    await createForumReply(topicId, { body, file: attachment }, accessToken);
+    return true;
+  }
+  const memberId = resolvePushMemberId(accessToken, profileMemberId);
+  if (!memberId) return false;
+  const queued = await enqueueForumReply({ memberId, topicId, body });
+  void flushOfflineQueue();
+  try {
+    await createForumReply(topicId, { body: queued.payload.body }, accessToken, undefined, queued.operationId);
+    await removeOfflineItem(queued.operationId);
+  } catch (err: unknown) {
+    if (!isOfflineFailure(err) && !isTimeoutFailure(err)) throw err;
+  }
+  return true;
+}
+
 function ComposerForm({ navigation, route }: Props) {
   const headerHeight = useHeaderHeight();
   const { c } = useTheme();
@@ -264,38 +290,11 @@ function ComposerForm({ navigation, route }: Props) {
     setSubmitError(null);
     try {
       if (mode === 'reply' && route.params?.threadId != null) {
-        if (attachment) {
-          await createForumReply(
-            route.params.threadId,
-            { body: body.trim(), file: attachment },
-            accessToken,
-          );
-        } else {
-          const memberId = resolvePushMemberId(accessToken, profile?.memberId);
-          if (!memberId) {
-            setSubmitError('Sign in to publish.');
-            return;
-          }
-          const queued = await enqueueForumReply({
-            memberId,
-            topicId: route.params.threadId,
-            body: body.trim(),
-          });
-          void flushOfflineQueue();
-          try {
-            await createForumReply(
-              route.params.threadId,
-              { body: queued.payload.body },
-              accessToken,
-              undefined,
-              queued.operationId,
-            );
-            await removeOfflineItem(queued.operationId);
-          } catch (err: unknown) {
-            if (!isOfflineFailure(err) && !isTimeoutFailure(err)) {
-              throw err;
-            }
-          }
+        const published = await publishReply({ topicId: route.params.threadId, body: body.trim(),
+          attachment, accessToken, profileMemberId: profile?.memberId });
+        if (!published) {
+          setSubmitError('Sign in to publish.');
+          return;
         }
         navigation.goBack();
         return;
@@ -359,16 +358,16 @@ function ComposerForm({ navigation, route }: Props) {
         <Text style={[type.eyebrow, { color: c.accentPrimary }]}>
           {mode === 'reply' ? 'Reply' : 'Post to the community'}
         </Text>
-        {context ? (
+        {(context) && (
           <Text
             style={[type.listTitle, { color: c.textPrimary, marginTop: space.sm }]}
             allowFontScaling
           >
             {context}
           </Text>
-        ) : null}
+        )}
 
-        {mode === 'newTopic' && categoryId == null ? (
+        {(mode === 'newTopic' && categoryId == null) && (
           <View style={styles.boards}>
             <Text style={[type.meta, { color: c.textMuted }]}>Board</Text>
             {boards.map((board) => (
@@ -389,9 +388,9 @@ function ComposerForm({ navigation, route }: Props) {
               </Pressable>
             ))}
           </View>
-        ) : null}
+        )}
 
-        {mode === 'newTopic' ? (
+        {(mode === 'newTopic') && (
           <TextInput
             testID={testIds.forumComposerTitle}
             value={title}
@@ -409,7 +408,7 @@ function ComposerForm({ navigation, route }: Props) {
               },
             ]}
           />
-        ) : null}
+        )}
 
         <TextInput
           value={body}
@@ -433,7 +432,7 @@ function ComposerForm({ navigation, route }: Props) {
 
         {accessToken ? (
           <View style={styles.attach}>
-            {attachment ? (
+            {(attachment) && (
               <Text
                 testID={testIds.forumComposerAttachment}
                 style={[type.body, { color: c.textPrimary }]}
@@ -441,7 +440,7 @@ function ComposerForm({ navigation, route }: Props) {
               >
                 {attachment.name}
               </Text>
-            ) : null}
+            )}
             <View style={styles.pickerRow}>
               <Button
                 label={composerAttachCopy.photos}
@@ -461,7 +460,7 @@ function ComposerForm({ navigation, route }: Props) {
                   void pickFromFiles();
                 }}
               />
-              {smokeAttachAllowed() && awaitingInject ? (
+              {(smokeAttachAllowed() && awaitingInject) && (
                 <Button
                   label={`Inject ${smokeAttachFileName}`}
                   size="sm"
@@ -469,15 +468,15 @@ function ComposerForm({ navigation, route }: Props) {
                   testID={testIds.forumComposerAttachInject}
                   onPress={injectSmokeAttach}
                 />
-              ) : null}
-              {attachment ? (
+              )}
+              {(attachment) && (
                 <Button
                   label={composerAttachCopy.remove}
                   size="sm"
                   variant="ghost"
                   onPress={() => setAttachment(null)}
                 />
-              ) : null}
+              )}
             </View>
             <Text style={[type.caption, { color: c.textMuted }]}>{composerAttachCopy.oneFile}</Text>
           </View>
@@ -487,9 +486,9 @@ function ComposerForm({ navigation, route }: Props) {
           </Text>
         )}
 
-        {submitError ? (
+        {(submitError) && (
           <Text style={[type.caption, { color: c.textSecondary }]}>{submitError}</Text>
-        ) : null}
+        )}
 
         <Button
           label={copy.action}
