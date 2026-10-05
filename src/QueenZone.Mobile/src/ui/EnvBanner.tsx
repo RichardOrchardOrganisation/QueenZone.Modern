@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAppConfig } from '../config/appConfig';
@@ -18,6 +18,7 @@ type Props = {
 export function EnvBanner({ children }: Props) {
   const insets = useSafeAreaInsets();
   const label = resolveEnvBannerLabel(getAppConfig().appEnv);
+  const contentInsets = useMemo(() => ({ ...insets, top: 0 }), [insets]);
   if (label == null) {
     return children;
   }
@@ -31,7 +32,7 @@ export function EnvBanner({ children }: Props) {
         </Text>
       </View>
       <StatusBar style="dark" />
-      <SafeAreaInsetsContext.Provider value={{ ...insets, top: 0 }}>
+      <SafeAreaInsetsContext.Provider value={contentInsets}>
         <View style={styles.column}>{children}</View>
       </SafeAreaInsetsContext.Provider>
     </View>

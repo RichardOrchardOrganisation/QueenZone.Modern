@@ -57,18 +57,19 @@ export function isLegacyDownloadFile(uri: string): boolean {
   return !(uri.split('/').pop() ?? '').startsWith('member-');
 }
 
-function createNativeHost(): DownloadFileHost {
-  function audioDir(): Directory {
-    const dir = new Directory(Paths.document, DOWNLOAD_DIRECTORY_NAME);
-    if (!dir.exists) {
-      dir.create({ intermediates: true, idempotent: true });
-    }
-    return dir;
+function audioDir(): Directory {
+  const dir = new Directory(Paths.document, DOWNLOAD_DIRECTORY_NAME);
+  if (!dir.exists) {
+    dir.create({ intermediates: true, idempotent: true });
   }
+  return dir;
+}
 
-  function fileFor(uri: string): File {
-    return new File(uri);
-  }
+function fileFor(uri: string): File {
+  return new File(uri);
+}
+
+function createNativeHost(): DownloadFileHost {
 
   return {
     documentDirectoryUri() {

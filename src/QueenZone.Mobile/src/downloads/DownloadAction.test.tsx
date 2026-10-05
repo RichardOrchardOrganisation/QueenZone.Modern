@@ -35,6 +35,11 @@ function reset() {
 describe('DownloadAction', () => {
   beforeEach(reset);
 
+  afterEach(() => {
+    setDownloadFileHostForTests(null);
+    setDownloadManifestStorageForTests(null);
+  });
+
   it('shows Download when idle, signed in or signed out', () => {
     const signedIn = renderWithProviders(<DownloadAction track={track} />, { navigation: false });
     expect(screen.getByText('Download')).toBeOnTheScreen();
@@ -45,10 +50,7 @@ describe('DownloadAction', () => {
     renderWithProviders(<DownloadAction track={track} />, { navigation: false });
     expect(screen.getByText('Download')).toBeOnTheScreen();
   });
-  afterEach(() => {
-    setDownloadFileHostForTests(null);
-    setDownloadManifestStorageForTests(null);
-  });
+
 
   it('starts a download and ignores a second tap while queued', async () => {
     let release!: () => void;
