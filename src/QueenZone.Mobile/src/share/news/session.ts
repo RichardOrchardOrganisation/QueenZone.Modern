@@ -99,6 +99,10 @@ export function createNewsShareController(
 
   function scheduleWrite(op: () => Promise<void>): Promise<void> {
     writeTail = writeTail.then(op, op);
+    // Observe background writes while preserving rejection for flush/persistNow callers.
+    void writeTail.catch((error: unknown) => {
+      console.warn('Could not persist the news suggestion draft.', error);
+    });
     return writeTail;
   }
 
@@ -109,15 +113,15 @@ export function createNewsShareController(
   function setPersisted(value: PersistedNewsShare | null): void {
     state.persisted = value;
     if (value) {
-      scheduleWrite(() => store.write(value));
+      void scheduleWrite(() => store.write(value));
     } else {
-      scheduleWrite(() => store.clear());
+      void scheduleWrite(() => store.clear());
     }
   }
 
   function rememberConsumed(fingerprint: string): void {
     state.lastConsumed = fingerprint;
-    scheduleWrite(() => store.writeLastConsumed(fingerprint));
+    void scheduleWrite(() => store.writeLastConsumed(fingerprint));
   }
 
   async function persistNow(value: PersistedNewsShare | null): Promise<void> {
@@ -151,7 +155,7 @@ export function createNewsShareController(
     state.lastCreated = null;
     state.lastError = null;
     state.inFlight = false;
-    void persistNow(null).then(emit);
+    void persistNow(null).then(emit, emit);
   }
 
   function acknowledge(): void {
@@ -230,7 +234,10 @@ export function createNewsShareController(
         kind: 'choose',
         candidates: state.persisted.candidates,
         choose: (url) => {
-          void choose(url);
+          void choose(url).catch((error: unknown) => {
+            state.lastError = mapNewsSuggestionError(error);
+            emit();
+          });
         },
         cancel,
       };
