@@ -61,6 +61,37 @@ public static partial class ForumVideoContent
         }
 
         var query = QueryHelpers.ParseQuery(uri.Query);
+        var id = ReadVideoId(uri, shortHost, query);
+
+        if (id is null || !VideoIdPattern().IsMatch(id))
+        {
+            return null;
+        }
+
+        int? start = null;
+        var times = new[] { "t", "start" }.Where(query.ContainsKey).SelectMany(key => query[key]).ToArray();
+        if (times.Length == 1)
+        {
+            start = ParseStart(times[0]);
+        }
+
+        // Zero seconds is the default and deduplicates with a URL without a start time.
+        if (start == 0)
+        {
+            start = null;
+        }
+
+        var watchUrl = $"https://www.youtube.com/watch?v={id}";
+        if (start is int seconds)
+        {
+            watchUrl += "&t=" + seconds.ToString(CultureInfo.InvariantCulture) + "s";
+        }
+
+        return new("youtube", id, watchUrl, start, anchorIndex);
+    }
+
+    private static string? ReadVideoId(Uri uri, bool shortHost, Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
         string? id;
         if (!shortHost && uri.AbsolutePath == "/watch")
         {
@@ -94,31 +125,7 @@ public static partial class ForumVideoContent
             }
         }
 
-        if (id is null || !VideoIdPattern().IsMatch(id))
-        {
-            return null;
-        }
-
-        int? start = null;
-        var times = new[] { "t", "start" }.Where(query.ContainsKey).SelectMany(key => query[key]).ToArray();
-        if (times.Length == 1)
-        {
-            start = ParseStart(times[0]);
-        }
-
-        // Zero seconds is the default and deduplicates with a URL without a start time.
-        if (start == 0)
-        {
-            start = null;
-        }
-
-        var watchUrl = $"https://www.youtube.com/watch?v={id}";
-        if (start is int seconds)
-        {
-            watchUrl += "&t=" + seconds.ToString(CultureInfo.InvariantCulture) + "s";
-        }
-
-        return new("youtube", id, watchUrl, start, anchorIndex);
+        return id;
     }
 
     private static int? ParseStart(string? value)
@@ -163,74 +170,74 @@ public static partial class ForumVideoContent
         // Meaningful tokens are isolated by block and line boundaries. Formatting wrappers are
         // transparent; headings, lists, images and quotes are never treated as standalone links.
         var line = new List<INode>();
-        void Flush()
-        {
-            if (line.Count == 1 && line[0] is IElement { LocalName: "a" } anchor
-                && !anchor.QuerySelectorAll("img, br").Any())
-            {
-                eligible.Add(anchor);
-            }
-
-            line.Clear();
-        }
-
-        void Visit(INode node)
-        {
-            if (node is IText text)
-            {
-                if (!string.IsNullOrWhiteSpace(text.Data))
-                {
-                    line.Add(node);
-                }
-
-                return;
-            }
-
-            if (node is not IElement element)
-            {
-                return;
-            }
-
-            if (element.LocalName is "p" or "div")
-            {
-                Flush();
-                if (!element.ClassList.Contains("qz-bbcode-quote"))
-                {
-                    CollectEligible(element, eligible);
-                }
-
-                return;
-            }
-
-            if (element.LocalName is "br" or "blockquote" or "pre" or "ul" or "ol" or "li" or "h2" or "h3" or "h4")
-            {
-                Flush();
-            }
-            else if (element.LocalName is "span" or "strong" or "b" or "em" or "i" or "u")
-            {
-                if (element.ClassList.Contains("qz-bbcode-quote"))
-                {
-                    line.Add(element);
-                    return;
-                }
-
-                foreach (var child in element.ChildNodes)
-                {
-                    Visit(child);
-                }
-            }
-            else
-            {
-                line.Add(element);
-            }
-        }
-
         foreach (var child in container.ChildNodes)
         {
-            Visit(child);
+            VisitEligibleNode(child, line, eligible);
         }
 
-        Flush();
+        FlushEligibleLine(line, eligible);
+    }
+
+    private static void FlushEligibleLine(List<INode> line, HashSet<IElement> eligible)
+    {
+        if (line.Count == 1 && line[0] is IElement { LocalName: "a" } anchor
+            && !anchor.QuerySelectorAll("img, br").Any())
+        {
+            eligible.Add(anchor);
+        }
+
+        line.Clear();
+    }
+
+    private static void VisitEligibleNode(INode node, List<INode> line, HashSet<IElement> eligible)
+    {
+        if (node is IText text)
+        {
+            if (!string.IsNullOrWhiteSpace(text.Data))
+            {
+                line.Add(node);
+            }
+
+            return;
+        }
+
+        if (node is not IElement element)
+        {
+            return;
+        }
+
+        if (element.LocalName is "p" or "div")
+        {
+            FlushEligibleLine(line, eligible);
+            if (!element.ClassList.Contains("qz-bbcode-quote"))
+            {
+                CollectEligible(element, eligible);
+            }
+
+            return;
+        }
+
+        if (element.LocalName is "br" or "blockquote" or "pre" or "ul" or "ol" or "li" or "h2" or "h3" or "h4")
+        {
+            FlushEligibleLine(line, eligible);
+        }
+        else if (element.LocalName is "span" or "strong" or "b" or "em" or "i" or "u")
+        {
+            if (element.ClassList.Contains("qz-bbcode-quote"))
+            {
+                line.Add(element);
+                return;
+            }
+
+            foreach (var child in element.ChildNodes)
+            {
+                VisitEligibleNode(child, line, eligible);
+            }
+        }
+        else
+        {
+            line.Add(element);
+        }
     }
 
     [GeneratedRegex("\\A[A-Za-z0-9_-]{11}\\z", RegexOptions.CultureInvariant)]

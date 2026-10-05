@@ -25,34 +25,7 @@ public sealed class SampleGalleryImageSeedHostedService(
             {
                 foreach (var item in category.Items)
                 {
-                    var blobUrl = PhotoImageUrl.ToBlobStorageUrl(item.Url);
-                    if (!PhotoImageUrl.TryParseBlobLocation(blobUrl, out var container, out var blobName))
-                    {
-                        continue;
-                    }
-
-                    await using var existing = await galleryPhotoBlobService.OpenReadAsync(
-                        container,
-                        blobName,
-                        cancellationToken);
-                    if (existing is not null)
-                    {
-                        continue;
-                    }
-
-                    var width = item.PictureWidth >= NewsArticleImageProcessor.MinCropWidth
-                        ? item.PictureWidth
-                        : 600;
-                    var height = item.PictureHeight >= NewsArticleImageProcessor.MinCropHeight
-                        ? item.PictureHeight
-                        : 400;
-                    await using var jpeg = await CreateJpegAsync(width, height);
-                    await galleryPhotoBlobService.UploadAsync(
-                        container,
-                        blobName,
-                        jpeg,
-                        "image/jpeg",
-                        cancellationToken);
+                    await SeedImageAsync(galleryPhotoBlobService, item, cancellationToken);
                 }
             }
         }
@@ -60,6 +33,38 @@ public sealed class SampleGalleryImageSeedHostedService(
         {
             logger.LogWarning(ex, "Sample gallery image seeding failed; gallery crop will 404 until blobs exist.");
         }
+    }
+
+    private static async Task SeedImageAsync(IGalleryPhotoBlobService galleryPhotoBlobService, PhotoItemSeed item, CancellationToken cancellationToken)
+    {
+        var blobUrl = PhotoImageUrl.ToBlobStorageUrl(item.Url);
+        if (!PhotoImageUrl.TryParseBlobLocation(blobUrl, out var container, out var blobName))
+        {
+            return;
+        }
+
+        await using var existing = await galleryPhotoBlobService.OpenReadAsync(
+            container,
+            blobName,
+            cancellationToken);
+        if (existing is not null)
+        {
+            return;
+        }
+
+        var width = item.PictureWidth >= NewsArticleImageProcessor.MinCropWidth
+            ? item.PictureWidth
+            : 600;
+        var height = item.PictureHeight >= NewsArticleImageProcessor.MinCropHeight
+            ? item.PictureHeight
+            : 400;
+        await using var jpeg = await CreateJpegAsync(width, height);
+        await galleryPhotoBlobService.UploadAsync(
+            container,
+            blobName,
+            jpeg,
+            "image/jpeg",
+            cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
