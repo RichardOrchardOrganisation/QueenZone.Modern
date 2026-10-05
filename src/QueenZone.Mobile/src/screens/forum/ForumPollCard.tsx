@@ -42,11 +42,12 @@ export function ForumPollCard({
     isSignedIn,
     hasAccessToken,
   });
-  const maxChoices = poll.isMultiChoice
-    ? poll.maxChoices != null && poll.maxChoices > 0
+  let maxChoices = 1;
+  if (poll.isMultiChoice) {
+    maxChoices = poll.maxChoices != null && poll.maxChoices > 0
       ? poll.maxChoices
-      : poll.options.length
-    : 1;
+      : poll.options.length;
+  }
 
   const toggle = useCallback(
     (optionId: string) => {

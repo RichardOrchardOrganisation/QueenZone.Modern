@@ -47,6 +47,12 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
     ]);
   }
   function menu(kind: 'check' | 'reveal') { setActionMenu(kind); }
+  let status = play.status;
+  if (!status) {
+    if (!play.online) status = 'Offline · letters saved on this device; checks need a connection';
+    else status = play.pending ? 'Progress waiting to sync' : ' ';
+  }
+  const scopeLabels = { cell: 'letter', entry: 'word', grid: 'grid' } as const;
   let solverContent: ReactNode;
   if (play.completion) {
     solverContent = <CompletionPanel puzzle={puzzle} memberId={memberId} play={play} onNext={onNext} onReview={() => setShowReview(true)} />;
@@ -69,7 +75,7 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
     </View>
     {solverContent}
     <View accessibilityLiveRegion="polite" style={{ paddingHorizontal: 12 }}>
-      <Text testID={testIds.crosswordStatus} style={[type.meta, { color: c.textSecondary }]}>{play.status || (!play.online ? 'Offline · letters saved on this device; checks need a connection' : play.pending ? 'Progress waiting to sync' : ' ')}</Text>
+      <Text testID={testIds.crosswordStatus} style={[type.meta, { color: c.textSecondary }]}>{status}</Text>
       {play.needsAttention ? <Button label="Crossword changed — reload" size="sm" variant="ghost" onPress={onReload} /> : null}
       {play.guest ? <Button label="Keep progress from this device?" size="sm" variant="ghost" onPress={play.keepGuest} /> : null}
     </View>
@@ -87,7 +93,7 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
         <View style={{ backgroundColor: c.surfaceCard, padding: 20, gap: 12 }} accessibilityViewIsModal>
           <Text style={[type.listTitle, { color: c.textPrimary }]}>{actionMenu === 'check' ? 'Check letters' : 'Reveal letters'}</Text>
-          {(['cell', 'entry', 'grid'] as const).map(scope => <Button key={scope} testID={`crossword-${actionMenu}-${scope}`} label={`${actionMenu === 'check' ? 'Check' : 'Reveal'} ${scope === 'cell' ? 'letter' : scope === 'entry' ? 'word' : 'grid'}`}
+          {(['cell', 'entry', 'grid'] as const).map(scope => <Button key={scope} testID={`crossword-${actionMenu}-${scope}`} label={`${actionMenu === 'check' ? 'Check' : 'Reveal'} ${scopeLabels[scope]}`}
             onPress={() => { const action = actionMenu; setActionMenu(null); if (action === 'check') void play.check(scope); else confirmReveal(scope); }} />)}
           <Button label="Cancel" variant="ghost" onPress={() => setActionMenu(null)} />
         </View>

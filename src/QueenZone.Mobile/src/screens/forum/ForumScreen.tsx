@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import { useCallback, useMemo } from 'react';
@@ -83,43 +84,44 @@ export function ForumScreen({ navigation }: Props) {
     </View>
   );
 
-  const body =
-    paged.loading && paged.items.length === 0 ? (
-      <>
-        {header}
-        <LoadingBlock label="Loading forum boards…" />
-      </>
-    ) : paged.error && paged.items.length === 0 ? (
-      <>
-        {header}
-        <ErrorBlock message={paged.error} onRetry={paged.reload} />
-      </>
-    ) : (
-      <FlatList
-        style={[styles.list, { backgroundColor: c.surfacePage }]}
-        data={paged.items}
-        keyExtractor={(item) => String(item.id)}
-        ListHeaderComponent={header}
-        ListEmptyComponent={<EmptyBlock message="No forum boards are available yet." />}
-        ListFooterComponent={<ListFooterLoading visible={paged.loadingMore} />}
-        alwaysBounceVertical
-        refreshControl={
-          <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={refresh} />
-        }
-        onEndReached={paged.loadMore}
-        onEndReachedThreshold={0.4}
-        renderItem={({ item }) => (
-          <ArticleRow
-            title={item.name}
-            subtitle={item.description ?? undefined}
-            meta={categoryMeta(item)}
-            onPress={() => navigation.navigate('Category', { id: item.id, name: item.name })}
-            accessibilityLabel={`Open board ${item.name}`}
-            testID={`forum-board-${item.id}`}
-          />
-        )}
-      />
-    );
+  let body: ReactNode;
+  if (paged.loading && paged.items.length === 0) {
+    body = <>
+      {header}
+      <LoadingBlock label="Loading forum boards…" />
+    </>;
+  } else if (paged.error && paged.items.length === 0) {
+    body = <>
+      {header}
+      <ErrorBlock message={paged.error} onRetry={paged.reload} />
+    </>;
+  } else {
+    body = <FlatList
+      style={[styles.list, { backgroundColor: c.surfacePage }]}
+      data={paged.items}
+      keyExtractor={(item) => String(item.id)}
+      ListHeaderComponent={header}
+      ListEmptyComponent={<EmptyBlock message="No forum boards are available yet." />}
+      ListFooterComponent={<ListFooterLoading visible={paged.loadingMore} />}
+      alwaysBounceVertical
+      refreshControl={
+        <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={refresh} />
+      }
+      onEndReached={paged.loadMore}
+      onEndReachedThreshold={0.4}
+      renderItem={({ item }) => (
+        <ArticleRow
+          title={item.name}
+          subtitle={item.description ?? undefined}
+          meta={categoryMeta(item)}
+          onPress={() => navigation.navigate('Category', { id: item.id, name: item.name })}
+          accessibilityLabel={`Open board ${item.name}`}
+          testID={`forum-board-${item.id}`}
+        />
+      )}
+    />;
+  }
+
 
   return (
     <View testID={testIds.forumScreen} style={{ flex: 1, backgroundColor: c.surfacePage }}>

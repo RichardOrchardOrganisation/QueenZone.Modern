@@ -39,21 +39,21 @@ function overlayQueuedComposes(
   if (pending.length === 0) {
     return items;
   }
-  const extra = pending.map((item) => ({
-    conversationId: `pending:${item.operationId}`,
-    otherParticipantId: 'recipientMemberId' in item.target ? item.target.recipientMemberId : '',
-    otherParticipantDisplayName:
-      item.state === 'needs_attention'
-        ? 'Needs attention'
-        : item.state === 'sending'
-          ? 'Sending…'
-          : 'Queued message',
-    lastMessagePreview: item.payload.body,
-    lastMessageAt: item.createdAt,
-    hasUnread: false,
-    unreadCount: 0,
-    detailPath: '',
-  }));
+  const extra = pending.map((item) => {
+    let title = 'Queued message';
+    if (item.state === 'needs_attention') title = 'Needs attention';
+    else if (item.state === 'sending') title = 'Sending…';
+    return {
+      conversationId: `pending:${item.operationId}`,
+      otherParticipantId: 'recipientMemberId' in item.target ? item.target.recipientMemberId : '',
+      otherParticipantDisplayName: title,
+      lastMessagePreview: item.payload.body,
+      lastMessageAt: item.createdAt,
+      hasUnread: false,
+      unreadCount: 0,
+      detailPath: '',
+    };
+  });
   return [...extra, ...items];
 }
 

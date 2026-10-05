@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { AlertButton } from 'react-native';
 import { memo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ForumPost } from '../../api';
@@ -48,26 +48,20 @@ export const ForumPostRow = memo(function ForumPostRow({
   const [revealed, setRevealed] = useState(false);
 
   const openMenu = () => {
-    const actions = [
+    const actions: AlertButton[] = [
       { text: 'Cancel', style: 'cancel' as const },
       ...(isReported ? [] : [{ text: 'Report post', onPress: onReport }]),
-      ...(post.authorMemberId
-        ? isBlocked
-          ? [{ text: 'Unblock member', onPress: onUnblock }]
-          : [{ text: 'Block member', style: 'destructive' as const, onPress: onBlock }]
-        : []),
     ];
+    if (post.authorMemberId) {
+      if (isBlocked) actions.push({ text: 'Unblock member', onPress: onUnblock });
+      else actions.push({ text: 'Block member', style: 'destructive', onPress: onBlock });
+    }
     Alert.alert('Post actions', undefined, actions);
   };
 
-  let reportContent: ReactNode;
-  if (post.queueState === 'sending') {
-    reportContent = 'Sending…';
-  } else if (post.queueState === 'needs_attention') {
-    reportContent = 'Needs attention';
-  } else {
-    reportContent = 'Queued';
-  }
+  let queueLabel = 'Queued';
+  if (post.queueState === 'sending') queueLabel = 'Sending…';
+  else if (post.queueState === 'needs_attention') queueLabel = 'Needs attention';
 
   return (
     <View style={[styles.post, { borderTopColor: c.hairline }]}>
@@ -91,13 +85,7 @@ export const ForumPostRow = memo(function ForumPostRow({
       {post.queueState ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={
-            post.queueState === 'sending'
-              ? 'Sending…'
-              : post.queueState === 'needs_attention'
-                ? 'Needs attention'
-                : 'Queued'
-          }
+          accessibilityLabel={queueLabel}
           testID={testIds.pendingForumPost}
           onPress={() => {
             if (post.queueState !== 'needs_attention' || !post.operationId) {
@@ -128,7 +116,7 @@ export const ForumPostRow = memo(function ForumPostRow({
           }}
         >
           <Text style={[type.caption, { color: c.accentPrimary, marginTop: space.xs }]}>
-            {reportContent}
+            {queueLabel}
           </Text>
         </Pressable>
       ) : null}

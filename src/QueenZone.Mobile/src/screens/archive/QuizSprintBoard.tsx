@@ -26,6 +26,13 @@ export function QuizSprintBoard({ rows, viewer, emptyText, showRuns = false }: P
     <View accessibilityRole="list">
       {shown.map((row) => {
         const isYou = viewer != null && row.rank === viewer.rank && row.displayName === viewer.displayName;
+        let runMeta: string;
+        if (showRuns) {
+          const runSuffix = row.runs === 1 || row.runs == null ? '' : 'S';
+          runMeta = `${row.runs ?? 1} RUN${runSuffix} · BEST STREAK ${row.bestStreak}`;
+        } else {
+          runMeta = `60 SEC · ${row.bestStreak} STREAK`;
+        }
         return (
           <View key={`${row.rank}-${row.displayName}`} style={[styles.row, isYou && styles.rowYou]}>
             <Text style={styles.rank}>{rankLabel(row.rank)}</Text>
@@ -34,9 +41,7 @@ export function QuizSprintBoard({ rows, viewer, emptyText, showRuns = false }: P
                 {isYou ? 'You' : row.displayName}
               </Text>
               <Text style={[styles.meta, isYou && styles.goldMeta]}>
-                {showRuns
-                  ? `${row.runs ?? 1} RUN${row.runs === 1 || row.runs == null ? '' : 'S'} · BEST STREAK ${row.bestStreak}`
-                  : `60 SEC · ${row.bestStreak} STREAK`}
+                {runMeta}
               </Text>
             </View>
             <Text style={[styles.score, isYou && styles.gold]}>{row.score}</Text>

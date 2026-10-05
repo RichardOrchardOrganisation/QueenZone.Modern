@@ -101,11 +101,12 @@ export const MessageBubble = memo(function MessageBubble({
   }, [item.id, onSubmitReport, report.reportReason]);
 
   const time = formatMessageClockTime(item.createdAt);
-  const attribution = item.isMine
-    ? `YOU · ${time}`
-    : isFirstOfRun
-      ? `${item.senderDisplayName.toUpperCase()} · ${time}`
-      : time;
+  let attribution = time;
+  if (item.isMine) {
+    attribution = `YOU · ${time}`;
+  } else if (isFirstOfRun) {
+    attribution = `${item.senderDisplayName.toUpperCase()} · ${time}`;
+  }
   const attributionColor = item.isMine ? c.textMuted : c.textSecondary;
 
   if (item.isMine) {
