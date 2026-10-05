@@ -50,9 +50,10 @@
 
   function renderTally() {
     scoreOutput.textContent = String(score);
-    streakLabel.textContent = streak >= streakBonusAt
-      ? `Streak ×${streak} · Double points`
-      : streak >= 2 ? `Streak ×${streak}` : 'No streak';
+    let tally = 'No streak';
+    if (streak >= streakBonusAt) tally = `Streak ×${streak} · Double points`;
+    else if (streak >= 2) tally = `Streak ×${streak}`;
+    streakLabel.textContent = tally;
     streakLabel.classList.toggle('qz-sprint__streak--hot', streak >= streakBonusAt);
   }
 

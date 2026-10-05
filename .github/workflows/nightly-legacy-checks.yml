@@ -324,7 +324,10 @@ jobs:
 
       - name: Kill stray app processes from a previous run (macOS)
         if: matrix.os == 'macOS'
-        run: pkill -f QueenZone.Web || true
+        run: |
+          # Match only this runner checkout's published app, never Web.Tests hosts.
+          qz_app_pattern=$(python3 -c 'import os,re; print(r"(^|/)dotnet[[:space:]]+\"?" + re.escape(os.path.join(os.environ["GITHUB_WORKSPACE"], "e2e-app", "QueenZone.Web.dll")) + r"\"?$")')
+          pkill -f "$qz_app_pattern" || true
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

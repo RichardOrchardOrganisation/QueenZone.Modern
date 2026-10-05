@@ -182,9 +182,13 @@ describe('PhotoViewerScreen', () => {
         }),
     );
     const { unmount } = renderViewer();
+    expect(fetchPhoto).toHaveBeenCalledTimes(1);
+    const signal = fetchPhoto.mock.calls[0][2]?.signal;
+    expect(signal?.aborted).toBe(false);
     unmount();
     await Promise.resolve();
     await Promise.resolve();
+    expect(signal?.aborted).toBe(true);
   });
 
   it('shows an API error and retries', async () => {

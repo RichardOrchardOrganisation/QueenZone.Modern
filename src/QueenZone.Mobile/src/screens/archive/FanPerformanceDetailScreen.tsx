@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
@@ -84,6 +85,116 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
   const description = toPlainText(track.description);
 
+  let playerContent: ReactNode;
+  if (accessToken || isSignedIn) {
+    playerContent = <View style={styles.player}>
+      <Pressable
+        accessibilityRole="adjustable"
+        accessibilityLabel="Seek"
+        accessibilityValue={{
+          min: 0,
+          max: Math.round(duration),
+          now: Math.round(currentTime),
+        }}
+        onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
+        onPress={(event) => {
+          if (barWidth <= 0 || duration <= 0) {
+            return;
+          }
+          if (!active) {
+            player.play(track, queue);
+          }
+          player.seekTo((event.nativeEvent.locationX / barWidth) * duration);
+        }}
+        style={[styles.seekTrack, { backgroundColor: c.hairline }]}
+      >
+        <View
+          style={[
+            styles.seekFill,
+            { width: `${progress * 100}%`, backgroundColor: c.accentPrimary },
+          ]}
+        />
+      </Pressable>
+      <View style={styles.times}>
+        <Text style={[type.meta, { color: c.textMuted }]}>{formatTrackDuration(currentTime)}</Text>
+        <Text style={[type.meta, { color: c.textMuted }]}>{formatTrackDuration(duration)}</Text>
+      </View>
+      {player.error && active ? (
+        <Text style={[type.caption, { color: c.danger, marginTop: space.sm }]}>{player.error}</Text>
+      ) : null}
+      <View style={styles.controls}>
+        <IconButton
+          icon={SkipBack}
+          accessibilityLabel="Skip back 15 seconds"
+          onPress={() => {
+            if (!active) {
+              player.play(track, queue);
+            }
+            player.skip(-15);
+          }}
+        />
+        <IconButton
+          icon={active && player.playing ? Pause : Play}
+          accessibilityLabel={active && player.playing ? 'Pause' : 'Play'}
+          tone="accent"
+          size={24}
+          onPress={() => {
+            if (!active) {
+              player.play(track, queue);
+              return;
+            }
+            player.toggle();
+          }}
+        />
+        <IconButton
+          icon={SkipForward}
+          accessibilityLabel="Skip forward 15 seconds"
+          onPress={() => {
+            if (!active) {
+              player.play(track, queue);
+            }
+            player.skip(15);
+          }}
+        />
+      </View>
+      <View style={styles.download}>
+        <DownloadAction
+          track={track}
+          onNeedSignIn={() =>
+            openSignIn(navigation, {
+              tab: 'ArchiveTab',
+              screen: 'FanPerformanceDetail',
+              params: { id },
+            })
+          }
+        />
+      </View>
+    </View>;
+  } else if (isRestoring) {
+    playerContent = <View style={styles.player} testID={testIds.fanPerformanceSessionRestoring}>
+      <Text style={[type.body, { color: c.textSecondary }]}>Restoring your session…</Text>
+    </View>;
+  } else {
+    playerContent = <View style={styles.player}>
+      <Text style={[type.body, { color: c.textSecondary }]}>
+        Sign in to play this recording. Streaming uses the same member-gated audio path as the
+        website.
+      </Text>
+      <View style={{ marginTop: space.base }}>
+        <Button
+          label="Sign in"
+          onPress={() =>
+            openSignIn(navigation, {
+              tab: 'ArchiveTab',
+              screen: 'FanPerformanceDetail',
+              params: { id },
+            })
+          }
+        />
+      </View>
+    </View>;
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.scroll, { backgroundColor: c.surfacePage }]}
@@ -117,114 +228,7 @@ function FanPerformancePlayerPanel({ navigation, route }: Props) {
         <Text style={[type.body, { color: c.textSecondary, marginTop: space.xl }]}>{description}</Text>
       ) : null}
 
-      {accessToken || isSignedIn ? (
-        <View style={styles.player}>
-          <Pressable
-            accessibilityRole="adjustable"
-            accessibilityLabel="Seek"
-            accessibilityValue={{
-              min: 0,
-              max: Math.round(duration),
-              now: Math.round(currentTime),
-            }}
-            onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
-            onPress={(event) => {
-              if (barWidth <= 0 || duration <= 0) {
-                return;
-              }
-              if (!active) {
-                player.play(track, queue);
-              }
-              player.seekTo((event.nativeEvent.locationX / barWidth) * duration);
-            }}
-            style={[styles.seekTrack, { backgroundColor: c.hairline }]}
-          >
-            <View
-              style={[
-                styles.seekFill,
-                { width: `${progress * 100}%`, backgroundColor: c.accentPrimary },
-              ]}
-            />
-          </Pressable>
-          <View style={styles.times}>
-            <Text style={[type.meta, { color: c.textMuted }]}>{formatTrackDuration(currentTime)}</Text>
-            <Text style={[type.meta, { color: c.textMuted }]}>{formatTrackDuration(duration)}</Text>
-          </View>
-          {player.error && active ? (
-            <Text style={[type.caption, { color: c.danger, marginTop: space.sm }]}>{player.error}</Text>
-          ) : null}
-          <View style={styles.controls}>
-            <IconButton
-              icon={SkipBack}
-              accessibilityLabel="Skip back 15 seconds"
-              onPress={() => {
-                if (!active) {
-                  player.play(track, queue);
-                }
-                player.skip(-15);
-              }}
-            />
-            <IconButton
-              icon={active && player.playing ? Pause : Play}
-              accessibilityLabel={active && player.playing ? 'Pause' : 'Play'}
-              tone="accent"
-              size={24}
-              onPress={() => {
-                if (!active) {
-                  player.play(track, queue);
-                  return;
-                }
-                player.toggle();
-              }}
-            />
-            <IconButton
-              icon={SkipForward}
-              accessibilityLabel="Skip forward 15 seconds"
-              onPress={() => {
-                if (!active) {
-                  player.play(track, queue);
-                }
-                player.skip(15);
-              }}
-            />
-          </View>
-          <View style={styles.download}>
-            <DownloadAction
-              track={track}
-              onNeedSignIn={() =>
-                openSignIn(navigation, {
-                  tab: 'ArchiveTab',
-                  screen: 'FanPerformanceDetail',
-                  params: { id },
-                })
-              }
-            />
-          </View>
-        </View>
-      ) : isRestoring ? (
-        <View style={styles.player} testID={testIds.fanPerformanceSessionRestoring}>
-          <Text style={[type.body, { color: c.textSecondary }]}>Restoring your session…</Text>
-        </View>
-      ) : (
-        <View style={styles.player}>
-          <Text style={[type.body, { color: c.textSecondary }]}>
-            Sign in to play this recording. Streaming uses the same member-gated audio path as the
-            website.
-          </Text>
-          <View style={{ marginTop: space.base }}>
-            <Button
-              label="Sign in"
-              onPress={() =>
-                openSignIn(navigation, {
-                  tab: 'ArchiveTab',
-                  screen: 'FanPerformanceDetail',
-                  params: { id },
-                })
-              }
-            />
-          </View>
-        </View>
-      )}
+      {playerContent}
 
       {accessToken || isSignedIn ? (
         <View style={styles.report} testID={testIds.fanPerformanceReport}>

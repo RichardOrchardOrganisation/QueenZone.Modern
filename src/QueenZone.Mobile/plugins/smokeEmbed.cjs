@@ -100,11 +100,10 @@ function applyAndroidReleaseDebugSigning(contents) {
 function applyAndroidManifestCleartextTraffic(androidManifest) {
   const application = androidManifest?.manifest?.application?.[0];
   if (!application) {
-    return androidManifest;
+    return;
   }
   application.$ = application.$ ?? {};
   application.$['android:usesCleartextTraffic'] = 'true';
-  return androidManifest;
 }
 
 /** Reuse the always-on Gradle JVM floor; smokeEmbed no longer owns the heap bump. */
@@ -114,7 +113,7 @@ function applyAndroidSmokeGradleProperties(properties) {
 
 function withAndroidSmokeEmbedManifest(config) {
   return withAndroidManifest(config, (mod) => {
-    mod.modResults = applyAndroidManifestCleartextTraffic(mod.modResults);
+    applyAndroidManifestCleartextTraffic(mod.modResults);
     return mod;
   });
 }

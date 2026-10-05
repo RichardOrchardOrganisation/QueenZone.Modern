@@ -17,7 +17,7 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
 {
     protected const string ActiveKey = "active";
 
-    private static readonly TimeSpan StaleRunTimeout = TimeSpan.FromHours(3);
+    private static TimeSpan StaleRunTimeout => TimeSpan.FromHours(3);
 
     private static readonly Expression<Func<TEntity, TStatus>> StatusProperty =
         Property<TStatus>(nameof(IRunRequestEntity<TStatus>.Status));

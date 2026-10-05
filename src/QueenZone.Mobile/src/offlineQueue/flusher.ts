@@ -156,6 +156,63 @@ async function sendItem(
   }
 }
 
+type FlushContext = {
+  accessToken: string;
+  signal: AbortSignal;
+  isCurrent: () => boolean;
+};
+
+async function recordSendFailure(item: OfflineQueueItem, error: unknown, context: FlushContext): Promise<'continue' | 'block' | 'stop'> {
+  if (!context.isCurrent()) return 'stop';
+  if (isOfflineQueueItemDiscarded(item)) return 'continue';
+  const kind = classifyQueueFailure(error);
+  const attemptCount = item.attemptCount + 1;
+  const lastError = error instanceof Error ? error.message : 'Send failed.';
+  if (kind === 'permanent' || exhaustedRetries(attemptCount)) {
+    await updateOfflineItem(item.operationId, {
+      state: 'needs_attention',
+      attemptCount,
+      lastError,
+    }, context.isCurrent);
+    return 'continue';
+  }
+  await updateOfflineItem(item.operationId, {
+    state: 'queued',
+    attemptCount,
+    nextRetryAt: nextRetryAt(attemptCount, error),
+    lastError,
+  }, context.isCurrent);
+  if (kind === 'auth' || kind === 'systemic' || kind === 'retry') return 'stop';
+  return 'block';
+}
+
+async function flushItem(item: OfflineQueueItem, context: FlushContext): Promise<'continue' | 'block' | 'stop'> {
+  const sending = await updateOfflineItem(item.operationId, { state: 'sending' }, context.isCurrent);
+  if (!context.isCurrent()) return 'stop';
+  if (!sending || isOfflineQueueItemDiscarded(sending)) return 'continue';
+  try {
+    await sendItem(sending, context.accessToken, context.signal, context.isCurrent);
+    if (!context.isCurrent()) return 'stop';
+    await removeOfflineItem(item.operationId, context.isCurrent);
+    return 'continue';
+  } catch (error) {
+    return recordSendFailure(item, error, context);
+  }
+}
+
+async function flushItems(items: OfflineQueueItem[], context: FlushContext): Promise<void> {
+  const blockedTargets = new Set<string>();
+  for (const item of items) {
+    if (!context.isCurrent()) return;
+    if (isOfflineQueueItemDiscarded(item)) continue;
+    const key = targetKey(item);
+    if (blockedTargets.has(key)) continue;
+    const outcome = await flushItem(item, context);
+    if (outcome === 'stop') return;
+    if (outcome === 'block') blockedTargets.add(key);
+  }
+}
+
 export async function flushOfflineQueue(): Promise<void> {
   if (activeFlush) {
     return;
@@ -190,49 +247,7 @@ export async function flushOfflineQueue(): Promise<void> {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     if (!isCurrent()) return;
 
-    const blockedTargets = new Set<string>();
-
-    for (const item of items) {
-      if (!isCurrent()) return;
-      if (isOfflineQueueItemDiscarded(item)) continue;
-      const key = targetKey(item);
-      if (blockedTargets.has(key)) {
-        continue;
-      }
-
-      const sending = await updateOfflineItem(item.operationId, { state: 'sending' }, isCurrent);
-      if (!isCurrent()) return;
-      if (!sending || isOfflineQueueItemDiscarded(sending)) continue;
-      try {
-        await sendItem(sending, accessToken, controller.signal, isCurrent);
-        if (!isCurrent()) return;
-        await removeOfflineItem(item.operationId, isCurrent);
-      } catch (err) {
-        if (!isCurrent()) return;
-        if (isOfflineQueueItemDiscarded(item)) continue;
-        const kind = classifyQueueFailure(err);
-        const attemptCount = item.attemptCount + 1;
-        if (kind === 'permanent' || exhaustedRetries(attemptCount)) {
-          await updateOfflineItem(item.operationId, {
-            state: 'needs_attention',
-            attemptCount,
-            lastError: err instanceof Error ? err.message : 'Send failed.',
-          }, isCurrent);
-          continue;
-        }
-
-        await updateOfflineItem(item.operationId, {
-          state: 'queued',
-          attemptCount,
-          nextRetryAt: nextRetryAt(attemptCount, err),
-          lastError: err instanceof Error ? err.message : 'Send failed.',
-        }, isCurrent);
-        blockedTargets.add(key);
-        if (kind === 'auth' || kind === 'systemic' || kind === 'retry') {
-          return;
-        }
-      }
-    }
+    await flushItems(items, { accessToken, signal: controller.signal, isCurrent });
   } finally {
     if (activeFlush === controller) activeFlush = null;
     if (memberId && isCurrent()) {

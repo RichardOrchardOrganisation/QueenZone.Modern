@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { memo } from 'react';
 import { ChevronRight } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -39,46 +40,51 @@ export const HomeMessagesSection = memo(function HomeMessagesSection({
     );
   }
 
+  let messagesContent: ReactNode;
+  if (messagesView.kind === 'skeleton') {
+    messagesContent = <View style={styles.skeletonList}>
+      {[0, 1].map((key) => (
+        <View key={key} style={[styles.skeletonRow, { backgroundColor: c.surfaceCard }]} />
+      ))}
+    </View>;
+  } else if (messagesView.kind === 'error') {
+    messagesContent = <SectionErrorBlock message={messagesView.message} onRetry={onReloadMessages} />;
+  } else if (messagesView.kind === 'content' && messagesView.data !== null && messagesView.data.items.length > 0) {
+    messagesContent = messagesView.data.items.map((conversation) => (
+      <Pressable
+        key={conversation.conversationId}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={conversation.otherParticipantDisplayName}
+        onPress={() => onOpenConversation(conversation.conversationId)}
+        style={[styles.row, { borderTopColor: c.hairline }]}
+      >
+        <View style={[styles.avatar, { backgroundColor: c.surfaceSheet, borderColor: c.border }]}>
+          <Text style={[styles.avatarLabel, { color: c.textPrimary }]}>
+            {initials(conversation.otherParticipantDisplayName)}
+          </Text>
+        </View>
+        <View style={styles.rowText}>
+          <Text style={[styles.rowTitle, { color: c.textPrimary }]}>
+            {conversation.otherParticipantDisplayName}
+          </Text>
+          <Text numberOfLines={1} style={[type.body, styles.rowPreview, { color: c.textSecondary }]}>
+            {conversation.lastMessagePreview}
+          </Text>
+        </View>
+        {conversation.hasUnread ? (
+          <View style={[styles.unreadDot, { backgroundColor: c.accentPrimary }]} />
+        ) : null}
+      </Pressable>
+    ));
+  } else {
+    messagesContent = null;
+  }
+
   return (
     <View style={[styles.card, { backgroundColor: c.surfaceRaised, borderColor: c.hairline }]}>
       <SectionHeader title="Your messages" actionLabel="Inbox" onAction={onOpenInbox} />
-      {messagesView.kind === 'skeleton' ? (
-        <View style={styles.skeletonList}>
-          {[0, 1].map((key) => (
-            <View key={key} style={[styles.skeletonRow, { backgroundColor: c.surfaceCard }]} />
-          ))}
-        </View>
-      ) : messagesView.kind === 'error' ? (
-        <SectionErrorBlock message={messagesView.message} onRetry={onReloadMessages} />
-      ) : messagesView.kind === 'content' && messagesView.data !== null && messagesView.data.items.length > 0 ? (
-        messagesView.data.items.map((conversation) => (
-          <Pressable
-            key={conversation.conversationId}
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={conversation.otherParticipantDisplayName}
-            onPress={() => onOpenConversation(conversation.conversationId)}
-            style={[styles.row, { borderTopColor: c.hairline }]}
-          >
-            <View style={[styles.avatar, { backgroundColor: c.surfaceSheet, borderColor: c.border }]}>
-              <Text style={[styles.avatarLabel, { color: c.textPrimary }]}>
-                {initials(conversation.otherParticipantDisplayName)}
-              </Text>
-            </View>
-            <View style={styles.rowText}>
-              <Text style={[styles.rowTitle, { color: c.textPrimary }]}>
-                {conversation.otherParticipantDisplayName}
-              </Text>
-              <Text numberOfLines={1} style={[type.body, styles.rowPreview, { color: c.textSecondary }]}>
-                {conversation.lastMessagePreview}
-              </Text>
-            </View>
-            {conversation.hasUnread ? (
-              <View style={[styles.unreadDot, { backgroundColor: c.accentPrimary }]} />
-            ) : null}
-          </Pressable>
-        ))
-      ) : null}
+      {messagesContent}
     </View>
   );
 });

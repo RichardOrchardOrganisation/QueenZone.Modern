@@ -60,6 +60,15 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
       ? quoteId > 0 ? `queenzone://quotes/${quoteId}` : 'queenzone://home'
       : eventId > 0 ? `queenzone://timeline/${eventId}` : 'queenzone://timeline';
 
+  let heading: string;
+  if (showTrivia) {
+    heading = 'QUEEN FACTS';
+  } else if (showDay || !face) {
+    heading = 'ON THIS DAY';
+  } else {
+    heading = 'QUEEN QUOTES';
+  }
+
   return (
     <VStack
       alignment="leading"
@@ -71,7 +80,7 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
       ]}
     >
       <Text modifiers={[foregroundStyle('#B89A4A'), font({ size: 10, weight: 'semibold' })]}>
-        {showTrivia ? 'QUEEN FACTS' : showDay || !face ? 'ON THIS DAY' : 'QUEEN QUOTES'}
+        {heading}
       </Text>
       {showDay ? (
         <Text

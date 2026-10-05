@@ -17,6 +17,7 @@ namespace QueenZone.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Snapshot-only migration: there are no database operations to reverse.
         }
     }
 }

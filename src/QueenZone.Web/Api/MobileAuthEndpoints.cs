@@ -222,24 +222,25 @@ public static class MobileAuthEndpoints
         }
 
         var grantType = form["grant_type"].ToString();
-        var exchanged = string.Equals(grantType, "refresh_token", StringComparison.Ordinal)
-            ? await mobileAuth.ExchangeRefreshTokenAsync(
+        var exchanged = grantType switch
+        {
+            "refresh_token" => await mobileAuth.ExchangeRefreshTokenAsync(
                 form["client_id"].ToString(),
                 form["refresh_token"].ToString(),
-                cancellationToken)
-            : string.Equals(grantType, "password", StringComparison.Ordinal)
-            ? await mobileAuth.ExchangePasswordGrantAsync(
+                cancellationToken),
+            "password" => await mobileAuth.ExchangePasswordGrantAsync(
                 form["client_id"].ToString(),
                 form["username"].ToString(),
                 form["password"].ToString(),
-                cancellationToken)
-            : await mobileAuth.ExchangeAuthorizationCodeAsync(
+                cancellationToken),
+            _ => await mobileAuth.ExchangeAuthorizationCodeAsync(
                 grantType,
                 form["client_id"].ToString(),
                 form["redirect_uri"].ToString(),
                 form["code"].ToString(),
                 form["code_verifier"].ToString(),
-                cancellationToken);
+                cancellationToken),
+        };
 
         if (!exchanged.Success)
         {

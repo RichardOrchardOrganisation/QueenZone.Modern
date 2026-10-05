@@ -16,22 +16,25 @@ export function createMemoryStorage(
   const map = new Map<string, string>(Object.entries(initial ?? {}));
 
   return {
-    async getItem(key) {
-      return map.has(key) ? map.get(key)! : null;
+    getItem(key) {
+      return Promise.resolve(map.get(key) ?? null);
     },
-    async setItem(key, value) {
+    setItem(key, value) {
       map.set(key, value);
+      return Promise.resolve();
     },
-    async removeItem(key) {
+    removeItem(key) {
       map.delete(key);
+      return Promise.resolve();
     },
-    async getAllKeys() {
-      return [...map.keys()];
+    getAllKeys() {
+      return Promise.resolve([...map.keys()]);
     },
-    async multiRemove(keys) {
+    multiRemove(keys) {
       for (const key of keys) {
         map.delete(key);
       }
+      return Promise.resolve();
     },
   };
 }

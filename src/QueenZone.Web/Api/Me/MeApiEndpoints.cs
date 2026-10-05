@@ -21,9 +21,12 @@ public static class MeApiEndpoints
                 CancellationToken cancellationToken) =>
             {
                 var progress = await receipts.GetProgressAsync(receipt, cancellationToken);
-                return progress is null
-                    ? Results.NotFound()
-                    : Results.Ok(new DeletionProgressResponse(progress.IsComplete ? "complete" : "processing"));
+                if (progress is null)
+                {
+                    return Results.NotFound();
+                }
+
+                return Results.Ok(new DeletionProgressResponse(progress.IsComplete ? "complete" : "processing"));
             })
             .WithName("GetAccountDeletionStatus")
             .WithGroupName(ApiV1.OpenApiDocumentName)

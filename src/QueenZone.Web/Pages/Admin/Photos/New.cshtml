@@ -12,9 +12,9 @@
 
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
     {
-      <p class="qz-account-notice qz-account-notice--@(Model.StatusMessageKind == "error" ? "error" : "success")" role="status">
+      <output class="qz-status-block qz-account-notice qz-account-notice--@(Model.StatusMessageKind == "error" ? "error" : "success")">
         @Model.StatusMessage
-      </p>
+      </output>
     }
 
     <form class="admin-form" method="post" action="/admin/photos/create" enctype="multipart/form-data">

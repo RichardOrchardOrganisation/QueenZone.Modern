@@ -8,7 +8,7 @@
   </span>
   <span class="qz-forum-video__disclosure">Loading this video connects to YouTube. YouTube may collect data after loading.</span>
   <button type="button" class="qz-button qz-forum-video__load" data-video-load hidden>Load YouTube video</button>
-  <span class="qz-forum-video__status" data-video-status role="status" aria-live="polite"></span>
+  <output class="qz-forum-video__status" data-video-status aria-live="polite"></output>
   <span class="qz-forum-video__fallback"><a href="@Model.Video.WatchUrl" target="_blank" rel="noopener noreferrer">Watch on YouTube</a></span>
   <span class="qz-forum-video__original">Original link: @Html.Raw(Model.OriginalLink)</span>
 </span>

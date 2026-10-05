@@ -87,6 +87,19 @@ Keep executable SQL under `docs/sql/` in scope. Its path is documentation-orient
 but the files are run during migration and import work. Plain Markdown has no
 reliability rules to fix.
 
+**SQL dialect mapping:** these scripts use SQL Server T-SQL. SonarCloud defaults
+`.sql` to the Oracle PL/SQL analyzer and `.tsql` to T-SQL, which produced 21
+above-Low PL/SQL findings on SQL Server scripts (#2080). Keep the project
+language settings at `sonar.tsql.file.suffixes = .tsql,.sql` and
+`sonar.plsql.file.suffixes = tab,pkb`. File suffix settings are not among the
+supported `.sonarcloud.properties` options for Automatic Analysis, so this
+language selection lives in Administration → General Settings → Languages.
+This is separate from the Analysis Scope fields, which remain empty. All
+executable SQL stays in analysis; reassess the T-SQL results after the next scan.
+
+References: [Automatic Analysis configuration](https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/automatic-analysis#additional-analysis-configuration)
+and [language file suffixes](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/project-analysis/setting-analysis-scope/excluding-based-on-file-extension).
+
 Do not exclude `scripts/`, `.github/`, or `infra/` just to lower counts,
 and do not drop tests from analysis entirely — they stay in the test
 set. `SonarQube.Analysis.xml` and scanner CLI args apply only to a CI

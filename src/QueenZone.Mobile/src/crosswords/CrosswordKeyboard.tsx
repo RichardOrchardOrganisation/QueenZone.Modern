@@ -15,7 +15,10 @@ export function CrosswordKeyboard({ onLetter, onBackspace, disabled }: Props) {
       {[...row].map(letter => <Pressable key={letter} testID={`crossword-key-${letter === '⌫' ? 'backspace' : letter}`}
         accessibilityRole="button" accessibilityLabel={letter === '⌫' ? 'Backspace' : letter}
         accessibilityState={{ disabled }} disabled={disabled} onPress={() => press(letter)}
-        style={({ pressed }) => [styles.key, { backgroundColor: c.surfaceCard, borderColor: c.borderStrong, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 }]}>
+        style={({ pressed }) => {
+          const activeOpacity = pressed ? 0.7 : 1;
+          return [styles.key, { backgroundColor: c.surfaceCard, borderColor: c.borderStrong, opacity: disabled ? 0.4 : activeOpacity }];
+        }}>
         <Text style={[styles.letter, { color: c.textPrimary }]}>{letter}</Text>
       </Pressable>)}
     </View>)}

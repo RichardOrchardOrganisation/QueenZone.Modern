@@ -93,8 +93,8 @@ export function ThemeProvider(props: Props) {
     });
   }, []);
 
-  const mode: ThemeMode =
-    preference === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : preference;
+  const systemMode: ThemeMode = systemScheme === 'light' ? 'light' : 'dark';
+  const mode: ThemeMode = preference === 'system' ? systemMode : preference;
 
   const value = useMemo<ThemeContextValue>(
     () => ({

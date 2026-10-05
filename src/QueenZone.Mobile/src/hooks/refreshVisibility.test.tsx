@@ -36,7 +36,8 @@ describe('waitForMinimumRefreshVisibility', () => {
 
   it('skips the timer when the load already covered the min duration', async () => {
     const startedAt = Date.now() - MIN_PULL_TO_REFRESH_VISIBLE_MS;
-    await waitForMinimumRefreshVisibility(startedAt);
+    await expect(waitForMinimumRefreshVisibility(startedAt)).resolves.toBeUndefined();
+    expect(jest.getTimerCount()).toBe(0);
   });
 
   it('resolves immediately when the hold is aborted', async () => {
@@ -44,6 +45,7 @@ describe('waitForMinimumRefreshVisibility', () => {
     const startedAt = Date.now();
     const pending = waitForMinimumRefreshVisibility(startedAt, controller.signal);
     controller.abort();
-    await pending;
+    await expect(pending).resolves.toBeUndefined();
+    expect(jest.getTimerCount()).toBe(0);
   });
 });

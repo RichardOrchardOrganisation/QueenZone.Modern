@@ -398,7 +398,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT COALESCE(
+    SELECT ISNULL(
         (SELECT TotalThreads FROM dbo.ModernForumArchiveReadStats WHERE Id = 1),
         (SELECT CONVERT(int, COUNT_BIG(*)) FROM dbo.ModernForumThread WHERE IsHidden = 0));
 END;
@@ -409,7 +409,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT COALESCE(
+    SELECT ISNULL(
         (SELECT SitemapTopicCount FROM dbo.ModernForumArchiveReadStats WHERE Id = 1),
         (SELECT CONVERT(int, COUNT_BIG(*)) FROM dbo.ModernForumThread WHERE IsHidden = 0 AND NULLIF(LTRIM(RTRIM(Title)), '') IS NOT NULL));
 END;

@@ -65,6 +65,7 @@ export function PlaceholderScreen({
           {actions.map((action) => {
             const isOutline = action.variant === 'outline' || action.variant === 'ghost';
             const isGhost = action.variant === 'ghost';
+            const outlineBorderWidth = isOutline ? 1 : 0;
             return (
               <Pressable
                 key={action.label}
@@ -76,7 +77,7 @@ export function PlaceholderScreen({
                   {
                     backgroundColor: isOutline ? 'transparent' : c.accentPrimary,
                     borderColor: c.border,
-                    borderWidth: isGhost ? 0 : isOutline ? 1 : 0,
+                    borderWidth: isGhost ? 0 : outlineBorderWidth,
                   },
                   pressed ? styles.buttonPressed : null,
                 ]}

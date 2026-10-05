@@ -193,13 +193,11 @@ resolve() {
   local release_sha="${3:-}"
   local attempt runs_json run_id
 
-  if [[ -n "${release_sha}" ]]; then
-    if ! compare_reuse_trees "${head_sha}" "${release_sha}"; then
-      echo "found=false"
-      echo "run_id="
-      echo "run_head_sha="
-      return 0
-    fi
+  if [[ -n "${release_sha}" ]] && ! compare_reuse_trees "${head_sha}" "${release_sha}"; then
+    echo "found=false"
+    echo "run_id="
+    echo "run_head_sha="
+    return 0
   fi
 
   for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do

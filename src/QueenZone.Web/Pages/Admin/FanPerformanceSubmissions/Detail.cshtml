@@ -16,9 +16,9 @@
 
   @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
   {
-    <p class="qz-account-notice @(Model.StatusMessageKind == "error" ? "qz-account-notice--error" : "qz-account-notice--success")" role="status">
+    <output class="qz-status-block qz-account-notice @(Model.StatusMessageKind == "error" ? "qz-account-notice--error" : "qz-account-notice--success")">
       @Model.StatusMessage
-    </p>
+    </output>
   }
 
   <div class="admin-review-layout">
