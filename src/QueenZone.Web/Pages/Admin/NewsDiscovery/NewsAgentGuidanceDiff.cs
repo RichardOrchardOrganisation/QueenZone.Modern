@@ -12,13 +12,13 @@ public static class NewsAgentGuidanceDiff
         {
             var publishedLine = i < left.Length ? left[i] : null;
             var draftLine = i < right.Length ? right[i] : null;
-            var kind = publishedLine == draftLine
-                ? NewsAgentGuidanceDiffKind.Unchanged
-                : publishedLine is null
-                    ? NewsAgentGuidanceDiffKind.Added
-                    : draftLine is null
-                        ? NewsAgentGuidanceDiffKind.Removed
-                        : NewsAgentGuidanceDiffKind.Changed;
+            var kind = (publishedLine, draftLine) switch
+            {
+                _ when publishedLine == draftLine => NewsAgentGuidanceDiffKind.Unchanged,
+                (null, _) => NewsAgentGuidanceDiffKind.Added,
+                (_, null) => NewsAgentGuidanceDiffKind.Removed,
+                _ => NewsAgentGuidanceDiffKind.Changed,
+            };
             lines.Add(new NewsAgentGuidanceDiffLine(kind, publishedLine, draftLine));
         }
 

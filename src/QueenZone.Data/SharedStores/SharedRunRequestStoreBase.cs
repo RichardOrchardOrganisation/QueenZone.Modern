@@ -7,7 +7,7 @@ namespace QueenZone.Data;
 public abstract class SharedRunRequestStoreBase<TRequest>
     where TRequest : class, IRunRequestRecord<TRequest>
 {
-    private static readonly TimeSpan StaleRunTimeout = TimeSpan.FromHours(3);
+    private static TimeSpan StaleRunTimeout => TimeSpan.FromHours(3);
 
     private readonly List<TRequest> requests = [];
     private long nextId = 1;

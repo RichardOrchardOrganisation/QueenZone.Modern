@@ -107,7 +107,12 @@ public sealed class EfAdminFreddieTributeRepository : IAdminFreddieTributeReposi
         var safePage = Math.Max(page, 1);
         var safePageSize = Math.Clamp(pageSize, 1, 100);
         var offset = (safePage - 1) * safePageSize;
-        int? visibility = filter.IsVisible is null ? null : filter.IsVisible.Value ? 1 : 0;
+        int? visibility = filter.IsVisible switch
+        {
+            true => 1,
+            false => 0,
+            null => null,
+        };
         var search = string.IsNullOrWhiteSpace(filter.Search) ? null : filter.Search.Trim();
         var duplicatesOnly = filter.DuplicatesOnly ? 1 : 0;
         var visibilityParameter = (object?)visibility ?? DBNull.Value;
@@ -150,9 +155,16 @@ public sealed class EfAdminFreddieTributeRepository : IAdminFreddieTributeReposi
         var sql = expectedIsVisible is bool expected
             ? "UPDATE dbo.FREDDIE_T SET DISPLAY = {0} WHERE ID = {1} AND DISPLAY = {2}"
             : "UPDATE dbo.FREDDIE_T SET DISPLAY = {0} WHERE ID = {1}";
-        object[] parameters = expectedIsVisible is bool expectedDisplay
-            ? [isVisible ? 1 : 0, id, expectedDisplay ? 1 : 0]
-            : [isVisible ? 1 : 0, id];
+        var displayValue = isVisible ? 1 : 0;
+        object[] parameters;
+        if (expectedIsVisible is bool expectedDisplay)
+        {
+            parameters = [displayValue, id, expectedDisplay ? 1 : 0];
+        }
+        else
+        {
+            parameters = [displayValue, id];
+        }
         var affected = await dbContext.Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
         await EnsureTributeWriteAsync(id, affected, cancellationToken);
     }
@@ -166,9 +178,15 @@ public sealed class EfAdminFreddieTributeRepository : IAdminFreddieTributeReposi
         var sql = expectedIsVisible is bool
             ? "DELETE FROM dbo.FREDDIE_T WHERE ID = {0} AND DISPLAY = {1}"
             : "DELETE FROM dbo.FREDDIE_T WHERE ID = {0}";
-        object[] parameters = expectedIsVisible is bool expectedDisplay
-            ? [id, expectedDisplay ? 1 : 0]
-            : [id];
+        object[] parameters;
+        if (expectedIsVisible is bool expectedDisplay)
+        {
+            parameters = [id, expectedDisplay ? 1 : 0];
+        }
+        else
+        {
+            parameters = [id];
+        }
         var affected = await dbContext.Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
         await EnsureTributeWriteAsync(id, affected, cancellationToken);
     }

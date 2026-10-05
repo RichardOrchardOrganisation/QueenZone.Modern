@@ -148,11 +148,8 @@ public class NewsAgentUrlIngestionService(
             var summary = wasDuplicate
                 ? $"Reused candidate #{candidate.Id} for {finalNormalized} (status {candidate.Status}"
                 : $"Created candidate #{candidate.Id} for {finalNormalized} (status {candidate.Status}";
-            summary += draftGenerated
-                ? "; draft generated)."
-                : generateDraft
-                    ? "; draft not generated)."
-                    : "; triage-only, no draft).";
+            var skippedDraftSummary = generateDraft ? "; draft not generated)." : "; triage-only, no draft).";
+            summary += draftGenerated ? "; draft generated)." : skippedDraftSummary;
 
             return new NewsAgentUrlIngestionResult(
                 0,

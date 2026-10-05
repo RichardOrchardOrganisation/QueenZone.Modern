@@ -36,9 +36,16 @@ public sealed class IndexModel(PublicQueryCacheService publicQueryCache) : PageM
             .ToList();
 
         var currentDecade = (DateTime.UtcNow.Year / 10 * 10).ToString() + "s";
-        SelectedDecade = Decades.Any(group => group.Decade == decade) ? decade
-            : Decades.Any(group => group.Decade == currentDecade) ? currentDecade
-            : Decades.LastOrDefault()?.Decade;
+        if (Decades.Any(group => group.Decade == decade))
+        {
+            SelectedDecade = decade;
+        }
+        else
+        {
+            SelectedDecade = Decades.Any(group => group.Decade == currentDecade)
+                ? currentDecade
+                : Decades.LastOrDefault()?.Decade;
+        }
         VisibleDecades = Decades.Where(group => group.Decade == SelectedDecade).ToList();
         VisibleEventCount = VisibleDecades.Sum(group => group.Events.Count);
 

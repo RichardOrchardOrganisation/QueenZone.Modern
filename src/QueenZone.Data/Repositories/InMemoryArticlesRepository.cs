@@ -32,8 +32,6 @@ public sealed class InMemoryArticlesRepository(IReadOnlyList<ArticleItem> seedAr
     {
         if (editorialArticles is null) return items;
         var overlays = await editorialArticles.GetPublishedLegacyOverlaysAsync(items.Select(x => x.Id), ct);
-        return items.Where(item => !overlays.TryGetValue(item.Id, out var edit) || edit.Status != EditorialArticleStatus.Unpublished).Select(item => overlays.TryGetValue(item.Id, out var edit)
-            ? item with { Title = edit.Title, Excerpt = edit.Excerpt, Body = string.IsNullOrEmpty(item.Body) ? string.Empty : edit.Body, PublishedAt = edit.PublishedAt.UtcDateTime, Source = edit.Source, CategoryName = edit.Category, ImageBlobKey = edit.ImageBlobKey, AuthorName = edit.AuthorName, Tags = edit.Tags }
-            : item).ToList();
+        return EditorialArticleOverlay.Apply(items, overlays);
     }
 }

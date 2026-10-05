@@ -77,10 +77,11 @@ public abstract class PhotoCategoryPageModel(PublicQueryCacheService publicQuery
             new BreadcrumbItem(category.Name, PhotoRoutes.GetCategoryPath(category.Slug, SizeFilter)),
         ];
 
+        var firstPageTitle = SizeFilter.IsActive
+            ? $"{category.Name} – {SizeFilter.Label} | Photography | QueenZone"
+            : $"{category.Name} | Photography | QueenZone";
         ViewData["Title"] = page <= 1
-            ? SizeFilter.IsActive
-                ? $"{category.Name} – {SizeFilter.Label} | Photography | QueenZone"
-                : $"{category.Name} | Photography | QueenZone"
+            ? firstPageTitle
             : $"{category.Name} | Photography – Page {page} | QueenZone";
         if (page <= 1)
         {

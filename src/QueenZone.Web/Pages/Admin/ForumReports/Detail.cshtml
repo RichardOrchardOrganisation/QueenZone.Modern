@@ -15,7 +15,7 @@
     <dt>Details</dt><dd>@(string.IsNullOrWhiteSpace(report.Details) ? "—" : report.Details)</dd>
     <dt>Status</dt><dd><partial name="_SubmissionStatusBadge" model="report.Status" /></dd>
     <dt>Current post state</dt><dd>@(Model.CurrentPost is null ? "Hidden or removed" : "Visible")</dd>
-    <dt>Current member state</dt><dd>@(Model.ReportedMember is null ? "No active member account" : Model.ReportedMember.IsSuspended ? "Suspended" : "Active")</dd>
+    <dt>Current member state</dt><dd>@(Model.ReportedMember switch { null => "No active member account", { IsSuspended: true } => "Suspended", _ => "Active" })</dd>
     <dt>Reported at</dt><dd>@report.CreatedAt.ToString("u")</dd>
     <dt>Previous reports involving author</dt><dd>@report.PreviousAuthorReportCount</dd>
   </dl>

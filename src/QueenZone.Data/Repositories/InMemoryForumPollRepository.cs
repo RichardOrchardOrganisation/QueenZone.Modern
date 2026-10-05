@@ -114,11 +114,17 @@ public sealed class InMemoryForumPollRepository(TimeProvider? timeProvider = nul
                     "This poll only allows one choice.");
             }
 
-            var maxChoices = !poll.IsMultiChoice
-                ? 1
-                : poll.MaxChoices is int max && max > 0
+            int maxChoices;
+            if (!poll.IsMultiChoice)
+            {
+                maxChoices = 1;
+            }
+            else
+            {
+                maxChoices = poll.MaxChoices is int max && max > 0
                     ? Math.Min(max, poll.Options.Count)
                     : poll.Options.Count;
+            }
 
             if (selected.Length > maxChoices)
             {

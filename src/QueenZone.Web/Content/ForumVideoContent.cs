@@ -80,9 +80,18 @@ public static partial class ForumVideoContent
             }
 
             var segments = uri.AbsolutePath.Split('/');
-            id = shortHost && segments.Length == 2 ? segments[1]
-                : !shortHost && segments.Length == 3 && segments[1] is "shorts" or "embed" ? segments[2]
-                : null;
+            if (shortHost && segments.Length == 2)
+            {
+                id = segments[1];
+            }
+            else if (!shortHost && segments.Length == 3 && segments[1] is "shorts" or "embed")
+            {
+                id = segments[2];
+            }
+            else
+            {
+                id = null;
+            }
         }
 
         if (id is null || !VideoIdPattern().IsMatch(id))

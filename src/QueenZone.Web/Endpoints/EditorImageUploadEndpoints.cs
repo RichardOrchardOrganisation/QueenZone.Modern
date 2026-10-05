@@ -243,7 +243,6 @@ public static class EditorImageUploadEndpoints
             await using (processed.Thumbnail)
             {
                 fullBlobName = BuildBlobName(context, ".webp");
-                thumbBlobName = UgcProxyPaths.ToThumbBlobName(fullBlobName);
 
                 var fullResult = await blobUploadService.UploadAsync(
                     processed.FullImage,
