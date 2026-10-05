@@ -214,14 +214,7 @@ public static partial class NewsFeedParser
             }
         }
 
-        if (string.IsNullOrWhiteSpace(link)
-            || string.IsNullOrWhiteSpace(title)
-            || !NewsDiscoveryUrlFilter.IsLikelyArticleUrl(link))
-        {
-            return null;
-        }
-
-        return new FetchedNewsItem(link, title, publishedAt, TruncateExcerpt(description));
+        return CreateFetchedItem(link, title, publishedAt, description);
     }
 
     private static FetchedNewsItem? ReadEntry(XmlReader reader)
@@ -248,7 +241,7 @@ public static partial class NewsFeedParser
                     break;
                 case "summary":
                 case "content":
-                    summary ??= StripHtml(subtree.ReadElementContentAsString().Trim());
+                    summary = ReadFirstAtomSummary(subtree, summary);
                     break;
                 case "published":
                 case "updated":
@@ -261,6 +254,20 @@ public static partial class NewsFeedParser
             }
         }
 
+        return CreateFetchedItem(link, title, publishedAt, summary);
+    }
+
+    private static string ReadFirstAtomSummary(XmlReader reader, string? summary)
+    {
+        if (summary is not null)
+        {
+            return summary;
+        }
+        return StripHtml(reader.ReadElementContentAsString().Trim());
+    }
+
+    private static FetchedNewsItem? CreateFetchedItem(string? link, string? title, DateTime? publishedAt, string? excerpt)
+    {
         if (string.IsNullOrWhiteSpace(link)
             || string.IsNullOrWhiteSpace(title)
             || !NewsDiscoveryUrlFilter.IsLikelyArticleUrl(link))
@@ -268,7 +275,7 @@ public static partial class NewsFeedParser
             return null;
         }
 
-        return new FetchedNewsItem(link, title, publishedAt, TruncateExcerpt(summary));
+        return new FetchedNewsItem(link, title, publishedAt, TruncateExcerpt(excerpt));
     }
 
     private static string BuildTitleFromUrl(string url)
