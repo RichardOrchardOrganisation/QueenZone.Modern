@@ -68,14 +68,7 @@ public sealed class ForumPostWriteServiceTests : IClassFixture<QueenZoneWebAppli
 
         using var scope = factory.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
-        var outcome = await service.CreateTopicAsync(
-            Guid.NewGuid(),
-            "Service Tester",
-            1,
-            "Attachment rejection thread",
-            "Body with a bad attachment",
-            [file],
-            poll: null);
+        var outcome = await service.CreateTopicAsync(new NewForumTopicRequest(Guid.NewGuid(), "Service Tester", 1, "Attachment rejection thread", "Body with a bad attachment", [file], Poll: null));
 
         Assert.Equal(ForumWriteStatus.ValidationFailed, outcome.Status);
         Assert.Contains(outcome.FieldErrors, error =>
@@ -192,15 +185,7 @@ public sealed class ForumPostWriteServiceTests : IClassFixture<QueenZoneWebAppli
         var memberId = await CreateMemberAsync(scope, DateTime.UtcNow);
         var service = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
 
-        var outcome = await service.CreateTopicAsync(
-            memberId,
-            "QueenZone",
-            1,
-            "Trusted system news topic",
-            "Excerpt\n\nhttps://www.queenzone.org/news/1/trusted",
-            attachments: null,
-            poll: null,
-            trustedSystemAuthor: true);
+        var outcome = await service.CreateTopicAsync(new NewForumTopicRequest(memberId, "QueenZone", 1, "Trusted system news topic", "Excerpt\n\nhttps://www.queenzone.org/news/1/trusted", Attachments: null, Poll: null) { TrustedSystemAuthor = true });
 
         Assert.True(outcome.Succeeded);
         var repository = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
@@ -216,36 +201,14 @@ public sealed class ForumPostWriteServiceTests : IClassFixture<QueenZoneWebAppli
         var service = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
         for (var i = 0; i < ForumPostRateLimiter.MaxPostsPerMinute; i++)
         {
-            var blocked = await service.CreateTopicAsync(
-                memberId,
-                "Service Tester",
-                1,
-                $"Rate fill topic {i} xx",
-                "Body",
-                attachments: null,
-                poll: null);
+            var blocked = await service.CreateTopicAsync(new NewForumTopicRequest(memberId, "Service Tester", 1, $"Rate fill topic {i} xx", "Body", Attachments: null, Poll: null));
             Assert.True(blocked.Succeeded);
         }
 
-        var limited = await service.CreateTopicAsync(
-            memberId,
-            "Service Tester",
-            1,
-            "Rate limited topic xx",
-            "Body",
-            attachments: null,
-            poll: null);
+        var limited = await service.CreateTopicAsync(new NewForumTopicRequest(memberId, "Service Tester", 1, "Rate limited topic xx", "Body", Attachments: null, Poll: null));
         Assert.Equal(ForumWriteStatus.RateLimited, limited.Status);
 
-        var trusted = await service.CreateTopicAsync(
-            memberId,
-            "QueenZone",
-            1,
-            "Trusted rate bypass topic",
-            "Body with https://www.queenzone.org/news/2/x",
-            attachments: null,
-            poll: null,
-            trustedSystemAuthor: true);
+        var trusted = await service.CreateTopicAsync(new NewForumTopicRequest(memberId, "QueenZone", 1, "Trusted rate bypass topic", "Body with https://www.queenzone.org/news/2/x", Attachments: null, Poll: null) { TrustedSystemAuthor = true });
         Assert.True(trusted.Succeeded);
     }
 
@@ -271,14 +234,7 @@ public sealed class ForumPostWriteServiceTests : IClassFixture<QueenZoneWebAppli
     {
         using var scope = factory.Services.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<ForumPostWriteService>();
-        return await service.CreateTopicAsync(
-            memberId,
-            "Service Tester",
-            categoryId,
-            title,
-            body,
-            attachments: null,
-            poll: null);
+        return await service.CreateTopicAsync(new NewForumTopicRequest(memberId, "Service Tester", categoryId, title, body, Attachments: null, Poll: null));
     }
 
     private async Task<ForumWriteOutcome> CreateReplyAsync(Guid memberId, int topicId, string body)

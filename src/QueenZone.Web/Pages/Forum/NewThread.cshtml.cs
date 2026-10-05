@@ -72,15 +72,7 @@ public sealed class NewThreadModel(
             return Page();
         }
 
-        var outcome = await forumPostWrite.CreateTopicAsync(
-            memberId.Value,
-            User.Identity?.Name,
-            category.Id,
-            Subject,
-            Body,
-            Attachments,
-            newPoll,
-            cancellationToken);
+        var outcome = await forumPostWrite.CreateTopicAsync(new NewForumTopicRequest(memberId.Value, User.Identity?.Name, category.Id, Subject, Body, Attachments, newPoll), cancellationToken);
 
         return MapOutcome(outcome);
     }

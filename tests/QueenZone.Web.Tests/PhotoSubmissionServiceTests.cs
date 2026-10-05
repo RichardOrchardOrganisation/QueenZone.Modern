@@ -14,18 +14,15 @@ public sealed class PhotoSubmissionServiceTests
         var service = CreateService(out _);
 
         await using var png = await CreatePngAsync();
-        var emptyMember = await service.SubmitAsync(
-            Guid.Empty, "Title", null, null, null, null, png, "a.png");
+        var emptyMember = await service.SubmitAsync(Guid.Empty, new PhotoSubmissionDetails("Title", null, null, null, null), png, "a.png");
         Assert.False(emptyMember.Succeeded);
 
         png.Position = 0;
-        var emptyTitle = await service.SubmitAsync(
-            Guid.NewGuid(), "  ", null, null, null, null, png, "a.png");
+        var emptyTitle = await service.SubmitAsync(Guid.NewGuid(), new PhotoSubmissionDetails("  ", null, null, null, null), png, "a.png");
         Assert.False(emptyTitle.Succeeded);
 
         png.Position = 0;
-        var longTitle = await service.SubmitAsync(
-            Guid.NewGuid(), new string('t', 201), null, null, null, null, png, "a.png");
+        var longTitle = await service.SubmitAsync(Guid.NewGuid(), new PhotoSubmissionDetails(new string('t', 201), null, null, null, null), png, "a.png");
         Assert.False(longTitle.Succeeded);
     }
 
@@ -34,8 +31,7 @@ public sealed class PhotoSubmissionServiceTests
     {
         var service = CreateService(out _);
         await using var junk = new MemoryStream("not-image"u8.ToArray());
-        var result = await service.SubmitAsync(
-            Guid.NewGuid(), "Bad file", null, null, null, null, junk, "note.txt");
+        var result = await service.SubmitAsync(Guid.NewGuid(), new PhotoSubmissionDetails("Bad file", null, null, null, null), junk, "note.txt");
         Assert.False(result.Succeeded);
         Assert.Contains("JPEG", result.Error);
     }
@@ -45,8 +41,7 @@ public sealed class PhotoSubmissionServiceTests
     {
         var service = CreateService(out var blobs);
         await using var png = await CreatePngAsync();
-        var result = await service.SubmitAsync(
-            Guid.NewGuid(), "No extension", null, "Queen", 1986, null, png, "noext");
+        var result = await service.SubmitAsync(Guid.NewGuid(), new PhotoSubmissionDetails("No extension", null, "Queen", 1986, null), png, "noext");
         Assert.True(result.Succeeded);
         Assert.Contains("/original.png", result.Submission!.BlobPath);
         Assert.True(blobs.Exists(BlobUploadContainers.Photos, result.Submission.BlobPath));
@@ -59,8 +54,7 @@ public sealed class PhotoSubmissionServiceTests
     {
         var service = CreateService(out _);
         await using var png = await CreatePngAsync();
-        var result = await service.SubmitAsync(
-            Guid.NewGuid(), "Dimensions", null, null, null, null, png, "a.png");
+        var result = await service.SubmitAsync(Guid.NewGuid(), new PhotoSubmissionDetails("Dimensions", null, null, null, null), png, "a.png");
 
         Assert.True(result.Succeeded);
         Assert.Equal(40, result.Submission!.ImageWidthPx);
@@ -76,8 +70,7 @@ public sealed class PhotoSubmissionServiceTests
             new ThrowingBlobUploadService(),
             CreateDisabledUploadQuota());
         await using var png = await CreatePngAsync();
-        var result = await service.SubmitAsync(
-            Guid.NewGuid(), "Upload fail", null, null, null, null, png, "a.png");
+        var result = await service.SubmitAsync(Guid.NewGuid(), new PhotoSubmissionDetails("Upload fail", null, null, null, null), png, "a.png");
         Assert.False(result.Succeeded);
         Assert.Contains("upload failed", result.Error);
     }
@@ -104,11 +97,11 @@ public sealed class PhotoSubmissionServiceTests
 
         var memberId = Guid.NewGuid();
         await using var first = await CreatePngAsync();
-        var ok = await service.SubmitAsync(memberId, "One", null, null, null, null, first, "a.png");
+        var ok = await service.SubmitAsync(memberId, new PhotoSubmissionDetails("One", null, null, null, null), first, "a.png");
         Assert.True(ok.Succeeded);
 
         await using var second = await CreatePngAsync();
-        var blocked = await service.SubmitAsync(memberId, "Two", null, null, null, null, second, "b.png");
+        var blocked = await service.SubmitAsync(memberId, new PhotoSubmissionDetails("Two", null, null, null, null), second, "b.png");
         Assert.False(blocked.Succeeded);
         Assert.Contains("Daily upload", blocked.Error);
     }

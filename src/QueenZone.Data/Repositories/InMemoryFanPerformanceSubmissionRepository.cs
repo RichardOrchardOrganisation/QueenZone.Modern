@@ -404,24 +404,14 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
     {
         if (edits.Title is not null)
         {
-            var title = edits.Title.Trim();
-            if (title.Length == 0)
-            {
-                throw new InvalidOperationException("Title is required.");
-            }
-
-            entity.Title = title.Length <= 200 ? title : title[..200];
+            entity.Title = SubmissionInput.NormalizeOptional(edits.Title, 200)
+                ?? throw new InvalidOperationException("Title is required.");
         }
 
         if (edits.PerformedBy is not null)
         {
-            var performedBy = edits.PerformedBy.Trim();
-            if (performedBy.Length == 0)
-            {
-                throw new InvalidOperationException("Performed by is required.");
-            }
-
-            entity.PerformedBy = performedBy.Length <= 200 ? performedBy : performedBy[..200];
+            entity.PerformedBy = SubmissionInput.NormalizeOptional(edits.PerformedBy, 200)
+                ?? throw new InvalidOperationException("Performed by is required.");
         }
 
         if (edits.Description is not null)
@@ -429,13 +419,9 @@ public sealed class InMemoryFanPerformanceSubmissionRepository : IFanPerformance
             entity.Description = SubmissionInput.NormalizeOptional(edits.Description, 2000);
         }
 
-        if (edits.CoveredSong is not null)
+        if (SubmissionInput.NormalizeOptional(edits.CoveredSong, 200) is string covered)
         {
-            var covered = edits.CoveredSong.Trim();
-            if (covered.Length > 0)
-            {
-                entity.CoveredSong = covered.Length <= 200 ? covered : covered[..200];
-            }
+            entity.CoveredSong = covered;
         }
     }
 

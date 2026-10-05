@@ -11,7 +11,7 @@ namespace QueenZone.Data;
 /// entity, request record and enum; subclasses supply the enum values, the mapping and the queue rules.
 /// Properties are addressed with <see cref="EF.Property{TProperty}"/> so the shared code stays generic.
 /// </summary>
-public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(QueenZoneDbContext dbContext)
+public abstract class EfRunRequestRepositoryBase<TEntity, TStatus>(QueenZoneDbContext dbContext)
     where TEntity : class, IRunRequestEntity<TStatus>
     where TStatus : struct, Enum
 {
@@ -43,7 +43,7 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
 
     protected DbSet<TEntity> Requests => dbContext.Set<TEntity>();
 
-    public async Task<TRequest?> ClaimNextAsync(
+    protected async Task<TEntity?> ClaimNextEntityAsync(
         string runnerId,
         CancellationToken cancellationToken = default)
     {
@@ -89,7 +89,7 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
             var claimed = await Requests
                 .AsNoTracking()
                 .SingleAsync(IdIs(requestId.Value), cancellationToken);
-            return Map(claimed);
+            return claimed;
         }
     }
 
@@ -118,20 +118,18 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
         return updated == 1;
     }
 
-    public async Task<IReadOnlyList<TRequest>> ListRecentAsync(
+    protected async Task<List<TEntity>> ListRecentEntitiesAsync(
         int limit = 10,
         CancellationToken cancellationToken = default)
     {
-        // Map is an instance method, so EF cannot project through it; materialise the entities first.
+        // Materialise entities before the concrete repository maps its public request record.
         var entities = await Requests
             .AsNoTracking()
             .OrderByDescending(request => EF.Property<DateTime>(request, nameof(IRunRequestEntity.RequestedAtUtc)))
             .Take(Math.Clamp(limit, 1, 100))
             .ToListAsync(cancellationToken);
-        return entities.ConvertAll(Map);
+        return entities;
     }
-
-    protected abstract TRequest Map(TEntity entity);
 
     protected virtual Task BeforeClaimAsync(string runnerId, CancellationToken cancellationToken) =>
         Task.CompletedTask;
@@ -143,7 +141,7 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
     /// Adds <paramref name="entity"/>. When <paramref name="singleActive"/> is set, an existing active request
     /// (or one that wins the unique-index race) is returned instead of creating another.
     /// </summary>
-    protected async Task<(TRequest Request, bool WasCreated)> QueueCoreAsync(
+    protected async Task<(TEntity Request, bool WasCreated)> QueueCoreAsync(
         TEntity entity,
         bool singleActive,
         CancellationToken cancellationToken)
@@ -153,7 +151,7 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
             var active = await GetActiveAsync(cancellationToken);
             if (active is not null)
             {
-                return (Map(active), false);
+                return (active, false);
             }
         }
 
@@ -162,7 +160,7 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            return (Map(entity), true);
+            return (entity, true);
         }
         catch (DbUpdateException)
         {
@@ -178,7 +176,7 @@ public abstract class EfRunRequestRepositoryBase<TEntity, TStatus, TRequest>(Que
                 throw;
             }
 
-            return (Map(raced), false);
+            return (raced, false);
         }
     }
 

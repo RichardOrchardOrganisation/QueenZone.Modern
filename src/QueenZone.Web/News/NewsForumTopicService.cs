@@ -6,8 +6,7 @@ using QueenZone.Data.Entities;
 namespace QueenZone.Web;
 
 public sealed class NewsForumTopicService(
-    IForumWriteRepository forumWriteRepository,
-    IForumRepository forumRepository,
+    NewsForumCategoryResolver categories,
     ForumPostWriteService forumPostWrite,
     IMemberAccountRepository memberAccounts,
     IAdminNewsRepository adminNews,
@@ -32,29 +31,12 @@ public sealed class NewsForumTopicService(
             return;
         }
 
-        var categoryId = await forumWriteRepository.EnsureCategoryAsync(
-            NewsForumDiscussion.CategorySlug,
-            NewsForumDiscussion.CategoryName,
-            cancellationToken);
-        var category = await forumRepository.GetCategoryByIdAsync(categoryId, cancellationToken);
-        if (category is null || NewsForumDiscussion.IsTheMusic(category.Name))
-        {
-            throw new InvalidOperationException("News forum topic must not use The Music category.");
-        }
+        var categoryId = await categories.ResolveAsync(cancellationToken);
 
         var author = await EnsureSystemMemberAsync(cancellationToken);
         var title = ClampTitle(article.Title, article.Id);
         var body = BuildOpeningPost(article);
-        var outcome = await forumPostWrite.CreateTopicAsync(
-            author.Id,
-            options.SystemMemberDisplayName,
-            categoryId,
-            title,
-            body,
-            attachments: null,
-            poll: null,
-            cancellationToken,
-            trustedSystemAuthor: true);
+        var outcome = await forumPostWrite.CreateTopicAsync(new NewForumTopicRequest(author.Id, options.SystemMemberDisplayName, categoryId, title, body, Attachments: null, Poll: null) { TrustedSystemAuthor = true }, cancellationToken);
         if (!outcome.Succeeded)
         {
             logger.LogWarning(

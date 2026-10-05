@@ -299,6 +299,14 @@ public static class QueenZoneAuthServiceCollectionExtensions
             });
         }
 
+        ConfigureAppleAuthentication(authenticationBuilder, memberAuth);
+
+        ConfigureMobileBearer(configuration, environment, authenticationBuilder);
+    }
+
+    private static void ConfigureAppleAuthentication(
+        AuthenticationBuilder authenticationBuilder, MemberAuthenticationOptions? memberAuth)
+    {
         if (memberAuth?.Apple?.IsConfigured == true)
         {
             var apple = memberAuth.Apple;
@@ -330,8 +338,6 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 };
             });
         }
-
-        ConfigureMobileBearer(configuration, environment, authenticationBuilder);
     }
 
     private static void ConfigureMobileBearer(

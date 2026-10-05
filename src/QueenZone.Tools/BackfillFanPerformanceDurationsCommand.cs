@@ -34,17 +34,7 @@ internal static class BackfillFanPerformanceDurationsCommand
         var blobService = new BlobServiceClient(storage);
         await using var connection = new SqlConnection(sql);
         await connection.OpenAsync();
-        var rows = new List<(int Id, string Name, long Size)>();
-        await using (var query = connection.CreateCommand())
-        {
-            query.CommandText = "SELECT CAST(Q_STAGE_ID AS int), URL, thesize FROM dbo.Q_STAGE_T WHERE DurationSeconds IS NULL ORDER BY Q_STAGE_ID";
-            await using var reader = await query.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                rows.Add((reader.GetInt32(0), reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                    reader.IsDBNull(2) || !long.TryParse(reader.GetValue(2).ToString(), out var size) ? 0 : size));
-            }
-        }
+        var rows = await LoadPendingRowsAsync(connection);
 
         var succeeded = 0;
         var failed = 0;
@@ -52,35 +42,13 @@ internal static class BackfillFanPerformanceDurationsCommand
         {
             try
             {
-                var name = SongFileUrl.GetBlobName(row.Name);
-                if (!SongFileUrl.IsSafeBlobName(row.Name) || string.IsNullOrWhiteSpace(name))
-                {
-                    throw new InvalidDataException("Unsafe or empty blob name");
-                }
-
-                var blob = blobService.GetBlobContainerClient(SongFileUrl.ContainerName).GetBlobClient(name);
-                await using var stream = await blob.OpenReadAsync();
-                var prefix = new byte[Mp3Duration.PrefixBytes];
-                var read = 0;
-                while (read < prefix.Length)
-                {
-                    var count = await stream.ReadAsync(prefix.AsMemory(read));
-                    if (count == 0) break;
-                    read += count;
-                }
-
-                var length = stream.CanSeek ? stream.Length : row.Size;
-                var duration = Mp3Duration.TryGetSeconds(prefix.AsSpan(0, read), length);
-                if (duration is null)
-                {
-                    throw new InvalidDataException("No readable MPEG duration");
-                }
+                var duration = await ReadDurationAsync(row, blobService);
 
                 if (apply)
                 {
                     await using var update = connection.CreateCommand();
                     update.CommandText = "UPDATE dbo.Q_STAGE_T SET DurationSeconds = @Duration WHERE Q_STAGE_ID = @Id AND DurationSeconds IS NULL";
-                    update.Parameters.AddWithValue("@Duration", duration.Value);
+                    update.Parameters.AddWithValue("@Duration", duration);
                     update.Parameters.AddWithValue("@Id", row.Id);
                     await update.ExecuteNonQueryAsync();
                 }
@@ -101,6 +69,52 @@ internal static class BackfillFanPerformanceDurationsCommand
 
         Console.WriteLine($"Processed {rows.Count}; resolved {succeeded}; failed {failed}. Re-run is safe: populated rows are skipped.");
         return Math.Clamp(failed, 0, 1);
+    }
+
+    private static async Task<List<(int Id, string Name, long Size)>> LoadPendingRowsAsync(SqlConnection connection)
+    {
+        var rows = new List<(int Id, string Name, long Size)>();
+        await using (var query = connection.CreateCommand())
+        {
+            query.CommandText = "SELECT CAST(Q_STAGE_ID AS int), URL, thesize FROM dbo.Q_STAGE_T WHERE DurationSeconds IS NULL ORDER BY Q_STAGE_ID";
+            await using var reader = await query.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                rows.Add((reader.GetInt32(0), reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                    reader.IsDBNull(2) || !long.TryParse(reader.GetValue(2).ToString(), out var size) ? 0 : size));
+            }
+        }
+
+        return rows;
+    }
+
+    private static async Task<int> ReadDurationAsync((int Id, string Name, long Size) row, BlobServiceClient blobService)
+    {
+        var name = SongFileUrl.GetBlobName(row.Name);
+        if (!SongFileUrl.IsSafeBlobName(row.Name) || string.IsNullOrWhiteSpace(name))
+        {
+            throw new InvalidDataException("Unsafe or empty blob name");
+        }
+
+        var blob = blobService.GetBlobContainerClient(SongFileUrl.ContainerName).GetBlobClient(name);
+        await using var stream = await blob.OpenReadAsync();
+        var prefix = new byte[Mp3Duration.PrefixBytes];
+        var read = 0;
+        while (read < prefix.Length)
+        {
+            var count = await stream.ReadAsync(prefix.AsMemory(read));
+            if (count == 0) break;
+            read += count;
+        }
+
+        var length = stream.CanSeek ? stream.Length : row.Size;
+        var duration = Mp3Duration.TryGetSeconds(prefix.AsSpan(0, read), length);
+        if (duration is null)
+        {
+            throw new InvalidDataException("No readable MPEG duration");
+        }
+
+        return duration.Value;
     }
 
     private static int Usage(string error)

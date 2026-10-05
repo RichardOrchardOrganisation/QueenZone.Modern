@@ -306,6 +306,11 @@ internal sealed class GeneratePhotoThumbsOptions
             return Invalid($"Unsupported or incomplete argument: {arg}");
         }
 
+        return CompleteOptions(connectionString, storageConnectionString, settingsFile, picIdsRaw, picIdsFile, thumbSize, dryRun);
+    }
+
+    private static GeneratePhotoThumbsOptions CompleteOptions(string? connectionString, string? storageConnectionString, string? settingsFile, string? picIdsRaw, string? picIdsFile, int thumbSize, bool dryRun)
+    {
         var localSettings = ToolsLocalSettings.TryLoad(settingsFile);
         connectionString ??= localSettings?.QueenZoneLegacyLive;
         connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
@@ -313,41 +318,10 @@ internal sealed class GeneratePhotoThumbsOptions
         storageConnectionString ??= Environment.GetEnvironmentVariable("AzureStorage__ConnectionString");
 
         var picIds = new List<int>();
-        if (!string.IsNullOrWhiteSpace(picIdsRaw))
+        var idError = ReadInlinePicIds(picIdsRaw, picIds) ?? ReadPicIdsFile(picIdsFile, picIds);
+        if (idError is not null)
         {
-            foreach (var part in picIdsRaw.Split([',', ';', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (!int.TryParse(part, out var id) || id < 1)
-                {
-                    return Invalid($"Invalid pic id: {part}");
-                }
-
-                picIds.Add(id);
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(picIdsFile))
-        {
-            if (!File.Exists(picIdsFile))
-            {
-                return Invalid($"Pic ids file was not found: {picIdsFile}");
-            }
-
-            foreach (var line in File.ReadLines(picIdsFile))
-            {
-                var trimmed = line.Trim();
-                if (trimmed.Length == 0 || trimmed.StartsWith('#') || trimmed.StartsWith("--"))
-                {
-                    continue;
-                }
-
-                if (!int.TryParse(trimmed, out var id) || id < 1)
-                {
-                    return Invalid($"Invalid pic id in file: {trimmed}");
-                }
-
-                picIds.Add(id);
-            }
+            return Invalid(idError);
         }
 
         picIds = picIds.Distinct().OrderBy(id => id).ToList();
@@ -375,6 +349,53 @@ internal sealed class GeneratePhotoThumbsOptions
             DryRun = dryRun,
             IsValid = true,
         };
+    }
+
+    private static string? ReadInlinePicIds(string? picIdsRaw, List<int> picIds)
+    {
+        if (!string.IsNullOrWhiteSpace(picIdsRaw))
+        {
+            foreach (var part in picIdsRaw.Split([',', ';', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!int.TryParse(part, out var id) || id < 1)
+                {
+                    return $"Invalid pic id: {part}";
+                }
+
+                picIds.Add(id);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadPicIdsFile(string? picIdsFile, List<int> picIds)
+    {
+        if (!string.IsNullOrWhiteSpace(picIdsFile))
+        {
+            if (!File.Exists(picIdsFile))
+            {
+                return $"Pic ids file was not found: {picIdsFile}";
+            }
+
+            foreach (var line in File.ReadLines(picIdsFile))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed.StartsWith('#') || trimmed.StartsWith("--"))
+                {
+                    continue;
+                }
+
+                if (!int.TryParse(trimmed, out var id) || id < 1)
+                {
+                    return $"Invalid pic id in file: {trimmed}";
+                }
+
+                picIds.Add(id);
+            }
+        }
+
+        return null;
     }
 
     private static GeneratePhotoThumbsOptions Invalid(string message) =>

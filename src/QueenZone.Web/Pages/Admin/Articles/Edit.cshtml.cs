@@ -80,22 +80,7 @@ public sealed class EditModel(
             return Page();
         }
 
-        if (!ModelState.IsValid)
-        {
-            foreach (var entry in ModelState)
-            {
-                foreach (var error in entry.Value.Errors)
-                {
-                    AddError(string.IsNullOrWhiteSpace(error.ErrorMessage)
-                        ? EditorialArticleEditorRequestGuardFilter.BindError
-                        : error.ErrorMessage);
-                }
-            }
-
-            logger.LogWarning(
-                "Articles editor POST bind failed: {Keys}",
-                string.Join(", ", ModelState.Where(entry => entry.Value is { Errors.Count: > 0 }).Select(entry => entry.Key)));
-        }
+        AddBindingErrors();
 
         var existing = Form.Id is Guid existingId ? await editorialArticles.GetAsync(existingId, ct) : null;
         var sanitizedBody = ugcHtml.Sanitize(Form.Body);
@@ -116,6 +101,27 @@ public sealed class EditModel(
         }
         publicQueryCache.InvalidateArticlesCache();
         return Redirect($"/admin/articles/editor/{saved.Id}");
+    }
+
+    private void AddBindingErrors()
+    {
+        if (!ModelState.IsValid)
+        {
+            foreach (var entry in ModelState)
+            {
+                foreach (var error in entry.Value.Errors)
+                {
+                    AddError(string.IsNullOrWhiteSpace(error.ErrorMessage)
+                        ? EditorialArticleEditorRequestGuardFilter.BindError
+                        : error.ErrorMessage);
+                }
+            }
+
+            logger.LogWarning(
+                "Articles editor POST bind failed: {Keys}",
+                string.Join(", ", ModelState.Where(entry => entry.Value is { Errors.Count: > 0 }).Select(entry => entry.Key)));
+        }
+
     }
 
     public async Task OnExceptionAsync(ExceptionContext context)

@@ -136,30 +136,7 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
             senderName = "Unknown member";
         }
 
-        var precedingRows = await dbContext.PrivateMessages
-            .AsNoTracking()
-            .Where(m => m.ConversationId == conversationId && m.SortKey < message.SortKey)
-            .OrderByDescending(m => m.SortKey)
-            .Take(PrivateMessageLimits.ReportPrecedingMessageCount)
-            .Select(m => new
-            {
-                m.Id,
-                m.SenderMemberId,
-                SenderName = m.Sender != null ? m.Sender.DisplayName : string.Empty,
-                m.Body,
-                m.CreatedAt,
-                m.SortKey,
-            })
-            .ToListAsync(cancellationToken);
-        var preceding = precedingRows
-            .OrderBy(m => m.SortKey)
-            .Select(m => new PrivateMessageReportContextItem(
-                m.Id,
-                m.SenderMemberId,
-                string.IsNullOrWhiteSpace(m.SenderName) ? "Unknown member" : m.SenderName,
-                m.Body,
-                m.CreatedAt))
-            .ToList();
+        var preceding = await LoadReportContextAsync(conversationId, message.SortKey, cancellationToken);
 
         var entity = PrivateMessageReportMapping.CreateEntity(
             reporterMemberId,
@@ -189,6 +166,39 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
 
             throw;
         }
+    }
+
+    private async Task<List<PrivateMessageReportContextItem>> LoadReportContextAsync(
+        Guid conversationId,
+        long sortKey,
+        CancellationToken cancellationToken)
+    {
+        var precedingRows = await dbContext.PrivateMessages
+            .AsNoTracking()
+            .Where(m => m.ConversationId == conversationId && m.SortKey < sortKey)
+            .OrderByDescending(m => m.SortKey)
+            .Take(PrivateMessageLimits.ReportPrecedingMessageCount)
+            .Select(m => new
+            {
+                m.Id,
+                m.SenderMemberId,
+                SenderName = m.Sender != null ? m.Sender.DisplayName : string.Empty,
+                m.Body,
+                m.CreatedAt,
+                m.SortKey,
+            })
+            .ToListAsync(cancellationToken);
+        var preceding = precedingRows
+            .OrderBy(m => m.SortKey)
+            .Select(m => new PrivateMessageReportContextItem(
+                m.Id,
+                m.SenderMemberId,
+                string.IsNullOrWhiteSpace(m.SenderName) ? "Unknown member" : m.SenderName,
+                m.Body,
+                m.CreatedAt))
+            .ToList();
+
+        return preceding;
     }
 
     public async Task<PrivateMessageReport?> GetReportAsync(

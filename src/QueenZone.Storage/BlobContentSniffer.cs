@@ -12,94 +12,42 @@ internal static class BlobContentSniffer
     /// <summary>OLE compound document (legacy .doc/.xls/.ppt). Not a public MIME type.</summary>
     public const string OleCompoundContentType = "application/x-cfbf";
 
+    private static ReadOnlySpan<byte> PngSignature => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    private static ReadOnlySpan<byte> OleCompoundSignature => [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+
+    private static ReadOnlySpan<byte> JpegSignature => [0xFF, 0xD8, 0xFF];
+    private static ReadOnlySpan<byte> LittleEndianTiffSignature => [0x49, 0x49, 0x2A, 0x00];
+    private static ReadOnlySpan<byte> BigEndianTiffSignature => [0x4D, 0x4D, 0x00, 0x2A];
+
     public static string? TryDetectContentType(ReadOnlySpan<byte> header)
     {
-        if (header.Length >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+        var imageContentType = TryDetectImageContentType(header);
+        if (imageContentType is not null)
         {
-            return "image/jpeg";
-        }
-
-        if (header.Length >= 8
-            && header[0] == 0x89
-            && header[1] == 0x50
-            && header[2] == 0x4E
-            && header[3] == 0x47
-            && header[4] == 0x0D
-            && header[5] == 0x0A
-            && header[6] == 0x1A
-            && header[7] == 0x0A)
-        {
-            return "image/png";
-        }
-
-        if (header.Length >= 6
-            && header[0] == 0x47
-            && header[1] == 0x49
-            && header[2] == 0x46
-            && header[3] == 0x38
-            && (header[4] == 0x37 || header[4] == 0x39)
-            && header[5] == 0x61)
-        {
-            return "image/gif";
-        }
-
-        // RIFF....WEBP
-        if (header.Length >= 12
-            && header[0] == 0x52
-            && header[1] == 0x49
-            && header[2] == 0x46
-            && header[3] == 0x46
-            && header[8] == 0x57
-            && header[9] == 0x45
-            && header[10] == 0x42
-            && header[11] == 0x50)
-        {
-            return "image/webp";
-        }
-
-        // TIFF little-endian (II*\0) or big-endian (MM\0*)
-        if (header.Length >= 4
-            && ((header[0] == 0x49 && header[1] == 0x49 && header[2] == 0x2A && header[3] == 0x00)
-                || (header[0] == 0x4D && header[1] == 0x4D && header[2] == 0x00 && header[3] == 0x2A)))
-        {
-            return "image/tiff";
+            return imageContentType;
         }
 
         // %PDF
-        if (header.Length >= 4
-            && header[0] == 0x25
-            && header[1] == 0x50
-            && header[2] == 0x44
-            && header[3] == 0x46)
+        if (header.StartsWith("%PDF"u8))
         {
             return "application/pdf";
         }
 
         // ZIP local file header (also used by docx/xlsx/odt packages).
-        if (header.Length >= 4
-            && header[0] == 0x50
-            && header[1] == 0x4B
-            && (header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07)
-            && (header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08))
+        if (IsZipHeader(header))
         {
             return "application/zip";
         }
 
         // ID3v2 tag (MP3). JPEG already returned above (0xFF 0xD8 0xFF).
-        if (header.Length >= 3
-            && header[0] == (byte)'I'
-            && header[1] == (byte)'D'
-            && header[2] == (byte)'3')
+        if (header.StartsWith("ID3"u8))
         {
             return "audio/mpeg";
         }
 
         // FLAC stream marker.
-        if (header.Length >= 4
-            && header[0] == (byte)'f'
-            && header[1] == (byte)'L'
-            && header[2] == (byte)'a'
-            && header[3] == (byte)'C')
+        if (header.StartsWith("fLaC"u8))
         {
             return "audio/flac";
         }
@@ -111,15 +59,7 @@ internal static class BlobContentSniffer
 
         // OLE compound file (legacy Word/Excel/PowerPoint). Checked before text so
         // embedded NULs are not required for a positive signature.
-        if (header.Length >= 8
-            && header[0] == 0xD0
-            && header[1] == 0xCF
-            && header[2] == 0x11
-            && header[3] == 0xE0
-            && header[4] == 0xA1
-            && header[5] == 0xB1
-            && header[6] == 0x1A
-            && header[7] == 0xE1)
+        if (header.StartsWith(OleCompoundSignature))
         {
             return OleCompoundContentType;
         }
@@ -127,6 +67,45 @@ internal static class BlobContentSniffer
         if (IsConservativePlainText(header))
         {
             return "text/plain";
+        }
+
+        return null;
+    }
+
+    private static bool IsZipHeader(ReadOnlySpan<byte> header) =>
+        header.Length >= 4
+            && header[0] == 0x50
+            && header[1] == 0x4B
+            && (header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07)
+            && (header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08);
+
+    private static string? TryDetectImageContentType(ReadOnlySpan<byte> header)
+    {
+        if (header.StartsWith(JpegSignature))
+        {
+            return "image/jpeg";
+        }
+
+        if (header.StartsWith(PngSignature))
+        {
+            return "image/png";
+        }
+
+        if (header.StartsWith("GIF87a"u8) || header.StartsWith("GIF89a"u8))
+        {
+            return "image/gif";
+        }
+
+        // RIFF....WEBP
+        if (header.Length >= 12 && header.StartsWith("RIFF"u8) && header.Slice(8, 4).SequenceEqual("WEBP"u8))
+        {
+            return "image/webp";
+        }
+
+        // TIFF little-endian (II*\0) or big-endian (MM\0*)
+        if (header.StartsWith(LittleEndianTiffSignature) || header.StartsWith(BigEndianTiffSignature))
+        {
+            return "image/tiff";
         }
 
         return null;

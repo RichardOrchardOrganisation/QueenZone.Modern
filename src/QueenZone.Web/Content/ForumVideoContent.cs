@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
@@ -42,14 +43,8 @@ public static partial class ForumVideoContent
 
     public static ForumYoutubeVideo? TryRecognize(string? url, int anchorIndex = 0)
     {
-        // Uri normalizes escapes, dot segments, backslashes and control characters. Reject those
-        // spellings before parsing so normalization cannot turn hostile input into an approved URL.
-        if (string.IsNullOrEmpty(url) || url.Any(char.IsWhiteSpace) || url.Any(char.IsControl)
-            || url.Contains('\\') || url.Contains('%')
-            || url.Contains("/../", StringComparison.Ordinal) || url.Contains("/./", StringComparison.Ordinal)
-            || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-            || !uri.IsDefaultPort || uri.UserInfo.Length != 0)
+        var uri = TryParseSafeUrl(url);
+        if (uri is null)
         {
             return null;
         }
@@ -61,6 +56,55 @@ public static partial class ForumVideoContent
         }
 
         var query = QueryHelpers.ParseQuery(uri.Query);
+        var id = ReadVideoId(uri, shortHost, query);
+
+        if (id is null || !VideoIdPattern().IsMatch(id))
+        {
+            return null;
+        }
+
+        int? start = null;
+        var times = new[] { "t", "start" }.Where(query.ContainsKey).SelectMany(key => query[key]).ToArray();
+        if (times.Length == 1)
+        {
+            start = ParseStart(times[0]);
+        }
+
+        // Zero seconds is the default and deduplicates with a URL without a start time.
+        if (start == 0)
+        {
+            start = null;
+        }
+
+        var watchUrl = $"https://www.youtube.com/watch?v={id}";
+        if (start is int seconds)
+        {
+            watchUrl += "&t=" + seconds.ToString(CultureInfo.InvariantCulture) + "s";
+        }
+
+        return new("youtube", id, watchUrl, start, anchorIndex);
+    }
+
+    // Uri normalizes escapes, dot segments, backslashes and control characters. Reject those
+    // spellings first so normalization cannot turn hostile input into an approved URL.
+    private static bool HasUnsafeUrlSpelling(string? url) =>
+        string.IsNullOrEmpty(url) || url.Any(char.IsWhiteSpace) || url.Any(char.IsControl)
+            || url.Contains('\\') || url.Contains('%')
+            || url.Contains("/../", StringComparison.Ordinal) || url.Contains("/./", StringComparison.Ordinal);
+
+    private static Uri? TryParseSafeUrl(string? url)
+    {
+        if (HasUnsafeUrlSpelling(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            || !uri.IsDefaultPort || uri.UserInfo.Length != 0)
+        {
+            return null;
+        }
+        return uri;
+    }
+
+    private static string? ReadVideoId(Uri uri, bool shortHost, Dictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
         string? id;
         if (!shortHost && uri.AbsolutePath == "/watch")
         {
@@ -94,31 +138,7 @@ public static partial class ForumVideoContent
             }
         }
 
-        if (id is null || !VideoIdPattern().IsMatch(id))
-        {
-            return null;
-        }
-
-        int? start = null;
-        var times = new[] { "t", "start" }.Where(query.ContainsKey).SelectMany(key => query[key]).ToArray();
-        if (times.Length == 1)
-        {
-            start = ParseStart(times[0]);
-        }
-
-        // Zero seconds is the default and deduplicates with a URL without a start time.
-        if (start == 0)
-        {
-            start = null;
-        }
-
-        var watchUrl = $"https://www.youtube.com/watch?v={id}";
-        if (start is int seconds)
-        {
-            watchUrl += "&t=" + seconds.ToString(CultureInfo.InvariantCulture) + "s";
-        }
-
-        return new("youtube", id, watchUrl, start, anchorIndex);
+        return id;
     }
 
     private static int? ParseStart(string? value)
@@ -163,74 +183,85 @@ public static partial class ForumVideoContent
         // Meaningful tokens are isolated by block and line boundaries. Formatting wrappers are
         // transparent; headings, lists, images and quotes are never treated as standalone links.
         var line = new List<INode>();
-        void Flush()
-        {
-            if (line.Count == 1 && line[0] is IElement { LocalName: "a" } anchor
-                && !anchor.QuerySelectorAll("img, br").Any())
-            {
-                eligible.Add(anchor);
-            }
-
-            line.Clear();
-        }
-
-        void Visit(INode node)
-        {
-            if (node is IText text)
-            {
-                if (!string.IsNullOrWhiteSpace(text.Data))
-                {
-                    line.Add(node);
-                }
-
-                return;
-            }
-
-            if (node is not IElement element)
-            {
-                return;
-            }
-
-            if (element.LocalName is "p" or "div")
-            {
-                Flush();
-                if (!element.ClassList.Contains("qz-bbcode-quote"))
-                {
-                    CollectEligible(element, eligible);
-                }
-
-                return;
-            }
-
-            if (element.LocalName is "br" or "blockquote" or "pre" or "ul" or "ol" or "li" or "h2" or "h3" or "h4")
-            {
-                Flush();
-            }
-            else if (element.LocalName is "span" or "strong" or "b" or "em" or "i" or "u")
-            {
-                if (element.ClassList.Contains("qz-bbcode-quote"))
-                {
-                    line.Add(element);
-                    return;
-                }
-
-                foreach (var child in element.ChildNodes)
-                {
-                    Visit(child);
-                }
-            }
-            else
-            {
-                line.Add(element);
-            }
-        }
-
         foreach (var child in container.ChildNodes)
         {
-            Visit(child);
+            VisitEligibleNode(child, line, eligible);
         }
 
-        Flush();
+        FlushEligibleLine(line, eligible);
+    }
+
+    private static void FlushEligibleLine(List<INode> line, HashSet<IElement> eligible)
+    {
+        if (line.Count == 1 && line[0] is IElement { LocalName: "a" } anchor
+            && !anchor.QuerySelectorAll("img, br").Any())
+        {
+            eligible.Add(anchor);
+        }
+
+        line.Clear();
+    }
+
+    private static readonly FrozenSet<string> BlockBoundaryTags =
+        new[] { "br", "blockquote", "pre", "ul", "ol", "li", "h2", "h3", "h4" }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenSet<string> TransparentFormattingTags =
+        new[] { "span", "strong", "b", "em", "i", "u" }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static void VisitEligibleNode(INode node, List<INode> line, HashSet<IElement> eligible)
+    {
+        if (node is IText text)
+        {
+            if (!string.IsNullOrWhiteSpace(text.Data))
+            {
+                line.Add(node);
+            }
+
+            return;
+        }
+
+        if (node is not IElement element)
+        {
+            return;
+        }
+
+        if (element.LocalName is "p" or "div")
+        {
+            FlushEligibleLine(line, eligible);
+            if (!element.ClassList.Contains("qz-bbcode-quote"))
+            {
+                CollectEligible(element, eligible);
+            }
+
+            return;
+        }
+
+        if (BlockBoundaryTags.Contains(element.LocalName))
+        {
+            FlushEligibleLine(line, eligible);
+        }
+        else if (TransparentFormattingTags.Contains(element.LocalName))
+        {
+            VisitFormattingChildren(element, line, eligible);
+        }
+        else
+        {
+            line.Add(element);
+        }
+    }
+
+    private static void VisitFormattingChildren(IElement element, List<INode> line, HashSet<IElement> eligible)
+    {
+        if (element.ClassList.Contains("qz-bbcode-quote"))
+        {
+            line.Add(element);
+            return;
+        }
+
+        foreach (var child in element.ChildNodes)
+        {
+            VisitEligibleNode(child, line, eligible);
+        }
     }
 
     [GeneratedRegex("\\A[A-Za-z0-9_-]{11}\\z", RegexOptions.CultureInvariant)]

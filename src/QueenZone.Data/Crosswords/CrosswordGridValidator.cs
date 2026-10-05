@@ -50,27 +50,32 @@ public static class CrosswordGridValidator
         {
             for (var column = 0; column < grid.Width; column++)
             {
-                if (grid.Rows[row][column] == '#')
-                {
-                    continue;
-                }
-                var across = IsStart(grid, row, column, CrosswordDirection.Across);
-                var down = IsStart(grid, row, column, CrosswordDirection.Down);
-                if (across || down)
-                {
-                    number++;
-                }
-                if (across)
-                {
-                    runs.Add(ReadRun(grid, number, row, column, CrosswordDirection.Across));
-                }
-                if (down)
-                {
-                    runs.Add(ReadRun(grid, number, row, column, CrosswordDirection.Down));
-                }
+                AddCellRuns(grid, row, column, runs, ref number);
             }
         }
         return runs;
+    }
+
+    private static void AddCellRuns(CrosswordGrid grid, int row, int column, List<CrosswordRun> runs, ref int number)
+    {
+        if (grid.Rows[row][column] == '#')
+        {
+            return;
+        }
+        var across = IsStart(grid, row, column, CrosswordDirection.Across);
+        var down = IsStart(grid, row, column, CrosswordDirection.Down);
+        if (across || down)
+        {
+            number++;
+        }
+        if (across)
+        {
+            runs.Add(ReadRun(grid, number, row, column, CrosswordDirection.Across));
+        }
+        if (down)
+        {
+            runs.Add(ReadRun(grid, number, row, column, CrosswordDirection.Down));
+        }
     }
 
     private static bool IsStart(CrosswordGrid grid, int row, int column, CrosswordDirection direction)
@@ -171,16 +176,7 @@ public static class CrosswordGridValidator
         List<CrosswordGridIssue> errors, List<CrosswordGridIssue> warnings)
     {
         var white = new HashSet<(int Row, int Column)>();
-        var coverage = new Dictionary<(int Row, int Column), int>();
-        foreach (var run in runs)
-        {
-            for (var index = 0; index < run.Answer.Length; index++)
-            {
-                var cell = (run.Row + (run.Direction == CrosswordDirection.Down ? index : 0),
-                    run.Column + (run.Direction == CrosswordDirection.Across ? index : 0));
-                coverage[cell] = coverage.GetValueOrDefault(cell) + 1;
-            }
-        }
+        var coverage = CountCellCoverage(runs);
         var asymmetric = false;
         for (var row = 0; row < grid.Height; row++)
         {
@@ -212,6 +208,21 @@ public static class CrosswordGridValidator
             warnings.Add(new("unchecked", "Some white cells belong to fewer than two entries (British style).",
                 cellWithWarning.Row, cellWithWarning.Column));
         }
+    }
+
+    private static Dictionary<(int Row, int Column), int> CountCellCoverage(List<CrosswordRun> runs)
+    {
+        var coverage = new Dictionary<(int Row, int Column), int>();
+        foreach (var run in runs)
+        {
+            for (var index = 0; index < run.Answer.Length; index++)
+            {
+                var cell = (run.Row + (run.Direction == CrosswordDirection.Down ? index : 0),
+                    run.Column + (run.Direction == CrosswordDirection.Across ? index : 0));
+                coverage[cell] = coverage.GetValueOrDefault(cell) + 1;
+            }
+        }
+        return coverage;
     }
 
     private static bool IsConnected(HashSet<(int Row, int Column)> white)

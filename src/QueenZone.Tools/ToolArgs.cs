@@ -81,6 +81,10 @@ internal static class ToolArgs
         return true;
     }
 
+    /// <summary>Waits between processed rows only when a positive delay was requested.</summary>
+    public static Task DelayIfPositiveAsync(int milliseconds, CancellationToken cancellationToken) =>
+        milliseconds > 0 ? Task.Delay(milliseconds, cancellationToken) : Task.CompletedTask;
+
     /// <summary>Writes the optional error message followed by the usage lines to stderr.</summary>
     public static void WriteUsage(string? errorMessage, params string[] lines)
     {

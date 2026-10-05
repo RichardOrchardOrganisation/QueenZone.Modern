@@ -188,11 +188,12 @@ internal sealed class PhotoDimInventoryOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
+            if (TryReadTextOptions(args, ref index, ref connectionString, ref categorySlug, ref outputPath))
             {
-                connectionString = connectionStringArgument;
                 continue;
             }
+
+
 
             if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var id, out var idError))
             {
@@ -205,11 +206,7 @@ internal sealed class PhotoDimInventoryOptions
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--category-slug", out var categorySlugArgument))
-            {
-                categorySlug = categorySlugArgument;
-                continue;
-            }
+
 
             if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var parsedLimit, out var parsedLimitError))
             {
@@ -222,11 +219,7 @@ internal sealed class PhotoDimInventoryOptions
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--output", out var outputArgument))
-            {
-                outputPath = outputArgument;
-                continue;
-            }
+
 
             return Invalid($"Unsupported or incomplete argument: {arg}");
         }
@@ -247,6 +240,28 @@ internal sealed class PhotoDimInventoryOptions
             CancellationToken = CancellationToken.None,
             IsValid = true,
         };
+    }
+
+    private static bool TryReadTextOptions(string[] args, ref int index, ref string? connectionString, ref string? categorySlug, ref string? outputPath)
+    {
+        if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
+        {
+            connectionString = connectionStringArgument;
+            return true;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--category-slug", out var categorySlugArgument))
+        {
+            categorySlug = categorySlugArgument;
+            return true;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--output", out var outputArgument))
+        {
+            outputPath = outputArgument;
+            return true;
+        }
+        return false;
     }
 
     private static PhotoDimInventoryOptions Invalid(string message) =>

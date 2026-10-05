@@ -32,14 +32,8 @@ internal sealed class SqlSnapshotService(DevSnapshotConfig config, string target
         }
     }
 
-    public async Task<SnapshotSummary> VerifyAsync(
-        IReadOnlyList<SnapshotBlob>? manifest = null,
-        bool requireSearchIndex = true)
+    private async Task<Dictionary<string, long>> EnsureForbiddenTablesEmptyAsync(SqlConnection target)
     {
-        await using var target = new SqlConnection(targetConnectionString);
-        await target.OpenAsync();
-        await EnsureDatabaseAsync(target, config.TargetDatabase, requireReadOnly: false);
-
         var forbidden = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var table in config.ForbiddenTables)
         {
@@ -50,6 +44,19 @@ internal sealed class SqlSnapshotService(DevSnapshotConfig config, string target
                 throw new InvalidOperationException($"Forbidden table {table} contains {count} rows.");
             }
         }
+
+        return forbidden;
+    }
+
+    public async Task<SnapshotSummary> VerifyAsync(
+        IReadOnlyList<SnapshotBlob>? manifest = null,
+        bool requireSearchIndex = true)
+    {
+        await using var target = new SqlConnection(targetConnectionString);
+        await target.OpenAsync();
+        await EnsureDatabaseAsync(target, config.TargetDatabase, requireReadOnly: false);
+
+        var forbidden = await EnsureForbiddenTablesEmptyAsync(target);
 
         var invalidEmails = await ScalarAsync<long>(target, """
             SELECT

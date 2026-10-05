@@ -87,7 +87,7 @@ public sealed class NewsSearchSqlServerTests : IAsyncLifetime
 
         dbContext = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlServer(ConnectionString).Options);
-        repository = new EfNewsRepository(dbContext, "", "", "", "", "");
+        repository = new EfNewsRepository(dbContext, new NewsRepositorySqlTemplates("", "", "", "", ""));
     }
 
     public async Task DisposeAsync()

@@ -62,23 +62,7 @@ internal static class FanPerformanceDashboardCountCalculator
                 receivedThisWeek++;
             }
 
-            if (row.SubmittedAt < monthAgo)
-            {
-                continue;
-            }
-
-            if (row.Status == FanPerformanceSubmissionStatus.Approved)
-            {
-                approvedLast30++;
-            }
-            else if (row.Status == FanPerformanceSubmissionStatus.Rejected)
-            {
-                rejectedLast30++;
-            }
-            else if (open)
-            {
-                pendingLast30++;
-            }
+            CountRecentSubmission(row, monthAgo, open, ref approvedLast30, ref rejectedLast30, ref pendingLast30);
         }
 
         return new FanPerformanceDashboardCounts(
@@ -92,4 +76,31 @@ internal static class FanPerformanceDashboardCountCalculator
             stalePending,
             ToOldestOpenAgeDays(utcNow, oldestOpen));
     }
+    private static void CountRecentSubmission(
+        (string Status, DateTimeOffset SubmittedAt) row,
+        DateTimeOffset monthAgo,
+        bool open,
+        ref int approved,
+        ref int rejected,
+        ref int pending)
+    {
+        if (row.SubmittedAt < monthAgo)
+        {
+            return;
+        }
+
+        if (row.Status == FanPerformanceSubmissionStatus.Approved)
+        {
+            approved++;
+        }
+        else if (row.Status == FanPerformanceSubmissionStatus.Rejected)
+        {
+            rejected++;
+        }
+        else if (open)
+        {
+            pending++;
+        }
+    }
+
 }

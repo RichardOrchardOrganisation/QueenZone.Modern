@@ -83,16 +83,37 @@ public sealed class CreateModel(
     CoreSitemapService coreSitemapService,
     IOutputCacheStore outputCacheStore) : AdminPhotosPageModel
 {
-    public async Task<IActionResult> OnPostAsync(
-        IFormFile? file,
-        int catId,
-        string title,
-        string? keywords,
-        int year,
-        DateTime? dateTime,
-        bool isVisible = false,
-        CancellationToken cancellationToken = default)
+    [BindProperty(Name = "file")]
+    public IFormFile? File { get; set; }
+
+    [BindProperty(Name = "catId")]
+    public int CatId { get; set; }
+
+    [BindProperty(Name = "title")]
+    public string Title { get; set; } = string.Empty;
+
+    [BindProperty(Name = "keywords")]
+    public string? Keywords { get; set; }
+
+    [BindProperty(Name = "year")]
+    public int Year { get; set; }
+
+    [BindProperty(Name = "dateTime")]
+    public DateTime? UploadDateTime { get; set; }
+
+    [BindProperty(Name = "isVisible")]
+    public bool IsVisible { get; set; }
+
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken = default)
     {
+        var file = File;
+        var catId = CatId;
+        var title = Title;
+        var keywords = Keywords;
+        var year = Year;
+        var dateTime = UploadDateTime;
+        var isVisible = IsVisible;
+
         if (file is null || file.Length == 0)
         {
             TempData[MessageKey] = "A photo file is required.";
@@ -109,16 +130,7 @@ public sealed class CreateModel(
 
         try
         {
-            var picId = await adminPhotoService.CreateAsync(
-                file,
-                catId,
-                title,
-                keywords,
-                year > 0 ? year : DateTime.UtcNow.Year,
-                dateTime ?? DateTime.UtcNow,
-                isVisible,
-                EditorEmail,
-                cancellationToken);
+            var picId = await adminPhotoService.CreateAsync(file, new NewGalleryPhoto(catId, title, keywords, year > 0 ? year : DateTime.UtcNow.Year, dateTime ?? DateTime.UtcNow, isVisible, EditorEmail), cancellationToken);
 
             if (isVisible)
             {
@@ -178,22 +190,57 @@ public sealed class EditPostModel(
     CoreSitemapService coreSitemapService,
     IOutputCacheStore outputCacheStore) : AdminPhotosPageModel
 {
-    public async Task<IActionResult> OnPostAsync(
-        int id,
-        string title,
-        string? keywords,
-        int year,
-        DateTime dateTime,
-        int catId,
-        IFormFile? replaceFile,
-        string? expectedTitle,
-        string? expectedKeywords,
-        int? expectedYear,
-        DateTime? expectedDateTime,
-        int? expectedCatId,
-        bool? expectedIsVisible,
-        CancellationToken cancellationToken = default)
+    [BindProperty(Name = "title")]
+    public string Title { get; set; } = string.Empty;
+
+    [BindProperty(Name = "keywords")]
+    public string? Keywords { get; set; }
+
+    [BindProperty(Name = "year")]
+    public int Year { get; set; }
+
+    [BindProperty(Name = "dateTime")]
+    public DateTime UploadDateTime { get; set; }
+
+    [BindProperty(Name = "catId")]
+    public int CatId { get; set; }
+
+    [BindProperty(Name = "replaceFile")]
+    public IFormFile? ReplaceFile { get; set; }
+
+    [BindProperty(Name = "expectedTitle")]
+    public string? ExpectedTitle { get; set; }
+
+    [BindProperty(Name = "expectedKeywords")]
+    public string? ExpectedKeywords { get; set; }
+
+    [BindProperty(Name = "expectedYear")]
+    public int? ExpectedYear { get; set; }
+
+    [BindProperty(Name = "expectedDateTime")]
+    public DateTime? ExpectedDateTime { get; set; }
+
+    [BindProperty(Name = "expectedCatId")]
+    public int? ExpectedCatId { get; set; }
+
+    [BindProperty(Name = "expectedIsVisible")]
+    public bool? ExpectedIsVisible { get; set; }
+
+    public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken = default)
     {
+        var title = Title;
+        var keywords = Keywords;
+        var year = Year;
+        var dateTime = UploadDateTime;
+        var catId = CatId;
+        var replaceFile = ReplaceFile;
+        var expectedTitle = ExpectedTitle;
+        var expectedKeywords = ExpectedKeywords;
+        var expectedYear = ExpectedYear;
+        var expectedDateTime = ExpectedDateTime;
+        var expectedCatId = ExpectedCatId;
+        var expectedIsVisible = ExpectedIsVisible;
+
         var existing = await adminPhotoRepository.GetByIdAsync(id, cancellationToken);
         if (existing is null)
         {

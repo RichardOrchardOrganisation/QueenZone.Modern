@@ -77,21 +77,7 @@ public sealed class NewsDraftGenerationService(
         NewsDraftRunOptions options,
         CancellationToken cancellationToken = default)
     {
-        var draftStatusError = NewsCandidateWorkflow.GetDraftGenerationError(candidate.Status);
-        if (!string.IsNullOrEmpty(draftStatusError))
-        {
-            throw new InvalidOperationException($"Candidate {candidate.Id}: {draftStatusError}");
-        }
-
-        if (candidate.Status == NewsCandidateStatus.Drafted && !options.ForceRegenerate)
-        {
-            throw new InvalidOperationException($"Candidate {candidate.Id} already has a draft. Use force regenerate.");
-        }
-
-        if (!options.BypassConfidenceThreshold && !MeetsConfidenceThreshold(candidate))
-        {
-            throw new InvalidOperationException($"Candidate {candidate.Id} is below the configured confidence threshold.");
-        }
+        ValidateDraftCandidate(candidate, options);
 
         var existingDraft = await repository.GetDraftByCandidateIdAsync(candidate.Id, cancellationToken);
         if (existingDraft is not null && !options.ForceRegenerate)
@@ -115,9 +101,7 @@ public sealed class NewsDraftGenerationService(
         var execution = await aiRunExecutor.ExecuteAsync(
             candidate.Id,
             NewsAiRunKind.DraftGeneration,
-            NewsAiModelRole.Drafting,
-            NewsDraftPrompt.Version,
-            messages,
+            new NewsAiChatRequest(NewsAiModelRole.Drafting, NewsDraftPrompt.Version, messages),
             cancellationToken: cancellationToken,
             guidance: guidance);
 
@@ -155,28 +139,7 @@ public sealed class NewsDraftGenerationService(
                     execution.AiRunId),
                 cancellationToken);
 
-            if (candidate.Status != NewsCandidateStatus.Drafted
-                && !NewsCandidateWorkflow.TryValidateStatusChange(
-                    candidate.Status,
-                    NewsCandidateStatus.Drafted,
-                    out var markDraftedError))
-            {
-                throw new InvalidOperationException(
-                    $"Candidate {candidate.Id}: {markDraftedError}");
-            }
-
-            if (candidate.Status != NewsCandidateStatus.Drafted)
-            {
-                var updated = await repository.TryUpdateCandidateStatusAsync(
-                    candidate.Id,
-                    new NewsCandidateStatusUpdate(NewsCandidateStatus.Drafted),
-                    cancellationToken);
-
-                if (!updated)
-                {
-                    throw new InvalidOperationException($"Failed to mark candidate {candidate.Id} as drafted.");
-                }
-            }
+            await MarkCandidateDraftedAsync(candidate, cancellationToken);
 
             logger.LogInformation(
                 "Generated draft {DraftId} for candidate {CandidateId}.",
@@ -188,6 +151,52 @@ public sealed class NewsDraftGenerationService(
 
         logger.LogInformation("Dry-run draft generated for candidate {CandidateId}.", candidate.Id);
         return new NewsDraftCandidateResult(candidate.Id, null, true, null);
+    }
+
+    private async Task MarkCandidateDraftedAsync(NewsCandidate candidate, CancellationToken cancellationToken)
+    {
+        if (candidate.Status != NewsCandidateStatus.Drafted
+            && !NewsCandidateWorkflow.TryValidateStatusChange(
+                candidate.Status,
+                NewsCandidateStatus.Drafted,
+                out var markDraftedError))
+        {
+            throw new InvalidOperationException(
+                $"Candidate {candidate.Id}: {markDraftedError}");
+        }
+
+        if (candidate.Status != NewsCandidateStatus.Drafted)
+        {
+            var updated = await repository.TryUpdateCandidateStatusAsync(
+                candidate.Id,
+                new NewsCandidateStatusUpdate(NewsCandidateStatus.Drafted),
+                cancellationToken);
+
+            if (!updated)
+            {
+                throw new InvalidOperationException($"Failed to mark candidate {candidate.Id} as drafted.");
+            }
+        }
+    }
+
+    private void ValidateDraftCandidate(NewsCandidate candidate, NewsDraftRunOptions options)
+    {
+        var draftStatusError = NewsCandidateWorkflow.GetDraftGenerationError(candidate.Status);
+        if (!string.IsNullOrEmpty(draftStatusError))
+        {
+            throw new InvalidOperationException($"Candidate {candidate.Id}: {draftStatusError}");
+        }
+
+        if (candidate.Status == NewsCandidateStatus.Drafted && !options.ForceRegenerate)
+        {
+            throw new InvalidOperationException($"Candidate {candidate.Id} already has a draft. Use force regenerate.");
+        }
+
+        if (!options.BypassConfidenceThreshold && !MeetsConfidenceThreshold(candidate))
+        {
+            throw new InvalidOperationException($"Candidate {candidate.Id} is below the configured confidence threshold.");
+        }
+
     }
 
     private bool MeetsConfidenceThreshold(NewsCandidate candidate)
