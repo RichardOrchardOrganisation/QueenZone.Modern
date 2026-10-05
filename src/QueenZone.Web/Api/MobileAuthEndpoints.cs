@@ -144,17 +144,16 @@ public static class MobileAuthEndpoints
         var displayName = external.Principal.FindFirstValue(ClaimTypes.Name);
         var protectedAppleToken = ProtectAppleRefreshToken(provider, external.Properties, appleTokens);
 
-        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerKey))
+        if (!HasRequiredExternalIdentity(provider, providerKey))
         {
             await httpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
             return ErrorJson("server_error", "The identity provider did not return the required profile.", StatusCodes.Status400BadRequest);
         }
 
-        var emailValue = email ?? string.Empty;
-        displayName = ResolveExternalDisplayName(displayName, emailValue, provider);
-
-        var emailVerified = !string.IsNullOrWhiteSpace(emailValue)
-            && ExternalLoginEmail.IsVerified(provider, external.Principal);
+        var profile = ReadExternalProfile(email, displayName, provider, external.Principal);
+        var emailValue = profile.Email;
+        displayName = profile.DisplayName;
+        var emailVerified = profile.EmailVerified;
 
         var completed = await mobileAuth.CompleteExternalLoginAsync(
             rid,
@@ -196,6 +195,28 @@ public static class MobileAuthEndpoints
             completed.RedirectUri,
             completed.State,
             code: completed.Code);
+    }
+
+    private static bool HasRequiredExternalIdentity(
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? provider,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? providerKey) =>
+        !string.IsNullOrWhiteSpace(provider) && !string.IsNullOrWhiteSpace(providerKey);
+
+    private sealed record ExternalProfile(string Email, string DisplayName, bool EmailVerified);
+
+    private static ExternalProfile ReadExternalProfile(
+        string? email,
+        string? displayName,
+        string provider,
+        ClaimsPrincipal principal)
+    {
+        var emailValue = email ?? string.Empty;
+        displayName = ResolveExternalDisplayName(displayName, emailValue, provider);
+
+        var emailVerified = !string.IsNullOrWhiteSpace(emailValue)
+            && ExternalLoginEmail.IsVerified(provider, principal);
+
+        return new ExternalProfile(emailValue, displayName, emailVerified);
     }
 
     private static IResult FailedCallbackResult(HttpContext httpContext, MobileAuthCallbackResult completed)
