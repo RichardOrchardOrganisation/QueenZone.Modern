@@ -85,7 +85,7 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
       <Text modifiers={[foregroundStyle('#B89A4A'), font({ size: 10, weight: 'semibold' })]}>
         {heading}
       </Text>
-      {showDay ? (
+      {showDay && (
         <Text
           modifiers={[
             foregroundStyle('#F2F1ED'),
@@ -97,13 +97,13 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
         >
           {props.summary}
         </Text>
-      ) : null}
-      {showDay ? (
+      )}
+      {showDay && (
         <Text modifiers={[foregroundStyle('#B8B6B0'), font({ size: 9 }), lineLimit(2), truncationMode('tail')]}>
           {props.formattedDate}
         </Text>
-      ) : null}
-      {showQuote ? (
+      )}
+      {showQuote && (
         <Text
           modifiers={[
             foregroundStyle('#B8B6B0'),
@@ -115,13 +115,13 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
         >
           {`“${props.quoteText}”`}
         </Text>
-      ) : null}
-      {showQuote ? (
+      )}
+      {showQuote && (
         <Text modifiers={[foregroundStyle('#B8B6B0'), font({ size: 9 }), lineLimit(2), truncationMode('tail')]}>
           {`— ${props.quoteWhoSaid}`}
         </Text>
-      ) : null}
-      {showTrivia ? (
+      )}
+      {showTrivia && (
         <Text
           modifiers={[
             foregroundStyle('#F2F1ED'),
@@ -133,8 +133,8 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
         >
           {props.triviaText}
         </Text>
-      ) : null}
-      {!face ? (
+      )}
+      {!face && (
         <Text
           modifiers={[
             foregroundStyle('#B8B6B0'),
@@ -146,7 +146,7 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
         >
           {"Open QueenZone to load today's story."}
         </Text>
-      ) : null}
+      )}
     </VStack>
   );
 }
