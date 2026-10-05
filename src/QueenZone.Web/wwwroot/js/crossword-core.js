@@ -37,7 +37,10 @@ export function emptyLetters(model) {
 
 export function restoreLetters(model, letters) {
     if (typeof letters !== 'string' || letters.length !== model.blocks.length) return emptyLetters(model);
-    return [...letters].map((letter, index) => model.blocks[index] ? '#' : /^[a-z]$/i.test(letter) ? letter.toUpperCase() : '.').join('');
+    return [...letters].map((letter, index) => {
+        if (model.blocks[index]) return '#';
+        return /^[a-z]$/i.test(letter) ? letter.toUpperCase() : '.';
+    }).join('');
 }
 
 export function createPlayState(model, progress = {}) {
@@ -174,7 +177,9 @@ export function cellLabel(model, state, cell) {
     const letter = state.letters[cell] === '.' ? 'blank' : state.letters[cell];
     const other = available.find(index => index !== entryIndex);
     const crossing = other === undefined ? '' : ` Also ${model.entries[other].number} ${model.entries[other].direction}.`;
-    const marker = state.revealedCells.includes(cell) ? ' Revealed.' : state.incorrectCells.includes(cell) ? ' Incorrect.' : '';
+    let marker = '';
+    if (state.revealedCells.includes(cell)) marker = ' Revealed.';
+    else if (state.incorrectCells.includes(cell)) marker = ' Incorrect.';
     return `${entry.number} ${entry.direction}, ${entry.cells.length} letters, letter ${position}, ${letter}.${crossing}${marker}`;
 }
 
@@ -241,7 +246,8 @@ export function chooseProgress(model, playVersion, local, server) {
 }
 
 export function progressStorageKey(puzzleId, memberId = null) {
-    return `qz:crossword:v1:${encodeURIComponent(puzzleId)}:${memberId ? `member:${encodeURIComponent(memberId)}` : 'guest'}`;
+    const owner = memberId ? 'member:' + encodeURIComponent(memberId) : 'guest';
+    return `qz:crossword:v1:${encodeURIComponent(puzzleId)}:${owner}`;
 }
 
 /** Works with browser localStorage and asynchronous mobile storage; failures never block play. */

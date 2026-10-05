@@ -7,7 +7,11 @@ if (root) await initialise(root);
 async function initialise(root) {
     const config = JSON.parse(root.querySelector('[data-puzzle]').textContent);
     const puzzle = config.puzzle;
-    let memberId = config.preview ? null : config.memberId ?? (config.offlineShell ? accountHint() : null);
+    let memberId = null;
+    if (!config.preview) {
+        memberId = config.memberId ?? null;
+        if (memberId == null && config.offlineShell) memberId = accountHint();
+    }
     if (!config.offlineShell && !config.preview) rememberAccount(memberId);
     const model = core.createModel(puzzle);
     const find = selector => root.querySelector(selector);
@@ -92,7 +96,10 @@ async function initialise(root) {
             cell.setAttribute('aria-selected', String(index === state.cell));
             cell.setAttribute('aria-label', core.cellLabel(model, state, index));
             cell.querySelector('[data-letter]').textContent = state.letters[index] === '.' ? '' : state.letters[index];
-            cell.querySelector('[data-marker]').textContent = state.revealedCells.includes(index) ? '▲' : state.incorrectCells.includes(index) ? '×' : '';
+            let marker = '';
+            if (state.revealedCells.includes(index)) marker = '▲';
+            else if (state.incorrectCells.includes(index)) marker = '×';
+            cell.querySelector('[data-marker]').textContent = marker;
         }
         clues.forEach((clue, index) => {
             const active = index === state.entry;
@@ -143,8 +150,9 @@ async function initialise(root) {
 
     function selection(scope) {
         const entry = model.entries[state.entry];
-        return scope === 'entry' ? { scope, number: entry.number, direction: entry.direction } :
-            scope === 'cell' ? { scope, cell: state.cell } : { scope };
+        if (scope === 'entry') return { scope, number: entry.number, direction: entry.direction };
+        if (scope === 'cell') return { scope, cell: state.cell };
+        return { scope };
     }
 
     async function check(scope, autoCheck = false) {

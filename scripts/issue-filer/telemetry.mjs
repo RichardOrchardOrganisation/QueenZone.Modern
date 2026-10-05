@@ -635,7 +635,9 @@ export function formatFrame(frame) {
   const file = frame?.filename || frame?.abs_path || 'unknown';
   const line = frame?.lineno || frame?.lineNo || '';
   const fn = frame?.function || frame?.absPath || '';
-  return `${file}${line ? `:${line}` : ''}${fn ? ` in ${fn}` : ''}`;
+  const location = line ? ':' + line : '';
+  const functionName = fn ? ' in ' + fn : '';
+  return `${file}${location}${functionName}`;
 }
 
 function withinLookback(timestamp, since) {
@@ -759,12 +761,14 @@ function uniqueKeys(lists) {
 function mergeCandidates(left, right, reason) {
   const sources = uniqueKeys([left.sources || [left.source], right.sources || [right.source]]);
   const featureId = left.featureId || right.featureId || '';
+  let title = left.title;
+  if (left.source !== 'sentry' && right.source === 'sentry') title = right.title;
   return {
     ...left,
     source: sources.length > 1 ? 'telemetry' : (left.source || right.source),
     sources,
     keys: uniqueKeys([left.keys || [], right.keys || []]),
-    title: left.source === 'sentry' ? left.title : (right.source === 'sentry' ? right.title : left.title),
+    title,
     area: left.area !== 'unknown' ? left.area : right.area,
     featureId,
     captureProof: captureProofCommand(featureId),

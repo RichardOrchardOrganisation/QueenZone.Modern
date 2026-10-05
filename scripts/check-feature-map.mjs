@@ -315,7 +315,8 @@ export function generateIndexMarkdown(map) {
         const target = entry.screen
           ? asList(entry.screen).join(', ')
           : [entry.page, entry.url].filter(Boolean).join(' — ');
-        lines.push(`- \`${entry.id}\` — ${entry.name || entry.id}${target ? ` (${target})` : ''}`);
+        const targetLabel = target ? ' (' + target + ')' : '';
+        lines.push(`- \`${entry.id}\` — ${entry.name || entry.id}${targetLabel}`);
       }
       lines.push('');
     }
