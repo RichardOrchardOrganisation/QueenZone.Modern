@@ -23,7 +23,7 @@ namespace QueenZone.Data.Migrations
                 table: "CrosswordProgress",
                 type: "uniqueidentifier",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                defaultValue: Guid.Empty);
 
             migrationBuilder.Sql("UPDATE progress SET PlayVersion = puzzle.PlayVersion FROM CrosswordProgress progress INNER JOIN Crosswords puzzle ON progress.CrosswordId = puzzle.Id;");
         }

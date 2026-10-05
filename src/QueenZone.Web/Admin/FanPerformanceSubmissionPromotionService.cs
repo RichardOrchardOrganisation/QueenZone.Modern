@@ -65,7 +65,6 @@ public sealed class FanPerformanceSubmissionPromotionService(
             ?? throw new InvalidOperationException("The submitted audio file is missing from storage.");
 
         var publishedName = BuildPublishedBlobName(submission);
-        var wroteSongFile = false;
         await using (pending)
         {
             await blobUploadService.UploadAsync(
@@ -74,7 +73,6 @@ public sealed class FanPerformanceSubmissionPromotionService(
                 SongFileUrl.ContainerName,
                 new BlobUploadContext { PreferredBlobName = publishedName },
                 cancellationToken);
-            wroteSongFile = true;
         }
 
         try
@@ -90,21 +88,18 @@ public sealed class FanPerformanceSubmissionPromotionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            if (wroteSongFile)
+            var latest = await fanPerformanceSubmissionRepository.GetByIdAsync(
+                submission.Id,
+                cancellationToken);
+            if (latest?.PromotedStageId is int promotedStageId)
             {
-                var latest = await fanPerformanceSubmissionRepository.GetByIdAsync(
-                    submission.Id,
-                    cancellationToken);
-                if (latest?.PromotedStageId is int promotedStageId)
-                {
-                    await TryDeletePendingBlobAsync(latest, cancellationToken);
-                    return promotedStageId;
-                }
+                await TryDeletePendingBlobAsync(latest, cancellationToken);
+                return promotedStageId;
+            }
 
-                if (!IsAlreadyApproved(latest))
-                {
-                    await CompensateUploadedBlobAsync(publishedName, submission.Id, cancellationToken);
-                }
+            if (!IsAlreadyApproved(latest))
+            {
+                await CompensateUploadedBlobAsync(publishedName, submission.Id, cancellationToken);
             }
 
             throw;

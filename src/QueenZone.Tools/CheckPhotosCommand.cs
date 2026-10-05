@@ -623,9 +623,9 @@ internal sealed class AzureBlobPhotoChecker(string connectionString) : IPhotoBlo
 {
     private readonly BlobServiceClient blobServiceClient = new(connectionString);
 
-    public async Task<PhotoBlobProbeResult> CheckAsync(string blobUrl, CancellationToken cancellationToken)
+    public async Task<PhotoBlobProbeResult> CheckAsync(string publicUrl, CancellationToken cancellationToken)
     {
-        if (!PhotoImageUrl.TryParseBlobLocation(blobUrl, out var container, out var blobName))
+        if (!PhotoImageUrl.TryParseBlobLocation(publicUrl, out var container, out var blobName))
         {
             return new PhotoBlobProbeResult(false, "invalid-url");
         }
