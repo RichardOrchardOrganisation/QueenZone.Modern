@@ -18,6 +18,18 @@ public enum ForumWriteStatus
     MemberSuspended,
 }
 
+public sealed record NewForumTopicRequest(
+    Guid MemberId,
+    string? IdentityName,
+    int CategoryId,
+    string? Subject,
+    string? Body,
+    IReadOnlyList<IFormFile>? Attachments,
+    NewForumPoll? Poll)
+{
+    public bool TrustedSystemAuthor { get; init; }
+}
+
 public sealed record ForumWriteFieldError(string Field, string Message);
 
 public sealed class ForumWriteOutcome
@@ -77,18 +89,13 @@ public sealed class ForumWriteOutcome
 /// <c>/api/v1/forum</c> writes so mobile posts hit the same sanitization,
 /// attachment rules, and <see cref="ForumPostRateLimiter"/> as the website.
 /// </summary>
-public sealed partial class ForumPostWriteService(
+public sealed class ForumPostWriteService(
     IForumRepository forumRepository,
     IForumWriteRepository forumWriteRepository,
-    MemberAccountService memberAccountService,
-    PublicQueryCacheService publicQueryCache,
-    UgcHtml ugcHtml,
     ForumPostRateLimiter rateLimiter,
-    ForumAttachmentValidator attachmentValidator,
-    ForumAttachmentUploadService attachmentUploadService,
-    ForumSearchIndexSynchronizer forumSearchIndex,
-    INotificationDispatcher notificationDispatcher,
-    ILogger<ForumPostWriteService> logger,
+    ForumPostContentService contentService,
+    ForumPostWriteEffects writeEffects,
+    ForumPostModerationService moderationService,
     TimeProvider timeProvider)
 {
     public const int SubjectMinLength = 5;
@@ -123,11 +130,6 @@ public sealed partial class ForumPostWriteService(
     /// </summary>
     internal static readonly TimeSpan SpamCandidateWindow = TimeSpan.FromSeconds(60);
 
-    private static readonly Regex UrlPattern = new(
-        @"https?://|www\.",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled,
-        RegexDefaults.MatchTimeout);
-
     /// <summary>
     /// Matches bulk-signup-generator addresses shaped like
     /// <c>outlook_D2B04D13FE864466@outlook.com</c> — a short word, an underscore, a long hex
@@ -140,23 +142,25 @@ public sealed partial class ForumPostWriteService(
         RegexDefaults.MatchTimeout);
 
     public async Task<ForumWriteOutcome> CreateTopicAsync(
-        Guid memberId,
-        string? identityName,
-        int categoryId,
-        string? subject,
-        string? body,
-        IReadOnlyList<IFormFile>? attachments,
-        NewForumPoll? poll,
-        CancellationToken cancellationToken = default,
-        bool trustedSystemAuthor = false)
+        NewForumTopicRequest request,
+        CancellationToken cancellationToken = default)
     {
+        var memberId = request.MemberId;
+        var identityName = request.IdentityName;
+        var categoryId = request.CategoryId;
+        var subject = request.Subject;
+        var body = request.Body;
+        var attachments = request.Attachments;
+        var poll = request.Poll;
+        var trustedSystemAuthor = request.TrustedSystemAuthor;
+
         var category = await forumRepository.GetCategoryByIdAsync(categoryId, cancellationToken);
         if (category is null)
         {
             return ForumWriteOutcome.Fail(ForumWriteStatus.CategoryNotFound);
         }
 
-        var author = await ResolveAuthorAsync(memberId, identityName, cancellationToken);
+        var author = await moderationService.ResolveAuthorAsync(memberId, identityName, cancellationToken);
         if (author.Status != ForumWriteStatus.Success)
         {
             return ForumWriteOutcome.Fail(author.Status);
@@ -169,13 +173,13 @@ public sealed partial class ForumPostWriteService(
             fieldErrors.Add(new ForumWriteFieldError("Subject", SubjectLengthMessage));
         }
 
-        var sanitizedBody = ugcHtml.NormalizeForStorage(body);
+        var sanitizedBody = contentService.NormalizeForStorage(body);
         if (string.IsNullOrWhiteSpace(sanitizedBody))
         {
             fieldErrors.Add(new ForumWriteFieldError("Body", BodyRequiredMessage));
         }
 
-        var attachmentValidation = attachmentValidator.Validate(SelectFiles(attachments));
+        var attachmentValidation = contentService.ValidateAttachments(attachments);
         foreach (var error in attachmentValidation.Errors)
         {
             fieldErrors.Add(new ForumWriteFieldError("Attachments", error));
@@ -204,17 +208,17 @@ public sealed partial class ForumPostWriteService(
                     createdAt,
                     poll),
                 cancellationToken);
-            await forumSearchIndex.UpsertThreadAsync(
+            await writeEffects.UpsertThreadAsync(
                 created.TopicId,
                 trimmedSubject,
                 createdAt,
                 cancellationToken);
-            await UploadAttachmentsAsync(
+            await contentService.UploadAttachmentsAsync(
                 created.StarterPostId,
                 memberId,
                 attachmentValidation.AcceptedFiles,
                 cancellationToken);
-            publicQueryCache.InvalidateForumStatsCache();
+            writeEffects.InvalidateForumStatsCache();
             if (!trustedSystemAuthor)
             {
                 await FlagIfLikelySpamAsync(
@@ -266,20 +270,20 @@ public sealed partial class ForumPostWriteService(
             return ForumWriteOutcome.Fail(ForumWriteStatus.TopicLocked);
         }
 
-        var author = await ResolveAuthorAsync(memberId, identityName, cancellationToken);
+        var author = await moderationService.ResolveAuthorAsync(memberId, identityName, cancellationToken);
         if (author.Status != ForumWriteStatus.Success)
         {
             return ForumWriteOutcome.Fail(author.Status);
         }
 
         var fieldErrors = new List<ForumWriteFieldError>();
-        var sanitizedBody = ugcHtml.NormalizeForStorage(body);
+        var sanitizedBody = contentService.NormalizeForStorage(body);
         if (string.IsNullOrWhiteSpace(sanitizedBody))
         {
             fieldErrors.Add(new ForumWriteFieldError("Body", BodyRequiredMessage));
         }
 
-        var attachmentValidation = attachmentValidator.Validate(SelectFiles(attachments));
+        var attachmentValidation = contentService.ValidateAttachments(attachments);
         foreach (var error in attachmentValidation.Errors)
         {
             fieldErrors.Add(new ForumWriteFieldError("Attachments", error));
@@ -307,35 +311,17 @@ public sealed partial class ForumPostWriteService(
                     sanitizedBody,
                     createdAt),
                 cancellationToken);
-            await forumSearchIndex.UpsertThreadAsync(topicId, title, createdAt, cancellationToken);
-            await UploadAttachmentsAsync(
+            await writeEffects.UpsertThreadAsync(topicId, title, createdAt, cancellationToken);
+            await contentService.UploadAttachmentsAsync(
                 postId,
                 memberId,
                 attachmentValidation.AcceptedFiles,
                 cancellationToken);
-            publicQueryCache.InvalidateForumStatsCache();
+            writeEffects.InvalidateForumStatsCache();
             await FlagIfLikelySpamAsync(
                 memberId, author.AccountCreatedAt, author.Email, createdAt, sanitizedBody, cancellationToken);
             var created = ForumWriteOutcome.Created(topicId, postId, sanitizedBody, title);
-            try
-            {
-                await notificationDispatcher.NotifyForumReplyAsync(
-                    topicId,
-                    postId,
-                    memberId,
-                    title,
-                    cancellationToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.PushDispatchFailedAfterForumReply(
-                    logger,
-                    ex,
-                    topicId,
-                    postId,
-                    memberId,
-                    ex.Message);
-            }
+            await writeEffects.NotifyReplyAsync(topicId, postId, memberId, title, cancellationToken);
 
             return created;
         }
@@ -353,26 +339,6 @@ public sealed partial class ForumPostWriteService(
         }
     }
 
-    private async Task<(ForumWriteStatus Status, string DisplayName, DateTime? AccountCreatedAt, string? Email)> ResolveAuthorAsync(
-        Guid memberId,
-        string? identityName,
-        CancellationToken cancellationToken)
-    {
-        var account = await memberAccountService.FindByIdAsync(memberId, cancellationToken);
-        if (account?.IsSuspended == true)
-        {
-            return (ForumWriteStatus.MemberSuspended, string.Empty, null, null);
-        }
-
-        if (!string.IsNullOrWhiteSpace(account?.DisplayName))
-        {
-            return (ForumWriteStatus.Success, account.DisplayName, account.CreatedAt, account.Email);
-        }
-
-        var fallback = string.IsNullOrWhiteSpace(identityName) ? "Member" : identityName;
-        return (ForumWriteStatus.Success, fallback, account?.CreatedAt, account?.Email);
-    }
-
     /// <summary>
     /// Auto-suspends and hides content matching the bulk-signup-bot signature: within
     /// <see cref="SpamCandidateWindow"/> of account creation, either a link is posted or the
@@ -381,65 +347,9 @@ public sealed partial class ForumPostWriteService(
     /// after a successful write so a false positive still leaves the post recoverable via
     /// admin reinstatement, the same recovery path as a manual suspension.
     /// </summary>
-    private async Task FlagIfLikelySpamAsync(
-        Guid memberId,
-        DateTime? accountCreatedAt,
-        string? email,
-        DateTimeOffset postedAt,
-        string sanitizedBody,
-        CancellationToken cancellationToken)
-    {
-        if (accountCreatedAt is null || postedAt.UtcDateTime - accountCreatedAt.Value > SpamCandidateWindow)
-        {
-            return;
-        }
-
-        var hasLink = UrlPattern.IsMatch(sanitizedBody);
-        var hasAutoGeneratedEmail = !string.IsNullOrEmpty(email) && AutoGeneratedFreemailPattern.IsMatch(email);
-        if (!hasLink && !hasAutoGeneratedEmail)
-        {
-            return;
-        }
-
-        var signature = (hasLink, hasAutoGeneratedEmail) switch
-        {
-            (true, true) => "a link and an auto-generated-looking registration email",
-            (true, false) => "a link",
-            _ => "an auto-generated-looking registration email",
-        };
-        var reason =
-            $"Auto-flagged: posted with {signature} within {SpamCandidateWindow.TotalSeconds:0}s of registering "
-            + "(matches automated bulk-signup pattern).";
-        var suspended = await memberAccountService.SuspendAsync(
-            memberId, reason, AutoModeratorEmail, timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
-        if (suspended is null)
-        {
-            return;
-        }
-
-        await forumWriteRepository.HideAuthorForumContentAsync(
-            memberId, suspended.DisplayName, cancellationToken);
-        Log.AutoSuspendedMember(
-            logger,
-            memberId,
-            signature,
-            (postedAt.UtcDateTime - accountCreatedAt.Value).TotalSeconds);
-    }
-
-    private async Task UploadAttachmentsAsync(
-        int postId,
-        Guid memberId,
-        IReadOnlyList<IFormFile> files,
-        CancellationToken cancellationToken)
-    {
-        if (files.Count == 0)
-        {
-            return;
-        }
-
-        await attachmentUploadService.UploadAndSaveAsync(postId, memberId, files, cancellationToken);
-    }
-
-    private static IReadOnlyList<IFormFile> SelectFiles(IReadOnlyList<IFormFile>? attachments) =>
-        attachments?.Where(file => file is { Length: > 0 }).ToList() ?? [];
+    private Task FlagIfLikelySpamAsync(
+        Guid memberId, DateTime? accountCreatedAt, string? email, DateTimeOffset postedAt,
+        string sanitizedBody, CancellationToken cancellationToken) =>
+        moderationService.FlagIfLikelySpamAsync(
+            memberId, accountCreatedAt, email, postedAt, sanitizedBody, cancellationToken);
 }

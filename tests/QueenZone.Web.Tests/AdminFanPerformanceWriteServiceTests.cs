@@ -156,23 +156,31 @@ public sealed class AdminFanPerformanceWriteServiceTests
 
     private static PublicQueryCacheService CreateQueryCache(
         IMemoryCache memoryCache,
-        IFanPerformanceRepository fanPerformanceRepository) =>
-        new(
-            memoryCache,
-            Options.Create(new PublicQueryCacheOptions()),
-            new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
-            new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
-            new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository()),
-            new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
-            new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
-            new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
-            new StubLiveActivityQueryService(),
-            fanPerformanceRepository,
-            new InMemoryQuoteRepository(SampleQuoteData.CreateSeedQuotes()),
-            new InMemoryTriviaRepository(SampleTriviaData.CreateSeedFacts()),
-            new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
-            new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
-            new InMemoryFreddieTributeRepository(new SharedFreddieTributeStore(SampleFreddieTributeData.CreateSeedTributes())));
+        IFanPerformanceRepository fanPerformanceRepository)
+    {
+        var store = new PublicQueryCacheStore(memoryCache, Options.Create(new PublicQueryCacheOptions()));
+        return new PublicQueryCacheService(
+            new PublicEditorialQueryCache(
+                store,
+                new InMemoryNewsRepository(new SharedNewsStore(SampleNewsData.CreateSeedArticles())),
+                new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles()),
+                new InMemoryArticleRepository(new InMemoryArticleSubmissionRepository())),
+            new PublicForumQueryCache(
+                store,
+                new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()),
+                new StubLiveActivityQueryService()),
+            new PublicCatalogQueryCache(
+                store,
+                new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents()),
+                new InMemoryQuoteRepository(SampleQuoteData.CreateSeedQuotes()),
+                new InMemoryTriviaRepository(SampleTriviaData.CreateSeedFacts()),
+                new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters()),
+                new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()),
+                new InMemoryFreddieTributeRepository(new SharedFreddieTributeStore(SampleFreddieTributeData.CreateSeedTributes()))),
+            new PublicMediaQueryCache(store,
+                new InMemoryPhotoRepository(new SharedPhotoStore(SamplePhotoData.CreateSeedCategories())),
+                fanPerformanceRepository));
+    }
 
     private static CoreSitemapService CreateSitemapService(IOutputCacheStore outputCache, IMemoryCache cache) =>
         new(

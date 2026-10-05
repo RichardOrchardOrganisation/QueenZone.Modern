@@ -146,9 +146,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
         var totalCount = await dbContext.PrivateMessages
             .AsNoTracking()
             .CountAsync(m => m.ConversationId == conversationId, cancellationToken);
-        var totalPages = totalCount <= 0
-            ? 1
-            : (totalCount + pageSize - 1) / pageSize;
+        var totalPages = Math.Max(1, (totalCount + pageSize - 1) / pageSize);
 
         // Default and explicit last page use a keyset "latest window" (newest pageSize messages).
         // That avoids count/offset TOCTOU races and always surfaces the tip; when the final
@@ -158,43 +156,11 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
             : Math.Min(page.Value, totalPages);
         var useLatestWindow = page is null or < 1 || effectivePage >= totalPages;
 
-        List<ConversationMessageRow> messageRows;
+        var messageRows = await LoadConversationWindowAsync(
+            conversationId, effectivePage, pageSize, useLatestWindow, cancellationToken);
         if (useLatestWindow)
         {
-            var latestRows = await dbContext.PrivateMessages
-                .AsNoTracking()
-                .Where(m => m.ConversationId == conversationId)
-                .OrderByDescending(m => m.SortKey)
-                .Take(pageSize)
-                .Select(m => new ConversationMessageRow(
-                    m.Id,
-                    m.SenderMemberId,
-                    m.Sender != null ? m.Sender.DisplayName : string.Empty,
-                    m.Body,
-                    m.CreatedAt,
-                    m.SortKey))
-                .ToListAsync(cancellationToken);
-            messageRows = latestRows
-                .OrderBy(m => m.SortKey)
-                .ToList();
             effectivePage = totalPages;
-        }
-        else
-        {
-            messageRows = await dbContext.PrivateMessages
-                .AsNoTracking()
-                .Where(m => m.ConversationId == conversationId)
-                .OrderBy(m => m.SortKey)
-                .Skip((effectivePage - 1) * pageSize)
-                .Take(pageSize)
-                .Select(m => new ConversationMessageRow(
-                    m.Id,
-                    m.SenderMemberId,
-                    m.Sender != null ? m.Sender.DisplayName : string.Empty,
-                    m.Body,
-                    m.CreatedAt,
-                    m.SortKey))
-                .ToListAsync(cancellationToken);
         }
 
         var reportedIds = await LoadReportedMessageIdsAsync(
@@ -222,6 +188,54 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
             totalCount,
             effectivePage,
             pageSize);
+    }
+
+    private async Task<List<ConversationMessageRow>> LoadConversationWindowAsync(
+        Guid conversationId,
+        int effectivePage,
+        int pageSize,
+        bool useLatestWindow,
+        CancellationToken cancellationToken)
+    {
+        List<ConversationMessageRow> messageRows;
+        if (useLatestWindow)
+        {
+            var latestRows = await dbContext.PrivateMessages
+                .AsNoTracking()
+                .Where(m => m.ConversationId == conversationId)
+                .OrderByDescending(m => m.SortKey)
+                .Take(pageSize)
+                .Select(m => new ConversationMessageRow(
+                    m.Id,
+                    m.SenderMemberId,
+                    m.Sender != null ? m.Sender.DisplayName : string.Empty,
+                    m.Body,
+                    m.CreatedAt,
+                    m.SortKey))
+                .ToListAsync(cancellationToken);
+            messageRows = latestRows
+                .OrderBy(m => m.SortKey)
+                .ToList();
+        }
+        else
+        {
+            messageRows = await dbContext.PrivateMessages
+                .AsNoTracking()
+                .Where(m => m.ConversationId == conversationId)
+                .OrderBy(m => m.SortKey)
+                .Skip((effectivePage - 1) * pageSize)
+                .Take(pageSize)
+                .Select(m => new ConversationMessageRow(
+                    m.Id,
+                    m.SenderMemberId,
+                    m.Sender != null ? m.Sender.DisplayName : string.Empty,
+                    m.Body,
+                    m.CreatedAt,
+                    m.SortKey))
+                .ToListAsync(cancellationToken);
+        }
+
+        return messageRows;
     }
 
     public Task<bool> IsParticipantAsync(

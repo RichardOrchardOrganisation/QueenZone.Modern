@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using QueenZone.Data;
 
 namespace QueenZone.NewsAgent;
@@ -8,11 +7,8 @@ public sealed class DiscoverNewsWorker(
     NewsDiscoveryService discoveryService,
     NewsTriageService triageService,
     NewsDraftGenerationService draftGenerationService,
-    NewsAiRunExecutor aiRunExecutor,
     INewsDiscoveryRepository discoveryRepository,
-    INewsAgentRunLeaseService runLeaseService,
-    IOptions<OpenRouterOptions> openRouterOptions,
-    IOptions<NewsAgentSchedulerOptions> schedulerOptions,
+    NewsAgentRunPreparation runPreparation,
     ILogger<DiscoverNewsWorker> logger)
 {
     public NewsAgentRunSummary? LastRunSummary { get; private set; }
@@ -21,15 +17,13 @@ public sealed class DiscoverNewsWorker(
         DiscoverNewsCommandOptions options,
         CancellationToken cancellationToken = default)
     {
-        LogAiStatus();
-
-        await using var runLease = await TryAcquireRunLeaseAsync(options, cancellationToken);
+        await using var runLease = await runPreparation.PrepareAsync(options, cancellationToken);
         if (runLease is null)
         {
             LastRunSummary = new NewsAgentRunSummary(
                     SkippedDueToLease: true,
-                    AiEnabled: aiRunExecutor.IsAiEnabled,
-                    DryRun: options.DryRun || openRouterOptions.Value.DryRun,
+                    AiEnabled: runPreparation.IsAiEnabled,
+                    DryRun: runPreparation.IsDryRun(options),
                     Discovery: null,
                     Triage: null,
                     Draft: null,
@@ -71,8 +65,8 @@ public sealed class DiscoverNewsWorker(
 
         LastRunSummary = new NewsAgentRunSummary(
                 SkippedDueToLease: false,
-                AiEnabled: aiRunExecutor.IsAiEnabled,
-                DryRun: options.DryRun || openRouterOptions.Value.DryRun,
+                AiEnabled: runPreparation.IsAiEnabled,
+                DryRun: runPreparation.IsDryRun(options),
                 Discovery: discoveryResult,
                 Triage: triageResult,
                 Draft: draftResult,
@@ -88,44 +82,6 @@ public sealed class DiscoverNewsWorker(
     private NewsTriageRunResult? LastTriageResult { get; set; }
 
     private NewsDraftRunResult? LastDraftResult { get; set; }
-
-    private async Task<INewsAgentRunLease?> TryAcquireRunLeaseAsync(
-        DiscoverNewsCommandOptions options,
-        CancellationToken cancellationToken)
-    {
-        var scheduler = schedulerOptions.Value;
-        if (!scheduler.UseRunLease || options.Force)
-        {
-            return NoOpNewsAgentRunLease.Instance;
-        }
-
-        var lease = await runLeaseService.TryAcquireAsync(
-            scheduler.LeaseName,
-            TimeSpan.FromMinutes(scheduler.LeaseDurationMinutes),
-            cancellationToken);
-        if (lease is null)
-        {
-            logger.LogWarning(
-                "Skipping discover-news run because lease {LeaseName} is held by another instance.",
-                scheduler.LeaseName);
-        }
-
-        return lease;
-    }
-
-    private void LogAiStatus()
-    {
-        if (!aiRunExecutor.IsAiEnabled)
-        {
-            logger.LogWarning("OpenRouter AI processing is disabled. Fetch-only discovery will continue without AI triage or drafting.");
-            return;
-        }
-
-        if (openRouterOptions.Value.DryRun)
-        {
-            logger.LogInformation("OpenRouter dry-run mode is enabled. AI requests will be logged without calling the provider.");
-        }
-    }
 
     private async Task<int> RunDiscoveryAsync(
         DiscoverNewsCommandOptions options,
@@ -210,14 +166,4 @@ public sealed class DiscoverNewsWorker(
         return draftResult.Failures > 0 ? 1 : 0;
     }
 
-    private sealed class NoOpNewsAgentRunLease : INewsAgentRunLease
-    {
-        public static readonly NoOpNewsAgentRunLease Instance = new();
-
-        public string LeaseName => string.Empty;
-
-        public string HolderId => string.Empty;
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 }

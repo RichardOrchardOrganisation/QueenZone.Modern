@@ -6,273 +6,71 @@ using QueenZone.Data;
 namespace QueenZone.Web;
 
 public sealed class PublicQueryCacheService(
-    IMemoryCache cache,
-    IOptions<PublicQueryCacheOptions> options,
-    INewsRepository newsRepository,
-    IArticlesRepository articlesRepository,
-    IArticleRepository communityArticleRepository,
-    IForumRepository forumRepository,
-    IQueenHistoryRepository queenHistoryRepository,
-    IPhotoRepository photoRepository,
-    ILiveActivityQueryService liveActivityQuery,
-    IFanPerformanceRepository fanPerformanceRepository,
-    IQuoteRepository quoteRepository,
-    ITriviaRepository triviaRepository,
-    IBiographyRepository biographyRepository,
-    IDiscographyRepository discographyRepository,
-    IFreddieTributeRepository freddieTributeRepository)
+    PublicEditorialQueryCache editorial,
+    PublicForumQueryCache forum,
+    PublicCatalogQueryCache catalog,
+    PublicMediaQueryCache media)
 {
-    private static readonly MemoryCacheEntryOptions VersionEntryOptions = new()
-    {
-        Priority = CacheItemPriority.NeverRemove
-    };
-
-    /// <summary>
-    /// Process-wide per-key gates so concurrent cold-cache hits share a single factory execution
-    /// even when <see cref="PublicQueryCacheService"/> is scoped (one instance per HTTP request).
-    /// Keys include unbounded page/date/id/version variants. Retain a gate only while its holder
-    /// or registered waiters use it; cardinality is the number of currently active distinct keys,
-    /// and returns to zero when loads finish. Completed keys and semaphores are not retained.
-    /// </summary>
-    private static readonly Dictionary<string, LoadGate> LoadGates = new(StringComparer.Ordinal);
-    private static readonly object LoadGatesSync = new();
-
-    public Task<IReadOnlyList<NewsItem>> GetLatestNewsAsync(int count, CancellationToken cancellationToken = default)
-    {
-        var version = GetNewsCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.LatestNews(version, count),
-            options.Value.NewsCacheDuration,
-            () => newsRepository.GetLatestAsync(count, cancellationToken),
-            cancellationToken);
-    }
+    public Task<IReadOnlyList<NewsItem>> GetLatestNewsAsync(int count, CancellationToken cancellationToken = default) =>
+        editorial.GetLatestNewsAsync(count, cancellationToken);
 
     public Task<int> GetNewsPublishedCountAsync(CancellationToken cancellationToken = default) =>
-        GetNewsPublishedCountAsync(NewsArchiveFilter.None, cancellationToken);
+        editorial.GetNewsPublishedCountAsync(cancellationToken);
 
     public Task<int> GetNewsPublishedCountAsync(
         NewsArchiveFilter filter,
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetNewsCacheVersion();
-        var key = filter.IsActive
-            ? PublicQueryCacheKeys.NewsPublishedCount(version, filter.DecadeStartYear, filter.Year)
-            : PublicQueryCacheKeys.NewsPublishedCount(version);
-        return GetOrCreateAsync(
-            key,
-            options.Value.NewsCacheDuration,
-            () => newsRepository.GetPublishedCountAsync(filter, cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        editorial.GetNewsPublishedCountAsync(filter, cancellationToken);
 
     public Task<IReadOnlyList<NewsItem>> GetNewsArchivePageAsync(
         int page,
         int pageSize,
         NewsArchiveFilter filter = default,
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetNewsCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.NewsArchivePage(version, page, pageSize, filter.DecadeStartYear, filter.Year),
-            options.Value.NewsCacheDuration,
-            () => newsRepository.GetArchivePageAsync(page, pageSize, filter, cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        editorial.GetNewsArchivePageAsync(page, pageSize, filter, cancellationToken);
 
-    public Task<int> GetArticlePublishedCountAsync(CancellationToken cancellationToken = default)
-    {
-        var version = GetArticleCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.ArticlePublishedCount(version),
-            options.Value.ArticleCountCacheDuration,
-            () => articlesRepository.GetPublishedCountAsync(cancellationToken),
-            cancellationToken);
-    }
+    public Task<int> GetArticlePublishedCountAsync(CancellationToken cancellationToken = default) =>
+        editorial.GetArticlePublishedCountAsync(cancellationToken);
 
-    public Task<IReadOnlyList<ArticleItem>> GetLatestArticlesAsync(int count, CancellationToken cancellationToken = default)
-    {
-        var version = GetArticleCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.LatestArticles(version, count),
-            options.Value.ArticleCountCacheDuration,
-            () => articlesRepository.GetLatestAsync(count, cancellationToken),
-            cancellationToken);
-    }
+    public Task<IReadOnlyList<ArticleItem>> GetLatestArticlesAsync(int count, CancellationToken cancellationToken = default) =>
+        editorial.GetLatestArticlesAsync(count, cancellationToken);
 
     public Task<IReadOnlyList<PublishedArticleSubmission>> GetLatestCommunityArticlesAsync(
         int count,
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetArticleCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.LatestCommunityArticles(version, count),
-            options.Value.ArticleCountCacheDuration,
-            () => communityArticleRepository.GetPageAsync(1, count, ct: cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        editorial.GetLatestCommunityArticlesAsync(count, cancellationToken);
 
     public Task<IReadOnlyList<ArticleItem>> GetArticlesArchivePageAsync(
         int page,
         int pageSize,
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetArticleCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.ArticlesArchivePage(version, page, pageSize),
-            options.Value.ArticleCountCacheDuration,
-            () => articlesRepository.GetArchivePageAsync(page, pageSize, cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        editorial.GetArticlesArchivePageAsync(page, pageSize, cancellationToken);
 
     /// <summary>
     /// Cached merged {source, id, date} index for <c>/articles</c>. Community
     /// <see cref="SqlException"/> falls back to archive-only and is not cached.
     /// Tag views are community-only.
     /// </summary>
-    public async Task<IReadOnlyList<ArticleFeedKey>> GetMergedArticleFeedIndexAsync(
+    public Task<IReadOnlyList<ArticleFeedKey>> GetMergedArticleFeedIndexAsync(
         string? tag = null,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedTag = string.IsNullOrWhiteSpace(tag) ? null : tag;
-        var version = GetArticleCacheVersion();
-        var key = PublicQueryCacheKeys.ArticleFeedIndex(version, normalizedTag);
-        if (cache.TryGetValue(key, out IReadOnlyList<ArticleFeedKey>? cached) && cached is not null)
-        {
-            return cached;
-        }
+        CancellationToken cancellationToken = default) =>
+        editorial.GetMergedArticleFeedIndexAsync(tag, cancellationToken);
 
-        var gate = RentLoadGate(key);
-        try
-        {
-            await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                if (cache.TryGetValue(key, out cached) && cached is not null)
-                {
-                    return cached;
-                }
-
-                var (index, cacheable) = await BuildMergedArticleFeedIndexAsync(normalizedTag, cancellationToken)
-                    .ConfigureAwait(false);
-                if (cacheable)
-                {
-                    cache.Set(key, index, options.Value.ArticleCountCacheDuration);
-                }
-
-                return index;
-            }
-            finally
-            {
-                gate.Semaphore.Release();
-            }
-        }
-        finally
-        {
-            ReturnLoadGate(key, gate);
-        }
-    }
-
-    public async Task<IReadOnlyList<ArticleArchiveItem>> HydrateArticleFeedAsync(
+    public Task<IReadOnlyList<ArticleArchiveItem>> HydrateArticleFeedAsync(
         IReadOnlyList<ArticleFeedKey> keys,
-        CancellationToken cancellationToken = default)
-    {
-        if (keys.Count == 0)
-        {
-            return [];
-        }
-
-        var archiveIds = keys
-            .Where(key => key.Source == ArticleFeedSource.Archive)
-            .Select(key => key.ArchiveId)
-            .ToList();
-        var communityIds = keys
-            .Where(key => key.Source == ArticleFeedSource.Community)
-            .Select(key => key.CommunityId)
-            .ToList();
-
-        // Both repositories share the request-scoped QueenZoneDbContext.
-        // Load them sequentially so a mixed page cannot start a second EF operation
-        // on the same context (#322 / #335).
-        IReadOnlyList<ArticleItem> archiveItems = archiveIds.Count == 0
-            ? []
-            : await articlesRepository.GetPublishedByIdsAsync(archiveIds, cancellationToken)
-                .ConfigureAwait(false);
-        IReadOnlyList<PublishedArticleSubmission> communityItems = communityIds.Count == 0
-            ? []
-            : await communityArticleRepository.GetPublishedByIdsAsync(communityIds, cancellationToken)
-                .ConfigureAwait(false);
-
-        var archiveMap = archiveItems.ToDictionary(item => item.Id);
-        var communityMap = communityItems.ToDictionary(item => item.Id);
-        var items = new List<ArticleArchiveItem>(keys.Count);
-        foreach (var key in keys)
-        {
-            if (key.Source == ArticleFeedSource.Archive)
-            {
-                if (archiveMap.TryGetValue(key.ArchiveId, out var archive))
-                {
-                    items.Add(PublicContentMapper.ToArticleArchiveItem(archive));
-                }
-
-                continue;
-            }
-
-            if (communityMap.TryGetValue(key.CommunityId, out var community))
-            {
-                items.Add(PublicContentMapper.ToCommunityArticleArchiveItem(community));
-            }
-        }
-
-        return PublicContentMapper.DedupeArticleArchiveItemsByDetailPath(items);
-    }
-
-    private async Task<(IReadOnlyList<ArticleFeedKey> Index, bool Cacheable)> BuildMergedArticleFeedIndexAsync(
-        string? tag,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyList<ArticleFeedKey> communityKeys;
-        var cacheable = true;
-        try
-        {
-            communityKeys = await communityArticleRepository
-                .GetPublishedFeedKeysAsync(tag, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (SqlException)
-        {
-            communityKeys = [];
-            cacheable = false;
-        }
-
-        IReadOnlyList<ArticleFeedKey> archiveKeys = tag is null
-            ? await articlesRepository.GetPublishedFeedKeysAsync(cancellationToken).ConfigureAwait(false)
-            : [];
-
-        return (ArticleFeedOrdering.Sort(communityKeys.Concat(archiveKeys)), cacheable);
-    }
+        CancellationToken cancellationToken = default) =>
+        editorial.HydrateArticleFeedAsync(keys, cancellationToken);
 
     public Task<IReadOnlyList<ForumCategoryItem>> GetForumCategoriesAsync(CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.ForumCategories,
-            options.Value.ForumStatsCacheDuration,
-            () => forumRepository.GetCategoriesAsync(cancellationToken),
-            cancellationToken);
+        forum.GetForumCategoriesAsync(cancellationToken);
 
     public Task<int> GetForumThreadCountAsync(CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.ForumThreadCount,
-            options.Value.ForumStatsCacheDuration,
-            () => forumRepository.GetTotalThreadCountAsync(cancellationToken),
-            cancellationToken);
+        forum.GetForumThreadCountAsync(cancellationToken);
 
     public Task<IReadOnlyList<ForumRecentThreadItem>> GetForumRecentThreadsAsync(
         int count,
         CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.ForumRecentThreads(count),
-            options.Value.ForumStatsCacheDuration,
-            () => forumRepository.GetRecentThreadsAsync(count, cancellationToken),
-            cancellationToken);
+        forum.GetForumRecentThreadsAsync(count, cancellationToken);
 
     /// <summary>
     /// John S Stuart's rare/discography posts for the "Rare Discography" page. Long-lived cache:
@@ -280,470 +78,175 @@ public sealed class PublicQueryCacheService(
     /// </summary>
     public Task<IReadOnlyList<ForumRecentThreadItem>> GetForumLegacyDiscographyThreadsAsync(
         CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.ForumLegacyDiscographyThreads,
-            options.Value.ForumStatsCacheDuration,
-            () => forumRepository.GetLegacyDiscographyThreadsAsync(cancellationToken),
-            cancellationToken);
+        forum.GetForumLegacyDiscographyThreadsAsync(cancellationToken);
 
     public Task<IReadOnlyList<QueenHistoryEvent>> GetOnThisDayAsync(
         DateOnly date,
         int count,
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetHistoryCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.OnThisDay(version, date, count),
-            options.Value.OnThisDayCacheDuration,
-            () => queenHistoryRepository.GetOnThisDayAsync(date, count, cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        catalog.GetOnThisDayAsync(date, count, cancellationToken);
 
     public Task<IReadOnlyList<QueenHistoryEvent>> GetAroundThisDayAsync(
         DateOnly date,
         int dayWindow,
         int count,
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetHistoryCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.AroundThisDay(version, date, dayWindow, count),
-            options.Value.OnThisDayCacheDuration,
-            () => queenHistoryRepository.GetAroundThisDayAsync(date, dayWindow, count, cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        catalog.GetAroundThisDayAsync(date, dayWindow, count, cancellationToken);
 
     public Task<IReadOnlyList<QueenHistoryEvent>> GetAllPublishedHistoryEventsAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetHistoryCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.AllPublishedHistory(version),
-            options.Value.OnThisDayCacheDuration,
-            () => queenHistoryRepository.GetAllPublishedAsync(cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        catalog.GetAllPublishedHistoryEventsAsync(cancellationToken);
 
     /// <summary>
     /// Caches the published quote pool and picks <see cref="Random.Shared"/> per request
     /// so consecutive callers do not freeze on one quote.
     /// </summary>
-    public async Task<QuoteItem?> GetRandomPublishedQuoteAsync(CancellationToken cancellationToken = default)
-    {
-        var published = await GetPublishedQuotesAsync(cancellationToken);
-        if (published.Count == 0)
-        {
-            return null;
-        }
-
-        return published[Random.Shared.Next(published.Count)];
-    }
+    public Task<QuoteItem?> GetRandomPublishedQuoteAsync(CancellationToken cancellationToken = default) =>
+        catalog.GetRandomPublishedQuoteAsync(cancellationToken);
 
     /// <summary>
     /// Up to <paramref name="count"/> distinct published quotes in random order, drawn from the
     /// same cached pool as <see cref="GetRandomPublishedQuoteAsync"/>.
     /// </summary>
-    public async Task<IReadOnlyList<QuoteItem>> GetRandomPublishedQuotesAsync(
+    public Task<IReadOnlyList<QuoteItem>> GetRandomPublishedQuotesAsync(
         int count,
-        CancellationToken cancellationToken = default)
-    {
-        var published = await GetPublishedQuotesAsync(cancellationToken);
-        var shuffled = published.ToArray();
-        Random.Shared.Shuffle(shuffled);
-        return shuffled.Take(Math.Max(count, 0)).ToList();
-    }
+        CancellationToken cancellationToken = default) =>
+        catalog.GetRandomPublishedQuotesAsync(count, cancellationToken);
 
     /// <summary>
     /// Caches the published trivia pool and picks <see cref="Random.Shared"/> per request
     /// so consecutive callers do not freeze on one fact.
     /// </summary>
-    public async Task<TriviaFactItem?> GetRandomPublishedTriviaAsync(CancellationToken cancellationToken = default)
-    {
-        var published = await GetPublishedTriviaAsync(cancellationToken);
-        if (published.Count == 0)
-        {
-            return null;
-        }
-
-        return published[Random.Shared.Next(published.Count)];
-    }
+    public Task<TriviaFactItem?> GetRandomPublishedTriviaAsync(CancellationToken cancellationToken = default) =>
+        catalog.GetRandomPublishedTriviaAsync(cancellationToken);
 
     public Task<IReadOnlyList<BiographyChapterItem>> GetBiographyChaptersAsync(
         CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.BiographyChapters,
-            options.Value.CatalogCacheDuration,
-            () => biographyRepository.GetChaptersAsync(cancellationToken),
-            cancellationToken);
+        catalog.GetBiographyChaptersAsync(cancellationToken);
 
     public Task<IReadOnlyList<AlbumSummary>> GetDiscographyAlbumsAsync(
         CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.DiscographyAlbums,
-            options.Value.CatalogCacheDuration,
-            () => discographyRepository.GetAlbumsAsync(cancellationToken),
-            cancellationToken);
+        catalog.GetDiscographyAlbumsAsync(cancellationToken);
 
-    // The album template renders notes and lyrics for every track, including collapsed details.
-    // Cache the complete archive read so repeat views do not fetch every track LOB again.
     public Task<AlbumDetail?> GetDiscographyAlbumByIdAsync(
         int albumId,
         CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.DiscographyAlbum(albumId),
-            options.Value.CatalogCacheDuration,
-            () => discographyRepository.GetAlbumByIdAsync(albumId, cancellationToken),
-            cancellationToken);
+        catalog.GetDiscographyAlbumByIdAsync(albumId, cancellationToken);
 
     public Task<IReadOnlyList<SongSummary>> GetSongsAsync(
         CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.Songs,
-            options.Value.CatalogCacheDuration,
-            () => discographyRepository.GetSongsAsync(cancellationToken),
-            cancellationToken);
+        catalog.GetSongsAsync(cancellationToken);
 
     public Task<SongDetail?> GetSongBySlugAsync(
         string slug,
         CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.Song(slug.Trim().ToLowerInvariant()),
-            options.Value.CatalogCacheDuration,
-            () => discographyRepository.GetSongBySlugAsync(slug, cancellationToken),
-            cancellationToken);
+        catalog.GetSongBySlugAsync(slug, cancellationToken);
 
-    public Task<IReadOnlyList<PhotoCategory>> GetPhotoCategoriesAsync(CancellationToken cancellationToken = default)
-    {
-        var version = GetPhotoCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.PhotoCategories(version),
-            options.Value.PhotoCacheDuration,
-            () => photoRepository.GetCategoriesAsync(cancellationToken),
-            cancellationToken);
-    }
+    public Task<IReadOnlyList<PhotoCategory>> GetPhotoCategoriesAsync(CancellationToken cancellationToken = default) =>
+        media.GetPhotoCategoriesAsync(cancellationToken);
 
     /// <summary>Newest displayed photos across all categories, for the homepage gallery strip.</summary>
-    public Task<IReadOnlyList<PhotoItem>> GetLatestPhotosAsync(int count, CancellationToken cancellationToken = default)
-    {
-        var version = GetPhotoCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.LatestPhotos(version, count),
-            options.Value.PhotoCacheDuration,
-            () => photoRepository.GetLatestPublishedAsync(count, cancellationToken),
-            cancellationToken);
-    }
+    public Task<IReadOnlyList<PhotoItem>> GetLatestPhotosAsync(int count, CancellationToken cancellationToken = default) =>
+        media.GetLatestPhotosAsync(count, cancellationToken);
 
-    public async Task<PhotoCategory?> GetPhotoCategoryBySlugAsync(
+    public Task<PhotoCategory?> GetPhotoCategoryBySlugAsync(
         string slug,
-        CancellationToken cancellationToken = default)
-    {
-        var categories = await GetPhotoCategoriesAsync(cancellationToken);
-        return categories.FirstOrDefault(category =>
-            string.Equals(category.Slug, slug, StringComparison.OrdinalIgnoreCase));
-    }
+        CancellationToken cancellationToken = default) =>
+        media.GetPhotoCategoryBySlugAsync(slug, cancellationToken);
 
     /// <summary>
     /// Caches one visible tribute id for a few minutes. A miss seeks an indexed id range;
     /// a hit loads that id. Neither path sorts <c>FREDDIE_T</c> with <c>NEWID()</c>.
     /// </summary>
-    public async Task<FreddieTribute?> GetFeaturedFreddieTributeAsync(CancellationToken cancellationToken = default)
-    {
-        var pick = await GetOrCreateAsync(
-            PublicQueryCacheKeys.FreddieFeaturedTributeId,
-            options.Value.FreddieSampleCacheDuration,
-            async () =>
-            {
-                var id = await freddieTributeRepository.PickRandomVisibleIdAsync(cancellationToken);
-                return new CachedId(id);
-            },
-            cancellationToken);
-        if (pick.Id is not int idValue)
-        {
-            return null;
-        }
-
-        return await freddieTributeRepository.GetVisibleByIdAsync(idValue, cancellationToken);
-    }
+    public Task<FreddieTribute?> GetFeaturedFreddieTributeAsync(CancellationToken cancellationToken = default) =>
+        catalog.GetFeaturedFreddieTributeAsync(cancellationToken);
 
     /// <summary>
     /// Up to four Freddie-category photo ids, cached for a few minutes, then loaded by id.
     /// Category lookup reuses <see cref="GetPhotoCategoriesAsync"/>.
     /// </summary>
-    public async Task<IReadOnlyList<PhotoItem>> GetFreddieTributePhotosAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var categories = await GetPhotoCategoriesAsync(cancellationToken);
-        var category = categories.FirstOrDefault(item =>
-            item.Slug.Contains("freddie", StringComparison.OrdinalIgnoreCase));
-        if (category is null)
-        {
-            return [];
-        }
-
-        var version = GetPhotoCacheVersion();
-        var ids = await GetOrCreateAsync(
-            PublicQueryCacheKeys.FreddiePhotoSample(version, category.CatId),
-            options.Value.FreddieSampleCacheDuration,
-            () => photoRepository.PickRandomPublishedPhotoIdsAsync(category.CatId, 4, cancellationToken),
-            cancellationToken);
-        if (ids.Count == 0)
-        {
-            return [];
-        }
-
-        return await photoRepository.GetPublishedByIdsAsync(category.CatId, ids, cancellationToken);
-    }
+    public Task<IReadOnlyList<PhotoItem>> GetFreddieTributePhotosAsync(
+        CancellationToken cancellationToken = default) =>
+        media.GetFreddieTributePhotosAsync(cancellationToken);
 
     public Task<PhotoCategoryPage> GetPhotoCategoryPageAsync(
         int catId,
         int page,
         int pageSize,
         PhotoListFilter? filter = null,
-        CancellationToken cancellationToken = default)
-    {
-        var activeFilter = filter ?? PhotoListFilter.None;
-        var version = GetPhotoCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.PhotoCategoryPage(version, catId, page, pageSize, activeFilter.QueryValue),
-            options.Value.PhotoCacheDuration,
-            () => photoRepository.GetCategoryPageAsync(catId, page, pageSize, activeFilter, cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        media.GetPhotoCategoryPageAsync(catId, page, pageSize, filter, cancellationToken);
 
     /// <summary>
     /// Count of forum posts made today. Short 45s TTL: no presence-tracking exists, so this
     /// is the only honest "live" signal for the mobile home screen's activity strip.
     /// </summary>
     public Task<int> GetLiveActivityNewForumRepliesTodayAsync(CancellationToken cancellationToken = default) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.LiveActivityNewForumReplies,
-            options.Value.LiveActivityCacheDuration,
-            () => liveActivityQuery.GetNewForumRepliesTodayAsync(cancellationToken),
-            cancellationToken);
+        forum.GetLiveActivityNewForumRepliesTodayAsync(cancellationToken);
 
     public Task<IReadOnlyList<FanPerformance>> GetFanPerformancePageAsync(
         int page,
         int pageSize,
-        CancellationToken cancellationToken = default)
-    {
-        var version = GetFanPerformanceCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.FanPerformancePage(version, page, pageSize),
-            options.Value.FanPerformanceCacheDuration,
-            () => fanPerformanceRepository.GetPageAsync(page, pageSize, cancellationToken),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        media.GetFanPerformancePageAsync(page, pageSize, cancellationToken);
 
-    public Task<int> GetFanPerformanceVisibleCountAsync(CancellationToken cancellationToken = default)
-    {
-        var version = GetFanPerformanceCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.FanPerformanceVisibleCount(version),
-            options.Value.FanPerformanceCacheDuration,
-            () => fanPerformanceRepository.GetVisibleCountAsync(cancellationToken),
-            cancellationToken);
-    }
+    public Task<int> GetFanPerformanceVisibleCountAsync(CancellationToken cancellationToken = default) =>
+        media.GetFanPerformanceVisibleCountAsync(cancellationToken);
 
-    public Task<FanPerformance?> GetFanPerformanceByIdAsync(int id, CancellationToken cancellationToken = default)
-    {
-        var version = GetFanPerformanceCacheVersion();
-        return GetOrCreateAsync(
-            PublicQueryCacheKeys.FanPerformanceById(version, id),
-            options.Value.FanPerformanceCacheDuration,
-            () => fanPerformanceRepository.GetByIdAsync(id, cancellationToken),
-            cancellationToken);
-    }
+    public Task<FanPerformance?> GetFanPerformanceByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        media.GetFanPerformanceByIdAsync(id, cancellationToken);
 
     /// <summary>
     /// Invalidates all public news cache entries (latest lists, archive pages, and published counts)
     /// by bumping the news cache version. Call after publish, unpublish, delete of published news,
     /// or edit of published news.
     /// </summary>
-    public void InvalidateNewsCache()
-    {
-        // Versioned keys mean callers can introduce new latest-count variants without updating
-        // invalidation. Previous version entries expire via their normal TTL.
-        cache.Set(PublicQueryCacheKeys.NewsVersion, CreateCacheVersion(), VersionEntryOptions);
-    }
+    public void InvalidateNewsCache() =>
+        editorial.InvalidateNewsCache();
 
-    public void InvalidateForumStatsCache()
-    {
-        cache.Remove(PublicQueryCacheKeys.ForumCategories);
-        cache.Remove(PublicQueryCacheKeys.ForumThreadCount);
-        cache.Remove(PublicQueryCacheKeys.ForumRecentThreads(ForumRoutes.RecentThreadsCount));
-        cache.Remove(PublicQueryCacheKeys.ForumLegacyDiscographyThreads);
-    }
+    public void InvalidateForumStatsCache() =>
+        forum.InvalidateForumStatsCache();
 
     /// <summary>
     /// Invalidates public article cache entries (latest lists, archive pages, published count)
     /// by bumping the article cache version.
     /// </summary>
-    public void InvalidateArticleCountCache() => InvalidateArticlesCache();
+    public void InvalidateArticleCountCache() =>
+        editorial.InvalidateArticleCountCache();
 
-    public void InvalidateArticlesCache()
-    {
-        cache.Set(PublicQueryCacheKeys.ArticleVersion, CreateCacheVersion(), VersionEntryOptions);
-    }
+    public void InvalidateArticlesCache() =>
+        editorial.InvalidateArticlesCache();
 
-    public void InvalidateQuotesCache() => cache.Remove(PublicQueryCacheKeys.PublishedQuotes);
+    public void InvalidateQuotesCache() =>
+        catalog.InvalidateQuotesCache();
 
-    public void InvalidateTriviaCache() => cache.Remove(PublicQueryCacheKeys.PublishedTrivia);
+    public void InvalidateTriviaCache() =>
+        catalog.InvalidateTriviaCache();
 
-    public void InvalidateBiographyCache() => cache.Remove(PublicQueryCacheKeys.BiographyChapters);
+    public void InvalidateBiographyCache() =>
+        catalog.InvalidateBiographyCache();
 
     /// <summary>
     /// Evicts the public discography album list. No admin write path exists today;
     /// TTL is the freshness fallback until a sync/admin writer is wired.
     /// </summary>
-    public void InvalidateDiscographyCache()
-    {
-        cache.Remove(PublicQueryCacheKeys.DiscographyAlbums);
-        cache.Remove(PublicQueryCacheKeys.Songs);
-    }
+    public void InvalidateDiscographyCache() =>
+        catalog.InvalidateDiscographyCache();
 
     /// <summary>
     /// Bumps the photo cache version so category lists and paged grids refresh after admin writes.
     /// </summary>
-    public void InvalidatePhotoCache()
-    {
-        cache.Set(PublicQueryCacheKeys.PhotoVersion, CreateCacheVersion(), VersionEntryOptions);
-    }
+    public void InvalidatePhotoCache() =>
+        media.InvalidatePhotoCache();
 
-    public void InvalidateHistoryCache()
-    {
-        cache.Set(PublicQueryCacheKeys.HistoryVersion, CreateCacheVersion(), VersionEntryOptions);
-    }
+    public void InvalidateHistoryCache() =>
+        catalog.InvalidateHistoryCache();
 
     /// <summary>
     /// Bumps the fan-performance cache version so archive pages and the
     /// <c>/api/v1</c> content projection refresh after admin writes.
     /// </summary>
-    public void InvalidateFanPerformanceCache()
-    {
-        cache.Set(PublicQueryCacheKeys.FanPerformanceVersion, CreateCacheVersion(), VersionEntryOptions);
-    }
+    public void InvalidateFanPerformanceCache() =>
+        media.InvalidateFanPerformanceCache();
 
-    private string GetNewsCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.NewsVersion);
-
-    private string GetArticleCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.ArticleVersion);
-
-    private string GetPhotoCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.PhotoVersion);
-
-    private string GetHistoryCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.HistoryVersion);
-
-    private string GetFanPerformanceCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.FanPerformanceVersion);
-
-    private string GetOrInitVersion(string key)
-    {
-        if (cache.TryGetValue(key, out string? version) && !string.IsNullOrEmpty(version))
-        {
-            return version;
-        }
-
-        var initial = "0";
-        cache.Set(key, initial, VersionEntryOptions);
-        return initial;
-    }
-
-    private Task<IReadOnlyList<QuoteItem>> GetPublishedQuotesAsync(CancellationToken cancellationToken) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.PublishedQuotes,
-            options.Value.CatalogCacheDuration,
-            async () =>
-            {
-                var all = await quoteRepository.GetAllAsync(cancellationToken);
-                IReadOnlyList<QuoteItem> published = all.Where(quote => quote.IsPublished).ToList();
-                return published;
-            },
-            cancellationToken);
-
-    private Task<IReadOnlyList<TriviaFactItem>> GetPublishedTriviaAsync(CancellationToken cancellationToken) =>
-        GetOrCreateAsync(
-            PublicQueryCacheKeys.PublishedTrivia,
-            options.Value.CatalogCacheDuration,
-            async () =>
-            {
-                var all = await triviaRepository.GetAllAsync(cancellationToken);
-                IReadOnlyList<TriviaFactItem> published = all.Where(fact => fact.IsPublished).ToList();
-                return published;
-            },
-            cancellationToken);
-
-    private static string CreateCacheVersion() => Guid.NewGuid().ToString("N");
-
-    private sealed record CachedId(int? Id);
-
-    private async Task<T> GetOrCreateAsync<T>(
-        string key,
-        TimeSpan duration,
-        Func<Task<T>> factory,
-        CancellationToken cancellationToken)
-    {
-        if (cache.TryGetValue(key, out T? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        var gate = RentLoadGate(key);
-        try
-        {
-            await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                if (cache.TryGetValue(key, out cached) && cached is not null)
-                {
-                    return cached;
-                }
-
-                var value = await factory().ConfigureAwait(false);
-                cache.Set(key, value, duration);
-                return value;
-            }
-            finally
-            {
-                gate.Semaphore.Release();
-            }
-        }
-        finally
-        {
-            ReturnLoadGate(key, gate);
-        }
-    }
-
-    private static LoadGate RentLoadGate(string key)
-    {
-        lock (LoadGatesSync)
-        {
-            if (!LoadGates.TryGetValue(key, out var gate))
-            {
-                gate = new LoadGate();
-                LoadGates.Add(key, gate);
-            }
-
-            // Register before waiting so a releasing holder cannot remove a waiter's gate.
-            gate.ReferenceCount++;
-            return gate;
-        }
-    }
-
-    private static void ReturnLoadGate(string key, LoadGate gate)
-    {
-        lock (LoadGatesSync)
-        {
-            // Includes callers cancelled before acquiring the semaphore. Removal and rent
-            // share this lock, so the final reference cannot race with a new caller.
-            if (--gate.ReferenceCount == 0)
-            {
-                LoadGates.Remove(key);
-                gate.Semaphore.Dispose();
-            }
-        }
-    }
-
-    private sealed class LoadGate
-    {
-        public SemaphoreSlim Semaphore { get; } = new(1, 1);
-
-        public int ReferenceCount { get; set; }
-    }
 }

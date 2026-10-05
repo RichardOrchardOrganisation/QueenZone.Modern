@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace QueenZone.Web;
 
-public sealed partial class ForumPostWriteService
+public sealed partial class ForumPostWriteEffects
 {
     private static partial class Log
     {
@@ -19,15 +19,5 @@ public sealed partial class ForumPostWriteService
             Guid memberId,
             string error);
 
-        [LoggerMessage(
-            EventId = 1101,
-            EventName = "AutoSuspendedMember",
-            Level = LogLevel.Warning,
-            Message = "Auto-suspended member {MemberId}: {Signature} {ElapsedSeconds:0}s after registration.")]
-        public static partial void AutoSuspendedMember(
-            ILogger logger,
-            Guid memberId,
-            string signature,
-            double elapsedSeconds);
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using QueenZone.Data;
 
 namespace QueenZone.Web;
@@ -274,15 +275,7 @@ public static class ForumApiEndpoints
             idempotencyStore,
             async ct =>
             {
-                var outcome = await writeService.CreateTopicAsync(
-                    memberId.Value,
-                    user.Identity?.Name,
-                    id,
-                    title,
-                    body,
-                    files,
-                    poll: null,
-                    ct);
+                var outcome = await writeService.CreateTopicAsync(new NewForumTopicRequest(memberId.Value, user.Identity?.Name, id, title, body, files, Poll: null), ct);
 
                 if (!outcome.Succeeded)
                 {
@@ -355,14 +348,15 @@ public static class ForumApiEndpoints
 
     internal static async Task<IResult> UpdatePostAsync(
         ClaimsPrincipal user,
-        int id,
-        int postId,
+        [AsParameters] ForumPostRouteIds route,
         ForumPostUpdateRequestDto request,
         IForumWriteRepository forumWriteRepository,
         UgcHtml ugcHtml,
         Microsoft.Extensions.Options.IOptions<ForumOptions> forumOptions,
         CancellationToken cancellationToken)
     {
+        var id = route.Id;
+        var postId = route.PostId;
         var memberId = ForumMember.GetMemberId(user);
         if (memberId is null)
         {
@@ -506,3 +500,7 @@ public static class ForumApiEndpoints
             title: "Not Found",
             detail: $"No public forum topic with id '{id}'.");
 }
+
+public sealed record ForumPostRouteIds(
+    [property: FromRoute(Name = "id")] int Id,
+    [property: FromRoute(Name = "postId")] int PostId);

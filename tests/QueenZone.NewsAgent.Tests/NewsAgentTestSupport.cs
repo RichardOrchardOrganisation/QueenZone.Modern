@@ -144,8 +144,9 @@ internal static class NewsAgentTestSupport
                 new FakeNewsDiscoveryHttpClient(new Dictionary<string, string>())),
             CreateTriageService(repository, triageClient),
             CreateDraftGenerationService(repository, draftClient),
-            CreateAiRunExecutor(repository, executorClient),
             repository,
+            new NewsAgentRunPreparation(
+            CreateAiRunExecutor(repository, executorClient),
             leaseService ?? new InMemoryNewsAgentRunLeaseService(new SharedNewsAgentLeaseStore()),
             Options.Create(new OpenRouterOptions
             {
@@ -159,6 +160,7 @@ internal static class NewsAgentTestSupport
                 UseRunLease = useRunLease,
                 LeaseName = "discover-news"
             }),
+                NullLogger<DiscoverNewsWorker>.Instance),
             NullLogger<DiscoverNewsWorker>.Instance);
     }
 }

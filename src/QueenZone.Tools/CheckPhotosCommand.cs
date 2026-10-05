@@ -268,9 +268,9 @@ internal sealed class CheckPhotosOptions
     {
     }
 
-    public string ConnectionString { get; private init; } = string.Empty;
+    public string ConnectionString { get; private set; } = string.Empty;
 
-    public string StorageConnectionString { get; private init; } = string.Empty;
+    public string StorageConnectionString { get; private set; } = string.Empty;
 
     public string BlobEndpoint { get; private init; } = "https://queenzoneprod.blob.core.windows.net";
 
@@ -322,82 +322,18 @@ internal sealed class CheckPhotosOptions
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--blob-endpoint", out var blobEndpointValue))
+            if (TryReadPathOptions(args, ref index, ref blobEndpoint, ref categorySlug, ref outputPath, ref hideIdsOutputPath))
             {
-                blobEndpoint = blobEndpointValue;
                 continue;
             }
 
-            if (ToolArgs.TryReadValue(args, ref index, "--category-slug", out var categorySlugValue))
+            if (TryReadMethodOption(args, ref index, ref method, out var error)
+                || TryReadNumericOptions(args, ref index, ref categoryId, ref limit, ref concurrency, ref httpTimeout, out error))
             {
-                categorySlug = categorySlugValue;
-                continue;
-            }
-
-            if (ToolArgs.TryReadValue(args, ref index, "--output", out var outputPathValue))
-            {
-                outputPath = outputPathValue;
-                continue;
-            }
-
-            if (ToolArgs.TryReadValue(args, ref index, "--hide-ids-output", out var hideIdsOutputPathValue))
-            {
-                hideIdsOutputPath = hideIdsOutputPathValue;
-                continue;
-            }
-
-            if (ToolArgs.TryReadValue(args, ref index, "--method", out var methodValue))
-            {
-                if (!Enum.TryParse(methodValue, ignoreCase: true, out PhotoCheckMethod parsedMethod))
+                if (error is not null)
                 {
-                    return Invalid($"Unsupported --method value: {methodValue}");
+                    return Invalid(error);
                 }
-
-                method = parsedMethod;
-                continue;
-            }
-
-            if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var parsedCategoryId, out var parsedCategoryIdError))
-            {
-                if (parsedCategoryIdError is not null)
-                {
-                    return Invalid(parsedCategoryIdError);
-                }
-
-                categoryId = parsedCategoryId;
-                continue;
-            }
-
-            if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var parsedLimit, out var parsedLimitError))
-            {
-                if (parsedLimitError is not null)
-                {
-                    return Invalid(parsedLimitError);
-                }
-
-                limit = parsedLimit;
-                continue;
-            }
-
-            if (ToolArgs.TryReadInt(args, ref index, "--concurrency", 1, out var parsedConcurrency, out var parsedConcurrencyError))
-            {
-                if (parsedConcurrencyError is not null)
-                {
-                    return Invalid(parsedConcurrencyError);
-                }
-
-                concurrency = parsedConcurrency;
-                continue;
-            }
-
-            if (ToolArgs.TryReadInt(args, ref index, "--timeout", 1, out var parsedTimeout, out var parsedTimeoutError))
-            {
-                if (parsedTimeoutError is not null)
-                {
-                    return Invalid(parsedTimeoutError);
-                }
-
-                httpTimeout = parsedTimeout;
                 continue;
             }
 
@@ -410,26 +346,8 @@ internal sealed class CheckPhotosOptions
             return Invalid($"Unsupported or incomplete argument: {arg}");
         }
 
-        var localSettings = ToolsLocalSettings.TryLoad(settingsFile);
-        connectionString ??= localSettings?.QueenZoneLegacyLive;
-        connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
-        storageConnectionString ??= localSettings?.BlobStorage;
-        storageConnectionString ??= Environment.GetEnvironmentVariable("AzureStorage__ConnectionString");
-
-        if (string.IsNullOrWhiteSpace(connectionString))
+        return CompleteOptions(new CheckPhotosOptions
         {
-            return Invalid("A legacy SQL connection string is required via --connection-string, ConnectionStrings:QueenZoneLegacyLive in appsettings.Local.json, or ConnectionStrings__QueenZoneLegacy.");
-        }
-
-        if (method == PhotoCheckMethod.Blob && string.IsNullOrWhiteSpace(storageConnectionString))
-        {
-            return Invalid("A blob storage connection string is required for blob SDK checks via --storage-connection-string, ConnectionStrings:BlobStorage in appsettings.Local.json, or AzureStorage__ConnectionString.");
-        }
-
-        return new CheckPhotosOptions
-        {
-            ConnectionString = connectionString,
-            StorageConnectionString = storageConnectionString ?? string.Empty,
             BlobEndpoint = string.IsNullOrWhiteSpace(blobEndpoint) ? "https://queenzoneprod.blob.core.windows.net" : blobEndpoint.TrimEnd('/'),
             CategoryId = categoryId,
             CategorySlug = categorySlug,
@@ -441,7 +359,131 @@ internal sealed class CheckPhotosOptions
             HideIdsOutputPath = hideIdsOutputPath,
             DryRun = dryRun,
             IsValid = true,
-        };
+        }, connectionString, storageConnectionString, settingsFile);
+    }
+
+    private static bool TryReadPathOptions(string[] args, ref int index, ref string? blobEndpoint, ref string? categorySlug, ref string? outputPath, ref string? hideIdsOutputPath)
+    {
+        if (ToolArgs.TryReadValue(args, ref index, "--blob-endpoint", out var blobEndpointValue))
+        {
+            blobEndpoint = blobEndpointValue;
+            return true;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--category-slug", out var categorySlugValue))
+        {
+            categorySlug = categorySlugValue;
+            return true;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--output", out var outputPathValue))
+        {
+            outputPath = outputPathValue;
+            return true;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--hide-ids-output", out var hideIdsOutputPathValue))
+        {
+            hideIdsOutputPath = hideIdsOutputPathValue;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadMethodOption(string[] args, ref int index, ref PhotoCheckMethod method, out string? error)
+    {
+        error = null;
+        if (ToolArgs.TryReadValue(args, ref index, "--method", out var methodValue))
+        {
+            if (!Enum.TryParse(methodValue, ignoreCase: true, out PhotoCheckMethod parsedMethod))
+            {
+                error = $"Unsupported --method value: {methodValue}";
+                return true;
+            }
+
+            method = parsedMethod;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadNumericOptions(string[] args, ref int index, ref int? categoryId, ref int? limit, ref int concurrency, ref int httpTimeout, out string? error)
+    {
+        error = null;
+        if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var parsedCategoryId, out var parsedCategoryIdError))
+        {
+            if (parsedCategoryIdError is not null)
+            {
+                error = parsedCategoryIdError;
+                return true;
+            }
+
+            categoryId = parsedCategoryId;
+            return true;
+        }
+
+        if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var parsedLimit, out var parsedLimitError))
+        {
+            if (parsedLimitError is not null)
+            {
+                error = parsedLimitError;
+                return true;
+            }
+
+            limit = parsedLimit;
+            return true;
+        }
+
+        if (ToolArgs.TryReadInt(args, ref index, "--concurrency", 1, out var parsedConcurrency, out var parsedConcurrencyError))
+        {
+            if (parsedConcurrencyError is not null)
+            {
+                error = parsedConcurrencyError;
+                return true;
+            }
+
+            concurrency = parsedConcurrency;
+            return true;
+        }
+
+        if (ToolArgs.TryReadInt(args, ref index, "--timeout", 1, out var parsedTimeout, out var parsedTimeoutError))
+        {
+            if (parsedTimeoutError is not null)
+            {
+                error = parsedTimeoutError;
+                return true;
+            }
+
+            httpTimeout = parsedTimeout;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static CheckPhotosOptions CompleteOptions(CheckPhotosOptions options, string? connectionString, string? storageConnectionString, string? settingsFile)
+    {
+        var localSettings = ToolsLocalSettings.TryLoad(settingsFile);
+        connectionString ??= localSettings?.QueenZoneLegacyLive;
+        connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
+        storageConnectionString ??= localSettings?.BlobStorage;
+        storageConnectionString ??= Environment.GetEnvironmentVariable("AzureStorage__ConnectionString");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return Invalid("A legacy SQL connection string is required via --connection-string, ConnectionStrings:QueenZoneLegacyLive in appsettings.Local.json, or ConnectionStrings__QueenZoneLegacy.");
+        }
+
+        if (options.Method == PhotoCheckMethod.Blob && string.IsNullOrWhiteSpace(storageConnectionString))
+        {
+            return Invalid("A blob storage connection string is required for blob SDK checks via --storage-connection-string, ConnectionStrings:BlobStorage in appsettings.Local.json, or AzureStorage__ConnectionString.");
+        }
+
+        options.ConnectionString = connectionString;
+        options.StorageConnectionString = storageConnectionString ?? string.Empty;
+        return options;
     }
 
     private static CheckPhotosOptions Invalid(string message) =>

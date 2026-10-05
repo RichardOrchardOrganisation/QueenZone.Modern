@@ -757,6 +757,75 @@ public sealed class EfMemberAccountRepository : IMemberAccountRepository
             && !pendingBlobs && !pendingApple);
     }
 
+    private async Task<(List<PhotoSubmissionEntity> Photos, List<FanPerformanceSubmissionEntity> Performances)> RemoveSubmittedMediaAsync(
+        Guid memberId,
+        List<MemberDeletionBlob> blobs,
+        CancellationToken cancellationToken)
+    {
+        var articles = await dbContext.ArticleSubmissions
+            .Where(article => article.AuthorMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        var articleKeys = articles.Select(article => "article:" + article.Slug).ToList();
+        await dbContext.SearchDocuments
+            .Where(document => articleKeys.Contains(document.SourceKey))
+            .ExecuteDeleteAsync(cancellationToken);
+        foreach (var article in articles)
+        {
+            if (!string.IsNullOrWhiteSpace(article.CoverImageBlobPath))
+            {
+                blobs.Add(new MemberDeletionBlob(memberId, "ugc-articles", article.CoverImageBlobPath));
+            }
+            article.Title = "Deleted article";
+            article.Slug = $"deleted-{article.Id:N}";
+            article.Excerpt = null;
+            article.Body = string.Empty;
+            article.WordCount = 0;
+            article.CoverImageBlobPath = null;
+            article.Tags = null;
+            article.Status = "Deleted";
+        }
+
+        var photos = await dbContext.PhotoSubmissions
+            .Where(photo => photo.SubmitterMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        await OutboxAndRemovePromotedGalleryAsync(memberId, photos, blobs, cancellationToken);
+        foreach (var photo in photos)
+        {
+            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.BlobPath));
+            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.WebOptimizedBlobPath));
+            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.ThumbnailBlobPath));
+            photo.Title = "Deleted photo";
+            photo.Description = null;
+            photo.BlobPath = string.Empty;
+            photo.WebOptimizedBlobPath = string.Empty;
+            photo.ThumbnailBlobPath = string.Empty;
+            photo.OriginalFileName = string.Empty;
+            photo.Status = "Deleted";
+            photo.PromotedPicId = null;
+        }
+
+        var performances = await dbContext.FanPerformanceSubmissions
+            .Where(performance => performance.SubmitterMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        await OutboxAndRemovePromotedStagesAsync(memberId, performances, blobs, cancellationToken);
+        foreach (var performance in performances)
+        {
+            if (!string.IsNullOrWhiteSpace(performance.BlobPath))
+            {
+                blobs.Add(new MemberDeletionBlob(memberId, "ugc-fan-performances", performance.BlobPath));
+            }
+            performance.Title = "Deleted performance";
+            performance.Description = null;
+            performance.PerformedBy = "Deleted member";
+            performance.BlobPath = string.Empty;
+            performance.OriginalFileName = string.Empty;
+            performance.Status = "Deleted";
+            performance.PromotedStageId = null;
+        }
+
+        return (photos, performances);
+    }
+
     private async Task RemoveMemberContributionsAsync(
         Guid memberId,
         List<MemberDeletionBlob> blobs,
@@ -849,66 +918,7 @@ public sealed class EfMemberAccountRepository : IMemberAccountRepository
                 .SetProperty(conversation => conversation.LastMessagePreview, "Message deleted by member."),
                 cancellationToken);
 
-        var articles = await dbContext.ArticleSubmissions
-            .Where(article => article.AuthorMemberId == memberId)
-            .ToListAsync(cancellationToken);
-        var articleKeys = articles.Select(article => "article:" + article.Slug).ToList();
-        await dbContext.SearchDocuments
-            .Where(document => articleKeys.Contains(document.SourceKey))
-            .ExecuteDeleteAsync(cancellationToken);
-        foreach (var article in articles)
-        {
-            if (!string.IsNullOrWhiteSpace(article.CoverImageBlobPath))
-            {
-                blobs.Add(new MemberDeletionBlob(memberId, "ugc-articles", article.CoverImageBlobPath));
-            }
-            article.Title = "Deleted article";
-            article.Slug = $"deleted-{article.Id:N}";
-            article.Excerpt = null;
-            article.Body = string.Empty;
-            article.WordCount = 0;
-            article.CoverImageBlobPath = null;
-            article.Tags = null;
-            article.Status = "Deleted";
-        }
-
-        var photos = await dbContext.PhotoSubmissions
-            .Where(photo => photo.SubmitterMemberId == memberId)
-            .ToListAsync(cancellationToken);
-        await OutboxAndRemovePromotedGalleryAsync(memberId, photos, blobs, cancellationToken);
-        foreach (var photo in photos)
-        {
-            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.BlobPath));
-            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.WebOptimizedBlobPath));
-            blobs.Add(new MemberDeletionBlob(memberId, "ugc-photos", photo.ThumbnailBlobPath));
-            photo.Title = "Deleted photo";
-            photo.Description = null;
-            photo.BlobPath = string.Empty;
-            photo.WebOptimizedBlobPath = string.Empty;
-            photo.ThumbnailBlobPath = string.Empty;
-            photo.OriginalFileName = string.Empty;
-            photo.Status = "Deleted";
-            photo.PromotedPicId = null;
-        }
-
-        var performances = await dbContext.FanPerformanceSubmissions
-            .Where(performance => performance.SubmitterMemberId == memberId)
-            .ToListAsync(cancellationToken);
-        await OutboxAndRemovePromotedStagesAsync(memberId, performances, blobs, cancellationToken);
-        foreach (var performance in performances)
-        {
-            if (!string.IsNullOrWhiteSpace(performance.BlobPath))
-            {
-                blobs.Add(new MemberDeletionBlob(memberId, "ugc-fan-performances", performance.BlobPath));
-            }
-            performance.Title = "Deleted performance";
-            performance.Description = null;
-            performance.PerformedBy = "Deleted member";
-            performance.BlobPath = string.Empty;
-            performance.OriginalFileName = string.Empty;
-            performance.Status = "Deleted";
-            performance.PromotedStageId = null;
-        }
+        var (photos, performances) = await RemoveSubmittedMediaAsync(memberId, blobs, cancellationToken);
 
         await dbContext.NewsSuggestions
             .Where(suggestion => suggestion.SubmitterMemberId == memberId)

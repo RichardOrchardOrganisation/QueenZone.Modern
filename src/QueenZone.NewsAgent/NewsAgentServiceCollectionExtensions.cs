@@ -52,6 +52,7 @@ public static class NewsAgentServiceCollectionExtensions
         services.AddScoped<NewsTriageDeterministicAnalyzer>();
         services.AddScoped<NewsTriageService>();
         services.AddScoped<NewsAgentUrlIngestionService>();
+        services.AddScoped<NewsAgentRunPreparation>();
         services.AddScoped<DiscoverNewsWorker>();
         services.AddScoped<INewsAgentQueuedRunExecutor, NewsAgentQueuedRunExecutor>();
         services.AddScoped<NewsAgentQueuedRunProcessor>();
