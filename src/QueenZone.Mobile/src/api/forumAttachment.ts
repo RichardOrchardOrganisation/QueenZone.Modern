@@ -87,7 +87,6 @@ export async function openForumAttachmentImage(
   signal?: AbortSignal,
 ): Promise<string> {
   const loaded = await loadForumAttachment(downloadUrl, accessToken, signal);
-  imageCache.set(downloadUrl, loaded.dataUri);
   return loaded.dataUri;
 }
 
@@ -169,7 +168,6 @@ async function loadForumAttachment(
   return fetched;
 }
 
-const imageCache = new Map<string, string>();
 const attachmentCache = new Map<string, ForumAttachmentBytes>();
 const fileUriCache = new Map<string, string>();
 

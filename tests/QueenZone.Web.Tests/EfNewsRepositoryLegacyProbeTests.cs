@@ -32,7 +32,7 @@ public sealed class EfNewsRepositoryLegacyProbeTests
         Assert.True(columns.HasImageBlobKeyColumn);
         Assert.True(columns.HasImageGalleryPicIdColumn);
         Assert.True(columns.HasForumTopicIdColumn);
-        Assert.True(LegacyNewsSchema.HasSlugColumn(connectionString));
+        Assert.True(LegacyNewsSchema.HasLegacySlugColumn(connectionString));
 
         var options = new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlServer(connectionString)

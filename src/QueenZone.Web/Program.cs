@@ -32,21 +32,19 @@ else if (builder.Environment.IsDevelopment())
 {
     QueenZoneDevelopmentHost.NeutralizeIncompleteAnalytics(builder.Configuration);
 }
-else if (QueenZoneEnvironments.IsAutomatedTestHost(builder.Environment))
+else if (QueenZoneEnvironments.IsAutomatedTestHost(builder.Environment)
+    && builder.Environment.IsEnvironment(QueenZoneEnvironments.E2E))
 {
-    if (builder.Environment.IsEnvironment(QueenZoneEnvironments.E2E))
+    // appsettings.E2E.json ships the "admin@test.local" default; E2E_ADMIN_EMAIL lets the
+    // nightly runner override it with a single env var instead of the nested
+    // Admin__AllowedEmails__0 binding syntax.
+    var e2eAdminEmail = Environment.GetEnvironmentVariable("E2E_ADMIN_EMAIL");
+    if (!string.IsNullOrWhiteSpace(e2eAdminEmail))
     {
-        // appsettings.E2E.json ships the "admin@test.local" default; E2E_ADMIN_EMAIL lets the
-        // nightly runner override it with a single env var instead of the nested
-        // Admin__AllowedEmails__0 binding syntax.
-        var e2eAdminEmail = Environment.GetEnvironmentVariable("E2E_ADMIN_EMAIL");
-        if (!string.IsNullOrWhiteSpace(e2eAdminEmail))
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Admin:AllowedEmails:0"] = e2eAdminEmail,
-            });
-        }
+            ["Admin:AllowedEmails:0"] = e2eAdminEmail,
+        });
     }
 }
 

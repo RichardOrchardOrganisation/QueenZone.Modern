@@ -85,110 +85,7 @@ export function HomePollCard({ poll, isSignedIn, accessToken, onVoted, onSignIn 
         const label = `${option.text} ${option.count} · ${formatPercent(option.percentage)}%`;
         return (
           <View key={option.id} style={{ gap: 6 }}>
-            {canVote ? (
-              <Pressable
-                testID={`${testIds.homePollVote}-${option.id}`}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: false }}
-                accessibilityLabel={label}
-                disabled={pendingOptionId !== null}
-                onPress={() => {
-                  void submit(option.id);
-                }}
-                style={{
-                  minHeight: 48,
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderWidth: 1,
-                  borderColor: c.hairline,
-                  borderRadius: radius.xs,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: space.md,
-                  opacity: pendingOptionId && pendingOptionId !== option.id ? 0.6 : 1,
-                }}
-              >
-                <View
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: radius.pill,
-                    borderWidth: 1.5,
-                    borderColor: c.borderStrong,
-                  }}
-                />
-                <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 15, color: c.textPrimary, flex: 1 }}>
-                  {option.text}
-                </Text>
-                <Text style={[type.meta, { color: c.textMuted, textTransform: 'none', letterSpacing: 0 }]}>
-                  {option.count} · {formatPercent(option.percentage)}%
-                </Text>
-              </Pressable>
-            ) : (
-              <View
-                accessibilityRole="text"
-                accessibilityLabel={selected ? `${label}. Your vote` : label}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: space.md,
-                  minHeight: 40,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderWidth: 1,
-                  borderRadius: radius.xs,
-                  borderColor: selected ? c.accentPrimary : c.hairline,
-                  overflow: 'hidden',
-                }}
-              >
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    width: `${Math.max(0, Math.min(100, option.percentage))}%`,
-                    backgroundColor: selected ? c.accentTintWeak : c.hairline,
-                  }}
-                />
-                <View
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: radius.pill,
-                    borderWidth: 1.5,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderColor: selected ? c.accentPrimary : c.borderStrong,
-                    backgroundColor: selected ? c.accentPrimary : 'transparent',
-                  }}
-                >
-                  {selected ? (
-                    <Text style={{ fontSize: 11, fontFamily: fonts.bodySemi, lineHeight: 12, color: c.textOnAccent }}>
-                      ✓
-                    </Text>
-                  ) : null}
-                </View>
-                <Text
-                  style={{
-                    fontFamily: selected ? fonts.bodySemi : fonts.bodyMedium,
-                    fontSize: 15,
-                    color: c.textPrimary,
-                    flex: 1,
-                  }}
-                >
-                  {option.text}
-                </Text>
-                <Text
-                  style={[
-                    type.meta,
-                    { color: selected ? c.accentPrimary : c.textSecondary, textTransform: 'none', letterSpacing: 0 },
-                  ]}
-                >
-                  {option.count} · {formatPercent(option.percentage)}%
-                </Text>
-              </View>
-            )}
+            {renderPollOption({ option, selected, label, canVote, pendingOptionId, submit, c })}
             {!canVote && selected ? (
               <Text style={[type.caption, { color: c.accentPrimary }]}>Your vote</Text>
             ) : null}
@@ -219,6 +116,126 @@ export function HomePollCard({ poll, isSignedIn, accessToken, onVoted, onSignIn 
           {pollContent}
         </Text>
       </View>
+    </View>
+  );
+}
+
+type PollOptionPresentation = {
+  option: HomePoll['options'][number];
+  selected: boolean;
+  label: string;
+  canVote: boolean;
+  pendingOptionId: string | null;
+  submit: (optionId: string) => Promise<void>;
+  c: ReturnType<typeof useTheme>['c'];
+};
+
+function renderPollOption({ option, selected, label, canVote, pendingOptionId, submit, c }: PollOptionPresentation): ReactNode {
+  if (canVote) {
+    return (
+      <Pressable
+        testID={`${testIds.homePollVote}-${option.id}`}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: false }}
+        accessibilityLabel={label}
+        disabled={pendingOptionId !== null}
+        onPress={() => {
+          void submit(option.id);
+        }}
+        style={{
+          minHeight: 48,
+          paddingVertical: 12,
+          paddingHorizontal: 12,
+          borderWidth: 1,
+          borderColor: c.hairline,
+          borderRadius: radius.xs,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.md,
+          opacity: pendingOptionId && pendingOptionId !== option.id ? 0.6 : 1,
+        }}
+      >
+        <View
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: radius.pill,
+            borderWidth: 1.5,
+            borderColor: c.borderStrong,
+          }}
+        />
+        <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 15, color: c.textPrimary, flex: 1 }}>
+          {option.text}
+        </Text>
+        <Text style={[type.meta, { color: c.textMuted, textTransform: 'none', letterSpacing: 0 }]}>
+          {option.count} · {formatPercent(option.percentage)}%
+        </Text>
+      </Pressable>
+    );
+  }
+  return (
+    <View
+      accessibilityRole="text"
+      accessibilityLabel={selected ? `${label}. Your vote` : label}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.md,
+        minHeight: 40,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderRadius: radius.xs,
+        borderColor: selected ? c.accentPrimary : c.hairline,
+        overflow: 'hidden',
+      }}
+    >
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: `${Math.max(0, Math.min(100, option.percentage))}%`,
+          backgroundColor: selected ? c.accentTintWeak : c.hairline,
+        }}
+      />
+      <View
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: radius.pill,
+          borderWidth: 1.5,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderColor: selected ? c.accentPrimary : c.borderStrong,
+          backgroundColor: selected ? c.accentPrimary : 'transparent',
+        }}
+      >
+        {selected ? (
+          <Text style={{ fontSize: 11, fontFamily: fonts.bodySemi, lineHeight: 12, color: c.textOnAccent }}>
+            ✓
+          </Text>
+        ) : null}
+      </View>
+      <Text
+        style={{
+          fontFamily: selected ? fonts.bodySemi : fonts.bodyMedium,
+          fontSize: 15,
+          color: c.textPrimary,
+          flex: 1,
+        }}
+      >
+        {option.text}
+      </Text>
+      <Text
+        style={[
+          type.meta,
+          { color: selected ? c.accentPrimary : c.textSecondary, textTransform: 'none', letterSpacing: 0 },
+        ]}
+      >
+        {option.count} · {formatPercent(option.percentage)}%
+      </Text>
     </View>
   );
 }

@@ -151,6 +151,11 @@ function Test-IsLocalHostUrl {
     )
 }
 
+# Scope Mac cleanup to the published DLL in this checkout. A broad name match
+# also matches Web.Tests/E2E command lines and kills unrelated verification.
+$macAppPath = [regex]::Escape((Join-Path $repoRoot "e2e-app/QueenZone.Web.dll"))
+$macAppPattern = '(^|/)dotnet[[:space:]]+"?' + $macAppPath + '"?$'
+
 function Stop-StrayQueenZoneWeb {
     if (Test-IsWindowsOS) {
         Get-Process -Name "QueenZone.Web" -ErrorAction SilentlyContinue |
@@ -159,7 +164,7 @@ function Stop-StrayQueenZoneWeb {
     }
 
     if (Test-IsMacOS) {
-        & pkill -f QueenZone.Web 2>$null
+        & pkill -f $macAppPattern 2>$null
         # pkill exit 1 = no match; ignore
         return
     }
@@ -384,7 +389,7 @@ function Stop-StartedApp {
     }
     elseif (Test-IsMacOS) {
         for ($i = 1; $i -le 15; $i++) {
-            $still = & pgrep -f QueenZone.Web 2>$null
+            $still = & pgrep -f $macAppPattern 2>$null
             if (-not $still) {
                 Write-Information -InformationAction Continue "QueenZone.Web confirmed stopped"
                 break

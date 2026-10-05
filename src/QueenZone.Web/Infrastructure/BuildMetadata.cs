@@ -6,9 +6,9 @@ public static class BuildMetadata
 {
     private static readonly Lazy<BuildMetadataValues> Current = new(Read);
 
-    public static string Version => Current.Value.Version;
+    public static string Version => Current.Value.VersionText;
 
-    public static string BuiltAtUtc => Current.Value.BuiltAtUtc;
+    public static string BuiltAtUtc => Current.Value.TimestampText;
 
     public static bool IsAvailable =>
         !string.IsNullOrWhiteSpace(Version) && !string.IsNullOrWhiteSpace(BuiltAtUtc);
@@ -35,5 +35,5 @@ public static class BuildMetadata
         return new BuildMetadataValues(version, builtAtUtc);
     }
 
-    private sealed record BuildMetadataValues(string Version, string BuiltAtUtc);
+    private sealed record BuildMetadataValues(string VersionText, string TimestampText);
 }

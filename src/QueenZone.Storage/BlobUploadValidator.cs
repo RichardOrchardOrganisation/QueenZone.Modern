@@ -69,14 +69,11 @@ internal sealed class BlobUploadValidator(BlobUploadOptions options)
         // Legacy .doc/.xls/.ppt are OLE compound files — same exception, extension wins.
         // Audio and every other non-image type must match a real signature. A null sniff
         // must not fall through to the extension for PDF, text, zip, or Office.
-        if (IsAudioContentType(fromExtension) && !IsAudioContentType(fromSniff))
+        if (IsAudioContentType(fromExtension) && !IsAudioContentType(fromSniff)
+            && (fromSniff is null || string.Equals(fromSniff, "text/plain", StringComparison.OrdinalIgnoreCase)))
         {
-            if (fromSniff is null
-                || string.Equals(fromSniff, "text/plain", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new BlobUploadException(
-                    $"File content is not recognized as audio for '{originalFileName}'.");
-            }
+            throw new BlobUploadException(
+                $"File content is not recognized as audio for '{originalFileName}'.");
         }
 
         if (fromExtension is not null
