@@ -10,8 +10,8 @@
   var addQuestionButton = form.querySelector("[data-add-question]");
   var questionTemplate = document.querySelector("[data-question-template]");
   var optionTemplate = document.querySelector("[data-option-template]");
-  var maxQuestions = Number.parseInt(form.getAttribute("data-max-questions"), 10) || 50;
-  var maxOptions = Number.parseInt(form.getAttribute("data-max-options"), 10) || 4;
+  var maxQuestions = Number.parseInt(form.dataset.maxQuestions, 10) || 50;
+  var maxOptions = Number.parseInt(form.dataset.maxOptions, 10) || 4;
 
   function questionCount() {
     return questionsContainer.querySelectorAll("[data-quiz-question]").length;

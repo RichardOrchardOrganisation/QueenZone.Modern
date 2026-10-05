@@ -87,7 +87,7 @@ function Clear-DevSearchReindexRunRequests([string] $ConnectionString) {
         $command = $connection.CreateCommand()
         $command.CommandText = "DELETE FROM dbo.SearchReindexRunRequests;"
         $deleted = $command.ExecuteNonQuery()
-        Write-Host "Removed $deleted refresh-only search reindex run record(s)."
+        Write-Information -InformationAction Continue "Removed $deleted refresh-only search reindex run record(s)."
     }
     finally {
         $connection.Dispose()
@@ -100,13 +100,13 @@ Assert-SqlBoundary $sourceSql "queenzone-db" $true
 Assert-SqlBoundary $targetSql "queenzone-dev-db" $false
 
 $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-Write-Host "Source: read-only queenzone-db"
-Write-Host "Target: isolated queenzone-dev-db and queenzonedev"
-Write-Host "Newest content: $($config.forumThreadCount) complete forum threads; $($config.newsArticleCount) news articles; $($config.articleCount) rows per article source; $($config.photosPerCategory) photos per category"
-Write-Host "Guards: database <= $($config.databaseMaximumUsedMb) MB; gallery/forum blobs <= $([math]::Round($config.galleryBudgetBytes / 1MB))/$([math]::Round($config.forumAttachmentBudgetBytes / 1MB)) MB"
+Write-Information -InformationAction Continue "Source: read-only queenzone-db"
+Write-Information -InformationAction Continue "Target: isolated queenzone-dev-db and queenzonedev"
+Write-Information -InformationAction Continue "Newest content: $($config.forumThreadCount) complete forum threads; $($config.newsArticleCount) news articles; $($config.articleCount) rows per article source; $($config.photosPerCategory) photos per category"
+Write-Information -InformationAction Continue "Guards: database <= $($config.databaseMaximumUsedMb) MB; gallery/forum blobs <= $([math]::Round($config.galleryBudgetBytes / 1MB))/$([math]::Round($config.forumAttachmentBudgetBytes / 1MB)) MB"
 
 if (-not $Apply) {
-    Write-Host "Dry run only. Pass -Apply after reviewing the targets and approval gate."
+    Write-Information -InformationAction Continue "Dry run only. Pass -Apply after reviewing the targets and approval gate."
     exit 0
 }
 
@@ -124,7 +124,7 @@ try {
         /p:VerifyExtraction=False
     if ($LASTEXITCODE -ne 0) { throw "Schema-only production extract failed." }
 
-    Write-Host "Building the newest-first dev snapshot."
+    Write-Information -InformationAction Continue "Building the newest-first dev snapshot."
     dotnet tool run sqlpackage /Action:Publish `
         "/SourceFile:$dacpacPath" `
         "/TargetConnectionString:$targetSql" `
@@ -153,7 +153,7 @@ try {
         dev-snapshot verify --config $ConfigPath --manifest $manifest --summary $summary
     if ($LASTEXITCODE -ne 0) { throw "Dev snapshot verification failed with exit code $LASTEXITCODE." }
 
-    Write-Host "Dev snapshot passed all database, privacy, relationship, blob, and search guards."
+    Write-Information -InformationAction Continue "Dev snapshot passed all database, privacy, relationship, blob, and search guards."
 }
 finally {
     Remove-Item Env:ConnectionStrings__QueenZoneLegacy -ErrorAction SilentlyContinue

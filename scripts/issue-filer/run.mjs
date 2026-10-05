@@ -438,12 +438,13 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
 
 const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (invokedDirectly) {
-  main().then((code) => {
+  try {
+    const code = await main();
     if (code) {
       process.exitCode = code;
     }
-  }).catch((error) => {
+  } catch (error) {
     console.error(error.message || error);
     process.exitCode = 1;
-  });
+  }
 }

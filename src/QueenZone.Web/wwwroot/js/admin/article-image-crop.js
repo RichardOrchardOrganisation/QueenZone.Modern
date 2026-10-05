@@ -42,11 +42,11 @@
       return;
     }
 
-    var aspectWidth = Number(root.getAttribute("data-aspect-width")) || 3;
-    var aspectHeight = Number(root.getAttribute("data-aspect-height")) || 2;
-    var minCropWidth = Number(root.getAttribute("data-min-crop-width")) || 400;
-    var minCropHeight = Number(root.getAttribute("data-min-crop-height")) || 267;
-    var maxBytes = Number(root.getAttribute("data-max-bytes")) || 10 * 1024 * 1024;
+    var aspectWidth = Number(root.dataset.aspectWidth) || 3;
+    var aspectHeight = Number(root.dataset.aspectHeight) || 2;
+    var minCropWidth = Number(root.dataset.minCropWidth) || 400;
+    var minCropHeight = Number(root.dataset.minCropHeight) || 267;
+    var maxBytes = Number(root.dataset.maxBytes) || 10 * 1024 * 1024;
     var objectUrl = "";
     var cropper = null;
     var cropApplied = false;
@@ -425,11 +425,11 @@
   // createObjectURL is a modeled taint step from input.files (js/xss-through-dom).
   // Only browser blob: URLs may reach img.src; encodeURI is the XSS sanitizer CodeQL recognizes.
   function asBlobObjectUrl(url) {
-    return typeof url === "string" && url.indexOf("blob:") === 0 ? url : "";
+    return typeof url === "string" && url.startsWith("blob:") ? url : "";
   }
 
   function asGalleryOriginalUrl(url) {
-    return typeof url === "string" && url.indexOf("/admin/news/gallery-original/") === 0 ? url : "";
+    return typeof url === "string" && url.startsWith("/admin/news/gallery-original/") ? url : "";
   }
 
   function assignBlobImageSrc(image, url) {

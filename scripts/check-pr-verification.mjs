@@ -27,7 +27,7 @@ export function isIgnoredVerificationPath(file) {
   if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(posix)) {
     return true;
   }
-  if (/Tests\.cs$/.test(posix)) {
+  if (posix.endsWith('Tests.cs')) {
     return true;
   }
   if (posix.startsWith('tests/') || posix.includes('/tests/')) {
@@ -50,7 +50,7 @@ export function isUiChangedPath(file, mobileSources) {
 export function extractVerificationSection(body) {
   const text = String(body || '');
   const start = text.match(/^## Verification\b[^\n]*/m);
-  if (!start) {
+  if (!start || start.index === undefined) {
     return null;
   }
   const from = start.index;

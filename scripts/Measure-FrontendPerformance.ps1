@@ -266,7 +266,7 @@ function Invoke-LighthouseRun {
         $lighthouseArgs += "--disable-storage-reset"
     }
 
-    Write-Host "  lighthouse $Url ($FormFactorName$(if ($DisableStorageReset) { ', repeat' }))"
+    Write-Information -InformationAction Continue "  lighthouse $Url ($FormFactorName$(if ($DisableStorageReset) { ', repeat' }))"
     try {
         & npx @lighthouseArgs
         $lhExit = $LASTEXITCODE
@@ -453,7 +453,7 @@ try {
     if ($StartLocalApp) {
         Ensure-Command -Name "dotnet"
         $publishDir = Join-Path $repoRoot "perf-app"
-        Write-Host "Publishing web app to $publishDir ..."
+        Write-Information -InformationAction Continue "Publishing web app to $publishDir ..."
         & dotnet publish (Join-Path $repoRoot "src/QueenZone.Web/QueenZone.Web.csproj") `
             --configuration $Configuration `
             --output $publishDir
@@ -469,7 +469,7 @@ try {
             throw "Published app binary not found under $publishDir"
         }
 
-        Write-Host "Starting local app at $BaseUrl ..."
+        Write-Information -InformationAction Continue "Starting local app at $BaseUrl ..."
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $exe
         $psi.WorkingDirectory = $publishDir
@@ -492,7 +492,7 @@ try {
         $stderrTask = $appProcess.StandardError.ReadToEndAsync()
 
         Wait-ForUrl -Url ($BaseUrl.TrimEnd("/") + "/health") -TimeoutSeconds 90
-        Write-Host "Local app is ready."
+        Write-Information -InformationAction Continue "Local app is ready."
     }
 
     # Health check even when the caller starts the app.
@@ -614,10 +614,10 @@ try {
     $summaryMdPath = Join-Path $OutputDir "summary.md"
     $md -join "`n" | Set-Content -Path $summaryMdPath -Encoding utf8
 
-    Write-Host ""
-    Write-Host "Wrote $summaryMdPath"
-    Write-Host "Wrote $summaryJsonPath"
-    Write-Host "Over-budget result rows: $overBudgetCount / $($results.Count)"
+    Write-Information -InformationAction Continue ""
+    Write-Information -InformationAction Continue "Wrote $summaryMdPath"
+    Write-Information -InformationAction Continue "Wrote $summaryJsonPath"
+    Write-Information -InformationAction Continue "Over-budget result rows: $overBudgetCount / $($results.Count)"
     $script:OverBudgetCount = $overBudgetCount
 
     if ($FailOnBudget -and $overBudgetCount -gt 0) {
@@ -631,7 +631,7 @@ catch {
 }
 finally {
     if ($startedApp -and $null -ne $appProcess -and -not $appProcess.HasExited) {
-        Write-Host "Stopping local app (PID $($appProcess.Id))..."
+        Write-Information -InformationAction Continue "Stopping local app (PID $($appProcess.Id))..."
         try {
             Stop-Process -Id $appProcess.Id -Force -ErrorAction Stop
         }
@@ -666,7 +666,7 @@ finally {
     }
 }
 
-Write-Host "Done."
+Write-Information -InformationAction Continue "Done."
 
 # Native lighthouse exit codes can otherwise leak into the caller's $LASTEXITCODE.
 if ($script:MeasurementFailed) {

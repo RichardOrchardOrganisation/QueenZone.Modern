@@ -196,9 +196,9 @@ for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
 
   if [[ "$attempt" -eq "$MAX_ATTEMPTS" ]]; then
     if [[ "$WARMUP_ONLY" -eq 1 ]] && [[ -n "$EXPECT_BUILD_VERSION" ]]; then
-      echo "::error::Warmup or build stamp ${EXPECT_BUILD_VERSION} failed against ${BASE_URL} after ${MAX_ATTEMPTS} attempts. If / still serves the previous stamp, the zip mount did not become the running app."
+      echo "::error::Warmup or build stamp ${EXPECT_BUILD_VERSION} failed against ${BASE_URL} after ${MAX_ATTEMPTS} attempts. If / still serves the previous stamp, the zip mount did not become the running app." >&2
     else
-      echo "::error::Warmup failed against ${BASE_URL}${WARMUP_PATH} after ${MAX_ATTEMPTS} attempts. Check App Service logs."
+      echo "::error::Warmup failed against ${BASE_URL}${WARMUP_PATH} after ${MAX_ATTEMPTS} attempts. Check App Service logs." >&2
     fi
     exit 1
   fi
@@ -228,5 +228,5 @@ for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
   fi
 done
 
-echo "::error::Post-deploy smoke failed against $BASE_URL after ${MAX_ATTEMPTS} attempts. Check App Service logs."
+echo "::error::Post-deploy smoke failed against $BASE_URL after ${MAX_ATTEMPTS} attempts. Check App Service logs." >&2
 exit 1

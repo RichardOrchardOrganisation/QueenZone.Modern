@@ -14,14 +14,14 @@
       return;
     }
 
-    var pickerUrl = openButton.getAttribute("data-gallery-picker-url") || "/admin/news/gallery-picker";
+    var pickerUrl = openButton.dataset.galleryPickerUrl || "/admin/news/gallery-picker";
 
     openButton.addEventListener("click", function () {
       if (typeof dialog.showModal === "function") {
         dialog.showModal();
       }
 
-      if (!panel.getAttribute("data-loaded")) {
+      if (!panel.dataset.loaded) {
         loadPanel(panel, pickerUrl);
       }
     });
@@ -58,9 +58,9 @@
         return;
       }
 
-      var picId = pick.getAttribute("data-pic-id");
-      var originalUrl = pick.getAttribute("data-original-url") || "";
-      var title = pick.getAttribute("data-title") || "Article image";
+      var picId = pick.dataset.picId;
+      var originalUrl = pick.dataset.originalUrl || "";
+      var title = pick.dataset.title || "Article image";
       if (!picId || !asGalleryOriginalUrl(originalUrl)) {
         return;
       }
@@ -82,7 +82,7 @@
   }
 
   function loadPanel(panel, url) {
-    panel.setAttribute("data-loaded", "1");
+    panel.dataset.loaded = "1";
     panel.setAttribute("aria-busy", "true");
     fetch(url, { headers: { "X-Requested-With": "fetch" } })
       .then(function (response) {
@@ -108,6 +108,6 @@
   // data-original-url is a modeled taint step (js/xss-through-dom).
   // Only the same-origin PIC original route may be fetched for the crop dialog.
   function asGalleryOriginalUrl(url) {
-    return typeof url === "string" && url.indexOf("/admin/news/gallery-original/") === 0 ? url : "";
+    return typeof url === "string" && url.startsWith("/admin/news/gallery-original/") ? url : "";
   }
 })();

@@ -71,7 +71,7 @@ function Get-ChangedLines {
 
     if ([string]::IsNullOrWhiteSpace($BaseRef)) {
         if ($RequireBaseRef) { throw "Changed-line coverage requires a base ref." }
-        Write-Host "No base ref supplied; skipping changed-line coverage gate."
+        Write-Information -InformationAction Continue "No base ref supplied; skipping changed-line coverage gate."
         return @{}
     }
 
@@ -90,7 +90,7 @@ function Get-ChangedLines {
     git rev-parse --verify --quiet "$resolvedBaseRef^{commit}" *> $null
     if ($LASTEXITCODE -ne 0) {
         if ($RequireBaseRef) { throw "Base ref '$BaseRef' is not available locally." }
-        Write-Host "Base ref '$BaseRef' is not available locally; skipping changed-line coverage gate."
+        Write-Information -InformationAction Continue "Base ref '$BaseRef' is not available locally; skipping changed-line coverage gate."
         return @{}
     }
 
@@ -145,19 +145,19 @@ function Read-CoberturaDocument {
 
     $fileName = [System.IO.Path]::GetFileName($Path)
     if (-not $fileName.Equals("coverage.cobertura.xml", [StringComparison]::OrdinalIgnoreCase)) {
-        Write-Host "Skipping non-cobertura file: $Path"
+        Write-Information -InformationAction Continue "Skipping non-cobertura file: $Path"
         return $null
     }
 
     $bytes = [System.IO.File]::ReadAllBytes($Path)
     if ($bytes.Length -eq 0) {
-        Write-Host "Skipping empty coverage file: $Path"
+        Write-Information -InformationAction Continue "Skipping empty coverage file: $Path"
         return $null
     }
 
     foreach ($byte in $bytes) {
         if ($byte -eq 0) {
-            Write-Host "Skipping coverage file with NUL bytes (likely a TRX attachment copy): $Path"
+            Write-Information -InformationAction Continue "Skipping coverage file with NUL bytes (likely a TRX attachment copy): $Path"
             return $null
         }
     }
@@ -171,12 +171,12 @@ function Read-CoberturaDocument {
         $document = [xml]$text
     }
     catch {
-        Write-Host "Skipping unreadable coverage file '${Path}': $($_.Exception.Message)"
+        Write-Information -InformationAction Continue "Skipping unreadable coverage file '${Path}': $($_.Exception.Message)"
         return $null
     }
 
     if ($null -eq $document.coverage) {
-        Write-Host "Skipping XML that is not a Cobertura coverage document: $Path"
+        Write-Information -InformationAction Continue "Skipping XML that is not a Cobertura coverage document: $Path"
         return $null
     }
 
@@ -386,7 +386,7 @@ function Invoke-CoverageGateSelfTest {
 
         Invoke-BaseShaSelfTest -TempRoot $tempRoot -Pwsh $pwsh.Source
 
-        Write-Host "Test-CoverageGate.ps1 self-test passed."
+        Write-Information -InformationAction Continue "Test-CoverageGate.ps1 self-test passed."
     }
     finally {
         Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -466,7 +466,7 @@ if ($totalLinesValid -eq 0) {
 }
 
 $globalLineCoverage = [math]::Round(($totalLinesCovered / $totalLinesValid) * 100, 2)
-Write-Host "Global line coverage: $globalLineCoverage% ($totalLinesCovered/$totalLinesValid) [union of $($reportFiles.Count) reports]"
+Write-Information -InformationAction Continue "Global line coverage: $globalLineCoverage% ($totalLinesCovered/$totalLinesValid) [union of $($reportFiles.Count) reports]"
 
 if ($globalLineCoverage -lt $GlobalLineThreshold) {
     throw "Global line coverage $globalLineCoverage% is below the required $GlobalLineThreshold%."
@@ -474,7 +474,7 @@ if ($globalLineCoverage -lt $GlobalLineThreshold) {
 
 $changedLines = Get-ChangedLines -BaseRef $BaseRef -HeadRef $HeadRef
 if ($changedLines.Count -eq 0) {
-    Write-Host "No changed C# lines found for patch coverage."
+    Write-Information -InformationAction Continue "No changed C# lines found for patch coverage."
     exit 0
 }
 
@@ -504,20 +504,20 @@ foreach ($file in $changedLines.Keys) {
 }
 
 if ($changedCoverableLines -eq 0) {
-    Write-Host "Changed C# lines do not overlap coverable lines in the Cobertura report."
+    Write-Information -InformationAction Continue "Changed C# lines do not overlap coverable lines in the Cobertura report."
     exit 0
 }
 
 $changedLineCoverage = [math]::Round(($changedCoveredLines / $changedCoverableLines) * 100, 2)
-Write-Host "Changed-line coverage: $changedLineCoverage% ($changedCoveredLines/$changedCoverableLines)"
+Write-Information -InformationAction Continue "Changed-line coverage: $changedLineCoverage% ($changedCoveredLines/$changedCoverableLines)"
 
 if ($changedLineCoverage -lt $ChangedLineThreshold) {
     $sample = $uncoveredChangedLines | Select-Object -First 20
-    Write-Host "Uncovered changed lines:"
-    $sample | ForEach-Object { Write-Host "  $_" }
+    Write-Information -InformationAction Continue "Uncovered changed lines:"
+    $sample | ForEach-Object { Write-Information -InformationAction Continue "  $_" }
 
     if ($uncoveredChangedLines.Count -gt $sample.Count) {
-        Write-Host "  ...and $($uncoveredChangedLines.Count - $sample.Count) more."
+        Write-Information -InformationAction Continue "  ...and $($uncoveredChangedLines.Count - $sample.Count) more."
     }
 
     throw "Changed-line coverage $changedLineCoverage% is below the required $ChangedLineThreshold%."

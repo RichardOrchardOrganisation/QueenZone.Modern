@@ -214,13 +214,13 @@
 
       form.classList.add("is-submitting");
 
-      const busyLabel = form.getAttribute("data-busy-label") || "Working…";
+      const busyLabel = form.dataset.busyLabel || "Working…";
       const status = form.querySelector("[data-busy-status]");
       let timerId = null;
       if (status) {
         status.hidden = false;
         status.textContent = busyLabel;
-        if (form.getAttribute("data-busy-timer") === "true") {
+        if (form.dataset.busyTimer === "true") {
           const startedAt = Date.now();
           const updateTimer = () => {
             const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
@@ -325,8 +325,8 @@
   }
 
   roots.forEach((root) => {
-    const title = root.getAttribute("data-share-title") || document.title;
-    const url = root.getAttribute("data-share-url") || window.location.href;
+    const title = root.dataset.shareTitle || document.title;
+    const url = root.dataset.shareUrl || window.location.href;
     const payload = { title, url };
 
     if (typeof navigator.canShare === "function" && !navigator.canShare(payload)) {
@@ -466,12 +466,12 @@
 
   const rows = Array.from(list.querySelectorAll("[data-qz-stage-play]")).map((button) => {
     const row = button.closest(".qz-stage-row");
-    const idValue = Number.parseInt(button.getAttribute("data-qz-stage-id") || (row && row.getAttribute("data-qz-stage-id")) || "", 10);
+    const idValue = Number.parseInt(button.dataset.qzStageId || (row && row.dataset.qzStageId) || "", 10);
     return {
       button,
       row,
       audio: row ? row.querySelector("audio") : null,
-      title: button.getAttribute("data-title") || "recording",
+      title: button.dataset.title || "recording",
       id: Number.isInteger(idValue) ? idValue : null
     };
   }).filter((player) => player.audio);
@@ -758,7 +758,7 @@
   }
 
   openButtons.forEach((trigger) => {
-    const dialogId = trigger.getAttribute("data-confirm-dialog-open");
+    const dialogId = trigger.dataset.confirmDialogOpen;
     const dialog = dialogId ? document.getElementById(dialogId) : null;
     if (!(dialog instanceof HTMLDialogElement)) {
       return;

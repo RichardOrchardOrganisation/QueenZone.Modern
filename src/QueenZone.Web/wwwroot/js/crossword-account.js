@@ -12,4 +12,4 @@ export function rememberAccount(member) {
         else localStorage.removeItem(key);
     } catch { /* Local storage can be unavailable; online session identity still wins. */ }
 }
-if (document.body.hasAttribute('data-crossword-member')) rememberAccount(document.body.dataset.crosswordMember);
+if (document.body.dataset.crosswordMember !== undefined) rememberAccount(document.body.dataset.crosswordMember);

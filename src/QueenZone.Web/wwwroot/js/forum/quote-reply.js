@@ -31,7 +31,7 @@
 
     event.preventDefault();
 
-    var author = template.getAttribute("data-post-author") || "";
+    var author = template.dataset.postAuthor || "";
     var plainText = template.content.textContent || "";
     var html = buildQuoteHtml(author, plainText);
 
