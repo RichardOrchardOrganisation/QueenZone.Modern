@@ -335,86 +335,97 @@ export function candidatesFromAzureFiles({
   return rows;
 }
 
+function providedSentryCandidates(ctx, parsing) {
+  const { since, featureMap, deployedTip } = parsing;
+  const sentryCandidates = [];
+  for (const issue of ctx.sentryIssues) {
+    const event = ctx.sentryEvents?.[issue.id] || ctx.sentryEvents?.[String(issue.id)] || null;
+    const candidate = parseSentryIssue(issue, event, {
+      since,
+      areas: ctx.config?.areas,
+      featureMap,
+      areaForFile,
+      deployedTip,
+    });
+    if (candidate) {
+      sentryCandidates.push(candidate);
+    }
+  }
+  return sentryCandidates;
+}
+
+async function latestSentryCandidate(issue, latestEvent, warnings, parsing) {
+  const { since, featureMap, deployedTip, areas } = parsing;
+  let event = null;
+  try {
+    event = await latestEvent(issue.id);
+  } catch (error) {
+    warnings.push(`sentry-event: ${error.message}`);
+  }
+  return parseSentryIssue(issue, event, { since, areas, featureMap, areaForFile, deployedTip });
+}
+
+async function remoteSentryCandidates(ctx, parsing, warnings) {
+  const { since, featureMap, deployedTip } = parsing;
+  const sentryCandidates = [];
+  const token = ctx.sentryToken ?? process.env.SENTRY_TRIAGE_TOKEN;
+  const search = ctx.sentrySearch;
+  const lookbackHours = ctx.lookbackHours || LOOKBACK_HOURS;
+  const queries = sentrySearchQueries({ lookbackHours });
+  if (!token && !search) {
+    warnings.push('sentry: SENTRY_TRIAGE_TOKEN is not set');
+    return [];
+  }
+  const sentryFetch = ctx.sentryFetch || (!search
+    ? resolveSentryFetch({
+      fetchImpl: ctx.fetchImpl || fetch,
+      sleep: ctx.sleep,
+      minGapMs: ctx.minGapMs,
+      maxAttempts: ctx.maxAttempts,
+      now: ctx.now,
+    })
+    : undefined);
+  try {
+    const issues = search
+      ? await search({ queries })
+      : await defaultSentrySearch({
+        host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
+        org: ctx.sentryOrg || process.env.SENTRY_ORG || DEFAULT_SENTRY_ORG,
+        project: ctx.sentryProject || process.env.SENTRY_PROJECT || DEFAULT_SENTRY_PROJECT,
+        token,
+        queries,
+        lookbackHours,
+        sentryFetch,
+      });
+    const latestEvent = ctx.sentryLatestEvent || ((issueId) => defaultSentryLatestEvent({
+      host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
+      token,
+      issueId,
+      sentryFetch,
+    }));
+    for (const issue of issues || []) {
+      const candidate = await latestSentryCandidate(issue, latestEvent, warnings, {
+        since, areas: ctx.config?.areas, featureMap, deployedTip,
+      });
+      if (candidate) sentryCandidates.push(candidate);
+    }
+  } catch (error) {
+    warnings.push(`sentry: ${error.message}`);
+  }
+  return sentryCandidates;
+}
+
 export async function collect(ctx) {
   const warnings = ctx.warnings || [];
   const featureMap = featureEntries(ctx);
   const deployedTip = ctx.deployedTip || process.env.DEPLOYED_TIP_SHA || '';
   const since = ctx.since;
 
-  let sentryCandidates = ctx.sentryCandidates || [];
-  if (ctx.sentryIssues) {
-    sentryCandidates = [];
-    for (const issue of ctx.sentryIssues) {
-      const event = ctx.sentryEvents?.[issue.id] || ctx.sentryEvents?.[String(issue.id)] || null;
-      const candidate = parseSentryIssue(issue, event, {
-        since,
-        areas: ctx.config?.areas,
-        featureMap,
-        areaForFile,
-        deployedTip,
-      });
-      if (candidate) {
-        sentryCandidates.push(candidate);
-      }
-    }
-  } else if (!ctx.sentryCandidates) {
-    const token = ctx.sentryToken ?? process.env.SENTRY_TRIAGE_TOKEN;
-    const search = ctx.sentrySearch;
-    const lookbackHours = ctx.lookbackHours || LOOKBACK_HOURS;
-    const queries = sentrySearchQueries({ lookbackHours });
-    if (!token && !search) {
-      warnings.push('sentry: SENTRY_TRIAGE_TOKEN is not set');
-    } else {
-      const sentryFetch = ctx.sentryFetch || (!search
-        ? resolveSentryFetch({
-          fetchImpl: ctx.fetchImpl || fetch,
-          sleep: ctx.sleep,
-          minGapMs: ctx.minGapMs,
-          maxAttempts: ctx.maxAttempts,
-          now: ctx.now,
-        })
-        : undefined);
-      try {
-        const issues = search
-          ? await search({ queries })
-          : await defaultSentrySearch({
-            host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
-            org: ctx.sentryOrg || process.env.SENTRY_ORG || DEFAULT_SENTRY_ORG,
-            project: ctx.sentryProject || process.env.SENTRY_PROJECT || DEFAULT_SENTRY_PROJECT,
-            token,
-            queries,
-            lookbackHours,
-            sentryFetch,
-          });
-        const latestEvent = ctx.sentryLatestEvent || ((issueId) => defaultSentryLatestEvent({
-          host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
-          token,
-          issueId,
-          sentryFetch,
-        }));
-        for (const issue of issues || []) {
-          let event = null;
-          try {
-            event = await latestEvent(issue.id);
-          } catch (error) {
-            warnings.push(`sentry-event: ${error.message}`);
-          }
-          const candidate = parseSentryIssue(issue, event, {
-            since,
-            areas: ctx.config?.areas,
-            featureMap,
-            areaForFile,
-            deployedTip,
-          });
-          if (candidate) {
-            sentryCandidates.push(candidate);
-          }
-        }
-      } catch (error) {
-        warnings.push(`sentry: ${error.message}`);
-      }
-    }
-  }
+  const parsing = { since, featureMap, deployedTip };
+  let sentryCandidates;
+  if (ctx.sentryIssues) sentryCandidates = providedSentryCandidates(ctx, parsing);
+  else if (ctx.sentryCandidates) sentryCandidates = ctx.sentryCandidates;
+  else sentryCandidates = await remoteSentryCandidates(ctx, parsing, warnings);
 
   const azureWarningsPath = ctx.azureWarningsPath || process.env.TELEMETRY_AZURE_WARNINGS_PATH;
   if (azureWarningsPath) {
