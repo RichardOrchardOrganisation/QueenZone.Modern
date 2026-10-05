@@ -11,14 +11,13 @@ type Props = {
 
 export function Eyebrow({ children, tone = 'accent', size = 10 }: Props) {
   const { c } = useTheme();
-  const color =
-    tone === 'accent'
-      ? c.accentPrimary
-      : tone === 'onDark'
-        ? dark.textPrimary
-        : tone === 'primary'
-          ? c.textPrimary
-          : c.textSecondary;
+  const colors: Record<Tone, string> = {
+    accent: c.accentPrimary,
+    onDark: dark.textPrimary,
+    primary: c.textPrimary,
+    muted: c.textSecondary,
+  };
+  const color = colors[tone];
 
   return (
     <Text

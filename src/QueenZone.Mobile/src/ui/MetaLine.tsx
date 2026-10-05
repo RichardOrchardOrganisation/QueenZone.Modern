@@ -9,7 +9,8 @@ type Props = {
 
 export function MetaLine({ parts, muted = true, tone = 'default' }: Props) {
   const { c } = useTheme();
-  const color = tone === 'onDark' ? dark.textMuted : muted ? c.textMuted : c.textSecondary;
+  const themedColor = muted ? c.textMuted : c.textSecondary;
+  const color = tone === 'onDark' ? dark.textMuted : themedColor;
   return (
     <Text maxFontSizeMultiplier={1.6} style={[type.meta, { color }]}>
       {parts.join(' · ').toUpperCase()}

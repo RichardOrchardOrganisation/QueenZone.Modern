@@ -83,7 +83,8 @@ export function avatarUrl(apiBaseUrl: string, avatarPath: string | null, cacheTo
   const origin = trimTrailingChar(apiBaseUrl, '/');
   const path = avatarPath.startsWith('/') ? avatarPath : `/${avatarPath}`;
   const url = `${origin}${path}`;
-  return cacheToken ? `${url}${path.includes('?') ? '&' : '?'}v=${encodeURIComponent(cacheToken)}` : url;
+  const querySeparator = path.includes('?') ? '&' : '?';
+  return cacheToken ? `${url}${querySeparator}v=${encodeURIComponent(cacheToken)}` : url;
 }
 
 export function formatMemberSince(createdAt: string): string {
@@ -171,19 +172,16 @@ export function parseDeletionRequested(payload: unknown): DeletionRequested {
     throw new Error('Deletion was not confirmed.');
   }
 
+  const defaultTitle = raw.scheduledDeletionAt === null ? 'Account deletion requested' : 'Account deletion scheduled';
+  const defaultMessage = raw.scheduledDeletionAt === null
+    ? 'Your account has been disabled and your personal data is being removed.'
+    : 'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.';
   return {
     requested: true,
     scheduledDeletionAt: raw.scheduledDeletionAt,
     statusReceipt: typeof raw.statusReceipt === 'string' ? raw.statusReceipt : null,
-    title: typeof raw.title === 'string'
-      ? raw.title
-      : raw.scheduledDeletionAt === null ? 'Account deletion requested' : 'Account deletion scheduled',
-    message:
-      typeof raw.message === 'string'
-        ? raw.message
-        : raw.scheduledDeletionAt === null
-          ? 'Your account has been disabled and your personal data is being removed.'
-          : 'You have been signed out. You can sign back in and cancel deletion during the 30-day cooling-off period.',
+    title: typeof raw.title === 'string' ? raw.title : defaultTitle,
+    message: typeof raw.message === 'string' ? raw.message : defaultMessage,
   };
 }
 

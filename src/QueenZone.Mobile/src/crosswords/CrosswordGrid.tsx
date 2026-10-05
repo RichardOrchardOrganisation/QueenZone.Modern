@@ -52,6 +52,7 @@ export function CrosswordGrid({ puzzle, model, state, disabled, onCell }: Props)
                 const selected = state.cell === cell;
                 const incorrect = state.incorrectCells.includes(cell);
                 const revealed = state.revealedCells.includes(cell);
+                const incorrectMarker = incorrect ? '×' : '';
                 return <Pressable key={cell} testID={`crossword-cell-${cell}`} accessibilityRole="button"
                   accessibilityLabel={cellLabel(model, state, cell)} accessibilityState={{ selected, disabled }} disabled={disabled}
                   onPress={() => onCell(cell)} style={[styles.cell, { width: cellSize, height: cellSize,
@@ -60,7 +61,7 @@ export function CrosswordGrid({ puzzle, model, state, disabled, onCell }: Props)
                   <Text maxFontSizeMultiplier={1.2} style={[styles.number, { color: c.textSecondary, fontSize: Math.max(8, cellSize * 0.22) }]}>{puzzle.numbering[cell] || ''}</Text>
                   <Text maxFontSizeMultiplier={1.2} style={{ fontFamily: fonts.bodyMedium, fontSize: cellSize * 0.5, color: c.textPrimary,
                     textDecorationLine: incorrect ? 'line-through' : 'none' }}>{state.letters[cell] === '.' ? '' : state.letters[cell]}</Text>
-                  <Text accessibilityElementsHidden style={[styles.marker, { fontSize: Math.max(9, cellSize * 0.22), color: incorrect ? c.danger : c.accentPrimary }]}>{revealed ? '▲' : incorrect ? '×' : ''}</Text>
+                  <Text accessibilityElementsHidden style={[styles.marker, { fontSize: Math.max(9, cellSize * 0.22), color: incorrect ? c.danger : c.accentPrimary }]}>{revealed ? '▲' : incorrectMarker}</Text>
                 </Pressable>;
               })}
             </View>)}
