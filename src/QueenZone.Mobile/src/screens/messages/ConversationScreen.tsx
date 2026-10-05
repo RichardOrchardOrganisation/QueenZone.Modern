@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   Alert,
@@ -191,6 +192,40 @@ function ConversationThread({ navigation, route }: Props) {
     ? sendingBlockedNotice(detail.hasBlockedOtherParticipant, detail.canSendReply === true)
     : null;
 
+  let conversationContent: ReactNode;
+  if (canSendReply) {
+    conversationContent = <ConversationComposer
+      correspondentName={correspondentName}
+      canSend={Boolean(accessToken)}
+      archiving={conversation.archiving}
+      archiveDisabled={offlineSnapshot}
+      archiveError={conversation.archiveError}
+      blockError={conversation.blockError ?? conversation.unblockError}
+      onArchive={confirmArchive}
+      onSend={conversation.sendReply}
+    />;
+  } else if (notice) {
+    conversationContent = <View
+      style={[
+        styles.notice,
+        {
+          borderTopColor: c.hairline,
+          backgroundColor: c.surfacePage,
+          paddingBottom: Math.max(insets.bottom, space.md),
+        },
+      ]}
+    >
+      <Text style={[type.body, { color: c.textSecondary }]}>{notice}</Text>
+      {conversation.blockError || conversation.unblockError ? (
+        <Text style={[type.caption, { color: c.textSecondary }]}>
+          {conversation.blockError ?? conversation.unblockError}
+        </Text>
+      ) : null}
+    </View>;
+  } else {
+    conversationContent = null;
+  }
+
   return (
     <KeyboardAvoidingView
       testID={testIds.conversationScreen}
@@ -215,36 +250,7 @@ function ConversationThread({ navigation, route }: Props) {
         contentContainerStyle={styles.thread}
         renderItem={renderItem}
       />
-      {canSendReply ? (
-        <ConversationComposer
-          correspondentName={correspondentName}
-          canSend={Boolean(accessToken)}
-          archiving={conversation.archiving}
-          archiveDisabled={offlineSnapshot}
-          archiveError={conversation.archiveError}
-          blockError={conversation.blockError ?? conversation.unblockError}
-          onArchive={confirmArchive}
-          onSend={conversation.sendReply}
-        />
-      ) : notice ? (
-        <View
-          style={[
-            styles.notice,
-            {
-              borderTopColor: c.hairline,
-              backgroundColor: c.surfacePage,
-              paddingBottom: Math.max(insets.bottom, space.md),
-            },
-          ]}
-        >
-          <Text style={[type.body, { color: c.textSecondary }]}>{notice}</Text>
-          {conversation.blockError || conversation.unblockError ? (
-            <Text style={[type.caption, { color: c.textSecondary }]}>
-              {conversation.blockError ?? conversation.unblockError}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
+      {conversationContent}
     </KeyboardAvoidingView>
   );
 }

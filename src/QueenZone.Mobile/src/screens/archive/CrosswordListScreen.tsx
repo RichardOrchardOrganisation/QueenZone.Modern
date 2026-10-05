@@ -33,9 +33,19 @@ export function CrosswordListScreen({ navigation }: Props) {
           <Text style={[type.meta, { color: (size ?? 'all') === value ? c.accentPrimary : c.textSecondary }]}>{value}</Text>
         </Pressable>)}
       </View></View>}
-    renderItem={({ item }) => <Pressable testID={`crossword-list-${item.slug}`} accessibilityRole="button" accessibilityLabel={`Open crossword ${item.title}`}
-      onPress={() => navigation.navigate('CrosswordPlay', { slug: item.slug })} style={{ padding: space.xl, borderTopWidth: 0.5, borderColor: c.hairline }}>
-      <Text style={[type.listTitle, { color: c.textPrimary }]}>{item.title}</Text>
-      <Text style={[type.meta, { color: c.textSecondary }]}>{item.difficulty} · {item.width}×{item.height} · {item.progress === 'completed' ? 'Completed' : item.progress === 'inProgress' ? `In progress ${item.progressPercent ?? 0}%` : 'Not started'}</Text>
-    </Pressable>} />;
+    renderItem={({ item }) => {
+      let progressLabel: string;
+      if (item.progress === 'completed') {
+        progressLabel = 'Completed';
+      } else if (item.progress === 'inProgress') {
+        progressLabel = `In progress ${item.progressPercent ?? 0}%`;
+      } else {
+        progressLabel = 'Not started';
+      }
+      return <Pressable testID={`crossword-list-${item.slug}`} accessibilityRole="button" accessibilityLabel={`Open crossword ${item.title}`}
+          onPress={() => navigation.navigate('CrosswordPlay', { slug: item.slug })} style={{ padding: space.xl, borderTopWidth: 0.5, borderColor: c.hairline }}>
+          <Text style={[type.listTitle, { color: c.textPrimary }]}>{item.title}</Text>
+          <Text style={[type.meta, { color: c.textSecondary }]}>{item.difficulty} · {item.width}×{item.height} · {progressLabel}</Text>
+        </Pressable>;
+    }} />;
 }

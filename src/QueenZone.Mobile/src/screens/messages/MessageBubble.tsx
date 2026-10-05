@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { memo, useCallback, useReducer } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Flag } from 'lucide-react-native';
@@ -161,6 +162,55 @@ export const MessageBubble = memo(function MessageBubble({
     );
   }
 
+  let reportContent: ReactNode;
+  if (item.reportedByViewer) {
+    reportContent = <View style={styles.reportedRow}>
+      <Flag size={11} strokeWidth={2} color={c.accentPrimary} />
+      <Text style={[styles.reportedLabel, { color: c.accentPrimary }]}>REPORTED</Text>
+    </View>;
+  } else if (!interactionsEnabled) {
+    reportContent = null;
+  } else if (report.reporting) {
+    reportContent = <View style={styles.reportForm}>
+      <TextInput
+        value={report.reportReason}
+        onChangeText={(reason) => dispatch({ type: 'changeReason', reason })}
+        placeholder="Optional reason"
+        placeholderTextColor={c.textMuted}
+        accessibilityLabel="Optional reason"
+        maxLength={reportReasonMaxLength}
+        editable={!report.reportBusy}
+        style={[
+          styles.reportField,
+          { borderColor: c.borderStrong, backgroundColor: c.surfaceCard, color: c.textPrimary },
+        ]}
+      />
+      {report.reportError ? (
+        <Text style={[type.caption, { color: c.danger }]}>{report.reportError}</Text>
+      ) : null}
+      <View style={styles.reportActions}>
+        <Button
+          label="Submit report"
+          size="sm"
+          onPress={() => {
+            void submitReport();
+          }}
+          loading={report.reportBusy}
+        />
+        <Button label="Cancel" size="sm" variant="ghost" onPress={cancelReport} disabled={report.reportBusy} />
+      </View>
+    </View>;
+  } else {
+    reportContent = <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Report message"
+      onPress={startReport}
+      hitSlop={8}
+    >
+      <Text style={[styles.reportTrigger, { color: c.textMuted }]}>Report message</Text>
+    </Pressable>;
+  }
+
   return (
     <View style={styles.incomingRow}>
       {isFirstOfRun ? (
@@ -175,51 +225,7 @@ export const MessageBubble = memo(function MessageBubble({
         <View style={[styles.bubble, styles.incomingBubble]}>
           <Text style={styles.incomingText}>{item.body}</Text>
         </View>
-        {item.reportedByViewer ? (
-          <View style={styles.reportedRow}>
-            <Flag size={11} strokeWidth={2} color={c.accentPrimary} />
-            <Text style={[styles.reportedLabel, { color: c.accentPrimary }]}>REPORTED</Text>
-          </View>
-        ) : !interactionsEnabled ? null : report.reporting ? (
-          <View style={styles.reportForm}>
-            <TextInput
-              value={report.reportReason}
-              onChangeText={(reason) => dispatch({ type: 'changeReason', reason })}
-              placeholder="Optional reason"
-              placeholderTextColor={c.textMuted}
-              accessibilityLabel="Optional reason"
-              maxLength={reportReasonMaxLength}
-              editable={!report.reportBusy}
-              style={[
-                styles.reportField,
-                { borderColor: c.borderStrong, backgroundColor: c.surfaceCard, color: c.textPrimary },
-              ]}
-            />
-            {report.reportError ? (
-              <Text style={[type.caption, { color: c.danger }]}>{report.reportError}</Text>
-            ) : null}
-            <View style={styles.reportActions}>
-              <Button
-                label="Submit report"
-                size="sm"
-                onPress={() => {
-                  void submitReport();
-                }}
-                loading={report.reportBusy}
-              />
-              <Button label="Cancel" size="sm" variant="ghost" onPress={cancelReport} disabled={report.reportBusy} />
-            </View>
-          </View>
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Report message"
-            onPress={startReport}
-            hitSlop={8}
-          >
-            <Text style={[styles.reportTrigger, { color: c.textMuted }]}>Report message</Text>
-          </Pressable>
-        )}
+        {reportContent}
       </View>
     </View>
   );

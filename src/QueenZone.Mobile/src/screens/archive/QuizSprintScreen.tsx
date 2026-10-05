@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
@@ -384,6 +385,26 @@ function SprintResults({ result, board, isSignedIn, onAgain, onSignIn }: Results
     void Share.share({ message: `I scored ${result.points} in the Queenzone Quiz Sprint. Can you beat it?` });
   }, [result.points]);
 
+  let recordedScoreContent: ReactNode;
+  if (result.recorded) {
+    recordedScoreContent = <Text style={styles.note}>
+      Your score is on today&apos;s leaderboard{result.rank != null ? ` (rank #${result.rank})` : ''}.
+    </Text>;
+  } else if (!isSignedIn) {
+    recordedScoreContent = <View style={styles.signIn}>
+      <Text style={styles.note}>Your score is only added to the leaderboard if you are signed in.</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={result.claimToken ? 'Sign in to save this score' : 'Sign in to be ranked'}
+        onPress={onSignIn}
+      >
+        <Text style={styles.noteLink}>{result.claimToken ? 'Sign in to save this score' : 'Sign in to be ranked'}</Text>
+      </Pressable>
+    </View>;
+  } else {
+    recordedScoreContent = null;
+  }
+
   return (
     <ScrollView testID={testIds.quizSprintResult} style={styles.dark} contentContainerStyle={styles.resultsContent}>
       <Text style={styles.eyebrow}>TIME</Text>
@@ -393,22 +414,7 @@ function SprintResults({ result, board, isSignedIn, onAgain, onSignIn }: Results
       <Text style={styles.detail}>
         {result.correct} correct from {result.attempted} answered · best streak {result.bestStreak}
       </Text>
-      {result.recorded ? (
-        <Text style={styles.note}>
-          Your score is on today&apos;s leaderboard{result.rank != null ? ` (rank #${result.rank})` : ''}.
-        </Text>
-      ) : !isSignedIn ? (
-        <View style={styles.signIn}>
-          <Text style={styles.note}>Your score is only added to the leaderboard if you are signed in.</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={result.claimToken ? 'Sign in to save this score' : 'Sign in to be ranked'}
-            onPress={onSignIn}
-          >
-            <Text style={styles.noteLink}>{result.claimToken ? 'Sign in to save this score' : 'Sign in to be ranked'}</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      {recordedScoreContent}
 
       <Text style={[styles.eyebrow, styles.boardTitle]}>DAILY LEADERBOARD</Text>
       <QuizSprintBoard
