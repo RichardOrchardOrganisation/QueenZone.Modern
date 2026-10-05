@@ -124,7 +124,8 @@ function ConvertFrom-CoverageDiff {
             continue
         }
 
-        if ($null -ne $currentFile -and $line -match '^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@') {
+        if ($null -eq $currentFile) { continue }
+        if ($line -match '^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@') {
             $startLine = [int]$Matches[1]
             $lineCount = if ($Matches[2]) { [int]$Matches[2] } else { 1 }
 

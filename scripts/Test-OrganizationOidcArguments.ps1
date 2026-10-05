@@ -44,3 +44,39 @@ foreach ($case in @(
     if (-not $failed) { throw 'Invalid trust accepted' }
 }
 Write-Output 'PASS: absent/matching credential accepted; all five trust mismatches rejected.'
+
+# Exercise the shared function with offline Azure stubs and WhatIf. No cloud writes.
+. (Join-Path $PSScriptRoot "../infra/bootstrap/Ensure-WorkloadIdentity.ps1")
+$OidcRepositorySegment = 'fixture'
+$GitHubRepository = 'fixture'
+$script:fixtureCredentials = @()
+function Invoke-AzJson {
+    param([string[]]$Arguments)
+    if (($Arguments[0..2] -join ' ') -eq 'ad app list') { return [pscustomobject]@{ appId='client'; id='app' } }
+    if (($Arguments[0..2] -join ' ') -eq 'ad app federated-credential') { return $script:fixtureCredentials }
+    throw "Unexpected write or Azure command: $($Arguments -join ' ')"
+}
+function Try-AzJson {
+    param([string[]]$Arguments)
+    if (($Arguments -join ' ') -ne 'ad sp show --id client') { throw 'Unexpected service-principal lookup.' }
+    return [pscustomobject]@{ id='principal' }
+}
+function Invoke-IdentityFixture {
+    [CmdletBinding(SupportsShouldProcess)]
+    param()
+    Ensure-WorkloadIdentity -DisplayName 'fixture' -FederatedCredentialName 'fixture' -EnvironmentName 'fixture'
+}
+$result = Invoke-IdentityFixture -WhatIf
+if ($result.ClientId -ne 'client' -or $result.PrincipalObjectId -ne 'principal') { throw 'WhatIf identity result changed.' }
+$script:fixtureCredentials = @([pscustomobject]@{ name='fixture'; subject='repo:fixture:environment:fixture'; issuer=$issuer; audiences=@('api://AzureADTokenExchange') })
+$result = Invoke-IdentityFixture
+if ($result.ClientId -ne 'client') { throw 'Existing identity result changed.' }
+$script:fixtureCredentials[0].subject = 'wrong'
+$rejected = $false
+try { Invoke-IdentityFixture | Out-Null } catch { $rejected = $_.Exception.Message -match 'different issuer or subject' }
+if (-not $rejected) { throw 'Shared workload function accepted conflicting trust.' }
+$script:fixtureCredentials = @(1..20 | ForEach-Object { [pscustomobject]@{ name="other-$_" } })
+$rejected = $false
+try { Invoke-IdentityFixture -WhatIf | Out-Null } catch { $rejected = $_.Exception.Message -match '20 federated-credential limit' }
+if (-not $rejected) { throw 'Shared workload function accepted an exhausted credential list.' }
+Write-Output 'PASS: shared workload identity preserves WhatIf, existing credentials, trust mismatch and credential limit (offline).'
