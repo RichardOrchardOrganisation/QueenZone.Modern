@@ -300,6 +300,17 @@ function Invoke-SqlPackageProcess {
     }
 }
 
+function Wait-SqlPackageRetry {
+    param([string]$PhaseName, [int]$Attempt, [int]$MaxAttempts, [int[]]$BackoffSeconds)
+
+    $delayIndex = [Math]::Min($attempt - 1, $BackoffSeconds.Length - 1)
+    $delay = [int]$BackoffSeconds[$delayIndex]
+    Write-Information -InformationAction Continue "Transient TCP/transport error during sqlpackage $PhaseName (attempt $attempt of $MaxAttempts). Retrying the failed phase in ${delay}s..."
+    if ($delay -gt 0) {
+        Start-Sleep -Seconds $delay
+    }
+}
+
 function Invoke-SqlPackagePhase {
     param(
         [Parameter(Mandatory = $true)][string]$PhaseName,
@@ -338,12 +349,7 @@ function Invoke-SqlPackagePhase {
 
         $isTransient = Test-SqlPackageTransientTransportError ([string]$result.Output)
         if ($isTransient -and $attempt -lt $MaxAttempts) {
-            $delayIndex = [Math]::Min($attempt - 1, $BackoffSeconds.Length - 1)
-            $delay = [int]$BackoffSeconds[$delayIndex]
-            Write-Information -InformationAction Continue "Transient TCP/transport error during sqlpackage $PhaseName (attempt $attempt of $MaxAttempts). Retrying the failed phase in ${delay}s..."
-            if ($delay -gt 0) {
-                Start-Sleep -Seconds $delay
-            }
+            Wait-SqlPackageRetry -PhaseName $PhaseName -Attempt $attempt -MaxAttempts $MaxAttempts -BackoffSeconds $BackoffSeconds
             continue
         }
 
@@ -592,12 +598,8 @@ ALTER DATABASE [$TargetDatabase] SET MULTI_USER;
 "@
 }
 
-function Invoke-SyncLegacyDbSelfTest {
-    $tcp = 'A transport-level error has occurred when receiving results from the server. (provider: TCP Provider, error: 0 - An existing connection was forcibly closed by the remote host.)'
-    $reset = 'The connection was reset by the remote host (connection reset).'
-    $transportTimeout = 'A transport-level error has occurred when receiving results from the server. (provider: TCP Provider, error: 0 - The semaphore timeout period has expired.)'
-    $containedUser = 'Error SQL72014: An error occurred during deployment. Msg 33233. You can only create a user with a password in a contained database.'
-    $mdfCollision = 'Msg 5170 Cannot create file queenzone_legacy_sync_refresh.mdf because it already exists.'
+function Test-SqlPackageTransportClassification {
+    param([string]$Tcp, [string]$Reset, [string]$TransportTimeout, [string]$ContainedUser, [string]$MdfCollision)
 
     if (-not (Test-SqlPackageTransientTransportError $tcp)) {
         throw "Classifier missed TCP forcibly closed."
@@ -617,7 +619,9 @@ function Invoke-SyncLegacyDbSelfTest {
     if (Test-SqlPackageTransientTransportError 'Timeout expired. The timeout period elapsed prior to completion of the operation.') {
         throw "Classifier must not treat a SQL command timeout as a transport drop."
     }
+}
 
+function Test-DatabaseCopyHelpers {
     # ExtractSource DatabaseCopy (ADR 0022 "Option 5") support - only the
     # pure string/connection-string logic is unit-testable here; the actual
     # CREATE/DROP DATABASE and polling calls need a real Azure SQL server and
@@ -637,7 +641,9 @@ function Invoke-SyncLegacyDbSelfTest {
     if ($masterBuilder['Data Source'] -notmatch 'queenzone\.database\.windows\.net' -or $masterBuilder['User ID'] -ne 'sync') {
         throw "ConvertTo-DatabaseConnectionString must preserve server and credentials while swapping the database."
     }
+}
 
+function Test-DatabaseCopyIdentifiers {
     if (-not (Test-SafeDatabaseIdentifier 'queenzone-db_nightly_ab12cd34ef56ab12cd34ef56ab12cd34')) {
         throw "Test-SafeDatabaseIdentifier must accept a real Azure SQL database name (hyphen) plus a hex GUID suffix."
     }
@@ -650,7 +656,9 @@ function Invoke-SyncLegacyDbSelfTest {
     if (Test-SafeDatabaseIdentifier '') {
         throw "Test-SafeDatabaseIdentifier must reject an empty name."
     }
+}
 
+function Test-DatabaseCopyDiagnostics {
     $dbManagerMessage = Format-DatabaseCopyPermissionDiagnosticMessage ([PSCustomObject]@{ LoginName = 'CloudSA6f234939'; IsDbManager = $true })
     if ($dbManagerMessage -notmatch "CloudSA6f234939" -or $dbManagerMessage -notmatch 'is a member of dbmanager') {
         throw "Format-DatabaseCopyPermissionDiagnosticMessage must name the login and report dbmanager membership when true."
@@ -663,7 +671,9 @@ function Invoke-SyncLegacyDbSelfTest {
     if ($unknownMessage -notmatch 'login name unavailable' -or $unknownMessage -notmatch 'could not be determined') {
         throw "Format-DatabaseCopyPermissionDiagnosticMessage must degrade gracefully when the diagnostic query itself returned nothing."
     }
+}
 
+function Test-MirrorPromotionArguments {
     $promotionSql = New-MirrorPromotionSql -StagingDatabase 'selftest_stage' -TargetDatabase 'selftest_target'
     $useStagingIndex = $promotionSql.IndexOf('USE [selftest_stage];', [StringComparison]::Ordinal)
     $singleUserIndex = $promotionSql.IndexOf('ALTER DATABASE [selftest_stage] SET SINGLE_USER', [StringComparison]::Ordinal)
@@ -682,6 +692,10 @@ function Invoke-SyncLegacyDbSelfTest {
     if ($quoted -notmatch '/p:ExcludeObjectTypes=Views;Users;Logins;Permissions;RoleMembership') {
         throw "Argument quoting must keep the #1334 Publish exclusions intact."
     }
+}
+
+function Test-SqlPackageRetrySuccess {
+    param([string]$Tcp)
 
     $state = @{ Calls = 0 }
     $runner = {
@@ -696,8 +710,12 @@ function Invoke-SyncLegacyDbSelfTest {
     if ($state.Calls -ne 2) {
         throw "Expected Extract to retry once then succeed; got $($state.Calls) attempts."
     }
+}
 
-    $state.Calls = 0
+function Test-SqlPackageRetryExhaustion {
+    param([string]$Tcp)
+
+    $state = @{ Calls = 0 }
     $exhausted = $false
     try {
         $failRunner = {
@@ -722,8 +740,12 @@ function Invoke-SyncLegacyDbSelfTest {
     if ($state.Calls -ne 3) {
         throw "Expected 3 Publish attempts; got $($state.Calls)."
     }
+}
 
-    $state.Calls = 0
+function Test-SqlPackagePermanentFailure {
+    param([string]$ContainedUser)
+
+    $state = @{ Calls = 0 }
     $permanentFailed = $false
     try {
         $permanentRunner = {
@@ -745,7 +767,9 @@ function Invoke-SyncLegacyDbSelfTest {
     if ($state.Calls -ne 1) {
         throw "Permanent errors must not retry; got $($state.Calls) attempts."
     }
+}
 
+function Test-SqlPackageProcessLaunch {
     $wrapperPattern = 'TCP/transport|forcibly closed|connection reset|transport-level|transport timeout'
     $namedFailure = 'sqlpackage Extract failed after 3 attempts due to a TCP/transport error (connection forcibly closed, reset, or transport timeout).'
     if ($namedFailure -notmatch $wrapperPattern) {
@@ -763,6 +787,24 @@ function Invoke-SyncLegacyDbSelfTest {
         throw "Polled process-launch smoke did not print a sqlpackage version."
     }
 
+}
+
+function Invoke-SyncLegacyDbSelfTest {
+    $tcp = 'A transport-level error has occurred when receiving results from the server. (provider: TCP Provider, error: 0 - An existing connection was forcibly closed by the remote host.)'
+    $reset = 'The connection was reset by the remote host (connection reset).'
+    $transportTimeout = 'A transport-level error has occurred when receiving results from the server. (provider: TCP Provider, error: 0 - The semaphore timeout period has expired.)'
+    $containedUser = 'Error SQL72014: An error occurred during deployment. Msg 33233. You can only create a user with a password in a contained database.'
+    $mdfCollision = 'Msg 5170 Cannot create file queenzone_legacy_sync_refresh.mdf because it already exists.'
+
+    Test-SqlPackageTransportClassification -Tcp $tcp -Reset $reset -TransportTimeout $transportTimeout -ContainedUser $containedUser -MdfCollision $mdfCollision
+    Test-DatabaseCopyHelpers
+    Test-DatabaseCopyIdentifiers
+    Test-DatabaseCopyDiagnostics
+    Test-MirrorPromotionArguments
+    Test-SqlPackageRetrySuccess -Tcp $tcp
+    Test-SqlPackageRetryExhaustion -Tcp $tcp
+    Test-SqlPackagePermanentFailure -ContainedUser $containedUser
+    Test-SqlPackageProcessLaunch
     Write-Information -InformationAction Continue "Sync-LegacyDbToSqlExpress.ps1 self-test passed."
 }
 
