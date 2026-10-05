@@ -43,7 +43,7 @@ public sealed class NewsArticleGalleryPickerTests
             null,
             true);
 
-        Assert.Equal("img-101.jpg", NewsArticleGalleryPicker.FileName(photo));
+        Assert.Equal("img-101.jpg", NewsArticleGalleryPicker.GetFileName(photo));
     }
 
     [Fact]

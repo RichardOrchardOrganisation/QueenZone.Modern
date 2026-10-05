@@ -86,7 +86,7 @@ public sealed class NewsRepositorySqlServerTests : IAsyncLifetime
         Assert.True(columns.HasImageBlobKeyColumn);
         Assert.True(columns.HasImageGalleryPicIdColumn);
         Assert.True(columns.HasForumTopicIdColumn);
-        Assert.True(LegacyNewsSchema.HasSlugColumn(ConnectionString));
+        Assert.True(LegacyNewsSchema.HasLegacySlugColumn(ConnectionString));
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public sealed class NewsRepositorySqlServerTests : IAsyncLifetime
             Assert.False(columns.HasImageBlobKeyColumn);
             Assert.False(columns.HasImageGalleryPicIdColumn);
             Assert.False(columns.HasForumTopicIdColumn);
-            Assert.False(LegacyNewsSchema.HasSlugColumn(missingConnection));
+            Assert.False(LegacyNewsSchema.HasLegacySlugColumn(missingConnection));
         }
         finally
         {

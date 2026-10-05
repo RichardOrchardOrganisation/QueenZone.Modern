@@ -22,7 +22,7 @@ public static class NewsArticleGalleryPicker
     public static AdminPhotoListFilter BuildFilter(int? catId, string? search) =>
         new(CatId: catId, Search: string.IsNullOrWhiteSpace(search) ? null : search.Trim());
 
-    public static string FileName(AdminPhotoItem item)
+    public static string GetFileName(AdminPhotoItem item)
     {
         var path = (item.LegacyUrl ?? string.Empty).Replace('\\', '/');
         var name = System.IO.Path.GetFileName(path);
@@ -92,7 +92,7 @@ public static class NewsArticleGalleryPicker
             return null;
         }
 
-        var fileName = FileName(photo);
+        var fileName = GetFileName(photo);
         var contentType = GuessOriginalContentType(fileName);
         return new GalleryOriginalStream(stream, contentType, fileName);
     }
