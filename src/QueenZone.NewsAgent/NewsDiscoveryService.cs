@@ -48,26 +48,8 @@ public sealed class NewsDiscoveryService(
                 var items = await fetcher.FetchAsync(source, cancellationToken);
                 itemsFetched += items.Count;
 
-                var created = 0;
-                var duplicates = 0;
-                var filtered = 0;
-                foreach (var item in items)
-                {
-                    if (!NewsDiscoveryUrlFilter.IsLikelyArticleUrl(item.SourceUrl))
-                    {
-                        continue;
-                    }
-
-                    if (!NewsDiscoveryKeywordFilter.Matches(source, item))
-                    {
-                        filtered++;
-                        continue;
-                    }
-
-                    var ingest = await TryIngestItemAsync(source, item, runAt, options.DryRun, cancellationToken);
-                    created += ingest.Created ? 1 : 0;
-                    duplicates += ingest.DuplicateSkipped ? 1 : 0;
-                }
+                var (created, duplicates, filtered) = await IngestItemsAsync(
+                    source, items, runAt, options.DryRun, cancellationToken);
 
                 candidatesCreated += created;
                 duplicatesSkipped += duplicates;
@@ -104,6 +86,36 @@ public sealed class NewsDiscoveryService(
             keywordFiltered,
             failures,
             errors);
+    }
+
+    private async Task<(int Created, int Duplicates, int Filtered)> IngestItemsAsync(
+        NewsDiscoverySource source,
+        IReadOnlyList<FetchedNewsItem> items,
+        DateTime runAt,
+        bool dryRun,
+        CancellationToken cancellationToken)
+    {
+        var created = 0;
+        var duplicates = 0;
+        var filtered = 0;
+        foreach (var item in items)
+        {
+            if (!NewsDiscoveryUrlFilter.IsLikelyArticleUrl(item.SourceUrl))
+            {
+                continue;
+            }
+
+            if (!NewsDiscoveryKeywordFilter.Matches(source, item))
+            {
+                filtered++;
+                continue;
+            }
+
+            var ingest = await TryIngestItemAsync(source, item, runAt, dryRun, cancellationToken);
+            created += ingest.Created ? 1 : 0;
+            duplicates += ingest.DuplicateSkipped ? 1 : 0;
+        }
+        return (created, duplicates, filtered);
     }
 
     private async Task<(bool Created, bool DuplicateSkipped)> TryIngestItemAsync(
