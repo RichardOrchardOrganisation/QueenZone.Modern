@@ -33,11 +33,104 @@ const { ContentCache } = await import('./contentCache.ts');
 const { createMemoryStorage } = await import('./storage.ts');
 const { fetchJsonWithOfflineCache, fetchJsonWithOfflineCacheResult } = await import('./fetchCached.ts');
 
-describe('fetchJsonWithOfflineCache', () => {
-  afterEach(() => {
-    fetchJsonMock.mock.resetCalls();
+afterEach(() => {
+  fetchJsonMock.mock.resetCalls();
+});
+
+function controlledFetch() {
+  const response = Promise.withResolvers<{ value: string }>();
+  let transportSignal!: AbortSignal;
+  fetchJsonMock.mock.mockImplementationOnce(async (_path, options) => {
+    transportSignal = (options as { signal: AbortSignal }).signal;
+    transportSignal.addEventListener('abort', () => response.reject(Object.assign(new Error('Aborted'), { name: 'AbortError' })));
+    return response.promise;
+  });
+  return { response, signal: () => transportSignal };
+}
+
+describe('shared request cancellation', () => {
+  it('keeps either subscriber alive when the other cancels', async () => {
+    for (const canceledIndex of [0, 1]) {
+      const cache = new ContentCache({ storage: createMemoryStorage() });
+      const transport = controlledFetch();
+      const controllers = [new AbortController(), new AbortController()];
+      const requests = controllers.map(({ signal }) => fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache, signal }));
+      const canceled = assert.rejects(requests[canceledIndex]!, { name: 'AbortError' });
+      controllers[canceledIndex]!.abort();
+      await canceled;
+      assert.equal(transport.signal().aborted, false);
+      transport.response.resolve({ value: 'fixture' });
+      assert.deepEqual(await requests[1 - canceledIndex], { value: 'fixture' });
+      assert.deepEqual(await cache.get('inbox:fixture'), { value: 'fixture' });
+    }
   });
 
+  it('aborts only after all subscribers cancel and allows an immediate retry', async () => {
+    const cache = new ContentCache({ storage: createMemoryStorage() });
+    const transport = controlledFetch();
+    const controllers = [new AbortController(), new AbortController()];
+    const requests = controllers.map(({ signal }) => fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache, signal }));
+    const canceled = requests.map((request) => assert.rejects(request, { name: 'AbortError' }));
+    controllers[0]!.abort();
+    assert.equal(transport.signal().aborted, false);
+    controllers[1]!.abort();
+    assert.equal(transport.signal().aborted, true);
+    fetchJsonMock.mock.mockImplementation(async () => ({ value: 'retry' }));
+    assert.deepEqual(await fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache }), { value: 'retry' });
+    await Promise.all(canceled);
+    assert.deepEqual(await cache.get('inbox:fixture'), { value: 'retry' });
+  });
+
+  it('keeps a caller without a cancellation signal subscribed', async () => {
+    const cache = new ContentCache({ storage: createMemoryStorage() });
+    const transport = controlledFetch();
+    const caller = new AbortController();
+    const first = fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache, signal: caller.signal });
+    const second = fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache });
+    const canceled = assert.rejects(first, { name: 'AbortError' });
+    caller.abort();
+    assert.equal(transport.signal().aborted, false);
+    transport.response.resolve({ value: 'fixture' });
+    await canceled;
+    assert.deepEqual(await second, { value: 'fixture' });
+  });
+
+  it('does not start a transport for an already canceled caller', async () => {
+    const cache = new ContentCache({ storage: createMemoryStorage() });
+    const before = fetchJsonMock.mock.calls.length;
+    await assert.rejects(fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache, signal: AbortSignal.abort() }), { name: 'AbortError' });
+    assert.equal(fetchJsonMock.mock.calls.length, before);
+  });
+
+  it('does not abort stale-while-revalidate work when cached subscribers complete', async () => {
+    const cache = new ContentCache({ storage: createMemoryStorage() });
+    await cache.put('inbox:fixture', { value: 'cached' });
+    const transport = controlledFetch();
+    const caller = new AbortController();
+    assert.deepEqual(await fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache, signal: caller.signal, ttlMs: 20_000 }), { value: 'cached' });
+    caller.abort();
+    assert.equal(transport.signal().aborted, false);
+    transport.response.resolve({ value: 'fresh' });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(await cache.get('inbox:fixture'), { value: 'fresh' });
+  });
+
+  it('discards a late response when an abandoned transport ignores cancellation', async () => {
+    const cache = new ContentCache({ storage: createMemoryStorage() });
+    const response = Promise.withResolvers<{ value: string }>();
+    fetchJsonMock.mock.mockImplementationOnce(() => response.promise);
+    const caller = new AbortController();
+    const pending = fetchJsonWithOfflineCache('/me/messages', { cacheKey: 'inbox:fixture', cache, signal: caller.signal });
+    const canceled = assert.rejects(pending, { name: 'AbortError' });
+    caller.abort();
+    response.resolve({ value: 'abandoned' });
+    await canceled;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(await cache.get('inbox:fixture'), null);
+  });
+});
+
+describe('fetchJsonWithOfflineCache', () => {
   it('writes a successful fetch through to the injected cache', async () => {
     const cache = new ContentCache({ storage: createMemoryStorage() });
     fetchJsonMock.mock.mockImplementation(async () => ({ id: 42, title: 'fresh' }));
@@ -51,7 +144,8 @@ describe('fetchJsonWithOfflineCache', () => {
     assert.deepEqual(result, { id: 42, title: 'fresh' });
     assert.deepEqual(await cache.get('news:42'), { id: 42, title: 'fresh' });
     assert.equal(fetchJsonMock.mock.calls.length, 1);
-    assert.deepEqual(fetchJsonMock.mock.calls[0]?.arguments, ['/content/news/42', { accessToken: 'tok' }]);
+    assert.equal(fetchJsonMock.mock.calls[0]?.arguments[0], '/content/news/42');
+    assert.equal((fetchJsonMock.mock.calls[0]?.arguments[1] as { accessToken: string }).accessToken, 'tok');
   });
 
   it('serves the cached payload when fetchJson throws an offline ApiError', async () => {

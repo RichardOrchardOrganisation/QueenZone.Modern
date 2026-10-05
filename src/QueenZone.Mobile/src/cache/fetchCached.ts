@@ -11,15 +11,48 @@ export type FetchCachedOptions = FetchJsonOptions &
     cache?: ContentCache;
   };
 
-const inFlight = new WeakMap<ContentCache, Map<string, {
+type SharedFlight = {
   lease: CacheLease;
   promise: Promise<CachedResult<unknown>>;
-}>>();
+  controller: AbortController;
+  subscribers: number;
+  settled: boolean;
+};
+
+const inFlight = new WeakMap<ContentCache, Map<string, SharedFlight>>();
+
+function aborted(): Error {
+  return Object.assign(new Error('Aborted'), { name: 'AbortError' });
+}
+
+function subscribe<T>(flight: SharedFlight, signal: AbortSignal | undefined, abandon: () => void): Promise<CachedResult<T>> {
+  flight.subscribers++;
+  return new Promise((resolve, reject) => {
+    let active = true;
+    const release = () => {
+      if (!active) return;
+      active = false;
+      signal?.removeEventListener('abort', onAbort);
+      flight.subscribers--;
+    };
+    const onAbort = () => {
+      release();
+      reject(aborted());
+      if (!flight.settled && flight.subscribers === 0) abandon();
+    };
+    signal?.addEventListener('abort', onAbort);
+    flight.promise.then(
+      (value) => { if (active) { release(); resolve(value as CachedResult<T>); } },
+      (error: unknown) => { if (active) { release(); reject(error); } },
+    );
+  });
+}
 
 /**
  * Network-first fetch with offline cache fallback for previously opened details.
  * Mirrors the PWA navigate strategy in `wwwroot/sw.js`.
- * Concurrent callers with the same `cacheKey` share one in-flight promise.
+ * Concurrent callers with the same `cacheKey` share a transport. Each caller
+ * cancels its own subscription; only the last cancellation aborts the transport.
  */
 export async function fetchJsonWithOfflineCache<T>(
   path: string,
@@ -33,7 +66,8 @@ export async function fetchJsonWithOfflineCacheResult<T>(
   path: string,
   options: FetchCachedOptions,
 ): Promise<CachedResult<T>> {
-  const { cacheKey, cache = getContentCache(), invalidateOn, fallback, ttlMs, ...fetchOptions } = options;
+  const { cacheKey, cache = getContentCache(), invalidateOn, fallback, ttlMs, signal, ...fetchOptions } = options;
+  if (signal?.aborted) throw aborted();
 
   let flights = inFlight.get(cache);
   if (!flights) {
@@ -42,23 +76,36 @@ export async function fetchJsonWithOfflineCacheResult<T>(
   }
   const existing = flights.get(cacheKey);
   if (existing?.lease.current) {
-    return existing.promise as Promise<CachedResult<T>>;
+    return subscribe<T>(existing, signal, () => {
+      existing.controller.abort();
+      if (flights.get(cacheKey) === existing) flights.delete(cacheKey);
+    });
   }
   const lease = cache.acquireLease(cacheKey);
+  const controller = new AbortController();
 
-  const pending = withOfflineCacheResult(cache, cacheKey, () => fetchJson<T>(path, fetchOptions), {
+  const pending = withOfflineCacheResult(cache, cacheKey, async () => {
+    const value = await fetchJson<T>(path, { ...fetchOptions, signal: controller.signal });
+    if (controller.signal.aborted) throw aborted();
+    return value;
+  }, {
     invalidateOn,
     fallback,
     ttlMs,
   }).finally(() => {
+    flight.settled = true;
     lease.release();
     if (flights.get(cacheKey)?.promise === pending) {
       flights.delete(cacheKey);
     }
   });
 
-  flights.set(cacheKey, { lease, promise: pending });
-  return pending;
+  const flight: SharedFlight = { lease, promise: pending, controller, subscribers: 0, settled: false };
+  flights.set(cacheKey, flight);
+  return subscribe<T>(flight, signal, () => {
+    controller.abort();
+    if (flights.get(cacheKey) === flight) flights.delete(cacheKey);
+  });
 }
 
 export type { CachedResult };

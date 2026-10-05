@@ -105,6 +105,22 @@ function renderHome(navigation = fakeNavigation()) {
 }
 
 describe('HomeScreen', () => {
+  it.each([
+    ['deadline', ApiError.timeout()],
+    ['shared request cancellation', Object.assign(new Error('Aborted'), { name: 'AbortError' })],
+  ])('shows a retryable inbox error after %s and recovers on Retry', async (_kind, failure) => {
+    mockSession.isSignedIn = true;
+    mockSession.accessToken = 'fixture-token';
+    fetchInboxMock.mockRejectedValueOnce(failure);
+    fetchInboxMock.mockResolvedValueOnce(pagedResponse([], 1, 0));
+    renderHome();
+    await waitFor(() => expect(screen.getByText('Your messages')).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByText(TIMEOUT_MESSAGE)).toBeOnTheScreen());
+    expect(fetchInboxMock).toHaveBeenCalledWith('fixture-token', expect.objectContaining({ page: 1, pageSize: 50 }));
+    fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByText(TIMEOUT_MESSAGE)).toBeNull());
+    expect(fetchInboxMock).toHaveBeenCalledTimes(2);
+  });
   beforeEach(() => {
     mockSession.isSignedIn = false;
     mockSession.accessToken = null;
