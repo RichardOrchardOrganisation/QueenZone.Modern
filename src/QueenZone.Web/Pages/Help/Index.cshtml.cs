@@ -93,15 +93,18 @@ public sealed class IndexModel(HelpRequestService helpRequestService) : PageMode
         }
 
         var result = await helpRequestService.SubmitAsync(
-            memberId,
-            Topic,
-            Subject,
-            Message,
-            Name,
-            Email,
-            Website,
-            FormStamp,
-            HelpRequestService.ResolveClientIp(HttpContext),
+            new HelpRequestSubmission(
+                memberId,
+                Topic,
+                Subject,
+                Message,
+                Name,
+                Email)
+            {
+                WebsiteHoneypot = Website,
+                IssuedStamp = FormStamp,
+                ClientIp = HelpRequestService.ResolveClientIp(HttpContext),
+            },
             cancellationToken);
 
         if (result.SilentlyDropped || result.Succeeded)

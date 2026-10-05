@@ -18,15 +18,18 @@ public sealed class HelpRequestServiceTests
         var harness = CreateHarness();
 
         var result = await harness.Service.SubmitAsync(
-            memberId: null,
-            HelpRequestTopic.Technical,
-            "Cannot open a forum topic",
-            "The topic page returns an error when I click the latest thread.",
-            "Alex Fan",
-            "alex@example.com",
-            websiteHoneypot: null,
-            issuedStamp: harness.Service.IssueFormStamp(),
-            clientIp: "203.0.113.20");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Technical,
+                "Cannot open a forum topic",
+                "The topic page returns an error when I click the latest thread.",
+                "Alex Fan",
+                "alex@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.20",
+            });
 
         Assert.True(result.Succeeded, result.Error);
         Assert.False(result.SilentlyDropped);
@@ -45,9 +48,18 @@ public sealed class HelpRequestServiceTests
         var harness = CreateHarness(emailSender: sender);
 
         var result = await harness.Service.SubmitAsync(
-            null, HelpRequestTopic.Technical, "Cannot open a forum topic",
-            "The topic page returns an error when I click the latest thread.",
-            "Alex Fan", "alex@example.com", null, harness.Service.IssueFormStamp(), "203.0.113.20");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Technical,
+                "Cannot open a forum topic",
+                "The topic page returns an error when I click the latest thread.",
+                "Alex Fan",
+                "alex@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.20",
+            });
 
         Assert.True(result.Succeeded);
         Assert.Equal("support@queenzone.org", sender.To);
@@ -62,15 +74,18 @@ public sealed class HelpRequestServiceTests
         var member = await CreateMemberAsync(harness.Members, "member@example.com", "Member Fan");
 
         var result = await harness.Service.SubmitAsync(
-            member.Id,
-            HelpRequestTopic.Account,
-            "Need my display name changed",
-            "Please update my public display name on the archive.",
-            name: "Ignored",
-            email: "ignored@example.com",
-            websiteHoneypot: null,
-            issuedStamp: harness.Service.IssueFormStamp(),
-            clientIp: "203.0.113.21");
+            new HelpRequestSubmission(
+                member.Id,
+                HelpRequestTopic.Account,
+                "Need my display name changed",
+                "Please update my public display name on the archive.",
+                "Ignored",
+                "ignored@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.21",
+            });
 
         Assert.True(result.Succeeded, result.Error);
         Assert.Equal("Member Fan", result.Request!.Name);
@@ -84,15 +99,18 @@ public sealed class HelpRequestServiceTests
         var harness = CreateHarness();
 
         var result = await harness.Service.SubmitAsync(
-            null,
-            HelpRequestTopic.Other,
-            "Buy cheap watches now",
-            "This is definitely a long enough spam advertisement body.",
-            "Bot",
-            "bot@example.com",
-            websiteHoneypot: "https://spam.example",
-            issuedStamp: harness.Service.IssueFormStamp(),
-            clientIp: "203.0.113.22");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Other,
+                "Buy cheap watches now",
+                "This is definitely a long enough spam advertisement body.",
+                "Bot",
+                "bot@example.com")
+            {
+                WebsiteHoneypot = "https://spam.example",
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.22",
+            });
 
         Assert.True(result.Succeeded);
         Assert.True(result.SilentlyDropped);
@@ -107,15 +125,18 @@ public sealed class HelpRequestServiceTests
         var stamp = harness.Service.IssueFormStamp();
 
         var result = await harness.Service.SubmitAsync(
-            null,
-            HelpRequestTopic.Other,
-            "Need help immediately",
-            "This should be dropped because the form was submitted too quickly.",
-            "Alex Fan",
-            "alex@example.com",
-            websiteHoneypot: null,
-            issuedStamp: stamp,
-            clientIp: "203.0.113.23");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Other,
+                "Need help immediately",
+                "This should be dropped because the form was submitted too quickly.",
+                "Alex Fan",
+                "alex@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = stamp,
+                ClientIp = "203.0.113.23",
+            });
 
         Assert.True(result.Succeeded);
         Assert.True(result.SilentlyDropped);
@@ -128,29 +149,35 @@ public sealed class HelpRequestServiceTests
         var harness = CreateHarness();
 
         var missingName = await harness.Service.SubmitAsync(
-            null,
-            HelpRequestTopic.Other,
-            "Need help with login",
-            "I cannot sign in with my usual Google account any more.",
-            name: " ",
-            email: "alex@example.com",
-            websiteHoneypot: null,
-            issuedStamp: harness.Service.IssueFormStamp(),
-            clientIp: "203.0.113.24");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Other,
+                "Need help with login",
+                "I cannot sign in with my usual Google account any more.",
+                " ",
+                "alex@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.24",
+            });
 
         Assert.False(missingName.Succeeded);
         Assert.Contains("Name", missingName.Error, StringComparison.OrdinalIgnoreCase);
 
         var missingEmail = await harness.Service.SubmitAsync(
-            null,
-            HelpRequestTopic.Other,
-            "Need help with login",
-            "I cannot sign in with my usual Google account any more.",
-            name: "Alex Fan",
-            email: "not-an-email",
-            websiteHoneypot: null,
-            issuedStamp: harness.Service.IssueFormStamp(),
-            clientIp: "203.0.113.24");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Other,
+                "Need help with login",
+                "I cannot sign in with my usual Google account any more.",
+                "Alex Fan",
+                "not-an-email")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.24",
+            });
 
         Assert.False(missingEmail.Succeeded);
         Assert.Contains("email", missingEmail.Error, StringComparison.OrdinalIgnoreCase);
@@ -163,52 +190,64 @@ public sealed class HelpRequestServiceTests
         var member = await CreateMemberAsync(harness.Members, "capped@example.com", "Capped Fan");
 
         var firstGuest = await harness.Service.SubmitAsync(
-            null,
-            HelpRequestTopic.Other,
-            "First guest request here",
-            "This is the first help request from this guest email address.",
-            "Guest",
-            "guestcap@example.com",
-            null,
-            harness.Service.IssueFormStamp(),
-            "203.0.113.25");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Other,
+                "First guest request here",
+                "This is the first help request from this guest email address.",
+                "Guest",
+                "guestcap@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.25",
+            });
         Assert.True(firstGuest.Succeeded, firstGuest.Error);
 
         var secondGuest = await harness.Service.SubmitAsync(
-            null,
-            HelpRequestTopic.Other,
-            "Second guest request here",
-            "This should be blocked by the guest email daily cap.",
-            "Guest",
-            "guestcap@example.com",
-            null,
-            harness.Service.IssueFormStamp(),
-            "203.0.113.26");
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Other,
+                "Second guest request here",
+                "This should be blocked by the guest email daily cap.",
+                "Guest",
+                "guestcap@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.26",
+            });
         Assert.False(secondGuest.Succeeded);
         Assert.Contains("per day", secondGuest.Error, StringComparison.OrdinalIgnoreCase);
 
         var firstMember = await harness.Service.SubmitAsync(
-            member.Id,
-            HelpRequestTopic.Account,
-            "First member request here",
-            "This is the first help request from the signed-in member.",
-            null,
-            null,
-            null,
-            harness.Service.IssueFormStamp(),
-            "203.0.113.27");
+            new HelpRequestSubmission(
+                member.Id,
+                HelpRequestTopic.Account,
+                "First member request here",
+                "This is the first help request from the signed-in member.",
+                null,
+                null)
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.27",
+            });
         Assert.True(firstMember.Succeeded, firstMember.Error);
 
         var secondMember = await harness.Service.SubmitAsync(
-            member.Id,
-            HelpRequestTopic.Account,
-            "Second member request here",
-            "This should be blocked by the member daily cap.",
-            null,
-            null,
-            null,
-            harness.Service.IssueFormStamp(),
-            "203.0.113.27");
+            new HelpRequestSubmission(
+                member.Id,
+                HelpRequestTopic.Account,
+                "Second member request here",
+                "This should be blocked by the member daily cap.",
+                null,
+                null)
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = "203.0.113.27",
+            });
         Assert.False(secondMember.Succeeded);
         Assert.Contains("per day", secondMember.Error, StringComparison.OrdinalIgnoreCase);
     }
@@ -219,15 +258,18 @@ public sealed class HelpRequestServiceTests
         var harness = CreateHarness();
 
         var result = await harness.Service.SubmitAsync(
-            null,
-            HelpRequestTopic.Other,
-            "Need help with login",
-            "I cannot sign in with my usual Google account any more.",
-            "Alex Fan",
-            "alex@example.com",
-            null,
-            harness.Service.IssueFormStamp(),
-            clientIp: null);
+            new HelpRequestSubmission(
+                null,
+                HelpRequestTopic.Other,
+                "Need help with login",
+                "I cannot sign in with my usual Google account any more.",
+                "Alex Fan",
+                "alex@example.com")
+            {
+                WebsiteHoneypot = null,
+                IssuedStamp = harness.Service.IssueFormStamp(),
+                ClientIp = null,
+            });
 
         Assert.False(result.Succeeded);
         Assert.Contains("Too many", result.Error, StringComparison.OrdinalIgnoreCase);
@@ -281,8 +323,30 @@ public sealed class HelpRequestServiceTests
             new MemoryCache(new MemoryCacheOptions()),
             timeProvider,
             options);
-        var service = new HelpRequestService(repository, members, stamp, limiter, timeProvider, options, emailSender);
+        var service = new HelpRequestService(repository, members, stamp, limiter, timeProvider, options, new HelpRequestNotificationSender(emailSender));
         return new Harness(service, repository, members);
+    }
+
+    [Fact]
+    public async Task Notification_delivery_failure_is_non_fatal()
+    {
+        var sender = new HelpRequestNotificationSender(new FailingEmailSender(new InvalidOperationException("offline")));
+        await sender.SendAsync(Guid.NewGuid(), new OutboundEmail("support@example.com", "Subject", "Body"), CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Notification_cancellation_propagates()
+    {
+        var cancellation = new OperationCanceledException();
+        var sender = new HelpRequestNotificationSender(new FailingEmailSender(cancellation));
+        var actual = await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            sender.SendAsync(Guid.NewGuid(), new OutboundEmail("support@example.com", "Subject", "Body"), CancellationToken.None));
+        Assert.Same(cancellation, actual);
+    }
+
+    private sealed class FailingEmailSender(Exception failure) : IEmailSender
+    {
+        public Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default) => Task.FromException(failure);
     }
 
     private sealed record Harness(

@@ -69,15 +69,18 @@ public static class ContactApiEndpoints
         }
 
         var result = await helpRequestService.SubmitAsync(
-            resolved.MemberId,
-            request.Topic ?? string.Empty,
-            request.Subject ?? string.Empty,
-            request.Message ?? string.Empty,
-            request.Name,
-            request.Email,
-            request.Website,
-            request.FormStamp,
-            HelpRequestService.ResolveClientIp(httpContext),
+            new HelpRequestSubmission(
+                resolved.MemberId,
+                request.Topic ?? string.Empty,
+                request.Subject ?? string.Empty,
+                request.Message ?? string.Empty,
+                request.Name,
+                request.Email)
+            {
+                WebsiteHoneypot = request.Website,
+                IssuedStamp = request.FormStamp,
+                ClientIp = HelpRequestService.ResolveClientIp(httpContext),
+            },
             cancellationToken);
 
         if (result.SilentlyDropped || result.Succeeded)

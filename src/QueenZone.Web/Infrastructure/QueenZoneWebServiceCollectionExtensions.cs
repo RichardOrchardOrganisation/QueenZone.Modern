@@ -344,6 +344,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<HelpRequestRateLimiter>();
         services.AddSingleton<ISmtpTransport, GmailSmtpTransport>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<HelpRequestNotificationSender>();
         services.AddScoped<HelpRequestService>();
         services.AddScoped<PublicWarmupService>();
         services.AddScoped<UgcHtml>();
