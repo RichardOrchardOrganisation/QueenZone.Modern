@@ -40,6 +40,55 @@ public sealed partial class MemberLogoutTests : IClassFixture<ExternalCookieWebA
         Assert.Contains("/account/login", probeResponse.Headers.Location!.OriginalString);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Logout_and_account_switch_clear_inherited_theme_but_preserve_device_override(bool deviceOverride)
+    {
+        using var client = await CreateSignedInMemberClientAsync(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false,
+            HandleCookies = true,
+        });
+        var settings = await client.GetStringAsync("/account/settings");
+        var saved = await client.PostAsync("/account/settings?handler=UpdateThemePreference",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(settings),
+                ["ThemePreference"] = "Dark",
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        settings = await client.GetStringAsync("/account/settings");
+        Assert.Contains("data-theme=\"dark\"", settings);
+        var device = await client.PostAsync("/account/settings?handler=UpdateDeviceTheme",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(settings),
+                ["DeviceTheme"] = deviceOverride ? "Light" : "Account",
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, device.StatusCode);
+        var header = await client.GetStringAsync("/fan-performances");
+        var logout = await client.PostAsync("/account/logout", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(header),
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, logout.StatusCode);
+        var guest = await client.GetStringAsync("/account/login?signedOut=1");
+        if (deviceOverride) Assert.Contains("data-theme=\"light\"", guest);
+        else Assert.DoesNotContain("data-theme=", guest);
+
+        client.DefaultRequestHeaders.Remove(ExternalCookieTestHandler.SubjectHeader);
+        client.DefaultRequestHeaders.Remove(ExternalCookieTestHandler.EmailHeader);
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.SubjectHeader, "theme-switch-" + Guid.NewGuid());
+        client.DefaultRequestHeaders.Add(ExternalCookieTestHandler.EmailHeader, Guid.NewGuid() + "@example.com");
+        var switched = await client.GetAsync("/account/external-login-callback");
+        Assert.Equal(HttpStatusCode.Redirect, switched.StatusCode);
+        var secondAccount = await client.GetStringAsync("/account/settings");
+        if (deviceOverride) Assert.Contains("data-theme=\"light\"", secondAccount);
+        else Assert.DoesNotContain("data-theme=", secondAccount);
+    }
+
     [Fact]
     public async Task LogoutGet_StillClearsMemberCookie_ForLegacyLinks()
     {

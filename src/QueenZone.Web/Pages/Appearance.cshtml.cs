@@ -15,8 +15,9 @@ public sealed class AppearanceModel(IAntiforgery antiforgery) : PageModel
     [BindProperty]
     public string? ReturnUrl { get; set; }
 
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ViewData["Title"] = "Appearance | QueenZone";
         var auth = await HttpContext.AuthenticateMemberAsync();
         var saved = DeviceThemeCookie.Read(Request);
