@@ -100,6 +100,39 @@ function assertCoverageReports(kind) {
   return true;
 }
 
+function runSuites(suiteTs, suiteTsx) {
+  if (collectCoverage) {
+    rmSync(coverageRoot, { recursive: true, force: true });
+    mkdirSync(coverageRoot, { recursive: true });
+    console.log('Collecting coverage from the Node pure suite and the Jest component suite.');
+  }
+
+  const nodeStatus = suiteTs.length === 0 ? 0 : runNodeTest(suiteTs, { coverage: collectCoverage });
+  if (nodeStatus !== 0) {
+    return nodeStatus;
+  }
+  if (collectCoverage && suiteTs.length > 0 && !assertCoverageReports('node')) {
+    return 1;
+  }
+
+  const jestStatus = suiteTsx.length === 0 ? 0 : runJest(suiteTsx, { coverage: collectCoverage });
+  if (jestStatus !== 0) {
+    return jestStatus;
+  }
+  if (collectCoverage && suiteTsx.length > 0 && !assertCoverageReports('jest')) {
+    return 1;
+  }
+  if (collectCoverage && suiteTs.length === 0) {
+    console.error('Coverage collection failed: Node *.test.ts suite is empty; refusing to drop that suite.');
+    return 1;
+  }
+  if (collectCoverage && suiteTsx.length === 0) {
+    console.error('Coverage collection failed: Jest *.test.tsx suite is empty; refusing to drop that suite.');
+    return 1;
+  }
+  return 0;
+}
+
 const tsProbeRel = `src/discovery-probe-${process.pid}.test.ts`;
 const tsxProbeRel = `src/discovery-probe-${process.pid}.test.tsx`;
 const tsProbeAbs = path.join(mobileRoot, tsProbeRel);
@@ -155,33 +188,7 @@ describe('automatic test discovery probe', () => {
       console.log(
         `Discovery self-check passed (${suiteTs.length} Node files, ${suiteTsx.length} Jest files; unlisted probes executed).`,
       );
-      if (collectCoverage) {
-        rmSync(coverageRoot, { recursive: true, force: true });
-        mkdirSync(coverageRoot, { recursive: true });
-        console.log('Collecting coverage from the Node pure suite and the Jest component suite.');
-      }
-
-      const nodeStatus = suiteTs.length === 0 ? 0 : runNodeTest(suiteTs, { coverage: collectCoverage });
-      if (nodeStatus !== 0) {
-        exitCode = nodeStatus;
-      } else if (collectCoverage && suiteTs.length > 0 && !assertCoverageReports('node')) {
-        exitCode = 1;
-      } else {
-        const jestStatus = suiteTsx.length === 0 ? 0 : runJest(suiteTsx, { coverage: collectCoverage });
-        if (jestStatus !== 0) {
-          exitCode = jestStatus;
-        } else if (collectCoverage && suiteTsx.length > 0 && !assertCoverageReports('jest')) {
-          exitCode = 1;
-        } else if (collectCoverage && suiteTs.length === 0) {
-          console.error('Coverage collection failed: Node *.test.ts suite is empty; refusing to drop that suite.');
-          exitCode = 1;
-        } else if (collectCoverage && suiteTsx.length === 0) {
-          console.error('Coverage collection failed: Jest *.test.tsx suite is empty; refusing to drop that suite.');
-          exitCode = 1;
-        } else {
-          exitCode = 0;
-        }
-      }
+      exitCode = runSuites(suiteTs, suiteTsx);
     }
   }
 } finally {

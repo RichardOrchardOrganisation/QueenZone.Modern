@@ -11,7 +11,7 @@
 const impl = require('../../apiEnvironments.cjs') as {
   defaultApiBaseUrls: Record<AppEnvironment, string>;
   marketingVersionPrefix: string;
-  resolveAppEnvironment: (raw: string | undefined | null) => AppEnvironment;
+  resolveAppEnvironment: (raw: string | null) => AppEnvironment;
   resolveApiBaseUrl: (input: ResolveApiBaseUrlInput) => string;
   normalizeApiBaseUrl: (raw: string) => string;
   resolveIosBuildNumber: (input?: ResolveIosBuildNumberInput) => string;
@@ -23,18 +23,18 @@ export type AppEnvironment = 'development' | 'staging' | 'production';
 
 export type ResolveApiBaseUrlInput = {
   appEnv: AppEnvironment;
-  override?: string | undefined | null;
+  override?: string | null;
 };
 
 export type ResolveIosBuildNumberInput = {
-  override?: string | undefined | null;
-  githubRunNumber?: string | undefined | null;
-  fallback?: string | undefined | null;
+  override?: string | null;
+  githubRunNumber?: string | null;
+  fallback?: string | null;
 };
 
 export type ResolveMarketingVersionInput = {
-  prefix?: string | undefined | null;
-  runNumber?: string | number | undefined | null;
+  prefix?: string | null;
+  runNumber?: string | number | null;
 };
 
 export const defaultApiBaseUrls = impl.defaultApiBaseUrls;
