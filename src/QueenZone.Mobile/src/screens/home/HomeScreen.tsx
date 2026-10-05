@@ -92,7 +92,7 @@ export function HomeScreen({ navigation }: Props) {
             onProfilePress={() => navigation.navigate('Profile')}
           />
 
-          {appEnv !== 'production' ? (
+          {appEnv !== 'production' && (
             <View
               testID={testIds.homeEnvironment}
               style={[styles.environmentStrip, { backgroundColor: c.accentTintWeak }]}
@@ -103,17 +103,17 @@ export function HomeScreen({ navigation }: Props) {
                 {appEnv.toUpperCase()} · {apiBaseUrl}
               </Text>
             </View>
-          ) : null}
+          )}
 
           {data.liveActivity.view.kind === 'content' &&
-          liveStripIsVisible(data.liveActivity.view.data.newForumRepliesToday) ? (
+          liveStripIsVisible(data.liveActivity.view.data.newForumRepliesToday) && (
             <View style={[styles.liveStrip, { backgroundColor: c.surfaceRaised }]}>
               <View style={[styles.liveStripDot, { backgroundColor: c.accentPrimary }]} />
               <Text numberOfLines={1} style={[styles.liveStripLabel, { color: c.textSecondary }]}>
                 {liveStripLabel(data.liveActivity.view.data.newForumRepliesToday)}
               </Text>
             </View>
-          ) : null}
+          )}
 
           <HomeCrosswordCard key={profile?.memberId ?? 'guest'} onPlay={slug => navigation.navigate('ArchiveTab', nestedTabParams('CrosswordPlay', { slug }))} />
           <HomeSprintCard onPlay={() => navigation.navigate('ArchiveTab', nestedTabParams('QuizSprint'))} />
@@ -129,7 +129,7 @@ export function HomeScreen({ navigation }: Props) {
             ))}
           </ScrollView>
 
-          {visibleSections.has('hero') ? (
+          {visibleSections.has('hero') && (
             <HomeHeroSection
               newsView={data.news.view}
               hero={data.hero}
@@ -137,9 +137,9 @@ export function HomeScreen({ navigation }: Props) {
               onOpenStory={openNewsStory}
               onReloadNews={data.news.reload}
             />
-          ) : null}
+          )}
 
-          {visibleSections.has('news') ? (
+          {visibleSections.has('news') && (
             <HomeNewsSection
               newsView={data.news.view}
               latestNews={data.latestNews}
@@ -149,25 +149,25 @@ export function HomeScreen({ navigation }: Props) {
               onReloadNews={data.news.reload}
               onSeeAll={() => navigation.navigate('NewsTab', { screen: 'NewsIndex' })}
             />
-          ) : null}
+          )}
 
-          {visibleSections.has('forum') ? (
+          {visibleSections.has('forum') && (
             <HomeForumSection
               forumView={data.forum.view}
               onOpenThread={openThread}
               onEnterForum={() => navigation.navigate('ForumTab', { screen: 'ForumIndex' })}
               onReloadForum={data.forum.reload}
             />
-          ) : null}
+          )}
 
-          {visibleSections.has('gallery') ? (
+          {visibleSections.has('gallery') && (
             <HomeGallerySection
               galleryView={data.gallery.view}
               onOpenCategory={openGalleryCategory}
               onBrowse={() => navigation.navigate('PhotosTab', { screen: 'PhotoIndex' })}
               onReloadGallery={data.gallery.reload}
             />
-          ) : null}
+          )}
 
           <HomeMessagesSection
             isSignedIn={isSignedIn}
@@ -178,25 +178,25 @@ export function HomeScreen({ navigation }: Props) {
             onSignIn={() => openSignIn(navigation, { tab: 'HomeTab', screen: 'Profile' })}
           />
 
-          {showOnThisDay && data.onThisDayEvent ? (
+          {showOnThisDay && data.onThisDayEvent && (
             <>
               <HomeOnThisDaySection
                 event={data.onThisDayEvent}
                 onViewTimeline={() => navigation.navigate('ArchiveTab', nestedTabParams('Timeline'))}
               />
-              {Platform.OS === 'ios' ? <HomeWidgetPrompt summary={data.onThisDayEvent.summary} /> : null}
+              {Platform.OS === 'ios' && <HomeWidgetPrompt summary={data.onThisDayEvent.summary} />}
             </>
-          ) : null}
+          )}
 
-          {showQueenQuotes && data.onThisDayQuote && data.featuredQuote ? (
+          {showQueenQuotes && data.onThisDayQuote && data.featuredQuote && (
             <HomeQueenQuoteSection
               quote={data.onThisDayQuote}
               quoteId={data.featuredQuote.id}
               onOpenQuote={openQuote}
             />
-          ) : null}
+          )}
 
-          {data.homePoll ? (
+          {data.homePoll && (
             <HomePollCard
               poll={data.homePoll}
               isSignedIn={isSignedIn}
@@ -204,7 +204,7 @@ export function HomeScreen({ navigation }: Props) {
               onVoted={() => data.poll.refresh()}
               onSignIn={() => openSignIn(navigation, { tab: 'HomeTab', screen: 'Home' })}
             />
-          ) : null}
+          )}
 
           <ArchiveFooter />
           <Text testID={testIds.homeVersion} style={[type.caption, styles.footer, { color: c.textMuted }]}>
