@@ -118,9 +118,7 @@ public sealed class NewsTriageService(
             var execution = await aiRunExecutor.ExecuteAsync(
                 candidate.Id,
                 NewsAiRunKind.Triage,
-                NewsAiModelRole.Triage,
-                NewsTriagePrompt.Version,
-                messages,
+                new NewsAiChatRequest(NewsAiModelRole.Triage, NewsTriagePrompt.Version, messages),
                 options.RunAtUtc,
                 cancellationToken,
                 guidance);
