@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { PhotoCategoryListItem } from '../../api';
@@ -21,44 +22,47 @@ export const HomeGallerySection = memo(function HomeGallerySection({
   onReloadGallery: () => void;
 }) {
   const { c } = useTheme();
+  let galleryContent: ReactNode;
+  if (galleryView.kind === 'skeleton') {
+    galleryContent = <View style={styles.skeletonRow}>
+      {[0, 1, 2].map((key) => (
+        <View key={key} style={[styles.skeletonTile, { backgroundColor: c.surfaceCard }]} />
+      ))}
+    </View>;
+  } else if (galleryView.kind === 'error') {
+    galleryContent = <SectionErrorBlock message={galleryView.message} onRetry={onReloadGallery} />;
+  } else {
+    galleryContent = <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {galleryView.data.items.map((category) => (
+        <Pressable
+          key={category.catId}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={category.name}
+          onPress={() => onOpenCategory(category)}
+          style={styles.tile}
+        >
+          {category.coverThumbnailUrl ? (
+            <ArchiveImage
+              source={{ uri: category.coverThumbnailUrl }}
+              label={category.name}
+              priority="low"
+              style={styles.thumb}
+            />
+          ) : (
+            <View style={[styles.thumb, { backgroundColor: c.surfaceCard }]} />
+          )}
+          <Text style={[type.cardTitle, styles.tileTitle, { color: c.textPrimary }]}>{category.name}</Text>
+          <MetaLine parts={[formatGalleryCardMeta(category)]} />
+        </Pressable>
+      ))}
+    </ScrollView>;
+  }
+
   return (
     <>
       <SectionHeader title="New in the gallery" actionLabel="Browse" onAction={onBrowse} />
-      {galleryView.kind === 'skeleton' ? (
-        <View style={styles.skeletonRow}>
-          {[0, 1, 2].map((key) => (
-            <View key={key} style={[styles.skeletonTile, { backgroundColor: c.surfaceCard }]} />
-          ))}
-        </View>
-      ) : galleryView.kind === 'error' ? (
-        <SectionErrorBlock message={galleryView.message} onRetry={onReloadGallery} />
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {galleryView.data.items.map((category) => (
-            <Pressable
-              key={category.catId}
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel={category.name}
-              onPress={() => onOpenCategory(category)}
-              style={styles.tile}
-            >
-              {category.coverThumbnailUrl ? (
-                <ArchiveImage
-                  source={{ uri: category.coverThumbnailUrl }}
-                  label={category.name}
-                  priority="low"
-                  style={styles.thumb}
-                />
-              ) : (
-                <View style={[styles.thumb, { backgroundColor: c.surfaceCard }]} />
-              )}
-              <Text style={[type.cardTitle, styles.tileTitle, { color: c.textPrimary }]}>{category.name}</Text>
-              <MetaLine parts={[formatGalleryCardMeta(category)]} />
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
+      {galleryContent}
     </>
   );
 });

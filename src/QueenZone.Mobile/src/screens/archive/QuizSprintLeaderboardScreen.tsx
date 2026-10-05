@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -44,6 +45,25 @@ export function QuizSprintLeaderboardScreen(_props: Props) {
   const { data: board, error, loading, reload } = useDetailQuery(load);
   const copy = COPY[scope];
 
+  let leaderboardContent: ReactNode;
+  if (loading) {
+    leaderboardContent = <LoadingBlock label="Loading leaderboard…" />;
+  } else if (error || !board) {
+    leaderboardContent = <ErrorBlock message={error ?? 'Could not load the leaderboard.'} onRetry={reload} />;
+  } else {
+    leaderboardContent = <View style={styles.board}>
+      <QuizSprintBoard
+        rows={board.top}
+        viewer={board.viewer}
+        emptyText={copy.empty}
+        showRuns={scope === 'total'}
+      />
+      <Text style={styles.total}>
+        {board.players} member{board.players === 1 ? '' : 's'} ranked{copy.suffix}.
+      </Text>
+    </View>;
+  }
+
   return (
     <ScrollView
       testID={testIds.quizSprintLeaderboardScreen}
@@ -73,23 +93,7 @@ export function QuizSprintLeaderboardScreen(_props: Props) {
           onPress={() => setScope('total')}
         />
       </View>
-      {loading ? (
-        <LoadingBlock label="Loading leaderboard…" />
-      ) : error || !board ? (
-        <ErrorBlock message={error ?? 'Could not load the leaderboard.'} onRetry={reload} />
-      ) : (
-        <View style={styles.board}>
-          <QuizSprintBoard
-            rows={board.top}
-            viewer={board.viewer}
-            emptyText={copy.empty}
-            showRuns={scope === 'total'}
-          />
-          <Text style={styles.total}>
-            {board.players} member{board.players === 1 ? '' : 's'} ranked{copy.suffix}.
-          </Text>
-        </View>
-      )}
+      {leaderboardContent}
     </ScrollView>
   );
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { memo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ForumPost } from '../../api';
@@ -59,6 +60,15 @@ export const ForumPostRow = memo(function ForumPostRow({
     Alert.alert('Post actions', undefined, actions);
   };
 
+  let reportContent: ReactNode;
+  if (post.queueState === 'sending') {
+    reportContent = 'Sending…';
+  } else if (post.queueState === 'needs_attention') {
+    reportContent = 'Needs attention';
+  } else {
+    reportContent = 'Queued';
+  }
+
   return (
     <View style={[styles.post, { borderTopColor: c.hairline }]}>
       <View style={styles.authorRow}>
@@ -118,11 +128,7 @@ export const ForumPostRow = memo(function ForumPostRow({
           }}
         >
           <Text style={[type.caption, { color: c.accentPrimary, marginTop: space.xs }]}>
-            {post.queueState === 'sending'
-              ? 'Sending…'
-              : post.queueState === 'needs_attention'
-                ? 'Needs attention'
-                : 'Queued'}
+            {reportContent}
           </Text>
         </Pressable>
       ) : null}
