@@ -83,3 +83,21 @@ it('offers review explanations after a guest completes the restored grid', async
   await userEvent.setup().press(screen.getByRole('button', { name: 'Review clues' }));
   expect(screen.getByText('Brian May plays guitar.')).toBeOnTheScreen();
 });
+
+it('checks the grid from the clues sheet and opens the returned explanations', async () => {
+  const puzzle = crosswordFixture();
+  check.mockResolvedValue({ playVersion: puzzle.playVersion!, cells: [], complete: false,
+    explanations: [{ number: 1, direction: 'across', explanation: 'Queen guitarist explained.' }],
+  });
+  renderPlay();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Clues' })).toBeEnabled());
+  const user = userEvent.setup();
+  await user.press(screen.getByRole('button', { name: 'Clues' }));
+  await user.press(screen.getByRole('button', { name: 'Check grid' }));
+  await waitFor(() => expect(check).toHaveBeenCalledWith(puzzle.id, puzzle.playVersion,
+    '.'.repeat(25), { scope: 'grid' }, false, expect.any(Object)));
+  await user.press(screen.getByRole('button', { name: 'Clues' }));
+  await user.press(screen.getByRole('button', { name: 'Review explanations' }));
+  expect(screen.getByText('Queen guitarist explained.')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: 'Check grid' })).toBeNull();
+});
