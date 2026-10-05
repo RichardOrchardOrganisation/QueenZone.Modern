@@ -192,6 +192,7 @@ Regenerate with `node scripts/check-feature-map.mjs --write`.
 ### static
 
 - `web.static.about` — About (Pages/About.cshtml — /about)
+- `web.static.appearance` — Appearance (Pages/Appearance.cshtml — /appearance)
 - `web.static.contact` — Contact (Pages/Help/Index.cshtml — /contact)
 - `web.static.contactConfirmation` — Contact confirmation (Pages/Help/Confirmation.cshtml — /contact/confirmation)
 - `web.static.error` — Error (Pages/Error.cshtml — /error/{statusCode?})

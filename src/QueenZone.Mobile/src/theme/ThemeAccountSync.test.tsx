@@ -48,6 +48,18 @@ describe('ThemeAccountSync', () => {
     await act(async () => {});
   });
 
+  it('drops the previous account preference on switching and logout', async () => {
+    mockSession.profile = parseMemberProfile({ ...memberProfilePayload(), themePreference: 'dark' });
+    const view = renderSync();
+    expect(await screen.findByText('effective:dark device:system account:dark')).toBeTruthy();
+    mockSession.profile = parseMemberProfile({ ...memberProfilePayload(), memberId: 'different', themePreference: 'light' });
+    view.rerender(<ThemeProvider><ThemeAccountSync /><Probe /></ThemeProvider>);
+    expect(await screen.findByText('effective:light device:system account:light')).toBeTruthy();
+    mockSession.profile = null;
+    view.rerender(<ThemeProvider><ThemeAccountSync /><Probe /></ThemeProvider>);
+    expect(await screen.findByText('effective:system device:system account:system')).toBeTruthy();
+  });
+
   it('lets a device override win over the account preference', async () => {
     await AsyncStorage.setItem(themePreferenceStorageKey, 'light');
     mockSession.profile = parseMemberProfile({ ...memberProfilePayload(), themePreference: 'dark' });

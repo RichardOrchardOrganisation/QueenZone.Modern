@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { sendJson } from '../../api/client';
 import { ApiError } from '../../api/errors';
@@ -36,9 +36,10 @@ type ChoiceListProps = {
   options: readonly Option[];
   selected: ThemePreference;
   onChoose: (value: ThemePreference) => void;
+  disabled?: boolean;
 };
 
-function ChoiceList({ options, selected, onChoose }: ChoiceListProps) {
+function ChoiceList({ options, selected, onChoose, disabled = false }: ChoiceListProps) {
   const { c } = useTheme();
   return (
     <View style={{ paddingHorizontal: space.xl, gap: space.md }}>
@@ -48,7 +49,8 @@ function ChoiceList({ options, selected, onChoose }: ChoiceListProps) {
           <Pressable
             key={option.value}
             accessibilityRole="radio"
-            accessibilityState={{ selected: isSelected }}
+            accessibilityState={{ selected: isSelected, disabled }}
+            disabled={disabled}
             accessibilityLabel={option.title}
             onPress={() => onChoose(option.value)}
             style={{
@@ -74,23 +76,41 @@ function ChoiceList({ options, selected, onChoose }: ChoiceListProps) {
 
 export function AppearanceScreen(_: Props) {
   const { c, devicePreference, accountPreference, setPreference } = useTheme();
-  const { accessToken, refreshProfile } = useSession();
+  const { accessToken, profile, refreshProfile } = useSession();
   const [accountError, setAccountError] = useState<string | null>(null);
   const [pendingAccountChoice, setPendingAccountChoice] = useState<ThemePreference | null>(null);
 
+  const saveInFlight = useRef(false);
+  const mounted = useRef(true);
+  const activeMember = useRef(profile?.memberId);
+  useEffect(() => {
+    activeMember.current = profile?.memberId;
+    setAccountError(null);
+    setPendingAccountChoice(null);
+  }, [profile?.memberId]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
   // Saved to the account so the website and other devices follow it. A device override still wins here.
   async function chooseForAccount(next: ThemePreference) {
+    if (saveInFlight.current || !accessToken) return;
+    saveInFlight.current = true;
+    const member = activeMember.current;
+    const stillActive = () => mounted.current && member === activeMember.current;
     setPendingAccountChoice(next);
     setAccountError(null);
     try {
       await sendJson('/me', { method: 'PATCH', accessToken, body: { themePreference: next } });
-      await refreshProfile();
+      if (stillActive()) await refreshProfile();
     } catch (err) {
-      setAccountError(
+      if (stillActive()) setAccountError(
         err instanceof ApiError ? err.message : 'We could not update your account just now. Try again.',
       );
     } finally {
-      setPendingAccountChoice(null);
+      saveInFlight.current = false;
+      if (mounted.current) setPendingAccountChoice(null);
     }
   }
 
@@ -116,6 +136,7 @@ export function AppearanceScreen(_: Props) {
         <>
           <ChoiceList
             options={systemOptions}
+            disabled={pendingAccountChoice !== null}
             selected={pendingAccountChoice ?? accountPreference}
             onChoose={(value) => void chooseForAccount(value)}
           />

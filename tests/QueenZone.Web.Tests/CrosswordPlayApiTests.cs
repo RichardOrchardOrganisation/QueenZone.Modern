@@ -15,6 +15,21 @@ public sealed class CrosswordPlayApiTests
     private static readonly Guid Member = Guid.Parse("77777777-8888-9999-aaaa-bbbbbbbbbbbb");
 
     [Fact]
+    public async Task Offline_shell_restores_appearance_without_caching_account_identity()
+    {
+        await using var host = new PlayFactory();
+        var puzzle = await Publish(host);
+        using var client = host.CreateAnonymousClient();
+        client.DefaultRequestHeaders.Add("Cookie", "qz_theme=dark");
+        var body = await client.GetStringAsync("/crosswords/" + puzzle.Seed.Slug + "?handler=OfflineShell");
+        Assert.Contains("data-theme-offline", body);
+        Assert.Contains("/js/theme.js", body);
+        Assert.Contains("name=\"theme-color\"", body);
+        Assert.DoesNotContain("data-theme=\"dark\"", body);
+        Assert.DoesNotContain("__RequestVerificationToken", body);
+    }
+
+    [Fact]
     public async Task Anonymous_can_check_selected_letters_and_reveal_but_cannot_save_or_complete()
     {
         await using var host = new PlayFactory();

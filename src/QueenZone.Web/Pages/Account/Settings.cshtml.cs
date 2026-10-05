@@ -102,7 +102,6 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         // The appearance may have been changed from the mobile app; keep the cookie the layout reads in step.
         var signedIn = await HttpContext.AuthenticateMemberAsync();
         if (signedIn.Succeeded
-            && signedIn.Principal.FindFirst(MemberThemeClaim.ClaimType) is not null
             && MemberThemeClaim.Read(signedIn.Principal) != account.ThemePreference)
         {
             await ReissueMemberCookieAsync(account);
@@ -444,6 +443,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         DisplayName = account.DisplayName;
         MessagePrivacy = account.MessagePrivacy;
         ThemePreference = account.ThemePreference;
+        ViewData["AccountThemePreference"] = account.ThemePreference;
         DeviceTheme = DeviceThemeCookie.ToChoice(DeviceThemeCookie.Read(Request));
         Email = account.Email;
         HasAvatar = !string.IsNullOrWhiteSpace(account.AvatarUrl);

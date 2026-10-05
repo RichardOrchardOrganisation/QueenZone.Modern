@@ -71,6 +71,7 @@ export function ThemeProvider(props: Props) {
   const [savedPreference, setSavedPreference] = useState<ThemePreference>(preferenceProp);
   const [accountPreference, setAccountPreference] = useState<ThemePreference>('system');
   const changedByUser = useRef(false);
+  const storageWrites = useRef<Promise<void>>(Promise.resolve());
   const isControlled = props.preference !== undefined;
   const devicePreference = isControlled ? preferenceProp : savedPreference;
   const preference = devicePreference === 'system' ? accountPreference : devicePreference;
@@ -96,12 +97,12 @@ export function ThemeProvider(props: Props) {
   const setPreference = useCallback((next: ThemePreference) => {
     changedByUser.current = true;
     setSavedPreference(next);
-    const persist =
-      next === 'system'
-        ? AsyncStorage.removeItem(themePreferenceStorageKey)
-        : AsyncStorage.setItem(themePreferenceStorageKey, next);
-    void persist.catch(() => {
-      // The in-memory choice still applies for this session.
+    // Keep repeated changes ordered even if native storage completes slowly.
+    storageWrites.current = storageWrites.current.then(async () => {
+      if (next === 'system') await AsyncStorage.removeItem(themePreferenceStorageKey);
+      else await AsyncStorage.setItem(themePreferenceStorageKey, next);
+    }).catch(() => {
+      // The in-memory choice still applies for this session; later writes may retry.
     });
   }, []);
 

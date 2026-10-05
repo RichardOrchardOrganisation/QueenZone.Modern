@@ -226,3 +226,13 @@ The component and screen source lives in `COMPONENT_SOURCE.md` and `UI_KIT_SOURC
 ---
 
 *Generated as a handover package. Self-sufficient — a developer who wasn't in the original conversation can implement Queenzone.org from this README alone.*
+
+Theme accessibility verification also uses `--link-on-dark` on permanent dark bands,
+`--accent-special-text` for readable gold labels on light surfaces, and
+`--border-control` for input boundaries. Muted/faint text and focus rings meet
+their contrast targets; decorative borders retain the softer border tokens.
+Offline crossword shells restore only the last public appearance hint from local
+storage before styles load; online pages replace or clear it on account changes
+and sign-out. Browser theme colour follows the same override/OS precedence.
+
+PR 2120 scope was confirmed with Richard: retain account appearance sync and add a guest header System/Light/Dark control. Account is the signed-in default; explicit device System follows the OS independently of that default. The appearance page provides the same choices without JavaScript.

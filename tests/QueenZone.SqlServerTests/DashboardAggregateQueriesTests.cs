@@ -528,6 +528,10 @@ public sealed class DashboardAggregateQueriesTests : IAsyncLifetime
                     .HasConversion<byte>()
                     .IsRequired()
                     .HasDefaultValue(MemberMessagePrivacy.Members);
+                entity.Property(a => a.ThemePreference)
+                    .HasConversion<byte>()
+                    .IsRequired()
+                    .HasDefaultValue(MemberThemePreference.System);
                 entity.Property(a => a.PasswordFailureCount).IsRequired().HasDefaultValue(0);
                 entity.Property(a => a.IsSuspended).IsRequired().HasDefaultValue(false);
             });

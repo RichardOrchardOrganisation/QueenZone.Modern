@@ -13,7 +13,7 @@ public static class DeviceThemeCookie
 
     /// <summary>The <c>data-theme</c> value ("light" or "dark") this device forces, or <see langword="null"/>.</summary>
     public static string? Read(HttpRequest request) =>
-        request.Cookies.TryGetValue(CookieName, out var value) && value is "light" or "dark" ? value : null;
+        request.Cookies.TryGetValue(CookieName, out var value) && value is "light" or "dark" or "system" ? value : null;
 
     public static void Write(HttpContext httpContext, DeviceThemeChoice choice)
     {
@@ -21,30 +21,32 @@ public static class DeviceThemeCookie
         {
             DeviceThemeChoice.Light => "light",
             DeviceThemeChoice.Dark => "dark",
+            DeviceThemeChoice.System => "system",
             _ => null,
         };
 
         if (value is null)
         {
-            httpContext.Response.Cookies.Delete(CookieName, Options(httpContext));
+            httpContext.Response.Cookies.Delete(CookieName, Options());
             return;
         }
 
-        httpContext.Response.Cookies.Append(CookieName, value, Options(httpContext));
+        httpContext.Response.Cookies.Append(CookieName, value, Options());
     }
 
     public static DeviceThemeChoice ToChoice(string? value) => value switch
     {
         "light" => DeviceThemeChoice.Light,
         "dark" => DeviceThemeChoice.Dark,
+        "system" => DeviceThemeChoice.System,
         _ => DeviceThemeChoice.Account,
     };
 
-    private static CookieOptions Options(HttpContext httpContext) => new()
+    private static CookieOptions Options() => new()
     {
         Path = "/",
         HttpOnly = true,
-        Secure = httpContext.Request.IsHttps,
+        Secure = true,
         SameSite = SameSiteMode.Lax,
         MaxAge = Lifetime,
         IsEssential = true,
@@ -60,4 +62,7 @@ public enum DeviceThemeChoice
     Light = 1,
 
     Dark = 2,
+
+    /// <summary>Follow the OS even when the account has an explicit preference.</summary>
+    System = 3,
 }

@@ -7810,7 +7810,7 @@ select.qz-input {
   letter-spacing: 0.22em;
 }
 
-.qz-home-eyebrow--gold { color: var(--qz-gold); }
+.qz-home-eyebrow--gold { color: var(--accent-special-text); }
 .qz-home-eyebrow--editorial { color: var(--accent-editorial-text); }
 .qz-home-eyebrow--archive { color: var(--accent-archive-text); }
 
@@ -8055,3 +8055,27 @@ select.qz-input {
   .qz-home-live__item--active { animation: none; }
   .qz-home-photos__tile img { transition: none; }
 }
+
+/* Links on permanent dark bands must remain legible in either page theme. */
+.qz-band-dark p a { color: var(--link-on-dark); }
+.qz-band-dark p a:hover { color: var(--text-on-dark); }
+.qz-prose p a, .article-body p a, .qz-song-index__intro a { text-decoration: underline; }
+input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), textarea, select {
+  border-color: var(--border-control);
+}
+
+.qz-home-quiz-callout, .qz-home-forum, .qz-home-archive {
+  --accent-special-text: var(--qz-gold);
+}
+
+.qz-theme-picker, .qz-theme-fallback {
+  max-width: 8rem; min-height: 36px; font: var(--type-meta);
+  color: var(--text-primary); background: var(--surface-card);
+  border: 1px solid var(--border-control); border-radius: 4px; padding: 4px;
+}
+.qz-theme-picker:focus-visible, .qz-theme-fallback:focus-visible {
+  outline: 2px solid var(--focus-ring); outline-offset: 3px;
+}
+.qz-theme-status { position: absolute; top: 100%; right: 0; background: var(--surface-card); color: var(--text-primary); }
+.qz-theme-status:empty { display: none; }
+@media (max-width: 640px) { .qz-theme-picker, .qz-theme-fallback { max-width: 5.5rem; font-size: 12px; } }

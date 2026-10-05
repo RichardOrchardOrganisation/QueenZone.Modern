@@ -28,6 +28,7 @@ public static class PublicOutputCachePolicies
     private static readonly string[] ExcludedPathPrefixes =
     [
         "/account",
+        "/appearance",
         "/admin",
         "/health",
         "/api",
@@ -70,7 +71,7 @@ public static class PublicOutputCachePolicies
             return false;
         }
 
-        if (httpContext.User.Identity?.IsAuthenticated == true)
+        if (httpContext.User.Identity?.IsAuthenticated == true || DeviceThemeCookie.Read(httpContext.Request) is not null)
         {
             return false;
         }

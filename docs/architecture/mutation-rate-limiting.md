@@ -158,3 +158,7 @@ When the inventory fails, the message includes the HTTP method, raw route
 pattern, handler when present, and the missing control. Add endpoint or page
 policy metadata, or an exact reviewed classification / exception. Do not add a
 route-wide wildcard.
+
+`POST /appearance` is an anonymous browser-cookie preference write, protected by
+Razor antiforgery and the named `AnonymousWrite` rate limit. `GET /appearance?handler=Token`
+issues a no-store antiforgery token only when the header control is used.

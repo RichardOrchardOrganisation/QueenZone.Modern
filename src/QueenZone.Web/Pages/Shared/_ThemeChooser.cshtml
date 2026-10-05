@@ -1,0 +1,15 @@
+@{
+  var auth = await Context.AuthenticateMemberAsync();
+  var choice = DeviceThemeCookie.Read(Context.Request) ?? (auth.Succeeded ? "account" : "system");
+}
+<a href="/appearance" class="qz-theme-fallback" data-theme-fallback>Appearance</a>
+<select id="qz-theme-picker" class="qz-theme-picker" aria-label="Appearance for this device" data-theme-picker hidden>
+  @if (auth.Succeeded)
+  {
+    <option value="account" selected="@(choice == "account")">Account setting</option>
+  }
+  <option value="system" selected="@(choice == "system")">System</option>
+  <option value="light" selected="@(choice == "light")">Light</option>
+  <option value="dark" selected="@(choice == "dark")">Dark</option>
+</select>
+<output class="qz-theme-status" aria-live="polite" data-theme-status></output>

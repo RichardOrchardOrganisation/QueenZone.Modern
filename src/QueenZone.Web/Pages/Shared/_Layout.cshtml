@@ -6,9 +6,12 @@
   var memberAuth = await Context.AuthenticateMemberAsync();
   // Precedence: this browser's own choice, then the member's account setting, then the system.
   var themeAttribute = DeviceThemeCookie.Read(Context.Request)
-    ?? (memberAuth.Succeeded
+    ?? (ViewData["AccountThemePreference"] is QueenZone.Data.MemberThemePreference accountTheme
+      ? MemberThemeClaim.ToAttributeValue(accountTheme)
+      : memberAuth.Succeeded
       ? MemberThemeClaim.ToAttributeValue(MemberThemeClaim.Read(memberAuth.Principal))
       : null);
+  ViewData["ThemeAttribute"] = themeAttribute;
 }
 <!doctype html>
 <html lang="en"@(themeAttribute is null ? null : Html.Raw($" data-theme=\"{themeAttribute}\""))>

@@ -30,6 +30,7 @@ public sealed class LoginModel(
         string? externalEmail = null,
         string? externalLink = null)
     {
+        ViewData["Title"] = "Sign in | QueenZone";
         ReturnUrl = ResolveReturnUrl(returnUrl);
         ShowSignedOutMessage = string.Equals(signedOut, "1", StringComparison.OrdinalIgnoreCase)
             || string.Equals(signedOut, "true", StringComparison.OrdinalIgnoreCase);
@@ -45,6 +46,7 @@ public sealed class LoginModel(
     /// </summary>
     public async Task<IActionResult> OnPostAsync(string? returnUrl, CancellationToken cancellationToken)
     {
+        ViewData["Title"] = "Sign in | QueenZone";
         ReturnUrl = ResolveReturnUrl(returnUrl);
 
         if (!ModelState.IsValid)

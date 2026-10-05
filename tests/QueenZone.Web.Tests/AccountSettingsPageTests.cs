@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -302,6 +303,25 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
         Assert.Equal(MemberThemePreference.Dark, member!.ThemePreference);
     }
 
+    [Theory]
+    [InlineData(MemberThemePreference.Light, "light", "#FFFFFF")]
+    [InlineData(MemberThemePreference.Dark, "dark", "#111111")]
+    public async Task Get_applies_external_account_change_on_first_response(
+        MemberThemePreference preference, string attribute, string chrome)
+    {
+        var identity = Guid.NewGuid().ToString("N");
+        using var client = await CreateSignedInMemberClientAsync(
+            email: identity + "@example.com", displayName: "Theme Sync", subject: identity);
+        using var scope = factory.Services.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
+        var account = await repository.FindByEmailAsync(identity + "@example.com");
+        await repository.UpdateThemePreferenceAsync(account!.Id, preference);
+        var first = await client.GetStringAsync("/account/settings");
+        Assert.Contains($"data-theme=\"{attribute}\"", first);
+        Assert.Contains($"name=\"theme-color\" content=\"{chrome}\"", first);
+        Assert.Contains($"data-theme=\"{attribute}\"", await client.GetStringAsync("/"));
+    }
+
     [Fact]
     public async Task PostUpdateDeviceTheme_OverridesAccountPreferenceOnThisBrowserOnly()
     {
@@ -311,6 +331,7 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
             subject: "google-settings-device-theme",
             options: new WebApplicationFactoryClientOptions
             {
+                BaseAddress = new Uri("https://localhost"),
                 HandleCookies = true,
                 AllowAutoRedirect = false,
             });
@@ -345,6 +366,15 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
             .GetRequiredService<IMemberAccountRepository>()
             .FindByEmailAsync("settings-device-theme@example.com");
         Assert.Equal(MemberThemePreference.Dark, member!.ThemePreference);
+        var prepared = await client.GetFromJsonAsync<Dictionary<string, string>>("/appearance?handler=Token");
+        using var systemRequest = new HttpRequestMessage(HttpMethod.Post, "/appearance")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["DeviceTheme"] = "System" }),
+        };
+        systemRequest.Headers.Add("RequestVerificationToken", prepared!["token"]);
+        Assert.Equal(HttpStatusCode.Redirect, (await client.SendAsync(systemRequest)).StatusCode);
+        Assert.Contains("data-theme=\"system\"", await client.GetStringAsync("/"));
+        Assert.Equal(MemberThemePreference.Dark, member.ThemePreference);
 
         formPage = await client.GetStringAsync("/account/settings");
         var cleared = await client.PostAsync(

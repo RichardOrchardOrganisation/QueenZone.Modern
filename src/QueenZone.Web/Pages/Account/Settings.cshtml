@@ -379,6 +379,10 @@
               <span>Same as my account</span>
             </label>
             <label class="qz-account-form__radio">
+              <input asp-for="DeviceTheme" type="radio" value="@DeviceThemeChoice.System" />
+              <span>System on this device</span>
+            </label>
+            <label class="qz-account-form__radio">
               <input asp-for="DeviceTheme" type="radio" value="@DeviceThemeChoice.Light" />
               <span>Light on this device</span>
             </label>
