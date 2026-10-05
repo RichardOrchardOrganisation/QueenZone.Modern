@@ -326,6 +326,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
             client.Timeout = TimeSpan.FromSeconds(15));
         services.AddScoped<PrivateMessageRateLimiter>();
+        services.AddScoped<PrivateMessageNotificationSender>();
         services.AddScoped<PrivateMessageService>();
         services.AddScoped<MemberFollowService>();
         services.AddScoped<TopicWatchService>();
@@ -370,6 +371,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         });
         services.AddSingleton<IPushTransport, DirectPushTransport>();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
+        services.AddScoped<NewsForumCategoryResolver>();
         services.AddScoped<INewsForumTopicService, NewsForumTopicService>();
         services.AddScoped<NewsDiscussionComposer>();
         services.AddScoped<AdminNewsWriteService>();

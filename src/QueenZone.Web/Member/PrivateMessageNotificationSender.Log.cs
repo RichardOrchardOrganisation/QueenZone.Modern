@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace QueenZone.Web;
 
-public sealed partial class PrivateMessageService
+public sealed partial class PrivateMessageNotificationSender
 {
     private static partial class Log
     {
