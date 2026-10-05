@@ -26,15 +26,16 @@ public sealed class MemberAccountServiceTests
         var backend = blobBackend ?? new InMemoryBlobStorageBackend();
         var blobs = blobUploadService
             ?? new AzureBlobUploadService(backend, Options.Create(new BlobUploadOptions()));
+        var repository = memberAccountRepository ?? new InMemoryMemberAccountRepository();
         return new MemberAccountService(
-            memberAccountRepository ?? new InMemoryMemberAccountRepository(),
+            repository,
             legacyMemberLookupRepository ?? new InMemoryLegacyMemberLookupRepository(
                 new Dictionary<string, LegacyMemberMatch>()),
             blobs,
             uploadQuota ?? CreateDisabledUploadQuota(),
             timeProvider,
             passwordLockout is null ? null : Options.Create(passwordLockout),
-            emailSender: emailSender)
+            deletionService: new MemberAccountDeletionService(repository, blobs, timeProvider, emailSender: emailSender))
         {
             BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountService.DefaultBlobDeleteTimeout,
         };
