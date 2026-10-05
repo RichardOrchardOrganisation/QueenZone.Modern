@@ -1,11 +1,15 @@
 using System.Security.Claims;
+using System.Text.Json;
 using AspNet.Security.OAuth.Apple;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OAuth;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 
 namespace QueenZone.Web.Tests;
 
@@ -15,20 +19,7 @@ public sealed class AppleAuthenticationSupportTests
     public async Task AddQueenZoneAuth_registers_apple_with_generated_client_secret()
     {
         const string pem = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----";
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["AzureAd:ClientId"] = "",
-                ["Authentication:Apple:ClientId"] = "org.queenzone.web",
-                ["Authentication:Apple:TeamId"] = "TEAM123456",
-                ["Authentication:Apple:KeyId"] = "KEY1234567",
-                ["Authentication:Apple:PrivateKey"] = pem,
-            })
-            .Build();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddQueenZoneAuth(configuration, new FakeHostEnvironment("Development"));
-        using var provider = services.BuildServiceProvider();
+        using var provider = CreateAppleProvider(pem);
 
         var scheme = await provider.GetRequiredService<IAuthenticationSchemeProvider>()
             .GetSchemeAsync(MemberAuthenticationSchemes.Apple);
@@ -43,6 +34,58 @@ public sealed class AppleAuthenticationSupportTests
         Assert.NotNull(options.PrivateKey);
         var normalizedKey = await options.PrivateKey(options.KeyId!, CancellationToken.None);
         Assert.Equal(pem.Replace("\\n", "\n", StringComparison.Ordinal), normalizedKey.ToString());
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Apple_ticket_reads_first_login_name_only_from_form_and_claims_identity(
+        bool hasForm, bool hasIdentity)
+    {
+        using var provider = CreateAppleProvider("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----");
+        var scheme = await provider.GetRequiredService<IAuthenticationSchemeProvider>()
+            .GetSchemeAsync(MemberAuthenticationSchemes.Apple);
+        var options = provider.GetRequiredService<IOptionsMonitor<AppleAuthenticationOptions>>()
+            .Get(MemberAuthenticationSchemes.Apple);
+        var principal = hasIdentity ? new ClaimsPrincipal(new ClaimsIdentity("Apple")) : new ClaimsPrincipal();
+        var httpContext = new DefaultHttpContext();
+        if (hasForm)
+        {
+            httpContext.Request.ContentType = "application/x-www-form-urlencoded";
+            httpContext.Request.Form = new FormCollection(new Dictionary<string, StringValues>
+            {
+                ["user"] = """{"name":{"firstName":"Freddie","lastName":"Mercury"}}""",
+            });
+        }
+
+        using var backchannel = new HttpClient();
+        using var tokenResponse = OAuthTokenResponse.Success(JsonDocument.Parse("{}"));
+        using var user = JsonDocument.Parse("{}");
+        var context = new OAuthCreatingTicketContext(
+            principal, new AuthenticationProperties(), httpContext, scheme!, options,
+            backchannel, tokenResponse, user.RootElement);
+        await options.Events.OnCreatingTicket(context);
+
+        Assert.Equal(hasForm && hasIdentity ? "Freddie Mercury" : null, principal.FindFirstValue(ClaimTypes.Name));
+    }
+
+    private static ServiceProvider CreateAppleProvider(string pem)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureAd:ClientId"] = "",
+                ["Authentication:Apple:ClientId"] = "org.queenzone.web",
+                ["Authentication:Apple:TeamId"] = "TEAM123456",
+                ["Authentication:Apple:KeyId"] = "KEY1234567",
+                ["Authentication:Apple:PrivateKey"] = pem,
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddQueenZoneAuth(configuration, new FakeHostEnvironment("Development"));
+        return services.BuildServiceProvider();
     }
 
     [Fact]

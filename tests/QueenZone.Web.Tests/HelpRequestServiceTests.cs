@@ -330,8 +330,11 @@ public sealed class HelpRequestServiceTests
     [Fact]
     public async Task Notification_delivery_failure_is_non_fatal()
     {
-        var sender = new HelpRequestNotificationSender(new FailingEmailSender(new InvalidOperationException("offline")));
-        await sender.SendAsync(Guid.NewGuid(), new OutboundEmail("support@example.com", "Subject", "Body"), CancellationToken.None);
+        var delivery = new FailingEmailSender(new InvalidOperationException("offline"));
+        var sender = new HelpRequestNotificationSender(delivery);
+        var email = new OutboundEmail("support@example.com", "Subject", "Body");
+        await sender.SendAsync(Guid.NewGuid(), email, CancellationToken.None);
+        Assert.Same(email, delivery.LastEmail);
     }
 
     [Fact]
@@ -346,7 +349,13 @@ public sealed class HelpRequestServiceTests
 
     private sealed class FailingEmailSender(Exception failure) : IEmailSender
     {
-        public Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default) => Task.FromException(failure);
+        public OutboundEmail? LastEmail { get; private set; }
+
+        public Task SendAsync(OutboundEmail email, CancellationToken cancellationToken = default)
+        {
+            LastEmail = email;
+            return Task.FromException(failure);
+        }
     }
 
     private sealed record Harness(

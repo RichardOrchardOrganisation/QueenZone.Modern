@@ -14,39 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
-// Local secrets only in Development. Loading them for Production/Staging would let a
-// developer machine's empty AzureAd:ClientId override App Service settings when
-// ASPNETCORE_ENVIRONMENT is mis-set, and would break production-shaped integration tests.
-// Development WebApplicationFactory hosts (testhost) skip Local.json so a workstation's
-// optional Analytics secrets cannot fail-closed an unrelated test.
-if (QueenZoneDevelopmentHost.ShouldLoadLocalSettings(
-        builder.Environment,
-        builder.Configuration,
-        QueenZoneDevelopmentHost.GetEntryAssemblyName()))
-{
-    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
-    // Keep environment variables above Local.json so CI/shell overrides still win.
-    builder.Configuration.AddEnvironmentVariables();
-}
-else if (builder.Environment.IsDevelopment())
-{
-    QueenZoneDevelopmentHost.NeutralizeIncompleteAnalytics(builder.Configuration);
-}
-else if (QueenZoneEnvironments.IsAutomatedTestHost(builder.Environment)
-    && builder.Environment.IsEnvironment(QueenZoneEnvironments.E2E))
-{
-    // appsettings.E2E.json ships the "admin@test.local" default; E2E_ADMIN_EMAIL lets the
-    // nightly runner override it with a single env var instead of the nested
-    // Admin__AllowedEmails__0 binding syntax.
-    var e2eAdminEmail = Environment.GetEnvironmentVariable("E2E_ADMIN_EMAIL");
-    if (!string.IsNullOrWhiteSpace(e2eAdminEmail))
-    {
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Admin:AllowedEmails:0"] = e2eAdminEmail,
-        });
-    }
-}
+QueenZoneHostSettings.Configure(builder);
 
 DataProtectionBootstrap.ConfigureServices(
     builder.Services,
@@ -259,22 +227,7 @@ app.UseWhen(
             await next();
         });
         branch.UseAuthentication();
-        // Public pages use a non-member default scheme; without this, HttpContext.User stays
-        // anonymous while the MembersCookie is present. Antiforgery tokens then fail on member-only
-        // APIs (e.g. editor image upload) because generation and validation see different identities.
-        branch.Use(async (context, next) =>
-        {
-            if (context.User.Identity?.IsAuthenticated != true)
-            {
-                var member = await context.AuthenticateAsync(MemberAuthenticationSchemes.MembersCookie);
-                if (member.Succeeded && member.Principal?.Identity?.IsAuthenticated == true)
-                {
-                    context.User = member.Principal;
-                }
-            }
-
-            await next();
-        });
+        branch.UseMemberCookieFallback();
         // After member-cookie fallback so User is populated; before authorization and
         // rate limiting so those warnings inherit TraceId / MemberId. Probe paths never
         // enter this UseWhen branch (#666); the middleware also no-ops IsProbePath.
