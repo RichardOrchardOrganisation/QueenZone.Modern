@@ -194,23 +194,29 @@ function Get-OpenTofuPlanIngressFailures {
         }
 
         foreach ($siteConfig in @($siteConfigProperty.Value)) {
-            if ($siteConfig.ip_restriction_default_action -eq "Deny" -and
-                $siteConfig.scm_ip_restriction_default_action -eq "Allow") {
-                $failures.Add("$($resourceChange.address): SCM must default Deny when the main site defaults Deny.")
-            }
-            $restrictionProperty = $siteConfig.PSObject.Properties["ip_restriction"]
-            if ($null -ne $restrictionProperty -and $null -ne $restrictionProperty.Value) {
-                foreach ($rule in @($restrictionProperty.Value)) {
-                    $addressProperty = $rule.PSObject.Properties["ip_address"]
-                    if ($null -ne $addressProperty -and $null -ne $addressProperty.Value -and [string]$addressProperty.Value -match ",") {
-                        $failures.Add("$($resourceChange.address): ip_address must be one CIDR, found '$($addressProperty.Value)'.")
-                    }
-                }
-            }
+            Add-SiteConfigIngressFailures -SiteConfig $siteConfig -Address $resourceChange.address -Failures $failures
         }
     }
 
     return $failures
+}
+
+function Add-SiteConfigIngressFailures {
+    param($SiteConfig, [string]$Address, [System.Collections.Generic.List[string]]$Failures)
+
+    if ($siteConfig.ip_restriction_default_action -eq "Deny" -and
+        $siteConfig.scm_ip_restriction_default_action -eq "Allow") {
+        $failures.Add("${Address}: SCM must default Deny when the main site defaults Deny.")
+    }
+    $restrictionProperty = $siteConfig.PSObject.Properties["ip_restriction"]
+    if ($null -ne $restrictionProperty -and $null -ne $restrictionProperty.Value) {
+        foreach ($rule in @($restrictionProperty.Value)) {
+            $addressProperty = $rule.PSObject.Properties["ip_address"]
+            if ($null -ne $addressProperty -and $null -ne $addressProperty.Value -and [string]$addressProperty.Value -match ",") {
+                $failures.Add("${Address}: ip_address must be one CIDR, found '$($addressProperty.Value)'.")
+            }
+        }
+    }
 }
 
 function New-FixtureResourceChange {
