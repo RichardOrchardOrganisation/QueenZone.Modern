@@ -356,6 +356,29 @@ function Save-MacAppLogs {
     }
 }
 
+function Wait-StartedAppStopped {
+    if (Test-IsWindowsOS) {
+        for ($i = 1; $i -le 15; $i++) {
+            if (-not (Get-Process -Name "QueenZone.Web" -ErrorAction SilentlyContinue)) {
+                Write-Information -InformationAction Continue "QueenZone.Web.exe confirmed stopped"
+                break
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    elseif (Test-IsMacOS) {
+        for ($i = 1; $i -le 15; $i++) {
+            $still = & pgrep -f $macAppPattern 2>$null
+            if (-not $still) {
+                Write-Information -InformationAction Continue "QueenZone.Web confirmed stopped"
+                break
+            }
+            Start-Sleep -Milliseconds 500
+        }
+        Save-MacAppLogs
+    }
+}
+
 function Stop-StartedApp {
     if (-not $script:StartedApp) {
         return
@@ -378,26 +401,7 @@ function Stop-StartedApp {
     # exe locked and breaks the *next* CI checkout with EPERM unlink. Kill by image name too.
     Stop-StrayQueenZoneWeb
 
-    if (Test-IsWindowsOS) {
-        for ($i = 1; $i -le 15; $i++) {
-            if (-not (Get-Process -Name "QueenZone.Web" -ErrorAction SilentlyContinue)) {
-                Write-Information -InformationAction Continue "QueenZone.Web.exe confirmed stopped"
-                break
-            }
-            Start-Sleep -Milliseconds 500
-        }
-    }
-    elseif (Test-IsMacOS) {
-        for ($i = 1; $i -le 15; $i++) {
-            $still = & pgrep -f $macAppPattern 2>$null
-            if (-not $still) {
-                Write-Information -InformationAction Continue "QueenZone.Web confirmed stopped"
-                break
-            }
-            Start-Sleep -Milliseconds 500
-        }
-        Save-MacAppLogs
-    }
+    Wait-StartedAppStopped
 
     $script:StartedApp = $false
 }

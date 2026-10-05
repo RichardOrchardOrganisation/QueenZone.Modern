@@ -172,6 +172,22 @@ function Invoke-ReadOnlyRows {
     return @($rows)
 }
 
+function Get-ProbeRedirectLocation {
+    param($WebResponse)
+
+    $location = $null
+    if ($webResponse.Headers -is [System.Net.Http.Headers.HttpHeaders]) {
+        $values = $null
+        if ($webResponse.Headers.TryGetValues("Location", [ref]$values)) {
+            $location = [string](@($values)[0])
+        }
+    }
+    elseif ($webResponse.Headers -and $webResponse.Headers["Location"]) {
+        $location = [string]$webResponse.Headers["Location"]
+    }
+    return $location
+}
+
 function Invoke-HttpProbe {
     param(
         [Parameter(Mandatory = $true)][string]$Uri,
@@ -209,16 +225,7 @@ function Invoke-HttpProbe {
             $webResponse = $_.Exception.Response
         }
         if ($null -ne $webResponse -and $webResponse.PSObject.Properties.Name -contains "StatusCode") {
-            $location = $null
-            if ($webResponse.Headers -is [System.Net.Http.Headers.HttpHeaders]) {
-                $values = $null
-                if ($webResponse.Headers.TryGetValues("Location", [ref]$values)) {
-                    $location = [string](@($values)[0])
-                }
-            }
-            elseif ($webResponse.Headers -and $webResponse.Headers["Location"]) {
-                $location = [string]$webResponse.Headers["Location"]
-            }
+            $location = Get-ProbeRedirectLocation -WebResponse $webResponse
             return [pscustomobject]@{
                 Uri        = $Uri
                 StatusCode = [int]$webResponse.StatusCode

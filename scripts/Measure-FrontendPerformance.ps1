@@ -207,6 +207,34 @@ function Compare-Metric {
     }
 }
 
+function Move-LighthouseReports {
+    param([string]$BasePath, [string]$JsonPath, [string]$HtmlPath, [int]$ExitCode)
+
+    $producedJson = "$basePath.report.json"
+    $producedHtml = "$basePath.report.html"
+    if (-not (Test-Path $producedJson)) {
+        if (Test-Path "$basePath.json") {
+            $producedJson = "$basePath.json"
+            $producedHtml = "$basePath.html"
+        }
+        elseif (Test-Path $basePath) {
+            # Single-output mode may write the bare path with no extension.
+            $producedJson = $basePath
+        }
+        else {
+            throw "Lighthouse did not produce JSON report at $basePath.report.json (exit $ExitCode)"
+        }
+    }
+
+    if ($producedJson -ne $JsonPath) {
+        Move-Item -Force $producedJson $JsonPath
+    }
+    if ((Test-Path $producedHtml) -and $producedHtml -ne $HtmlPath) {
+        Move-Item -Force $producedHtml $HtmlPath
+    }
+
+}
+
 function Invoke-LighthouseRun {
     param(
         [string]$Url,
@@ -276,28 +304,7 @@ function Invoke-LighthouseRun {
         $env:TMP = $previousTmp
     }
 
-    $producedJson = "$basePath.report.json"
-    $producedHtml = "$basePath.report.html"
-    if (-not (Test-Path $producedJson)) {
-        if (Test-Path "$basePath.json") {
-            $producedJson = "$basePath.json"
-            $producedHtml = "$basePath.html"
-        }
-        elseif (Test-Path $basePath) {
-            # Single-output mode may write the bare path with no extension.
-            $producedJson = $basePath
-        }
-        else {
-            throw "Lighthouse did not produce JSON report at $basePath.report.json (exit $lhExit)"
-        }
-    }
-
-    if ($producedJson -ne $JsonPath) {
-        Move-Item -Force $producedJson $JsonPath
-    }
-    if ((Test-Path $producedHtml) -and $producedHtml -ne $HtmlPath) {
-        Move-Item -Force $producedHtml $HtmlPath
-    }
+    Move-LighthouseReports -BasePath $basePath -JsonPath $JsonPath -HtmlPath $HtmlPath -ExitCode $lhExit
 
     $report = Get-Content -Raw -Path $JsonPath | ConvertFrom-Json
     if ($null -ne $report.runtimeError -and -not [string]::IsNullOrWhiteSpace([string]$report.runtimeError.code)) {

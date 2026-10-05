@@ -106,6 +106,12 @@ function Get-ChangedLines {
         throw "Unable to calculate changed lines against '$resolvedBaseRef'."
     }
 
+    return ConvertFrom-CoverageDiff -DiffLines $diffLines
+}
+
+function ConvertFrom-CoverageDiff {
+    param([AllowEmptyCollection()][string[]]$DiffLines)
+
     $changedLines = @{}
     $currentFile = $null
 
@@ -118,11 +124,7 @@ function Get-ChangedLines {
             continue
         }
 
-        if ($null -eq $currentFile) {
-            continue
-        }
-
-        if ($line -match '^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@') {
+        if ($null -ne $currentFile -and $line -match '^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@') {
             $startLine = [int]$Matches[1]
             $lineCount = if ($Matches[2]) { [int]$Matches[2] } else { 1 }
 
@@ -248,6 +250,8 @@ function Invoke-BaseShaSelfTest {
         $gitIdentity = @("-c", "user.name=Coverage Gate Self-Test", "-c", "user.email=self-test@example.invalid", "-c", "commit.gpgsign=false")
         git init --quiet --initial-branch=main 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Self-test failed: git init failed." }
+        # Git resolves macOS /var -> /private/var; use the same root as child processes.
+        $repoRoot = (git rev-parse --show-toplevel).Trim()
 
         $sampleDir = Join-Path $repoRoot "src/QueenZone.Web"
         New-Item -ItemType Directory -Path $sampleDir | Out-Null
