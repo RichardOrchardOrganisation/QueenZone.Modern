@@ -25,7 +25,9 @@ function runOnJS(fn) {
   return fn;
 }
 
-function cancelAnimation() {}
+function cancelAnimation() {
+  // This mock updates shared values synchronously, so no animation is pending.
+}
 
 const AnimatedView = View;
 

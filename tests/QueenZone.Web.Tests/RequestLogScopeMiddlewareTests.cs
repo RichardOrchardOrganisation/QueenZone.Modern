@@ -138,7 +138,7 @@ public sealed class RequestLogScopeMiddlewareTests
         Assert.False(scope.ContainsKey("MemberId"));
         Assert.False(scope.ContainsKey("AdminEmail"));
         Assert.False(scope.ContainsKey("AdminEmailFingerprint"));
-        Assert.Equal(true, scope["IsAdmin"]);
+        Assert.True(Assert.IsType<bool>(scope["IsAdmin"]));
         Assert.Equal(["TraceId", "IsAdmin"], scope.Keys);
         Assert.DoesNotContain(scope.Values, value => value is string text
             && (text.Contains("admin@example.com", StringComparison.Ordinal)
