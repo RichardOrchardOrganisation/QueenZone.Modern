@@ -45,30 +45,7 @@ internal sealed class BlobSnapshotService(
 
         foreach (var candidate in candidates)
         {
-            var candidateBlobs = new List<SnapshotBlob>();
-            foreach (var (path, kind) in new[] { (candidate.Url, "gallery-original"), (candidate.ThumbUrl, "gallery-thumbnail") })
-            {
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    candidateBlobs.Clear();
-                    break;
-                }
-
-                if (!TryParseGalleryLocation(path, out var container, out var name))
-                {
-                    candidateBlobs.Clear();
-                    break;
-                }
-
-                var blob = await ResolveAsync(container, name, "gallery", $"PIC_FILES_T:{candidate.Id}:{kind}");
-                if (blob is null)
-                {
-                    candidateBlobs.Clear();
-                    break;
-                }
-
-                candidateBlobs.Add(blob);
-            }
+            var candidateBlobs = await ResolvePhotoAssetsAsync(candidate);
 
             if (candidateBlobs.Count == 0)
             {
@@ -103,6 +80,35 @@ internal sealed class BlobSnapshotService(
         }
 
         return new PhotoSelection(ids, blobs);
+    }
+
+    private async Task<List<SnapshotBlob>> ResolvePhotoAssetsAsync(PhotoCandidate candidate)
+    {
+        var candidateBlobs = new List<SnapshotBlob>();
+        foreach (var (path, kind) in new[] { (candidate.Url, "gallery-original"), (candidate.ThumbUrl, "gallery-thumbnail") })
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                candidateBlobs.Clear();
+                break;
+            }
+
+            if (!TryParseGalleryLocation(path, out var container, out var name))
+            {
+                candidateBlobs.Clear();
+                break;
+            }
+
+            var blob = await ResolveAsync(container, name, "gallery", $"PIC_FILES_T:{candidate.Id}:{kind}");
+            if (blob is null)
+            {
+                candidateBlobs.Clear();
+                break;
+            }
+
+            candidateBlobs.Add(blob);
+        }
+        return candidateBlobs;
     }
 
     public async Task<ReferencedBlobSelection> GetForumAndEditorialBlobsAsync(SqlSnapshotCopySession session)
