@@ -303,6 +303,79 @@ public sealed partial class AccountSettingsPageTests : IClassFixture<Inspectable
     }
 
     [Fact]
+    public async Task PostUpdateDeviceTheme_OverridesAccountPreferenceOnThisBrowserOnly()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "settings-device-theme@example.com",
+            displayName: "Device Theme",
+            subject: "google-settings-device-theme",
+            options: new WebApplicationFactoryClientOptions
+            {
+                HandleCookies = true,
+                AllowAutoRedirect = false,
+            });
+
+        var formPage = await client.GetStringAsync("/account/settings");
+        await client.PostAsync(
+            "/account/settings?handler=UpdateThemePreference",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["ThemePreference"] = nameof(MemberThemePreference.Dark),
+            }));
+
+        formPage = await client.GetStringAsync("/account/settings");
+        Assert.Contains("data-theme=\"dark\"", formPage);
+        var deviceResponse = await client.PostAsync(
+            "/account/settings?handler=UpdateDeviceTheme",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["DeviceTheme"] = nameof(DeviceThemeChoice.Light),
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, deviceResponse.StatusCode);
+        Assert.Contains(
+            deviceResponse.Headers.GetValues("Set-Cookie"),
+            header => header.StartsWith("qz_theme=light", StringComparison.Ordinal));
+        var home = await client.GetStringAsync("/");
+        Assert.Contains("data-theme=\"light\"", home);
+        using var scope = factory.Services.CreateScope();
+        var member = await scope.ServiceProvider
+            .GetRequiredService<IMemberAccountRepository>()
+            .FindByEmailAsync("settings-device-theme@example.com");
+        Assert.Equal(MemberThemePreference.Dark, member!.ThemePreference);
+
+        formPage = await client.GetStringAsync("/account/settings");
+        var cleared = await client.PostAsync(
+            "/account/settings?handler=UpdateDeviceTheme",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = ExtractAntiforgeryToken(formPage),
+                ["DeviceTheme"] = nameof(DeviceThemeChoice.Account),
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
+        Assert.Contains("data-theme=\"dark\"", await client.GetStringAsync("/"));
+    }
+
+    [Fact]
+    public async Task DeviceThemeCookie_AppliesToSignedOutVisitorsAndIgnoresUnknownValues()
+    {
+        var client = factory.CreateClient();
+
+        using var forced = new HttpRequestMessage(HttpMethod.Get, "/");
+        forced.Headers.Add("Cookie", "qz_theme=dark");
+        var forcedBody = await (await client.SendAsync(forced)).Content.ReadAsStringAsync();
+        Assert.Contains("<html lang=\"en\" data-theme=\"dark\">", forcedBody);
+
+        using var bogus = new HttpRequestMessage(HttpMethod.Get, "/");
+        bogus.Headers.Add("Cookie", "qz_theme=\"><script>");
+        var bogusBody = await (await client.SendAsync(bogus)).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("data-theme=", bogusBody);
+    }
+
+    [Fact]
     public async Task DeleteAccount_RequiresExactConfirmation()
     {
         var client = await CreateSignedInMemberClientAsync(

@@ -32,6 +32,9 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
     public MemberThemePreference ThemePreference { get; set; } = MemberThemePreference.System;
 
     [BindProperty]
+    public DeviceThemeChoice DeviceTheme { get; set; } = DeviceThemeChoice.Account;
+
+    [BindProperty]
     public bool AdoptLegacyDisplayName { get; set; } = true;
 
     [BindProperty]
@@ -226,6 +229,30 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostUpdateDeviceThemeAsync(CancellationToken cancellationToken)
+    {
+        var account = await LoadCurrentAccountAsync(cancellationToken);
+        if (account is null)
+        {
+            return Redirect("/account/login");
+        }
+
+        if (!Enum.IsDefined(DeviceTheme))
+        {
+            var submitted = DeviceTheme;
+            await PopulatePageAsync(account, cancellationToken);
+            DeviceTheme = submitted;
+            ViewData["Title"] = "Account settings";
+            ModelState.AddModelError(nameof(DeviceTheme), "Choose a valid appearance option.");
+            return Page();
+        }
+
+        DeviceThemeCookie.Write(HttpContext, DeviceTheme);
+
+        TempData[SuccessMessageKey] = "Appearance for this device updated.";
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostUpdateSocialLinksAsync(CancellationToken cancellationToken)
     {
         var memberId = await HttpContext.AuthenticateMemberIdAsync();
@@ -417,6 +444,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         DisplayName = account.DisplayName;
         MessagePrivacy = account.MessagePrivacy;
         ThemePreference = account.ThemePreference;
+        DeviceTheme = DeviceThemeCookie.ToChoice(DeviceThemeCookie.Read(Request));
         Email = account.Email;
         HasAvatar = !string.IsNullOrWhiteSpace(account.AvatarUrl);
         LinkedProviders = await memberAccountService.ListExternalProvidersAsync(account.Id, cancellationToken);
@@ -434,6 +462,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         ModelState.Remove(nameof(AvatarFile));
         ModelState.Remove(nameof(MessagePrivacy));
         ModelState.Remove(nameof(ThemePreference));
+        ModelState.Remove(nameof(DeviceTheme));
         ModelState.Remove(nameof(AdoptLegacyDisplayName));
         ModelState.Remove(nameof(SelectedLegacyUserId));
     }

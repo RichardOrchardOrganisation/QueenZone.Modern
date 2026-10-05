@@ -3,19 +3,18 @@ import { useSession } from '../session/SessionContext';
 import { useTheme } from './ThemeProvider';
 
 /**
- * Applies the signed-in member's saved appearance (the website shares it) to this device.
- * Changes made on the Appearance screen are written back to the account there. Renders nothing.
+ * Makes the signed-in member's saved appearance (the website shares it) the account-level choice.
+ * A device override chosen on the Appearance screen still wins. Signing out drops back to the system
+ * setting. Renders nothing.
  */
 export function ThemeAccountSync() {
   const { profile } = useSession();
-  const { setPreference } = useTheme();
-  const accountPreference = profile?.themePreference;
+  const { setAccountPreference } = useTheme();
+  const accountPreference = profile?.themePreference ?? 'system';
 
   useEffect(() => {
-    if (accountPreference) {
-      setPreference(accountPreference);
-    }
-  }, [accountPreference, setPreference]);
+    setAccountPreference(accountPreference);
+  }, [accountPreference, setAccountPreference]);
 
   return null;
 }

@@ -47,6 +47,31 @@ describe('ThemeProvider', () => {
     expect(screen.getByTestId('accent')).toHaveTextContent('#244A8F');
   });
 
+  it('clears the device override when the choice returns to system', async () => {
+    await AsyncStorage.setItem(themePreferenceStorageKey, 'light');
+    function Reset() {
+      const { setPreference, devicePreference } = useTheme();
+      return (
+        <Text testID="device" onPress={() => setPreference('system')}>
+          {devicePreference}
+        </Text>
+      );
+    }
+    render(
+      <ThemeProvider>
+        <Reset />
+      </ThemeProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('device')).toHaveTextContent('light'));
+
+    await act(async () => {
+      screen.getByTestId('device').props.onPress();
+    });
+
+    expect(screen.getByTestId('device')).toHaveTextContent('system');
+    await waitFor(() => expect(AsyncStorage.getItem(themePreferenceStorageKey)).resolves.toBeNull());
+  });
+
   it('applies and persists a new choice', async () => {
     render(
       <ThemeProvider>

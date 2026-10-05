@@ -362,6 +362,36 @@
           </div>
           <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
         </form>
+        <p>
+          You can also set this browser differently from your account. It applies to this device only,
+          including when you are signed out, and other devices keep following your account.
+        </p>
+        <form method="post"
+              asp-page-handler="UpdateDeviceTheme"
+              class="qz-account-form"
+              data-busy-submit
+              data-busy-label="Saving…">
+          @Html.AntiForgeryToken()
+          <fieldset class="qz-account-form__legacy-choices">
+            <legend class="qz-account-form__legend">This device only</legend>
+            <label class="qz-account-form__radio">
+              <input asp-for="DeviceTheme" type="radio" value="@DeviceThemeChoice.Account" />
+              <span>Same as my account</span>
+            </label>
+            <label class="qz-account-form__radio">
+              <input asp-for="DeviceTheme" type="radio" value="@DeviceThemeChoice.Light" />
+              <span>Light on this device</span>
+            </label>
+            <label class="qz-account-form__radio">
+              <input asp-for="DeviceTheme" type="radio" value="@DeviceThemeChoice.Dark" />
+              <span>Dark on this device</span>
+            </label>
+          </fieldset>
+          <div class="qz-account-form__actions">
+            <button type="submit" class="qz-button">Save for this device</button>
+          </div>
+          <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
+        </form>
       </section>
 
       <section class="qz-account-settings__legacy" aria-labelledby="message-privacy-heading">

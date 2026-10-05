@@ -10,7 +10,9 @@ import { Eyebrow } from '../../ui/Eyebrow';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Appearance'>;
 
-const options: readonly { value: ThemePreference; title: string; description: string }[] = [
+type Option = { value: ThemePreference; title: string; description: string };
+
+const systemOptions: readonly Option[] = [
   {
     value: 'system',
     title: 'Use system setting',
@@ -20,29 +22,75 @@ const options: readonly { value: ThemePreference; title: string; description: st
   { value: 'light', title: 'Light', description: 'Blue accents on a light background.' },
 ];
 
+const deviceOptions: readonly Option[] = [
+  {
+    value: 'system',
+    title: 'This device: Same as account',
+    description: 'Use the choice saved to your account.',
+  },
+  { value: 'dark', title: 'This device: Dark', description: 'Always dark on this phone.' },
+  { value: 'light', title: 'This device: Light', description: 'Always light on this phone.' },
+];
+
+type ChoiceListProps = {
+  options: readonly Option[];
+  selected: ThemePreference;
+  onChoose: (value: ThemePreference) => void;
+};
+
+function ChoiceList({ options, selected, onChoose }: ChoiceListProps) {
+  const { c } = useTheme();
+  return (
+    <View style={{ paddingHorizontal: space.xl, gap: space.md }}>
+      {options.map((option) => {
+        const isSelected = selected === option.value;
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: isSelected }}
+            accessibilityLabel={option.title}
+            onPress={() => onChoose(option.value)}
+            style={{
+              minHeight: 72,
+              borderWidth: 1,
+              borderColor: isSelected ? c.accentPrimary : c.border,
+              borderRadius: radius.sm,
+              backgroundColor: c.surfaceCard,
+              paddingHorizontal: space.base,
+              paddingVertical: space.md,
+              justifyContent: 'center',
+              gap: space.xs,
+            }}
+          >
+            <Text style={[type.listTitle, { color: c.textPrimary }]}>{option.title}</Text>
+            <Text style={[type.caption, { color: c.textMuted }]}>{option.description}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function AppearanceScreen(_: Props) {
-  const { c, preference, setPreference } = useTheme();
+  const { c, devicePreference, accountPreference, setPreference } = useTheme();
   const { accessToken, refreshProfile } = useSession();
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [pendingAccountChoice, setPendingAccountChoice] = useState<ThemePreference | null>(null);
 
-  // The choice always applies on this device straight away; when signed in it is also saved to the
-  // account so the website and other devices follow it.
-  async function choose(next: ThemePreference) {
-    setPreference(next);
+  // Saved to the account so the website and other devices follow it. A device override still wins here.
+  async function chooseForAccount(next: ThemePreference) {
+    setPendingAccountChoice(next);
     setAccountError(null);
-    if (!accessToken) {
-      return;
-    }
-
     try {
       await sendJson('/me', { method: 'PATCH', accessToken, body: { themePreference: next } });
       await refreshProfile();
     } catch (err) {
       setAccountError(
-        err instanceof ApiError
-          ? err.message
-          : 'Saved on this device only. We could not update your account just now.',
+        err instanceof ApiError ? err.message : 'We could not update your account just now. Try again.',
       );
+    } finally {
+      setPendingAccountChoice(null);
     }
   }
 
@@ -52,11 +100,11 @@ export function AppearanceScreen(_: Props) {
       contentContainerStyle={{ paddingBottom: space.section }}
     >
       <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.md, gap: space.sm }}>
-        <Eyebrow tone="muted">Colour scheme</Eyebrow>
+        <Eyebrow tone="muted">{accessToken ? 'Account colour scheme' : 'Colour scheme'}</Eyebrow>
         <Text style={[type.body, { color: c.textSecondary }]}>
           {accessToken
-            ? 'Choose how QueenZone looks. Your choice is saved to your account and also applies on the website.'
-            : 'Choose how QueenZone looks on this device. Sign in to save your choice to your account.'}
+            ? 'Saved to your account, so it also applies on the website and your other devices.'
+            : 'Choose how QueenZone looks on this device. Sign in to save a choice to your account.'}
         </Text>
         {accountError ? (
           <Text accessibilityRole="alert" style={[type.caption, { color: c.danger }]}>
@@ -64,34 +112,24 @@ export function AppearanceScreen(_: Props) {
           </Text>
         ) : null}
       </View>
-      <View style={{ paddingHorizontal: space.xl, gap: space.md }}>
-        {options.map((option) => {
-          const selected = preference === option.value;
-          return (
-            <Pressable
-              key={option.value}
-              accessibilityRole="radio"
-              accessibilityState={{ selected }}
-              accessibilityLabel={option.title}
-              onPress={() => void choose(option.value)}
-              style={{
-                minHeight: 72,
-                borderWidth: 1,
-                borderColor: selected ? c.accentPrimary : c.border,
-                borderRadius: radius.sm,
-                backgroundColor: c.surfaceCard,
-                paddingHorizontal: space.base,
-                paddingVertical: space.md,
-                justifyContent: 'center',
-                gap: space.xs,
-              }}
-            >
-              <Text style={[type.listTitle, { color: c.textPrimary }]}>{option.title}</Text>
-              <Text style={[type.caption, { color: c.textMuted }]}>{option.description}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {accessToken ? (
+        <>
+          <ChoiceList
+            options={systemOptions}
+            selected={pendingAccountChoice ?? accountPreference}
+            onChoose={(value) => void chooseForAccount(value)}
+          />
+          <View style={{ paddingHorizontal: space.xl, paddingTop: space.xl, paddingBottom: space.md, gap: space.sm }}>
+            <Eyebrow tone="muted">This device only</Eyebrow>
+            <Text style={[type.body, { color: c.textSecondary }]}>
+              Override the account choice on this phone only. Other devices keep following your account.
+            </Text>
+          </View>
+          <ChoiceList options={deviceOptions} selected={devicePreference} onChoose={setPreference} />
+        </>
+      ) : (
+        <ChoiceList options={systemOptions} selected={devicePreference} onChoose={setPreference} />
+      )}
     </ScrollView>
   );
 }

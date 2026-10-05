@@ -26,6 +26,10 @@ function renderScreen() {
   );
 }
 
+function selected(name: string) {
+  return screen.getByRole('radio', { name }).props.accessibilityState;
+}
+
 describe('AppearanceScreen', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
@@ -34,21 +38,20 @@ describe('AppearanceScreen', () => {
     mockSession.refreshProfile.mockReset();
   });
 
-  it('starts with the system setting and lets the user choose light', async () => {
+  it('signed out: starts with the system setting and saves the choice on the device only', async () => {
     renderScreen();
 
-    expect(screen.getByRole('radio', { name: 'Use system setting' }).props.accessibilityState).toEqual({
-      selected: true,
-    });
+    expect(selected('Use system setting')).toEqual({ selected: true });
 
     await userEvent.setup().press(screen.getByRole('radio', { name: 'Light' }));
 
-    expect(screen.getByRole('radio', { name: 'Light' }).props.accessibilityState).toEqual({ selected: true });
+    expect(selected('Light')).toEqual({ selected: true });
     await waitFor(() => expect(AsyncStorage.getItem(themePreferenceStorageKey)).resolves.toBe('light'));
     expect(sendJson).not.toHaveBeenCalled();
+    expect(screen.queryByText('This device only')).toBeNull();
   });
 
-  it('saves the choice to the account when signed in', async () => {
+  it('signed in: saves the account choice to the profile and leaves the device alone', async () => {
     mockSession.accessToken = 'token';
     jest.mocked(sendJson).mockResolvedValue({});
     renderScreen();
@@ -63,17 +66,32 @@ describe('AppearanceScreen', () => {
       }),
     );
     expect(mockSession.refreshProfile).toHaveBeenCalled();
-    expect(screen.getByRole('radio', { name: 'Dark' }).props.accessibilityState).toEqual({ selected: true });
+    await expect(AsyncStorage.getItem(themePreferenceStorageKey)).resolves.toBeNull();
   });
 
-  it('keeps the device choice and explains when the account save fails', async () => {
+  it('signed in: a device override is stored locally without touching the account', async () => {
+    mockSession.accessToken = 'token';
+    renderScreen();
+
+    expect(selected('This device: Same as account')).toEqual({ selected: true });
+
+    await userEvent.setup().press(screen.getByRole('radio', { name: 'This device: Light' }));
+
+    expect(selected('This device: Light')).toEqual({ selected: true });
+    await waitFor(() => expect(AsyncStorage.getItem(themePreferenceStorageKey)).resolves.toBe('light'));
+    expect(sendJson).not.toHaveBeenCalled();
+
+    await userEvent.setup().press(screen.getByRole('radio', { name: 'This device: Same as account' }));
+    await waitFor(() => expect(AsyncStorage.getItem(themePreferenceStorageKey)).resolves.toBeNull());
+  });
+
+  it('signed in: explains when the account save fails', async () => {
     mockSession.accessToken = 'token';
     jest.mocked(sendJson).mockRejectedValue(new Error('offline'));
     renderScreen();
 
     await userEvent.setup().press(screen.getByRole('radio', { name: 'Light' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Saved on this device only/);
-    expect(screen.getByRole('radio', { name: 'Light' }).props.accessibilityState).toEqual({ selected: true });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not update your account/);
   });
 });

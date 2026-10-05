@@ -65,9 +65,11 @@ The site and the mobile app both support a **light** and a **dark** theme. Do no
 | Behaviour | Rule |
 |---|---|
 | Default | Follow the visitor's system setting (`prefers-color-scheme` on web, `useColorScheme` on mobile). |
-| Override | Signed-in members choose **System / Light / Dark** in Account settings (web) or Settings > Appearance (mobile). The choice is stored on the member profile (`MemberAccounts.ThemePreference`, `themePreference` on `/api/v1/me`) so it follows them across web and mobile. Signed-out visitors always follow the system. |
-| Web mechanism | `<html data-theme="light">` or `data-theme="dark"` forces a mode (server-rendered from the profile, so there is no flash). With no attribute, the `prefers-color-scheme: dark` block in `tokens/colors.css` applies. |
-| Mobile mechanism | `ThemeProvider` resolves `light` / `dark` from the preference. |
+| Precedence | **This device's override** beats the **account setting**, which beats the **system setting**. |
+| Override | Signed-in members choose **System / Light / Dark** in Account settings (web) or Settings > Appearance (mobile). The choice is stored on the member profile (`MemberAccounts.ThemePreference`, `themePreference` on `/api/v1/me`) so it follows them across web and mobile. Signed-out visitors follow the system unless they have a device override. |
+| Device override | Optional, per browser / per phone: "Same as my account" (default), Light or Dark. It is never stored on the profile, so other devices keep following the account. Web: the `qz_theme` cookie (`light` or `dark`; absent = no override), set from Account settings → "This device only". Mobile: AsyncStorage `queenzone.mobile.themePreference` (`light` or `dark`; absent = no override), set from Settings → Appearance → "This device only". |
+| Web mechanism | `<html data-theme="light">` or `data-theme="dark"` forces a mode (server-rendered from the device cookie, else the profile, so there is no flash). With no attribute, the `prefers-color-scheme: dark` block in `tokens/colors.css` applies. |
+| Mobile mechanism | `ThemeProvider` resolves `light` / `dark` from the device override, else the account preference (`ThemeAccountSync`), else the system. |
 
 **Rules for product code**
 - Use the **semantic aliases** (`--surface-*`, `--text-*`, `--border-*`, `--hairline`, `--link`, `--accent-cta`, `--surface-*-tint`, `--text-on-accent`, `--danger`, `--success`). They are redefined for dark. Raw `--qz-*` palette tokens do not change between themes - use them only for things that are the same colour in both (e.g. text on a permanently dark band, photography scrims).
