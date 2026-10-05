@@ -348,14 +348,12 @@ public static class MobileApiContractHost
     private static string NormalizeBaseUrl(string baseUrl)
     {
         var trimmed = baseUrl.Trim().TrimEnd('/');
-        if (trimmed.Contains("+", StringComparison.Ordinal)
-            || trimmed.Contains("*", StringComparison.Ordinal)
-            || trimmed.Contains("0.0.0.0", StringComparison.Ordinal))
+        if ((trimmed.Contains("+", StringComparison.Ordinal)
+                || trimmed.Contains("*", StringComparison.Ordinal)
+                || trimmed.Contains("0.0.0.0", StringComparison.Ordinal))
+            && Uri.TryCreate(trimmed.Replace("+", "127.0.0.1").Replace("*", "127.0.0.1").Replace("0.0.0.0", "127.0.0.1"), UriKind.Absolute, out var rewritten))
         {
-            if (Uri.TryCreate(trimmed.Replace("+", "127.0.0.1").Replace("*", "127.0.0.1").Replace("0.0.0.0", "127.0.0.1"), UriKind.Absolute, out var rewritten))
-            {
-                return rewritten.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
-            }
+            return rewritten.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped);
         }
 
         if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))

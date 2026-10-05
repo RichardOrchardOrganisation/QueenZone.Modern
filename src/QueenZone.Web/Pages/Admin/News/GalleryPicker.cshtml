@@ -40,7 +40,7 @@
     <ul class="admin-gallery-picker__grid">
       @foreach (var item in photos.Items)
       {
-        var fileName = NewsArticleGalleryPicker.FileName(item);
+        var fileName = NewsArticleGalleryPicker.GetFileName(item);
         <li>
           <button type="button"
                   class="admin-gallery-picker__item"
