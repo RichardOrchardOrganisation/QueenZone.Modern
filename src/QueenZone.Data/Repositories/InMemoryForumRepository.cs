@@ -18,8 +18,7 @@ public sealed class InMemoryForumRepository(
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var topics = SampleForumData.CreateSeedTopics(forumId)
-            .Concat(GetCreatedTopics(forumId))
+        var topics = GetTopics(forumId)
             .OrderByDescending(topic => topic.IsSticky)
             .ThenByDescending(topic => topic.LastActivityAt)
             .ToList();
@@ -61,7 +60,8 @@ public sealed class InMemoryForumRepository(
     }
 
     public Task<int> GetTotalThreadCountAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(seedStats.ThreadCount + (writeRepository?.GetCreatedThreads().Count ?? 0));
+        Task.FromResult(seedStats.ThreadCount + (writeRepository?.GetCreatedThreads()
+            .Count(thread => SampleForumData.TryGetSeedTopicHeader(thread.TopicId) is null) ?? 0));
 
     public Task<IReadOnlyList<ForumRecentThreadItem>> GetRecentThreadsAsync(
         int count,
@@ -70,8 +70,7 @@ public sealed class InMemoryForumRepository(
         var take = Math.Clamp(count, 1, 50);
         var items = seedCategories
             .Where(category => category.Id != ForumRecentThreadsPolicy.WebsiteDiscussionBoardId)
-            .SelectMany(category => SampleForumData.CreateSeedTopics(category.Id)
-                .Concat(GetCreatedTopics(category.Id))
+            .SelectMany(category => GetTopics(category.Id)
                 .Select(topic => new ForumRecentThreadItem(
                     topic.Id,
                     topic.Title,
@@ -133,8 +132,7 @@ public sealed class InMemoryForumRepository(
         }
 
         var allResults = seedCategories
-            .SelectMany(category => SampleForumData.CreateSeedTopics(category.Id)
-                .Concat(GetCreatedTopics(category.Id))
+            .SelectMany(category => GetTopics(category.Id)
                 .Where(topic => topic.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
                 .Select(topic => new ForumSearchResult(
                     topic.Id,
@@ -193,22 +191,47 @@ public sealed class InMemoryForumRepository(
 
         return SampleForumData.CreateSeedTopicSitemapItems()
             .Concat(created)
+            .GroupBy(item => item.TopicId)
+            .Select(group => group.First() with
+            {
+                LastActivityAt = group.Max(item => item.LastActivityAt),
+            })
             .OrderBy(item => item.TopicId)
             .ToList();
     }
 
-    private IReadOnlyList<ForumTopicItem> GetCreatedTopics(int forumId) =>
-        writeRepository?.GetCreatedThreads()
-            .Where(thread => thread.CategoryId == forumId)
-            .Select(thread => new ForumTopicItem(
-                thread.TopicId,
-                thread.Subject,
-                thread.LastPostAt.UtcDateTime,
-                "Member",
-                Math.Max(thread.PostCount - 1, 0),
-                null,
-                IsSticky: false))
-            .ToList() ?? [];
+    private IReadOnlyList<ForumTopicItem> GetTopics(int forumId)
+    {
+        var topics = SampleForumData.CreateSeedTopics(forumId).ToDictionary(topic => topic.Id);
+        var threads = writeRepository?.GetCreatedThreads() ?? [];
+        foreach (var thread in threads.Where(thread => thread.CategoryId == forumId))
+        {
+            if (topics.TryGetValue(thread.TopicId, out var seed))
+            {
+                topics[thread.TopicId] = seed with
+                {
+                    LastActivityAt = Max(seed.LastActivityAt, thread.LastPostAt.UtcDateTime)!.Value,
+                    ReplyCount = seed.ReplyCount + AddedPostCount(thread),
+                };
+            }
+            else
+            {
+                topics[thread.TopicId] = new ForumTopicItem(
+                    thread.TopicId,
+                    thread.Subject,
+                    thread.LastPostAt.UtcDateTime,
+                    "Member",
+                    Math.Max(thread.PostCount - 1, 0),
+                    null,
+                    IsSticky: false);
+            }
+        }
+
+        return topics.Values.ToList();
+    }
+
+    private static int AddedPostCount(ForumWriteThread thread) =>
+        Math.Max(thread.PostCount - SampleForumData.CreateSeedPosts(thread.TopicId).Count, 0);
 
     private IReadOnlyList<ForumCategoryItem> GetCategories()
     {
@@ -248,7 +271,7 @@ public sealed class InMemoryForumRepository(
 
         return category with
         {
-            PostCount = category.PostCount + categoryThreads.Sum(thread => thread.PostCount),
+            PostCount = category.PostCount + categoryThreads.Sum(AddedPostCount),
             LastActivityAt = Max(category.LastActivityAt, latestCreatedActivity),
             LatestThreadTitle = latestThreadTitle,
         };
