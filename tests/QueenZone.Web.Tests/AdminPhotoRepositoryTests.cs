@@ -140,8 +140,7 @@ public sealed class AdminPhotoServiceTests
         await using var imageStream = await CreateJpegAsync(80, 80);
         var file = new FormFile(imageStream, 0, imageStream.Length, "file", "shot.jpg");
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(
-            file, 999999, "Missing category", null, 2024, DateTime.UtcNow, false, "admin@test.local"));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(file, new NewGalleryPhoto(999999, "Missing category", null, 2024, DateTime.UtcNow, false, "admin@test.local")));
 
         Assert.Equal("Category was not found.", error.Message);
     }
@@ -177,15 +176,7 @@ public sealed class AdminPhotoServiceTests
             ContentType = "image/jpeg",
         };
 
-        var picId = await service.CreateAsync(
-            file,
-            catId: 9,
-            title: "Service upload",
-            keywords: "test",
-            year: 2024,
-            dateTime: new DateTime(2024, 5, 1),
-            isVisible: true,
-            editorEmail: "admin@test.local");
+        var picId = await service.CreateAsync(file, new NewGalleryPhoto(CatId: 9, Title: "Service upload", Keywords: "test", Year: 2024, DateTime: new DateTime(2024, 5, 1), IsVisible: true, EditorEmail: "admin@test.local"));
 
         var photo = await admin.GetByIdAsync(picId);
         Assert.NotNull(photo);
@@ -214,15 +205,7 @@ public sealed class AdminPhotoServiceTests
             ContentType = "image/jpeg",
         };
 
-        var picId = await service.CreateAsync(
-            file,
-            catId: 9,
-            title: "Regen target",
-            keywords: null,
-            year: 2020,
-            dateTime: DateTime.UtcNow,
-            isVisible: true,
-            editorEmail: "admin@test.local");
+        var picId = await service.CreateAsync(file, new NewGalleryPhoto(CatId: 9, Title: "Regen target", Keywords: null, Year: 2020, DateTime: DateTime.UtcNow, IsVisible: true, EditorEmail: "admin@test.local"));
 
         await service.RegenerateThumbnailAsync(picId, "admin@test.local");
 
@@ -248,15 +231,7 @@ public sealed class AdminPhotoServiceTests
             ContentType = "image/jpeg",
         };
 
-        var picId = await service.CreateAsync(
-            file,
-            catId: 9,
-            title: "Delete target",
-            keywords: null,
-            year: 2024,
-            dateTime: DateTime.UtcNow,
-            isVisible: true,
-            editorEmail: "admin@test.local");
+        var picId = await service.CreateAsync(file, new NewGalleryPhoto(CatId: 9, Title: "Delete target", Keywords: null, Year: 2024, DateTime: DateTime.UtcNow, IsVisible: true, EditorEmail: "admin@test.local"));
 
         var photo = await admin.GetByIdAsync(picId);
         Assert.NotNull(photo);
@@ -304,15 +279,7 @@ public sealed class AdminPhotoServiceTests
             ContentType = "image/jpeg",
         };
 
-        var picId = await service.CreateAsync(
-            file,
-            catId: 9,
-            title: "Delete fail target",
-            keywords: null,
-            year: 2024,
-            dateTime: DateTime.UtcNow,
-            isVisible: true,
-            editorEmail: "admin@test.local");
+        var picId = await service.CreateAsync(file, new NewGalleryPhoto(CatId: 9, Title: "Delete fail target", Keywords: null, Year: 2024, DateTime: DateTime.UtcNow, IsVisible: true, EditorEmail: "admin@test.local"));
 
         var result = await service.DeleteAsync(picId, "admin@test.local");
 
@@ -339,8 +306,7 @@ public sealed class AdminPhotoServiceTests
             Headers = new HeaderDictionary(),
             ContentType = "image/jpeg",
         };
-        var picId = await service.CreateAsync(
-            file, 9, "Deletion retry", null, 2024, DateTime.UtcNow, true, "admin@test.local");
+        var picId = await service.CreateAsync(file, new NewGalleryPhoto(9, "Deletion retry", null, 2024, DateTime.UtcNow, true, "admin@test.local"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.DeleteForAccountDeletionAsync(picId));

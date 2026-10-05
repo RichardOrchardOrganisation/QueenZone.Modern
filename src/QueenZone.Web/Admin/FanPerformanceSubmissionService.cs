@@ -3,6 +3,13 @@ using QueenZone.Storage;
 
 namespace QueenZone.Web;
 
+public sealed record FanPerformanceSubmissionDetails(
+    string Title,
+    string CoveredSong,
+    string PerformedBy,
+    string? Description,
+    bool RightsDeclarationAccepted);
+
 public sealed class FanPerformanceSubmissionService(
     IFanPerformanceSubmissionRepository fanPerformanceSubmissionRepository,
     FanPerformanceAudioUploadService audioUploadService,
@@ -16,61 +23,25 @@ public sealed class FanPerformanceSubmissionService(
 
     public async Task<SubmitResult> SubmitAsync(
         Guid memberAccountId,
-        string title,
-        string coveredSong,
-        string performedBy,
-        string? description,
-        bool rightsDeclarationAccepted,
+        FanPerformanceSubmissionDetails details,
         Stream audioStream,
         string originalFileName,
         CancellationToken cancellationToken = default)
     {
+        var title = details.Title;
+        var coveredSong = details.CoveredSong;
+        var performedBy = details.PerformedBy;
+        var description = details.Description;
+
         if (memberAccountId == Guid.Empty)
         {
             return new SubmitResult(false, null, "Sign in is required to submit a fan performance.");
         }
 
-        if (!rightsDeclarationAccepted)
+        var validationError = ValidateSubmissionDetails(details);
+        if (validationError is not null)
         {
-            return new SubmitResult(
-                false,
-                null,
-                "You must confirm this recording is your own performance of a Queen song and agree to it being published on QueenZone.");
-        }
-
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return new SubmitResult(false, null, "Title is required.");
-        }
-
-        if (title.Trim().Length > 200)
-        {
-            return new SubmitResult(false, null, "Title must be 200 characters or fewer.");
-        }
-
-        if (string.IsNullOrWhiteSpace(coveredSong))
-        {
-            return new SubmitResult(false, null, "Covered song is required.");
-        }
-
-        if (coveredSong.Trim().Length > 200)
-        {
-            return new SubmitResult(false, null, "Covered song must be 200 characters or fewer.");
-        }
-
-        if (string.IsNullOrWhiteSpace(performedBy))
-        {
-            return new SubmitResult(false, null, "Performed by is required.");
-        }
-
-        if (performedBy.Trim().Length > 200)
-        {
-            return new SubmitResult(false, null, "Performed by must be 200 characters or fewer.");
-        }
-
-        if (description is { Length: > 0 } && description.Trim().Length > 2000)
-        {
-            return new SubmitResult(false, null, "Description must be 2000 characters or fewer.");
+            return new SubmitResult(false, null, validationError);
         }
 
         var upload = await audioUploadService.UploadPendingAsync(
@@ -105,6 +76,57 @@ public sealed class FanPerformanceSubmissionService(
             cancellationToken);
 
         return new SubmitResult(true, created, null);
+    }
+
+    private static string? ValidateSubmissionDetails(FanPerformanceSubmissionDetails details)
+    {
+        var title = details.Title;
+        var coveredSong = details.CoveredSong;
+        var performedBy = details.PerformedBy;
+        var description = details.Description;
+        var rightsDeclarationAccepted = details.RightsDeclarationAccepted;
+
+        if (!rightsDeclarationAccepted)
+        {
+            return "You must confirm this recording is your own performance of a Queen song and agree to it being published on QueenZone.";
+        }
+
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return "Title is required.";
+        }
+
+        if (title.Trim().Length > 200)
+        {
+            return "Title must be 200 characters or fewer.";
+        }
+
+        if (string.IsNullOrWhiteSpace(coveredSong))
+        {
+            return "Covered song is required.";
+        }
+
+        if (coveredSong.Trim().Length > 200)
+        {
+            return "Covered song must be 200 characters or fewer.";
+        }
+
+        if (string.IsNullOrWhiteSpace(performedBy))
+        {
+            return "Performed by is required.";
+        }
+
+        if (performedBy.Trim().Length > 200)
+        {
+            return "Performed by must be 200 characters or fewer.";
+        }
+
+        if (description is { Length: > 0 } && description.Trim().Length > 2000)
+        {
+            return "Description must be 2000 characters or fewer.";
+        }
+
+        return null;
     }
 
     public async Task<ActionResult> WithdrawAsync(

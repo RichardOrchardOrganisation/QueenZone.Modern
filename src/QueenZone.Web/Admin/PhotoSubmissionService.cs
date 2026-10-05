@@ -3,6 +3,13 @@ using QueenZone.Storage;
 
 namespace QueenZone.Web;
 
+public sealed record PhotoSubmissionDetails(
+    string Title,
+    string? Description,
+    string? SuggestedCategory,
+    int? ApproximateYear,
+    DateOnly? ApproximateDate);
+
 public sealed class PhotoSubmissionService(
     IPhotoSubmissionRepository photoSubmissionRepository,
     IBlobUploadService blobUploadService,
@@ -12,15 +19,17 @@ public sealed class PhotoSubmissionService(
 
     public async Task<SubmitResult> SubmitAsync(
         Guid memberAccountId,
-        string title,
-        string? description,
-        string? suggestedCategory,
-        int? approximateYear,
-        DateOnly? approximateDate,
+        PhotoSubmissionDetails details,
         Stream photoStream,
         string originalFileName,
         CancellationToken cancellationToken = default)
     {
+        var title = details.Title;
+        var description = details.Description;
+        var suggestedCategory = details.SuggestedCategory;
+        var approximateYear = details.ApproximateYear;
+        var approximateDate = details.ApproximateDate;
+
         if (memberAccountId == Guid.Empty)
         {
             return new SubmitResult(false, null, "Sign in is required to submit a photo.");

@@ -193,15 +193,7 @@ public sealed class MemberPhotoSubmissionApiTests :
         using (var scope = quotaFactory.Services.CreateScope())
         {
             var service = scope.ServiceProvider.GetRequiredService<PhotoSubmissionService>();
-            var webResult = await service.SubmitAsync(
-                memberId,
-                "Submitted on the website",
-                null,
-                null,
-                null,
-                null,
-                webPhoto,
-                "web.png");
+            var webResult = await service.SubmitAsync(memberId, new PhotoSubmissionDetails("Submitted on the website", null, null, null, null), webPhoto, "web.png");
             Assert.True(webResult.Succeeded);
         }
 

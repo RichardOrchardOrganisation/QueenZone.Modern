@@ -5,6 +5,15 @@ using SixLabors.ImageSharp;
 
 namespace QueenZone.Web;
 
+public sealed record NewGalleryPhoto(
+    int CatId,
+    string Title,
+    string? Keywords,
+    int Year,
+    DateTime DateTime,
+    bool IsVisible,
+    string EditorEmail);
+
 /// <summary>
 /// Outcome of hard-deleting a gallery photo row and best-effort CDN blob cleanup.
 /// </summary>
@@ -28,15 +37,17 @@ public sealed class AdminPhotoService(
 {
     public async Task<int> CreateAsync(
         IFormFile file,
-        int catId,
-        string title,
-        string? keywords,
-        int year,
-        DateTime dateTime,
-        bool isVisible,
-        string editorEmail,
+        NewGalleryPhoto details,
         CancellationToken cancellationToken = default)
     {
+        var catId = details.CatId;
+        var title = details.Title;
+        var keywords = details.Keywords;
+        var year = details.Year;
+        var dateTime = details.DateTime;
+        var isVisible = details.IsVisible;
+        var editorEmail = details.EditorEmail;
+
         var category = await adminPhotoRepository.GetCategoryByIdAsync(catId, cancellationToken)
             ?? throw new InvalidOperationException("Category was not found.");
 
