@@ -32,7 +32,7 @@ public sealed class StatusModel(
         {
             await submissions.UpdateStatusAsync(submissionId,
                 status == EditorialArticleStatus.Published ? ArticleSubmissionStatus.Published : ArticleSubmissionStatus.ApprovedForPublishing,
-                EditorEmail, null, null, updated.Slug, updated.Excerpt, updated.Tags, ct);
+                EditorEmail, null, null, new ArticlePublicationDetails(updated.Slug, updated.Excerpt, updated.Tags), ct);
         }
         if (status == EditorialArticleStatus.Published)
         {

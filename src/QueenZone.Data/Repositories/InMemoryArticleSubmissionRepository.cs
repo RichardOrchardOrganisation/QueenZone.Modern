@@ -170,11 +170,13 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
         string? reviewerEmail,
         string? notes,
         string? rejectionReason,
-        string? slug = null,
-        string? excerpt = null,
-        string? tags = null,
+        ArticlePublicationDetails? publication = null,
         CancellationToken ct = default)
     {
+        var slug = publication?.Slug;
+        var excerpt = publication?.Excerpt;
+        var tags = publication?.Tags;
+
         lock (sync)
         {
             var entity = submissions.SingleOrDefault(a => a.Id == id);

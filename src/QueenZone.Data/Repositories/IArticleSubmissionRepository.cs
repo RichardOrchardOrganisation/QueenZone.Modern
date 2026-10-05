@@ -27,9 +27,7 @@ public interface IArticleSubmissionRepository
         string? reviewerEmail,
         string? notes,
         string? rejectionReason,
-        string? slug = null,
-        string? excerpt = null,
-        string? tags = null,
+        ArticlePublicationDetails? publication = null,
         CancellationToken ct = default);
 
     Task<IReadOnlyList<PublishedArticleSubmission>> GetPublishedAsync(CancellationToken ct = default);
@@ -43,3 +41,5 @@ public interface IArticleSubmissionRepository
         int maxCount,
         CancellationToken ct = default);
 }
+
+public sealed record ArticlePublicationDetails(string? Slug, string? Excerpt, string? Tags);

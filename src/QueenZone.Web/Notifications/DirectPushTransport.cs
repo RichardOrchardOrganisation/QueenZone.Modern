@@ -74,6 +74,7 @@ internal sealed partial class DirectPushTransport(
             : apns.Topic.Trim();
         var client = httpClientFactory.CreateClient(ApnsClientName);
         var body = BuildApnsBody(payload);
+        var delivery = new ApnsDeliveryContext(host, topic, jwt, body, payload.Category);
         using var gate = new SemaphoreSlim(PushNotificationOptions.DefaultApnsMaxConcurrency);
 
         var sends = tokens.Select(async token =>
@@ -81,7 +82,7 @@ internal sealed partial class DirectPushTransport(
             await gate.WaitAsync(cancellationToken);
             try
             {
-                return await SendOneApnsAsync(client, host, topic, jwt, token, body, payload.Category, cancellationToken);
+                return await SendOneApnsAsync(client, delivery, token, cancellationToken);
             }
             finally
             {
@@ -94,14 +95,16 @@ internal sealed partial class DirectPushTransport(
 
     private async Task<PushDeviceToken?> SendOneApnsAsync(
         HttpClient client,
-        string host,
-        string topic,
-        string jwt,
+        ApnsDeliveryContext delivery,
         PushDeviceToken device,
-        string body,
-        string category,
         CancellationToken cancellationToken)
     {
+        var host = delivery.Host;
+        var topic = delivery.Topic;
+        var jwt = delivery.Jwt;
+        var body = delivery.Body;
+        var category = delivery.Category;
+
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{host}/3/device/{device.Token}");
         request.Version = HttpVersion.Version20;
         request.VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
@@ -313,4 +316,6 @@ internal sealed partial class DirectPushTransport(
 
         return text.Replace(token, "[redacted]", StringComparison.Ordinal);
     }
+    private sealed record ApnsDeliveryContext(
+        string Host, string Topic, string Jwt, string Body, string Category);
 }

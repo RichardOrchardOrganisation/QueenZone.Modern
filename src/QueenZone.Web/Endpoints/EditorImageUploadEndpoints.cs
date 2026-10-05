@@ -63,13 +63,11 @@ public static class EditorImageUploadEndpoints
             ?? CreatePassthroughQuota();
         return UploadCoreAsync(
             httpContext,
-            file,
-            container,
+            new EditorUploadInput(file, container, SkipAntiforgery: false),
             blobUploadService,
             antiforgery,
             new BlobUploadOptions { EditorMaxBytes = MaxImageBytes },
             uploadQuota,
-            skipAntiforgery: false,
             cancellationToken);
     }
 
@@ -109,27 +107,27 @@ public static class EditorImageUploadEndpoints
 
         return await UploadCoreAsync(
             httpContext,
-            file,
-            container,
+            new EditorUploadInput(file, container, SkipAntiforgery: true),
             blobUploadService,
             antiforgery,
             blobUploadOptions,
             uploadQuota,
-            skipAntiforgery: true,
             cancellationToken);
     }
 
     private static async Task<IResult> UploadCoreAsync(
         HttpContext httpContext,
-        IFormFile? file,
-        string? container,
+        EditorUploadInput input,
         IBlobUploadService blobUploadService,
         IAntiforgery antiforgery,
         BlobUploadOptions blobUploadOptions,
         MemberUploadQuotaService uploadQuota,
-        bool skipAntiforgery,
         CancellationToken cancellationToken)
     {
+        var file = input.File;
+        var container = input.Container;
+        var skipAntiforgery = input.SkipAntiforgery;
+
         if (httpContext.User.Identity?.IsAuthenticated != true)
         {
             return Results.Unauthorized();
@@ -448,4 +446,5 @@ public static class EditorImageUploadEndpoints
         }
     }
 
+    private sealed record EditorUploadInput(IFormFile? File, string? Container, bool SkipAntiforgery);
 }
