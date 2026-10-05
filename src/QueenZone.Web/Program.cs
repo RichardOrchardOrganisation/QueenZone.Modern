@@ -335,5 +335,11 @@ app.MapFallbackToPage("/NotFound");
 
 await app.RunAsync();
 
-public partial class Program;
+public partial class Program
+{
+    private Program()
+    {
+        // WebApplicationFactory uses this type as an assembly marker; startup is the generated entry point.
+    }
+}
 

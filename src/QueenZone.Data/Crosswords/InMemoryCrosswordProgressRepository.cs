@@ -72,18 +72,17 @@ public sealed class InMemoryCrosswordProgressRepository : ICrosswordProgressRepo
 
     public Task<CrosswordProgress> SaveAsync(Guid crosswordId, Guid memberId, CrosswordProgressWrite write,
         CancellationToken cancellationToken = default) =>
-        MutateAsync(crosswordId, memberId, state => state.Save(write), cancellationToken);
+        MutateAsync(crosswordId, memberId, state => state.Save(write));
 
     public async Task MarkAssistanceAsync(Guid crosswordId, Guid memberId, IReadOnlyList<int> revealedCells,
         bool autoCheckUsed, Guid playVersion, CancellationToken cancellationToken = default) =>
-        await MutateAsync(crosswordId, memberId, state => { state.MarkAssistance(revealedCells, autoCheckUsed, playVersion); return true; }, cancellationToken);
+        await MutateAsync(crosswordId, memberId, state => { state.MarkAssistance(revealedCells, autoCheckUsed, playVersion); return true; });
 
     public Task<CrosswordCompletionResult> CompleteAsync(Guid crosswordId, Guid memberId, CrosswordProgressWrite write,
         CancellationToken cancellationToken = default) =>
-        MutateAsync(crosswordId, memberId, state => state.Complete(write, options), cancellationToken);
+        MutateAsync(crosswordId, memberId, state => state.Complete(write, options));
 
-    private Task<T> MutateAsync<T>(Guid crosswordId, Guid memberId, Func<CrosswordProgressState, T> action,
-        CancellationToken cancellationToken) => Task.FromResult(catalog.WithPlayablePuzzle(crosswordId, clock.GetUtcNow(), puzzle =>
+    private Task<T> MutateAsync<T>(Guid crosswordId, Guid memberId, Func<CrosswordProgressState, T> action) => Task.FromResult(catalog.WithPlayablePuzzle(crosswordId, clock.GetUtcNow(), puzzle =>
     {
         lock (gate)
         {

@@ -109,14 +109,16 @@ public sealed class NullGalleryPhotoBlobService : IGalleryPhotoBlobService
         CancellationToken cancellationToken = default)
     {
         var prefix = containerName + "/";
+        List<GalleryBlobDescriptor> snapshot;
         lock (sync)
         {
-            return blobs.Keys
+            // Snapshot both dictionaries while locked; asynchronous enumeration runs after the lock is released.
+            snapshot = blobs.Keys
                 .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .Select(key => new GalleryBlobDescriptor(key[prefix.Length..], lastModified[key]))
-                .ToList()
-                .ToAsyncEnumerable();
+                .ToList();
         }
+        return snapshot.ToAsyncEnumerable();
     }
 
     private static string Key(string containerName, string blobName) =>

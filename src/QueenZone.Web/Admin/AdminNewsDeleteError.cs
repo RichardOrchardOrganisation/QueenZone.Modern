@@ -35,14 +35,16 @@ internal static class AdminNewsDeleteError
         }
     }
 
+    private static void RestoreClassifier(Func<Exception?, bool> previous)
+    {
+        lock (ClassifierLock)
+        {
+            foreignKeyViolationClassifier = previous;
+        }
+    }
+
     private sealed class ResetScope(Func<Exception?, bool> previous) : IDisposable
     {
-        public void Dispose()
-        {
-            lock (ClassifierLock)
-            {
-                foreignKeyViolationClassifier = previous;
-            }
-        }
+        public void Dispose() => RestoreClassifier(previous);
     }
 }

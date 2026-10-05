@@ -126,11 +126,12 @@ public sealed class InMemoryMemberPublicActivityRepository(
         }
 
         const int batchSize = 100;
-        for (var page = 1; items.Count < summary.PostCount; page++)
+        var page = 1;
+        while (items.Count < summary.PostCount)
         {
             var batch = await archiveAuthorRepository.GetPostsPageAsync(
                 legacyUserId,
-                page,
+                page++,
                 batchSize,
                 summary.PostCount,
                 cancellationToken);
