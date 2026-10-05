@@ -27,9 +27,10 @@ const NON_WHITESPACE_RE = /\S+/g;
 const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 const IPV6_CANDIDATE_RE = /[0-9A-Fa-f:]+/g;
 const JWT_RE = /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
-const BEARER_RE = /\b(?:Bearer|token)\s+[A-Za-z0-9._\-+/=]{8,}/gi;
+const BEARER_RE = /\b(?:Bearer|token)\s+[A-Z0-9._\-+/=]{8,}/gi;
 const API_KEY_RE = /\b(?:sk|pk|ghp|gho|github_pat|AIza)[-_][A-Za-z0-9_-]{16,}\b/g;
-const CONN_PAIR_RE = /\b(?:Password|Pwd|Pass|User\s*ID|User\s*Id|Username|UID|AccountKey|SharedAccessSignature|SharedAccessKey|Server|Data\s*Source|Initial\s*Catalog|Database)\s*=\s*[^;\s]+/gi;
+const CONNECTION_CREDENTIAL_RE = /\b(?:Password|Pwd|Pass|User\s*ID|Username|UID|AccountKey|SharedAccessSignature|SharedAccessKey)\s*=\s*[^;\s]+/gi;
+const CONNECTION_LOCATION_RE = /\b(?:Server|Data\s*Source|Initial\s*Catalog|Database)\s*=\s*[^;\s]+/gi;
 const LONG_HEX_RE = /\b[0-9A-Fa-f]{32,}\b/g;
 const LONG_B64_RE = /\b[A-Za-z0-9+/]{32,}={1,2}(?![A-Za-z0-9+/=])/g;
 
@@ -49,7 +50,9 @@ export function redact(text, { maxLength = REDACT_MAX_LENGTH } = {}) {
   value = value.replace(IPV6_CANDIDATE_RE, (candidate) => isIP(candidate) === 6 ? '[ip]' : candidate);
   value = value.replace(BEARER_RE, '[token]');
   value = value.replace(JWT_RE, '[token]');
-  value = value.replace(CONN_PAIR_RE, (match) => `${match.split('=')[0].trim()}=[secret]`);
+  for (const pattern of [CONNECTION_CREDENTIAL_RE, CONNECTION_LOCATION_RE]) {
+    value = value.replace(pattern, (match) => `${match.split('=')[0].trim()}=[secret]`);
+  }
   value = value.replace(API_KEY_RE, '[token]');
   value = value.replace(LONG_HEX_RE, '[secret]');
   value = value.replace(LONG_B64_RE, '[secret]');
@@ -356,7 +359,7 @@ export function routeMatchesTemplate(route, template) {
   });
 }
 
-export function matchFeatureMap(route, entries = [], surface) {
+export function matchFeatureMap(route, entries = [], surface = '') {
   const normalized = normalizeRoute(route);
   if (!normalized) {
     return null;
@@ -866,12 +869,12 @@ export function telemetrySourceLabels(candidate) {
   const sources = new Set(candidate?.sources || [candidate?.source]);
   const children = candidate?.stormCandidates || [];
   const keyPool = [...keys, ...children.flatMap((child) => child.keys || [])];
-  const sourcePool = [...sources, ...children.flatMap((child) => child.sources || [child.source])];
-  if (sourcePool.includes('sentry') || keyPool.some((key) => String(key).startsWith('sentry:'))) {
+  const sourcePool = new Set([...sources, ...children.flatMap((child) => child.sources || [child.source])]);
+  if (sourcePool.has('sentry') || keyPool.some((key) => String(key).startsWith('sentry:'))) {
     labels.push('from-sentry');
   }
   if (
-    sourcePool.includes('appinsights')
+    sourcePool.has('appinsights')
     || keyPool.some((key) => String(key).startsWith('ai:'))
   ) {
     labels.push('from-appinsights');

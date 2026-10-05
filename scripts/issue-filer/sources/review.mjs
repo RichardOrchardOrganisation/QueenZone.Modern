@@ -20,7 +20,7 @@ function groupReviewFindings(findings, { config, findingRules }) {
   const candidates = [];
   for (const [rule, group] of byRule) {
     const prs = new Set(group.map((item) => item.pr).filter(Boolean));
-    const files = group.map((item) => item.file).filter(Boolean);
+    const file = group.map((item) => item.file).find(Boolean);
     const info = ruleInfo(rule, findingRules);
     const level = lowestLevel(group.map((item) => item.level));
     const seen = group.map((item) => item.at).filter(Boolean).sort();
@@ -29,7 +29,7 @@ function groupReviewFindings(findings, { config, findingRules }) {
       keys: [`review:${rule}`],
       rule,
       title: `[review] ${info?.title || rule} (${prs.size || group.length} PRs)`,
-      area: areaForFile(files[0], config.areas),
+      area: areaForFile(file, config.areas),
       evidence: group.map((item) => ({
         url: item.url,
         text: `#${item.pr || '?'} ${item.file}`,
@@ -39,7 +39,7 @@ function groupReviewFindings(findings, { config, findingRules }) {
       lastSeen: seen[seen.length - 1] || '',
       level,
       repeat: group.some((item) => item.repeat === 'yes') ? 'yes' : 'no',
-      file: files[0],
+      file,
       verdict: group.some((item) => item.verdict === 'blocking') ? 'blocking' : 'nit',
       proposedCheck: info?.check
         ? `Existing check ${info.check} did not prevent this finding.`
