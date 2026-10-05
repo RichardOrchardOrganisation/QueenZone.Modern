@@ -51,7 +51,7 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         await Page.GetByRole(AriaRole.Button, new() { Name = "Submit for review" }).ClickAsync();
 
         await Expect(Page).ToHaveURLAsync(new Regex(".*/submit/photo/confirmation/.+"));
-        await Expect(Page.GetByRole(AriaRole.Status)).ToContainTextAsync("Your photo is under review.");
+        await Expect(Page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Your photo is under review." })).ToContainTextAsync("Your photo is under review.");
         await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync(title);
         await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync("Pending");
 
@@ -111,7 +111,7 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         await Page.GetByRole(AriaRole.Button, new() { Name = "Submit suggestion" }).ClickAsync();
 
         await Expect(Page).ToHaveURLAsync(new Regex(".*/submit/news/confirmation"));
-        await Expect(Page.GetByRole(AriaRole.Status)).ToContainTextAsync("Thank you for the suggestion!");
+        await Expect(Page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Thank you for the suggestion!" })).ToContainTextAsync("Thank you for the suggestion!");
 
         var adminContext = await CreateExtraContextAsync(new BrowserNewContextOptions
         {
@@ -233,7 +233,7 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         await Page.GetByRole(AriaRole.Button, new() { Name = "Submit for review" }).ClickAsync();
 
         await Expect(Page).ToHaveURLAsync(new Regex(".*/submit/trivia/confirmation/.+"));
-        await Expect(Page.GetByRole(AriaRole.Status)).ToContainTextAsync("Your trivia fact is under review.");
+        await Expect(Page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Your trivia fact is under review." })).ToContainTextAsync("Your trivia fact is under review.");
         await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync(fact);
         await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync("Pending");
 
@@ -300,7 +300,7 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
             .ClickAsync(new() { Timeout = 60_000 });
 
         await Expect(Page).ToHaveURLAsync(new Regex(".*/submit/fan-performance/confirmation/.+"), new() { Timeout = 60_000 });
-        await Expect(Page.GetByRole(AriaRole.Status)).ToContainTextAsync("Your fan performance is under review.");
+        await Expect(Page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Your fan performance is under review." })).ToContainTextAsync("Your fan performance is under review.");
         await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync(title);
         await Expect(Page.Locator(".qz-account-settings__meta")).ToContainTextAsync("Pending");
 

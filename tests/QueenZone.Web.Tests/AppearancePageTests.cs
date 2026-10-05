@@ -51,6 +51,22 @@ public sealed class AppearancePageTests(QueenZoneWebApplicationFactory factory) 
     }
 
     [Fact]
+    public async Task Public_header_dormant_theme_live_region_is_not_a_status_role()
+    {
+        using var client = Client();
+        var html = await client.GetStringAsync("/");
+        var themeStatus = TestHtmlAssertions.SingleElement(html, "[data-theme-status]");
+        Assert.Equal("DIV", themeStatus.TagName);
+        Assert.False(themeStatus.HasAttribute("role"));
+        Assert.Equal("polite", themeStatus.GetAttribute("aria-live"));
+        Assert.Equal("true", themeStatus.GetAttribute("aria-atomic"));
+        Assert.Contains("visually-hidden", themeStatus.ClassList);
+        Assert.True(string.IsNullOrWhiteSpace(themeStatus.TextContent));
+        Assert.Empty(TestHtmlAssertions.Select(html, "[data-theme-status][role='status']"));
+        Assert.Empty(TestHtmlAssertions.Select(html, "output.qz-theme-status"));
+    }
+
+    [Fact]
     public async Task Post_requires_antiforgery_and_public_header_does_not_mint_a_token()
     {
         using var client = Client();
