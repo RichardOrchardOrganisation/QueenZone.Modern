@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using QueenZone.Data.Entities;
@@ -11,6 +12,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
     private const int BodyHtmlMaxLength = 8000;
     internal const string TopicIdSequence = "ForumLegacyTopicIdSeq";
     internal const string PostIdSequence = "ForumLegacyPostIdSeq";
+    internal const string LegacyForumIdUniqueConstraintName = "UQ_ModernForumCategory_LegacyForumId";
 
     private static readonly FrozenSet<string> KnownLegacyIdSequences =
         FrozenSet.ToFrozenSet([TopicIdSequence, PostIdSequence], StringComparer.Ordinal);
@@ -615,18 +617,86 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             return existing.LegacyForumId;
         }
 
+        return await InsertCategoryAsync(slug, name, recoverUniqueConflict: true, cancellationToken);
+    }
+
+    /// <summary>
+    /// SQL Server unique-key 2627 on <see cref="LegacyForumIdUniqueConstraintName"/> only.
+    /// Other update failures, including 2601 and other unique constraints, stay visible.
+    /// </summary>
+    internal static bool IsLegacyForumIdUniqueViolation(DbUpdateException exception)
+    {
+        var sawConstraintError = false;
+        var sawConstraintName = false;
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql && sql.Number == 2627)
+            {
+                sawConstraintError = true;
+            }
+
+            if (current.Message.Contains(LegacyForumIdUniqueConstraintName, StringComparison.Ordinal))
+            {
+                sawConstraintName = true;
+            }
+        }
+
+        return sawConstraintError && sawConstraintName;
+    }
+
+    private async Task<int> InsertCategoryAsync(
+        string slug,
+        string name,
+        bool recoverUniqueConflict,
+        CancellationToken cancellationToken)
+    {
         var now = DateTime.UtcNow;
         var categories = await dbContext.ModernForumCategories
             .ToListAsync(cancellationToken);
-        var nextLegacyId = categories.Select(category => category.LegacyForumId).DefaultIfEmpty(0).Max() + 1;
-        if (nextLegacyId < 2)
+        var entity = CreateNewsDiscussionCategory(name, AllocateNextLegacyForumId(categories), categories, now);
+
+        dbContext.ModernForumCategories.Add(entity);
+        try
         {
-            nextLegacyId = 2;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return entity.LegacyForumId;
+        }
+        catch (DbUpdateException ex) when (recoverUniqueConflict && IsLegacyForumIdUniqueViolation(ex))
+        {
+            return await RecoverAfterLegacyForumIdConflictAsync(entity, slug, name, cancellationToken);
+        }
+    }
+
+    private async Task<int> RecoverAfterLegacyForumIdConflictAsync(
+        ModernForumCategoryEntity failed,
+        string slug,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        dbContext.Entry(failed).State = EntityState.Detached;
+        var existing = await FindMatchingCategoryAsync(slug, name, cancellationToken);
+        if (existing is not null)
+        {
+            return existing.LegacyForumId;
         }
 
-        var entity = new ModernForumCategoryEntity
+        return await InsertCategoryAsync(slug, name, recoverUniqueConflict: false, cancellationToken);
+    }
+
+    private static int AllocateNextLegacyForumId(IReadOnlyCollection<ModernForumCategoryEntity> categories)
+    {
+        var nextLegacyId = categories.Select(category => category.LegacyForumId).DefaultIfEmpty(0).Max() + 1;
+        return nextLegacyId < 2 ? 2 : nextLegacyId;
+    }
+
+    private static ModernForumCategoryEntity CreateNewsDiscussionCategory(
+        string name,
+        int legacyForumId,
+        IReadOnlyCollection<ModernForumCategoryEntity> categories,
+        DateTime now) =>
+        new()
         {
-            LegacyForumId = nextLegacyId,
+            LegacyForumId = legacyForumId,
             Name = name.Trim(),
             Description = "Discussion of published QueenZone news articles.",
             SortOrder = categories.Select(category => category.SortOrder).DefaultIfEmpty(0).Max() + 10,
@@ -635,21 +705,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             ImportedAt = now,
             UpdatedAt = now,
         };
-
-        dbContext.ModernForumCategories.Add(entity);
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-            return entity.LegacyForumId;
-        }
-        catch (DbUpdateException)
-        {
-            dbContext.Entry(entity).State = EntityState.Detached;
-            var retry = await FindMatchingCategoryAsync(slug, name, cancellationToken);
-            return retry?.LegacyForumId
-                ?? throw new InvalidOperationException("News forum category could not be created.");
-        }
-    }
 
     private async Task<ModernForumCategoryEntity?> FindMatchingCategoryAsync(
         string slug,
