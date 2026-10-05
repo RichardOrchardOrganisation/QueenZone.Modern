@@ -84,6 +84,7 @@
         : NewsArticleImage.ResolveDisplayUrl(Model.Draft.ImageBlobKey, Model.Draft.ImageGalleryPicId);
       var hasArticleImage = !string.IsNullOrWhiteSpace(Model.PreviewImageUrl)
         || NewsArticleImage.HasResolvedImage(Model.Draft.ImageBlobKey, Model.Draft.ImageGalleryPicId);
+      var previewAlt = hasArticleImage ? "Article preview" : "";
     }
     <input type="hidden" name="imageBlobKey" value="@Model.Draft.ImageBlobKey" data-article-image-blob-key>
     <input type="hidden" name="imageGalleryPicId" value="@Model.Draft.ImageGalleryPicId" data-article-image-gallery-id>
@@ -98,7 +99,7 @@
       <div class="qz-dropzone" data-gallery-picker>
         <figure class="admin-article-image qz-dropzone-media">
           <img src="@previewImageUrl"
-               alt="@(hasArticleImage ? "Article image" : "No article image")"
+               alt="@previewAlt"
                width="600"
                height="400"
                data-article-image-preview>

@@ -25,7 +25,7 @@
     {
       @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
       {
-        <p class="qz-account-notice qz-account-notice--success" role="status">@Model.StatusMessage</p>
+        <output class="qz-status-block qz-account-notice qz-account-notice--success">@Model.StatusMessage</output>
       }
 
       <div class="qz-messages-toolbar">
@@ -68,7 +68,7 @@
               <footer class="qz-message-thread__actions">
                 @if (message.ReportedByViewer)
                 {
-                  <p class="qz-message-thread__reported" role="status">Reported</p>
+                  <output class="qz-status-block qz-message-thread__reported">Reported</output>
                 }
                 else
                 {
@@ -88,13 +88,13 @@
 
       @if (Model.HasBlockedOtherParticipant)
       {
-        <p class="qz-account-notice qz-account-notice--error" role="status">
+        <output class="qz-status-block qz-account-notice qz-account-notice--error">
           You have blocked this member. They can no longer send you private messages.
-        </p>
+        </output>
       }
       else if (!Model.CanSendReply)
       {
-        <p class="qz-account-notice qz-account-notice--error" role="status">@PrivateMessageService.UnableToSendMessage</p>
+        <output class="qz-status-block qz-account-notice qz-account-notice--error">@PrivateMessageService.UnableToSendMessage</output>
       }
 
       @if (Model.CanSendReply)

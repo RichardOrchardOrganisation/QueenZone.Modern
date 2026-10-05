@@ -30,7 +30,7 @@
 
         @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
         {
-          <p class="qz-account-notice qz-account-notice--success" role="status">@Model.StatusMessage</p>
+          <output class="qz-status-block qz-account-notice qz-account-notice--success">@Model.StatusMessage</output>
         }
 
         @if (Model.CanMessage)

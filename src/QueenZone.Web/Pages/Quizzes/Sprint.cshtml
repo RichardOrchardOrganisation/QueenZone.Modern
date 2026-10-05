@@ -18,14 +18,14 @@
         <p class="qz-sprint-results__detail">@result.Correct correct from @result.Attempted answered &middot; best streak @result.BestStreak</p>
         @if (result.Recorded)
         {
-          <p class="qz-sprint-results__note" role="status">Your score is on today's leaderboard@(result.Rank is { } rank ? $" (rank #{rank})" : "").</p>
+          <output class="qz-status-block qz-sprint-results__note">Your score is on today's leaderboard@(result.Rank is { } rank ? $" (rank #{rank})" : "").</output>
         }
         else if (!Model.SignedIn)
         {
           var claimHref = result.ClaimToken is { } claimToken
             ? "/account/login?returnUrl=" + Uri.EscapeDataString("/quizzes/sprint?claim=" + Uri.EscapeDataString(claimToken))
             : loginHref;
-          <p class="qz-sprint-results__note" role="status">Your score is only added to the leaderboard if you are signed in. <a href="@claimHref">@(result.ClaimToken is null ? "Sign in" : "Sign in to save this score")</a>@(result.ClaimToken is null ? " before your next run to be ranked." : " and it will be added under your display name.")</p>
+          <output class="qz-status-block qz-sprint-results__note">Your score is only added to the leaderboard if you are signed in. <a href="@claimHref">@(result.ClaimToken is null ? "Sign in" : "Sign in to save this score")</a>@(result.ClaimToken is null ? " before your next run to be ranked." : " and it will be added under your display name.")</output>
         }
         <div class="qz-sprint__buttons">
           <a class="qz-sprint__cta" href="/quizzes/sprint">Run it again</a>
@@ -124,11 +124,11 @@ else
         <p class="qz-sprint-intro__rules"><span>60 seconds</span><span>Unlimited runs</span><span>No skips</span></p>
         @if (!string.IsNullOrWhiteSpace(Model.ClaimMessage))
         {
-          <p class="qz-sprint-intro__notice" role="status">@Model.ClaimMessage@if (!Model.SignedIn) { <text> <a href="/account/login?returnUrl=@Uri.EscapeDataString(Model.Request.Path + Model.Request.QueryString)">Sign in</a></text> }</p>
+          <output class="qz-status-block qz-sprint-intro__notice">@Model.ClaimMessage@if (!Model.SignedIn) { <text> <a href="/account/login?returnUrl=@Uri.EscapeDataString(Model.Request.Path + Model.Request.QueryString)">Sign in</a></text> }</output>
         }
         @if (!string.IsNullOrWhiteSpace(Model.StartNotice) && !Model.EmptyPool)
         {
-          <p class="qz-sprint-intro__notice" role="status">@Model.StartNotice</p>
+          <output class="qz-status-block qz-sprint-intro__notice">@Model.StartNotice</output>
         }
         @if (Model.EmptyPool)
         {

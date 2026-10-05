@@ -7,7 +7,7 @@
   <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
   <h1>Reported forum post</h1>
   @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-  { <p class="qz-account-notice" role="status">@Model.StatusMessage</p> }
+  { <output class="qz-status-block qz-account-notice">@Model.StatusMessage</output> }
   <dl class="admin-detail-list">
     <dt>Author</dt><dd>@if (report.ReportedMemberId is Guid memberId) { <a href="/admin/members/@memberId">@report.AuthorDisplayNameSnapshot</a> } else { @report.AuthorDisplayNameSnapshot }</dd>
     <dt>Reporter</dt><dd>@if (Model.Reporter is not null) { <a href="/admin/members/@report.ReporterMemberId">@Model.Reporter.DisplayName</a> } else { <text>Unknown member</text> }</dd>

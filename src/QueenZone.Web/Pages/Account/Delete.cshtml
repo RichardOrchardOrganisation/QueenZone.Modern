@@ -17,7 +17,7 @@
           <button type="submit" class="qz-button">Cancel account deletion</button>
           <a class="qz-button qz-button--outline" href="/account/settings">Back to settings</a>
         </div>
-        <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+        <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
       </form>
     }
     else
@@ -46,7 +46,7 @@
           <button type="submit" class="qz-button qz-button--danger" name="Immediate" value="true">Delete my account now</button>
           <a class="qz-button qz-button--outline" href="/account/settings">Cancel</a>
         </div>
-        <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+        <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
       </form>
     }
   </div>

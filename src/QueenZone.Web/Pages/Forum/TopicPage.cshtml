@@ -20,7 +20,7 @@
   <div class="qz-container">
     @if (TempData[ReportModel.StatusMessageKey] is string reportMessage)
     {
-      <p class="qz-account-notice qz-account-notice--success" role="status">@reportMessage</p>
+      <output class="qz-status-block qz-account-notice qz-account-notice--success">@reportMessage</output>
     }
     <partial name="_SectionHeader" model="@(("Thread", "Posts in chronological order", false, "/search", "Search forum"))" />
     <partial name="_ForumTopicWatch" />
