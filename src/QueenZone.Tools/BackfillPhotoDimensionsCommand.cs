@@ -54,63 +54,15 @@ internal static class BackfillPhotoDimensionsCommand
 
         foreach (var row in candidates)
         {
-            try
+            var result = await ProcessPhotoAsync(options, row, probe);
+            wouldUpdate += result.Planned;
+            updated += result.Updated;
+            skipped += result.Skipped;
+            failed += result.Failed;
+            if (result.Delay)
             {
-                if (!options.Force && row.PictureWidth > 0 && row.PictureHeight > 0)
-                {
-                    skipped++;
-                    Console.WriteLine(
-                        $"  SKIP pic_id={row.PicId} already {row.PictureWidth}x{row.PictureHeight}");
-                    continue;
-                }
-
-                var measured = await probe.MeasureAsync(row, options.CancellationToken);
-                if (measured is null)
-                {
-                    failed++;
-                    await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: could not load/decode image");
-                    continue;
-                }
-
-                if (measured.Width <= 0 || measured.Height <= 0)
-                {
-                    failed++;
-                    await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: measured non-positive size");
-                    continue;
-                }
-
-                // smallint range
-                if (measured.Width > short.MaxValue || measured.Height > short.MaxValue)
-                {
-                    failed++;
-                    await Console.Error.WriteLineAsync(
-                        $"  FAIL pic_id={row.PicId}: measured {measured.Width}x{measured.Height} exceeds smallint");
-                    continue;
-                }
-
-                wouldUpdate++;
-                Console.WriteLine(
-                    $"  {(options.Apply ? "UPDATE" : "PLAN")} pic_id={row.PicId} " +
-                    $"{row.PictureWidth}x{row.PictureHeight} -> {measured.Width}x{measured.Height} url={row.Url}");
-
-                if (options.Apply)
-                {
-                    await UpdateDimensionsAsync(
-                        options.ConnectionString,
-                        row.PicId,
-                        measured.Width,
-                        measured.Height,
-                        options.CancellationToken);
-                    updated++;
-                }
+                await ToolArgs.DelayIfPositiveAsync(options.DelayMs, options.CancellationToken);
             }
-            catch (Exception ex)
-            {
-                failed++;
-                await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: {ex.Message}");
-            }
-
-            await ToolArgs.DelayIfPositiveAsync(options.DelayMs, options.CancellationToken);
         }
 
         ToolArgs.WriteBackfillSummary(
@@ -122,6 +74,74 @@ internal static class BackfillPhotoDimensionsCommand
             "Dry-run only. Re-run with --apply to write PIC_WIDTH / PIC_HEIGHT.");
 
         return failed == 0 ? 0 : 1;
+    }
+
+    private sealed record PhotoBackfillResult(int Planned, int Updated, int Skipped, int Failed, bool Delay);
+
+    private static async Task<PhotoBackfillResult> ProcessPhotoAsync(
+        BackfillPhotoDimensionsOptions options,
+        BackfillPhotoRow row,
+        IPhotoDimensionProbe probe)
+    {
+        var wouldUpdate = 0;
+        var updated = 0;
+        var failed = 0;
+        try
+        {
+            if (!options.Force && row.PictureWidth > 0 && row.PictureHeight > 0)
+            {
+                Console.WriteLine(
+                    $"  SKIP pic_id={row.PicId} already {row.PictureWidth}x{row.PictureHeight}");
+                return new PhotoBackfillResult(0, 0, 1, 0, false);
+            }
+
+            var measured = await probe.MeasureAsync(row, options.CancellationToken);
+            if (measured is null)
+            {
+                failed++;
+                await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: could not load/decode image");
+                return new PhotoBackfillResult(0, 0, 0, 1, false);
+            }
+
+            if (measured.Width <= 0 || measured.Height <= 0)
+            {
+                failed++;
+                await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: measured non-positive size");
+                return new PhotoBackfillResult(0, 0, 0, 1, false);
+            }
+
+            // smallint range
+            if (measured.Width > short.MaxValue || measured.Height > short.MaxValue)
+            {
+                failed++;
+                await Console.Error.WriteLineAsync(
+                    $"  FAIL pic_id={row.PicId}: measured {measured.Width}x{measured.Height} exceeds smallint");
+                return new PhotoBackfillResult(0, 0, 0, 1, false);
+            }
+
+            wouldUpdate++;
+            Console.WriteLine(
+                $"  {(options.Apply ? "UPDATE" : "PLAN")} pic_id={row.PicId} " +
+                $"{row.PictureWidth}x{row.PictureHeight} -> {measured.Width}x{measured.Height} url={row.Url}");
+
+            if (options.Apply)
+            {
+                await UpdateDimensionsAsync(
+                    options.ConnectionString,
+                    row.PicId,
+                    measured.Width,
+                    measured.Height,
+                    options.CancellationToken);
+                updated++;
+            }
+        }
+        catch (Exception ex)
+        {
+            failed++;
+            await Console.Error.WriteLineAsync($"  FAIL pic_id={row.PicId}: {ex.Message}");
+        }
+
+        return new PhotoBackfillResult(wouldUpdate, updated, 0, failed, true);
     }
 
     private static IPhotoDimensionProbe CreateProbe(BackfillPhotoDimensionsOptions options)
@@ -320,9 +340,9 @@ internal sealed class BackfillPhotoDimensionsOptions
     {
     }
 
-    public string ConnectionString { get; private init; } = string.Empty;
+    public string ConnectionString { get; private set; } = string.Empty;
 
-    public string? StorageConnectionString { get; private init; }
+    public string? StorageConnectionString { get; private set; }
 
     public string? BlobEndpoint { get; private init; }
 
@@ -364,32 +384,8 @@ internal sealed class BackfillPhotoDimensionsOptions
         for (var index = 0; index < args.Length; index++)
         {
             var arg = args[index];
-            if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
+            if (TryReadConnectionOptions(args, ref index, ref connectionString, ref storageConnectionString, ref blobEndpoint))
             {
-                connectionString = connectionStringArgument;
-                continue;
-            }
-
-            if (ToolArgs.TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringArgument))
-            {
-                storageConnectionString = storageConnectionStringArgument;
-                continue;
-            }
-
-            if (ToolArgs.TryReadValue(args, ref index, "--blob-endpoint", out var blobEndpointArgument))
-            {
-                blobEndpoint = blobEndpointArgument;
-                continue;
-            }
-
-            if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var id, out var idError))
-            {
-                if (idError is not null)
-                {
-                    return Invalid(idError);
-                }
-
-                categoryId = id;
                 continue;
             }
 
@@ -402,59 +398,25 @@ internal sealed class BackfillPhotoDimensionsOptions
                 continue;
             }
 
-            if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var n, out var nError))
+            if (TryReadNumericOptions(args, ref index, ref categoryId, ref limit, ref delayMs, out var error))
             {
-                if (nError is not null)
+                if (error is not null)
                 {
-                    return Invalid(nError);
+                    return Invalid(error);
                 }
-
-                limit = n;
                 continue;
             }
 
-            if (string.Equals(arg, "--include-hidden", StringComparison.OrdinalIgnoreCase))
+            if (TryReadMode(arg, ref publicOnly, ref force, ref apply))
             {
-                publicOnly = false;
-                continue;
-            }
-
-            if (string.Equals(arg, "--force", StringComparison.OrdinalIgnoreCase))
-            {
-                force = true;
-                continue;
-            }
-
-            if (string.Equals(arg, "--apply", StringComparison.OrdinalIgnoreCase))
-            {
-                apply = true;
-                continue;
-            }
-
-            if (ToolArgs.TryReadInt(args, ref index, "--delay-ms", 0, out var delay, out var delayError))
-            {
-                if (delayError is not null)
-                {
-                    return Invalid(delayError);
-                }
-
-                delayMs = delay;
                 continue;
             }
 
             return Invalid($"Unsupported or incomplete argument: {arg}");
         }
 
-        connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
-        storageConnectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__BlobStorage");
-        if (string.IsNullOrWhiteSpace(connectionString))
+        return CompleteOptions(new BackfillPhotoDimensionsOptions
         {
-            return Invalid("--connection-string or ConnectionStrings__QueenZoneLegacy is required.");
-        }
-
-        return new BackfillPhotoDimensionsOptions
-        {
-            ConnectionString = connectionString,
             StorageConnectionString = storageConnectionString,
             BlobEndpoint = blobEndpoint,
             CategoryId = categoryId,
@@ -466,7 +428,108 @@ internal sealed class BackfillPhotoDimensionsOptions
             DelayMs = delayMs,
             CancellationToken = CancellationToken.None,
             IsValid = true,
-        };
+        }, connectionString);
+    }
+
+    private static bool TryReadConnectionOptions(string[] args, ref int index, ref string? connectionString, ref string? storageConnectionString, ref string? blobEndpoint)
+    {
+        if (ToolArgs.TryReadValue(args, ref index, "--connection-string", out var connectionStringArgument))
+        {
+            connectionString = connectionStringArgument;
+            return true;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--storage-connection-string", out var storageConnectionStringArgument))
+        {
+            storageConnectionString = storageConnectionStringArgument;
+            return true;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--blob-endpoint", out var blobEndpointArgument))
+        {
+            blobEndpoint = blobEndpointArgument;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadNumericOptions(string[] args, ref int index, ref int? categoryId, ref int? limit, ref int delayMs, out string? error)
+    {
+        error = null;
+        if (ToolArgs.TryReadInt(args, ref index, "--category-id", null, out var id, out var idError))
+        {
+            if (idError is not null)
+            {
+                error = idError;
+                return true;
+            }
+
+            categoryId = id;
+            return true;
+        }
+
+        if (ToolArgs.TryReadInt(args, ref index, "--limit", 1, out var n, out var nError))
+        {
+            if (nError is not null)
+            {
+                error = nError;
+                return true;
+            }
+
+            limit = n;
+            return true;
+        }
+
+        if (ToolArgs.TryReadInt(args, ref index, "--delay-ms", 0, out var delay, out var delayError))
+        {
+            if (delayError is not null)
+            {
+                error = delayError;
+                return true;
+            }
+
+            delayMs = delay;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadMode(string arg, ref bool publicOnly, ref bool force, ref bool apply)
+    {
+        if (string.Equals(arg, "--include-hidden", StringComparison.OrdinalIgnoreCase))
+        {
+            publicOnly = false;
+            return true;
+        }
+
+        if (string.Equals(arg, "--force", StringComparison.OrdinalIgnoreCase))
+        {
+            force = true;
+            return true;
+        }
+
+        if (string.Equals(arg, "--apply", StringComparison.OrdinalIgnoreCase))
+        {
+            apply = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static BackfillPhotoDimensionsOptions CompleteOptions(BackfillPhotoDimensionsOptions options, string? connectionString)
+    {
+        connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
+        options.StorageConnectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__BlobStorage");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return Invalid("--connection-string or ConnectionStrings__QueenZoneLegacy is required.");
+        }
+
+        options.ConnectionString = connectionString;
+        return options;
     }
 
     private static BackfillPhotoDimensionsOptions Invalid(string message) =>
