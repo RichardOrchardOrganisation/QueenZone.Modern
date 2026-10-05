@@ -223,11 +223,7 @@ public sealed class InMemoryHomePollRepository(
         }
 
         return HomePollResultsBuilder.Build(
-            poll.Id,
-            poll.Question,
-            poll.ClosedAt,
-            poll.CreatedAt,
-            poll.PublishedAt,
+            new HomePollMetadata(poll.Id, poll.Question, poll.ClosedAt, poll.CreatedAt, poll.PublishedAt),
             poll.Options.Select(item => (item.Id, item.OptionText, item.DisplayOrder)).ToList(),
             optionCounts,
             selected);

@@ -3,17 +3,13 @@ namespace QueenZone.Data;
 internal static class HomePollResultsBuilder
 {
     public static HomePollResults Build(
-        Guid pollId,
-        string question,
-        DateTimeOffset? closedAt,
-        DateTimeOffset createdAt,
-        DateTimeOffset? publishedAt,
+        HomePollMetadata poll,
         IReadOnlyList<(Guid OptionId, string OptionText, int DisplayOrder)> options,
         IReadOnlyDictionary<Guid, int> optionCounts,
         Guid? selectedOptionId)
     {
         var totalVotes = optionCounts.Values.Sum();
-        var isClosed = closedAt is not null;
+        var isClosed = poll.ClosedAt is not null;
         var resultOptions = options
             .OrderBy(option => option.DisplayOrder)
             .ThenBy(option => option.OptionText)
@@ -31,11 +27,11 @@ internal static class HomePollResultsBuilder
             .ToList();
 
         return new HomePollResults(
-            pollId,
-            question,
-            closedAt,
-            createdAt,
-            publishedAt,
+            poll.Id,
+            poll.Question,
+            poll.ClosedAt,
+            poll.CreatedAt,
+            poll.PublishedAt,
             totalVotes,
             selectedOptionId is not null,
             selectedOptionId,
@@ -43,3 +39,5 @@ internal static class HomePollResultsBuilder
             resultOptions);
     }
 }
+
+internal sealed record HomePollMetadata(Guid Id, string Question, DateTimeOffset? ClosedAt, DateTimeOffset CreatedAt, DateTimeOffset? PublishedAt);

@@ -150,11 +150,12 @@ public sealed class EfNewsRepositorySearchBlankQueryTests : IAsyncDisposable
             .Options);
         repository = new EfNewsRepository(
             dbContext,
-            latestSql: string.Empty,
-            countSql: string.Empty,
-            archivePageSql: string.Empty,
-            byIdSql: string.Empty,
-            sitemapSql: string.Empty);
+            new NewsRepositorySqlTemplates(
+                LatestSql: string.Empty,
+                CountSql: string.Empty,
+                ArchivePageSql: string.Empty,
+                ByIdSql: string.Empty,
+                SitemapSql: string.Empty));
     }
 
     public async ValueTask DisposeAsync()
