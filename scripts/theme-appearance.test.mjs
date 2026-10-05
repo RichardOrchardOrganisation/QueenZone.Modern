@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../src/QueenZone.Web/wwwroot/js/theme.js', import.meta.url), 'utf8');
+const chooser = readFileSync(new URL('../src/QueenZone.Web/Pages/Shared/_ThemeChooser.cshtml', import.meta.url), 'utf8');
 function boot({ theme, saved, offline = false, osDark = false, unavailable = false } = {}) {
   const root = { dataset: { theme, ...(offline ? { themeOffline: "" } : {}) } };
   const store = new Map(saved ? [['qz.offline.appearance', saved]] : []);
@@ -49,4 +50,14 @@ test('an offline public shell restores only a valid choice before styles load', 
 test('storage failure leaves server appearance usable', () => {
   const page = boot({ theme: 'dark', unavailable: true });
   assert.equal(page.meta.content, '#111111');
+});
+test('dormant theme live region is a polite div, not an implicit status role', () => {
+  const liveRegion = chooser.match(/<div\b[^>]*data-theme-status[^>]*>\s*<\/div>/);
+  assert.ok(liveRegion, 'expected an empty data-theme-status div');
+  assert.match(liveRegion[0], /aria-live="polite"/);
+  assert.match(liveRegion[0], /aria-atomic="true"/);
+  assert.match(liveRegion[0], /qz-theme-status/);
+  assert.match(liveRegion[0], /visually-hidden/);
+  assert.doesNotMatch(chooser, /<output\b[^>]*data-theme-status/);
+  assert.doesNotMatch(chooser, /role=["']status["']/);
 });
