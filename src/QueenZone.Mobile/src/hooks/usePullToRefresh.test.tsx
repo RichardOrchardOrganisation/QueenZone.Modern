@@ -74,15 +74,18 @@ describe('usePullToRefresh', () => {
 
   it('does not throw when unmounted during a refresh', async () => {
     const pending = deferred<void>();
-    const { result, unmount } = renderHook(() => usePullToRefresh([() => pending.promise]));
+    const task = jest.fn(() => pending.promise);
+    const { result, unmount } = renderHook(() => usePullToRefresh([task]));
 
     await act(async () => {
       result.current.onRefresh();
     });
+    expect(result.current.refreshing).toBe(true);
     unmount();
     pending.resolve();
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await expect(act(async () => {
+      await pending.promise;
+    })).resolves.toBeUndefined();
+    expect(task).toHaveBeenCalledTimes(1);
   });
 });

@@ -14,8 +14,8 @@ public sealed class NewsColumnAvailabilityWarmupServiceTests
             new ThrowingDbContextFactory(),
             NullLogger<NewsColumnAvailabilityWarmupService>.Instance);
 
-        // Must not throw: a failed startup probe is a degraded path, not a boot failure (#1161).
-        await service.StartAsync(CancellationToken.None);
+        // A failed startup probe is a degraded path, not a boot failure (#1161).
+        Assert.Null(await Record.ExceptionAsync(() => service.StartAsync(CancellationToken.None)));
     }
 
     [Fact]
@@ -42,13 +42,13 @@ public sealed class NewsColumnAvailabilityWarmupServiceTests
     }
 
     [Fact]
-    public async Task StopAsync_completes_immediately()
+    public void StopAsync_completes_immediately()
     {
         var service = new NewsColumnAvailabilityWarmupService(
             new ThrowingDbContextFactory(),
             NullLogger<NewsColumnAvailabilityWarmupService>.Instance);
 
-        await service.StopAsync(CancellationToken.None);
+        Assert.True(service.StopAsync(CancellationToken.None).IsCompletedSuccessfully);
     }
 
     [Fact]

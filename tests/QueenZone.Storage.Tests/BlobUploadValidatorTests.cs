@@ -18,7 +18,7 @@ public sealed class BlobUploadValidatorTests
     {
         foreach (var container in BlobUploadContainers.All)
         {
-            validator.EnsureKnownContainer(container);
+            Assert.Null(Record.Exception(() => validator.EnsureKnownContainer(container)));
         }
     }
 
