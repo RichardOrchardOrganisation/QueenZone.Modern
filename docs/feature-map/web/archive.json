@@ -370,7 +370,9 @@
       ],
       "testIds": [],
       "flows": [],
-      "specs": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/QuizSprintProgressTests.cs"
+      ],
       "selectors": [],
       "signIn": "none",
       "recipe": "",

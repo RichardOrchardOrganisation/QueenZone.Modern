@@ -93,7 +93,7 @@ async function initialise(root) {
             cell.classList.toggle('is-selected', index === state.cell);
             cell.classList.toggle('is-entry', entry.cells.includes(index));
             cell.classList.toggle('is-incorrect', state.incorrectCells.includes(index));
-            cell.setAttribute('aria-selected', String(index === state.cell));
+            cell.closest('td').setAttribute('aria-selected', String(index === state.cell));
             cell.setAttribute('aria-label', core.cellLabel(model, state, index));
             cell.querySelector('[data-letter]').textContent = state.letters[index] === '.' ? '' : state.letters[index];
             let marker = '';

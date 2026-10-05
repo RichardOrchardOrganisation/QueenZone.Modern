@@ -79,6 +79,7 @@ public class E2ECategoryGuardTests
             nameof(ParticipationClarityTests),
             nameof(PhotographyLightboxTests),
             nameof(PrivateMessagingMobileTests),
+            nameof(QuizSprintProgressTests),
             nameof(RealDataDbTests),
             nameof(RealDataMarkerTests),
             nameof(RealDataWriteGuardTests),

@@ -72,9 +72,7 @@ else if (Model.Expired)
 else if (Model.Ticket is { } ticket)
 {
   <div class="qz-sprint" data-sprint-game data-server-now="@Model.ServerNowUnixMilliseconds" data-expires-at="@Model.ExpiresAtUnixMilliseconds" data-answer-url="@ContentApiEndpoints.RootPath/quizzes/sprint/answer">
-    <div class="qz-sprint__bar" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="60" aria-valuenow="60" data-sprint-progress>
-      <span class="qz-sprint__bar-fill" data-sprint-fill></span>
-    </div>
+    <progress class="qz-sprint__bar" aria-label="Time remaining" max="60" value="60" data-sprint-progress>60 seconds remaining</progress>
     <div class="qz-sprint__status" role="timer" aria-label="Time remaining">
       <div class="qz-sprint__clock">
         <output class="qz-sprint__seconds" data-sprint-seconds>60</output>

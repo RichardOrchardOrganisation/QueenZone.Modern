@@ -270,5 +270,14 @@ public class SmokeTests : E2EPageTest
         var dialog = page.GetByRole(AriaRole.Dialog, new() { Name = "Primary navigation" });
         await Expect(dialog).ToBeVisibleAsync();
         await Expect(dialog.GetByRole(AriaRole.Link, new() { Name = "News", Exact = true })).ToBeVisibleAsync();
+        Assert.That(await dialog.EvaluateAsync<bool>("element => element instanceof HTMLDialogElement && element.matches(':modal')"), Is.True);
+        await page.ScreenshotAsync(new() { Path = System.IO.Path.Combine(E2EArtifactPaths.EnsureDirectory(), "mobile-navigation-native-dialog.png"), FullPage = false });
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(dialog).ToBeHiddenAsync();
+        await Expect(page.Locator("[data-menu-open]")).ToBeFocusedAsync();
+        await page.Locator("[data-menu-open]").ClickAsync();
+        await dialog.GetByRole(AriaRole.Button, new() { Name = "Close navigation menu" }).ClickAsync();
+        await Expect(dialog).ToBeHiddenAsync();
+        await Expect(page.Locator("[data-menu-open]")).ToBeFocusedAsync();
     }
 }

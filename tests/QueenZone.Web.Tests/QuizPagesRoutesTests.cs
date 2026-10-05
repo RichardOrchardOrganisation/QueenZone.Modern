@@ -214,7 +214,8 @@ public sealed class QuizPagesRoutesTests : IClassFixture<WebHostVariantCache>, I
         var round = await StartSprintAsync(client, landing);
 
         Assert.Contains("data-sprint-seconds", round, StringComparison.Ordinal);
-        Assert.Contains("role=\"progressbar\"", round, StringComparison.Ordinal);
+        Assert.Contains("<progress", round, StringComparison.Ordinal);
+        Assert.Contains("max=\"60\" value=\"60\" data-sprint-progress", round, StringComparison.Ordinal);
         Assert.Contains("Who was the lead singer?", round, StringComparison.Ordinal);
         Assert.Equal(2, Regex.Matches(round, "data-sprint-question").Count);
         Assert.DoesNotContain("isCorrect", round, StringComparison.OrdinalIgnoreCase);
