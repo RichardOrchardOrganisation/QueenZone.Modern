@@ -34,11 +34,16 @@ public sealed class DetailModel(IBiographyRepository biographyRepository, Public
 
         Chapter = chapter;
         Breadcrumbs = [BreadcrumbItem.Home, new BreadcrumbItem("Biography", "/biography"), new BreadcrumbItem(chapter.Title, BiographyRoutes.GetChapterDetailPath(chapter))];
-        Navigation = ChapterIndex < 0
-            ? new BiographyChapterNav(null, null)
-            : new BiographyChapterNav(
+        if (ChapterIndex < 0)
+        {
+            Navigation = new BiographyChapterNav(null, null);
+        }
+        else
+        {
+            Navigation = new BiographyChapterNav(
                 ChapterIndex > 0 ? readingOrder[ChapterIndex - 1] : null,
                 ChapterIndex < readingOrder.Count - 1 ? readingOrder[ChapterIndex + 1] : null);
+        }
         ViewData["Title"] = $"{chapter.Title} | QueenZone biography";
         ViewData["CanonicalPath"] = BiographyContent.GetDetailCanonicalPath(chapter);
         ViewData["Description"] = BiographyContent.GetListSummary(chapter);
