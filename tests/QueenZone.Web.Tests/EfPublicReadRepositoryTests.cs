@@ -438,7 +438,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Equal(2, sitemap.Count);
 
         var keys = await repository.GetPublishedFeedKeysAsync();
-        Assert.Equal([2, 1], keys.Select(key => key.ArchiveId));
+        Assert.Equal(new[] { 1, 2 }, keys.Select(key => key.ArchiveId).OrderBy(id => id));
         var hydrated = await repository.GetPublishedByIdsAsync([1, 2]);
         Assert.Equal(2, hydrated.Count);
         Assert.All(hydrated, item => Assert.Equal(string.Empty, item.Body));

@@ -89,6 +89,7 @@ internal static class EfProductionSql
                 DATE_CREATED AS PublishedAt
             FROM Q_ARTICLE_T
             WHERE DISPLAY = 1
+            ORDER BY DATE_CREATED DESC, Q_ARTICLE_ID DESC
             """,
             listSelect + """
 

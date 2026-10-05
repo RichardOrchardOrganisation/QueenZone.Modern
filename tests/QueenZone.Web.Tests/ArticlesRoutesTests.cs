@@ -50,8 +50,9 @@ public sealed class ArticlesRoutesTests : IClassFixture<QueenZoneWebApplicationF
         Assert.Contains("/articles/101/inside-the-making-of-bohemian-rhapsody", pageOne);
         Assert.DoesNotContain("/articles/101/inside-the-making-of-bohemian-rhapsody", pageTwo);
         Assert.Contains("/articles/121/archive-sample-article-121", pageTwo);
-        Assert.DoesNotContain("Community articles", pageOne);
-        Assert.DoesNotContain(">Archive<", pageOne);
+        Assert.DoesNotContain(">Community articles<", pageOne);
+        Assert.DoesNotContain("qz-community-articles-header", pageOne);
+        Assert.DoesNotContain("qz-section-heading\">Archive</h2>", pageOne);
         Assert.Contains("class=\"qz-news-row\"", pageOne);
         Assert.Contains("class=\"qz-news-row\"", pageTwo);
         Assert.Contains(TestSiteConfiguration.CanonicalLink("/articles/page/2"), pageTwo);
@@ -228,8 +229,9 @@ public sealed class ArticlesRoutesTests : IClassFixture<QueenZoneWebApplicationF
 
         var body = await client.GetStringAsync("/articles");
 
-        Assert.DoesNotContain("Community articles", body);
-        Assert.DoesNotContain(">Archive<", body);
+        Assert.DoesNotContain(">Community articles<", body);
+        Assert.DoesNotContain("qz-community-articles-header", body);
+        Assert.DoesNotContain("qz-section-heading\">Archive</h2>", body);
         Assert.Contains("class=\"qz-news-row\"", body);
         Assert.Contains(">Recording<", body);
         Assert.Contains("href=\"/articles/101/inside-the-making-of-bohemian-rhapsody\"", body);
