@@ -7,7 +7,7 @@
   <div class="qz-container qz-prose">
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
     {
-      <p class="qz-account-notice qz-account-notice--success" role="status">@Model.StatusMessage</p>
+      <output class="qz-status-block qz-account-notice qz-account-notice--success">@Model.StatusMessage</output>
     }
 
     <p>
@@ -49,11 +49,11 @@
         <h2 id="legacy-heading" class="qz-account-settings__section-title">Legacy forum account</h2>
         @if (Model.LegacyLink.Kind == LegacyAccountLinkKind.Linked && Model.LegacyLink.Match is not null)
         {
-          <p class="qz-account-settings__legacy-status" role="status">
+          <output class="qz-status-block qz-account-settings__legacy-status">
             Linked to legacy forum account
             <strong>@Model.LegacyLink.Match.Username</strong>
             <span class="qz-meta">(id @Model.LegacyLink.Match.UserId)</span>.
-          </p>
+          </output>
           <p class="qz-meta">
             Unlink if this is the wrong classic account. You can then claim another match for your email,
             if one is free.
@@ -67,7 +67,7 @@
             <div class="qz-account-form__actions">
               <button type="submit" class="qz-button qz-button--outline">Unlink legacy account</button>
             </div>
-            <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+            <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
           </form>
         }
         else if (Model.LegacyLink.Kind == LegacyAccountLinkKind.Claimable && Model.LegacyLink.ClaimableMatches.Count > 0)
@@ -137,7 +137,7 @@
             <div class="qz-account-form__actions">
               <button type="submit" class="qz-button">Claim legacy account</button>
             </div>
-            <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+            <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
           </form>
           @if (Model.LegacyLink.UnavailableMatches.Count > 0)
           {
@@ -199,7 +199,7 @@
               <div class="qz-account-form__actions">
                 <button type="submit" class="qz-button">Upload avatar</button>
               </div>
-              <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+              <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
             </form>
             @if (Model.HasAvatar)
             {
@@ -212,7 +212,7 @@
                 <div class="qz-account-form__actions">
                   <button type="submit" class="qz-button qz-button--outline">Remove avatar</button>
                 </div>
-                <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+                <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
               </form>
             }
           </div>
@@ -246,7 +246,7 @@
         <div class="qz-account-form__actions">
           <button type="submit" class="qz-button">Save display name</button>
         </div>
-        <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+        <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
       </form>
 
       <section class="qz-account-settings__legacy" aria-labelledby="social-profiles-heading">
@@ -326,7 +326,7 @@
           <div class="qz-account-form__actions">
             <button type="submit" class="qz-button">Save social profiles</button>
           </div>
-          <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+          <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
         </form>
       </section>
 
@@ -362,7 +362,7 @@
           <div class="qz-account-form__actions">
             <button type="submit" class="qz-button">Save messaging privacy</button>
           </div>
-          <p class="qz-account-form__status" data-busy-status hidden role="status" aria-live="polite"></p>
+          <output class="qz-status-block qz-account-form__status" data-busy-status hidden aria-live="polite"></output>
         </form>
       </section>
 

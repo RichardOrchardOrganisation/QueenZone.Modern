@@ -26,7 +26,7 @@
   <div class="qz-container">
     @if (TempData[ReportModel.StatusMessageKey] is string reportMessage)
     {
-      <p class="qz-account-notice qz-account-notice--success" role="status">@reportMessage</p>
+      <output class="qz-status-block qz-account-notice qz-account-notice--success">@reportMessage</output>
     }
     <partial name="_SectionHeader" model="@(("Thread", "Posts in chronological order", false, "/search", "Search forum"))" />
     <partial name="_ForumTopicWatch" />
@@ -51,7 +51,7 @@
         <partial name="_ForumAttachmentFields" />
         <div class="qz-form__actions">
           <button class="qz-button qz-button--cta" type="submit">Reply</button>
-          <p class="qz-form__busy-status" data-busy-status hidden role="status" aria-live="polite"></p>
+          <output class="qz-status-block qz-form__busy-status" data-busy-status hidden aria-live="polite"></output>
         </div>
       </form>
       <script src="~/js/forum/quote-reply.js" asp-append-version="true"></script>

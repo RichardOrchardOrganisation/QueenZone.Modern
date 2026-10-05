@@ -1,4 +1,5 @@
 using System.Net;
+using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -646,7 +647,7 @@ public sealed class AdminNewsRoutesTests :
 
         var newBody = await client.GetStringAsync("/admin/news/new");
         Assert.Contains(NewsArticleImage.PlaceholderPath, newBody);
-        Assert.Contains("alt=\"No article image\"", newBody);
+        Assert.Equal("", new HtmlParser().ParseDocument(newBody).QuerySelector($"img[src=\"{NewsArticleImage.PlaceholderPath}\"]")?.GetAttribute("alt"));
 
         var createResponse = await PostArticleAsync(
             client,
@@ -666,11 +667,11 @@ public sealed class AdminNewsRoutesTests :
 
         var editBody = await client.GetStringAsync(editPath);
         Assert.Contains(NewsArticleImage.PlaceholderPath, editBody);
-        Assert.Contains("alt=\"No article image\"", editBody);
+        Assert.Equal("", new HtmlParser().ParseDocument(editBody).QuerySelector($"img[src=\"{NewsArticleImage.PlaceholderPath}\"]")?.GetAttribute("alt"));
 
         var previewBody = await client.GetStringAsync($"/admin/news/{articleId}/preview");
         Assert.Contains(NewsArticleImage.PlaceholderPath, previewBody);
-        Assert.Contains("alt=\"No article image\"", previewBody);
+        Assert.Equal("", new HtmlParser().ParseDocument(previewBody).QuerySelector($"img[src=\"{NewsArticleImage.PlaceholderPath}\"]")?.GetAttribute("alt"));
     }
 
     [Fact]
@@ -696,7 +697,7 @@ public sealed class AdminNewsRoutesTests :
 
         var editBody = await client.GetStringAsync("/admin/news/4301/edit");
         Assert.Contains("/ugc/articles/editors/me/hero.webp", editBody);
-        Assert.Contains("alt=\"Article image\"", editBody);
+        Assert.Contains("alt=\"Article preview\"", editBody);
         Assert.DoesNotContain(NewsArticleImage.PlaceholderPath, editBody);
 
         var previewBody = await client.GetStringAsync("/admin/news/4301/preview");
@@ -916,7 +917,7 @@ public sealed class AdminNewsRoutesTests :
         var previewUrl = NewsArticleImage.ResolveDisplayUrl(article.ImageBlobKey, article.ImageGalleryPicId);
         var editBody = await client.GetStringAsync($"/admin/news/{articleId}/edit");
         Assert.Contains(previewUrl, editBody);
-        Assert.Contains("alt=\"Article image\"", editBody);
+        Assert.Contains("alt=\"Article preview\"", editBody);
         Assert.DoesNotContain(NewsArticleImage.PlaceholderPath, editBody);
         Assert.DoesNotContain("value=\"gallery:101\"", editBody);
     }
@@ -1204,7 +1205,7 @@ public sealed class AdminNewsRoutesTests :
         var previewUrl = NewsArticleImage.ResolveDisplayUrl(article.ImageBlobKey, article.ImageGalleryPicId);
         var editBody = await client.GetStringAsync($"/admin/news/{articleId}/edit");
         Assert.Contains(previewUrl, editBody);
-        Assert.Contains("alt=\"Article image\"", editBody);
+        Assert.Contains("alt=\"Article preview\"", editBody);
         Assert.DoesNotContain(NewsArticleImage.PlaceholderPath, editBody);
 
         var previewBody = await client.GetStringAsync($"/admin/news/{articleId}/preview");

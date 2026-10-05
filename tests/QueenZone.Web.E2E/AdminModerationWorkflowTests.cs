@@ -56,7 +56,7 @@ public class AdminModerationWorkflowTests : RealDataPageTest
         }
         catch (TimeoutException ex)
         {
-            var status = await adminPage.Locator("[role='status']").AllInnerTextsAsync();
+            var status = await adminPage.GetByRole(AriaRole.Status).AllInnerTextsAsync();
             Assert.Fail(
                 $"Photo approval did not confirm success. URL={adminPage.Url} status={string.Join(" | ", status)}. {ex.Message}");
         }

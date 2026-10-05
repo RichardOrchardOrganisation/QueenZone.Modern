@@ -1,3 +1,14 @@
+/* Native status outputs retain the paragraph layout used by their notices. */
+:where(output.qz-status-block) {
+  display: block;
+  margin: 0 0 var(--space-4);
+  text-wrap: pretty;
+}
+
+output.qz-status-block[hidden] {
+  display: none;
+}
+
 .qz-skip-link {
   position: absolute;
   z-index: 100;

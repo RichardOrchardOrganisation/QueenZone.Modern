@@ -18,9 +18,10 @@
   @{
     var previewImageUrl = NewsArticleImage.ResolveDisplayUrl(Model.Item.ImageBlobKey, Model.Item.ImageGalleryPicId);
     var hasArticleImage = NewsArticleImage.HasResolvedImage(Model.Item.ImageBlobKey, Model.Item.ImageGalleryPicId);
+    var previewAlt = hasArticleImage ? Model.Item.Title : "";
   }
   <figure class="admin-article-image">
-    <img src="@previewImageUrl" alt="@(hasArticleImage ? Model.Item.Title : "No article image")" width="600" height="400">
+    <img src="@previewImageUrl" alt="@previewAlt" width="600" height="400">
   </figure>
 
   <p class="lede">@Model.Item.Excerpt</p>
