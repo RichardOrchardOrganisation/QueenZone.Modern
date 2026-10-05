@@ -30,14 +30,7 @@ public abstract class ArticlesArchivePageModel(PublicQueryCacheService publicQue
         var normalizedTag = string.IsNullOrWhiteSpace(tag) ? null : tag;
         var index = await publicQueryCache.GetMergedArticleFeedIndexAsync(normalizedTag, cancellationToken);
         var totalPages = ArticlesRoutes.GetArchiveTotalPages(index.Count);
-        if (totalPages == 0)
-        {
-            if (page > 1)
-            {
-                return NotFound();
-            }
-        }
-        else if (page > totalPages)
+        if (page > Math.Max(1, totalPages))
         {
             return NotFound();
         }
@@ -56,6 +49,12 @@ public abstract class ArticlesArchivePageModel(PublicQueryCacheService publicQue
         ViewData["Description"] = PageMetaDescription.ForArchiveIndex(
             "In-depth Queen articles and interviews from the Queenzone.com archive.",
             page);
+        SetArchiveMetadata(page, totalPages, normalizedTag);
+
+        return Page();
+    }
+    private void SetArchiveMetadata(int page, int totalPages, string? normalizedTag)
+    {
         if (page <= 1)
         {
             ViewData["RssFeedPath"] = ArticlesRoutes.FeedPath;
@@ -87,6 +86,6 @@ public abstract class ArticlesArchivePageModel(PublicQueryCacheService publicQue
             ViewData["CanonicalPath"] = ArticlesRoutes.GetArchiveCanonicalPath(1);
         }
 
-        return Page();
     }
+
 }

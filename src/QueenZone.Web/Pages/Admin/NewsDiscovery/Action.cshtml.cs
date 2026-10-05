@@ -210,6 +210,14 @@ public sealed class ActionModel(
             return Redirect($"/admin/news-discovery/{id}");
         }
 
+        await GenerateCandidateDraftAsync(candidate, cancellationToken);
+
+        return Redirect($"/admin/news-discovery/{id}");
+    }
+
+    private async Task GenerateCandidateDraftAsync(NewsCandidate candidate, CancellationToken cancellationToken)
+    {
+        var id = candidate.Id;
         try
         {
             var hadDraft = await discoveryRepository.GetDraftByCandidateIdAsync(id, cancellationToken) is not null;
@@ -241,7 +249,6 @@ public sealed class ActionModel(
             TempData["DiscoveryMessageKind"] = "error";
         }
 
-        return Redirect($"/admin/news-discovery/{id}");
     }
 
     private IActionResult RedirectToReview(int id, string? message)
