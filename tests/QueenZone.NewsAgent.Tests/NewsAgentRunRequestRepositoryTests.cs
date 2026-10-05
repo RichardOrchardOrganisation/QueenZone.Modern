@@ -29,7 +29,8 @@ public sealed class NewsAgentRunRequestRepositoryTests
     [Fact]
     public async Task Claim_is_single_consumer_and_records_heartbeat()
     {
-        var repository = CreateRepository();
+        var clock = new FixedTimeProvider();
+        var repository = new InMemoryNewsAgentRunRequestRepository(new SharedNewsAgentRunRequestStore(clock));
         await repository.QueueAsync(new QueenZone.Data.NewsAgentRunRequestCreate("editor@example.com"));
 
         var first = await repository.ClaimNextAsync("news-pc");
@@ -40,6 +41,7 @@ public sealed class NewsAgentRunRequestRepositoryTests
         Assert.Null(second);
         Assert.NotNull(heartbeat);
         Assert.Equal("news-pc-2", heartbeat.RunnerId);
+        Assert.Equal(clock.GetUtcNow().UtcDateTime, heartbeat.LastSeenAtUtc);
     }
 
     [Fact]
@@ -57,4 +59,10 @@ public sealed class NewsAgentRunRequestRepositoryTests
 
     private static InMemoryNewsAgentRunRequestRepository CreateRepository() =>
         new(new SharedNewsAgentRunRequestStore());
+
+    private sealed class FixedTimeProvider : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(2026, 10, 5, 0, 0, 0, TimeSpan.Zero);
+    }
+
 }
