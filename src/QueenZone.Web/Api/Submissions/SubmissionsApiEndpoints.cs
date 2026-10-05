@@ -190,7 +190,7 @@ public static class SubmissionsApiEndpoints
             return null;
         }
 
-        memberId = default;
+        memberId = Guid.Empty;
         return Results.Problem(
             statusCode: StatusCodes.Status401Unauthorized,
             title: "Unauthorized",

@@ -5,11 +5,10 @@
 @{
   var submission = Model.Submission!;
   var canAct = submission.Status is TriviaFactSubmissionStatus.Pending;
-  var publishedSource = string.IsNullOrWhiteSpace(submission.SourceNote)
+  var sourceNote = submission.SourceNote;
+  var publishedSource = string.IsNullOrWhiteSpace(sourceNote)
       ? string.Empty
-      : submission.SourceNote.Length <= TriviaValidation.MaxSourceLength
-          ? submission.SourceNote
-          : submission.SourceNote[..TriviaValidation.MaxSourceLength];
+      : sourceNote[..Math.Min(sourceNote.Length, TriviaValidation.MaxSourceLength)];
 }
 
 <div class="admin-shell">

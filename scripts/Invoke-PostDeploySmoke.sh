@@ -136,26 +136,20 @@ check_path() {
       return 1
     fi
   fi
-  if [[ "$path" = "/api/v1" ]]; then
-    if ! grep -q '"version":"v1"' "$body_file"; then
-      echo "  ✗ $path → 200 but body missing \"version\":\"v1\""
-      rm -f "$body_file"
-      return 1
-    fi
+  if [[ "$path" = "/api/v1" ]] && ! grep -q '"version":"v1"' "$body_file"; then
+    echo "  ✗ $path → 200 but body missing \"version\":\"v1\""
+    rm -f "$body_file"
+    return 1
   fi
-  if [[ "$path" = "/api/v1/content/news?pageSize=1" ]]; then
-    if ! grep -q '"items"' "$body_file"; then
-      echo "  ✗ $path → 200 but body missing items array"
-      rm -f "$body_file"
-      return 1
-    fi
+  if [[ "$path" = "/api/v1/content/news?pageSize=1" ]] && ! grep -q '"items"' "$body_file"; then
+    echo "  ✗ $path → 200 but body missing items array"
+    rm -f "$body_file"
+    return 1
   fi
-  if [[ -n "$EXPECT_BUILD_VERSION" ]] && [[ "$path" = "/" ]]; then
-    if ! grep -q "data-build-version=\"${EXPECT_BUILD_VERSION}\"" "$body_file"; then
-      echo "  ✗ $path → 200 but build stamp is not ${EXPECT_BUILD_VERSION} (deployed package did not become the running app)"
-      rm -f "$body_file"
-      return 1
-    fi
+  if [[ -n "$EXPECT_BUILD_VERSION" ]] && [[ "$path" = "/" ]] && ! grep -q "data-build-version=\"${EXPECT_BUILD_VERSION}\"" "$body_file"; then
+    echo "  ✗ $path → 200 but build stamp is not ${EXPECT_BUILD_VERSION} (deployed package did not become the running app)"
+    rm -f "$body_file"
+    return 1
   fi
   echo "  ✓ $path → HTTP $status"
   rm -f "$body_file"

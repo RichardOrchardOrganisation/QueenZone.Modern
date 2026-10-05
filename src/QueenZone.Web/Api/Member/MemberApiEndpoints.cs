@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using QueenZone.Data;
@@ -347,5 +348,5 @@ public static class MemberApiEndpoints
         int.TryParse(value, out var parsed) ? parsed : null;
 
     private static DateOnly? TryParseDateOnly(string? value) =>
-        DateOnly.TryParse(value, out var parsed) ? parsed : null;
+        DateOnly.TryParse(value, CultureInfo.CurrentCulture, out var parsed) ? parsed : null;
 }

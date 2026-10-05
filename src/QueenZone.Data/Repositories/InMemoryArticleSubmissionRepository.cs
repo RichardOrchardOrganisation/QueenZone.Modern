@@ -34,10 +34,10 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
 
                 entity.Title = Trim300(draft.Title);
                 entity.Slug = GenerateSlug(draft.Title);
-                entity.Excerpt = TrimOpt(draft.Excerpt, 500);
+                entity.Excerpt = SubmissionInput.NormalizeOptional(draft.Excerpt, 500);
                 entity.Body = draft.Body ?? string.Empty;
-                entity.CoverImageBlobPath = TrimOpt(draft.CoverImageBlobPath, 512);
-                entity.Tags = TrimOpt(draft.Tags, 500);
+                entity.CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512);
+                entity.Tags = SubmissionInput.NormalizeOptional(draft.Tags, 500);
             }
             else
             {
@@ -47,10 +47,10 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
                     AuthorMemberId = draft.AuthorMemberId,
                     Title = Trim300(draft.Title),
                     Slug = GenerateSlug(draft.Title),
-                    Excerpt = TrimOpt(draft.Excerpt, 500),
+                    Excerpt = SubmissionInput.NormalizeOptional(draft.Excerpt, 500),
                     Body = draft.Body ?? string.Empty,
-                    CoverImageBlobPath = TrimOpt(draft.CoverImageBlobPath, 512),
-                    Tags = TrimOpt(draft.Tags, 500),
+                    CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512),
+                    Tags = SubmissionInput.NormalizeOptional(draft.Tags, 500),
                     Status = ArticleSubmissionStatus.Draft,
                 };
                 submissions.Add(entity);
@@ -184,12 +184,12 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
             }
 
             entity.Status = status;
-            entity.ReviewerEmail = TrimOpt(reviewerEmail, 256);
-            entity.ReviewNotes = TrimOpt(notes, 1000);
+            entity.ReviewerEmail = SubmissionInput.NormalizeOptional(reviewerEmail, 256);
+            entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 1000);
 
             if (!string.IsNullOrWhiteSpace(rejectionReason))
             {
-                entity.RejectionReason = TrimOpt(rejectionReason, 1000);
+                entity.RejectionReason = SubmissionInput.NormalizeOptional(rejectionReason, 1000);
             }
 
             if (!string.IsNullOrWhiteSpace(slug))
@@ -199,12 +199,12 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
 
             if (excerpt is not null)
             {
-                entity.Excerpt = TrimOpt(excerpt, 500);
+                entity.Excerpt = SubmissionInput.NormalizeOptional(excerpt, 500);
             }
 
             if (tags is not null)
             {
-                entity.Tags = TrimOpt(tags, 500);
+                entity.Tags = SubmissionInput.NormalizeOptional(tags, 500);
             }
 
             if (status == ArticleSubmissionStatus.Published)
@@ -278,12 +278,6 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
 
     private static string Trim300(string value) =>
         value.Trim() is { Length: > 300 } s ? s[..300] : value.Trim();
-
-    private static string? TrimOpt(string? value, int max) =>
-        string.IsNullOrWhiteSpace(value) ? null
-            : value.Trim() is { Length: > 0 } s && s.Length <= max ? s
-            : value.Trim().Length > max ? value.Trim()[..max]
-            : null;
 
     private static string GenerateSlug(string title) =>
         string.IsNullOrWhiteSpace(title) ? Guid.NewGuid().ToString("N")[..8] : NewsSlug.Slugify(title.Trim());

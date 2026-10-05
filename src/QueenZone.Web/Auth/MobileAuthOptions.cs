@@ -50,10 +50,13 @@ public sealed class MobileAuthOptions
     /// <summary>HMAC-SHA256 key, at least 32 characters. Never commit a production value.</summary>
     public string SigningKey { get; init; } = string.Empty;
 
-    public string ResolveSigningKey(bool productionLike) =>
-        OptionsValidation.LooksConfigured(SigningKey)
-            ? SigningKey.Trim()
-            : productionLike
-                ? string.Empty
-                : DevelopmentSigningKey;
+    public string ResolveSigningKey(bool productionLike)
+    {
+        if (OptionsValidation.LooksConfigured(SigningKey))
+        {
+            return SigningKey.Trim();
+        }
+
+        return productionLike ? string.Empty : DevelopmentSigningKey;
+    }
 }

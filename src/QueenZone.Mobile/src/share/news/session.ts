@@ -304,6 +304,44 @@ export function createNewsShareController(
     }
   }
 
+  type CapturedShare = Exclude<ShareIntake, { kind: 'rejected' }>;
+
+  function matchesCurrentShare(intake: CapturedShare, fingerprint: string): boolean {
+    const current = state.persisted;
+    if (intake.kind === 'accepted' && current?.kind === 'form') {
+      return Boolean(current.draft.url) && normalizeShareUrl(current.draft.url) === fingerprint;
+    }
+    return intake.kind === 'choose' && current?.kind === 'choose' && shareSlotFingerprint(current) === fingerprint;
+  }
+
+  async function persistCapturedShare(intake: CapturedShare): Promise<void> {
+    if (intake.kind === 'choose') {
+      await persistNow({ v: 1, kind: 'choose', candidates: intake.candidates });
+      return;
+    }
+    await persistNow({
+      v: 1,
+      kind: 'form',
+      draft: { url: intake.url, title: intake.leftoverText, notes: '', origin: 'share' },
+    });
+  }
+
+  async function captureIncoming(intake: CapturedShare): Promise<void> {
+    await ensureHydrated();
+    const fingerprint = shareIntakeFingerprint(intake);
+    if (fingerprint && (matchesCurrentShare(intake, fingerprint) || (!state.persisted && state.lastConsumed === fingerprint))) {
+      state.ephemeralReject = null;
+      emit();
+      return;
+    }
+    if (fingerprint) rememberConsumed(fingerprint);
+    await persistCapturedShare(intake);
+    state.ephemeralReject = null;
+    state.lastCreated = null;
+    state.lastError = null;
+    emit();
+  }
+
   return {
     async hydrate() {
       await hydrateFromStore();
@@ -311,68 +349,10 @@ export function createNewsShareController(
     async capture(raw) {
       const intake = parseShare(raw);
       switch (intake.kind) {
-        case 'accepted': {
-          await ensureHydrated();
-          const fingerprint = shareIntakeFingerprint(intake);
-          const current = state.persisted;
-          if (
-            current?.kind === 'form' &&
-            current.draft.url &&
-            fingerprint &&
-            normalizeShareUrl(current.draft.url) === fingerprint
-          ) {
-            state.ephemeralReject = null;
-            emit();
-            break;
-          }
-          if (!current && fingerprint && state.lastConsumed === fingerprint) {
-            state.ephemeralReject = null;
-            emit();
-            break;
-          }
-          if (fingerprint) {
-            rememberConsumed(fingerprint);
-          }
-          await persistNow({
-            v: 1,
-            kind: 'form',
-            draft: {
-              url: intake.url,
-              title: intake.leftoverText,
-              notes: '',
-              origin: 'share',
-            },
-          });
-          state.ephemeralReject = null;
-          state.lastCreated = null;
-          state.lastError = null;
-          emit();
+        case 'accepted':
+        case 'choose':
+          await captureIncoming(intake);
           break;
-        }
-        case 'choose': {
-          await ensureHydrated();
-          const fingerprint = shareIntakeFingerprint(intake);
-          const current = state.persisted;
-          if (current?.kind === 'choose' && fingerprint && shareSlotFingerprint(current) === fingerprint) {
-            state.ephemeralReject = null;
-            emit();
-            break;
-          }
-          if (!current && fingerprint && state.lastConsumed === fingerprint) {
-            state.ephemeralReject = null;
-            emit();
-            break;
-          }
-          if (fingerprint) {
-            rememberConsumed(fingerprint);
-          }
-          await persistNow({ v: 1, kind: 'choose', candidates: intake.candidates });
-          state.ephemeralReject = null;
-          state.lastCreated = null;
-          state.lastError = null;
-          emit();
-          break;
-        }
         case 'rejected':
           await persistNow(null);
           state.ephemeralReject = intake;

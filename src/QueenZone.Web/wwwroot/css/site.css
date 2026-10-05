@@ -1568,6 +1568,14 @@ body.qz-menu-lock .qz-masthead {
     linear-gradient(180deg, transparent 55%, rgba(13, 13, 13, 0.35));
 }
 
+/* Native grouping elements retain the layout of their existing controls. */
+:where(.qz-semantic-group) {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
 /* Era ticker */
 .qz-hero-archive__ticker {
   position: absolute;

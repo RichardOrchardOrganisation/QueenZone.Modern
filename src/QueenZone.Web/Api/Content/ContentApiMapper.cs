@@ -351,15 +351,20 @@ public static class ContentApiMapper
         string slug,
         int? picId,
         PhotoListFilter? filter,
-        PhotoNeighborMedia? media) =>
-        picId is int id
-            ? new PhotoNavDto(
-                id,
-                PhotoRoutes.GetDetailPath(slug, id, filter),
-                string.IsNullOrWhiteSpace(media?.FilePath) ? null : PhotoImageUrl.Build(media.FilePath!),
-                media?.PictureWidth,
-                media?.PictureHeight)
-            : null;
+        PhotoNeighborMedia? media)
+    {
+        if (picId is not int id)
+        {
+            return null;
+        }
+
+        return new PhotoNavDto(
+            id,
+            PhotoRoutes.GetDetailPath(slug, id, filter),
+            string.IsNullOrWhiteSpace(media?.FilePath) ? null : PhotoImageUrl.Build(media.FilePath!),
+            media?.PictureWidth,
+            media?.PictureHeight);
+    }
 
     public static FanPerformanceDto ToFanPerformanceDto(FanPerformance performance, int? durationSeconds) =>
         new(

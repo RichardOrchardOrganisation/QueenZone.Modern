@@ -110,10 +110,7 @@ public static class ArchivePagination
         var start = currentPage - 1;
         var end = currentPage + 1;
 
-        if (start > 2)
-        {
-            yield return null;
-        }
+        yield return null;
 
         for (var page = Math.Max(2, start); page <= Math.Min(totalPages - 1, end); page++)
         {
