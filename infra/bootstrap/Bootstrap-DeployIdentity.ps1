@@ -24,6 +24,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 . (Join-Path $PSScriptRoot "Resolve-GitHubOidcRepositorySegment.ps1")
+. (Join-Path $PSScriptRoot "Assert-GitHubFederatedCredential.ps1")
 $OidcRepositorySegment = Resolve-GitHubOidcRepositorySegment -GitHubRepository $GitHubRepository -OidcOwnerId $OidcOwnerId -OidcRepositoryId $OidcRepositoryId
 
 function Invoke-Native {
@@ -141,11 +142,8 @@ function Ensure-WorkloadIdentity {
 
     $existingCredentials = @(Invoke-AzJson @("ad", "app", "federated-credential", "list", "--id", $application.id))
     $existingCredential = $existingCredentials | Where-Object { $_.name -eq $FederatedCredentialName } | Select-Object -First 1
-    if ($null -ne $existingCredential -and
-        ($existingCredential.subject -ne $subject -or $existingCredential.issuer -ne $credential.issuer -or
-         @($existingCredential.audiences).Count -ne 1 -or $existingCredential.audiences[0] -ne "api://AzureADTokenExchange")) {
-        throw "Federated credential '$FederatedCredentialName' exists with a different issuer or subject. Review it before changing trust."
-    }
+    Assert-GitHubFederatedCredential -ExistingCredential $existingCredential -Subject $subject `
+        -Issuer $credential.issuer -CredentialName $FederatedCredentialName
 
     if ($null -eq $existingCredential -and $existingCredentials.Count -ge 20) {
         throw "'$DisplayName' has reached the 20 federated-credential limit."

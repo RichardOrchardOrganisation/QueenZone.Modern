@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "../infra/bootstrap/Resolve-GitHubOidcRepositorySegment.ps1")
+. (Join-Path $PSScriptRoot "../infra/bootstrap/Assert-GitHubFederatedCredential.ps1")
 
 $old = Resolve-GitHubOidcRepositorySegment -GitHubRepository "richardorchard/QueenZone.Modern"
 if ($old -ne "richardorchard/QueenZone.Modern") { throw "Legacy OIDC segment changed." }
@@ -24,3 +25,22 @@ foreach ($case in @(
 }
 
 Write-Output "OIDC repository segment self-test passed."
+
+$subject = 'repo:fixture:environment:fixture'
+$issuer = 'https://token.actions.githubusercontent.com'
+Assert-GitHubFederatedCredential -ExistingCredential $null -Subject $subject -Issuer $issuer -CredentialName 'fixture'
+$good = [pscustomobject]@{ subject=$subject; issuer=$issuer; audiences=@('api://AzureADTokenExchange') }
+Assert-GitHubFederatedCredential -ExistingCredential $good -Subject $subject -Issuer $issuer -CredentialName 'fixture'
+foreach ($case in @(
+    @{subject='wrong';issuer=$issuer;audiences=@('api://AzureADTokenExchange')},
+    @{subject=$subject;issuer='wrong';audiences=@('api://AzureADTokenExchange')},
+    @{subject=$subject;issuer=$issuer;audiences=@()},
+    @{subject=$subject;issuer=$issuer;audiences=@('wrong')},
+    @{subject=$subject;issuer=$issuer;audiences=@('api://AzureADTokenExchange','extra')}
+)) {
+    $failed=$false
+    try { Assert-GitHubFederatedCredential -ExistingCredential ([pscustomobject]$case) -Subject $subject -Issuer $issuer -CredentialName 'fixture' }
+    catch { $failed=$true; if ($_.Exception.Message -notlike "Federated credential 'fixture' exists*") { throw } }
+    if (-not $failed) { throw 'Invalid trust accepted' }
+}
+Write-Output 'PASS: absent/matching credential accepted; all five trust mismatches rejected.'
