@@ -81,16 +81,7 @@ public sealed class PhotoModel(
         }
 
         await using var stream = PhotoFile.OpenReadStream();
-        var result = await photoSubmissionService.SubmitAsync(
-            memberId.Value,
-            Title,
-            Description,
-            SuggestedCategory,
-            ApproximateYear,
-            ApproximateDate,
-            stream,
-            PhotoFile.FileName,
-            cancellationToken);
+        var result = await photoSubmissionService.SubmitAsync(memberId.Value, new PhotoSubmissionDetails(Title, Description, SuggestedCategory, ApproximateYear, ApproximateDate), stream, PhotoFile.FileName, cancellationToken);
 
         if (!result.Succeeded || result.Submission is null)
         {

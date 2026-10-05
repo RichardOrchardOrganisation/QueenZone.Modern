@@ -14,50 +14,41 @@ public sealed class FanPerformanceSubmissionServiceTests
         var service = CreateService(out _);
         await using var audio = new MemoryStream(CreateMpegPayload(200));
 
-        var unsigned = await service.SubmitAsync(
-            Guid.Empty, "Title", "Song", "Me", null, true, audio, "cover.mp3");
+        var unsigned = await service.SubmitAsync(Guid.Empty, new FanPerformanceSubmissionDetails("Title", "Song", "Me", null, true), audio, "cover.mp3");
         Assert.False(unsigned.Succeeded);
         Assert.Contains("Sign in", unsigned.Error);
 
         audio.Position = 0;
-        var noRights = await service.SubmitAsync(
-            Guid.NewGuid(), "Title", "Song", "Me", null, false, audio, "cover.mp3");
+        var noRights = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("Title", "Song", "Me", null, false), audio, "cover.mp3");
         Assert.False(noRights.Succeeded);
         Assert.Contains("own performance", noRights.Error);
 
         audio.Position = 0;
-        var emptyTitle = await service.SubmitAsync(
-            Guid.NewGuid(), "  ", "Song", "Me", null, true, audio, "cover.mp3");
+        var emptyTitle = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("  ", "Song", "Me", null, true), audio, "cover.mp3");
         Assert.False(emptyTitle.Succeeded);
 
         audio.Position = 0;
-        var longTitle = await service.SubmitAsync(
-            Guid.NewGuid(), new string('t', 201), "Song", "Me", null, true, audio, "cover.mp3");
+        var longTitle = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails(new string('t', 201), "Song", "Me", null, true), audio, "cover.mp3");
         Assert.False(longTitle.Succeeded);
 
         audio.Position = 0;
-        var emptySong = await service.SubmitAsync(
-            Guid.NewGuid(), "Title", "  ", "Me", null, true, audio, "cover.mp3");
+        var emptySong = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("Title", "  ", "Me", null, true), audio, "cover.mp3");
         Assert.False(emptySong.Succeeded);
 
         audio.Position = 0;
-        var longSong = await service.SubmitAsync(
-            Guid.NewGuid(), "Title", new string('s', 201), "Me", null, true, audio, "cover.mp3");
+        var longSong = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("Title", new string('s', 201), "Me", null, true), audio, "cover.mp3");
         Assert.False(longSong.Succeeded);
 
         audio.Position = 0;
-        var emptyPerformer = await service.SubmitAsync(
-            Guid.NewGuid(), "Title", "Song", "  ", null, true, audio, "cover.mp3");
+        var emptyPerformer = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("Title", "Song", "  ", null, true), audio, "cover.mp3");
         Assert.False(emptyPerformer.Succeeded);
 
         audio.Position = 0;
-        var longPerformer = await service.SubmitAsync(
-            Guid.NewGuid(), "Title", "Song", new string('p', 201), null, true, audio, "cover.mp3");
+        var longPerformer = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("Title", "Song", new string('p', 201), null, true), audio, "cover.mp3");
         Assert.False(longPerformer.Succeeded);
 
         audio.Position = 0;
-        var longDescription = await service.SubmitAsync(
-            Guid.NewGuid(), "Title", "Song", "Me", new string('d', 2001), true, audio, "cover.mp3");
+        var longDescription = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("Title", "Song", "Me", new string('d', 2001), true), audio, "cover.mp3");
         Assert.False(longDescription.Succeeded);
     }
 
@@ -68,15 +59,7 @@ public sealed class FanPerformanceSubmissionServiceTests
         var memberId = Guid.NewGuid();
         await using var audio = new MemoryStream(CreateMpegPayload(16_000));
 
-        var result = await service.SubmitAsync(
-            memberId,
-            "Reaching Out cover",
-            "Reaching Out",
-            "A fan",
-            "Living room take",
-            true,
-            audio,
-            "cover.mp3");
+        var result = await service.SubmitAsync(memberId, new FanPerformanceSubmissionDetails("Reaching Out cover", "Reaching Out", "A fan", "Living room take", true), audio, "cover.mp3");
 
         Assert.True(result.Succeeded, result.Error);
         Assert.Equal(FanPerformanceSubmissionStatus.Pending, result.Submission!.Status);
@@ -113,11 +96,11 @@ public sealed class FanPerformanceSubmissionServiceTests
 
         var memberId = Guid.NewGuid();
         await using var first = new MemoryStream(CreateMpegPayload(200));
-        var ok = await service.SubmitAsync(memberId, "One", "Song", "Me", null, true, first, "a.mp3");
+        var ok = await service.SubmitAsync(memberId, new FanPerformanceSubmissionDetails("One", "Song", "Me", null, true), first, "a.mp3");
         Assert.True(ok.Succeeded, ok.Error);
 
         await using var second = new MemoryStream(CreateMpegPayload(200));
-        var blocked = await service.SubmitAsync(memberId, "Two", "Song", "Me", null, true, second, "b.mp3");
+        var blocked = await service.SubmitAsync(memberId, new FanPerformanceSubmissionDetails("Two", "Song", "Me", null, true), second, "b.mp3");
         Assert.False(blocked.Succeeded);
         Assert.Contains("Daily upload", blocked.Error);
     }
@@ -127,8 +110,7 @@ public sealed class FanPerformanceSubmissionServiceTests
     {
         var service = CreateService(out var backend);
         await using var junk = new MemoryStream("not-an-mp3"u8.ToArray());
-        var result = await service.SubmitAsync(
-            Guid.NewGuid(), "Bad file", "Song", "Me", null, true, junk, "fake.mp3");
+        var result = await service.SubmitAsync(Guid.NewGuid(), new FanPerformanceSubmissionDetails("Bad file", "Song", "Me", null, true), junk, "fake.mp3");
         Assert.False(result.Succeeded);
         Assert.Contains("not recognized as audio", result.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Null(result.Submission);
@@ -140,8 +122,7 @@ public sealed class FanPerformanceSubmissionServiceTests
         var service = CreateService(out var backend);
         var memberId = Guid.NewGuid();
         await using var audio = new MemoryStream(CreateMpegPayload(200));
-        var created = await service.SubmitAsync(
-            memberId, "Withdraw me", "Song", "Me", null, true, audio, "cover.mp3");
+        var created = await service.SubmitAsync(memberId, new FanPerformanceSubmissionDetails("Withdraw me", "Song", "Me", null, true), audio, "cover.mp3");
         Assert.True(created.Succeeded, created.Error);
         Assert.True(backend.Exists(BlobUploadContainers.FanPerformances, created.Submission!.BlobPath));
 
@@ -159,7 +140,7 @@ public sealed class FanPerformanceSubmissionServiceTests
         var service = CreateService(repository, backend);
         var owner = Guid.NewGuid();
         await using var audio = new MemoryStream(CreateMpegPayload(200));
-        var created = await service.SubmitAsync(owner, "Mine", "Song", "Me", null, true, audio, "cover.mp3");
+        var created = await service.SubmitAsync(owner, new FanPerformanceSubmissionDetails("Mine", "Song", "Me", null, true), audio, "cover.mp3");
 
         var missing = await service.WithdrawAsync(owner, Guid.NewGuid());
         Assert.False(missing.Succeeded);
@@ -186,8 +167,7 @@ public sealed class FanPerformanceSubmissionServiceTests
         var service = CreateService(repository, new InMemoryBlobStorageBackend());
         var memberId = Guid.NewGuid();
         await using var audio = new MemoryStream(CreateMpegPayload(200));
-        var created = await service.SubmitAsync(
-            memberId, "Needs reply", "Song", "Me", null, true, audio, "cover.mp3");
+        var created = await service.SubmitAsync(memberId, new FanPerformanceSubmissionDetails("Needs reply", "Song", "Me", null, true), audio, "cover.mp3");
         await repository.UpdateStatusAsync(
             created.Submission!.Id,
             FanPerformanceSubmissionStatus.NeedsInfo,

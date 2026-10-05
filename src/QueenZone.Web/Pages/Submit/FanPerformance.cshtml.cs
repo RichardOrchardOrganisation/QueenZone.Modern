@@ -90,16 +90,7 @@ public sealed class FanPerformanceModel(FanPerformanceSubmissionService fanPerfo
         }
 
         await using var stream = AudioFile.OpenReadStream();
-        var result = await fanPerformanceSubmissionService.SubmitAsync(
-            memberId.Value,
-            Title,
-            CoveredSong,
-            PerformedBy,
-            Description,
-            RightsDeclarationAccepted,
-            stream,
-            AudioFile.FileName,
-            cancellationToken);
+        var result = await fanPerformanceSubmissionService.SubmitAsync(memberId.Value, new FanPerformanceSubmissionDetails(Title, CoveredSong, PerformedBy, Description, RightsDeclarationAccepted), stream, AudioFile.FileName, cancellationToken);
 
         if (!result.Succeeded || result.Submission is null)
         {

@@ -113,16 +113,7 @@ public static class MemberApiEndpoints
         }
 
         await using var stream = photo.OpenReadStream();
-        var result = await photoSubmissionService.SubmitAsync(
-            memberId.Value,
-            title ?? string.Empty,
-            description,
-            suggestedCategory,
-            approximateYear,
-            approximateDate,
-            stream,
-            photo.FileName,
-            cancellationToken);
+        var result = await photoSubmissionService.SubmitAsync(memberId.Value, new PhotoSubmissionDetails(title ?? string.Empty, description, suggestedCategory, approximateYear, approximateDate), stream, photo.FileName, cancellationToken);
 
         if (!result.Succeeded || result.Submission is null)
         {
@@ -247,16 +238,7 @@ public static class MemberApiEndpoints
         }
 
         await using var stream = audio.OpenReadStream();
-        var result = await fanPerformanceSubmissionService.SubmitAsync(
-            memberId.Value,
-            title ?? string.Empty,
-            coveredSong ?? string.Empty,
-            performedBy ?? string.Empty,
-            description,
-            rightsAccepted,
-            stream,
-            audio.FileName,
-            cancellationToken);
+        var result = await fanPerformanceSubmissionService.SubmitAsync(memberId.Value, new FanPerformanceSubmissionDetails(title ?? string.Empty, coveredSong ?? string.Empty, performedBy ?? string.Empty, description, rightsAccepted), stream, audio.FileName, cancellationToken);
 
         if (!result.Succeeded || result.Submission is null)
         {
