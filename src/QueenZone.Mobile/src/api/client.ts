@@ -309,7 +309,7 @@ function retryAfterMsFrom(response: Response): number | null {
   return null;
 }
 
-async function request<T>(input: {
+type RequestInput = {
   method: HttpMethod;
   path: string;
   url: string;
@@ -317,25 +317,65 @@ async function request<T>(input: {
   body?: string | FormData;
   signal?: AbortSignal;
   policy: RequestPolicy;
-}): Promise<T> {
+};
+
+async function waitForRetry(input: RequestInput, attempt: number, startedAt: number, lastError: unknown): Promise<void> {
+  if (input.signal?.aborted) {
+    throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+  }
+  const delay = computeGetRetryDelayMs(attempt - 1);
+  const remaining = input.policy.totalTimeoutMs - (Date.now() - startedAt);
+  if (Math.min(input.policy.attemptTimeoutMs, remaining - delay) <= 0) {
+    reportTerminal(lastError, input.method, input.path);
+    throw lastError;
+  }
+  await abortableSleep(delay, input.signal);
+}
+
+async function fetchResponse(input: RequestInput, deadline: DeadlineHandle): Promise<Response> {
+  try {
+    return await fetch(input.url, {
+      method: input.method,
+      headers: input.headers,
+      body: input.body,
+      signal: deadline.signal,
+    });
+  } catch (err) {
+    throw classifyFetchFailure(err, deadline, input.signal);
+  }
+}
+
+async function readResponse<T>(response: Response, input: RequestInput): Promise<T> {
+  if (!response.ok) {
+    const problem = await readProblem(response);
+    const fallback = input.policy.write
+      ? messageForWriteStatus(response.status)
+      : `Request failed (${response.status}).`;
+    const error = ApiError.http(
+      response.status,
+      messageFromProblem(response.status, problem, fallback),
+      problem,
+    );
+    error.retryAfterMs = retryAfterMsFrom(response);
+    throw error;
+  }
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw ApiError.malformed(response.status);
+  }
+}
+
+async function request<T>(input: RequestInput): Promise<T> {
   const startedAt = Date.now();
   let lastError: unknown;
-
   for (let attempt = 0; attempt < input.policy.maxAttempts; attempt++) {
     if (attempt > 0) {
-      if (input.signal?.aborted) {
-        throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
-      }
-      const delay = computeGetRetryDelayMs(attempt - 1);
-      const remaining = input.policy.totalTimeoutMs - (Date.now() - startedAt);
-      const nextAttemptMs = Math.min(input.policy.attemptTimeoutMs, remaining - delay);
-      if (nextAttemptMs <= 0) {
-        reportTerminal(lastError, input.method, input.path);
-        throw lastError;
-      }
-      await abortableSleep(delay, input.signal);
+      await waitForRetry(input, attempt, startedAt, lastError);
     }
-
     const remaining = input.policy.totalTimeoutMs - (Date.now() - startedAt);
     const attemptMs = Math.min(input.policy.attemptTimeoutMs, remaining);
     if (attemptMs <= 0) {
@@ -343,70 +383,21 @@ async function request<T>(input: {
       reportTerminal(error, input.method, input.path);
       throw error;
     }
-
     const deadline = composeDeadline(input.signal, attemptMs);
     try {
-      let response: Response;
-      try {
-        response = await fetch(input.url, {
-          method: input.method,
-          headers: input.headers,
-          body: input.body,
-          signal: deadline.signal,
-        });
-      } catch (err) {
-        const classified = classifyFetchFailure(err, deadline, input.signal);
-        lastError = classified;
-        if (
-          input.policy.maxAttempts > 1 &&
-          attempt < input.policy.maxAttempts - 1 &&
-          shouldRetryGet(classified)
-        ) {
-          continue;
-        }
-        reportTerminal(classified, input.method, input.path);
-        throw classified;
+      const response = await fetchResponse(input, deadline);
+      return await readResponse<T>(response, input);
+    } catch (err) {
+      lastError = err;
+      if (attempt < input.policy.maxAttempts - 1 && shouldRetryGet(err)) {
+        continue;
       }
-
-      if (!response.ok) {
-        const problem = await readProblem(response);
-        const fallback = input.policy.write
-          ? messageForWriteStatus(response.status)
-          : `Request failed (${response.status}).`;
-        const httpError = ApiError.http(
-          response.status,
-          messageFromProblem(response.status, problem, fallback),
-          problem,
-        );
-        httpError.retryAfterMs = retryAfterMsFrom(response);
-        lastError = httpError;
-        if (
-          input.policy.maxAttempts > 1 &&
-          attempt < input.policy.maxAttempts - 1 &&
-          shouldRetryGet(httpError)
-        ) {
-          continue;
-        }
-        reportTerminal(httpError, input.method, input.path);
-        throw httpError;
-      }
-
-      if (response.status === 204) {
-        return undefined as T;
-      }
-
-      try {
-        return (await response.json()) as T;
-      } catch {
-        const malformed = ApiError.malformed(response.status);
-        reportTerminal(malformed, input.method, input.path);
-        throw malformed;
-      }
+      reportTerminal(err, input.method, input.path);
+      throw err;
     } finally {
       deadline.dispose();
     }
   }
-
   reportTerminal(lastError, input.method, input.path);
   throw lastError;
 }
