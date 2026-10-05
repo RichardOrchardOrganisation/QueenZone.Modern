@@ -3,7 +3,9 @@
   var choice = DeviceThemeCookie.Read(Context.Request) ?? (auth.Succeeded ? "account" : "system");
 }
 <a href="/appearance" class="qz-theme-fallback" data-theme-fallback>Appearance</a>
-<select id="qz-theme-picker" class="qz-theme-picker" aria-label="Appearance for this device" data-theme-picker hidden>
+<span class="qz-theme-control">
+<label for="qz-theme-picker" class="qz-theme-label" data-theme-label hidden>Appearance</label>
+<select id="qz-theme-picker" class="qz-theme-picker" title="Appearance for this device" data-theme-picker hidden>
   @if (auth.Succeeded)
   {
     <option value="account" selected="@(choice == "account")">Account setting</option>
@@ -12,4 +14,5 @@
   <option value="light" selected="@(choice == "light")">Light</option>
   <option value="dark" selected="@(choice == "dark")">Dark</option>
 </select>
+</span>
 <output class="qz-theme-status" aria-live="polite" data-theme-status></output>

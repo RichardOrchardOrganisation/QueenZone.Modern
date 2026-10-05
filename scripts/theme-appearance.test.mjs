@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('../src/QueenZone.Web/wwwroot/js/theme.js', import.meta.url), 'utf8');
 function boot({ theme, saved, offline = false, osDark = false, unavailable = false } = {}) {
-  const root = { dataset: { theme }, hasAttribute: () => offline };
+  const root = { dataset: { theme, ...(offline ? { themeOffline: "" } : {}) } };
   const store = new Map(saved ? [['qz.offline.appearance', saved]] : []);
   const meta = { removeAttribute() {}, content: '' };
   let change;

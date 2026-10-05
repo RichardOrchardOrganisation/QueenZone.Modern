@@ -5,12 +5,14 @@
   // Light/dark: a data-theme attribute forces a mode; without one CSS follows prefers-color-scheme.
   var memberAuth = await Context.AuthenticateMemberAsync();
   // Precedence: this browser's own choice, then the member's account setting, then the system.
-  var themeAttribute = DeviceThemeCookie.Read(Context.Request)
-    ?? (ViewData["AccountThemePreference"] is QueenZone.Data.MemberThemePreference accountTheme
-      ? MemberThemeClaim.ToAttributeValue(accountTheme)
-      : memberAuth.Succeeded
-      ? MemberThemeClaim.ToAttributeValue(MemberThemeClaim.Read(memberAuth.Principal))
-      : null);
+  var accountThemeAttribute = memberAuth.Succeeded
+    ? MemberThemeClaim.ToAttributeValue(MemberThemeClaim.Read(memberAuth.Principal))
+    : null;
+  if (ViewData["AccountThemePreference"] is QueenZone.Data.MemberThemePreference accountTheme)
+  {
+    accountThemeAttribute = MemberThemeClaim.ToAttributeValue(accountTheme);
+  }
+  var themeAttribute = DeviceThemeCookie.Read(Context.Request) ?? accountThemeAttribute;
   ViewData["ThemeAttribute"] = themeAttribute;
 }
 <!doctype html>

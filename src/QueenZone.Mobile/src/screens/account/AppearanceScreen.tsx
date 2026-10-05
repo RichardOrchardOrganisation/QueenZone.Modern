@@ -8,7 +8,7 @@ import { radius, space, type, useTheme, type ThemePreference } from '../../theme
 import { useSession } from '../../session/SessionContext';
 import { Eyebrow } from '../../ui/Eyebrow';
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'Appearance'>;
+type Props = Readonly<NativeStackScreenProps<HomeStackParamList, 'Appearance'>>;
 
 type Option = { value: ThemePreference; title: string; description: string };
 
@@ -32,12 +32,12 @@ const deviceOptions: readonly Option[] = [
   { value: 'light', title: 'This device: Light', description: 'Always light on this phone.' },
 ];
 
-type ChoiceListProps = {
+type ChoiceListProps = Readonly<{
   options: readonly Option[];
   selected: ThemePreference;
   onChoose: (value: ThemePreference) => void;
   disabled?: boolean;
-};
+}>;
 
 function ChoiceList({ options, selected, onChoose, disabled = false }: ChoiceListProps) {
   const { c } = useTheme();

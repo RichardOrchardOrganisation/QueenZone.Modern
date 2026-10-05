@@ -774,6 +774,28 @@ public sealed class EfMemberAccountRepository : IMemberAccountRepository
             && !pendingBlobs && !pendingApple);
     }
 
+    private static void AnonymizeMemberArticles(
+        Guid memberId,
+        IEnumerable<ArticleSubmissionEntity> articles,
+        List<MemberDeletionBlob> blobs)
+    {
+        foreach (var article in articles)
+        {
+            if (!string.IsNullOrWhiteSpace(article.CoverImageBlobPath))
+            {
+                blobs.Add(new MemberDeletionBlob(memberId, "ugc-articles", article.CoverImageBlobPath));
+            }
+            article.Title = "Deleted article";
+            article.Slug = $"deleted-{article.Id:N}";
+            article.Excerpt = null;
+            article.Body = string.Empty;
+            article.WordCount = 0;
+            article.CoverImageBlobPath = null;
+            article.Tags = null;
+            article.Status = "Deleted";
+        }
+    }
+
     private async Task RemoveMemberContributionsAsync(
         Guid memberId,
         List<MemberDeletionBlob> blobs,
@@ -873,21 +895,7 @@ public sealed class EfMemberAccountRepository : IMemberAccountRepository
         await dbContext.SearchDocuments
             .Where(document => articleKeys.Contains(document.SourceKey))
             .ExecuteDeleteAsync(cancellationToken);
-        foreach (var article in articles)
-        {
-            if (!string.IsNullOrWhiteSpace(article.CoverImageBlobPath))
-            {
-                blobs.Add(new MemberDeletionBlob(memberId, "ugc-articles", article.CoverImageBlobPath));
-            }
-            article.Title = "Deleted article";
-            article.Slug = $"deleted-{article.Id:N}";
-            article.Excerpt = null;
-            article.Body = string.Empty;
-            article.WordCount = 0;
-            article.CoverImageBlobPath = null;
-            article.Tags = null;
-            article.Status = "Deleted";
-        }
+        AnonymizeMemberArticles(memberId, articles, blobs);
 
         var photos = await dbContext.PhotoSubmissions
             .Where(photo => photo.SubmitterMemberId == memberId)

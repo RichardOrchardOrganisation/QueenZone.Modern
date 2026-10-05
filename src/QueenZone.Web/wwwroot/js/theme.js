@@ -3,7 +3,7 @@
   const storageKey = "qz.offline.appearance";
   const valid = (value) => value === "light" || value === "dark";
   try {
-    if (root.hasAttribute("data-theme-offline")) {
+    if (root.dataset.themeOffline !== undefined) {
       const saved = localStorage.getItem(storageKey);
       if (valid(saved)) root.dataset.theme = saved;
     } else {
@@ -31,6 +31,8 @@
     const status = document.querySelector('[data-theme-status]');
     let saved = picker.value;
     picker.hidden = false;
+    const label = document.querySelector("[data-theme-label]");
+    if (label) label.hidden = false;
     if (fallback) fallback.hidden = true;
     picker.addEventListener("change", async () => {
       picker.disabled = true;

@@ -5,7 +5,8 @@
     {
       "aliases": [],
       "sources": [
-        "src/QueenZone.Web/Pages/Account/Settings.cshtml"
+        "src/QueenZone.Web/Pages/Account/Settings.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_AccountAppearanceSettings.cshtml"
       ],
       "testIds": [],
       "flows": [],
