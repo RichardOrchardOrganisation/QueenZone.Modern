@@ -60,18 +60,7 @@ public sealed class StatusModel(
         {
             if (updated.LegacyArticleId is int legacyId)
             {
-                if (status == EditorialArticleStatus.Published)
-                {
-                    var item = await legacyArticles.GetByIdAsync(legacyId, cancellationToken);
-                    if (item is not null)
-                    {
-                        await searchIndexService.UpsertAsync(SearchReindexBuilder.MapLegacyArticle(item), cancellationToken);
-                    }
-                }
-                else
-                {
-                    await searchIndexService.RemoveAsync($"legacy-article:{legacyId}", cancellationToken);
-                }
+                await SyncLegacyArticleAsync(legacyId, status, cancellationToken);
 
                 return;
             }
@@ -105,4 +94,20 @@ public sealed class StatusModel(
             logger.LogWarning(ex, "Best-effort search index sync failed for editorial article {ArticleId}", updated.Id);
         }
     }
+    private async Task SyncLegacyArticleAsync(int legacyId, string status, CancellationToken cancellationToken)
+    {
+        if (status == EditorialArticleStatus.Published)
+        {
+            var item = await legacyArticles.GetByIdAsync(legacyId, cancellationToken);
+            if (item is not null)
+            {
+                await searchIndexService.UpsertAsync(SearchReindexBuilder.MapLegacyArticle(item), cancellationToken);
+            }
+        }
+        else
+        {
+            await searchIndexService.RemoveAsync($"legacy-article:{legacyId}", cancellationToken);
+        }
+    }
+
 }

@@ -4,14 +4,13 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Web;
 
-public sealed partial class PrivateMessageService(
+public sealed class PrivateMessageService(
     IPrivateMessageRepository privateMessageRepository,
     IPrivateMessageModerationRepository privateMessageModerationRepository,
     IMemberAccountRepository memberAccountRepository,
     IMemberFollowRepository memberFollowRepository,
     PrivateMessageRateLimiter privateMessageRateLimiter,
-    INotificationDispatcher notificationDispatcher,
-    ILogger<PrivateMessageService> logger,
+    PrivateMessageNotificationSender notificationSender,
     TimeProvider timeProvider)
 {
     public const string BodyRequiredMessage = "Message body is required.";
@@ -263,30 +262,12 @@ public sealed partial class PrivateMessageService(
         return null;
     }
 
-    private async Task TryNotifyPrivateMessageAsync(
+    private Task TryNotifyPrivateMessageAsync(
         Guid conversationId,
         Guid recipientMemberId,
         Guid senderMemberId,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await notificationDispatcher.NotifyPrivateMessageAsync(
-                conversationId,
-                recipientMemberId,
-                senderMemberId,
-                cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            Log.PushDispatchFailedAfterPrivateMessage(
-                logger,
-                ex,
-                recipientMemberId,
-                conversationId,
-                ex.Message);
-        }
-    }
+        CancellationToken cancellationToken) =>
+        notificationSender.SendAsync(conversationId, recipientMemberId, senderMemberId, cancellationToken);
 
     public Task<PrivateInboxPage> GetArchivedInboxAsync(
         Guid memberId,

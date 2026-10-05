@@ -105,8 +105,7 @@ public sealed class PrivateMessageServiceTests
                 TimeProvider.System,
                 Options.Create(PermissiveRateLimitOptions()),
                 NullLogger<PrivateMessageRateLimiter>.Instance),
-            NoOpNotificationDispatcher.Instance,
-            NullLogger<PrivateMessageService>.Instance,
+            new PrivateMessageNotificationSender(NoOpNotificationDispatcher.Instance, NullLogger<PrivateMessageService>.Instance),
             TimeProvider.System);
 
         var self = await service.ComposeAsync(alice.Id, alice.Id, "hi");
@@ -845,8 +844,7 @@ public sealed class PrivateMessageServiceTests
             members,
             follows,
             rateLimiter,
-            NoOpNotificationDispatcher.Instance,
-            NullLogger<PrivateMessageService>.Instance,
+            new PrivateMessageNotificationSender(NoOpNotificationDispatcher.Instance, NullLogger<PrivateMessageService>.Instance),
             TimeProvider.System);
         return (service, members, messages, follows, alice, bob);
     }

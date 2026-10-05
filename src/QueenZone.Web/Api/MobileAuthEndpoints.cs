@@ -53,22 +53,16 @@ public static class MobileAuthEndpoints
         HttpContext httpContext,
         MobileAuthService mobileAuth,
         IAuthenticationSchemeProvider schemes,
-        string? response_type,
-        string? client_id,
-        string? redirect_uri,
-        string? code_challenge,
-        string? code_challenge_method,
-        string? state,
-        string? provider)
+        [AsParameters] MobileAuthorizationQuery query)
     {
         var started = mobileAuth.StartAuthorization(
-            response_type,
-            client_id,
-            redirect_uri,
-            code_challenge,
-            code_challenge_method,
-            state,
-            provider);
+            query.ResponseType,
+            query.ClientId,
+            query.RedirectUri,
+            query.CodeChallenge,
+            query.CodeChallengeMethod,
+            query.State,
+            query.Provider);
 
         if (!started.Success)
         {
@@ -101,6 +95,29 @@ public static class MobileAuthEndpoints
         return Results.Challenge(properties, [session.Provider]);
     }
 
+    private static string ResolveExternalDisplayName(string? displayName, string emailValue, string provider)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return string.IsNullOrWhiteSpace(emailValue) ? provider : emailValue;
+        }
+        return displayName;
+    }
+
+    private static string? ProtectAppleRefreshToken(
+        string? provider,
+        AuthenticationProperties? properties,
+        AppleAccountTokenService appleTokens)
+    {
+        var appleRefreshToken = string.Equals(provider, MemberAuthenticationSchemes.Apple, StringComparison.OrdinalIgnoreCase)
+            ? properties?.GetTokenValue("refresh_token")
+            : null;
+        return string.IsNullOrWhiteSpace(appleRefreshToken)
+            ? null
+            : appleTokens.Protect(appleRefreshToken);
+
+    }
+
     internal static async Task<IResult> CallbackAsync(
         HttpContext httpContext,
         MobileAuthService mobileAuth,
@@ -125,27 +142,18 @@ public static class MobileAuthEndpoints
         var providerKey = external.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
         var email = external.Principal.FindFirstValue(ClaimTypes.Email);
         var displayName = external.Principal.FindFirstValue(ClaimTypes.Name);
-        var appleRefreshToken = string.Equals(provider, MemberAuthenticationSchemes.Apple, StringComparison.OrdinalIgnoreCase)
-            ? external.Properties?.GetTokenValue("refresh_token")
-            : null;
-        var protectedAppleToken = string.IsNullOrWhiteSpace(appleRefreshToken)
-            ? null
-            : appleTokens.Protect(appleRefreshToken);
+        var protectedAppleToken = ProtectAppleRefreshToken(provider, external.Properties, appleTokens);
 
-        if (string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(providerKey))
+        if (!HasRequiredExternalIdentity(provider, providerKey))
         {
             await httpContext.SignOutAsync(MemberAuthenticationSchemes.ExternalCookie);
             return ErrorJson("server_error", "The identity provider did not return the required profile.", StatusCodes.Status400BadRequest);
         }
 
-        var emailValue = email ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            displayName = string.IsNullOrWhiteSpace(emailValue) ? provider : emailValue;
-        }
-
-        var emailVerified = !string.IsNullOrWhiteSpace(emailValue)
-            && ExternalLoginEmail.IsVerified(provider, external.Principal);
+        var profile = ReadExternalProfile(email, displayName, provider, external.Principal);
+        var emailValue = profile.Email;
+        displayName = profile.DisplayName;
+        var emailVerified = profile.EmailVerified;
 
         var completed = await mobileAuth.CompleteExternalLoginAsync(
             rid,
@@ -176,16 +184,61 @@ public static class MobileAuthEndpoints
 
         if (!completed.Success || completed.RedirectUri is null)
         {
-            return completed.RedirectUri is null
-                ? ErrorJson(completed.Error!, completed.ErrorDescription!, StatusCodes.Status400BadRequest)
-                : RedirectToApp(
-                    httpContext,
-                    completed.RedirectUri,
-                    completed.State,
-                    error: completed.Error,
-                    description: completed.ErrorDescription);
+            return FailedCallbackResult(httpContext, completed);
         }
 
+        await SaveProtectedAppleTokenAsync(
+            protectedAppleToken, provider, providerKey, memberAccounts, appleTokens, cancellationToken);
+
+        return RedirectToApp(
+            httpContext,
+            completed.RedirectUri,
+            completed.State,
+            code: completed.Code);
+    }
+
+    private static bool HasRequiredExternalIdentity(
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? provider,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? providerKey) =>
+        !string.IsNullOrWhiteSpace(provider) && !string.IsNullOrWhiteSpace(providerKey);
+
+    private sealed record ExternalProfile(string Email, string DisplayName, bool EmailVerified);
+
+    private static ExternalProfile ReadExternalProfile(
+        string? email,
+        string? displayName,
+        string provider,
+        ClaimsPrincipal principal)
+    {
+        var emailValue = email ?? string.Empty;
+        displayName = ResolveExternalDisplayName(displayName, emailValue, provider);
+
+        var emailVerified = !string.IsNullOrWhiteSpace(emailValue)
+            && ExternalLoginEmail.IsVerified(provider, principal);
+
+        return new ExternalProfile(emailValue, displayName, emailVerified);
+    }
+
+    private static IResult FailedCallbackResult(HttpContext httpContext, MobileAuthCallbackResult completed)
+    {
+        return completed.RedirectUri is null
+            ? ErrorJson(completed.Error!, completed.ErrorDescription!, StatusCodes.Status400BadRequest)
+            : RedirectToApp(
+                httpContext,
+                completed.RedirectUri,
+                completed.State,
+                error: completed.Error,
+                description: completed.ErrorDescription);
+    }
+
+    private static async Task SaveProtectedAppleTokenAsync(
+        string? protectedAppleToken,
+        string provider,
+        string providerKey,
+        QueenZone.Data.IMemberAccountRepository memberAccounts,
+        AppleAccountTokenService appleTokens,
+        CancellationToken cancellationToken)
+    {
         if (protectedAppleToken is not null)
         {
             var account = await memberAccounts.FindByExternalLoginAsync(provider, providerKey, cancellationToken);
@@ -195,11 +248,6 @@ public static class MobileAuthEndpoints
             }
         }
 
-        return RedirectToApp(
-            httpContext,
-            completed.RedirectUri,
-            completed.State,
-            code: completed.Code);
     }
 
     internal static async Task<IResult> TokenAsync(
@@ -388,3 +436,12 @@ public static class MobileAuthEndpoints
 public sealed record MobileAuthProviderDto(string Id, string Label);
 
 public sealed record MobileAuthProvidersResponse(IReadOnlyList<MobileAuthProviderDto> Providers);
+
+internal sealed record MobileAuthorizationQuery(
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "response_type")] string? ResponseType,
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "client_id")] string? ClientId,
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "redirect_uri")] string? RedirectUri,
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "code_challenge")] string? CodeChallenge,
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "code_challenge_method")] string? CodeChallengeMethod,
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "state")] string? State,
+    [Microsoft.AspNetCore.Mvc.FromQuery(Name = "provider")] string? Provider);

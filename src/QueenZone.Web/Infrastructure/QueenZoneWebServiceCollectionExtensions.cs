@@ -303,6 +303,11 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .SetVaryByQuery(PublicOutputCachePolicies.PublicHtmlQueryKeys)
                 .Tag(PublicOutputCachePolicies.PublicHtmlTag));
         });
+        services.AddScoped<PublicQueryCacheStore>();
+        services.AddScoped<PublicEditorialQueryCache>();
+        services.AddScoped<PublicForumQueryCache>();
+        services.AddScoped<PublicCatalogQueryCache>();
+        services.AddScoped<PublicMediaQueryCache>();
         services.AddScoped<PublicQueryCacheService>();
         return services;
     }
@@ -326,6 +331,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
             client.Timeout = TimeSpan.FromSeconds(15));
         services.AddScoped<PrivateMessageRateLimiter>();
+        services.AddScoped<PrivateMessageNotificationSender>();
         services.AddScoped<PrivateMessageService>();
         services.AddScoped<MemberFollowService>();
         services.AddScoped<TopicWatchService>();
@@ -344,6 +350,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<HelpRequestRateLimiter>();
         services.AddSingleton<ISmtpTransport, GmailSmtpTransport>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<HelpRequestNotificationSender>();
         services.AddScoped<HelpRequestService>();
         services.AddScoped<PublicWarmupService>();
         services.AddScoped<UgcHtml>();
@@ -370,6 +377,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         });
         services.AddSingleton<IPushTransport, DirectPushTransport>();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
+        services.AddScoped<NewsForumCategoryResolver>();
         services.AddScoped<INewsForumTopicService, NewsForumTopicService>();
         services.AddScoped<NewsDiscussionComposer>();
         services.AddScoped<AdminNewsWriteService>();

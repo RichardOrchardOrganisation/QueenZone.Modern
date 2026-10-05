@@ -55,16 +55,7 @@ public sealed class ForumAttachmentValidator(
                 break;
             }
 
-            // Extension is the allow-list gate. Client Content-Type is not enough: a
-            // declared PDF whose bytes are HTML must fail the same sniff as storage.
-            var guessedType = GuessContentType(name);
-            if (!allowed.Contains(guessedType))
-            {
-                errors.Add($"'{name}' has a type that is not allowed ({guessedType}).");
-                continue;
-            }
-
-            if (!ValidateFileContent(file, name, errors))
+            if (!ValidateAllowedFileContent(file, name, allowed, errors))
             {
                 continue;
             }
@@ -73,6 +64,20 @@ public sealed class ForumAttachmentValidator(
         }
 
         return new ForumAttachmentValidationResult(accepted, errors);
+    }
+
+    private bool ValidateAllowedFileContent(IFormFile file, string name, HashSet<string> allowed, List<string> errors)
+    {
+        // Extension is the allow-list gate. Client Content-Type is not enough: a
+        // declared PDF whose bytes are HTML must fail the same sniff as storage.
+        var guessedType = GuessContentType(name);
+        if (!allowed.Contains(guessedType))
+        {
+            errors.Add($"'{name}' has a type that is not allowed ({guessedType}).");
+            return false;
+        }
+
+        return ValidateFileContent(file, name, errors);
     }
 
     private bool ValidateFileContent(IFormFile file, string name, List<string> errors)

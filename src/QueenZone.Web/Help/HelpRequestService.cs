@@ -11,8 +11,7 @@ public sealed class HelpRequestService(
     HelpRequestRateLimiter rateLimiter,
     TimeProvider timeProvider,
     IOptions<HelpRequestOptions> options,
-    IEmailSender? emailSender = null,
-    ILogger<HelpRequestService>? logger = null)
+    HelpRequestNotificationSender? notificationSender = null)
 {
     public const int MaxNameLength = 100;
     public const int MaxEmailLength = 256;
@@ -26,17 +25,19 @@ public sealed class HelpRequestService(
     public string IssueFormStamp() => formStamp.Issue();
 
     public async Task<SubmitResult> SubmitAsync(
-        Guid? memberId,
-        string topic,
-        string subject,
-        string message,
-        string? name,
-        string? email,
-        string? websiteHoneypot,
-        string? issuedStamp,
-        string? clientIp,
+        HelpRequestSubmission submission,
         CancellationToken cancellationToken = default)
     {
+        var memberId = submission.MemberId;
+        var topic = submission.Topic;
+        var subject = submission.Subject;
+        var message = submission.Message;
+        var name = submission.Name;
+        var email = submission.Email;
+        var websiteHoneypot = submission.WebsiteHoneypot;
+        var issuedStamp = submission.IssuedStamp;
+        var clientIp = submission.ClientIp;
+
         if (!string.IsNullOrWhiteSpace(websiteHoneypot)
             || !formStamp.IsAcceptable(issuedStamp, options.Value.MinimumDwellSeconds))
         {
@@ -61,98 +62,28 @@ public sealed class HelpRequestService(
         var trimmedSubject = subject?.Trim() ?? string.Empty;
         var trimmedMessage = message?.Trim() ?? string.Empty;
 
-        if (trimmedSubject.Length < MinSubjectLength)
+        var contentError = ValidateContent(trimmedSubject, trimmedMessage);
+        if (contentError is not null)
         {
-            return new SubmitResult(false, null, $"Subject must be at least {MinSubjectLength} characters.", false);
+            return new SubmitResult(false, null, contentError, false);
         }
 
-        if (trimmedSubject.Length > MaxSubjectLength)
+        var contact = await ResolveContactSnapshotAsync(memberId, name, email, cancellationToken);
+        if (contact.Error is not null)
         {
-            return new SubmitResult(false, null, $"Subject must be {MaxSubjectLength} characters or fewer.", false);
+            return new SubmitResult(false, null, contact.Error, false);
         }
-
-        if (trimmedMessage.Length < MinMessageLength)
-        {
-            return new SubmitResult(false, null, $"Message must be at least {MinMessageLength} characters.", false);
-        }
-
-        if (trimmedMessage.Length > MaxMessageLength)
-        {
-            return new SubmitResult(false, null, $"Message must be {MaxMessageLength} characters or fewer.", false);
-        }
-
-        string snapshotName;
-        string snapshotEmail;
-        Guid? storedMemberId = null;
-
-        if (memberId is Guid signedInId)
-        {
-            var account = await memberAccountRepository.FindByIdAsync(signedInId, cancellationToken);
-            if (account is null)
-            {
-                return new SubmitResult(false, null, "Sign in again and retry your message.", false);
-            }
-
-            snapshotName = account.DisplayName.Trim();
-            snapshotEmail = account.Email.Trim();
-            storedMemberId = account.Id;
-        }
-        else
-        {
-            snapshotName = name?.Trim() ?? string.Empty;
-            snapshotEmail = email?.Trim() ?? string.Empty;
-
-            if (snapshotName.Length < 2)
-            {
-                return new SubmitResult(false, null, "Name is required.", false);
-            }
-
-            if (snapshotName.Length > MaxNameLength)
-            {
-                return new SubmitResult(false, null, $"Name must be {MaxNameLength} characters or fewer.", false);
-            }
-
-            var emailError = ValidateEmail(snapshotEmail);
-            if (emailError is not null)
-            {
-                return new SubmitResult(false, null, emailError, false);
-            }
-        }
+        var snapshotName = contact.Name;
+        var snapshotEmail = contact.Email;
+        var storedMemberId = contact.MemberId;
 
         var normalizedEmail = snapshotEmail.Trim().ToUpperInvariant();
         var sinceUtc = timeProvider.GetUtcNow().AddDays(-1);
 
-        if (storedMemberId is Guid memberAccountId)
+        var limitError = await CheckDailyLimitAsync(storedMemberId, normalizedEmail, sinceUtc, cancellationToken);
+        if (limitError is not null)
         {
-            var maxPerMember = Math.Max(1, options.Value.MaxPerMemberPerDay);
-            var recentMemberCount = await helpRequestRepository.CountByMemberSinceAsync(
-                memberAccountId,
-                sinceUtc,
-                cancellationToken);
-            if (recentMemberCount >= maxPerMember)
-            {
-                return new SubmitResult(
-                    false,
-                    null,
-                    $"You can send up to {maxPerMember} messages per day. Please try again tomorrow.",
-                    false);
-            }
-        }
-        else
-        {
-            var maxPerEmail = Math.Max(1, options.Value.MaxPerEmailPerDay);
-            var recentEmailCount = await helpRequestRepository.CountByEmailSinceAsync(
-                normalizedEmail,
-                sinceUtc,
-                cancellationToken);
-            if (recentEmailCount >= maxPerEmail)
-            {
-                return new SubmitResult(
-                    false,
-                    null,
-                    $"You can send up to {maxPerEmail} messages per day from this email address. Please try again tomorrow.",
-                    false);
-            }
+            return new SubmitResult(false, null, limitError, false);
         }
 
         var created = await helpRequestRepository.CreateAsync(
@@ -172,25 +103,137 @@ public sealed class HelpRequestService(
                 null),
             cancellationToken);
 
-        if (emailSender is not null)
+        if (notificationSender is not null)
         {
-            try
-            {
-                await emailSender.SendAsync(
-                    new OutboundEmail(
-                        options.Value.NotificationAddress,
-                        "New Queenzone contact request",
-                        $"Topic: {HelpRequestTopic.DisplayName(normalizedTopic)}\nName: {snapshotName}\nEmail: {snapshotEmail}\nSubject: {trimmedSubject}\n\n{trimmedMessage}",
-                        snapshotEmail),
-                    cancellationToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger?.LogError("Could not email contact request {RequestId}: {ErrorType}.", created.Id, ex.GetType().Name);
-            }
+            await notificationSender.SendAsync(
+                created.Id,
+                new OutboundEmail(
+                    options.Value.NotificationAddress,
+                    "New Queenzone contact request",
+                    $"Topic: {HelpRequestTopic.DisplayName(normalizedTopic)}\nName: {snapshotName}\nEmail: {snapshotEmail}\nSubject: {trimmedSubject}\n\n{trimmedMessage}",
+                    snapshotEmail),
+                cancellationToken);
         }
 
         return new SubmitResult(true, created, null, false);
+    }
+
+    private sealed record ContactSnapshot(string Name, string Email, Guid? MemberId, string? Error);
+
+    private async Task<ContactSnapshot> ResolveContactSnapshotAsync(
+        Guid? memberId,
+        string? name,
+        string? email,
+        CancellationToken cancellationToken)
+    {
+        string snapshotName;
+        string snapshotEmail;
+        Guid? storedMemberId = null;
+
+        if (memberId is Guid signedInId)
+        {
+            var account = await memberAccountRepository.FindByIdAsync(signedInId, cancellationToken);
+            if (account is null)
+            {
+                return new ContactSnapshot("", "", null, "Sign in again and retry your message.");
+            }
+
+            snapshotName = account.DisplayName.Trim();
+            snapshotEmail = account.Email.Trim();
+            storedMemberId = account.Id;
+        }
+        else
+        {
+            snapshotName = name?.Trim() ?? string.Empty;
+            snapshotEmail = email?.Trim() ?? string.Empty;
+
+            var contactError = ValidateGuestContact(snapshotName, snapshotEmail);
+            if (contactError is not null)
+            {
+                return new ContactSnapshot("", "", null, contactError);
+            }
+        }
+
+        return new ContactSnapshot(snapshotName, snapshotEmail, storedMemberId, null);
+    }
+
+    private static string? ValidateContent(string trimmedSubject, string trimmedMessage)
+    {
+        if (trimmedSubject.Length < MinSubjectLength)
+        {
+            return $"Subject must be at least {MinSubjectLength} characters.";
+        }
+
+        if (trimmedSubject.Length > MaxSubjectLength)
+        {
+            return $"Subject must be {MaxSubjectLength} characters or fewer.";
+        }
+
+        if (trimmedMessage.Length < MinMessageLength)
+        {
+            return $"Message must be at least {MinMessageLength} characters.";
+        }
+
+        if (trimmedMessage.Length > MaxMessageLength)
+        {
+            return $"Message must be {MaxMessageLength} characters or fewer.";
+        }
+
+        return null;
+    }
+
+    private static string? ValidateGuestContact(string name, string email)
+    {
+        if (name.Length < 2)
+        {
+            return "Name is required.";
+        }
+
+        if (name.Length > MaxNameLength)
+        {
+            return $"Name must be {MaxNameLength} characters or fewer.";
+        }
+
+        var emailError = ValidateEmail(email);
+        if (emailError is not null)
+        {
+            return emailError;
+        }
+        return null;
+    }
+
+    private async Task<string?> CheckDailyLimitAsync(
+        Guid? memberId,
+        string normalizedEmail,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken)
+    {
+        if (memberId is Guid memberAccountId)
+        {
+            var maxPerMember = Math.Max(1, options.Value.MaxPerMemberPerDay);
+            var recentMemberCount = await helpRequestRepository.CountByMemberSinceAsync(
+                memberAccountId,
+                sinceUtc,
+                cancellationToken);
+            if (recentMemberCount >= maxPerMember)
+            {
+                return $"You can send up to {maxPerMember} messages per day. Please try again tomorrow.";
+            }
+        }
+        else
+        {
+            var maxPerEmail = Math.Max(1, options.Value.MaxPerEmailPerDay);
+            var recentEmailCount = await helpRequestRepository.CountByEmailSinceAsync(
+                normalizedEmail,
+                sinceUtc,
+                cancellationToken);
+            if (recentEmailCount >= maxPerEmail)
+            {
+                return $"You can send up to {maxPerEmail} messages per day from this email address. Please try again tomorrow.";
+            }
+        }
+
+        return null;
     }
 
     internal static string? ValidateEmail(string? email)
@@ -238,4 +281,17 @@ public sealed class HelpRequestService(
             ? "test"
             : null;
     }
+}
+
+public sealed record HelpRequestSubmission(
+    Guid? MemberId,
+    string Topic,
+    string Subject,
+    string Message,
+    string? Name,
+    string? Email)
+{
+    public string? WebsiteHoneypot { get; init; }
+    public string? IssuedStamp { get; init; }
+    public string? ClientIp { get; init; }
 }
