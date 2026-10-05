@@ -5,6 +5,7 @@ import { fetchJsonWithOfflineCache } from '../../cache';
 import { checkCrossword, revealCrossword } from '../../api/crosswords';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
 import { createMockSession } from '../../test/mockSession';
+import { progressStorageKey } from '../../crosswords/core';
 import { crosswordFixture } from '../../test/crosswordFixture';
 import { CrosswordPlayScreen } from './CrosswordPlayScreen';
 const mockSession = createMockSession();
@@ -64,4 +65,21 @@ it('hides the grid while manually paused and does not overwrite a pending restor
   const second = renderPlay(); await waitFor(() => expect(screen.getByTestId('crossword-play-screen')).toBeOnTheScreen()); second.unmount();
   await act(async () => { release(null); await Promise.resolve(); });
   expect(AsyncStorage.setItem).not.toHaveBeenCalled(); (AsyncStorage.getItem as jest.Mock).mockImplementation(original);
+});
+
+it('offers review explanations after a guest completes the restored grid', async () => {
+  const puzzle = crosswordFixture();
+  await AsyncStorage.setItem(progressStorageKey(puzzle.id), JSON.stringify({
+    playVersion: puzzle.playVersion, letters: 'A'.repeat(25), elapsedSeconds: 12,
+    revealedCells: [], autoCheckUsed: false, updatedAt: '2026-10-04T06:00:00Z', startedAt: '2026-10-04T05:00:00Z',
+  }));
+  check.mockResolvedValue({ playVersion: puzzle.playVersion!, cells: [], complete: true,
+    explanations: [{ number: 1, direction: 'across', explanation: 'Brian May plays guitar.' }],
+  });
+  renderPlay();
+  await waitFor(() => expect(screen.getByText('Crossword complete')).toBeOnTheScreen());
+  expect(screen.getByText(/Guest progress is saved/)).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: 'A' })).toBeNull();
+  await userEvent.setup().press(screen.getByRole('button', { name: 'Review clues' }));
+  expect(screen.getByText('Brian May plays guitar.')).toBeOnTheScreen();
 });
