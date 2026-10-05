@@ -740,6 +740,11 @@ public sealed partial class ArticleSubmitRoutesTests :
         Assert.Equal(HttpStatusCode.Redirect, publishResponse.StatusCode);
         Assert.Equal(ArticleSubmissionStatus.Published, (await repository.GetByIdAsync(publishId))!.Status);
 
+        // Published member articles must stay reachable from the admin list so they can be edited.
+        var afterPublish = await admin.GetStringAsync("/admin/articles");
+        Assert.Contains("Published member articles", afterPublish);
+        Assert.Contains($"href=\"/admin/articles/{publishId}\"", afterPublish);
+
         await PostAdminActionAsync(admin, reviseId, new Dictionary<string, string>
         {
             ["submitAction"] = "revise",
