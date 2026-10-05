@@ -117,14 +117,13 @@ function MySubmissionsList() {
 
   const pull = usePullToRefresh([load]);
 
-  const emptyCopy =
-    kind === 'photos'
-      ? 'You have not submitted any photos yet.'
-      : kind === 'news'
-        ? 'You have not suggested any news yet.'
-        : kind === 'articles'
-          ? 'You have not submitted any articles yet.'
-          : 'You have not submitted any fan performances yet.';
+  const emptyMessages: Record<SubmissionKind, string> = {
+    photos: 'You have not submitted any photos yet.',
+    news: 'You have not suggested any news yet.',
+    articles: 'You have not submitted any articles yet.',
+    'fan-performances': 'You have not submitted any fan performances yet.',
+  };
+  const emptyCopy = emptyMessages[kind] ?? emptyMessages['fan-performances'];
 
   const isEmpty =
     loaded

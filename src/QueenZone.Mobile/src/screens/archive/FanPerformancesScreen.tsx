@@ -224,6 +224,10 @@ export function FanPerformancesScreen({ navigation }: Props) {
       onEndReachedThreshold={0.4}
       renderItem={({ item }) => {
         const playingThis = player.current?.id === item.id && player.playing;
+        let playLabel = `Sign in to play ${item.title}`;
+        if (canPlay) {
+          playLabel = playingThis ? `Pause ${item.title}` : `Play ${item.title}`;
+        }
         return (
           <ArticleRow
             title={item.title}
@@ -236,13 +240,7 @@ export function FanPerformancesScreen({ navigation }: Props) {
                   testID={`${testIds.fanPerformancePlayPrefix}${item.id}`}
                   accessibilityRole="button"
                   accessibilityState={{ selected: playingThis }}
-                  accessibilityLabel={
-                    canPlay
-                      ? playingThis
-                        ? `Pause ${item.title}`
-                        : `Play ${item.title}`
-                      : `Sign in to play ${item.title}`
-                  }
+                  accessibilityLabel={playLabel}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}
                   unstable_pressDelay={0}
                   onPress={() => onPlay(item)}

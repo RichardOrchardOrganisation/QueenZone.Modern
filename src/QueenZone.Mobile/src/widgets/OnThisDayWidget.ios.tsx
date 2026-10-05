@@ -54,11 +54,14 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
   const showTrivia = face === 'trivia';
   const quoteId = Number(props.quoteId);
   const eventId = Number(props.eventId);
-  const tapUrl = showTrivia
-    ? 'queenzone://trivia'
-    : showQuote
-      ? quoteId > 0 ? `queenzone://quotes/${quoteId}` : 'queenzone://home'
-      : eventId > 0 ? `queenzone://timeline/${eventId}` : 'queenzone://timeline';
+  let tapUrl = 'queenzone://timeline';
+  if (showTrivia) {
+    tapUrl = 'queenzone://trivia';
+  } else if (showQuote) {
+    tapUrl = quoteId > 0 ? `queenzone://quotes/${quoteId}` : 'queenzone://home';
+  } else if (eventId > 0) {
+    tapUrl = `queenzone://timeline/${eventId}`;
+  }
 
   return (
     <VStack

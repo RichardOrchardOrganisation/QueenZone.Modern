@@ -177,7 +177,7 @@ export function useCrosswordPlay(puzzle: CrosswordDetail, memberId: string | nul
     const abort = new AbortController();
     controller.current = abort;
     void actions.current.restore(abort).catch(() => { if (mounted.current) { setStatus('Could not restore device storage.'); readyRef.current = true; setReady(true); } });
-    return () => { mounted.current = false; abort.abort(); if (syncTimer.current) clearTimeout(syncTimer.current); actions.current.persist(true); };
+    return () => { mounted.current = false; abort.abort(); if (syncTimer.current) { clearTimeout(syncTimer.current); } actions.current.persist(true); };
     // Identity and version changes remount this hook's owning solver.
   }, []);
   useEffect(() => {

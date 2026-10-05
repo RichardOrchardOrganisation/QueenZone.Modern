@@ -176,12 +176,14 @@ export function NewsIndexScreen({ navigation, route }: Props) {
     </View>
   );
 
-  const emptyMessage =
-    selectedYear !== null
-      ? `No articles for ${selectedYear} yet.`
-      : decade.decadeStart === null
-        ? 'No news articles yet.'
-        : 'No articles for this decade yet.';
+  let emptyMessage: string;
+  if (selectedYear !== null) {
+    emptyMessage = `No articles for ${selectedYear} yet.`;
+  } else {
+    emptyMessage = decade.decadeStart === null
+      ? 'No news articles yet.'
+      : 'No articles for this decade yet.';
+  }
 
   return (
     <View style={styles.container}>
