@@ -129,7 +129,7 @@ public sealed class SiteHeaderPresentationTests
         Assert.Equal(new[] { "band", "archive", "community" }, groups.Select(group => group.Id));
         Assert.Equal(new[]
         {
-            "/biography", "/discography", "/songs", "/discography/rare-discography", "/timeline", "/trivia",
+            "/biography", "/discography", "/discography/rare-discography", "/timeline", "/trivia",
             "/news", "/articles", "/photography", "/links", "/crosswords", "/forum", "/fan-performances", "/freddie-mercury-tribute",
         }, groups.SelectMany(group => group.Items).Select(item => item.Href));
     }
