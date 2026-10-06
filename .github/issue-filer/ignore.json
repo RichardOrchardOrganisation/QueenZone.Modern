@@ -1,3 +1,13 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "match": {
+        "source": "sentry",
+        "key": "sentry:7775729576"
+      },
+      "reason": "Likely Sentry WatchdogTermination false positive (1 event, 1 user). See #2147.",
+      "owner": "richardorchard",
+      "expires": "2026-11-05"
+    }
+  ]
 }
