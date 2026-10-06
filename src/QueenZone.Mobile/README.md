@@ -613,7 +613,7 @@ on that bake because `appEnv` is development and `smokeEmbed` is set.
 # Prove a failed assertion uploads diagnostics
 ./scripts/run-mobile-device-smoke.sh --platform android --prove-failure
 
-# On-demand journeys (#1071); smoke.yaml stays 9 flows
+# On-demand journeys (#1071 / #2160); smoke.yaml stays 9 flows
 ./scripts/run-mobile-device-smoke.sh --platform android --suite journeys
 
 # Manual P0 release acceptance: member messaging, forum writes, news submission
@@ -650,7 +650,8 @@ first driver log. The authenticated smoke flow repeats only the
 iOS smoke-auth deep link when the profile explicitly remains signed out after
 the system Open prompt; it does not repeat failed app assertions.
 
-On-demand journeys (`maestro/journeys.yaml`, #1071–#1074) are a
+On-demand journeys (`maestro/journeys.yaml`, #1071–#1074 plus crossword
+play 31–33, #2160) are a
 **separate job pair** in the same workflow: `Mobile Android device
 journeys` / `Mobile iOS device journeys`. Dispatch with `suite=journeys`
 (or `both`), or wait for the weekday 16:00 UTC slot. Do not add those
