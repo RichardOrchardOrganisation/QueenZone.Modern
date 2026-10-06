@@ -22,6 +22,8 @@ unset ConnectionStrings__SqlServerTest || true
 
 export ASPNETCORE_ENVIRONMENT=Testing
 export QUEENZONE_MOBILE_CONTRACT_HOST=1
+# Same Testing-only opt-in as scripts/Run-E2E.ps1 / run-mobile-device-smoke.sh.
+export CrosswordBrowserFixture__Enabled=true
 export ASPNETCORE_URLS="${ASPNETCORE_URLS:-http://127.0.0.1:0}"
 export QUEENZONE_MOBILE_CONTRACT_FIXTURE="${QUEENZONE_MOBILE_CONTRACT_FIXTURE:-$root/src/QueenZone.Mobile/contracts/host.json}"
 

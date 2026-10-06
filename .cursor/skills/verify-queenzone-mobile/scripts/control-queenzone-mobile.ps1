@@ -4,8 +4,9 @@
   Launch, doctor, drive, and tear down an isolated QueenZone mobile contract host.
 
 .DESCRIPTION
-  Starts QueenZone.Web with ASPNETCORE_ENVIRONMENT=Testing and
-  QUEENZONE_MOBILE_CONTRACT_HOST=1 on a loopback port (default 5098).
+  Starts QueenZone.Web with ASPNETCORE_ENVIRONMENT=Testing,
+  QUEENZONE_MOBILE_CONTRACT_HOST=1, and CrosswordBrowserFixture__Enabled=true
+  on a loopback port (default 5098).
   Records pid/url in .cursor/skills/verify-queenzone-mobile/.run/state.json.
   Cleanup kills only that process tree. Maestro drive is optional and fails
   closed when maestro or a device is missing.
@@ -396,6 +397,7 @@ switch ($Command) {
 
         $env:ASPNETCORE_ENVIRONMENT = "Testing"
         $env:QUEENZONE_MOBILE_CONTRACT_HOST = "1"
+        $env:CrosswordBrowserFixture__Enabled = "true"
         $env:QUEENZONE_MOBILE_CONTRACT_FIXTURE = $FixturePath
         $env:ASPNETCORE_URLS = "http://127.0.0.1:$Port"
         Remove-Item Env:ConnectionStrings__QueenZoneLegacy -ErrorAction SilentlyContinue

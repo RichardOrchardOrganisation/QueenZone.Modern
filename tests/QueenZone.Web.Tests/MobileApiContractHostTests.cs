@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -104,6 +106,24 @@ public sealed class MobileApiContractHostTests : IClassFixture<QueenZoneWebAppli
         Assert.Equal(HttpStatusCode.OK, unreadResponse.StatusCode);
         var unread = await unreadResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(unread.GetProperty("unreadConversationCount").GetInt32() >= 1);
+    }
+
+    [Fact]
+    public async Task Mobile_testing_host_with_browser_fixture_serves_playable_studios_and_collaborators()
+    {
+        await using var host = new MobileTestingCrosswordFixtureFactory();
+        using var client = host.CreateAnonymousClient();
+        using var response = await client.GetAsync($"{CrosswordApiEndpoints.RootPath}/by-slug/studios-and-collaborators");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var detail = await response.Content.ReadFromJsonAsync<CrosswordDetailDto>();
+        Assert.NotNull(detail);
+        Assert.Equal("studios-and-collaborators", detail.Slug);
+        Assert.False(detail.Archived);
+        Assert.Equal(15, detail.Width);
+        Assert.Equal(15, detail.Height);
+        Assert.NotEmpty(detail.Clues);
+        Assert.Equal(detail.Width * detail.Height, detail.Blocks.Count);
+        Assert.NotEqual(Guid.Empty, detail.PlayVersion);
     }
 
     [Fact]
@@ -348,5 +368,15 @@ public sealed class MobileApiContractHostTests : IClassFixture<QueenZoneWebAppli
         public void Dispose()
         {
         }
+    }
+
+    private sealed class MobileTestingCrosswordFixtureFactory : QueenZoneWebApplicationFactory
+    {
+        protected override void ConfigureTestServices(IWebHostBuilder builder) =>
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CrosswordBrowserFixture:Enabled"] = "true",
+                }));
     }
 }

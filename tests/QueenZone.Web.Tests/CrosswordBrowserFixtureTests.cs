@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -59,5 +60,26 @@ public sealed class CrosswordBrowserFixtureTests
             Calls++;
             throw new InvalidOperationException("A non-memory catalog must never be called by fixtures.");
         }
+    }
+}
+
+public sealed class CrosswordBrowserFixtureProductionConfigTests
+{
+    [Fact]
+    public void Production_host_config_does_not_enable_crossword_browser_fixture()
+    {
+        var shipped = new ConfigurationBuilder()
+            .AddJsonFile(RepoPaths.Combine("src", "QueenZone.Web", "appsettings.json"))
+            .Build();
+        Assert.False(shipped.GetValue<bool>("CrosswordBrowserFixture:Enabled"));
+        Assert.False(
+            ProductionHostSettings.Values.TryGetValue("CrosswordBrowserFixture:Enabled", out var stub)
+            && bool.TryParse(stub, out var enabled)
+            && enabled);
+        var production = new ConfigurationBuilder()
+            .AddJsonFile(RepoPaths.Combine("src", "QueenZone.Web", "appsettings.json"))
+            .AddInMemoryCollection(ProductionHostSettings.Values)
+            .Build();
+        Assert.False(production.GetValue<bool>("CrosswordBrowserFixture:Enabled"));
     }
 }
