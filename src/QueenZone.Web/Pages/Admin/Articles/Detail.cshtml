@@ -26,17 +26,17 @@
       <dt>Title</dt>
       <dd>@submission.Title</dd>
       <dt>Author</dt>
-      <dd>@(submission.AuthorDisplayName ?? "Unknown") @(string.IsNullOrWhiteSpace(submission.AuthorEmail) ? "" : $"({submission.AuthorEmail})")</dd>
+      <dd>@Model.AuthorLine</dd>
       <dt>Status</dt>
       <dd>@submission.Status</dd>
       <dt>Submitted</dt>
-      <dd>@(submission.SubmittedAt?.ToString("u") ?? "—")</dd>
+      <dd>@Model.SubmittedText</dd>
       <dt>Slug</dt>
       <dd>@submission.Slug</dd>
       <dt>Excerpt</dt>
-      <dd>@(submission.Excerpt ?? "—")</dd>
+      <dd>@Model.ExcerptText</dd>
       <dt>Tags</dt>
-      <dd>@(submission.Tags ?? "—")</dd>
+      <dd>@Model.TagsText</dd>
       @if (!string.IsNullOrWhiteSpace(submission.ReviewNotes))
       {
         <dt>Reviewer notes</dt>
