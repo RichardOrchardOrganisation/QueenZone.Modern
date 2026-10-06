@@ -30,6 +30,50 @@ Shared, deterministic issue filer for the weekly gardener (#1804) and telemetry 
 
 `reason` and `expires` are required. `owner` is optional. `match` may use `source`, `key`, `rule`, and/or `titleRegex`. An expired entry stops matching and is listed in the job summary so it can be removed.
 
+A Sentry entry may use `recurrence` to suppress one reviewed occurrence:
+
+```json
+"recurrence": {
+  "eventId": "6eba4990b88349abacd535e88824c10e",
+  "lastSeen": "2026-10-06T03:27:48Z",
+  "issueNumber": 2147
+}
+```
+
+This requires an exact `source: sentry` and `sentry:<issue-id>` key. The
+baseline above comes from the original QUEENZONE-MOBILE-E alert and the
+[triage of #2147](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2147#issuecomment-6010359218): one event, one user on iOS build 53. It does not establish a watchdog root cause.
+
+Suppression requires the latest event's documented `eventID` to equal the
+baseline, the source issue's `lastSeen` to equal the recorded time, and valid
+source counts of at most one event and one user. A different event ID, changed
+last-seen time, or more than one event/user uses the normal escalation path.
+Missing or invalid observations also stop suppression. The API's separate `id`
+field is not substituted for `eventID`; timestamps are compared as instants.
+
+The existing collector already retrieves the latest event. No queries or requests
+to Sentry are added. [Sentry's event schema](https://docs.sentry.io/api/events/retrieve-an-issue-event/)
+documents `eventID` and `dateCreated`. The [project issues API](https://docs.sentry.io/api/events/list-a-projects-issues/)
+distinguishes top-level `count`/`userCount`/`lastSeen` from `stats[statsPeriod]`.
+The [group serializer](https://github.com/getsentry/sentry/blob/master/src/sentry/api/serializers/models/group.py)
+maps occurrence and distinct-user statistics to those top-level fields.
+This guard does **not** calculate count deltas or assume lifetime/window
+comparability: more than one observed event/user is incompatible with the one
+reviewed occurrence in any scope. Returning to a count of one or zero cannot
+hide a different event ID or changed last-seen time. Source observations remain
+separate when correlation sums Azure and Sentry counts or merges their times.
+The exact source match is unchanged: a correlated `source: telemetry` candidate
+still follows the normal escalation path, so Azure evidence is not suppressed
+by a Sentry-only entry. Its Sentry key still selects the canonical GitHub issue.
+
+`issueNumber` pins the canonical GitHub issue, including after the suppression
+expires. The loader reads that issue directly when label/lookback discovery misses
+it, and a completed canonical issue may reopen beyond the usual 30-day limit.
+The marker must contain the exact Sentry key. An unavailable/mismatched canonical
+issue never produces a duplicate; lookup errors propagate before writes. Keep
+this entry after expiry while its canonical mapping is needed. `not_planned`
+closures, comment caps/cooldowns and collection-failure write blocking still apply.
+
 ## Dedupe
 
 Every filed issue ends with:

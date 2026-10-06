@@ -68,6 +68,7 @@ export function validateIgnore(ignore) {
     return ['ignore.json must have an entries array'];
   }
   ignore.entries.forEach((entry, index) => {
+    errors.push(...validateRecurrence(entry).map((error) => `entries[${index}].${error}`));
     if (!entry?.reason) {
       errors.push(`entries[${index}] is missing reason`);
     }
@@ -78,6 +79,26 @@ export function validateIgnore(ignore) {
       errors.push(`entries[${index}] is missing match`);
     }
   });
+  return errors;
+}
+
+export function validateRecurrence(entry) {
+  if (entry?.recurrence === undefined) return [];
+  const baseline = entry.recurrence;
+  const errors = [];
+  if (entry.match?.source !== 'sentry' || !/^sentry:\d+$/.test(entry.match?.key || '')) {
+    errors.push('recurrence requires an exact Sentry source and issue key');
+  }
+  if (!/^[a-f0-9]{32}$/.test(baseline?.eventId || '')) {
+    errors.push('recurrence.eventId must be a Sentry eventID');
+  }
+  if (typeof baseline?.lastSeen !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(baseline.lastSeen)
+      || !Number.isFinite(Date.parse(baseline.lastSeen))) {
+    errors.push('recurrence.lastSeen must be an ISO timestamp');
+  }
+  if (!Number.isSafeInteger(baseline?.issueNumber) || baseline.issueNumber < 1) {
+    errors.push('recurrence.issueNumber must be a positive issue number');
+  }
   return errors;
 }
 
