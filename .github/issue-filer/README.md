@@ -30,6 +30,10 @@ Shared, deterministic issue filer for the weekly gardener (#1804) and telemetry 
 
 `reason` and `expires` are required. `owner` is optional. `match` may use `source`, `key`, `rule`, and/or `titleRegex`. An expired entry stops matching and is listed in the job summary so it can be removed.
 
+Optional `maxUsers` and/or `maxEvents` are positive integers. While the matching candidate is at or under every evaluable ceiling it stays ignored. If either count goes past its ceiling, the ignore no longer applies and the normal `planFilings` path runs (file, or reopen/update the existing `sentry:<id>` issue — never a duplicate). The step summary then includes the reason, for example `ignore ceiling exceeded: users 2 > 1`. Entries without these fields behave exactly as before.
+
+`--validate` rejects non-positive or non-integer ceiling values. It does not require a source that publishes those counts, because `match` can omit `source` and correlated telemetry candidates can carry Sentry `userCount` even when an App Insights key also matches. At runtime a ceiling whose count is absent on the candidate (typical App Insights `userCount`) is skipped, not treated as zero; the ignore still applies unless another evaluable ceiling is exceeded.
+
 ## Dedupe
 
 Every filed issue ends with:

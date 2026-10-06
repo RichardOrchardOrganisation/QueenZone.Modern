@@ -34,3 +34,43 @@ test('validators reject broken documents', () => {
   assert.ok(validateFindingRules([{ id: 'bad', title: 'x', level: 'L2', check: null }]).length > 0);
   assert.deepEqual(validateFindingRules([]), []);
 });
+
+function validIgnoreEntry(overrides = {}) {
+  return {
+    match: { source: 'sentry', key: 'sentry:1' },
+    reason: 'tracked',
+    expires: '2027-01-01',
+    ...overrides,
+  };
+}
+
+test('ignore ceilings accept omitted or positive integers and reject bad values', () => {
+  assert.deepEqual(validateIgnore({ entries: [validIgnoreEntry()] }), []);
+  assert.deepEqual(validateIgnore({ entries: [validIgnoreEntry({ maxUsers: 1 })] }), []);
+  assert.deepEqual(validateIgnore({ entries: [validIgnoreEntry({ maxEvents: 3 })] }), []);
+  assert.deepEqual(validateIgnore({ entries: [validIgnoreEntry({ maxUsers: 1, maxEvents: 2 })] }), []);
+
+  for (const [field, value] of [
+    ['maxUsers', 0],
+    ['maxUsers', -1],
+    ['maxUsers', 1.5],
+    ['maxUsers', '1'],
+    ['maxUsers', null],
+    ['maxEvents', 0],
+    ['maxEvents', -2],
+    ['maxEvents', Number.NaN],
+  ]) {
+    const errors = validateIgnore({ entries: [validIgnoreEntry({ [field]: value })] });
+    assert.ok(errors.some((error) => error.includes(`${field} must be a positive integer`)), String(value));
+  }
+});
+
+test('repo ignore list includes a users ceiling on the watchdog entry', () => {
+  const { ignore } = loadFilerFiles(repoRootFrom());
+  const watchdog = ignore.entries.find((entry) => entry.match?.key === 'sentry:7775729576');
+  assert.equal(watchdog.maxUsers, 1);
+  assert.equal(watchdog.maxEvents, undefined);
+  assert.equal(watchdog.expires, '2026-11-05');
+  assert.match(watchdog.reason, /#2147/);
+  assert.deepEqual(validateIgnore(ignore), []);
+});

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countRecentFilings, findMatch, planFilings, rankCandidates, unregisteredRules } from './core.mjs';
+import { countRecentFilings, findMatch, ignoreCeilingReason, planFilings, rankCandidates, unregisteredRules } from './core.mjs';
 import { loadFilerFiles, repoRootFrom } from './config.mjs';
 
 const now = new Date('2026-09-26T08:00:00Z');
@@ -308,6 +308,177 @@ test('same-day storm rerun comments on the existing storm issue', () => {
   assert.equal(rerun.comment.length, 1);
   assert.equal(rerun.comment[0].issueNumber, 80);
   assert.equal(rerun.comment[0].candidate.storm, true);
+});
+
+function sentryCandidate(overrides = {}) {
+  return candidate({
+    source: 'sentry',
+    keys: ['sentry:7775729576'],
+    title: '[sentry] WatchdogTermination',
+    count: 1,
+    userCount: 1,
+    ...overrides,
+  });
+}
+
+function sentryIgnore(overrides = {}) {
+  return {
+    entries: [{
+      match: { source: 'sentry', key: 'sentry:7775729576' },
+      reason: 'likely false positive',
+      owner: 'richardorchard',
+      expires: '2027-01-01',
+      ...overrides,
+    }],
+  };
+}
+
+test('ignore ceiling keeps a candidate skipped at or under the cap', () => {
+  const plan = planFilings({
+    candidates: [sentryCandidate({ count: 1, userCount: 1 })],
+    existing: [],
+    ignore: sentryIgnore({ maxUsers: 1, maxEvents: 1 }),
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(plan.create.length, 0);
+  assert.equal(plan.skipped[0].reason, 'ignored');
+});
+
+test('ignore ceiling exceeded files a new issue', () => {
+  const plan = planFilings({
+    candidates: [sentryCandidate({ count: 1, userCount: 2 })],
+    existing: [],
+    ignore: sentryIgnore({ maxUsers: 1 }),
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(plan.create.length, 1);
+  assert.equal(plan.skipped.length, 0);
+  assert.equal(plan.create[0].candidate.ignoreCeilingReason, 'ignore ceiling exceeded: users 2 > 1');
+});
+
+test('ignore ceiling exceeded reopens a recently completed match', () => {
+  const plan = planFilings({
+    candidates: [sentryCandidate({ count: 3, userCount: 2 })],
+    existing: [existing({
+      body: '<!-- qz-filer v=1 keys=sentry:7775729576 source=sentry -->',
+      state: 'closed',
+      stateReason: 'completed',
+      closedAt: '2026-09-20T00:00:00Z',
+    })],
+    ignore: sentryIgnore({ maxUsers: 1 }),
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(plan.create.length, 0);
+  assert.equal(plan.reopen.length, 1);
+  assert.equal(plan.comment[0].kind, 'regression');
+  assert.equal(plan.reopen[0].candidate.ignoreCeilingReason, 'ignore ceiling exceeded: users 2 > 1');
+});
+
+test('ignore ceiling exceeded updates an open match and never refiles', () => {
+  const existingIssue = existing({
+    number: 2147,
+    body: '<!-- qz-filer v=1 keys=sentry:7775729576 source=sentry -->',
+    labels: ['from-telemetry'],
+  });
+  const updated = planFilings({
+    candidates: [sentryCandidate({ count: 4, userCount: 2 })],
+    existing: [existingIssue],
+    ignore: sentryIgnore({ maxUsers: 1 }),
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(updated.create.length, 0);
+  assert.equal(updated.comment.length, 1);
+  assert.equal(updated.comment[0].kind, 'update');
+  assert.equal(updated.comment[0].issueNumber, 2147);
+
+  const deduped = planFilings({
+    candidates: [sentryCandidate({ count: 4, userCount: 2 })],
+    existing: [{ ...existingIssue, lastFilerCommentAt: '2026-09-26T07:00:00Z' }],
+    ignore: sentryIgnore({ maxUsers: 1 }),
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(deduped.create.length, 0);
+  assert.equal(deduped.comment.length, 0);
+  assert.equal(deduped.skipped[0].reason, 'comment-cooldown');
+});
+
+test('ignore without a ceiling still skips every recurrence', () => {
+  const plan = planFilings({
+    candidates: [sentryCandidate({ count: 9, userCount: 4 })],
+    existing: [],
+    ignore: sentryIgnore(),
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(plan.create.length, 0);
+  assert.equal(plan.skipped[0].reason, 'ignored');
+});
+
+test('ignoreCeilingReason reports each exceeded count and skips missing ones', () => {
+  assert.equal(
+    ignoreCeilingReason({ userCount: 2, count: 5 }, { maxUsers: 1, maxEvents: 3 }),
+    'ignore ceiling exceeded: users 2 > 1, events 5 > 3',
+  );
+  assert.equal(ignoreCeilingReason({ userCount: 1, count: 1 }, { maxUsers: 1, maxEvents: 1 }), null);
+  assert.equal(ignoreCeilingReason({ count: 9 }, { maxUsers: 1 }), null);
+  assert.equal(ignoreCeilingReason({ userCount: 4 }, { maxEvents: 1 }), null);
+});
+
+test('missing candidate counts skip that ceiling instead of treating it as zero', () => {
+  const appInsights = candidate({
+    source: 'appinsights',
+    keys: ['ai:exc:NullRef'],
+    title: '[appinsights] NullRef',
+    count: 5,
+  });
+  delete appInsights.userCount;
+  const usersOnly = planFilings({
+    candidates: [appInsights],
+    existing: [],
+    ignore: {
+      entries: [{
+        match: { source: 'appinsights', key: 'ai:exc:NullRef' },
+        reason: 'alert noise',
+        expires: '2027-01-01',
+        maxUsers: 1,
+      }],
+    },
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(usersOnly.create.length, 0);
+  assert.equal(usersOnly.skipped[0].reason, 'ignored');
+  assert.equal(ignoreCeilingReason(appInsights, { maxUsers: 1 }), null);
+
+  const events = planFilings({
+    candidates: [appInsights],
+    existing: [],
+    ignore: {
+      entries: [{
+        match: { source: 'appinsights', key: 'ai:exc:NullRef' },
+        reason: 'alert noise',
+        expires: '2027-01-01',
+        maxEvents: 1,
+      }],
+    },
+    config,
+    now,
+    loop: 'telemetry',
+  });
+  assert.equal(events.create.length, 1);
+  assert.equal(events.create[0].candidate.ignoreCeilingReason, 'ignore ceiling exceeded: events 5 > 1');
 });
 
 test('ingested findings still honor the ignore list', () => {
