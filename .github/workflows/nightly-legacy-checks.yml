@@ -212,7 +212,7 @@ jobs:
       - name: Export safe test outcomes
         id: safe-test-reports
         if: always() && steps.checkout.outcome == 'success'
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+        shell: pwsh
         run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/legacy-probes -OutputPath test-results/safe-reports/results.json
 
       - name: Upload test reports
@@ -322,7 +322,7 @@ jobs:
       - name: Export safe test outcomes
         id: safe-test-reports
         if: always() && steps.checkout.outcome == 'success'
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+        shell: powershell
         run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/legacy-probes -OutputPath test-results/safe-reports/results.json
 
       - name: Upload test reports
@@ -435,14 +435,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-      - name: Export safe test outcomes
-        id: safe-test-reports
-        if: always() && steps.checkout.outcome == 'success'
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+      - name: Export safe test outcomes (Windows)
+        id: safe-test-reports-windows
+        if: always() && steps.checkout.outcome == 'success' && matrix.os == 'Windows'
+        shell: powershell
+        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/e2e -OutputPath test-results/safe-reports/results.json
+
+      - name: Export safe test outcomes (macOS)
+        id: safe-test-reports-macos
+        if: always() && steps.checkout.outcome == 'success' && matrix.os == 'macOS'
+        shell: pwsh
         run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/e2e -OutputPath test-results/safe-reports/results.json
 
       - name: Upload test reports
-        if: always() && steps.safe-test-reports.outcome == 'success'
+        if: always() && (steps.safe-test-reports-windows.outcome == 'success' || steps.safe-test-reports-macos.outcome == 'success')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: legacy-test-reports-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -486,7 +492,7 @@ jobs:
       - name: Export safe test outcomes
         id: safe-test-reports
         if: always() && steps.checkout.outcome == 'success'
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+        shell: powershell
         run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/legacy-probes -OutputPath test-results/safe-reports/results.json
 
       - name: Upload test reports

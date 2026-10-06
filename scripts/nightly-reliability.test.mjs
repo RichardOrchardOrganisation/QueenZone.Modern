@@ -116,7 +116,7 @@ test('reports are uploaded after failures with unique attempt names and test-onl
   for (const upload of uploads) {
     const block = upload.split(/\n  [a-z]/)[0];
     assert.match(block, /if: always\(\)/);
-    assert.match(block, /steps.safe-test-reports.outcome == 'success'/);
+    assert.match(block, /steps.safe-test-reports(?:-windows|-macos)?\.outcome == 'success'/);
     assert.match(block, /github.run_attempt/);
     assert.match(block, /path: test-results\/safe-reports\/results\.json/);
     assert.match(block, /retention-days: 14/);
@@ -152,4 +152,17 @@ test('safe report export excludes private values, display names, logs and connec
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('safe report shell selection uses only contexts allowed by Actions', () => {
+  const exports = workflow.split('      - name: Export safe test outcomes').slice(1);
+  assert.equal(exports.length, 5);
+  const shells = exports.map((step) => /^        shell: (.+)$/m.exec(step.split('      - name: Upload test reports')[0])[1].trim());
+  assert.deepEqual(shells, [
+    'pwsh', 'powershell', 'powershell', 'pwsh', 'powershell',
+  ]);
+  assert.ok(shells.every((shell) => !shell.includes('${{')));
+  assert.match(exports[2], /matrix.os == 'Windows'/);
+  assert.match(exports[3], /matrix.os == 'macOS'/);
+  assert.match(workflow, /steps.safe-test-reports-windows.outcome == 'success' \|\| steps.safe-test-reports-macos.outcome == 'success'/);
 });
