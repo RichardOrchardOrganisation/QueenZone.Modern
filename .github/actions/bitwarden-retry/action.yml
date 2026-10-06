@@ -1,0 +1,128 @@
+name: Bounded Bitwarden secret fetch
+description: Three attempts of the pinned official action, with complete outputs required.
+inputs:
+  access_token:
+    description: Existing Bitwarden machine account token
+    required: true
+  secrets:
+    description: Existing UUID to output-name mapping
+    required: true
+outputs:
+  ADMIN_ALLOWED_EMAIL:
+    description: Validated ADMIN_ALLOWED_EMAIL output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.ADMIN_ALLOWED_EMAIL || '' }}
+  APPLICATIONINSIGHTS_CONNECTION_STRING:
+    description: Validated APPLICATIONINSIGHTS_CONNECTION_STRING output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING || '' }}
+  AUTH_MICROSOFT_CLIENT_ID:
+    description: Validated AUTH_MICROSOFT_CLIENT_ID output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.AUTH_MICROSOFT_CLIENT_ID || '' }}
+  AUTH_MICROSOFT_CLIENT_SECRET:
+    description: Validated AUTH_MICROSOFT_CLIENT_SECRET output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.AUTH_MICROSOFT_CLIENT_SECRET || '' }}
+  AZURE_AD_CLIENT_ID:
+    description: Validated AZURE_AD_CLIENT_ID output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.AZURE_AD_CLIENT_ID || '' }}
+  AZURE_AD_CLIENT_SECRET:
+    description: Validated AZURE_AD_CLIENT_SECRET output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.AZURE_AD_CLIENT_SECRET || '' }}
+  AZURE_WEBAPP_PUBLISH_PROFILE:
+    description: Validated AZURE_WEBAPP_PUBLISH_PROFILE output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.AZURE_WEBAPP_PUBLISH_PROFILE || '' }}
+  BLOB_STORAGE_CONNECTION_STRING:
+    description: Validated BLOB_STORAGE_CONNECTION_STRING output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.BLOB_STORAGE_CONNECTION_STRING || '' }}
+  CLOUDFLARE_API_TOKEN:
+    description: Validated CLOUDFLARE_API_TOKEN output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.CLOUDFLARE_API_TOKEN || '' }}
+  GMAIL_APP_PASSWORD:
+    description: Validated GMAIL_APP_PASSWORD output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.GMAIL_APP_PASSWORD || '' }}
+  GMAIL_APP_USERNAME:
+    description: Validated GMAIL_APP_USERNAME output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.GMAIL_APP_USERNAME || '' }}
+  MOBILE_AUTH_SIGNING_KEY:
+    description: Validated MOBILE_AUTH_SIGNING_KEY output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.MOBILE_AUTH_SIGNING_KEY || '' }}
+  QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING:
+    description: Validated QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING || '' }}
+  QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD:
+    description: Validated QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD output
+    value: ${{ steps.publish.outcome == 'success' && steps.publish.outputs.complete == 'true' && steps.publish.outputs.QUEENZONE_SQL_EXPRESS_PROBE_PASSWORD || '' }}
+runs:
+  using: composite
+  steps:
+    - id: preflight
+      uses: ./.github/actions/bitwarden-retry/guard
+      with:
+        phase: preflight
+        mapping: ${{ inputs.secrets }}
+    - id: fetch1
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
+      continue-on-error: true
+      uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+      with:
+        access_token: ${{ inputs.access_token }}
+        secrets: ${{ inputs.secrets }}
+        set_env: 'false'
+    - id: check1
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' && steps.fetch1.outcome == 'success' }}
+      continue-on-error: true
+      uses: ./.github/actions/bitwarden-retry/guard
+      env:
+        FETCH_OUTPUTS: ${{ toJSON(steps.fetch1.outputs) }}
+      with:
+        phase: check
+        mapping: ${{ inputs.secrets }}
+    - name: Wait before attempt 2
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') }}
+      shell: bash
+      run: sleep 20
+    - id: fetch2
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') }}
+      continue-on-error: true
+      uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+      with:
+        access_token: ${{ inputs.access_token }}
+        secrets: ${{ inputs.secrets }}
+        set_env: 'false'
+    - id: check2
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' && steps.fetch2.outcome == 'success' }}
+      continue-on-error: true
+      uses: ./.github/actions/bitwarden-retry/guard
+      env:
+        FETCH_OUTPUTS: ${{ toJSON(steps.fetch2.outputs) }}
+      with:
+        phase: check
+        mapping: ${{ inputs.secrets }}
+    - name: Wait before attempt 3
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') && (steps.check2.outcome != 'success' || steps.check2.outputs.complete != 'true') }}
+      shell: bash
+      run: sleep 60
+    - id: fetch3
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') && (steps.check2.outcome != 'success' || steps.check2.outputs.complete != 'true') }}
+      continue-on-error: true
+      uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+      with:
+        access_token: ${{ inputs.access_token }}
+        secrets: ${{ inputs.secrets }}
+        set_env: 'false'
+    - id: check3
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' && steps.fetch3.outcome == 'success' }}
+      continue-on-error: true
+      uses: ./.github/actions/bitwarden-retry/guard
+      env:
+        FETCH_OUTPUTS: ${{ toJSON(steps.fetch3.outputs) }}
+      with:
+        phase: check
+        mapping: ${{ inputs.secrets }}
+    - id: publish
+      if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
+      uses: ./.github/actions/bitwarden-retry/guard
+      env:
+        FETCH_OUTPUTS: ${{ steps.check1.outcome == 'success' && steps.check1.outputs.complete == 'true' && toJSON(steps.fetch1.outputs) || steps.check2.outcome == 'success' && steps.check2.outputs.complete == 'true' && toJSON(steps.fetch2.outputs) || steps.check3.outcome == 'success' && steps.check3.outputs.complete == 'true' && toJSON(steps.fetch3.outputs) || '{}' }}
+      with:
+        attempt: ${{ steps.check1.outcome == 'success' && steps.check1.outputs.complete == 'true' && '1' || steps.check2.outcome == 'success' && steps.check2.outputs.complete == 'true' && '2' || '3' }}
+        phase: publish
+        mapping: ${{ inputs.secrets }}
