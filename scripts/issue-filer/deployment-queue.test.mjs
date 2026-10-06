@@ -131,10 +131,23 @@ test('stable key uses existing deduplication, cooldown and daily filing cap', ()
 });
 
 test('hourly poll reuses existing permissions and leaves weekly/deploy protection intact', () => {
-  const workflow = readFileSync(new URL('../../.github/workflows/gardener.yml', import.meta.url), 'utf8');
+  const workflow = readFileSync(new URL('../../.github/workflows/gardener.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
   assert.match(workflow, /cron: "23 \* \* \* \*"/);
-  assert.match(workflow, /gardener:\s+if: github.event_name == 'workflow_dispatch' \|\| github.event.schedule == '0 0 \* \* 1'/);
+  const gardener = workflow.split('  gardener:\n')[1].split('  deployment-queue:')[0];
+  assert.ok(gardener.includes("if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 0 * * 1'"));
   assert.doesNotMatch(workflow, /actions: write|deployments: write|bitwarden/);
   const deploy = readFileSync(new URL('../../.github/workflows/deploy-dev.yml', import.meta.url), 'utf8');
   assert.match(deploy, /cancel-in-progress: false/);
+});
+
+
+test('job-scoped permissions preserve existing effective grants and default to none', () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/gardener.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+  assert.match(workflow, /^permissions: \{\}/m);
+  for (const job of ['gardener', 'deployment-queue']) {
+    const permissions = workflow.split(`  ${job}:\n`)[1].split('    if:')[0];
+    for (const grant of ['contents: read', 'issues: write', 'pull-requests: read', 'actions: read']) {
+      assert.ok(permissions.includes(`      ${grant}`));
+    }
+  }
 });

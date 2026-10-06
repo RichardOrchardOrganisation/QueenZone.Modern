@@ -33,8 +33,8 @@ The collector uses the existing issue filer, the stable
 `deployment-queue:deploy-dev:main:unassigned` marker, existing cooldown and
 deduplication, and the shared telemetry cap of three issues per day, with at
 most one new issue per poll. It reuses Gardener's current token permissions,
-labels and issue-filer concurrency lock. No credentials or permissions are
-added. Scheduled issue writes remain **dry-run unless the existing**
+labels and issue-filer concurrency lock. Permissions are declared per job with the same effective grants as before;
+no credentials or permissions are added. Scheduled issue writes remain **dry-run unless the existing**
 `TELEMETRY_TRIAGE_FILE_ISSUES` **variable is exactly `true`**. This change does
 not modify that variable. If filing is capped, ignored or disabled, the job
 summary and warning still show the blocker; a maintainer must review the

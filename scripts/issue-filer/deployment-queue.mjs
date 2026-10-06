@@ -4,7 +4,7 @@ import { runFiler, writeStepSummary } from './run.mjs';
 
 export const QUEUE_AGE_MINUTES = 60;
 const WORKFLOW = 'deploy-dev.yml';
-const STATUSES = ['queued', 'in_progress', 'pending', 'waiting', 'requested'];
+const STATUSES = new Set(['queued', 'in_progress', 'pending', 'waiting', 'requested']);
 
 function timestamp(value) {
   const parsed = Date.parse(value);
@@ -84,34 +84,36 @@ export function createDeploymentMetadataClient({ token, repository, fetchImpl = 
     }
     return response.json();
   }
+  function addRuns(runs, data) {
+    if (!Array.isArray(data.workflow_runs) || data.total_count > data.workflow_runs.length) {
+      throw new Error('Deployment run listing is malformed or truncated; inspection incomplete.');
+    }
+    for (const run of data.workflow_runs) {
+      if (!Number.isSafeInteger(run.id) || run.id <= 0) throw new Error('Invalid run metadata; inspection incomplete.');
+      if (run.head_branch === 'main' && run.path?.split('@')[0] === `.github/workflows/${WORKFLOW}`) runs.set(run.id, run);
+    }
+  }
+  async function collectRecord(original) {
+    // These reads are ordered: refresh status after jobs/approvals to avoid
+    // reporting a holder that completed during inspection.
+    const jobs = await get(`actions/runs/${original.id}/jobs?per_page=100`);
+    const approvals = await get(`actions/runs/${original.id}/pending_deployments`);
+    const run = await get(`actions/runs/${original.id}`);
+    if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length || !Array.isArray(approvals)
+        || run.id !== original.id || !STATUSES.has(run.status) && run.status !== 'completed') {
+      throw new Error('Deployment run detail is malformed or truncated; inspection incomplete.');
+    }
+    if (run.run_attempt !== original.run_attempt) throw new Error('Run attempt changed during inspection; inspection incomplete.');
+    return { run, jobs: jobs.jobs, approvals };
+  }
   return {
     async collect() {
+      const pages = await Promise.all([...STATUSES].map((status) =>
+        get(`actions/workflows/${WORKFLOW}/runs?branch=main&status=${status}&per_page=100`)));
       const runs = new Map();
-      for (const status of STATUSES) {
-        const data = await get(`actions/workflows/${WORKFLOW}/runs?branch=main&status=${status}&per_page=100`);
-        if (!Array.isArray(data.workflow_runs) || data.total_count > data.workflow_runs.length) {
-          throw new Error('Deployment run listing is malformed or truncated; inspection incomplete.');
-        }
-        for (const run of data.workflow_runs) {
-          if (!Number.isSafeInteger(run.id) || run.id <= 0) throw new Error('Invalid run metadata; inspection incomplete.');
-          if (run.head_branch === 'main' && run.path?.split('@')[0] === `.github/workflows/${WORKFLOW}`) runs.set(run.id, run);
-        }
-      }
+      pages.forEach((data) => addRuns(runs, data));
       if (runs.size > 20) throw new Error('More than 20 unfinished dev runs; inspection incomplete.');
-      const records = [];
-      for (const original of runs.values()) {
-        // Refresh the run after listing to avoid reporting a completed holder.
-        const jobs = await get(`actions/runs/${original.id}/jobs?per_page=100`);
-        const approvals = await get(`actions/runs/${original.id}/pending_deployments`);
-        const run = await get(`actions/runs/${original.id}`);
-        if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length || !Array.isArray(approvals)
-            || run.id !== original.id || !STATUSES.includes(run.status) && run.status !== 'completed') {
-          throw new Error('Deployment run detail is malformed or truncated; inspection incomplete.');
-        }
-        if (run.run_attempt !== original.run_attempt) throw new Error('Run attempt changed during inspection; inspection incomplete.');
-        records.push({ run, jobs: jobs.jobs, approvals });
-      }
-      return records;
+      return Promise.all([...runs.values()].map(collectRecord));
     },
   };
 }
@@ -136,10 +138,12 @@ export async function monitorDeployments({ repository, token, dryRun = true, now
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  monitorDeployments({ repository: process.env.GITHUB_REPOSITORY, token: process.env.GITHUB_TOKEN,
-    dryRun: process.env.TELEMETRY_TRIAGE_FILE_ISSUES !== 'true' }).catch(() => {
+  try {
+    await monitorDeployments({ repository: process.env.GITHUB_REPOSITORY, token: process.env.GITHUB_TOKEN,
+      dryRun: process.env.TELEMETRY_TRIAGE_FILE_ISSUES !== 'true' });
+  } catch {
     // Never print an arbitrary upstream error or response body.
     console.error('Deployment queue inspection failed; no clean queue or filing is claimed.');
     process.exitCode = 1;
-  });
+  }
 }
