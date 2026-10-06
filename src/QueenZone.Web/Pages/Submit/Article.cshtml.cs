@@ -8,7 +8,7 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Submit;
 
-[RequestSizeLimit(16 * 1024 * 1024)]
+[RequestSizeLimit(8 * 1024 * 1024)]
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
 public sealed class ArticleModel(
     IArticleSubmissionRepository articleSubmissionRepository,

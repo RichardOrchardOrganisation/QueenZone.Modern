@@ -50,7 +50,7 @@
       <label class="qz-account-form__field">
         <span>Cover image <span class="qz-account-form__optional">(optional)</span></span>
         <input type="file" asp-for="CoverImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
-        <span class="qz-account-form__help">JPEG, PNG or WebP, at least 400×267 pixels. Centre-cropped to 3:2.</span>
+        <span class="qz-account-form__help">JPEG, PNG or WebP, at least 400Ã—267 pixels, up to 8 MB. Centre-cropped to 3:2.</span>
         <span asp-validation-for="CoverImage" class="qz-account-form__field-error"></span>
       </label>
       @if (!string.IsNullOrWhiteSpace(Model.CoverImageBlobPath))

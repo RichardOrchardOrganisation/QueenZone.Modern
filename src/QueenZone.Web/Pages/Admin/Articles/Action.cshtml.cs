@@ -8,8 +8,8 @@ namespace QueenZone.Web.Pages.Admin.Articles;
 // See DetailModel for why antiforgery validation is done manually here: the automatic
 // Razor Pages filter returns a bare 400 on failure with no way for the admin to retry
 // gracefully, whereas a manual check can redirect back to the review page with a message.
-[RequestFormLimits(MultipartBodyLengthLimit = 16 * 1024 * 1024, ValueLengthLimit = 16 * 1024 * 1024)]
-[RequestSizeLimit(16 * 1024 * 1024)]
+[RequestFormLimits(MultipartBodyLengthLimit = 8 * 1024 * 1024, ValueLengthLimit = 8 * 1024 * 1024)]
+[RequestSizeLimit(8 * 1024 * 1024)]
 [IgnoreAntiforgeryToken]
 public sealed class ActionModel(
     IArticleSubmissionRepository articleSubmissionRepository,
