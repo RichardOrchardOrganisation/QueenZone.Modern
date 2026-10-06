@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { useNetworkState } from 'expo-network';
 import type { CrosswordDetail, CrosswordExplanation, CrosswordSelection, CrosswordCompletionResult } from '../api/types';
@@ -15,7 +15,6 @@ export function useCrosswordPlay(puzzle: CrosswordDetail, memberId: string | nul
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
-  const [seconds, setSeconds] = useState(0);
   const [guest, setGuest] = useState<core.CrosswordSavedProgress | null>(null);
   const [completion, setCompletion] = useState<{ elapsedSeconds: number; clean: boolean; rankingEligible: boolean } | null>(null);
   const [review, setReview] = useState<(Omit<CrosswordExplanation, 'explanation'> & { answer?: string; explanation: string | null })[]>([]);
@@ -64,6 +63,12 @@ export function useCrosswordPlay(puzzle: CrosswordDetail, memberId: string | nul
     syncTimer.current = setTimeout(() => persist(true), 2000);
   }
   function select(next: core.CrosswordPlayState) { if (ready && !latest.current.timer.paused) { latest.current.state = next; setState(next); } }
+  const selectCell = useCallback((cell: number) => {
+    if (!readyRef.current || latest.current.timer.paused) return;
+    const next = core.selectCell(model, latest.current.state, cell);
+    latest.current.state = next;
+    setState(next);
+  }, [model]);
   function pause() {
     dirtyRef.current = true;
     update(latest.current.state, core.setPaused(latest.current.timer, !latest.current.timer.paused, Date.now()));
@@ -181,12 +186,11 @@ export function useCrosswordPlay(puzzle: CrosswordDetail, memberId: string | nul
     // Identity and version changes remount this hook's owning solver.
   }, []);
   useEffect(() => {
-    const tick = setInterval(() => setSeconds(core.elapsedSeconds(latest.current.timer, Date.now())), 1000);
     const lifecycle = AppState.addEventListener('change', value => {
       const next = core.setVisible(latest.current.timer, value === 'active', Date.now());
       latest.current.timer = next; setTimer(next); if (value === 'active') void actions.current.reconcile(); else actions.current.persist(true);
     });
-    return () => { clearInterval(tick); lifecycle.remove(); };
+    return () => { lifecycle.remove(); };
   }, []);
   useEffect(() => {
     if (!ready || busy || completion || !online || !core.isFilled(model, state)) return;
@@ -205,9 +209,9 @@ export function useCrosswordPlay(puzzle: CrosswordDetail, memberId: string | nul
     update(core.createPlayState(model, guest), core.createTimer(guest.elapsedSeconds));
     latest.current.updatedAt = Date.parse(guest.updatedAt); setGuest(null); persist(true);
   }
-  return { model, state, timer, seconds, ready, status, busy, online, completion, review, guest, keepGuest,
+  return { model, state, timer, ready, status, busy, online, completion, review, guest, keepGuest,
     pending: pending.length, needsAttention: pending.some(item => item.state === 'needs_attention'),
-    change, select, pause, check, reveal,
+    change, select, selectCell, pause, check, reveal,
     retryFinish() { attempted.current = null; void finish(); },
     setAutoCheck(enabled: boolean) { dirtyRef.current = true; update(core.setAutoCheck(latest.current.state, enabled)); persist(true); } };
 }

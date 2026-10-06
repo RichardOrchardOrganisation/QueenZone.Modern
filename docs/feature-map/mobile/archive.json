@@ -525,6 +525,8 @@
       "sources": [
         "src/QueenZone.Mobile/src/screens/archive/CrosswordPlayScreen.tsx",
         "src/QueenZone.Mobile/src/crosswords/CrosswordGrid.tsx",
+        "src/QueenZone.Mobile/src/crosswords/CrosswordCell.tsx",
+        "src/QueenZone.Mobile/src/crosswords/CrosswordTimerText.tsx",
         "src/QueenZone.Mobile/src/crosswords/CrosswordKeyboard.tsx",
         "src/QueenZone.Mobile/src/crosswords/CrosswordLinkBridge.tsx"
       ],
@@ -537,7 +539,9 @@
         "src/QueenZone.Mobile/maestro/flows/33-crossword-theme.yaml"
       ],
       "specs": [
-        "src/QueenZone.Mobile/src/screens/archive/CrosswordPlayScreen.test.tsx"
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordPlayScreen.test.tsx",
+        "src/QueenZone.Mobile/src/screens/archive/CrosswordPlayPerformance.test.tsx",
+        "src/QueenZone.Mobile/src/crosswords/CrosswordGrid.test.tsx"
       ],
       "selectors": [],
       "signIn": "none",
