@@ -20,7 +20,7 @@
 
     <div asp-validation-summary="ModelOnly" class="qz-account-notice qz-account-notice--error"></div>
 
-    <form method="post" id="article-form" class="qz-account-form">
+    <form method="post" id="article-form" class="qz-account-form" enctype="multipart/form-data">
       @Html.AntiForgeryToken()
       <input type="hidden" asp-for="DraftId" />
 
@@ -48,6 +48,20 @@
       <span asp-validation-for="Body" class="qz-account-form__field-error"></span>
 
       <label class="qz-account-form__field">
+        <span>Cover image <span class="qz-account-form__optional">(optional)</span></span>
+        <input type="file" asp-for="CoverImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+        <span class="qz-account-form__help">JPEG, PNG or WebP, at least 400×267 pixels. Centre-cropped to 3:2.</span>
+        <span asp-validation-for="CoverImage" class="qz-account-form__field-error"></span>
+      </label>
+      @if (!string.IsNullOrWhiteSpace(Model.CoverImageBlobPath))
+      {
+        <figure class="qz-account-form__field">
+          <img src="@NewsArticleImage.ResolveDisplayUrl(Model.CoverImageBlobPath, null)" alt="Current cover image" width="300" height="200" />
+          <label><input type="checkbox" asp-for="RemoveCoverImage" /> Remove cover image</label>
+        </figure>
+      }
+
+      <label class="qz-account-form__field">
         <span>Tags <span class="qz-account-form__optional">(optional)</span></span>
         <input asp-for="Tags" maxlength="500" placeholder="e.g. Concert review, Freddie Mercury, 1985" />
         <span class="qz-account-form__help">Comma-separated, up to 5 tags.</span>
@@ -71,6 +85,7 @@
     function autosave() {
       var data = new FormData(form);
       data.set('action', 'autosave');
+      data.delete('CoverImage'); // autosave is text-only; the photo uploads with Save/Submit
       fetch('/submit/article/autosave', {
         method: 'POST',
         headers: { 'RequestVerificationToken': data.get('__RequestVerificationToken') },

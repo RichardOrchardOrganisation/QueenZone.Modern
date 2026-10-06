@@ -8,12 +8,15 @@ namespace QueenZone.Web.Pages.Admin.Articles;
 // See DetailModel for why antiforgery validation is done manually here: the automatic
 // Razor Pages filter returns a bare 400 on failure with no way for the admin to retry
 // gracefully, whereas a manual check can redirect back to the review page with a message.
+[RequestFormLimits(MultipartBodyLengthLimit = 16 * 1024 * 1024, ValueLengthLimit = 16 * 1024 * 1024)]
+[RequestSizeLimit(16 * 1024 * 1024)]
 [IgnoreAntiforgeryToken]
 public sealed class ActionModel(
     IArticleSubmissionRepository articleSubmissionRepository,
     IArticleRepository articleRepository,
     PublicQueryCacheService publicQueryCache,
     ISearchIndexService searchIndexService,
+    NewsArticleImageService imageService,
     IAntiforgery antiforgery,
     ILogger<ActionModel> logger) : AdminArticlesPageModel
 {
@@ -32,6 +35,14 @@ public sealed class ActionModel(
     [BindProperty]
     public string? RejectionReason { get; set; }
 
+    [BindProperty]
+    public IFormFile? CoverImage { get; set; }
+
+    [BindProperty]
+    public bool RemoveCoverImage { get; set; }
+
+    private bool statusApplied;
+
     public async Task<IActionResult> OnPostAsync(Guid id, string submitAction, CancellationToken cancellationToken)
     {
         try
@@ -48,10 +59,10 @@ public sealed class ActionModel(
 
         return submitAction switch
         {
-            "approve" => await ApplyAsync(id, ArticleSubmissionStatus.ApprovedForPublishing,
-                rejectionReason: null, "Approved for publishing.", cancellationToken),
-            "publish" => await ApplyAsync(id, ArticleSubmissionStatus.Published,
-                rejectionReason: null, "Article published.", cancellationToken),
+            "approve" => await ApplyWithCoverImageAsync(id, ArticleSubmissionStatus.ApprovedForPublishing,
+                "Approved for publishing.", cancellationToken),
+            "publish" => await ApplyWithCoverImageAsync(id, ArticleSubmissionStatus.Published,
+                "Article published.", cancellationToken),
             "revise" => await ApplyRevisionRequestAsync(id, cancellationToken),
             "reject" => await ApplyRejectAsync(id, cancellationToken),
             "underreview" => await ApplyAsync(id, ArticleSubmissionStatus.UnderReview,
@@ -60,12 +71,63 @@ public sealed class ActionModel(
         };
     }
 
+    /// <summary>
+    /// Stores an uploaded cover image (or clears it) before the status change, so the photo
+    /// can be added on the same review step that approves or publishes the article.
+    /// </summary>
+    private async Task<IActionResult> ApplyWithCoverImageAsync(
+        Guid id,
+        string status,
+        string successMessage,
+        CancellationToken cancellationToken)
+    {
+        var existing = await articleSubmissionRepository.GetByIdAsync(id, cancellationToken);
+        if (existing is null)
+        {
+            return NotFound();
+        }
+
+        string? coverImage = RemoveCoverImage ? string.Empty : null;
+        if (CoverImage is { Length: > 0 })
+        {
+            var applied = await imageService.TryApplyAsync(
+                CoverImage,
+                crop: null,
+                new AdminNewsDraft(existing.Title, existing.Slug, existing.Excerpt ?? string.Empty, existing.Body, DateTime.UtcNow, null, existing.CoverImageBlobPath, null),
+                User,
+                persist: true,
+                cancellationToken);
+            if (applied.Error is not null)
+            {
+                TempData["ArticleMessage"] = applied.Error;
+                TempData["ArticleMessageKind"] = "error";
+                return Redirect($"/admin/articles/{id}");
+            }
+
+            coverImage = applied.Draft.ImageBlobKey;
+        }
+
+        var result = await ApplyAsync(id, status, rejectionReason: null, successMessage, cancellationToken, coverImage);
+        if (coverImage is not null && statusApplied)
+        {
+            await imageService.TryDeletePreviousUgcArticlesAsync(existing.CoverImageBlobPath, coverImage, cancellationToken);
+        }
+        else if (!statusApplied && CoverImage is { Length: > 0 })
+        {
+            // The status change failed, so the freshly uploaded blob is unreferenced.
+            await imageService.TryDeletePreviousUgcArticlesAsync(coverImage, null, cancellationToken);
+        }
+
+        return result;
+    }
+
     private async Task<IActionResult> ApplyAsync(
         Guid id,
         string status,
         string? rejectionReason,
         string successMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? coverImage = null)
     {
         try
         {
@@ -75,7 +137,7 @@ public sealed class ActionModel(
                 EditorEmail,
                 ReviewNotes,
                 rejectionReason,
-                new ArticlePublicationDetails(Slug, Excerpt, Tags),
+                new ArticlePublicationDetails(Slug, Excerpt, Tags, coverImage),
                 cancellationToken);
 
             if (updated is null)
@@ -95,6 +157,7 @@ public sealed class ActionModel(
 
             await SyncSearchIndexAsync(updated, cancellationToken);
 
+            statusApplied = true;
             TempData["ArticleMessage"] = successMessage;
             TempData["ArticleMessageKind"] = "success";
         }

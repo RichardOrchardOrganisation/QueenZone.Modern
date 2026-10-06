@@ -1,6 +1,9 @@
 namespace QueenZone.Data;
 
-/// <summary>Input model for creating or updating a draft.</summary>
+/// <summary>
+/// Input model for creating or updating a draft. On update, a null <c>CoverImageBlobPath</c>
+/// keeps the stored cover image and an empty one clears it.
+/// </summary>
 public sealed record ArticleSubmissionDraft(
     Guid? Id,
     Guid AuthorMemberId,

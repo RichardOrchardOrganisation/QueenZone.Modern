@@ -49,6 +49,13 @@
       }
     </dl>
 
+    @if (!string.IsNullOrWhiteSpace(submission.CoverImageBlobPath))
+    {
+      <figure class="admin-article-image">
+        <img src="@NewsArticleImage.ResolveDisplayUrl(submission.CoverImageBlobPath, null)" alt="Article cover image" width="600" height="400" />
+      </figure>
+    }
+
     <h2>Article preview</h2>
     <div class="qz-reading qz-admin-preview">
       <article class="article-body">@Html.Raw(Model.FormattedBody)</article>
@@ -60,7 +67,7 @@
     {
       <h2>Actions</h2>
 
-      <form method="post" action="/admin/articles/@submission.Id/action" class="qz-admin-review-form">
+      <form method="post" action="/admin/articles/@submission.Id/action" class="qz-admin-review-form" enctype="multipart/form-data">
         <input type="hidden" name="__RequestVerificationToken" value="@token" />
 
         <fieldset class="qz-admin-fieldset">
@@ -77,6 +84,17 @@
             <span>Tags (optional)</span>
             <input type="text" name="Tags" value="@submission.Tags" maxlength="500" />
           </label>
+          <label class="qz-account-form__field">
+            <span>Cover image (optional)</span>
+            <input type="file" name="CoverImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+            <span class="qz-account-form__help">JPEG, PNG or WebP, at least 400×267 pixels. Centre-cropped to 3:2.</span>
+          </label>
+          @if (!string.IsNullOrWhiteSpace(submission.CoverImageBlobPath))
+          {
+            <label class="qz-account-form__field">
+              <input type="checkbox" name="RemoveCoverImage" value="true" /> Remove current cover image
+            </label>
+          }
           <label class="qz-account-form__field">
             <span>Reviewer notes (optional)</span>
             <textarea name="ReviewNotes" rows="2" maxlength="1000"></textarea>

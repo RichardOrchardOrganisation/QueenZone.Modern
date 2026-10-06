@@ -8,10 +8,12 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Submit;
 
+[RequestSizeLimit(16 * 1024 * 1024)]
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
 public sealed class ArticleModel(
     IArticleSubmissionRepository articleSubmissionRepository,
-    UgcHtml ugcHtml) : PageModel
+    UgcHtml ugcHtml,
+    NewsArticleImageService imageService) : PageModel
 {
     [BindProperty]
     public Guid? DraftId { get; set; }
@@ -31,6 +33,17 @@ public sealed class ArticleModel(
     [BindProperty]
     [StringLength(500, ErrorMessage = "Tags must be 500 characters or fewer.")]
     public string? Tags { get; set; }
+
+    [BindProperty]
+    public IFormFile? CoverImage { get; set; }
+
+    [BindProperty]
+    public bool RemoveCoverImage { get; set; }
+
+    public string? CoverImageBlobPath { get; private set; }
+
+    // Previous cover blob, deleted only once the replacement is persisted on the draft.
+    private string? replacedCoverBlob;
 
     public string? StatusMessage { get; private set; }
 
@@ -80,6 +93,7 @@ public sealed class ArticleModel(
         Excerpt = submission.Excerpt;
         Body = submission.Body;
         Tags = submission.Tags;
+        CoverImageBlobPath = submission.CoverImageBlobPath;
 
         ViewData["Title"] = submission.Status == ArticleSubmissionStatus.RequiresRevision
             ? "Revise article"
@@ -101,14 +115,22 @@ public sealed class ArticleModel(
         {
             if (!ModelState.IsValid)
             {
+                await LoadStoredCoverAsync(memberId.Value, cancellationToken);
                 return Page();
             }
 
             var sanitizedBody = ugcHtml.Sanitize(Body);
 
+            var cover = await ApplyCoverImageAsync(memberId.Value, sanitizedBody, cancellationToken);
+            if (!ModelState.IsValid)
+            {
+                return Page();
+            }
+
             var draft = await articleSubmissionRepository.UpsertDraftAsync(
-                new ArticleSubmissionDraft(DraftId, memberId.Value, Title, Excerpt, sanitizedBody, null, Tags),
+                new ArticleSubmissionDraft(DraftId, memberId.Value, Title, Excerpt, sanitizedBody, cover, Tags),
                 cancellationToken);
+            await DeleteReplacedCoverAsync(cancellationToken);
 
             try
             {
@@ -142,13 +164,21 @@ public sealed class ArticleModel(
 
         var savedBody = ugcHtml.Sanitize(Body);
 
+        var savedCover = await ApplyCoverImageAsync(memberId.Value, savedBody, cancellationToken);
+        if (!ModelState.IsValid)
+        {
+            return Page();
+        }
+
         try
         {
             var saved = await articleSubmissionRepository.UpsertDraftAsync(
-                new ArticleSubmissionDraft(DraftId, memberId.Value, Title, Excerpt, savedBody, null, Tags),
+                new ArticleSubmissionDraft(DraftId, memberId.Value, Title, Excerpt, savedBody, savedCover, Tags),
                 cancellationToken);
 
+            await DeleteReplacedCoverAsync(cancellationToken);
             DraftId = saved.Id;
+            CoverImageBlobPath = saved.CoverImageBlobPath;
             StatusMessage = "Draft saved.";
             StatusMessageKind = "success";
         }
@@ -159,5 +189,63 @@ public sealed class ArticleModel(
         }
 
         return Page();
+    }
+
+    /// <summary>
+    /// Returns the cover image value for the draft upsert: a new blob name, an empty string to clear,
+    /// or null to keep what is stored. Adds a model error and returns null when the upload is rejected.
+    /// </summary>
+    private async Task<string?> ApplyCoverImageAsync(Guid memberId, string body, CancellationToken cancellationToken)
+    {
+        await LoadStoredCoverAsync(memberId, cancellationToken);
+
+        if (CoverImage is not { Length: > 0 })
+        {
+            if (RemoveCoverImage && CoverImageBlobPath is not null)
+            {
+                replacedCoverBlob = CoverImageBlobPath;
+                CoverImageBlobPath = null;
+                return string.Empty;
+            }
+
+            return null;
+        }
+
+        var applied = await imageService.TryApplyAsync(
+            CoverImage,
+            crop: null,
+            new AdminNewsDraft(Title, null, Excerpt ?? string.Empty, body, DateTime.UtcNow, null, CoverImageBlobPath, null),
+            User,
+            persist: true,
+            cancellationToken);
+        if (applied.Error is not null)
+        {
+            ModelState.AddModelError(nameof(CoverImage), applied.Error);
+            return null;
+        }
+
+        replacedCoverBlob = CoverImageBlobPath;
+        CoverImageBlobPath = applied.Draft.ImageBlobKey;
+        return CoverImageBlobPath;
+    }
+
+    private async Task DeleteReplacedCoverAsync(CancellationToken cancellationToken)
+    {
+        await imageService.TryDeletePreviousUgcArticlesAsync(replacedCoverBlob, CoverImageBlobPath, cancellationToken);
+        replacedCoverBlob = null;
+    }
+
+    private async Task LoadStoredCoverAsync(Guid memberId, CancellationToken cancellationToken)
+    {
+        if (DraftId is not Guid draftId)
+        {
+            return;
+        }
+
+        var stored = await articleSubmissionRepository.GetByIdAsync(draftId, cancellationToken);
+        if (stored is not null && stored.AuthorMemberId == memberId)
+        {
+            CoverImageBlobPath = stored.CoverImageBlobPath;
+        }
     }
 }
