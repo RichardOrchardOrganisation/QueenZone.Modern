@@ -68,6 +68,11 @@
   border-radius: 4px;
 }
 
+/* The editor surface is always white, so pin dark text; otherwise it inherits the light dark-mode body colour. */
+.qz-rte .ql-editor {
+  color: #1a1a1a;
+}
+
 .qz-rte .ql-editor img {
   max-width: 100%;
   height: auto;
