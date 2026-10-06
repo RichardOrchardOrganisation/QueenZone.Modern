@@ -130,7 +130,7 @@ export function useCrosswordPlay(puzzle: CrosswordDetail, memberId: string | nul
     finally { if (mounted.current) setBusy(false); }
   }
   async function restore(abort: AbortController) {
-      if (!version) { setStatus('This server does not support crossword saves yet. You can explore the blank grid.'); setReady(true); return; }
+      if (!version) { setStatus('This server does not support crossword saves yet. You can explore the blank grid.'); readyRef.current = true; setReady(true); return; }
       const local = await core.loadLocalProgress(AsyncStorage, key, model, version);
       let remote = null;
       if (memberId && accessToken) {
