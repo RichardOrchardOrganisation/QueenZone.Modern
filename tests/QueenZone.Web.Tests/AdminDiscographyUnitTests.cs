@@ -102,6 +102,26 @@ public sealed class DiscographyTrackPositionsTests
     }
 }
 
+public sealed class TrackRowViewModelTests
+{
+    [Fact]
+    public void First_and_last_tracks_only_move_inwards()
+    {
+        var first = new TrackRowViewModel(new AdminAlbumSong(7, 2, 1, "Procession", null, null, false, null), 3, "/admin/discography/2");
+        var last = new TrackRowViewModel(new AdminAlbumSong(9, 2, 3, "Ogre Battle", null, null, false, null), 3, "/admin/discography/2");
+
+        Assert.False(first.CanMoveUp);
+        Assert.True(first.CanMoveDown);
+        Assert.True(last.CanMoveUp);
+        Assert.False(last.CanMoveDown);
+        Assert.Equal("/admin/discography/2?handler=MoveSong", first.MoveAction);
+        Assert.Equal("/admin/discography/songs/9", last.EditPath);
+        Assert.Equal("/admin/discography/2?handler=DeleteSong", last.DeleteAction.Action);
+        Assert.Equal("9", last.DeleteAction.Fields!["songId"]);
+        Assert.Contains("Ogre Battle", last.DeleteAction.Question);
+    }
+}
+
 public sealed class InMemoryDiscographyStoreTests
 {
     private static InMemoryDiscographyStore CreateStore() => new(SampleDiscographyData.CreateSeedAlbums());

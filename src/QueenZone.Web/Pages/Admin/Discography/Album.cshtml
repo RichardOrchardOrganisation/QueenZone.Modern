@@ -63,53 +63,7 @@
           <tbody>
             @foreach (var song in album.Songs)
             {
-              <tr>
-                <td>@song.TrackNumber</td>
-                <td>
-                  @if (song.CoverUrl is not null)
-                  {
-                    <img src="@song.CoverUrl" alt="" width="40" height="40" class="admin-discography-tracks__thumb" loading="lazy" />
-                  }
-                </td>
-                <td>
-                  <a href="@AdminDiscographyPageModel.SongPath(song.SongId)">@song.Title</a>
-                  @if (song.IsSingle)
-                  {
-                    <span class="admin-form-hint">· Single</span>
-                  }
-                </td>
-                <td>
-                  <div class="admin-discography-tracks__actions">
-                    @if (song.TrackNumber > 1)
-                    {
-                      <form method="post" action="@albumPath?handler=MoveSong" asp-antiforgery="true" class="admin-inline-form">
-                        <input type="hidden" name="songId" value="@song.SongId">
-                        <input type="hidden" name="position" value="@(song.TrackNumber - 1)">
-                        <button type="submit" class="qz-button qz-button--ghost qz-button--sm" aria-label="Move @song.Title up">↑</button>
-                      </form>
-                    }
-                    @if (song.TrackNumber < songCount)
-                    {
-                      <form method="post" action="@albumPath?handler=MoveSong" asp-antiforgery="true" class="admin-inline-form">
-                        <input type="hidden" name="songId" value="@song.SongId">
-                        <input type="hidden" name="position" value="@(song.TrackNumber + 1)">
-                        <button type="submit" class="qz-button qz-button--ghost qz-button--sm" aria-label="Move @song.Title down">↓</button>
-                      </form>
-                    }
-                  </div>
-                </td>
-                <td>
-                  <div class="admin-discography-tracks__actions">
-                    <a href="@AdminDiscographyPageModel.SongPath(song.SongId)">Edit</a>
-                    <partial name="_DeleteAction" model="@(new DiscographyDeleteViewModel(
-                      $"{albumPath}?handler=DeleteSong",
-                      "Delete",
-                      $"Delete “{song.Title}”?",
-                      "The song, its lyrics and any single cover will be removed from this album. Later tracks move up. This cannot be undone.",
-                      new Dictionary<string, string> { ["songId"] = song.SongId.ToString(System.Globalization.CultureInfo.InvariantCulture) }))" />
-                  </div>
-                </td>
-              </tr>
+              <partial name="_TrackRow" model="@(new TrackRowViewModel(song, songCount, albumPath))" />
             }
           </tbody>
         </table>

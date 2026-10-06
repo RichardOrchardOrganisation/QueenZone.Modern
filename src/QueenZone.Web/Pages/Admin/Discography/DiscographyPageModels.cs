@@ -462,3 +462,22 @@ public sealed record DiscographyDeleteViewModel(
     string Question,
     string Detail,
     IReadOnlyDictionary<string, string>? Fields = null);
+
+/// <summary>One admin tracklist row; move/delete decisions live here, not in the view.</summary>
+public sealed record TrackRowViewModel(AdminAlbumSong Song, int SongCount, string AlbumPath)
+{
+    public string MoveAction => $"{AlbumPath}?handler=MoveSong";
+
+    public bool CanMoveUp => Song.TrackNumber > 1;
+
+    public bool CanMoveDown => Song.TrackNumber < SongCount;
+
+    public string EditPath => AdminDiscographyPageModel.SongPath(Song.SongId);
+
+    public DiscographyDeleteViewModel DeleteAction => new(
+        $"{AlbumPath}?handler=DeleteSong",
+        "Delete",
+        $"Delete “{Song.Title}”?",
+        "The song, its lyrics and any single cover will be removed from this album. Later tracks move up. This cannot be undone.",
+        new Dictionary<string, string> { ["songId"] = Song.SongId.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+}

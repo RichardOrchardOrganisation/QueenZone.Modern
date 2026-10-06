@@ -1,0 +1,46 @@
+@model TrackRowViewModel
+@{
+  var song = Model.Song;
+}
+<tr>
+  <td>@song.TrackNumber</td>
+  <td>
+    @if (song.CoverUrl is not null)
+    {
+      <img src="@song.CoverUrl" alt="" width="40" height="40" class="admin-discography-tracks__thumb" loading="lazy" />
+    }
+  </td>
+  <td>
+    <a href="@Model.EditPath">@song.Title</a>
+    @if (song.IsSingle)
+    {
+      <span class="admin-form-hint">· Single</span>
+    }
+  </td>
+  <td>
+    <div class="admin-discography-tracks__actions">
+      @if (Model.CanMoveUp)
+      {
+        <form method="post" action="@Model.MoveAction" asp-antiforgery="true" class="admin-inline-form">
+          <input type="hidden" name="songId" value="@song.SongId">
+          <input type="hidden" name="position" value="@(song.TrackNumber - 1)">
+          <button type="submit" class="qz-button qz-button--ghost qz-button--sm" aria-label="Move @song.Title up">↑</button>
+        </form>
+      }
+      @if (Model.CanMoveDown)
+      {
+        <form method="post" action="@Model.MoveAction" asp-antiforgery="true" class="admin-inline-form">
+          <input type="hidden" name="songId" value="@song.SongId">
+          <input type="hidden" name="position" value="@(song.TrackNumber + 1)">
+          <button type="submit" class="qz-button qz-button--ghost qz-button--sm" aria-label="Move @song.Title down">↓</button>
+        </form>
+      }
+    </div>
+  </td>
+  <td>
+    <div class="admin-discography-tracks__actions">
+      <a href="@Model.EditPath">Edit</a>
+      <partial name="_DeleteAction" model="Model.DeleteAction" />
+    </div>
+  </td>
+</tr>
