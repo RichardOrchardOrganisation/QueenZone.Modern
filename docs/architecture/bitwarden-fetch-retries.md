@@ -76,3 +76,14 @@ on the supported runners. Large output JSON may exceed a runner's environment
 limit and fail closed. Offline tests do not establish live service recovery or
 classify the historical ten fetch failures as transient. Ordinary scheduled
 nightly acceptance is tracked separately; this change does not dispatch it.
+
+
+A credential-free Scripts CI contract additionally exercises GitHub's real
+composite output handling with generated copies of the production action.
+Fetch calls are replaced by synthetic results and delays by recorded fake
+waits; a publication adapter calls the real guard with an injected post-write
+failure for the partial-write case. It covers successful retries, exhaustion, incomplete outputs and a
+publication failure after a complete command-file write, while asserting the
+caller receives no failed outputs and a global environment canary is unchanged.
+The production guard and output conditions execute under the actual runner.
+This does not connect to Bitwarden or validate live Windows/macOS retrieval.
