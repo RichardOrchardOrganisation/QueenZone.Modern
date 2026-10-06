@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { spawnPwsh } from './test-helpers/pwsh.mjs';
 
 const workspace = '/tmp/qz runner.1';
 const app = `${workspace}/e2e-app/QueenZone.Web.dll`;
@@ -40,8 +41,9 @@ test('Run-E2E cleanup and stop polling use the same scoped app pattern', () => {
   const source = readFileSync(new URL('./Run-E2E.ps1', import.meta.url), 'utf8');
   const expressions = source.split(/\r?\n/).filter((line) => /^\$macApp(?:Path|Pattern) =/.test(line));
   assert.equal(expressions.length, 2);
-  const result = spawnSync('pwsh', ['-NoProfile', '-Command',
+  const result = spawnPwsh(['-Command',
     `$repoRoot = '${workspace}'; ${expressions.join('; ')}; Write-Output $macAppPattern`], { encoding: 'utf8' });
+  assert.equal(result.error, undefined);
   assert.equal(result.status, 0, result.stderr);
   verifyPattern(result.stdout.trim());
   assert.match(source, /pkill -f \$macAppPattern/);

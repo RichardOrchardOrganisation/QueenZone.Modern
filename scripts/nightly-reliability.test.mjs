@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { spawnPwsh } from './test-helpers/pwsh.mjs';
 
 const workflow = readFileSync(new URL('../.github/workflows/nightly-legacy-checks.yml', import.meta.url), 'utf8');
 const probes = [
@@ -29,8 +29,8 @@ for (const [probe, flag] of probes) {
         & './Probe-${probe}.ps1'
         exit $LASTEXITCODE
       `;
-      const result = spawnSync('pwsh', ['-NoProfile', '-Command', command], {
-        cwd: directory, encoding: 'utf8', timeout: 15000,
+      const result = spawnPwsh(['-Command', command], {
+        cwd: directory, encoding: 'utf8',
         env: { ...process.env, [flag]: 'true', ConnectionStrings__QueenZoneLegacy: 'Server=localhost\\SQLEXPRESS;Database=queenzone_legacy_sync;Integrated Security=True' },
       });
       assert.equal(result.error, undefined);
@@ -53,13 +53,14 @@ test('E2E forwards TRX options before NUnit settings without starting a host', (
   const start = source.indexOf('    $testArgs = @(');
   const end = source.indexOf('    & dotnet @testArgs', start);
   assert.ok(start > 0 && end > start);
-  const result = spawnSync('pwsh', ['-NoProfile', '-Command', `
+  const result = spawnPwsh(['-Command', `
     $e2eProject = 'unused.csproj'; $Configuration = 'Release'; $Mode = 'RealData'
     $testFilter = 'TestCategory=RealData'; $artifactDir = 'test-results/e2e'
     $NoBuild = $false; $NoRestore = $false; $repoRoot = 'offline-root'
     ${source.slice(start, end)}
     Write-Output ('CAPTURE=' + (ConvertTo-Json -Compress -InputObject @($testArgs)))
-  `], { encoding: 'utf8', timeout: 15000 });
+  `], { encoding: 'utf8' });
+  assert.equal(result.error, undefined);
   assert.equal(result.status, 0, result.stderr);
   const args = JSON.parse(result.stdout.split(/\r?\n/).find((line) => line.startsWith('CAPTURE=')).slice(8));
   assert.equal(args[args.indexOf('--logger') + 1], 'trx;LogFilePrefix=e2e-RealData');
@@ -104,8 +105,8 @@ test('the residue connection guard accepts the initialized mirror and rejects ot
     ['Server=localhost\\SQLEXPRESS;Database=wrong_database;Integrated Security=True', 1],
     ['Server=example.database.windows.net;Database=queenzone_legacy_sync;Integrated Security=True', 1],
   ]) {
-    const result = spawnSync('pwsh', ['-NoProfile', '-File', guard, '-ConnectionString', connection], {
-      encoding: 'utf8', timeout: 15000, env: { ...process.env, SQLEXPRESS_LAN_ADDRESS: '' },
+    const result = spawnPwsh(['-File', guard, '-ConnectionString', connection], {
+      encoding: 'utf8', env: { ...process.env, SQLEXPRESS_LAN_ADDRESS: '' },
     });
     assert.equal(result.status, status, result.stderr);
   }
@@ -136,8 +137,8 @@ test('safe report export excludes private values, display names, logs and connec
     </TestRun>`;
     writeFileSync(path.join(directory, 'PRIVATE_PATH_SENTINEL.trx'), fixture);
     const output = path.join(directory, 'safe', 'results.json');
-    const result = spawnSync('pwsh', ['-NoProfile', '-File', new URL('./Export-SafeTestReports.ps1', import.meta.url).pathname,
-      '-ResultsDirectory', directory, '-OutputPath', output], { encoding: 'utf8', timeout: 15000 });
+    const result = spawnPwsh(['-File', new URL('./Export-SafeTestReports.ps1', import.meta.url).pathname,
+      '-ResultsDirectory', directory, '-OutputPath', output], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     const text = readFileSync(output, 'utf8').replace(/^\uFEFF/, '');
     assert.doesNotMatch(text + result.stdout + result.stderr, /SENTINEL|Password|StdOut|StackTrace/);
@@ -146,8 +147,8 @@ test('safe report export excludes private values, display names, logs and connec
       { test: 'unknown-test', outcome: 'Passed', durationSeconds: 1, failureClass: null },
     ]);
     writeFileSync(path.join(directory, 'PRIVATE_PATH_SENTINEL.trx'), '<!DOCTYPE x [<!ENTITY data SYSTEM "file:///PRIVATE_ENTITY_SENTINEL">]><TestRun>&data;</TestRun>');
-    const rejected = spawnSync('pwsh', ['-NoProfile', '-File', new URL('./Export-SafeTestReports.ps1', import.meta.url).pathname,
-      '-ResultsDirectory', directory, '-OutputPath', output], { encoding: 'utf8', timeout: 15000 });
+    const rejected = spawnPwsh(['-File', new URL('./Export-SafeTestReports.ps1', import.meta.url).pathname,
+      '-ResultsDirectory', directory, '-OutputPath', output], { encoding: 'utf8' });
     assert.notEqual(rejected.status, 0);
     assert.doesNotMatch(rejected.stdout + rejected.stderr, /PRIVATE_ENTITY_SENTINEL/);
   } finally {
