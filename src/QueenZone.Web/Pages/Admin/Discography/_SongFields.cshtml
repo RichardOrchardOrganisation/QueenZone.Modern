@@ -1,0 +1,32 @@
+@model SongFormInput
+@{
+  var positions = ViewData["Positions"] as IReadOnlyList<TrackPositionOption> ?? [];
+}
+<label>
+  Song title
+  <input type="text" asp-for="Title" required maxlength="@AdminDiscographyValidation.SongTitleMaxLength">
+</label>
+@if (positions.Count > 0)
+{
+  <label>
+    Track position <span class="admin-form-hint">(later tracks move down automatically)</span>
+    <select asp-for="Position">
+      @foreach (var option in positions)
+      {
+        <option value="@option.Value" selected="@(option.Value == Model.Position)">@option.Label</option>
+      }
+    </select>
+  </label>
+}
+<label>
+  <input type="checkbox" asp-for="IsSingle">
+  Released as a single
+</label>
+<label>
+  Notes <span class="admin-form-hint">(optional)</span>
+  <textarea asp-for="Notes" rows="3" maxlength="@AdminDiscographyValidation.SongNotesMaxLength"></textarea>
+</label>
+<label>
+  Lyrics <span class="admin-form-hint">(optional; plain text, line breaks are kept)</span>
+  <textarea asp-for="Lyrics" rows="12" maxlength="@AdminDiscographyValidation.LyricsMaxLength"></textarea>
+</label>

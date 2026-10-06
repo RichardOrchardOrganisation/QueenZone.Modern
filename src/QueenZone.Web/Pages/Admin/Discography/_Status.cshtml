@@ -1,0 +1,16 @@
+@model AdminDiscographyPageModel
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+  <output class="qz-status-block qz-account-notice qz-account-notice--@(Model.StatusMessageKind == "error" ? "error" : "success")">
+    @Model.StatusMessage
+  </output>
+}
+@if (Model.Errors.Count > 0)
+{
+  <ul class="admin-errors" role="alert">
+    @foreach (var error in Model.Errors)
+    {
+      <li>@error</li>
+    }
+  </ul>
+}

@@ -1,0 +1,22 @@
+@model DiscographyDeleteViewModel
+@{
+  var dialogId = "confirm-" + Guid.NewGuid().ToString("N");
+}
+<form method="post" action="@Model.Action" asp-antiforgery="true" class="admin-inline-form">
+  @if (Model.Fields is not null)
+  {
+    foreach (var field in Model.Fields)
+    {
+      <input type="hidden" name="@field.Key" value="@field.Value">
+    }
+  }
+  <button type="button" class="qz-button qz-button--ghost qz-button--sm qz-button--row-danger" data-confirm-dialog-open="@dialogId">@Model.Label</button>
+  <dialog class="qz-dialog" id="@dialogId" data-confirm-dialog>
+    <h2>@Model.Question</h2>
+    <p>@Model.Detail</p>
+    <div class="qz-dialog-actions">
+      <button type="button" class="qz-button qz-button--outline" data-confirm-dialog-cancel>Cancel</button>
+      <button type="submit" class="qz-button qz-button--danger">@Model.Label</button>
+    </div>
+  </dialog>
+</form>

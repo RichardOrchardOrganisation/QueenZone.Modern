@@ -130,7 +130,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 FROM AlbumDisplay WHERE Q_ALBUM_ID = {id}
                 """,
             songsSql: id => $"""
-                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES
+                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES, 'bo-rhap.webp' AS COVER_URL
                 FROM AlbumSong
                 """);
 
@@ -145,6 +145,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Equal("Queen", detail.ArtistName);
         Assert.Single(detail.Songs);
         Assert.True(detail.Songs[0].IsSingle);
+        Assert.Equal(AlbumCoverUrl.Build("bo-rhap.webp"), detail.Songs[0].CoverUrl);
 
         Assert.Null(await repository.GetAlbumByIdAsync(2));
         Assert.Null(await repository.GetAlbumByIdAsync(99));
@@ -187,7 +188,7 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 FROM AlbumDisplay WHERE Q_ALBUM_ID = {id}
                 """,
             songsSql: id => $"""
-                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES
+                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES, NULL AS COVER_URL
                 FROM AlbumSongByAlbum
                 WHERE Q_ALBUM_ID = {id}
                 """);

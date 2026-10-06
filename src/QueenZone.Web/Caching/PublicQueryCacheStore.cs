@@ -35,6 +35,8 @@ public sealed class PublicQueryCacheStore(
 
     internal string GetHistoryCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.HistoryVersion);
 
+    internal string GetDiscographyCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.DiscographyVersion);
+
     internal string GetFanPerformanceCacheVersion() => GetOrInitVersion(PublicQueryCacheKeys.FanPerformanceVersion);
 
     internal string GetOrInitVersion(string key)

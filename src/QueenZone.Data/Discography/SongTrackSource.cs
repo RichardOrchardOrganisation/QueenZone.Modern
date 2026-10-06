@@ -11,4 +11,5 @@ public sealed record SongTrackSource(
     bool IsSingle,
     int AlbumId,
     string AlbumName,
-    DateTime? AlbumReleaseDate);
+    DateTime? AlbumReleaseDate,
+    string? CoverUrl = null);

@@ -60,6 +60,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IAdminFanPerformanceRepository, EfAdminFanPerformanceRepository>();
         services.AddScoped<ILegacyMemberLookupRepository, EfMemberLookupRepository>();
         services.AddScoped<IDiscographyRepository, EfDiscographyRepository>();
+        services.AddScoped<IAdminDiscographyRepository, EfAdminDiscographyRepository>();
         services.AddScoped<INewsForumDiscussionLookup, EfNewsForumDiscussionLookup>();
         services.AddScoped<IAdminNewsRepository, EfAdminNewsRepository>();
         services.AddScoped<INewsAuditRepository, EfNewsAuditRepository>();
@@ -189,7 +190,9 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddSingleton<IFanPerformanceRepository>(_ => new InMemoryFanPerformanceRepository(fanPerformanceStore));
         services.AddSingleton<IAdminFanPerformanceRepository>(_ => new InMemoryAdminFanPerformanceRepository(fanPerformanceStore));
         services.AddSingleton<ILegacyMemberLookupRepository>(_ => new InMemoryLegacyMemberLookupRepository(SampleLegacyMemberData.CreateSeedMatches()));
-        services.AddSingleton<IDiscographyRepository>(_ => new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums()));
+        var discographyStore = new InMemoryDiscographyStore(SampleDiscographyData.CreateSeedAlbums());
+        services.AddSingleton<IDiscographyRepository>(_ => new InMemoryDiscographyRepository(discographyStore));
+        services.AddSingleton<IAdminDiscographyRepository>(_ => new InMemoryAdminDiscographyRepository(discographyStore));
         var historyStore = new SharedQueenHistoryStore(SampleQueenHistoryData.CreateSeedEvents());
         services.AddSingleton(historyStore);
         services.AddSingleton<IQueenHistoryRepository>(_ => new InMemoryQueenHistoryRepository(historyStore));

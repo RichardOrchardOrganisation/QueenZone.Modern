@@ -18,7 +18,8 @@ public static class SongCatalog
                 song.IsSingle,
                 album.AlbumId,
                 album.Name,
-                album.ReleaseDate ?? YearStart(album.ReleaseYear))))
+                album.ReleaseDate ?? YearStart(album.ReleaseYear),
+                song.CoverUrl)))
             .ToList();
 
     public static async Task<IReadOnlyList<SongTrackSource>> LoadTracksAsync(
@@ -103,6 +104,9 @@ public static class SongCatalog
         var lyrics = ordered
             .Select(track => track.Lyrics)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        var coverUrl = ordered
+            .Select(track => track.CoverUrl)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
         return new SongDetail(
             Slug: SlugFor(canonical.Title),
@@ -115,8 +119,10 @@ public static class SongCatalog
                     NewsSlug.Slugify(track.AlbumName),
                     track.AlbumReleaseDate?.Year,
                     track.IsSingle,
-                    string.IsNullOrWhiteSpace(track.Notes) ? null : track.Notes))
-                .ToList());
+                    string.IsNullOrWhiteSpace(track.Notes) ? null : track.Notes,
+                    track.CoverUrl))
+                .ToList(),
+            CoverUrl: coverUrl);
     }
 
     private static DateTime? YearStart(int? year) =>

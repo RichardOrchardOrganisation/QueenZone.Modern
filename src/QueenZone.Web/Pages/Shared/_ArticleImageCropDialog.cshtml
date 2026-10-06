@@ -1,5 +1,10 @@
-<dialog class="admin-article-crop" data-article-image-dialog>
-  <h2 class="admin-article-crop__title">Crop article image</h2>
+@{
+  // Optional: ViewData["CropDialogTitle"], ViewData["CropDialogSquare"] (1:1 stage for covers).
+  var cropTitle = ViewData["CropDialogTitle"] as string ?? "Crop article image";
+  var cropSquare = ViewData["CropDialogSquare"] is true;
+}
+<dialog class="admin-article-crop@(cropSquare ? " admin-article-crop--square" : "")" data-article-image-dialog>
+  <h2 class="admin-article-crop__title">@cropTitle</h2>
   <p class="qz-help">Drag the photo to position it. Zoom to tighten the crop.</p>
   <div class="admin-article-crop__stage" data-article-image-stage>
     <img alt="" data-article-image-stage-img>

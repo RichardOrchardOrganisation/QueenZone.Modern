@@ -1,0 +1,7 @@
+@model SongDetail
+<div class="qz-eyebrow">Song</div>
+<h1>@Model.Title</h1>
+<div class="qz-meta">
+  @Model.Appearances.Count
+  @(Model.Appearances.Count == 1 ? " appearance" : " appearances")
+</div>

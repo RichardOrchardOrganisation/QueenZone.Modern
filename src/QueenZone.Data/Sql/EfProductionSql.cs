@@ -231,7 +231,20 @@ internal static class EfProductionSql
         (
             "EXEC Q_ALBUM_LIST_SP",
             static id => $"EXEC Q_ALBUM_T_DISPLAY_SP @Q_ALBUM_ID = {id}",
-            static id => $"EXEC Q_ALBUM_SONG_T_LIST_SP @Q_ALBUM_ID = {id}");
+            // Direct read instead of Q_ALBUM_SONG_T_LIST_SP: that proc orders by identity and
+            // predates TRACK_NUMBER / COVER_URL. Casts keep smallint/tinyint off the int row model.
+            static id => $"""
+                SELECT
+                    CAST(s.Q_ALBUM_SONG_ID AS int) AS Q_ALBUM_SONG_ID,
+                    s.SONG_TITLE,
+                    CAST(s.IS_SINGLE AS int) AS IS_SINGLE,
+                    s.SONG_LYRICS,
+                    s.SONG_NOTES,
+                    s.COVER_URL
+                FROM dbo.Q_ALBUM_SONG_T s
+                WHERE s.Q_ALBUM_ID = {id}
+                ORDER BY ISNULL(s.TRACK_NUMBER, 32767), s.Q_ALBUM_SONG_ID
+                """);
 
     public static (bool UseProcs, string PageSelect, string CountSql, Func<int, FormattableString> ByIdSql)
         CreateFanPerformanceQueries() =>

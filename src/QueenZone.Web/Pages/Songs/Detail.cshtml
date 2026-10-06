@@ -6,12 +6,21 @@
   <section class="qz-album-hero">
     <div class="qz-container qz-album-hero__content qz-breadcrumbs-on-dark">
       <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
-      <div class="qz-eyebrow">Song</div>
-      <h1>@Model.Song.Title</h1>
-      <div class="qz-meta">
-        @Model.Song.Appearances.Count
-        @(Model.Song.Appearances.Count == 1 ? " appearance" : " appearances")
-      </div>
+      @if (Model.Song.CoverUrl is not null)
+      {
+        <div class="qz-album-hero__layout">
+          <div class="qz-album-hero__cover">
+            <img src="@Model.Song.CoverUrl" alt="@Model.Song.Title single cover">
+          </div>
+          <div>
+            <partial name="_SongHeading" model="Model.Song" />
+          </div>
+        </div>
+      }
+      else
+      {
+        <partial name="_SongHeading" model="Model.Song" />
+      }
     </div>
   </section>
 

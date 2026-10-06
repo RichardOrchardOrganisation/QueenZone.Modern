@@ -4,8 +4,8 @@ namespace QueenZone.Data;
 
 /// <summary>
 /// Reads the legacy studio-album catalogue via its original stored procedures
-/// (<c>Q_ALBUM_LIST_SP</c>, <c>Q_ALBUM_T_DISPLAY_SP</c>, <c>Q_ALBUM_SONG_T_LIST_SP</c>),
-/// invoked through EF Core rather than Dapper.
+/// (<c>Q_ALBUM_LIST_SP</c>, <c>Q_ALBUM_T_DISPLAY_SP</c>) plus a direct tracklist query
+/// ordered by <c>TRACK_NUMBER</c>, invoked through EF Core rather than Dapper.
 /// </summary>
 public sealed class EfDiscographyRepository : IDiscographyRepository
 {
@@ -114,7 +114,8 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
                 row.SONG_TITLE,
                 row.IS_SINGLE == 1,
                 string.IsNullOrWhiteSpace(row.SONG_LYRICS) ? null : row.SONG_LYRICS,
-                string.IsNullOrWhiteSpace(row.SONG_NOTES) ? null : row.SONG_NOTES))
+                string.IsNullOrWhiteSpace(row.SONG_NOTES) ? null : row.SONG_NOTES,
+                AlbumCoverUrl.Build(row.COVER_URL)))
             .ToList();
 
         return new AlbumDetail(
@@ -191,5 +192,7 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
         public string? SONG_LYRICS { get; set; }
 
         public string? SONG_NOTES { get; set; }
+
+        public string? COVER_URL { get; set; }
     }
 }
