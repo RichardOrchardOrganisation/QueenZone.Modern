@@ -4,6 +4,8 @@ on:
   schedule:
     # Monday 00:00 UTC = 08:00 Perth.
     - cron: "0 0 * * 1"
+    # Metadata-only deployment queue inspection; weekly gardener stays weekly.
+    - cron: "23 * * * *"
   workflow_dispatch:
     inputs:
       lookback_days:
@@ -35,6 +37,7 @@ permissions:
 
 jobs:
   gardener:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 0 * * 1'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -70,3 +73,21 @@ jobs:
             --lookback-days "${LOOKBACK_DAYS}" \
             --max-issues "${MAX_ISSUES}" \
             "${extra[@]}"
+
+  deployment-queue:
+    name: Inspect dev deployment queue
+    if: github.event_name == 'schedule' && github.event.schedule == '23 * * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Report aged unassigned deployment jobs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEMETRY_TRIAGE_FILE_ISSUES: ${{ vars.TELEMETRY_TRIAGE_FILE_ISSUES }}
+        run: node scripts/issue-filer/deployment-queue.mjs
