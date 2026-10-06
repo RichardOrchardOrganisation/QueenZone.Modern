@@ -404,6 +404,16 @@ export function formatPlanSummary(plan, extras = {}) {
   for (const item of plan.create) {
     lines.push(`- will create: ${safeTitle(item.candidate.title)}`);
   }
+  const ceilingReasons = new Set();
+  for (const item of [...(plan.create || []), ...(plan.comment || []), ...(plan.reopen || []), ...(plan.skipped || [])]) {
+    const reason = item.candidate?.ignoreCeilingReason;
+    if (reason) {
+      ceilingReasons.add(reason);
+    }
+  }
+  for (const reason of ceilingReasons) {
+    lines.push(`- ${reason}`);
+  }
   for (const item of plan.skipped.filter((row) => row.suggestIgnore)) {
     lines.push(`- suggest ignore for closed-as-not-planned #${item.issue} (${safeTitle(item.candidate.title)})`);
   }

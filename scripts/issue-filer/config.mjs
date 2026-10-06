@@ -59,6 +59,19 @@ export function validateConfig(config) {
   return errors;
 }
 
+export function isPositiveInteger(value) {
+  return Number.isInteger(value) && value > 0;
+}
+
+function validateIgnoreCeiling(entry, index, field, errors) {
+  if (entry[field] === undefined) {
+    return;
+  }
+  if (!isPositiveInteger(entry[field])) {
+    errors.push(`entries[${index}].${field} must be a positive integer`);
+  }
+}
+
 export function validateIgnore(ignore) {
   const errors = [];
   if (!ignore || typeof ignore !== 'object' || Array.isArray(ignore)) {
@@ -77,6 +90,8 @@ export function validateIgnore(ignore) {
     if (!entry?.match || typeof entry.match !== 'object') {
       errors.push(`entries[${index}] is missing match`);
     }
+    validateIgnoreCeiling(entry, index, 'maxUsers', errors);
+    validateIgnoreCeiling(entry, index, 'maxEvents', errors);
   });
   return errors;
 }
