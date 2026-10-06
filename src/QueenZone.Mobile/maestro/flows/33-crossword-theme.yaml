@@ -10,20 +10,16 @@ appId: org.queenzone.mobile
     direction: DOWN
 - tapOn: Appearance
 - tapOn: Dark
-- openLink: queenzone://crosswords/meet-the-band
-- runFlow: accept-ios-open-link.yaml
-- extendedWaitUntil:
-    visible:
-      id: crossword-play-screen
-    timeout: 20000
+- runFlow:
+    file: open-crossword-deep-link.yaml
+    env:
+      CROSSWORD_DEEP_LINK: queenzone://crosswords/meet-the-band
 - takeScreenshot: crossword-dark
 - tapOn:
     id: tab-home
 - tapOn: Light
-- openLink: queenzone://crosswords/meet-the-band
-- runFlow: accept-ios-open-link.yaml
-- extendedWaitUntil:
-    visible:
-      id: crossword-play-screen
-    timeout: 20000
+- runFlow:
+    file: open-crossword-deep-link.yaml
+    env:
+      CROSSWORD_DEEP_LINK: queenzone://crosswords/meet-the-band
 - takeScreenshot: crossword-light-repeated-link

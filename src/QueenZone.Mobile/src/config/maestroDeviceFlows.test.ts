@@ -233,6 +233,56 @@ describe('Maestro device flows (#1281)', () => {
     assert.match(readMaestro('flows/10-forum-attach.yaml'), /runFlow: open-smoke-auth\.yaml/);
   });
 
+  it('retries iOS crossword deep-link handoff before the required play-screen wait (#1281, #1703)', () => {
+    const open = readMaestro('flows/open-crossword-deep-link.yaml');
+    const poll = readMaestro('flows/poll-late-ios-open-for-crossword.yaml');
+    const large = readMaestro('flows/32-crossword-large.yaml');
+    const theme = readMaestro('flows/33-crossword-theme.yaml');
+
+    assert.match(large, /file: open-crossword-deep-link\.yaml/);
+    assert.match(large, /CROSSWORD_DEEP_LINK: queenzone:\/\/crosswords\/studios-and-collaborators/);
+    assert.doesNotMatch(large, /openLink: queenzone:\/\/crosswords\//);
+    assert.match(theme, /file: open-crossword-deep-link\.yaml/);
+    assert.equal((theme.match(/file: open-crossword-deep-link\.yaml/g) ?? []).length, 2);
+    assert.match(theme, /CROSSWORD_DEEP_LINK: queenzone:\/\/crosswords\/meet-the-band/);
+    assert.doesNotMatch(theme, /openLink: queenzone:\/\/crosswords\//);
+
+    const firstOpenLink = open.indexOf('openLink: ${CROSSWORD_DEEP_LINK}');
+    const secondOpenLink = open.indexOf('openLink: ${CROSSWORD_DEEP_LINK}', firstOpenLink + 1);
+    assert.ok(firstOpenLink >= 0 && secondOpenLink > firstOpenLink);
+    const beforeRetry = open.slice(firstOpenLink, secondOpenLink);
+    assert.match(beforeRetry, /runFlow: accept-ios-open-link\.yaml/);
+    assert.match(beforeRetry, /poll-late-ios-open-for-crossword\.yaml/);
+    assert.equal((beforeRetry.match(/poll-late-ios-open-for-crossword\.yaml/g) ?? []).length, 4);
+    assert.match(beforeRetry, /notVisible:[\s\S]*id: crossword-play-screen/);
+    assert.doesNotMatch(beforeRetry, /repeat:|while:/);
+
+    const afterRetry = open.slice(secondOpenLink);
+    assert.match(afterRetry, /runFlow: accept-ios-open-link\.yaml/);
+    assert.match(
+      afterRetry,
+      /visible:[\s\S]*text: '\^Open\$'[\s\S]*retryTapIfNoChange: true[\s\S]*extendedWaitUntil:[\s\S]*id: crossword-play-screen[\s\S]*timeout: 8000[\s\S]*optional: true/,
+    );
+    const requiredWaitIdx = afterRetry.lastIndexOf('timeout: 20000');
+    assert.ok(requiredWaitIdx >= 0);
+    const requiredWait = afterRetry.slice(
+      afterRetry.lastIndexOf('extendedWaitUntil:', requiredWaitIdx),
+      requiredWaitIdx + 'timeout: 20000'.length,
+    );
+    assert.match(requiredWait, /id: crossword-play-screen/);
+    assert.doesNotMatch(requiredWait, /optional: true/);
+    assert.doesNotMatch(afterRetry.slice(requiredWaitIdx), /timeout: 20000[\s\S]*optional: true/);
+    assert.doesNotMatch(open, /timeout: 30000|timeout: 45000/);
+    assert.doesNotMatch(open, /\bsleep\b/);
+
+    assert.match(poll, /visible:[\s\S]*text: '\^Open\$'/);
+    assert.match(poll, /tapOn:[\s\S]*text: '\^Open\$'[\s\S]*retryTapIfNoChange: true/);
+    assert.match(
+      poll,
+      /extendedWaitUntil:[\s\S]*visible:[\s\S]*id: crossword-play-screen[\s\S]*timeout: 5000[\s\S]*optional: true/,
+    );
+  });
+
   it('matches the seeded inbox row when iOS merges its accessibility label', () => {
     const authenticated = readRepo('flows/09-authenticated.yaml', maestroDir);
     assert.match(authenticated, /text: '\^Contract Other\.\*'/);

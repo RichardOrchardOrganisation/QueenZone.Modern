@@ -1,12 +1,10 @@
 appId: org.queenzone.mobile
 ---
 - launchApp
-- openLink: queenzone://crosswords/studios-and-collaborators
-- runFlow: accept-ios-open-link.yaml
-- extendedWaitUntil:
-    visible:
-      id: crossword-play-screen
-    timeout: 20000
+- runFlow:
+    file: open-crossword-deep-link.yaml
+    env:
+      CROSSWORD_DEEP_LINK: queenzone://crosswords/studios-and-collaborators
 - swipe:
     start: "50%,42%"
     end: "50%,28%"
