@@ -1,0 +1,6 @@
+10-05 23:10:01.100  1234  1234 I ActivityManager: Start proc 5154:org.queenzone.mobile/u0a192 for next-top-activity {org.queenzone.mobile/org.queenzone.mobile.MainActivity}
+10-05 23:10:01.512  5154  5154 I ReactNativeJS: Running "main"
+10-05 23:10:01.640  5154  5154 I org.queenzone.mobile: Late-enabling debug-lib
+10-05 23:10:02.010  5154  5188 I Hermes  : HermesRuntime ready
+10-05 23:10:02.200  5154  5154 D ViewRootImpl: org.queenzone.mobile reported as visible
+10-05 23:10:03.100   498   512 I ActivityTaskManager: Displayed org.queenzone.mobile/.MainActivity: +1s
