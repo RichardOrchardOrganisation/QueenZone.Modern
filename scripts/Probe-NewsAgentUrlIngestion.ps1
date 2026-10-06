@@ -96,6 +96,8 @@ $schemaArgs = @(
     'test',
     'tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj',
     '--configuration', $Configuration,
+    '--logger', 'trx;LogFilePrefix=url-ingestion',
+    '--results-directory', "$PSScriptRoot/../test-results/legacy-probes",
     '--filter', 'FullyQualifiedName~EfNewsAgentUrlIngestionLiveProbeTests'
 )
 & dotnet @schemaArgs
@@ -144,6 +146,8 @@ $fullArgs = @(
     'test',
     'tests/QueenZone.NewsAgent.Tests/QueenZone.NewsAgent.Tests.csproj',
     '--configuration', $Configuration,
+    '--logger', 'trx;LogFilePrefix=url-ingestion',
+    '--results-directory', "$PSScriptRoot/../test-results/legacy-probes",
     '--filter', 'FullyQualifiedName~NewsAgentUrlIngestionLiveProbeTests'
 )
 & dotnet @fullArgs

@@ -25,4 +25,6 @@ if ($env:RUN_PRIVATE_MESSAGE_PROBE -ne "true") {
 
 dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj `
     --configuration $Configuration `
+    --logger "trx;LogFilePrefix=private-messaging" `
+    --results-directory "$PSScriptRoot/../test-results/legacy-probes" `
     --filter "FullyQualifiedName~EfPrivateMessageLiveProbeTests"

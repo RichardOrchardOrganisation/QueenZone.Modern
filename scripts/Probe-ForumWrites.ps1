@@ -25,6 +25,8 @@ if ($env:RUN_FORUM_WRITE_PROBE -ne "true") {
 
 dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj `
     --configuration $Configuration `
+    --logger "trx;LogFilePrefix=forum-writes" `
+    --results-directory "$PSScriptRoot/../test-results/legacy-probes" `
     --filter "FullyQualifiedName~EfForumWriteLiveProbeTests"
 
 if ($LASTEXITCODE -ne 0) {

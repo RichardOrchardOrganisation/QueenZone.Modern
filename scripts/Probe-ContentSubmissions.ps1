@@ -31,4 +31,6 @@ if ($env:RUN_CONTENT_SUBMISSION_PROBE -ne "true") {
 
 dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj `
     --configuration $Configuration `
+    --logger "trx;LogFilePrefix=content-submissions" `
+    --results-directory "$PSScriptRoot/../test-results/legacy-probes" `
     --filter "FullyQualifiedName~EfContentSubmissionLiveProbeTests"

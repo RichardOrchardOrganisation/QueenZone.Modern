@@ -36,4 +36,6 @@ if ($env:RUN_LEGACY_WRITE_PROBE -ne "true") {
 
 dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj `
     --configuration $Configuration `
+    --logger "trx;LogFilePrefix=admin-news" `
+    --results-directory "$PSScriptRoot/../test-results/legacy-probes" `
     --filter "FullyQualifiedName~EfAdminNewsRepositoryLegacyWriteProbeTests|FullyQualifiedName~EfNewsSectionLiveProbeTests.Admin_news_|FullyQualifiedName~EfNewsDiscoveryPromotionLiveProbeTests"

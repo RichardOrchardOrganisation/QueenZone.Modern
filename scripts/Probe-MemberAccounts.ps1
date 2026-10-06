@@ -25,4 +25,6 @@ if ($env:RUN_MEMBER_ACCOUNT_PROBE -ne "true") {
 
 dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj `
     --configuration $Configuration `
+    --logger "trx;LogFilePrefix=member-accounts" `
+    --results-directory "$PSScriptRoot/../test-results/legacy-probes" `
     --filter "FullyQualifiedName~EfMemberAccountLiveProbeTests"
