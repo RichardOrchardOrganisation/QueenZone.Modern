@@ -1,6 +1,6 @@
 import { isGuardrail } from './core.mjs';
 import { parseFilerMarker } from './finding.mjs';
-import { redact, telemetrySourceLabels } from './telemetry.mjs';
+import { redact, sentryQueryFailureLines, telemetrySourceLabels } from './telemetry.mjs';
 
 export function buildMarker({ keys, source }) {
   const safeKeys = (keys || []).filter((key) => key && !/\s/.test(key));
@@ -386,6 +386,9 @@ export function formatPlanSummary(plan, extras = {}) {
   }
   if (extras.warnings?.length) {
     lines.push(`- warnings: ${extras.warnings.join('; ')}`);
+  }
+  for (const line of sentryQueryFailureLines(extras.warnings)) {
+    lines.push('', line);
   }
   if (plan.create.length === 0 && plan.comment.length === 0 && plan.reopen.length === 0) {
     if (extras.warnings?.length) {

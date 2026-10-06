@@ -186,8 +186,9 @@ async function fetchSentryIssuePages({
     });
     if (!response.ok) {
       const { text } = await readSentryBody(response);
-      const error = new Error(formatSentryIssuesError(response.status, text));
+      const error = new Error(formatSentryIssuesError(response.status, text, query));
       error.status = response.status;
+      error.query = query;
       throw error;
     }
     const { data } = await readSentryBody(response);

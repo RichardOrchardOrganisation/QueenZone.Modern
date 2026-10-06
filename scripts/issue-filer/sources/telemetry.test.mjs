@@ -173,6 +173,37 @@ test('defaultSentrySearch runs new, regressed, and escalating queries and merges
   assert.equal(issues.find((issue) => issue.id === '2').title, 'shared');
 });
 
+test('defaultSentrySearch fails closed on escalating 4xx and does not keep earlier queries', async () => {
+  const urls = [];
+  await assert.rejects(
+    () => defaultSentrySearch({
+      token: 'secret-token-value',
+      lookbackHours: 28,
+      minGapMs: 0,
+      fetchImpl: async (url) => {
+        urls.push(String(url));
+        const query = new URL(url).searchParams.get('query') || '';
+        if (query.includes('is:escalating')) {
+          return sentryJson(400, {
+            detail: 'unknown filter Bearer secret-token-value',
+          });
+        }
+        return sentryJson(200, [{ id: '1', title: 'kept-if-swallowed' }]);
+      },
+    }),
+    (error) => {
+      assert.equal(error.status, 400);
+      assert.match(error.query, /is:unresolved is:escalating lastSeen:-28h/);
+      assert.match(error.message, /Sentry query rejected: is:unresolved is:escalating lastSeen:-28h \(HTTP 400\)/);
+      assert.doesNotMatch(error.message, /secret-token-value/);
+      assert.doesNotMatch(error.message, /Authorization/i);
+      return true;
+    },
+  );
+  assert.ok(urls.some((url) => url.includes('is%3Anew')));
+  assert.ok(urls.some((url) => url.includes('is%3Aescalating')));
+});
+
 test('defaultSentrySearch includes redacted Sentry detail on 400', async () => {
   await assert.rejects(
     () => defaultSentrySearch({
@@ -188,7 +219,7 @@ test('defaultSentrySearch includes redacted Sentry detail on 400', async () => {
       }),
     }),
     (error) => {
-      assert.match(error.message, /Sentry issues failed: 400/);
+      assert.match(error.message, /Sentry query rejected: is:unresolved \(is:new OR is:regressed\) \(HTTP 400\)/);
       assert.match(error.message, /Boolean statements containing "OR"/);
       assert.doesNotMatch(error.message, /super-secret-token-value/);
       assert.match(error.message, /\[token\]/);
@@ -348,7 +379,7 @@ test('persistent Sentry 429 fails closed and files nothing', async () => {
   });
   assert.equal(calls, 3);
   assert.deepEqual(candidates, []);
-  assert.match(warnings[0], /Sentry issues failed: 429/);
+  assert.match(warnings[0], /Sentry query rejected: is:unresolved is:new lastSeen:-28h \(HTTP 429\)/);
   assert.match(warnings[0], /Limit is 5 requests in 1 seconds/);
   assert.doesNotMatch(warnings[0], /super-secret-token-value/);
 });

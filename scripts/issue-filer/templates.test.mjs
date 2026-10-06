@@ -275,6 +275,19 @@ test('plan summary writes one row per action with redacted titles', () => {
   assert.doesNotMatch(summary, /user@example\.com/);
 });
 
+test('Sentry query 4xx is a dedicated step-summary error line', () => {
+  const summary = formatPlanSummary(
+    { create: [], comment: [], reopen: [], skipped: [], expiredIgnores: [] },
+    {
+      warnings: [
+        'sentry: Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400): unknown filter',
+      ],
+    },
+  );
+  assert.match(summary, /Sentry query rejected: is:unresolved is:escalating lastSeen:-28h \(HTTP 400\)/);
+  assert.doesNotMatch(summary, /Silent run/);
+});
+
 test('azure collect warnings are visible in the plan summary', () => {
   const silent = formatPlanSummary(
     { create: [], comment: [], reopen: [], skipped: [], expiredIgnores: [] },

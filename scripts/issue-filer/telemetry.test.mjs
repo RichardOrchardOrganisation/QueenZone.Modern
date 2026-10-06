@@ -14,6 +14,7 @@ import {
   extractSentryPath,
   extractTraceId,
   formatSentryIssuesError,
+  sentryQueryFailureLines,
   ingestionKey,
   inAppFrames,
   isTelemetryCollectFailure,
@@ -176,10 +177,23 @@ test('sentryErrorDetail uses the detail field, truncated and redacted', () => {
     'Sentry issues failed: 400: Boolean statements containing "OR" or "AND" are not supported in this search',
   );
   assert.equal(formatSentryIssuesError(400, ''), 'Sentry issues failed: 400');
+  assert.equal(
+    formatSentryIssuesError(400, '{"detail":"unknown filter"}', 'is:unresolved is:escalating lastSeen:-28h'),
+    'Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400): unknown filter',
+  );
+  assert.deepEqual(
+    sentryQueryFailureLines([
+      'sentry: Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400)',
+      'sentry: SENTRY_TRIAGE_TOKEN is not set',
+      'azure: azure-graph-failed',
+    ]),
+    ['Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400)'],
+  );
 });
 
 test('isTelemetryCollectFailure treats Sentry and Azure source errors as fatal', () => {
   assert.equal(isTelemetryCollectFailure('sentry: Sentry issues failed: 400: Boolean statements'), true);
+  assert.equal(isTelemetryCollectFailure('sentry: Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400)'), true);
   assert.equal(isTelemetryCollectFailure('sentry: SENTRY_TRIAGE_TOKEN is not set'), false);
   assert.equal(isTelemetryCollectFailure('sentry-event: timeout'), false);
   assert.equal(isTelemetryCollectFailure('azure: azure-graph-failed'), true);

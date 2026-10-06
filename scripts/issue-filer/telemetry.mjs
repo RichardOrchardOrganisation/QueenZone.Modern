@@ -163,9 +163,29 @@ export function sentryErrorDetail(bodyText, { maxLength = REDACT_MAX_LENGTH } = 
   return detail ? redact(detail, { maxLength }) : '';
 }
 
-export function formatSentryIssuesError(status, bodyText) {
+export function formatSentryIssuesError(status, bodyText, query = '') {
   const detail = sentryErrorDetail(bodyText);
-  return detail ? `Sentry issues failed: ${status}: ${detail}` : `Sentry issues failed: ${status}`;
+  const namedQuery = String(query || '').trim();
+  const base = namedQuery
+    ? `Sentry query rejected: ${namedQuery} (HTTP ${status})`
+    : `Sentry issues failed: ${status}`;
+  return detail ? `${base}: ${detail}` : base;
+}
+
+export function sentryQueryFailureLines(warnings = []) {
+  const lines = [];
+  for (const warning of warnings) {
+    const text = String(warning || '');
+    if (!text.startsWith('sentry: ')) {
+      continue;
+    }
+    const body = text.slice('sentry: '.length);
+    if (!body || body.includes('SENTRY_TRIAGE_TOKEN is not set')) {
+      continue;
+    }
+    lines.push(body);
+  }
+  return lines;
 }
 
 export function isTelemetryCollectFailure(warning) {
