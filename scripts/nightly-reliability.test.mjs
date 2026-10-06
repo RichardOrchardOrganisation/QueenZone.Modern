@@ -56,14 +56,15 @@ test('E2E forwards TRX options before NUnit settings without starting a host', (
   const result = spawnSync('pwsh', ['-NoProfile', '-Command', `
     $e2eProject = 'unused.csproj'; $Configuration = 'Release'; $Mode = 'RealData'
     $testFilter = 'TestCategory=RealData'; $artifactDir = 'test-results/e2e'
-    $NoBuild = $false; $NoRestore = $false
+    $NoBuild = $false; $NoRestore = $false; $repoRoot = 'offline-root'
     ${source.slice(start, end)}
     Write-Output ('CAPTURE=' + (ConvertTo-Json -Compress -InputObject @($testArgs)))
   `], { encoding: 'utf8', timeout: 15000 });
   assert.equal(result.status, 0, result.stderr);
   const args = JSON.parse(result.stdout.split(/\r?\n/).find((line) => line.startsWith('CAPTURE=')).slice(8));
   assert.equal(args[args.indexOf('--logger') + 1], 'trx;LogFilePrefix=e2e-RealData');
-  assert.equal(args[args.indexOf('--results-directory') + 1], 'test-results/e2e');
+  assert.equal(path.normalize(args[args.indexOf('--results-directory') + 1]), path.join('offline-root', 'test-results/local-trx/e2e'));
+  assert.notEqual(args[args.indexOf('--results-directory') + 1], 'test-results/e2e');
   assert.ok(args.indexOf('--logger') < args.indexOf('--'));
   assert.equal(args.at(-1), 'NUnit.NumberOfTestWorkers=1');
 });
@@ -165,4 +166,18 @@ test('safe report shell selection uses only contexts allowed by Actions', () => 
   assert.match(exports[2], /matrix.os == 'Windows'/);
   assert.match(exports[3], /matrix.os == 'macOS'/);
   assert.match(workflow, /steps.safe-test-reports-windows.outcome == 'success' \|\| steps.safe-test-reports-macos.outcome == 'success'/);
+});
+
+test('raw E2E TRX stays outside existing browser-failure artifact uploads', () => {
+  const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  for (const source of [workflow, ci]) {
+    const uploads = [...source.matchAll(/- name: Upload Playwright failure artifacts[\s\S]*?retention-days: 1/g)];
+    assert.ok(uploads.length > 0);
+    for (const [block] of uploads) {
+      assert.match(block, /test-results\/e2e\//);
+      assert.doesNotMatch(block, /local-trx|legacy-probes|test-results\/\*|path: test-results\s/);
+    }
+  }
+  const ui = workflow.split('  ui-e2e-realdata:')[1].split('  residue-check:')[0];
+  assert.equal((ui.match(/-ResultsDirectory test-results\/local-trx\/e2e/g) ?? []).length, 2);
 });

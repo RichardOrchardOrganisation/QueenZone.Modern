@@ -439,13 +439,13 @@ jobs:
         id: safe-test-reports-windows
         if: always() && steps.checkout.outcome == 'success' && matrix.os == 'Windows'
         shell: powershell
-        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/e2e -OutputPath test-results/safe-reports/results.json
+        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/local-trx/e2e -OutputPath test-results/safe-reports/results.json
 
       - name: Export safe test outcomes (macOS)
         id: safe-test-reports-macos
         if: always() && steps.checkout.outcome == 'success' && matrix.os == 'macOS'
         shell: pwsh
-        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/e2e -OutputPath test-results/safe-reports/results.json
+        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/local-trx/e2e -OutputPath test-results/safe-reports/results.json
 
       - name: Upload test reports
         if: always() && (steps.safe-test-reports-windows.outcome == 'success' || steps.safe-test-reports-macos.outcome == 'success')

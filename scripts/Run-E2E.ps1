@@ -556,7 +556,7 @@ try {
         "test", $e2eProject,
         "--configuration", $Configuration,
         "--logger", "trx;LogFilePrefix=e2e-$Mode",
-        "--results-directory", $artifactDir,
+        "--results-directory", (Join-Path $repoRoot "test-results/local-trx/e2e"),
         "--filter", $testFilter
     )
     if ($NoBuild) { $testArgs += "--no-build" }
