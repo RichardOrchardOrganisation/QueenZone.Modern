@@ -10,7 +10,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadFilerFiles, repoRootFrom, validateFilerFiles } from './config.mjs';
-import { planFilings, unregisteredRules } from './core.mjs';
+import { partitionIgnore, planFilings, unregisteredRules } from './core.mjs';
 import { isFilerComment, keysOverlap, parseFilerMarker } from './finding.mjs';
 import { createGitHubClient, parseRepository } from './github-client.mjs';
 import { collect as collectCi } from './sources/ci.mjs';
@@ -151,7 +151,7 @@ function uniqueIssues(lists) {
   return [...byNumber.values()];
 }
 
-export async function loadExisting(github, config, now) {
+export async function loadExisting(github, config, now, ignore) {
   const lookbackDays = config.match?.closedLookbackDays ?? 90;
   const since = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
   const labels = [
@@ -171,6 +171,12 @@ export async function loadExisting(github, config, now) {
     }
     return issue.closedAt && new Date(issue.closedAt) >= since;
   });
+  const { active, expired } = partitionIgnore(ignore?.entries, now);
+  const pinnedNumbers = new Set([...active, ...expired]
+    .filter((entry) => entry.recurrence).map((entry) => entry.recurrence.issueNumber));
+  const missing = [...pinnedNumbers].filter((number) => !existing.some((issue) => issue.number === number));
+  const pinnedIssues = await Promise.all(missing.map((number) => github.getIssue(number)));
+  existing.push(...pinnedIssues.filter((issue) => !issue.pullRequest));
   for (const issue of existing) {
     const comments = await github.listIssueComments(issue.number);
     const filerComments = comments.filter((comment) => isFilerComment(comment.body));
@@ -305,6 +311,12 @@ export async function runFiler(options = {}) {
     sentryCandidates: options.sentryCandidates,
     sentrySearch: options.sentrySearch,
     sentryLatestEvent: options.sentryLatestEvent,
+    sentryTrackedIssue: options.sentryTrackedIssue,
+    sentryRecurrenceIssueIds: (() => {
+      const { active, expired } = partitionIgnore(ignore?.entries, now);
+      return [...new Set([...active, ...expired].filter((entry) => entry.recurrence)
+        .map((entry) => entry.match.key.slice(7)))];
+    })(),
     sentryToken: options.sentryToken,
     appInsightsAlerts: options.appInsightsAlerts,
     appInsightsEvidence: options.appInsightsEvidence,
@@ -329,7 +341,9 @@ export async function runFiler(options = {}) {
     );
   }
 
-  const existing = options.existing || (github ? await loadExisting(github, config, now) : []);
+  const canonicalIgnores = { entries: (ignore.entries || []).filter((entry) =>
+    entry.recurrence && candidates.some((candidate) => (candidate.keys || []).includes(entry.match?.key))) };
+  const existing = options.existing || (github ? await loadExisting(github, config, now, canonicalIgnores) : []);
   const plan = planFilings({
     candidates,
     existing,

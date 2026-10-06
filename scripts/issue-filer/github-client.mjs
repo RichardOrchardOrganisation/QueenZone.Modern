@@ -99,6 +99,11 @@ export function createGitHubClient({
       return items.filter((issue) => !issue.pull_request).map(normalizeIssue);
     },
 
+    async getIssue(issueNumber) {
+      const { data } = await request('GET', `/repos/${owner}/${repo}/issues/${issueNumber}`);
+      return normalizeIssue(data);
+    },
+
     async createIssue({ title, body, labels }) {
       const { data } = await request('POST', `/repos/${owner}/${repo}/issues`, { title, body, labels });
       return normalizeIssue(data);

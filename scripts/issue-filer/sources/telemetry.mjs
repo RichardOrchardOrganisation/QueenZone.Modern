@@ -305,6 +305,25 @@ export async function defaultSentryLatestEvent({
   return response.json();
 }
 
+// Read only explicitly configured recurrence issues omitted by status search.
+export async function defaultSentryTrackedIssue({
+  host = DEFAULT_SENTRY_HOST, org = DEFAULT_SENTRY_ORG, token, issueId,
+  sentryFetch, fetchImpl = fetch,
+} = {}) {
+  if (!/^\d+$/.test(issueId)) throw new Error('Invalid tracked Sentry issue ID');
+  const request = resolveSentryFetch({ sentryFetch, fetchImpl });
+  const url = new URL(`/api/0/organizations/${encodeURIComponent(org)}/issues/${issueId}/`, host);
+  const response = await request(url, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}`,
+      'User-Agent': 'queenzone-issue-filer' },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) throw new Error(`Tracked Sentry issue read rejected (HTTP ${response.status})`);
+  const issue = await response.json();
+  if (String(issue?.id) !== issueId) throw new Error('Tracked Sentry issue response ID mismatch');
+  return issue;
+}
+
 function featureEntries(ctx) {
   if (ctx.featureMap) {
     return ctx.featureMap;
@@ -370,6 +389,29 @@ async function latestSentryCandidate(issue, latestEvent, warnings, parsing) {
   return parseSentryIssue(issue, event, { since, areas, featureMap, areaForFile, deployedTip });
 }
 
+async function includeTrackedSentryIssues(issues, ctx, token, sentryFetch) {
+  const trackedIds = [...new Set(ctx.sentryRecurrenceIssueIds || [])];
+  if (trackedIds.some((id) => typeof id !== 'string' || !/^\d+$/.test(id))) {
+    throw new Error('Invalid tracked Sentry issue ID');
+  }
+  const readIssue = ctx.sentryTrackedIssue || ((issueId) => {
+    if (!token) throw new Error('Tracked Sentry issue read requires a token');
+    return defaultSentryTrackedIssue({
+      host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
+      org: ctx.sentryOrg || process.env.SENTRY_ORG || DEFAULT_SENTRY_ORG,
+      token, issueId, sentryFetch,
+    });
+  });
+  // Chain reads to preserve bounded sequential collection and shared pacing.
+  return trackedIds.reduce(async (pending, issueId) => {
+    const collected = await pending;
+    if (collected.some((issue) => String(issue.id) === issueId)) return collected;
+    const tracked = await readIssue(issueId);
+    if (String(tracked?.id) !== issueId) throw new Error('Tracked Sentry issue response ID mismatch');
+    return tracked.status === 'unresolved' ? [...collected, tracked] : collected;
+  }, Promise.resolve(issues || []));
+}
+
 async function remoteSentryCandidates(ctx, parsing, warnings) {
   const { since, featureMap, deployedTip } = parsing;
   const sentryCandidates = [];
@@ -391,7 +433,7 @@ async function remoteSentryCandidates(ctx, parsing, warnings) {
     })
     : undefined);
   try {
-    const issues = search
+    let issues = search
       ? await search({ queries })
       : await defaultSentrySearch({
         host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
@@ -402,6 +444,7 @@ async function remoteSentryCandidates(ctx, parsing, warnings) {
         lookbackHours,
         sentryFetch,
       });
+    issues = await includeTrackedSentryIssues(issues, ctx, token, sentryFetch);
     const latestEvent = ctx.sentryLatestEvent || ((issueId) => defaultSentryLatestEvent({
       host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
       token,

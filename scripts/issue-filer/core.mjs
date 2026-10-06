@@ -1,5 +1,5 @@
 import { isValidFinding, keysOverlap, levelRank, parseFilerMarker } from './finding.mjs';
-import { isPositiveInteger, ruleInfo } from './config.mjs';
+import { isPositiveInteger, ruleInfo, validateRecurrence } from './config.mjs';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -14,7 +14,7 @@ export function isoDate(value) {
   return asDate(value).toISOString().slice(0, 10);
 }
 
-function matchIgnore(candidate, entry) {
+function matchesIgnoreCriteria(candidate, entry) {
   const match = entry.match || {};
   const hasCriterion = Boolean(match.source || match.key || match.rule || match.titleRegex);
   if (!hasCriterion) {
@@ -50,6 +50,21 @@ function matchIgnore(candidate, entry) {
   return true;
 }
 
+function matchIgnore(candidate, entry) {
+  if (!matchesIgnoreCriteria(candidate, entry)) return false;
+  if (!entry.recurrence) return true;
+  const observations = (candidate.sentryObservations || []).filter((item) => item.key === entry.match.key);
+  // Only the pinned single occurrence can be quiet. Counts above one prove
+  // more than one occurrence/user even in a window; counts at or below one
+  // do not prove absence of recurrence. Identity and time must also agree.
+  return observations.length > 0 && observations.every((item) =>
+    item.eventId === entry.recurrence.eventId
+    && typeof item.lastSeen === 'string'
+    && Date.parse(item.lastSeen) === Date.parse(entry.recurrence.lastSeen)
+    && Number.isSafeInteger(item.count) && item.count >= 0 && item.count <= 1
+    && Number.isSafeInteger(item.userCount) && item.userCount >= 0 && item.userCount <= 1);
+}
+
 /**
  * When an ignore entry sets maxUsers / maxEvents and the candidate has that
  * count, exceeding either ceiling means the ignore does not apply.
@@ -77,6 +92,7 @@ export function partitionIgnore(entries, now) {
     if (!entry?.reason || !entry?.expires || Number.isNaN(Date.parse(entry.expires))) {
       continue;
     }
+    if (validateRecurrence(entry).length > 0) continue;
     if (asDate(entry.expires) < now) {
       expired.push(entry);
     } else {
@@ -211,13 +227,13 @@ function classifyCandidate(candidate, { loop, minOccurrences, active, findingRul
   if (loop !== 'telemetry' && (candidate.count || 0) < minOccurrences) {
     return { skip: { candidate, reason: 'below-min-occurrences' } };
   }
-  const ignoreHit = active.find((entry) => matchIgnore(candidate, entry));
+  const ignoreHit = active.find((entry) => matchesIgnoreCriteria(candidate, entry));
   if (ignoreHit) {
     const ceilingReason = ignoreCeilingReason(candidate, ignoreHit);
-    if (!ceilingReason) {
+    if (!ceilingReason && matchIgnore(candidate, ignoreHit)) {
       return { skip: { candidate, reason: 'ignored', ignore: ignoreHit } };
     }
-    candidate = { ...candidate, ignoreCeilingReason: ceilingReason };
+    if (ceilingReason) candidate = { ...candidate, ignoreCeilingReason: ceilingReason };
   }
   if (isCheckGap(candidate, findingRules)) {
     return { skip: { candidate, reason: 'check-gap' } };
@@ -225,7 +241,7 @@ function classifyCandidate(candidate, { loop, minOccurrences, active, findingRul
   return { candidate };
 }
 
-function planMatchedCandidate(candidate, match, policy, state) {
+function planMatchedCandidate(candidate, match, policy, state, canonical = false) {
   const { clock, maxComments, cooldownHours, reopenDays, config } = policy;
   const { create, comment, reopen, skipped } = state;
   if (match.state === 'open') {
@@ -259,7 +275,7 @@ function planMatchedCandidate(candidate, match, policy, state) {
   }
 
   const daysClosed = match.closedAt ? (clock - asDate(match.closedAt)) / MS_DAY : Number.POSITIVE_INFINITY;
-  if (reason === 'completed' && daysClosed <= reopenDays) {
+  if (reason === 'completed' && (canonical || daysClosed <= reopenDays)) {
     if (state.commentsUsed >= maxComments) {
       skipped.push({ candidate, reason: 'comment-cap', issue: match.number });
       return;
@@ -279,12 +295,48 @@ function planMatchedCandidate(candidate, match, policy, state) {
     return;
   }
 
+  if (canonical) {
+    skipped.push({ candidate, reason: 'canonical-issue-not-reopenable', issue: match.number });
+    return;
+  }
   if (state.remaining <= 0) {
     skipped.push({ candidate, reason: 'cap', issue: match.number });
     return;
   }
   create.push({ candidate, previousIssue: match.number });
   state.remaining -= 1;
+}
+
+function canonicalIgnore(candidate, entries) {
+  const sentryCandidate = (candidate.sources || []).includes('sentry')
+    ? { ...candidate, source: 'sentry' } : candidate;
+  return entries.find((entry) => entry.recurrence
+    && (matchesIgnoreCriteria(candidate, entry) || matchesIgnoreCriteria(sentryCandidate, entry)));
+}
+
+function matchRankedCandidates(ranked, existing, entries, skipped) {
+  const unmatched = [];
+  const matched = [];
+  for (const candidate of ranked) {
+    // Expiry ends suppression, not canonical issue identity. Never create a
+    // duplicate when a pinned issue is missing or has an incompatible marker.
+    const pinned = canonicalIgnore(candidate, entries);
+    if (pinned) {
+      const match = existing.find((issue) => issue.number === pinned.recurrence.issueNumber
+        && !issue.pullRequest && parseFilerMarker(issue.body)?.keys.includes(pinned.match.key));
+      if (match) matched.push({ candidate, match, canonical: true });
+      else skipped.push({ candidate, reason: 'canonical-issue-missing', issue: pinned.recurrence.issueNumber });
+      continue;
+    }
+    const match = findMatch(candidate, existing);
+    if (match) {
+      matched.push({ candidate, match });
+    } else {
+      unmatched.push(candidate);
+    }
+  }
+
+  return { unmatched, matched };
 }
 
 /**
@@ -328,16 +380,7 @@ export function planFilings({
   const reopenDays = config.match?.closedCompletedReopenDays ?? 30;
   const stormThreshold = config.caps?.stormThreshold ?? 5;
 
-  const unmatched = [];
-  const matched = [];
-  for (const candidate of ranked) {
-    const match = findMatch(candidate, existing);
-    if (match) {
-      matched.push({ candidate, match });
-    } else {
-      unmatched.push(candidate);
-    }
-  }
+  const { unmatched, matched } = matchRankedCandidates(ranked, existing, [...active, ...expiredIgnores], skipped);
 
   const createQueue = queueUnmatchedCreates({
     unmatched,
@@ -351,8 +394,8 @@ export function planFilings({
 
   const state = { create, comment, reopen, skipped, remaining, commentsUsed };
   const policy = { clock, maxComments, cooldownHours, reopenDays, config };
-  for (const { candidate, match } of matched) {
-    planMatchedCandidate(candidate, match, policy, state);
+  for (const { candidate, match, canonical } of matched) {
+    planMatchedCandidate(candidate, match, policy, state, canonical);
   }
   remaining = state.remaining;
 

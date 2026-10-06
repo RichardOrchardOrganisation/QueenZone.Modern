@@ -8,6 +8,7 @@ import {
   collect,
   createSentryFetch,
   defaultSentrySearch,
+  defaultSentryTrackedIssue,
   SENTRY_MAX_RETRY_WAIT_MS,
   sentryNextPageUrl,
   sentryRetryDelayMs,
@@ -454,4 +455,39 @@ test('Sentry requests are not issued concurrently', async () => {
   ]);
   assert.equal(maxInFlight, 1);
   assert.equal(started.length, 3);
+});
+
+test('tracked issue uses a bounded GET through the shared transport and never retries a 403', async () => {
+  const calls = [];
+  const request = createSentryFetch({ minGapMs: 0, fetchImpl: async (url, init) => {
+    calls.push({ url: String(url), init });
+    return { ok: false, status: 403 };
+  } });
+  await assert.rejects(defaultSentryTrackedIssue({ host: 'https://sentry.io', org: 'queenzone',
+    token: 'fixture-only', issueId: '7775729576', sentryFetch: request }), /HTTP 403/);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://sentry.io/api/0/organizations/queenzone/issues/7775729576/');
+  assert.equal(calls[0].init.method || 'GET', 'GET');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer fixture-only');
+  assert.ok(calls[0].init.signal instanceof AbortSignal);
+  await assert.rejects(defaultSentryTrackedIssue({ issueId: '../other', sentryFetch: request }), /Invalid/);
+  assert.equal(calls.length, 1);
+});
+test('tracked read validates response identity before parsing', async () => {
+  await assert.rejects(defaultSentryTrackedIssue({ issueId: '7775729576', sentryFetch: async () => ({
+    ok: true, json: async () => ({ id: '42', status: 'unresolved' }),
+  }) }), /ID mismatch/);
+});
+test('tracked IDs deduplicate and query hits do not trigger a redundant read', async () => {
+  let reads = 0;
+  const row = { id: '7775729576', status: 'unresolved', title: 'WatchdogTermination',
+    count: '2', userCount: 1, lastSeen: '2026-10-01T00:00:00Z' };
+  const options = { config, since, appInsightsAlerts: [], warnings: [],
+    sentryRecurrenceIssueIds: ['7775729576', '7775729576'],
+    sentryLatestEvent: async () => ({ eventID: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }),
+    sentryTrackedIssue: async () => { reads += 1; return row; } };
+  assert.equal((await collect({ ...options, sentrySearch: async () => [row] })).length, 1);
+  assert.equal(reads, 0);
+  assert.equal((await collect({ ...options, sentrySearch: async () => [] })).length, 1);
+  assert.equal(reads, 1);
 });

@@ -756,6 +756,18 @@ export function parseSentryIssue(issue, event, {
     source: 'sentry',
     sources: ['sentry'],
     keys: [sentryKey(issue.id)],
+    // Preserve source-specific observations: correlation sums counts and may
+    // replace lastSeen with an Azure time. Never use those merged fields for
+    // the single-occurrence recurrence guard. eventID is the documented event
+    // identifier; the response's id is a separate field.
+    sentryObservations: [{
+      key: sentryKey(issue.id),
+      eventId: typeof event?.eventID === 'string' && /^[a-f0-9]{32}$/i.test(event.eventID)
+        ? event.eventID.toLowerCase() : '',
+      lastSeen: issue.lastSeen || issue.last_seen || '',
+      count: observedCount(issue.count),
+      userCount: observedCount(issue.userCount ?? issue.user_count),
+    }],
     shortId,
     userCount,
     title: redact(`[sentry] ${issue.title || issue.metadata?.title || issue.id}`),
@@ -837,6 +849,12 @@ function uniqueKeys(lists) {
   return keys;
 }
 
+function observedCount(value) {
+  if (typeof value !== 'number' && !(typeof value === 'string' && /^\d+$/.test(value))) return null;
+  const count = Number(value);
+  return Number.isSafeInteger(count) && count >= 0 ? count : null;
+}
+
 function mergeCandidates(left, right, reason) {
   const sources = uniqueKeys([left.sources || [left.source], right.sources || [right.source]]);
   const featureId = left.featureId || right.featureId || '';
@@ -847,6 +865,7 @@ function mergeCandidates(left, right, reason) {
     source: sources.length > 1 ? 'telemetry' : (left.source || right.source),
     sources,
     keys: uniqueKeys([left.keys || [], right.keys || []]),
+    sentryObservations: [...(left.sentryObservations || []), ...(right.sentryObservations || [])],
     shortId: left.shortId || right.shortId || '',
     userCount: Math.max(left.userCount || 0, right.userCount || 0),
     title,
