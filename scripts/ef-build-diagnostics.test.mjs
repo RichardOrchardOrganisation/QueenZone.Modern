@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { spawnPwsh } from './test-helpers/pwsh.mjs';
 
 test('mirror migrations expose compiler failures and never run EF after a failed build', () => {
   const source = readFileSync(new URL('./Run-E2E.ps1', import.meta.url), 'utf8');
   const helper = /function Update-SqlExpressMirrorMigrations \{[\s\S]*?\n\}/.exec(source)?.[0];
   assert.ok(helper);
   for (const failBuild of [false, true]) {
-    const result = spawnSync('pwsh', ['-NoProfile', '-Command', `
+    const result = spawnPwsh(['-Command', `
       $Configuration = 'Release'
       function Invoke-DotNet {
         param([string[]]$Arguments)
@@ -17,7 +17,8 @@ test('mirror migrations expose compiler failures and never run EF after a failed
       }
       ${helper}
       Update-SqlExpressMirrorMigrations
-    `], { encoding: 'utf8', timeout: 15000 });
+    `], { encoding: 'utf8' });
+    assert.equal(result.error, undefined);
     const calls = result.stdout.split(/\r?\n/).filter((line) => line.startsWith('CAPTURE='))
       .map((line) => JSON.parse(line.slice(8)));
     assert.deepEqual(calls.map((args) => args[0]), failBuild ? ['tool', 'restore', 'build'] : ['tool', 'restore', 'build', 'ef']);
