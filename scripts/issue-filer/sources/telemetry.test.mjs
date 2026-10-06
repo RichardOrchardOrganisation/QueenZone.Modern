@@ -139,10 +139,10 @@ test('defaultSentrySearch refuses a Link next URL off sentry.io', async () => {
   assert.equal(urls.length, 1);
   assert.match(urls[0], /sentry\.io/);
   assert.match(urls[0], /query=is%3Aunresolved\+is%3Anew\+lastSeen%3A-2h/);
-  assert.match(urls[0], /statsPeriod=24h/);
+  assert.match(urls[0], /statsPeriod=14d/);
 });
 
-test('defaultSentrySearch runs new and regressed queries and merges by id', async () => {
+test('defaultSentrySearch runs new, regressed, and escalating queries and merges by id', async () => {
   const urls = [];
   const issues = await defaultSentrySearch({
     token: 't',
@@ -151,21 +151,57 @@ test('defaultSentrySearch runs new and regressed queries and merges by id', asyn
     fetchImpl: async (url) => {
       urls.push(String(url));
       const query = new URL(url).searchParams.get('query');
+      const payload = query.includes('is:new')
+        ? [{ id: '1', title: 'new' }, { id: '2', title: 'shared' }]
+        : query.includes('is:regressed')
+          ? [{ id: '2', title: 'regressed' }, { id: '3', title: 'only-regressed' }]
+          : [{ id: '2', title: 'escalating' }, { id: '4', title: 'only-escalating' }];
       return {
         ok: true,
-        json: async () => (query.includes('is:new')
-          ? [{ id: '1', title: 'new' }, { id: '2', title: 'shared' }]
-          : [{ id: '2', title: 'regressed' }, { id: '3', title: 'only-regressed' }]),
+        json: async () => payload,
         headers: { get: () => '' },
       };
     },
   });
-  assert.equal(urls.length, 2);
+  assert.equal(urls.length, 3);
   assert.ok(urls.some((url) => url.includes('is%3Anew')));
   assert.ok(urls.some((url) => url.includes('is%3Aregressed')));
+  assert.ok(urls.some((url) => url.includes('is%3Aescalating')));
   assert.ok(urls.every((url) => !url.includes('OR')));
-  assert.deepEqual(issues.map((issue) => issue.id), ['1', '2', '3']);
+  assert.ok(urls.every((url) => url.includes('statsPeriod=14d')));
+  assert.deepEqual(issues.map((issue) => issue.id), ['1', '2', '3', '4']);
   assert.equal(issues.find((issue) => issue.id === '2').title, 'shared');
+});
+
+test('defaultSentrySearch fails closed on escalating 4xx and does not keep earlier queries', async () => {
+  const urls = [];
+  await assert.rejects(
+    () => defaultSentrySearch({
+      token: 'secret-token-value',
+      lookbackHours: 28,
+      minGapMs: 0,
+      fetchImpl: async (url) => {
+        urls.push(String(url));
+        const query = new URL(url).searchParams.get('query') || '';
+        if (query.includes('is:escalating')) {
+          return sentryJson(400, {
+            detail: 'unknown filter Bearer secret-token-value',
+          });
+        }
+        return sentryJson(200, [{ id: '1', title: 'kept-if-swallowed' }]);
+      },
+    }),
+    (error) => {
+      assert.equal(error.status, 400);
+      assert.match(error.query, /is:unresolved is:escalating lastSeen:-28h/);
+      assert.match(error.message, /Sentry query rejected: is:unresolved is:escalating lastSeen:-28h \(HTTP 400\)/);
+      assert.doesNotMatch(error.message, /secret-token-value/);
+      assert.doesNotMatch(error.message, /Authorization/i);
+      return true;
+    },
+  );
+  assert.ok(urls.some((url) => url.includes('is%3Anew')));
+  assert.ok(urls.some((url) => url.includes('is%3Aescalating')));
 });
 
 test('defaultSentrySearch includes redacted Sentry detail on 400', async () => {
@@ -183,7 +219,7 @@ test('defaultSentrySearch includes redacted Sentry detail on 400', async () => {
       }),
     }),
     (error) => {
-      assert.match(error.message, /Sentry issues failed: 400/);
+      assert.match(error.message, /Sentry query rejected: is:unresolved \(is:new OR is:regressed\) \(HTTP 400\)/);
       assert.match(error.message, /Boolean statements containing "OR"/);
       assert.doesNotMatch(error.message, /super-secret-token-value/);
       assert.match(error.message, /\[token\]/);
@@ -343,7 +379,7 @@ test('persistent Sentry 429 fails closed and files nothing', async () => {
   });
   assert.equal(calls, 3);
   assert.deepEqual(candidates, []);
-  assert.match(warnings[0], /Sentry issues failed: 429/);
+  assert.match(warnings[0], /Sentry query rejected: is:unresolved is:new lastSeen:-28h \(HTTP 429\)/);
   assert.match(warnings[0], /Limit is 5 requests in 1 seconds/);
   assert.doesNotMatch(warnings[0], /super-secret-token-value/);
 });

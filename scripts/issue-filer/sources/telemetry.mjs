@@ -7,6 +7,7 @@ import {
   DEFAULT_SENTRY_PROJECT,
   LOOKBACK_HOURS,
   buildSentryIssuesUrl,
+  sentryStatsPeriod,
   candidateFromEvidence,
   correlateSignals,
   formatSentryIssuesError,
@@ -169,9 +170,10 @@ async function fetchSentryIssuePages({
   token,
   query,
   fetchImpl,
+  statsPeriod,
 }) {
   const issues = [];
-  let next = buildSentryIssuesUrl({ host, org, project, query });
+  let next = buildSentryIssuesUrl({ host, org, project, query, statsPeriod });
   let pages = 0;
   while (next && pages < 10) {
     const response = await fetchImpl(next, {
@@ -184,8 +186,9 @@ async function fetchSentryIssuePages({
     });
     if (!response.ok) {
       const { text } = await readSentryBody(response);
-      const error = new Error(formatSentryIssuesError(response.status, text));
+      const error = new Error(formatSentryIssuesError(response.status, text, query));
       error.status = response.status;
+      error.query = query;
       throw error;
     }
     const { data } = await readSentryBody(response);
@@ -227,6 +230,7 @@ export async function defaultSentrySearch({
   const queryList = query
     ? [query]
     : (queries || sentrySearchQueries({ lookbackHours }));
+  const statsPeriod = sentryStatsPeriod(lookbackHours);
   const pages = [];
   for (const item of queryList) {
     pages.push(await fetchSentryIssuePages({
@@ -236,6 +240,7 @@ export async function defaultSentrySearch({
       token,
       query: item,
       fetchImpl: request,
+      statsPeriod,
     }));
   }
   return mergeSentryIssuesById(pages);

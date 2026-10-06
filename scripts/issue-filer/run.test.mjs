@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadFilerFiles, repoRootFrom } from './config.mjs';
 import { loadExisting, main, parseArgs, resolveIngestFindingsPath, runFiler } from './run.mjs';
+import { collect as collectTelemetry } from './sources/telemetry.mjs';
+import { formatPlanSummary } from './templates.mjs';
 import { DEFAULT_INGEST_FINDINGS } from './sources/review.mjs';
 
 const { config, ignore, findingRules } = loadFilerFiles(repoRootFrom());
@@ -72,6 +74,8 @@ test('parseArgs defaults and rejects bad values', () => {
   });
   assert.equal(parseArgs(['--loop', 'telemetry', '--lookback-hours', '2']).lookbackHours, 2);
   assert.throws(() => parseArgs(['--lookback-hours', '0']), /lookback-hours/);
+  assert.throws(() => parseArgs(['--lookback-hours', '169']), /lookback-hours/);
+  assert.throws(() => parseArgs(['--lookback-hours', '1.5']), /lookback-hours/);
   assert.equal(parseArgs(['--dry-run', '--lookback-days', '60', '--max-issues', '3']).lookbackDays, 60);
   assert.equal(parseArgs(['--ingest-findings']).ingestFindings, DEFAULT_INGEST_FINDINGS);
   assert.equal(parseArgs(['--ingest-findings', 'tmp/findings.json', '--dry-run']).ingestFindings, 'tmp/findings.json');
@@ -516,6 +520,96 @@ test('telemetry collect failure writes the plan then exits non-zero without fili
   assert.ok(!mainGithub.calls.some((call) => call[0] === 'createIssue'));
 });
 
+test('escalating Sentry 4xx fails the run and writes a named summary error', async () => {
+  const summaries = [];
+  const lines = [];
+  const github = fakeGithub();
+  const fetchImpl = async (url) => {
+    const href = String(url);
+    if (href.includes('/events/latest/')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+        text: async () => '{}',
+        headers: { get: () => '' },
+      };
+    }
+    const query = new URL(href).searchParams.get('query') || '';
+    if (query.includes('is:escalating')) {
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({ detail: 'unknown filter Bearer secret-token-value' }),
+        text: async () => JSON.stringify({ detail: 'unknown filter Bearer secret-token-value' }),
+        headers: { get: () => '' },
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [{
+        id: '1',
+        title: 'must not file after escalating 4xx',
+        count: 4,
+        lastSeen: '2026-09-26T07:30:00Z',
+        firstSeen: '2026-09-26T07:00:00Z',
+      }],
+      text: async () => '[]',
+      headers: { get: () => '' },
+    };
+  };
+
+  const result = await runFiler({
+    root: repoRootFrom(),
+    dryRun: false,
+    now,
+    loop: 'telemetry',
+    lookbackHours: 28,
+    github,
+    config,
+    ignore,
+    findingRules,
+    collectors: [collectTelemetry],
+    fetchImpl,
+    sentryToken: 'secret-token-value',
+    minGapMs: 0,
+    sleep: async () => {},
+    appInsightsAlerts: [],
+    appInsightsEvidence: {},
+    writeSummary: (text) => summaries.push(text),
+    stdout: (line) => lines.push(String(line)),
+  });
+  assert.equal(result.collectFailed, true);
+  assert.equal(result.wrote, false);
+  assert.deepEqual(result.candidates, []);
+  const summary = `${summaries.join('\n')}\n${lines.join('\n')}`;
+  assert.match(summary, /Sentry query rejected: is:unresolved is:escalating lastSeen:-28h \(HTTP 400\)/);
+  assert.doesNotMatch(summary, /secret-token-value/);
+  assert.doesNotMatch(summary, /Authorization/i);
+  assert.ok(!github.calls.some((call) => call[0] === 'createIssue'));
+
+  const mainLines = [];
+  const mainSummaries = [];
+  const code = await main(['--loop', 'telemetry', '--lookback-hours', '28'], {
+    root: repoRootFrom(),
+    github: fakeGithub(),
+    token: 'x',
+    repository: 'org/repo',
+    owner: 'org',
+    repo: 'repo',
+    fetchImpl,
+    sentryToken: 'secret-token-value',
+    minGapMs: 0,
+    sleep: async () => {},
+    writeSummary: (text) => mainSummaries.push(text),
+    stdout: (line) => mainLines.push(String(line)),
+  });
+  assert.equal(code, 1);
+  assert.match(mainSummaries.join('\n'), /Sentry query rejected: is:unresolved is:escalating lastSeen:-28h \(HTTP 400\)/);
+  assert.doesNotMatch(mainSummaries.join('\n'), /secret-token-value/);
+});
+
 test('telemetry zero-result collect still exits zero', async () => {
   const lines = [];
   const code = await main(['--loop', 'telemetry', '--lookback-hours', '2', '--dry-run'], {
@@ -530,6 +624,122 @@ test('telemetry zero-result collect still exits zero', async () => {
   });
   assert.equal(code, 0);
   assert.match(lines.join('\n'), /Silent run: nothing to file/);
+});
+
+test('escalating Sentry issue updates an open match and never refiles', async () => {
+  const escalating = {
+    source: 'sentry',
+    keys: ['sentry:555'],
+    shortId: 'QUEENZONE-MOBILE-E',
+    title: '[sentry] escalating TypeError',
+    area: 'news',
+    evidence: [{ url: 'https://sentry.io/issues/555', text: 'Sentry issue' }],
+    count: 12,
+    userCount: 4,
+    firstSeen: '2026-01-01T00:00:00Z',
+    lastSeen: '2026-09-26T07:30:00Z',
+    release: 'mobile@1.2.3',
+    level: 'L2',
+  };
+  const existingIssue = {
+    number: 2147,
+    title: '[sentry] TypeError',
+    body: '<!-- qz-filer v=1 keys=sentry:555 source=sentry -->',
+    state: 'open',
+    createdAt: '2026-09-01T00:00:00Z',
+    updatedAt: '2026-09-20T00:00:00Z',
+    user: 'github-actions[bot]',
+    labels: ['bug', 'from-telemetry', 'from-sentry'],
+  };
+  const updated = await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    loop: 'telemetry',
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [async () => [escalating]],
+    existing: [existingIssue],
+    stdout: () => {},
+  });
+  assert.equal(updated.plan.create.length, 0);
+  assert.equal(updated.plan.comment.length, 1);
+  assert.equal(updated.plan.comment[0].kind, 'update');
+  assert.match(formatPlanSummary(updated.plan, { dryRun: true }), /would update/);
+
+  const deduped = await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    loop: 'telemetry',
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [async () => [escalating]],
+    existing: [{ ...existingIssue, lastFilerCommentAt: '2026-09-26T07:00:00Z' }],
+    stdout: () => {},
+  });
+  assert.equal(deduped.plan.create.length, 0);
+  assert.equal(deduped.plan.comment.length, 0);
+  assert.equal(deduped.plan.skipped[0].reason, 'comment-cooldown');
+  assert.match(formatPlanSummary(deduped.plan, { dryRun: true }), /would dedupe/);
+});
+
+test('overlapping App Insights lookbacks do not create a second issue', async () => {
+  const signal = {
+    source: 'appinsights',
+    keys: ['ai:exc:NullRef'],
+    title: '[appinsights] NullRef',
+    area: 'news',
+    evidence: [],
+    count: 4,
+    lastSeen: '2026-09-26T07:45:00Z',
+    release: 'web',
+    level: 'L2',
+  };
+  const first = await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now,
+    loop: 'telemetry',
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [async () => [signal]],
+    existing: [],
+    stdout: () => {},
+  });
+  assert.equal(first.plan.create.length, 1);
+
+  const overlap = await runFiler({
+    root: repoRootFrom(),
+    dryRun: true,
+    now: new Date('2026-09-27T07:00:00Z'),
+    loop: 'telemetry',
+    github: fakeGithub(),
+    config,
+    ignore,
+    findingRules,
+    collectors: [async () => [signal]],
+    existing: [{
+      number: 90,
+      title: '[appinsights] NullRef',
+      body: '<!-- qz-filer v=1 keys=ai:exc:NullRef source=appinsights -->',
+      state: 'open',
+      createdAt: '2026-09-26T08:01:00Z',
+      updatedAt: '2026-09-26T08:01:00Z',
+      user: 'github-actions[bot]',
+      labels: ['bug', 'from-telemetry', 'from-appinsights'],
+      lastFilerCommentAt: '2026-09-27T06:00:00Z',
+    }],
+    stdout: () => {},
+  });
+  assert.equal(overlap.plan.create.length, 0);
+  assert.equal(overlap.plan.skipped[0].reason, 'comment-cooldown');
 });
 
 test('missing ingest-findings file fails closed', () => {

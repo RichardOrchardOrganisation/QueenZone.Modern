@@ -8,13 +8,22 @@ import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ARG_ALERTS_QUERY, REQUIRES_DIMENSION, evidenceKqlForAlert, parseArgAlerts } from './telemetry.mjs';
+import {
+  TELEMETRY_WINDOW_HOURS,
+  REQUIRES_DIMENSION,
+  argAlertsQuery,
+  evidenceKqlForAlert,
+  evidenceTimespan,
+  parseArgAlerts,
+  parseLookbackHours,
+} from './telemetry.mjs';
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = {
     subscription: '',
     alertsOut: '',
     evidenceOut: '',
+    lookbackHours: TELEMETRY_WINDOW_HOURS,
   };
   const list = [...argv];
   while (list.length > 0) {
@@ -27,6 +36,8 @@ function parseArgs(argv) {
       args.evidenceOut = list.shift();
     } else if (flag === '--warnings-out') {
       args.warningsOut = list.shift();
+    } else if (flag === '--lookback-hours') {
+      args.lookbackHours = parseLookbackHours(list.shift());
     } else {
       throw new Error(`Unknown argument: ${flag}`);
     }
@@ -130,6 +141,9 @@ function evidenceRows(payload) {
 }
 
 export async function collectAzureSignals(args, options = {}) {
+  const lookbackHours = args.lookbackHours ?? TELEMETRY_WINDOW_HOURS;
+  const alertsQuery = argAlertsQuery(lookbackHours);
+  const timespan = evidenceTimespan(lookbackHours);
   const execOptions = { exec: options.exec, timeoutMs: options.timeoutMs };
   await runCommand('az', ['config', 'set', 'extension.use_dynamic_install=yes_without_prompt', '--only-show-errors'], execOptions);
   await runCommand('az', ['config', 'set', 'extension.dynamic_install_allow_preview=true', '--only-show-errors'], execOptions);
@@ -140,7 +154,7 @@ export async function collectAzureSignals(args, options = {}) {
     'graph',
     'query',
     '-q',
-    ARG_ALERTS_QUERY,
+    alertsQuery,
     '--subscriptions',
     args.subscription,
     '--output',
@@ -199,7 +213,7 @@ export async function collectAzureSignals(args, options = {}) {
       '--analytics-query',
       query,
       '--timespan',
-      'PT2H',
+      timespan,
       '--output',
       'json',
     ]), execOptions);

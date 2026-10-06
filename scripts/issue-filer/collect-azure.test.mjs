@@ -3,7 +3,17 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { collectAzureSignals, main } from './collect-azure.mjs';
+import { collectAzureSignals, main, parseArgs } from './collect-azure.mjs';
+import { TELEMETRY_WINDOW_HOURS } from './telemetry.mjs';
+
+test('collect-azure lookback-hours defaults to the 28h window and rejects invalid values', () => {
+  const required = ['--subscription', 'sub', '--alerts-out', 'a.json', '--evidence-out', 'e.json'];
+  assert.equal(parseArgs(required).lookbackHours, TELEMETRY_WINDOW_HOURS);
+  assert.equal(parseArgs([...required, '--lookback-hours', '12']).lookbackHours, 12);
+  assert.throws(() => parseArgs([...required, '--lookback-hours', '0']), /lookback-hours/);
+  assert.throws(() => parseArgs([...required, '--lookback-hours', '169']), /lookback-hours/);
+  assert.throws(() => parseArgs([...required, '--lookback-hours', '1.5']), /lookback-hours/);
+});
 
 test('collectAzureSignals writes empty files when Resource Graph fails', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'telemetry-az-'));
@@ -74,6 +84,33 @@ function azExec(handlers) {
     return { code: 0, stdout: '', stderr: '' };
   };
 }
+
+test('lookback-hours drives ARG ago() and the evidence timespan', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'telemetry-az-'));
+  const graphQueries = [];
+  const timespans = [];
+  const result = await collectAzureSignals({
+    subscription: 'sub',
+    alertsOut: path.join(dir, 'alerts.json'),
+    evidenceOut: path.join(dir, 'evidence.json'),
+    lookbackHours: TELEMETRY_WINDOW_HOURS,
+  }, {
+    exec: azExec({
+      graph: (args) => {
+        graphQueries.push(args[args.indexOf('-q') + 1]);
+        return { code: 0, stdout: JSON.stringify({ data: [firedFiveXx] }), stderr: '' };
+      },
+      kql: (args) => {
+        timespans.push(args[args.indexOf('--timespan') + 1]);
+        return { code: 0, stdout: '[]', stderr: '' };
+      },
+    }),
+  });
+  assert.equal(result.alerts.length, 1);
+  assert.match(graphQueries[0], /ago\(28h\)/);
+  assert.doesNotMatch(graphQueries[0], /ago\(2h\)/);
+  assert.deepEqual(timespans, ['PT28H']);
+});
 
 test('collectAzureSignals scopes evidence KQL to the fired alert dimension', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'telemetry-az-'));

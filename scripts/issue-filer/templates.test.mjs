@@ -8,6 +8,7 @@ import {
   buildMarker,
   escapeMarkdown,
   formatPlanSummary,
+  planSummaryRows,
   labelsFor,
   safeTitle,
 } from './templates.mjs';
@@ -189,6 +190,120 @@ test('issue title, storm list, log comment, and will-create lines redact externa
   assert.match(summary, /will create:/);
   assert.doesNotMatch(summary, /user@example\.com/);
   assert.doesNotMatch(summary, /hunter2/);
+});
+
+test('plan summary writes one row per action with redacted titles', () => {
+  const leaky = {
+    source: 'sentry',
+    keys: ['sentry:99'],
+    shortId: 'QUEENZONE-MOBILE-E',
+    title: '[sentry] leak user@example.com @oncall',
+    count: 3,
+    userCount: 2,
+    lastSeen: '2026-09-27T10:00:00Z',
+    release: 'mobile@1.0.0',
+    evidence: [{ url: 'https://sentry.io/issues/99', text: 'Sentry issue' }],
+  };
+  const appInsights = {
+    source: 'appinsights',
+    keys: ['ai:exc:NullRef'],
+    title: '[appinsights] boom',
+    count: 5,
+    userCount: 0,
+    lastSeen: '2026-09-27T10:01:00Z',
+    release: 'web',
+  };
+  const plan = {
+    create: [{ candidate: leaky }],
+    comment: [{ candidate: leaky, issueNumber: 2147, kind: 'update' }],
+    reopen: [{ candidate: leaky, issueNumber: 88 }],
+    skipped: [
+      { candidate: leaky, reason: 'comment-cooldown', issue: 2147 },
+      { candidate: leaky, reason: 'ignored' },
+      { candidate: leaky, reason: 'cap' },
+      { candidate: leaky, reason: 'storm' },
+      { candidate: leaky, reason: 'invalid' },
+      { candidate: leaky, reason: 'check-gap' },
+      { candidate: leaky, reason: 'closed-not-planned', issue: 12, suggestIgnore: true },
+      { candidate: appInsights, reason: 'cap', issue: 9 },
+    ],
+    expiredIgnores: [],
+  };
+  const rows = planSummaryRows(plan);
+  assert.equal(rows.length, 11);
+  assert.deepEqual(rows.map((row) => row.action), [
+    'filed',
+    'updated',
+    'reopened',
+    'deduped',
+    'ignored',
+    'skipped:cap',
+    'skipped:storm',
+    'skipped:invalid',
+    'skipped:check-gap',
+    'skipped:closed-not-planned',
+    'deduped',
+  ]);
+  assert.equal(rows[0].source, 'sentry');
+  assert.equal(rows[0].id, 'QUEENZONE-MOBILE-E');
+  assert.equal(rows[0].users, 2);
+  assert.doesNotMatch(rows[0].title, /user@example\.com/);
+  assert.match(rows[0].title, /\\\[email\\\]/);
+  assert.match(rows[0].link, /https:\/\/sentry\.io\/issues\/99/);
+  assert.equal(rows[1].link.includes('#2147'), true);
+  assert.equal(rows.at(-1).source, 'appinsights');
+  assert.equal(rows.at(-1).id, 'ai:exc:NullRef');
+
+  const dry = planSummaryRows(plan, { dryRun: true });
+  assert.deepEqual(dry.map((row) => row.action), [
+    'would file',
+    'would update',
+    'would reopen',
+    'would dedupe',
+    'would ignore',
+    'would skip:cap',
+    'would skip:storm',
+    'would skip:invalid',
+    'would skip:check-gap',
+    'would skip:closed-not-planned',
+    'would dedupe',
+  ]);
+
+  const summary = formatPlanSummary(plan, { dryRun: true });
+  assert.match(summary, /\| source \| id \| title \|/);
+  assert.match(summary, /would file/);
+  assert.doesNotMatch(summary, /user@example\.com/);
+});
+
+test('summary table cells escape backslashes before pipes', () => {
+  const summary = formatPlanSummary({
+    create: [{
+      candidate: {
+        source: 'appinsights',
+        keys: ['ai:exc:a|b\\c'],
+        title: 'plain',
+        count: 1,
+      },
+    }],
+    comment: [],
+    reopen: [],
+    skipped: [],
+    expiredIgnores: [],
+  });
+  assert.match(summary, /ai:exc:a\\\|b\\\\c/);
+});
+
+test('Sentry query 4xx is a dedicated step-summary error line', () => {
+  const summary = formatPlanSummary(
+    { create: [], comment: [], reopen: [], skipped: [], expiredIgnores: [] },
+    {
+      warnings: [
+        'sentry: Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400): unknown filter',
+      ],
+    },
+  );
+  assert.match(summary, /Sentry query rejected: is:unresolved is:escalating lastSeen:-28h \(HTTP 400\)/);
+  assert.doesNotMatch(summary, /Silent run/);
 });
 
 test('azure collect warnings are visible in the plan summary', () => {

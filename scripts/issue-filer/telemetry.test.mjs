@@ -14,6 +14,7 @@ import {
   extractSentryPath,
   extractTraceId,
   formatSentryIssuesError,
+  sentryQueryFailureLines,
   ingestionKey,
   inAppFrames,
   isTelemetryCollectFailure,
@@ -23,8 +24,15 @@ import {
   normalizeRoute,
   parseArgAlerts,
   parseEvidenceRows,
+  parseLookbackHours,
   parseSentryIssue,
   redact,
+  argAlertsQuery,
+  evidenceTimespan,
+  sentryStatsPeriod,
+  SCHEDULE_CADENCE_HOURS,
+  TELEMETRY_WINDOW_HOURS,
+  WINDOW_OVERLAP_HOURS,
   requestKey,
   routeMatchesTemplate,
   sentryErrorDetail,
@@ -114,20 +122,51 @@ test('feature-map matching uses the #1800 URL templates', () => {
   assert.match(captureProofCommand(''), /Not mapped/);
 });
 
-test('Sentry issue search splits new and regressed and omits OR', () => {
-  const queries = sentrySearchQueries({ lookbackHours: 2 });
+test('Sentry issue search splits new, regressed, and escalating and omits OR', () => {
+  const queries = sentrySearchQueries({ lookbackHours: 26 });
   assert.deepEqual(queries, [
-    'is:unresolved is:new lastSeen:-2h',
-    'is:unresolved is:regressed lastSeen:-2h',
+    'is:unresolved is:new lastSeen:-26h',
+    'is:unresolved is:regressed lastSeen:-26h',
+    'is:unresolved is:escalating lastSeen:-26h',
   ]);
   for (const query of queries) {
     assert.doesNotMatch(query, /\bOR\b|\bAND\b|[()]/);
-    const url = buildSentryIssuesUrl({ query });
+    const url = buildSentryIssuesUrl({ query, statsPeriod: sentryStatsPeriod(26) });
     assert.equal(url.pathname, '/api/0/projects/self-0tb/queenzone-mobile/issues/');
     assert.equal(url.searchParams.get('query'), query);
     assert.equal(url.searchParams.get('limit'), '25');
-    assert.equal(url.searchParams.get('statsPeriod'), '24h');
+    assert.equal(url.searchParams.get('statsPeriod'), '14d');
   }
+});
+
+test('Sentry statsPeriod is always an allowed project-issues value', () => {
+  const allowed = new Set(['', '24h', '14d']);
+  for (const hours of [1, 2, 24, 26, 28, 168, undefined]) {
+    assert.equal(allowed.has(sentryStatsPeriod(hours)), true);
+  }
+  assert.equal(sentryStatsPeriod(), '14d');
+  assert.equal(sentryStatsPeriod(TELEMETRY_WINDOW_HOURS), '14d');
+  assert.equal(buildSentryIssuesUrl({ query: 'is:unresolved is:new lastSeen:-28h' }).searchParams.get('statsPeriod'), '14d');
+});
+
+test('telemetry window is cadence plus overlap and drives ARG and evidence spans', () => {
+  assert.equal(SCHEDULE_CADENCE_HOURS, 24);
+  assert.equal(WINDOW_OVERLAP_HOURS, 4);
+  assert.equal(TELEMETRY_WINDOW_HOURS, 28);
+  assert.equal(sentryStatsPeriod(TELEMETRY_WINDOW_HOURS), '14d');
+  assert.match(argAlertsQuery(TELEMETRY_WINDOW_HOURS), /ago\(28h\)/);
+  assert.doesNotMatch(argAlertsQuery(TELEMETRY_WINDOW_HOURS), /ago\(2h\)/);
+  assert.equal(evidenceTimespan(TELEMETRY_WINDOW_HOURS), 'PT28H');
+  assert.deepEqual(sentrySearchQueries(), [
+    'is:unresolved is:new lastSeen:-28h',
+    'is:unresolved is:regressed lastSeen:-28h',
+    'is:unresolved is:escalating lastSeen:-28h',
+  ]);
+  assert.equal(parseLookbackHours(undefined, { fallback: TELEMETRY_WINDOW_HOURS }), 28);
+  assert.equal(parseLookbackHours('12'), 12);
+  assert.throws(() => parseLookbackHours('0'), /lookback-hours/);
+  assert.throws(() => parseLookbackHours('169'), /lookback-hours/);
+  assert.throws(() => parseLookbackHours('1.5'), /lookback-hours/);
 });
 
 test('sentryErrorDetail uses the detail field, truncated and redacted', () => {
@@ -148,10 +187,23 @@ test('sentryErrorDetail uses the detail field, truncated and redacted', () => {
     'Sentry issues failed: 400: Boolean statements containing "OR" or "AND" are not supported in this search',
   );
   assert.equal(formatSentryIssuesError(400, ''), 'Sentry issues failed: 400');
+  assert.equal(
+    formatSentryIssuesError(400, '{"detail":"unknown filter"}', 'is:unresolved is:escalating lastSeen:-28h'),
+    'Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400): unknown filter',
+  );
+  assert.deepEqual(
+    sentryQueryFailureLines([
+      'sentry: Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400)',
+      'sentry: SENTRY_TRIAGE_TOKEN is not set',
+      'azure: azure-graph-failed',
+    ]),
+    ['Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400)'],
+  );
 });
 
 test('isTelemetryCollectFailure treats Sentry and Azure source errors as fatal', () => {
   assert.equal(isTelemetryCollectFailure('sentry: Sentry issues failed: 400: Boolean statements'), true);
+  assert.equal(isTelemetryCollectFailure('sentry: Sentry query rejected: is:unresolved is:escalating lastSeen:-28h (HTTP 400)'), true);
   assert.equal(isTelemetryCollectFailure('sentry: SENTRY_TRIAGE_TOKEN is not set'), false);
   assert.equal(isTelemetryCollectFailure('sentry-event: timeout'), false);
   assert.equal(isTelemetryCollectFailure('azure: azure-graph-failed'), true);
@@ -273,6 +325,8 @@ test('Sentry parsing uses extra.path or the last api breadcrumb with status >= 5
 
   const candidate = parseSentryIssue({
     id: '555',
+    shortId: 'QUEENZONE-MOBILE-E',
+    userCount: 4,
     title: 'TypeError: failed',
     count: 1,
     lastSeen: '2026-09-27T10:00:00Z',
@@ -291,6 +345,8 @@ test('Sentry parsing uses extra.path or the last api breadcrumb with status >= 5
     deployedTip: 'abc123',
   });
   assert.equal(candidate.keys[0], 'sentry:555');
+  assert.equal(candidate.shortId, 'QUEENZONE-MOBILE-E');
+  assert.equal(candidate.userCount, 4);
   assert.equal(candidate.route, '/api/v1/news/{id}');
   assert.equal(candidate.area, 'news');
   assert.equal(candidate.count, 1);
@@ -306,6 +362,21 @@ test('Sentry parsing uses extra.path or the last api breadcrumb with status >= 5
     title: 'old',
     lastSeen: '2026-09-26T00:00:00Z',
   }, {}, { since: new Date('2026-09-27T08:00:00Z') }), null);
+
+  const escalating = parseSentryIssue({
+    id: '777',
+    shortId: 'QUEENZONE-MOBILE-E',
+    userCount: 9,
+    title: 'escalating TypeError',
+    count: 12,
+    firstSeen: '2026-01-01T00:00:00Z',
+    lastSeen: '2026-09-27T10:00:00Z',
+    permalink: 'https://sentry.io/issues/777',
+  }, {}, { since: new Date('2026-09-27T08:00:00Z') });
+  assert.equal(escalating.keys[0], 'sentry:777');
+  assert.equal(escalating.shortId, 'QUEENZONE-MOBILE-E');
+  assert.equal(escalating.userCount, 9);
+  assert.equal(escalating.firstSeen, '2026-01-01T00:00:00Z');
 });
 
 test('correlation prefers a shared operation_Id over an endpoint match', () => {
