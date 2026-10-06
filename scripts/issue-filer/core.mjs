@@ -307,6 +307,13 @@ function planMatchedCandidate(candidate, match, policy, state, canonical = false
   state.remaining -= 1;
 }
 
+function canonicalIgnore(candidate, entries) {
+  const sentryCandidate = (candidate.sources || []).includes('sentry')
+    ? { ...candidate, source: 'sentry' } : candidate;
+  return entries.find((entry) => entry.recurrence
+    && (matchesIgnoreCriteria(candidate, entry) || matchesIgnoreCriteria(sentryCandidate, entry)));
+}
+
 /**
  * Pure planner. No I/O.
  * @returns {{ create: object[], comment: object[], reopen: object[], skipped: object[], expiredIgnores: object[] }}
@@ -353,10 +360,7 @@ export function planFilings({
   for (const candidate of ranked) {
     // Expiry ends suppression, not canonical issue identity. Never create a
     // duplicate when a pinned issue is missing or has an incompatible marker.
-    const pinned = [...active, ...expiredIgnores].find((entry) =>
-      entry.recurrence && (matchesIgnoreCriteria(candidate, entry)
-        || ((candidate.sources || []).includes('sentry')
-          && matchesIgnoreCriteria({ ...candidate, source: 'sentry' }, entry))));
+    const pinned = canonicalIgnore(candidate, [...active, ...expiredIgnores]);
     if (pinned) {
       const match = existing.find((issue) => issue.number === pinned.recurrence.issueNumber
         && !issue.pullRequest && parseFilerMarker(issue.body)?.keys.includes(pinned.match.key));

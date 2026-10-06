@@ -389,6 +389,29 @@ async function latestSentryCandidate(issue, latestEvent, warnings, parsing) {
   return parseSentryIssue(issue, event, { since, areas, featureMap, areaForFile, deployedTip });
 }
 
+async function includeTrackedSentryIssues(issues, ctx, token, sentryFetch) {
+  const trackedIds = [...new Set(ctx.sentryRecurrenceIssueIds || [])];
+  if (trackedIds.some((id) => typeof id !== 'string' || !/^\d+$/.test(id))) {
+    throw new Error('Invalid tracked Sentry issue ID');
+  }
+  const readIssue = ctx.sentryTrackedIssue || ((issueId) => {
+    if (!token) throw new Error('Tracked Sentry issue read requires a token');
+    return defaultSentryTrackedIssue({
+      host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
+      org: ctx.sentryOrg || process.env.SENTRY_ORG || DEFAULT_SENTRY_ORG,
+      token, issueId, sentryFetch,
+    });
+  });
+  // Chain reads to preserve bounded sequential collection and shared pacing.
+  return trackedIds.reduce(async (pending, issueId) => {
+    const collected = await pending;
+    if (collected.some((issue) => String(issue.id) === issueId)) return collected;
+    const tracked = await readIssue(issueId);
+    if (String(tracked?.id) !== issueId) throw new Error('Tracked Sentry issue response ID mismatch');
+    return tracked.status === 'unresolved' ? [...collected, tracked] : collected;
+  }, Promise.resolve(issues || []));
+}
+
 async function remoteSentryCandidates(ctx, parsing, warnings) {
   const { since, featureMap, deployedTip } = parsing;
   const sentryCandidates = [];
@@ -421,23 +444,7 @@ async function remoteSentryCandidates(ctx, parsing, warnings) {
         lookbackHours,
         sentryFetch,
       });
-    const trackedIds = [...new Set(ctx.sentryRecurrenceIssueIds || [])];
-    if (trackedIds.some((id) => typeof id !== 'string' || !/^\d+$/.test(id))) {
-      throw new Error('Invalid tracked Sentry issue ID');
-    }
-    for (const issueId of trackedIds) {
-      if ((issues || []).some((issue) => String(issue.id) === issueId)) continue;
-      if (!ctx.sentryTrackedIssue && !token) throw new Error('Tracked Sentry issue read requires a token');
-      const tracked = ctx.sentryTrackedIssue
-        ? await ctx.sentryTrackedIssue(issueId)
-        : await defaultSentryTrackedIssue({
-          host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
-          org: ctx.sentryOrg || process.env.SENTRY_ORG || DEFAULT_SENTRY_ORG,
-          token, issueId, sentryFetch,
-        });
-      if (String(tracked?.id) !== issueId) throw new Error('Tracked Sentry issue response ID mismatch');
-      if (tracked.status === 'unresolved') issues = [...(issues || []), tracked];
-    }
+    issues = await includeTrackedSentryIssues(issues, ctx, token, sentryFetch);
     const latestEvent = ctx.sentryLatestEvent || ((issueId) => defaultSentryLatestEvent({
       host: ctx.sentryHost || process.env.SENTRY_HOST || DEFAULT_SENTRY_HOST,
       token,

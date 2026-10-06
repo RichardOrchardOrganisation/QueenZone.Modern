@@ -151,7 +151,7 @@ function uniqueIssues(lists) {
   return [...byNumber.values()];
 }
 
-export async function loadExisting(github, config, now, ignore = { entries: [] }) {
+export async function loadExisting(github, config, now, ignore) {
   const lookbackDays = config.match?.closedLookbackDays ?? 90;
   const since = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
   const labels = [
@@ -171,15 +171,12 @@ export async function loadExisting(github, config, now, ignore = { entries: [] }
     }
     return issue.closedAt && new Date(issue.closedAt) >= since;
   });
-  const { active, expired } = partitionIgnore(ignore.entries, now);
+  const { active, expired } = partitionIgnore(ignore?.entries, now);
   const pinnedNumbers = new Set([...active, ...expired]
     .filter((entry) => entry.recurrence).map((entry) => entry.recurrence.issueNumber));
-  for (const number of pinnedNumbers) {
-    if (!existing.some((issue) => issue.number === number)) {
-      const issue = await github.getIssue(number);
-      if (!issue.pullRequest) existing.push(issue);
-    }
-  }
+  const missing = [...pinnedNumbers].filter((number) => !existing.some((issue) => issue.number === number));
+  const pinnedIssues = await Promise.all(missing.map((number) => github.getIssue(number)));
+  existing.push(...pinnedIssues.filter((issue) => !issue.pullRequest));
   for (const issue of existing) {
     const comments = await github.listIssueComments(issue.number);
     const filerComments = comments.filter((comment) => isFilerComment(comment.body));
@@ -316,7 +313,7 @@ export async function runFiler(options = {}) {
     sentryLatestEvent: options.sentryLatestEvent,
     sentryTrackedIssue: options.sentryTrackedIssue,
     sentryRecurrenceIssueIds: (() => {
-      const { active, expired } = partitionIgnore(ignore.entries, now);
+      const { active, expired } = partitionIgnore(ignore?.entries, now);
       return [...new Set([...active, ...expired].filter((entry) => entry.recurrence)
         .map((entry) => entry.match.key.slice(7)))];
     })(),
