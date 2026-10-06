@@ -8,6 +8,7 @@
       "reason": "Likely Sentry WatchdogTermination false positive (1 event, 1 user). See #2147.",
       "owner": "richardorchard",
       "expires": "2026-11-05",
+      "maxUsers": 1,
       "recurrence": {
         "eventId": "6eba4990b88349abacd535e88824c10e",
         "lastSeen": "2026-10-06T03:27:48Z",

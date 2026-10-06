@@ -192,6 +192,26 @@ test('issue title, storm list, log comment, and will-create lines redact externa
   assert.doesNotMatch(summary, /hunter2/);
 });
 
+test('plan summary names an exceeded ignore ceiling', () => {
+  const summary = formatPlanSummary({
+    create: [{
+      candidate: {
+        source: 'sentry',
+        keys: ['sentry:7775729576'],
+        title: '[sentry] WatchdogTermination',
+        count: 2,
+        userCount: 2,
+        ignoreCeilingReason: 'ignore ceiling exceeded: users 2 > 1',
+      },
+    }],
+    comment: [],
+    reopen: [],
+    skipped: [],
+    expiredIgnores: [],
+  });
+  assert.match(summary, /ignore ceiling exceeded: users 2 > 1/);
+});
+
 test('plan summary writes one row per action with redacted titles', () => {
   const leaky = {
     source: 'sentry',

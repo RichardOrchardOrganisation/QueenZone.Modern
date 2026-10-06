@@ -314,6 +314,12 @@ export async function runFiler(options = {}) {
     sentryCandidates: options.sentryCandidates,
     sentrySearch: options.sentrySearch,
     sentryLatestEvent: options.sentryLatestEvent,
+    sentryTrackedIssue: options.sentryTrackedIssue,
+    sentryRecurrenceIssueIds: (() => {
+      const { active, expired } = partitionIgnore(ignore.entries, now);
+      return [...new Set([...active, ...expired].filter((entry) => entry.recurrence)
+        .map((entry) => entry.match.key.slice(7)))];
+    })(),
     sentryToken: options.sentryToken,
     appInsightsAlerts: options.appInsightsAlerts,
     appInsightsEvidence: options.appInsightsEvidence,

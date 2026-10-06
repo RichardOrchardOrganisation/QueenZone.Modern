@@ -202,3 +202,65 @@ test('canonical GitHub GET normalizes closure and never writes', async () => {
   assert.equal(found.stateReason, 'completed');
   assert.deepEqual(calls, [['https://api.github.com/repos/owner/repo/issues/2147', 'GET']]);
 });
+
+// Exercise the production collector rather than injecting pre-parsed candidates.
+test('ongoing tracked recurrence reaches canonical reopen and repeated polls deduplicate', async () => {
+  const github = fakeGithub();
+  const reads = [];
+  const tracked = { id: '7775729576', title: 'WatchdogTermination', status: 'unresolved',
+    substatus: 'ongoing', count: '1', userCount: 1, firstSeen: baseline.lastSeen,
+    lastSeen: '2026-10-07T06:00:00Z' };
+  const options = { config, ignore, github, now, loop: 'telemetry', stdout: () => {},
+    sentrySearch: async ({ queries }) => {
+      assert.equal(queries.length, 3);
+      return [];
+    },
+    sentryTrackedIssue: async (id) => { reads.push(id); return tracked; },
+    sentryLatestEvent: async () => ({ eventID: nextId }), appInsightsAlerts: [] };
+  const result = await runFiler(options);
+  assertReopen(result.plan);
+  assert.deepEqual(reads, ['7775729576']);
+  github.getIssue = async () => ({ ...issue, state: 'open' });
+  const { buildComment } = await import('./templates.mjs');
+  github.listIssueComments = async () => [{ body: buildComment(result.plan.comment[0]), created_at: now.toISOString() }];
+  const repeated = await runFiler(options);
+  assert.equal(repeated.wrote, false);
+  assert.equal(github.writes.length, 3);
+});
+test('tracked baseline, window aging, resolved and ignored states stay quiet', async () => {
+  for (const scenario of [
+    { status: 'unresolved', lastSeen: baseline.lastSeen },
+    { status: 'unresolved', lastSeen: '2026-09-01T00:00:00Z' },
+    { status: 'resolved', lastSeen: now.toISOString() },
+    { status: 'ignored', lastSeen: now.toISOString() },
+  ]) {
+    const github = fakeGithub();
+    const result = await runFiler({ config, ignore, github, now, loop: 'telemetry', stdout: () => {},
+      sentrySearch: async () => [], sentryTrackedIssue: async () => ({ id: '7775729576',
+        title: 'WatchdogTermination', count: '1', userCount: 1, ...scenario }),
+      sentryLatestEvent: async () => ({ eventID: baseline.eventId }), appInsightsAlerts: [] });
+    assert.equal(result.collectFailed, false);
+    assert.equal(result.wrote, false);
+    assert.deepEqual(github.writes, []);
+  }
+});
+test('tracked new user retains the generic ceiling explanation', async () => {
+  const github = fakeGithub();
+  const result = await runFiler({ config, ignore, github, now, loop: 'telemetry', stdout: () => {},
+    sentrySearch: async () => [], sentryTrackedIssue: async () => ({ id: '7775729576',
+      title: 'WatchdogTermination', status: 'unresolved', count: '1', userCount: 2,
+      lastSeen: baseline.lastSeen }), sentryLatestEvent: async () => ({ eventID: baseline.eventId }),
+    appInsightsAlerts: [] });
+  assertReopen(result.plan);
+  assert.match(result.plan.reopen[0].candidate.ignoreCeilingReason, /users 2 > 1/);
+});
+test('permanent tracked read failure blocks every filer write', async () => {
+  const github = fakeGithub();
+  const result = await runFiler({ config, ignore, github, now, loop: 'telemetry', stdout: () => {},
+    sentrySearch: async () => [], sentryTrackedIssue: async () => {
+      throw new Error('Tracked Sentry issue read rejected (HTTP 403)');
+    }, appInsightsAlerts: [] });
+  assert.equal(result.collectFailed, true);
+  assert.equal(result.wrote, false);
+  assert.deepEqual(github.writes, []);
+});

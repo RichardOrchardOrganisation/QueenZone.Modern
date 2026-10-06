@@ -1,5 +1,5 @@
 import { isValidFinding, keysOverlap, levelRank, parseFilerMarker } from './finding.mjs';
-import { ruleInfo, validateRecurrence } from './config.mjs';
+import { isPositiveInteger, ruleInfo, validateRecurrence } from './config.mjs';
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -63,6 +63,26 @@ function matchIgnore(candidate, entry) {
     && Date.parse(item.lastSeen) === Date.parse(entry.recurrence.lastSeen)
     && Number.isSafeInteger(item.count) && item.count >= 0 && item.count <= 1
     && Number.isSafeInteger(item.userCount) && item.userCount >= 0 && item.userCount <= 1);
+}
+
+/**
+ * When an ignore entry sets maxUsers / maxEvents and the candidate has that
+ * count, exceeding either ceiling means the ignore does not apply.
+ * A ceiling whose count is absent on the candidate (typical App Insights
+ * userCount) is skipped, not treated as zero.
+ */
+export function ignoreCeilingReason(candidate, entry) {
+  const parts = [];
+  if (isPositiveInteger(entry?.maxUsers) && Number.isFinite(candidate?.userCount) && candidate.userCount > entry.maxUsers) {
+    parts.push(`users ${candidate.userCount} > ${entry.maxUsers}`);
+  }
+  if (isPositiveInteger(entry?.maxEvents) && Number.isFinite(candidate?.count) && candidate.count > entry.maxEvents) {
+    parts.push(`events ${candidate.count} > ${entry.maxEvents}`);
+  }
+  if (parts.length === 0) {
+    return null;
+  }
+  return `ignore ceiling exceeded: ${parts.join(', ')}`;
 }
 
 export function partitionIgnore(entries, now) {
@@ -200,21 +220,25 @@ function stormCandidate(ranked, loop, now) {
   };
 }
 
-function candidateSkip(candidate, { loop, minOccurrences, active, findingRules }) {
+function classifyCandidate(candidate, { loop, minOccurrences, active, findingRules }) {
   if (!candidate?.keys?.length || !candidate.title) {
-    return { candidate, reason: 'invalid' };
+    return { skip: { candidate, reason: 'invalid' } };
   }
   if (loop !== 'telemetry' && (candidate.count || 0) < minOccurrences) {
-    return { candidate, reason: 'below-min-occurrences' };
+    return { skip: { candidate, reason: 'below-min-occurrences' } };
   }
-  const ignoreHit = active.find((entry) => matchIgnore(candidate, entry));
+  const ignoreHit = active.find((entry) => matchesIgnoreCriteria(candidate, entry));
   if (ignoreHit) {
-    return { candidate, reason: 'ignored', ignore: ignoreHit };
+    const ceilingReason = ignoreCeilingReason(candidate, ignoreHit);
+    if (!ceilingReason && matchIgnore(candidate, ignoreHit)) {
+      return { skip: { candidate, reason: 'ignored', ignore: ignoreHit } };
+    }
+    if (ceilingReason) candidate = { ...candidate, ignoreCeilingReason: ceilingReason };
   }
   if (isCheckGap(candidate, findingRules)) {
-    return { candidate, reason: 'check-gap' };
+    return { skip: { candidate, reason: 'check-gap' } };
   }
-  return null;
+  return { candidate };
 }
 
 function planMatchedCandidate(candidate, match, policy, state, canonical = false) {
@@ -308,9 +332,9 @@ export function planFilings({
 
   const eligibility = { loop, minOccurrences, active, findingRules };
   for (const candidate of candidates) {
-    const skip = candidateSkip(candidate, eligibility);
-    if (skip) skipped.push(skip);
-    else eligible.push(candidate);
+    const classified = classifyCandidate(candidate, eligibility);
+    if (classified.skip) skipped.push(classified.skip);
+    else eligible.push(classified.candidate);
   }
 
   const ranked = rankCandidates(eligible);

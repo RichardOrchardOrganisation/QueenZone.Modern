@@ -30,7 +30,14 @@ Shared, deterministic issue filer for the weekly gardener (#1804) and telemetry 
 
 `reason` and `expires` are required. `owner` is optional. `match` may use `source`, `key`, `rule`, and/or `titleRegex`. An expired entry stops matching and is listed in the job summary so it can be removed.
 
-A Sentry entry may use `recurrence` to suppress one reviewed occurrence:
+Optional `maxUsers` and/or `maxEvents` are positive integers. While the matching candidate is at or under every evaluable ceiling it stays ignored. If either count goes past its ceiling, the ignore no longer applies and the normal `planFilings` path runs (file, or reopen/update the existing `sentry:<id>` issue — never a duplicate). The step summary then includes the reason, for example `ignore ceiling exceeded: users 2 > 1`. Entries without these fields behave exactly as before.
+
+`--validate` rejects non-positive or non-integer ceiling values. It does not require a source that publishes those counts, because `match` can omit `source` and correlated telemetry candidates can carry Sentry `userCount` even when an App Insights key also matches. At runtime a ceiling whose count is absent on the candidate (typical App Insights `userCount`) is skipped, not treated as zero; the ignore still applies unless another evaluable ceiling is exceeded.
+
+A Sentry entry may also use `recurrence` to suppress one reviewed occurrence.
+This identity guard adds stricter conditions to the general ceilings; entries
+without `recurrence` retain their existing ceiling behavior:
+
 
 ```json
 "recurrence": {
@@ -51,8 +58,13 @@ last-seen time, or more than one event/user uses the normal escalation path.
 Missing or invalid observations also stop suppression. The API's separate `id`
 field is not substituted for `eventID`; timestamps are compared as instants.
 
-The existing collector already retrieves the latest event. No queries or requests
-to Sentry are added. [Sentry's event schema](https://docs.sentry.io/api/events/retrieve-an-issue-event/)
+The existing three status queries remain unchanged. When they omit an explicitly
+configured recurrence issue, the collector makes one bounded GET of that issue
+using the shared paced transport and existing token. Only unresolved issues enter
+the existing lookback filter and latest-event collection; resolved or ignored
+issues stay quiet. This catches an ongoing recurrence after the issue ages out of
+`is:new`. A failed tracked read blocks filer writes through the existing collector
+error path. No Sentry status, alert settings, or tokens are changed. [Sentry's event schema](https://docs.sentry.io/api/events/retrieve-an-issue-event/)
 documents `eventID` and `dateCreated`. The [project issues API](https://docs.sentry.io/api/events/list-a-projects-issues/)
 distinguishes top-level `count`/`userCount`/`lastSeen` from `stats[statsPeriod]`.
 The [group serializer](https://github.com/getsentry/sentry/blob/master/src/sentry/api/serializers/models/group.py)
