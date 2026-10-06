@@ -2,10 +2,10 @@
 /**
  * Classify an Android smoke/journeys failure as APP_CRASH vs not.
  *
- * A crash is our package's process gone (pidof empty on a live device) or a
- * logcat/tombstone Fatal signal / crash_dump / debuggerd report for
- * org.queenzone.mobile. Used by scripts/run-mobile-device-smoke.sh so a
- * native death is not reported as a Maestro selector miss (#2138).
+ * A crash is a logcat/tombstone Fatal signal / crash_dump / debuggerd report
+ * whose crashing process is org.queenzone.mobile. pidof alone never counts.
+ * Used by scripts/run-mobile-device-smoke.sh so a native death is not
+ * reported as a Maestro selector miss (#2138).
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -19,15 +19,19 @@ export const NO_CRASH = 'none';
 export const MAX_FRAMES = 16;
 
 const PACKAGE_RE = /org\.queenzone\.mobile|ueenzone\.mobile/;
+const OUR_CRASHING_PROCESS_RE =
+  /\bpid\s+\d+\s+\(ueenzone\.mobile\)|>>> org\.queenzone\.mobile <<<|^Cmdline:\s*org\.queenzone\.mobile\s*$/m;
 const FATAL_SIGNAL_RE = /Fatal signal\s+(\d+)\s+\(([^)]+)\)(?:,\s*code\s+(\d+)\s+\(([^)]+)\))?/i;
 const SIGNAL_RE = /(?:^|\s)signal\s+(\d+)\s+\(([^)]+)\)(?:,\s*code\s+(\d+)\s+\(([^)]+)\))?/i;
 const CRASH_DUMP_RE = /crash_dump(?:32|64)?/i;
 const TOMBSTONE_WRITTEN_RE = /Tombstone written to:\s*(\S+)/i;
 const DEBUGGERD_HEADER_RE = /\*\*\* \*\*\* \*\*\*/;
-const REPORT_START_RE = /Fatal signal [^\n]*|\*\*\* \*\*\* \*\*\*[^\n]*/g;
+const REPORT_START_LINE_RE = /^(?:Fatal signal |\*\*\* \*\*\* \*\*\*)/;
 const FRAME_RE = /^\s*#\d+\s+pc\s+\S+/;
 const THREADTIME_RE =
   /^\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.,]\d+\s+\d+\s+\d+\s+[VDIWEF]\s+[^:]+:\s?(.*)$/;
+const CRASH_LINE_RE =
+  /^\s*$|^(?:Fatal signal\b|\*\*\* \*\*\* \*\*\*|crash_dump|Tombstone written to:|Abort message:|Cause:|Cmdline:|Build fingerprint:|Revision:|ABI:|Timestamp:|Process uptime:|pid:|tid:|uid:|signal\s+\d+|\d+ total frames|backtrace:)|tombstoned|^\s*#\d+\s+pc\b|^\s+(?:rax|rbx|rcx|rdx|r8|r9|r10|r11|r12|r13|r14|r15|rdi|rsi|rbp|rsp|rip|eax|ebx|ecx|edx|esi|edi|ebp|esp|eip|x\d+|lr|pc|sp|fp)\b/i;
 
 export function stripLogcatPrefix(line) {
   const match = String(line ?? '').match(THREADTIME_RE);
@@ -43,6 +47,14 @@ export function stripLogcatText(text) {
 
 export function mentionsOurPackage(text) {
   return PACKAGE_RE.test(String(text ?? ''));
+}
+
+export function isOurCrashingProcess(text) {
+  return OUR_CRASHING_PROCESS_RE.test(String(text ?? ''));
+}
+
+export function isCrashReportLine(line) {
+  return CRASH_LINE_RE.test(String(line ?? ''));
 }
 
 function formatSignal(number, name) {
@@ -130,21 +142,40 @@ function parseReport(report, source) {
   };
 }
 
+function findReportStarts(stripped) {
+  const starts = [];
+  let offset = 0;
+  const lines = String(stripped).split(/\r?\n/);
+  for (const line of lines) {
+    if (REPORT_START_LINE_RE.test(line)) {
+      starts.push(offset);
+    }
+    offset += line.length + 1;
+  }
+  return starts;
+}
+
+function reportEnd(stripped, start, nextStart) {
+  const hardEnd = nextStart === undefined ? stripped.length : nextStart;
+  const slice = stripped.slice(start, hardEnd);
+  const lines = slice.split(/\r?\n/);
+  let consumed = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (i > 0 && !isCrashReportLine(line)) {
+      break;
+    }
+    consumed += line.length + (i + 1 < lines.length ? 1 : 0);
+  }
+  return start + consumed;
+}
+
 export function extractCrashReports(text) {
   const stripped = stripLogcatText(text);
-  const starts = [];
-  REPORT_START_RE.lastIndex = 0;
-  let match = REPORT_START_RE.exec(stripped);
-  while (match) {
-    starts.push(match.index);
-    match = REPORT_START_RE.exec(stripped);
-  }
-  if (starts.length === 0) {
-    return stripped.trim() ? [stripped] : [];
-  }
+  const starts = findReportStarts(stripped);
   return starts.map((start, index) => {
-    const end = index + 1 < starts.length ? starts[index + 1] : stripped.length;
-    return stripped.slice(start, end);
+    const nextStart = index + 1 < starts.length ? starts[index + 1] : undefined;
+    return stripped.slice(start, reportEnd(stripped, start, nextStart));
   });
 }
 
@@ -152,7 +183,7 @@ export function parsePackageCrash(text, source = 'logcat') {
   const reports = extractCrashReports(text);
   let best = null;
   for (const report of reports) {
-    if (!mentionsOurPackage(report) || !isCrashReport(report)) {
+    if (!isOurCrashingProcess(report) || !isCrashReport(report)) {
       continue;
     }
     const parsed = parseReport(report, source);
@@ -172,11 +203,18 @@ export function parsePackageCrash(text, source = 'logcat') {
   return best;
 }
 
-function readOptional(filePath) {
-  if (!filePath || !existsSync(filePath)) {
+export function readOptional(filePath) {
+  if (!filePath) {
     return '';
   }
-  return readFileSync(filePath, 'utf8');
+  try {
+    if (!existsSync(filePath)) {
+      return '';
+    }
+    return readFileSync(filePath, 'utf8');
+  } catch {
+    return '';
+  }
 }
 
 function parseProcessAlive(value) {
@@ -212,19 +250,6 @@ export function classifyAndroidAppCrash({
         processAlive: alive,
       };
     }
-  }
-
-  if (alive === false) {
-    return {
-      class: APP_CRASH,
-      package: ANDROID_APP_PACKAGE,
-      signal: 'process_gone',
-      faultCode: null,
-      frames: [],
-      source: 'pidof',
-      tombstonePath: null,
-      processAlive: false,
-    };
   }
 
   return {

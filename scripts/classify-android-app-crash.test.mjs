@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,10 +10,13 @@ import {
   NO_CRASH,
   classifyAndroidAppCrash,
   classifyFromFiles,
+  extractCrashReports,
   formatAppCrashReport,
   formatAppCrashSummary,
+  isOurCrashingProcess,
   mentionsOurPackage,
   parsePackageCrash,
+  readOptional,
   stripLogcatPrefix,
   writeCrashArtifacts,
 } from './classify-android-app-crash.mjs';
@@ -23,6 +26,7 @@ const fixtures = path.join(here, 'fixtures', 'android-app-crash');
 const fatalLogcat = readFileSync(path.join(fixtures, 'fatal-signal-queenzone.logcat'), 'utf8');
 const noCrashLogcat = readFileSync(path.join(fixtures, 'no-crash.logcat'), 'utf8');
 const otherPackageLogcat = readFileSync(path.join(fixtures, 'other-package-fatal.logcat'), 'utf8');
+const mixedLogcat = readFileSync(path.join(fixtures, 'other-process-then-our-app.logcat'), 'utf8');
 const workflow = readFileSync(new URL('../.github/workflows/mobile-device-smoke.yml', import.meta.url), 'utf8');
 const smokeScript = readFileSync(new URL('./run-mobile-device-smoke.sh', import.meta.url), 'utf8');
 
@@ -63,12 +67,28 @@ test('Fatal signal for another package is not our APP_CRASH', () => {
   assert.equal(result.class, NO_CRASH);
 });
 
-test('process gone on a live device is APP_CRASH even without logcat frames', () => {
-  const result = classifyAndroidAppCrash({ logcat: noCrashLogcat, processAlive: false });
-  assert.equal(result.class, APP_CRASH);
-  assert.equal(result.signal, 'process_gone');
-  assert.equal(result.source, 'pidof');
-  assert.deepEqual(result.frames, []);
+test('systemui Fatal signal plus ordinary org.queenzone.mobile lines is not APP_CRASH', () => {
+  assert.ok(mentionsOurPackage(mixedLogcat));
+  assert.equal(isOurCrashingProcess(mixedLogcat), false);
+  const reports = extractCrashReports(mixedLogcat);
+  assert.ok(reports.length >= 1);
+  assert.ok(reports.every((report) => !/Start proc|has died/.test(report)));
+  const parsed = parsePackageCrash(mixedLogcat);
+  assert.equal(parsed, null);
+  const result = classifyFromFiles({
+    logcat: path.join(fixtures, 'other-process-then-our-app.logcat'),
+    processAlive: 'false',
+  });
+  assert.equal(result.class, NO_CRASH);
+  assert.equal(result.signal, null);
+});
+
+test('pidof alone never classifies APP_CRASH without our package crash', () => {
+  const gone = classifyAndroidAppCrash({ logcat: noCrashLogcat, processAlive: false });
+  assert.equal(gone.class, NO_CRASH);
+  assert.equal(gone.processAlive, false);
+  const unknown = classifyAndroidAppCrash({ logcat: noCrashLogcat, processAlive: 'unknown' });
+  assert.equal(unknown.class, NO_CRASH);
 });
 
 test('unknown process state without a package crash is not APP_CRASH', () => {
@@ -85,6 +105,27 @@ test('crash buffer wins over a clean main logcat', () => {
   assert.equal(result.class, APP_CRASH);
   assert.equal(result.source, 'crash-buffer');
   assert.equal(result.signal, '11 (SIGSEGV)');
+});
+
+test('unreadable or missing classifier inputs are empty, not thrown', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'qz-app-crash-io-'));
+  try {
+    const asDir = path.join(directory, 'logcat-dir');
+    mkdirSync(asDir);
+    assert.equal(readOptional(asDir), '');
+    assert.equal(readOptional(path.join(directory, 'missing.logcat')), '');
+    writeFileSync(path.join(directory, 'denied.logcat'), 'x', { mode: 0o000 });
+    const denied = readOptional(path.join(directory, 'denied.logcat'));
+    assert.equal(typeof denied, 'string');
+    const result = classifyFromFiles({
+      logcat: asDir,
+      crashBuffer: path.join(directory, 'missing.logcat'),
+      tombstone: path.join(directory, 'denied.logcat'),
+    });
+    assert.equal(result.class, NO_CRASH);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('writeCrashArtifacts writes the marker, frames, and summary used by CI', () => {

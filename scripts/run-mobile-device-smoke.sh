@@ -15,11 +15,13 @@
 #   ./scripts/run-mobile-device-smoke.sh --platform android --suite proof --feature mobile.photos.viewer
 #   ./scripts/run-mobile-device-smoke.sh --dump-android-host
 #   ./scripts/run-mobile-device-smoke.sh --self-test-adb-timeout
+#   ./scripts/run-mobile-device-smoke.sh --self-test-app-crash
 #
 # Maestro selector and assertion failures are not retried. An APP_CRASH
-# (org.queenzone.mobile is gone, or logcat/tombstone shows Fatal signal /
-# crash_dump for that package) is reported separately from a selector miss
-# and is also not retried. One Android device transport failure
+# (logcat/tombstone Fatal signal / crash_dump for org.queenzone.mobile) is
+# reported separately from a selector miss and is also not retried. A
+# failed or empty pidof probe is not a crash and must not drop transport
+# retry. One Android device transport failure
 # (DeviceServerDied / emulator gone) or pre-flow iOS driver-startup failure
 # may retry after device recovery. android-transport-death is written only
 # when the emulator is gone, ADB recover times out, or the in-process retry
@@ -41,6 +43,7 @@ no_build_host=false
 prove_failure=false
 dump_android_host=false
 self_test_adb_timeout=false
+self_test_app_crash=false
 suite="smoke"
 feature=""
 apk=""
@@ -53,7 +56,7 @@ android_logcat_pid=""
 android_watchdog_pid=""
 
 usage() {
-  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -110,6 +113,10 @@ while [[ "$#" -gt 0 ]]; do
       self_test_adb_timeout=true
       shift
       ;;
+    --self-test-app-crash)
+      self_test_app_crash=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -122,7 +129,7 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-if [[ "$dump_android_host" != true ]] && [[ "$self_test_adb_timeout" != true ]] && [[ "$platform" != "android" ]] && [[ "$platform" != "ios" ]]; then
+if [[ "$dump_android_host" != true ]] && [[ "$self_test_adb_timeout" != true ]] && [[ "$self_test_app_crash" != true ]] && [[ "$platform" != "android" ]] && [[ "$platform" != "ios" ]]; then
   echo "--platform android|ios is required." >&2
   exit 2
 fi
@@ -300,17 +307,53 @@ copy_android_disk_logs() {
   done
 }
 
-android_app_process_alive() {
-  local pid=""
+# Only "true"/"false" when the remote pidof ran. Timeout, adb errors, and
+# missing markers stay "unknown" so they cannot look like process death.
+interpret_android_pidof_probe() {
+  local status="$1"
+  local output="$2"
+  local remote="" pids=""
+  output="$(printf '%s' "$output" | tr -d '\r')"
+  if [[ "$status" -eq 124 ]]; then
+    printf '%s\n' unknown
+    return 0
+  fi
+  if [[ "$output" != *__QZ_PIDOF_STATUS:* ]]; then
+    printf '%s\n' unknown
+    return 0
+  fi
+  remote="${output##*__QZ_PIDOF_STATUS:}"
+  remote="${remote%%$'\n'*}"
+  pids="${output%__QZ_PIDOF_STATUS:*}"
+  pids="$(printf '%s' "$pids" | tr -d '\n')"
+  pids="${pids#"${pids%%[![:space:]]*}"}"
+  pids="${pids%"${pids##*[![:space:]]}"}"
+  if [[ "$remote" = "0" && "$pids" =~ ^[0-9]+([ \t]+[0-9]+)*$ ]]; then
+    printf '%s\n' true
+    return 0
+  fi
+  if [[ "$remote" = "1" && -z "$pids" ]]; then
+    printf '%s\n' false
+    return 0
+  fi
+  printf '%s\n' unknown
+}
+
+android_app_process_state() {
+  local output="" status=0
   if ! command -v adb >/dev/null; then
-    return 1
+    printf '%s\n' unknown
+    return 0
   fi
   if [[ "$(android_adb_state)" != "device" ]]; then
-    return 1
+    printf '%s\n' unknown
+    return 0
   fi
-  pid="$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb shell pidof org.queenzone.mobile 2>/dev/null || true)"
-  pid="$(printf '%s' "$pid" | tr -d '\r\n')"
-  [[ -n "$pid" ]]
+  set +e
+  output="$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb shell 'pidof org.queenzone.mobile; echo __QZ_PIDOF_STATUS:$?' 2>/dev/null)"
+  status=$?
+  set -e
+  interpret_android_pidof_probe "$status" "$output"
 }
 
 collect_android_tombstone() {
@@ -359,28 +402,42 @@ append_app_crash_step_summary() {
 
 detect_android_app_crash() {
   local process_alive="unknown"
+  local classifier_status=0
+  local classifier="${QZ_ANDROID_CRASH_CLASSIFIER:-$root/scripts/classify-android-app-crash.mjs}"
   if [[ -f "$results_dir/android-app-crash" ]]; then
     return 0
   fi
   if command -v adb >/dev/null && [[ "$(android_adb_state)" = "device" ]]; then
-    if android_app_process_alive; then
-      process_alive="true"
-    else
-      process_alive="false"
-    fi
+    process_alive="$(android_app_process_state)"
   fi
   collect_android_crash_artifacts
-  node "$root/scripts/classify-android-app-crash.mjs" \
+  set +e
+  node "$classifier" \
     --logcat "$results_dir/logcat.txt" \
     --crash-buffer "$results_dir/logcat-crash.txt" \
     --tombstone "$results_dir/tombstone" \
     --process-alive "$process_alive" \
     --write-dir "$results_dir" \
     --print-report
+  classifier_status=$?
+  set -e
+  if [[ "$classifier_status" -ne 0 ]]; then
+    echo "Android app-crash classifier failed (status ${classifier_status}); falling back to miss or transport classification." >&2
+    rm -f "$results_dir/android-app-crash" \
+      "$results_dir/android-app-crash-frames.txt" \
+      "$results_dir/android-app-crash-summary.md"
+    return 0
+  fi
   if [[ -f "$results_dir/android-app-crash" ]]; then
-    rm -f "$results_dir/android-transport-death"
-    echo "android_failure_class=APP_CRASH" >> "$results_dir/harness.log"
-    append_app_crash_step_summary
+    if grep -qE '^source=(logcat|crash-buffer|tombstone)$' "$results_dir/android-app-crash"; then
+      rm -f "$results_dir/android-transport-death"
+      echo "android_failure_class=APP_CRASH" >> "$results_dir/harness.log"
+      append_app_crash_step_summary
+    else
+      rm -f "$results_dir/android-app-crash" \
+        "$results_dir/android-app-crash-frames.txt" \
+        "$results_dir/android-app-crash-summary.md"
+    fi
   fi
 }
 
@@ -509,8 +566,70 @@ EOF
   echo "ADB timeout self-test passed."
 }
 
+run_app_crash_self_test() {
+  local got tmp boom
+  got="$(interpret_android_pidof_probe 124 '')"
+  if [[ "$got" != "unknown" ]]; then
+    echo "self-test: timed-out pidof should be unknown, got $got" >&2
+    exit 1
+  fi
+  got="$(interpret_android_pidof_probe 1 '')"
+  if [[ "$got" != "unknown" ]]; then
+    echo "self-test: pidof without a remote status marker should be unknown, got $got" >&2
+    exit 1
+  fi
+  got="$(interpret_android_pidof_probe 0 $'5154\n__QZ_PIDOF_STATUS:0')"
+  if [[ "$got" != "true" ]]; then
+    echo "self-test: successful pidof should be true, got $got" >&2
+    exit 1
+  fi
+  got="$(interpret_android_pidof_probe 0 $'\n__QZ_PIDOF_STATUS:1')"
+  if [[ "$got" != "false" ]]; then
+    echo "self-test: successful empty pidof should be false, got $got" >&2
+    exit 1
+  fi
+
+  tmp="$(mktemp -d)"
+  results_dir="$tmp"
+  mkdir -p "$tmp"
+  echo "class=transport_death" > "$tmp/android-transport-death"
+  cp "$root/scripts/fixtures/android-app-crash/other-process-then-our-app.logcat" "$tmp/logcat.txt"
+  detect_android_app_crash
+  if [[ -f "$tmp/android-app-crash" ]]; then
+    echo "self-test: mixed logcat must not write android-app-crash" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  if [[ ! -f "$tmp/android-transport-death" ]]; then
+    echo "self-test: mixed logcat / pidof-alone must not delete android-transport-death" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+
+  boom="$tmp/boom.mjs"
+  printf '%s\n' 'throw new Error("ENOENT reproduced");' > "$boom"
+  QZ_ANDROID_CRASH_CLASSIFIER="$boom" detect_android_app_crash
+  if [[ -f "$tmp/android-app-crash" ]]; then
+    echo "self-test: classifier throw must not leave android-app-crash" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  if [[ ! -f "$tmp/android-transport-death" ]]; then
+    echo "self-test: classifier throw must not delete android-transport-death" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  rm -rf "$tmp"
+  echo "Android app-crash self-test passed."
+}
+
 if [[ "$self_test_adb_timeout" = true ]]; then
   run_adb_timeout_self_test
+  exit 0
+fi
+
+if [[ "$self_test_app_crash" = true ]]; then
+  run_app_crash_self_test
   exit 0
 fi
 
