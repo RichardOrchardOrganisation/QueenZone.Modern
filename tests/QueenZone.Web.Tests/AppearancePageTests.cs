@@ -32,7 +32,6 @@ public sealed class AppearancePageTests(QueenZoneWebApplicationFactory factory) 
         var home = await client.GetAsync("/");
         var html = await home.Content.ReadAsStringAsync();
         Assert.Contains($"data-theme=\"{attribute}\"", html);
-        Assert.Contains("Appearance for this device", html);
         Assert.True(home.Headers.CacheControl?.Private);
         Assert.True(home.Headers.CacheControl?.NoStore);
     }
@@ -51,19 +50,13 @@ public sealed class AppearancePageTests(QueenZoneWebApplicationFactory factory) 
     }
 
     [Fact]
-    public async Task Public_header_dormant_theme_live_region_is_not_a_status_role()
+    public async Task Public_header_does_not_show_an_appearance_control()
     {
         using var client = Client();
         var html = await client.GetStringAsync("/");
-        var themeStatus = TestHtmlAssertions.SingleElement(html, "[data-theme-status]");
-        Assert.Equal("DIV", themeStatus.TagName);
-        Assert.False(themeStatus.HasAttribute("role"));
-        Assert.Equal("polite", themeStatus.GetAttribute("aria-live"));
-        Assert.Equal("true", themeStatus.GetAttribute("aria-atomic"));
-        Assert.Contains("visually-hidden", themeStatus.ClassList);
-        Assert.True(string.IsNullOrWhiteSpace(themeStatus.TextContent));
-        Assert.Empty(TestHtmlAssertions.Select(html, "[data-theme-status][role='status']"));
-        Assert.Empty(TestHtmlAssertions.Select(html, "output.qz-theme-status"));
+        Assert.Empty(TestHtmlAssertions.Select(html, "[data-theme-picker]"));
+        Assert.Empty(TestHtmlAssertions.Select(html, "[data-theme-fallback]"));
+        Assert.Empty(TestHtmlAssertions.Select(html, "[data-theme-status]"));
     }
 
     [Fact]

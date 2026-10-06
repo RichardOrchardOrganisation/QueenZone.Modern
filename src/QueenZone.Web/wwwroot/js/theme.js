@@ -24,35 +24,4 @@
   }
   updateChrome();
   system.addEventListener("change", updateChrome);
-  document.addEventListener("DOMContentLoaded", () => {
-    const picker = document.querySelector('[data-theme-picker]');
-    if (!picker) return;
-    const fallback = document.querySelector('[data-theme-fallback]');
-    const status = document.querySelector('[data-theme-status]');
-    let saved = picker.value;
-    picker.hidden = false;
-    const label = document.querySelector("[data-theme-label]");
-    if (label) label.hidden = false;
-    if (fallback) fallback.hidden = true;
-    picker.addEventListener("change", async () => {
-      picker.disabled = true;
-      status.textContent = "Saving appearance…";
-      try {
-        const session = await fetch('/appearance?handler=Token', { cache: 'no-store' });
-        if (!session.ok) throw new Error('Could not prepare appearance');
-        const { token } = await session.json();
-        const body = new URLSearchParams({ DeviceTheme: picker.value, ReturnUrl: location.pathname + location.search });
-        const response = await fetch('/appearance', {
-          method: 'POST', headers: { RequestVerificationToken: token }, body,
-        });
-        if (!response.ok) throw new Error('Could not save appearance');
-        saved = picker.value;
-        location.reload();
-      } catch {
-        picker.value = saved;
-        status.textContent = "Could not save appearance. Try again.";
-        picker.disabled = false;
-      }
-    });
-  });
 })();
