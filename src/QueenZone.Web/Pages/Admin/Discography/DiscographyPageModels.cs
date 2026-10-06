@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -44,12 +43,6 @@ public abstract class AdminDiscographyPageModel : PageModel
         ViewData["ShowAdminNav"] = true;
         base.OnPageHandlerExecuting(context);
     }
-
-    protected string EditorEmail =>
-        User.FindFirstValue(ClaimTypes.Email)
-        ?? User.FindFirstValue("preferred_username")
-        ?? User.Identity?.Name
-        ?? "unknown";
 
     protected NewsArticleImageCrop? Crop =>
         CropX is { } x && CropY is { } y && CropWidth is { } width && CropHeight is { } height
@@ -217,7 +210,7 @@ public sealed class NewModel(IAdminDiscographyRepository repository, AdminDiscog
 
         try
         {
-            var albumId = await service.CreateAlbumAsync(input, EditorEmail, cancellationToken);
+            var albumId = await service.CreateAlbumAsync(input, cancellationToken);
             Flash("Album created. Add its songs below.", success: true);
             return Redirect(AlbumPath(albumId));
         }
@@ -277,7 +270,7 @@ public sealed class AlbumModel(IAdminDiscographyRepository repository, AdminDisc
         }
 
         return await RunAsync(
-            () => service.UpdateAlbumAsync(id, input, EditorEmail, cancellationToken),
+            () => service.UpdateAlbumAsync(id, input, cancellationToken),
             "Album saved.",
             AlbumPath(id));
     }
@@ -292,39 +285,39 @@ public sealed class AlbumModel(IAdminDiscographyRepository repository, AdminDisc
         }
 
         return await RunAsync(
-            () => service.CreateSongAsync(id, input, NewSong.Position, EditorEmail, cancellationToken),
+            () => service.CreateSongAsync(id, input, NewSong.Position, cancellationToken),
             $"Added “{input.Title.Trim()}”.",
             AlbumPath(id) + "#tracklist");
     }
 
     public Task<IActionResult> OnPostMoveSongAsync(int id, int songId, int position, CancellationToken cancellationToken) =>
         RunAsync(
-            () => service.MoveSongAsync(songId, position, EditorEmail, cancellationToken),
+            () => service.MoveSongAsync(songId, position, cancellationToken),
             "Track order updated.",
             AlbumPath(id) + "#tracklist");
 
     public Task<IActionResult> OnPostDeleteSongAsync(int id, int songId, CancellationToken cancellationToken) =>
         RunAsync(
-            () => service.DeleteSongAsync(songId, EditorEmail, cancellationToken),
+            () => service.DeleteSongAsync(songId, cancellationToken),
             "Song deleted.",
             AlbumPath(id) + "#tracklist");
 
     public async Task<IActionResult> OnPostCoverAsync(int id, CancellationToken cancellationToken) =>
         RequireCoverFile(AlbumPath(id))
         ?? await RunAsync(
-            () => service.SetAlbumCoverAsync(id, CoverFile!, Crop, EditorEmail, cancellationToken),
+            () => service.SetAlbumCoverAsync(id, CoverFile!, Crop, cancellationToken),
             "Album cover updated.",
             AlbumPath(id));
 
     public Task<IActionResult> OnPostRemoveCoverAsync(int id, CancellationToken cancellationToken) =>
         RunAsync(
-            () => service.RemoveAlbumCoverAsync(id, EditorEmail, cancellationToken),
+            () => service.RemoveAlbumCoverAsync(id, cancellationToken),
             "Album cover removed.",
             AlbumPath(id));
 
     public Task<IActionResult> OnPostDeleteAsync(int id, CancellationToken cancellationToken) =>
         RunAsync(
-            () => service.DeleteAlbumAsync(id, EditorEmail, cancellationToken),
+            () => service.DeleteAlbumAsync(id, cancellationToken),
             "Album and its songs deleted.",
             SectionPath,
             AlbumPath(id));
@@ -403,7 +396,7 @@ public sealed class SongModel(IAdminDiscographyRepository repository, AdminDisco
 
         int? position = SongForm.Position != Song.TrackNumber ? SongForm.Position : null;
         return await RunAsync(
-            () => service.UpdateSongAsync(id, input, position, EditorEmail, cancellationToken),
+            () => service.UpdateSongAsync(id, input, position, cancellationToken),
             "Song saved.",
             SongPath(id));
     }
@@ -411,13 +404,13 @@ public sealed class SongModel(IAdminDiscographyRepository repository, AdminDisco
     public async Task<IActionResult> OnPostCoverAsync(int id, CancellationToken cancellationToken) =>
         RequireCoverFile(SongPath(id))
         ?? await RunAsync(
-            () => service.SetSongCoverAsync(id, CoverFile!, Crop, EditorEmail, cancellationToken),
+            () => service.SetSongCoverAsync(id, CoverFile!, Crop, cancellationToken),
             "Single cover updated.",
             SongPath(id));
 
     public Task<IActionResult> OnPostRemoveCoverAsync(int id, CancellationToken cancellationToken) =>
         RunAsync(
-            () => service.RemoveSongCoverAsync(id, EditorEmail, cancellationToken),
+            () => service.RemoveSongCoverAsync(id, cancellationToken),
             "Single cover removed.",
             SongPath(id));
 
@@ -430,7 +423,7 @@ public sealed class SongModel(IAdminDiscographyRepository repository, AdminDisco
         }
 
         return await RunAsync(
-            () => service.DeleteSongAsync(id, EditorEmail, cancellationToken),
+            () => service.DeleteSongAsync(id, cancellationToken),
             $"Deleted “{song.Title}”.",
             AlbumPath(song.AlbumId) + "#tracklist",
             SongPath(id));

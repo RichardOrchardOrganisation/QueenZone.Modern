@@ -26,32 +26,31 @@ public sealed partial class AdminDiscographyService(
 
     public const string CoverFolder = "discography";
 
-    public async Task<int> CreateAlbumAsync(AdminAlbumInput input, string editorEmail, CancellationToken cancellationToken = default)
+    public async Task<int> CreateAlbumAsync(AdminAlbumInput input, CancellationToken cancellationToken = default)
     {
         var albumId = await repository.CreateAlbumAsync(input, cancellationToken);
-        logger.LogInformation("Discography album {AlbumId} created by {Editor}", albumId, editorEmail);
+        logger.LogInformation("Discography album {AlbumId} created", albumId);
         await InvalidatePublicCachesAsync(cancellationToken);
         return albumId;
     }
 
-    public async Task UpdateAlbumAsync(int albumId, AdminAlbumInput input, string editorEmail, CancellationToken cancellationToken = default)
+    public async Task UpdateAlbumAsync(int albumId, AdminAlbumInput input, CancellationToken cancellationToken = default)
     {
         await repository.UpdateAlbumAsync(albumId, input, cancellationToken);
-        logger.LogInformation("Discography album {AlbumId} updated by {Editor}", albumId, editorEmail);
+        logger.LogInformation("Discography album {AlbumId} updated", albumId);
         await InvalidatePublicCachesAsync(cancellationToken);
     }
 
-    public async Task DeleteAlbumAsync(int albumId, string editorEmail, CancellationToken cancellationToken = default)
+    public async Task DeleteAlbumAsync(int albumId, CancellationToken cancellationToken = default)
     {
         var album = await repository.GetAlbumAsync(albumId, cancellationToken)
             ?? throw new InvalidOperationException($"Album {albumId} was not found.");
 
         await repository.DeleteAlbumAsync(albumId, cancellationToken);
         logger.LogInformation(
-            "Discography album {AlbumId} and {SongCount} songs deleted by {Editor}",
+            "Discography album {AlbumId} and {SongCount} songs deleted",
             albumId,
-            album.Songs.Count,
-            editorEmail);
+            album.Songs.Count);
         await DeleteOwnedCoversAsync(
             [album.PictureFileName, album.ThumbFileName, .. album.Songs.Select(song => song.CoverFileName)],
             cancellationToken);
@@ -62,7 +61,6 @@ public sealed partial class AdminDiscographyService(
         int albumId,
         IFormFile file,
         NewsArticleImageCrop? crop,
-        string editorEmail,
         CancellationToken cancellationToken = default)
     {
         var album = await repository.GetAlbumAsync(albumId, cancellationToken)
@@ -86,18 +84,18 @@ public sealed partial class AdminDiscographyService(
                 processed.ThumbWidth,
                 processed.ThumbHeight),
             cancellationToken);
-        logger.LogInformation("Discography album {AlbumId} cover replaced by {Editor}", albumId, editorEmail);
+        logger.LogInformation("Discography album {AlbumId} cover replaced", albumId);
         await DeleteOwnedCoversAsync([album.PictureFileName, album.ThumbFileName], cancellationToken);
         await InvalidatePublicCachesAsync(cancellationToken);
     }
 
-    public async Task RemoveAlbumCoverAsync(int albumId, string editorEmail, CancellationToken cancellationToken = default)
+    public async Task RemoveAlbumCoverAsync(int albumId, CancellationToken cancellationToken = default)
     {
         var album = await repository.GetAlbumAsync(albumId, cancellationToken)
             ?? throw new InvalidOperationException($"Album {albumId} was not found.");
 
         await repository.SetAlbumCoverAsync(albumId, null, cancellationToken);
-        logger.LogInformation("Discography album {AlbumId} cover removed by {Editor}", albumId, editorEmail);
+        logger.LogInformation("Discography album {AlbumId} cover removed", albumId);
         await DeleteOwnedCoversAsync([album.PictureFileName, album.ThumbFileName], cancellationToken);
         await InvalidatePublicCachesAsync(cancellationToken);
     }
@@ -106,16 +104,14 @@ public sealed partial class AdminDiscographyService(
         int albumId,
         AdminSongInput input,
         int position,
-        string editorEmail,
         CancellationToken cancellationToken = default)
     {
         var songId = await repository.CreateSongAsync(albumId, input, position, cancellationToken);
         logger.LogInformation(
-            "Discography song {SongId} added to album {AlbumId} at position {Position} by {Editor}",
+            "Discography song {SongId} added to album {AlbumId} at position {Position}",
             songId,
             albumId,
-            position,
-            editorEmail);
+            position);
         await InvalidatePublicCachesAsync(cancellationToken);
         return songId;
     }
@@ -124,7 +120,6 @@ public sealed partial class AdminDiscographyService(
         int songId,
         AdminSongInput input,
         int? position,
-        string editorEmail,
         CancellationToken cancellationToken = default)
     {
         await repository.UpdateSongAsync(songId, input, cancellationToken);
@@ -133,24 +128,24 @@ public sealed partial class AdminDiscographyService(
             await repository.MoveSongAsync(songId, target, cancellationToken);
         }
 
-        logger.LogInformation("Discography song {SongId} updated by {Editor}", songId, editorEmail);
+        logger.LogInformation("Discography song {SongId} updated", songId);
         await InvalidatePublicCachesAsync(cancellationToken);
     }
 
-    public async Task MoveSongAsync(int songId, int position, string editorEmail, CancellationToken cancellationToken = default)
+    public async Task MoveSongAsync(int songId, int position, CancellationToken cancellationToken = default)
     {
         await repository.MoveSongAsync(songId, position, cancellationToken);
-        logger.LogInformation("Discography song {SongId} moved to {Position} by {Editor}", songId, position, editorEmail);
+        logger.LogInformation("Discography song {SongId} moved to {Position}", songId, position);
         await InvalidatePublicCachesAsync(cancellationToken);
     }
 
-    public async Task DeleteSongAsync(int songId, string editorEmail, CancellationToken cancellationToken = default)
+    public async Task DeleteSongAsync(int songId, CancellationToken cancellationToken = default)
     {
         var song = await repository.GetSongAsync(songId, cancellationToken)
             ?? throw new InvalidOperationException($"Song {songId} was not found.");
 
         await repository.DeleteSongAsync(songId, cancellationToken);
-        logger.LogInformation("Discography song {SongId} deleted by {Editor}", songId, editorEmail);
+        logger.LogInformation("Discography song {SongId} deleted", songId);
         await DeleteOwnedCoversAsync([song.CoverFileName], cancellationToken);
         await InvalidatePublicCachesAsync(cancellationToken);
     }
@@ -159,7 +154,6 @@ public sealed partial class AdminDiscographyService(
         int songId,
         IFormFile file,
         NewsArticleImageCrop? crop,
-        string editorEmail,
         CancellationToken cancellationToken = default)
     {
         var song = await repository.GetSongAsync(songId, cancellationToken)
@@ -171,18 +165,18 @@ public sealed partial class AdminDiscographyService(
         await UploadAsync(coverFileName, processed.Full, cancellationToken);
 
         await repository.SetSongCoverAsync(songId, coverFileName, cancellationToken);
-        logger.LogInformation("Discography song {SongId} cover replaced by {Editor}", songId, editorEmail);
+        logger.LogInformation("Discography song {SongId} cover replaced", songId);
         await DeleteOwnedCoversAsync([song.CoverFileName], cancellationToken);
         await InvalidatePublicCachesAsync(cancellationToken);
     }
 
-    public async Task RemoveSongCoverAsync(int songId, string editorEmail, CancellationToken cancellationToken = default)
+    public async Task RemoveSongCoverAsync(int songId, CancellationToken cancellationToken = default)
     {
         var song = await repository.GetSongAsync(songId, cancellationToken)
             ?? throw new InvalidOperationException($"Song {songId} was not found.");
 
         await repository.SetSongCoverAsync(songId, null, cancellationToken);
-        logger.LogInformation("Discography song {SongId} cover removed by {Editor}", songId, editorEmail);
+        logger.LogInformation("Discography song {SongId} cover removed", songId);
         await DeleteOwnedCoversAsync([song.CoverFileName], cancellationToken);
         await InvalidatePublicCachesAsync(cancellationToken);
     }

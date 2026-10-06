@@ -11,6 +11,10 @@ namespace QueenZone.Data;
 /// </summary>
 public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) : IAdminDiscographyRepository
 {
+    private const string AlbumIdParameter = "@AlbumId";
+
+    private const string SongIdParameter = "@SongId";
+
     private const string SongSelect = """
         SELECT
             CAST(s.Q_ALBUM_SONG_ID AS int) AS SongId,
@@ -69,7 +73,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
         var rows = await EfSql.QuerySqlAsync<AlbumRow>(
             dbContext,
             sql,
-            command => command.Parameters.Add(EfSql.Input("@AlbumId", albumId)),
+            command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
             cancellationToken: cancellationToken);
         var row = rows.FirstOrDefault();
         if (row is null)
@@ -156,7 +160,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             command =>
             {
                 AddAlbumParameters(command, input);
-                command.Parameters.Add(EfSql.Input("@AlbumId", albumId));
+                command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId));
             },
             cancellationToken: cancellationToken);
         EnsureAlbumFound(albumId, rows);
@@ -186,7 +190,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
                 command.Parameters.Add(EfSql.Input("@ThumbUrl", cover?.ThumbFileName));
                 command.Parameters.Add(EfSql.Input("@ThumbWidth", cover?.ThumbWidth));
                 command.Parameters.Add(EfSql.Input("@ThumbHeight", cover?.ThumbHeight));
-                command.Parameters.Add(EfSql.Input("@AlbumId", albumId));
+                command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId));
             },
             cancellationToken: cancellationToken);
         EnsureAlbumFound(albumId, rows);
@@ -199,12 +203,12 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
                 await EfSql.ExecuteNonQuerySqlAsync(
                     dbContext,
                     "DELETE FROM dbo.Q_ALBUM_SONG_T WHERE Q_ALBUM_ID = @AlbumId",
-                    command => command.Parameters.Add(EfSql.Input("@AlbumId", albumId)),
+                    command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
                     cancellationToken: token);
                 var rows = await EfSql.ExecuteNonQuerySqlAsync(
                     dbContext,
                     "DELETE FROM dbo.Q_ALBUM_T WHERE Q_ALBUM_ID = @AlbumId",
-                    command => command.Parameters.Add(EfSql.Input("@AlbumId", albumId)),
+                    command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
                     cancellationToken: token);
                 EnsureAlbumFound(albumId, rows);
             },
@@ -220,7 +224,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
         var rows = await EfSql.QuerySqlAsync<SongRow>(
             dbContext,
             sql,
-            command => command.Parameters.Add(EfSql.Input("@SongId", songId)),
+            command => command.Parameters.Add(EfSql.Input(SongIdParameter, songId)),
             cancellationToken: cancellationToken);
         return rows.Where(row => row.SongId == songId).Select(MapSong).FirstOrDefault();
     }
@@ -236,7 +240,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
                 var artistRows = await EfSql.QuerySqlAsync<ValueRow>(
                     dbContext,
                     "SELECT CAST(ARTIST AS int) AS Value FROM dbo.Q_ALBUM_T WITH (UPDLOCK) WHERE Q_ALBUM_ID = @AlbumId",
-                    command => command.Parameters.Add(EfSql.Input("@AlbumId", albumId)),
+                    command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
                     cancellationToken: token);
                 var artist = artistRows.FirstOrDefault()
                     ?? throw new InvalidOperationException($"Album {albumId} was not found.");
@@ -258,7 +262,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
                     command =>
                     {
                         AddSongParameters(command, input);
-                        command.Parameters.Add(EfSql.Input("@AlbumId", albumId));
+                        command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId));
                         command.Parameters.Add(EfSql.Input("@ArtistId", artist.Value));
                         command.Parameters.Add(EfSql.Input("@TrackNumber", target));
                     },
@@ -286,7 +290,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             command =>
             {
                 AddSongParameters(command, input);
-                command.Parameters.Add(EfSql.Input("@SongId", songId));
+                command.Parameters.Add(EfSql.Input(SongIdParameter, songId));
             },
             cancellationToken: cancellationToken);
         EnsureSongFound(songId, rows);
@@ -310,7 +314,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             command =>
             {
                 command.Parameters.Add(EfSql.Input("@CoverUrl", AdminDiscographyValidation.NullIfBlank(coverFileName)));
-                command.Parameters.Add(EfSql.Input("@SongId", songId));
+                command.Parameters.Add(EfSql.Input(SongIdParameter, songId));
             },
             cancellationToken: cancellationToken);
         EnsureSongFound(songId, rows);
@@ -324,7 +328,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
                 await EfSql.ExecuteNonQuerySqlAsync(
                     dbContext,
                     "DELETE FROM dbo.Q_ALBUM_SONG_T WHERE Q_ALBUM_SONG_ID = @SongId",
-                    command => command.Parameters.Add(EfSql.Input("@SongId", songId)),
+                    command => command.Parameters.Add(EfSql.Input(SongIdParameter, songId)),
                     cancellationToken: token);
                 await RenumberAsync(albumId, await GetOrderedSongIdsAsync(albumId, token), token);
             },
@@ -341,7 +345,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
         var rows = await EfSql.QuerySqlAsync<SongRow>(
             dbContext,
             sql,
-            command => command.Parameters.Add(EfSql.Input("@AlbumId", albumId)),
+            command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
             cancellationToken: cancellationToken);
         return rows.Select(MapSong).ToList();
     }
@@ -351,7 +355,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
         var rows = await EfSql.QuerySqlAsync<ValueRow>(
             dbContext,
             "SELECT CAST(Q_ALBUM_ID AS int) AS Value FROM dbo.Q_ALBUM_SONG_T WITH (UPDLOCK) WHERE Q_ALBUM_SONG_ID = @SongId",
-            command => command.Parameters.Add(EfSql.Input("@SongId", songId)),
+            command => command.Parameters.Add(EfSql.Input(SongIdParameter, songId)),
             cancellationToken: cancellationToken);
         return rows.FirstOrDefault()?.Value
             ?? throw new InvalidOperationException($"Song {songId} was not found.");
@@ -369,7 +373,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
         var rows = await EfSql.QuerySqlAsync<ValueRow>(
             dbContext,
             sql,
-            command => command.Parameters.Add(EfSql.Input("@AlbumId", albumId)),
+            command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
             cancellationToken: cancellationToken);
         return rows.Select(row => row.Value).ToList();
     }
@@ -404,7 +408,7 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             sql,
             command =>
             {
-                command.Parameters.Add(EfSql.Input("@AlbumId", albumId));
+                command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId));
                 for (var index = 0; index < orderedSongIds.Count; index++)
                 {
                     command.Parameters.Add(EfSql.Input($"@Id{index}", orderedSongIds[index]));
