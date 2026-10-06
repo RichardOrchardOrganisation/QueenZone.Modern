@@ -1,0 +1,61 @@
+appId: org.queenzone.mobile
+---
+# Open a crossword deep link. iOS recovers a late "Open in QueenZone?" sheet
+# and a swallowed first URL the same way open-smoke-auth.yaml does (#1281,
+# #1703). Android keeps a single openLink plus the required play-screen wait.
+- openLink: ${CROSSWORD_DEEP_LINK}
+- runFlow: accept-ios-open-link.yaml
+# Hosted iOS can raise the first Open sheet after accept-ios-open-link's 15s
+# optional wait (flow 32 on main run 37479382097: Open at 18.9s). Stacking a
+# second URL while that confirm is still pending leaves a leftover sheet and
+# never delivers the crossword (#1703). Poll for the late first sheet before
+# the #1281 retry. optional waits so a still-on-Home cold start can continue
+# to one more openLink.
+- runFlow:
+    when:
+      platform: iOS
+      notVisible:
+        id: crossword-play-screen
+    commands:
+      - runFlow: poll-late-ios-open-for-crossword.yaml
+      - runFlow: poll-late-ios-open-for-crossword.yaml
+      - runFlow: poll-late-ios-open-for-crossword.yaml
+      - runFlow: poll-late-ios-open-for-crossword.yaml
+# iOS can accept the system Open prompt without delivering the first
+# foreground URL event. Retry once when crossword-play-screen did not appear.
+# Hosted iOS simulators can show another Open confirmation for that retry
+# (#1281).
+- runFlow:
+    when:
+      platform: iOS
+      notVisible:
+        id: crossword-play-screen
+    commands:
+      - openLink: ${CROSSWORD_DEEP_LINK}
+      - runFlow: accept-ios-open-link.yaml
+# Leftover first-URL confirm can appear after the retry tap (#1703). Tap it
+# if it is up, then give the play screen a short optional chance to appear.
+# The required crossword-play-screen wait below is unchanged and not optional.
+- runFlow:
+    when:
+      platform: iOS
+      notVisible:
+        id: crossword-play-screen
+    commands:
+      - runFlow:
+          when:
+            visible:
+              text: '^Open$'
+          commands:
+            - tapOn:
+                text: '^Open$'
+                retryTapIfNoChange: true
+      - extendedWaitUntil:
+          visible:
+            id: crossword-play-screen
+          timeout: 8000
+          optional: true
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 20000

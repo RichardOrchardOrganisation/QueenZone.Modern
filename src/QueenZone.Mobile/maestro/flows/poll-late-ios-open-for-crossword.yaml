@@ -1,0 +1,20 @@
+appId: org.queenzone.mobile
+---
+# One poke for a late "Open in QueenZone?" sheet, then a short optional
+# crossword-play-screen wait. open-crossword-deep-link sequences several of
+# these before stacking a second crossword URL (#1703). Does not wait 15s
+# for Open — that belongs in accept-ios-open-link.yaml right after openLink.
+- runFlow:
+    when:
+      platform: iOS
+      visible:
+        text: '^Open$'
+    commands:
+      - tapOn:
+          text: '^Open$'
+          retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: crossword-play-screen
+    timeout: 5000
+    optional: true
