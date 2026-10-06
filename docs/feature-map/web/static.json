@@ -180,23 +180,20 @@
       "name": "Appearance",
       "page": "Pages/Appearance.cshtml",
       "url": "/appearance",
-      "entry": "Header appearance control",
+      "entry": "Account settings → Appearance, or /appearance",
       "aliases": [
         "theme"
       ],
       "sources": [
         "src/QueenZone.Web/Pages/Appearance.cshtml",
-        "src/QueenZone.Web/Pages/Appearance.cshtml.cs",
-        "src/QueenZone.Web/Pages/Shared/_ThemeChooser.cshtml"
+        "src/QueenZone.Web/Pages/Appearance.cshtml.cs"
       ],
       "testIds": [],
       "flows": [],
       "specs": [
         "tests/QueenZone.Web.Tests/AppearancePageTests.cs"
       ],
-      "selectors": [
-        "#qz-theme-picker"
-      ],
+      "selectors": [],
       "signIn": "none",
       "recipe": ""
     }

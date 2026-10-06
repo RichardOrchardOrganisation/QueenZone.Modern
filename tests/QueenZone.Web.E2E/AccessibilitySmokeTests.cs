@@ -22,18 +22,6 @@ public class AccessibilitySmokeTests : E2EPageTest
     }
 
     [Test]
-    public async Task Homepage_DormantThemeLiveRegion_IsNotAStatusRole()
-    {
-        await Page.GotoAsync("/");
-        await Expect(Page.GetByText("Latest news")).ToBeVisibleAsync();
-
-        var themeStatus = Page.Locator("[data-theme-status]");
-        await Expect(themeStatus).ToHaveCountAsync(1);
-        await Expect(themeStatus).ToHaveTextAsync(string.Empty);
-        await Expect(Page.GetByRole(AriaRole.Status).And(themeStatus)).ToHaveCountAsync(0);
-    }
-
-    [Test]
     public async Task Homepage_HasNoBlockingAxeViolations()
     {
         await Page.GotoAsync("/");
