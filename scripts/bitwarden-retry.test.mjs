@@ -14,7 +14,7 @@ function readAction(text) {
   const action = { outputs: {}, runs: { steps: [] } };
   let section = ''; let output; let step; let nested;
   const scalar = (value) => value.split(' #')[0].trim().replace(/^'(.*)'$/, '$1');
-  for (const line of text.split('\n')) {
+  for (const line of text.replaceAll('\r\n', '\n').split('\n')) {
     if (line === 'outputs:' || line === 'runs:') { section = line; continue; }
     if (section === 'outputs:') {
       const name = /^  ([A-Z_0-9]+):$/.exec(line);
@@ -41,6 +41,10 @@ function readAction(text) {
   return action;
 }
 const action = readAction(readFileSync(actionPath, 'utf8'));
+test('committed YAML parses identically with LF and CRLF checkout line endings', () => {
+  const text = readFileSync(actionPath, 'utf8').replaceAll('\r\n', '\n');
+  assert.deepEqual(readAction(text), readAction(text.replaceAll('\n', '\r\n')));
+});
 const mapping = '00000000-0000-0000-0000-000000000001 > AZURE_WEBAPP_PUBLISH_PROFILE\n00000000-0000-0000-0000-000000000002 > MOBILE_AUTH_SIGNING_KEY';
 const complete = { AZURE_WEBAPP_PUBLISH_PROFILE: 'fake-profile', MOBILE_AUTH_SIGNING_KEY: 'fake-key' };
 function evaluate(expression, steps, cancelled, inputs = {}) {
