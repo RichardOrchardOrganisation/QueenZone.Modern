@@ -30,6 +30,13 @@ it('loads the cached public shape and renders errors or absent older API gracefu
   await waitFor(() => expect(screen.getByText('This server does not support crossword saves yet. You can explore the blank grid.')).toBeOnTheScreen());
   expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled();
 });
+it('selects a tapped cell when the puzzle has no playVersion', async () => {
+  fetchPuzzle.mockResolvedValue(crosswordFixture({ playVersion: undefined }));
+  renderPlay();
+  await waitFor(() => expect(screen.getByTestId('crossword-cell-2')).toBeEnabled());
+  await userEvent.setup().press(screen.getByTestId('crossword-cell-2'));
+  expect(screen.getByTestId('crossword-cell-2').props.accessibilityState).toEqual({ selected: true, disabled: false });
+});
 it('types, backspaces, switches clues and checks the current word with a required version', async () => {
   const puzzle = crosswordFixture(); check.mockResolvedValue({ playVersion: puzzle.playVersion!, cells: [{ index: 0, status: 'incorrect' }], explanations: [], complete: false });
   renderPlay(); await waitFor(() => expect(screen.getByRole('button', { name: 'B' })).toBeEnabled());

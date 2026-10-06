@@ -11,6 +11,7 @@ import { useSession } from '../../session/SessionContext';
 import { useCrosswordPlay } from '../../crosswords/useCrosswordPlay';
 import { CrosswordGrid } from '../../crosswords/CrosswordGrid';
 import { CrosswordKeyboard } from '../../crosswords/CrosswordKeyboard';
+import { CrosswordTimerText } from '../../crosswords/CrosswordTimerText';
 import * as core from '../../crosswords/core';
 import { Button } from '../../ui/Button';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
@@ -57,13 +58,13 @@ export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNex
       <Text style={[type.pageTitle, { color: c.textPrimary }]}>Paused</Text><Button label="Resume crossword" onPress={play.pause} />
     </View>;
   } else {
-    solverContent = <CrosswordGrid puzzle={puzzle} model={play.model} state={play.state} disabled={disabled} onCell={cell => play.select(core.selectCell(play.model, play.state, cell))} />;
+    solverContent = <CrosswordGrid puzzle={puzzle} model={play.model} state={play.state} disabled={disabled} onCell={play.selectCell} />;
   }
 
   return <View testID={testIds.crosswordPlayScreen} style={{ flex: 1, backgroundColor: c.surfacePage }}>
     {puzzle.archived && <Text style={[type.meta, { color: c.textSecondary, paddingHorizontal: 12 }]}>Archived crossword · still playable</Text>}
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' }}>
-      <Text testID={testIds.crosswordTimer} style={[type.meta, { color: c.textPrimary }]}>{Math.floor(play.seconds / 60)}:{String(play.seconds % 60).padStart(2, '0')}</Text>
+      <CrosswordTimerText timer={play.timer} />
       <Button label={play.timer.paused ? 'Resume' : 'Pause'} size="sm" variant="ghost" disabled={!play.ready || !!play.completion} onPress={play.pause} />
       <Button label="Check" size="sm" variant="ghost" disabled={!connected} onPress={() => menu('check')} />
       <Button label="Reveal" size="sm" variant="ghost" disabled={!connected} onPress={() => menu('reveal')} />

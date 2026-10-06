@@ -19,6 +19,18 @@ const puzzle = crosswordFixture();
 const progress = { playVersion: puzzle.playVersion!, letters: 'B' + '.'.repeat(24), elapsedSeconds: 12, revealedCells: [], autoCheckUsed: false, updatedAt: '2026-10-04T06:00:00Z', startedAt: '2026-10-04T05:00:00Z' };
 beforeEach(async () => { jest.clearAllMocks(); await AsyncStorage.clear(); mockNetwork.isConnected = true; mockNetwork.isInternetReachable = true;
   fetchProgress.mockResolvedValue(undefined); (isOfflineQueueOwnerCurrent as jest.Mock).mockReturnValue(true); });
+it('keeps selectCell identity across ticks and state changes', async () => {
+  const hook = renderHook(() => useCrosswordPlay(puzzle, null, null));
+  await waitFor(() => expect(hook.result.current.ready).toBe(true));
+  const first = hook.result.current.selectCell;
+  act(() => { hook.result.current.selectCell(2); });
+  expect(hook.result.current.state.cell).toBe(2);
+  expect(hook.result.current.selectCell).toBe(first);
+  act(() => hook.result.current.change(core.typeLetter(hook.result.current.model, hook.result.current.state, 'B')));
+  expect(hook.result.current.selectCell).toBe(first);
+  expect(hook.result.current).not.toHaveProperty('seconds');
+  hook.unmount();
+});
 it('opening an empty puzzle never creates a blank write, and offline edits remain local before queued sync', async () => {
   const hook = renderHook(() => useCrosswordPlay(puzzle, member, 'token-a'));
   await waitFor(() => expect(hook.result.current.ready).toBe(true)); expect(enqueueCrosswordProgress).not.toHaveBeenCalled();
