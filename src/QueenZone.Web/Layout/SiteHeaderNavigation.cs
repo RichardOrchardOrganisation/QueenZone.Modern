@@ -22,6 +22,7 @@ public static class SiteHeaderNavigation
         new("Articles", "/articles", "Community articles and long-form features from the archive", ""),
         new("Photography", "/photography", "Thousands of restored images", ""),
         new("Links", "/links", "Checked Queen-related websites from the archive", ""),
+        new("Crosswords", "/crosswords", "Queen crosswords, including archived puzzles", ""),
     ]);
 
     private static SiteHeaderNavGroup Community { get; } = new("community", "Community", "The Fans", "burgundy",
