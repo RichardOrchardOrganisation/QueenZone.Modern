@@ -745,6 +745,9 @@ trap cleanup EXIT
 start_host() {
   export ASPNETCORE_ENVIRONMENT=Testing
   export QUEENZONE_MOBILE_CONTRACT_HOST=1
+  # Same Testing-only opt-in as scripts/Run-E2E.ps1. Publishes in-memory drafts
+  # (including studios-and-collaborators) via CrosswordBrowserFixture.
+  export CrosswordBrowserFixture__Enabled=true
   export ASPNETCORE_URLS="http://127.0.0.1:${port}"
 
   rm -f "$fixture" "${fixture}.tmp"

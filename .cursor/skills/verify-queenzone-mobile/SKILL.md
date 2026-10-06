@@ -5,7 +5,7 @@ description: Drive the QueenZone Expo mobile client the way a member does — la
 
 # Verify QueenZone.Mobile
 
-`src/QueenZone.Mobile` is the Expo development-build client (`org.queenzone.mobile`). This skill launches a disposable `Testing` contract host (in-memory sample data, `QUEENZONE_MOBILE_CONTRACT_HOST=1`) and drives the real Android or iOS app through Maestro. Resolve the change through `docs/feature-map/` first, then read `features/README.md` and the matching feature file.
+`src/QueenZone.Mobile` is the Expo development-build client (`org.queenzone.mobile`). This skill launches a disposable `Testing` contract host (in-memory sample data, `QUEENZONE_MOBILE_CONTRACT_HOST=1`, `CrosswordBrowserFixture__Enabled=true`) and drives the real Android or iOS app through Maestro. Resolve the change through `docs/feature-map/` first, then read `features/README.md` and the matching feature file.
 
 Do not use `verify-queenzone` (the Razor website) to prove mobile screens. Do not use Expo Go. Do not point this host at Azure SQL, a live site, or OAuth.
 
@@ -25,7 +25,7 @@ Ready when:
 - The helper has written `.cursor/skills/verify-queenzone-mobile/.run/host.json` with `"environment": "Testing"`
 - The helper prints the base URL
 
-The host uses `ASPNETCORE_ENVIRONMENT=Testing`, `QUEENZONE_MOBILE_CONTRACT_HOST=1`, and `--no-launch-profile`. Connection-string env vars are cleared for that process. The Android smoke APK must be baked at `http://10.0.2.2:5098`; iOS Simulator at `http://127.0.0.1:5098`. A store/Debug binary aimed at production cannot talk to this host. Device smoke uses Release-embedded builds (`assembleRelease` / `Release-iphonesimulator`), never `app-debug.apk`.
+The host uses `ASPNETCORE_ENVIRONMENT=Testing`, `QUEENZONE_MOBILE_CONTRACT_HOST=1`, `CrosswordBrowserFixture__Enabled=true`, and `--no-launch-profile`. Connection-string env vars are cleared for that process. The Android smoke APK must be baked at `http://10.0.2.2:5098`; iOS Simulator at `http://127.0.0.1:5098`. A store/Debug binary aimed at production cannot talk to this host. Device smoke uses Release-embedded builds (`assembleRelease` / `Release-iphonesimulator`), never `app-debug.apk`.
 
 Print the URL later with:
 
