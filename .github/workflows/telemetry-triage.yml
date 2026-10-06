@@ -39,9 +39,7 @@ permissions:
 jobs:
   triage:
     name: Poll Sentry and App Insights
-    # Scheduled runs stay on main. Dry-run workflow_dispatch may run on a
-    # feature branch so a PR can confirm the Sentry escalating query.
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'false')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: telemetry-read
