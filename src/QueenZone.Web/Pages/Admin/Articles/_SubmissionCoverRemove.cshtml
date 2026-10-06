@@ -1,0 +1,7 @@
+@model string?
+@if (!string.IsNullOrWhiteSpace(Model))
+{
+  <label class="qz-account-form__field">
+    <input type="checkbox" name="RemoveCoverImage" value="true" /> Remove current cover image
+  </label>
+}

@@ -42,4 +42,8 @@ public interface IArticleSubmissionRepository
         CancellationToken ct = default);
 }
 
-public sealed record ArticlePublicationDetails(string? Slug, string? Excerpt, string? Tags);
+/// <summary>
+/// Editorial fields an admin can adjust while reviewing. <paramref name="CoverImageBlobPath"/>
+/// is left unchanged when null and cleared when empty.
+/// </summary>
+public sealed record ArticlePublicationDetails(string? Slug, string? Excerpt, string? Tags, string? CoverImageBlobPath = null);

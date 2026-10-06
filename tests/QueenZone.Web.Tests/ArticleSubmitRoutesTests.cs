@@ -861,6 +861,115 @@ public sealed partial class ArticleSubmitRoutesTests :
     }
 
     [Fact]
+    public async Task Admin_can_add_and_remove_cover_image_while_approving_a_submission()
+    {
+        var memberClient = await CreateSignedInMemberClientAsync(
+            email: "article-cover-admin@example.com",
+            displayName: "Cover Author",
+            subject: "google-article-cover-admin",
+            options: new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
+        var id = await SubmitArticleAsync(memberClient, "Cover story", "cover-story");
+        var admin = CreateAdminClient(AdminEmail);
+        var repository = factory.Services.GetRequiredService<IArticleSubmissionRepository>();
+
+        var detail = await admin.GetStringAsync($"/admin/articles/{id:D}");
+        Assert.Contains("name=\"CoverImage\"", detail);
+        Assert.Contains("multipart/form-data", detail);
+        Assert.DoesNotContain("RemoveCoverImage", detail);
+
+        var upload = await PostAdminActionWithCoverAsync(admin, id, "approve", await CreateCardPngAsync(), remove: false);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var withCover = (await repository.GetByIdAsync(id))!;
+        Assert.Equal(ArticleSubmissionStatus.ApprovedForPublishing, withCover.Status);
+        Assert.False(string.IsNullOrWhiteSpace(withCover.CoverImageBlobPath));
+
+        var reviewed = await admin.GetStringAsync($"/admin/articles/{id:D}");
+        Assert.Contains("Article cover image", reviewed);
+        Assert.Contains("RemoveCoverImage", reviewed);
+
+        await PostAdminActionWithCoverAsync(admin, id, "publish", null, remove: true);
+        var removed = (await repository.GetByIdAsync(id))!;
+        Assert.Equal(ArticleSubmissionStatus.Published, removed.Status);
+        Assert.Null(removed.CoverImageBlobPath);
+    }
+
+    [Fact]
+    public async Task Admin_rejects_unreadable_cover_image_without_changing_status()
+    {
+        var memberClient = await CreateSignedInMemberClientAsync(
+            email: "article-cover-bad@example.com",
+            displayName: "Bad Cover Author",
+            subject: "google-article-cover-bad",
+            options: new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
+        var id = await SubmitArticleAsync(memberClient, "Bad cover story", "bad-cover-story");
+        var admin = CreateAdminClient(AdminEmail);
+
+        await PostAdminActionWithCoverAsync(admin, id, "approve", [1, 2, 3], remove: false);
+
+        var repository = factory.Services.GetRequiredService<IArticleSubmissionRepository>();
+        var after = (await repository.GetByIdAsync(id))!;
+        Assert.Equal(ArticleSubmissionStatus.Submitted, after.Status);
+        Assert.Null(after.CoverImageBlobPath);
+    }
+
+    [Fact]
+    public async Task Member_can_attach_a_cover_image_and_autosave_keeps_it()
+    {
+        var client = await CreateSignedInMemberClientAsync(
+            email: "article-cover-member@example.com",
+            displayName: "Cover Member",
+            subject: "google-article-cover-member");
+        var formPage = await client.GetStringAsync("/submit/article");
+        Assert.Contains("name=\"CoverImage\"", formPage);
+
+        using var content = new MultipartFormDataContent
+        {
+            { new StringContent(ExtractAntiforgeryToken(formPage)), "__RequestVerificationToken" },
+            { new StringContent("Member cover story"), "Title" },
+            { new StringContent(MinBody()), "Body" },
+            { new StringContent("save"), "action" },
+        };
+        var file = new ByteArrayContent(await CreateCardPngAsync());
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        content.Add(file, "CoverImage", "cover.png");
+
+        var response = await client.PostAsync("/submit/article", content);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Current cover image", html);
+        var draftId = Guid.Parse(ExtractDraftId(html));
+
+        var repository = factory.Services.GetRequiredService<IArticleSubmissionRepository>();
+        var stored = (await repository.GetByIdAsync(draftId))!;
+        Assert.False(string.IsNullOrWhiteSpace(stored.CoverImageBlobPath));
+
+        // A later text-only save (what autosave sends) must not wipe the cover.
+        using var textOnly = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(html),
+            ["DraftId"] = draftId.ToString("D"),
+            ["Title"] = "Member cover story v2",
+            ["Body"] = MinBody(),
+            ["action"] = "save",
+        });
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/submit/article", textOnly)).StatusCode);
+        var kept = (await repository.GetByIdAsync(draftId))!;
+        Assert.Equal(stored.CoverImageBlobPath, kept.CoverImageBlobPath);
+
+        using var removal = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(html),
+            ["DraftId"] = draftId.ToString("D"),
+            ["Title"] = "Member cover story v2",
+            ["Body"] = MinBody(),
+            ["RemoveCoverImage"] = "true",
+            ["action"] = "save",
+        });
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/submit/article", removal)).StatusCode);
+        Assert.Null((await repository.GetByIdAsync(draftId))!.CoverImageBlobPath);
+    }
+
+    [Fact]
     public async Task AdminDetail_Returns404_ForUnknownSubmission()
     {
         var admin = CreateAdminClient(AdminEmail);
@@ -922,6 +1031,35 @@ public sealed partial class ArticleSubmitRoutesTests :
             ["Slug"] = fields.GetValueOrDefault("Slug") ?? "article-slug",
         };
         return await client.PostAsync($"/admin/articles/{id:D}/action", new FormUrlEncodedContent(form));
+    }
+
+    private async Task<HttpResponseMessage> PostAdminActionWithCoverAsync(
+        HttpClient client,
+        Guid id,
+        string submitAction,
+        byte[]? image,
+        bool remove)
+    {
+        var detail = await client.GetStringAsync($"/admin/articles/{id:D}");
+        using var content = new MultipartFormDataContent
+        {
+            { new StringContent(ExtractAntiforgeryToken(detail)), "__RequestVerificationToken" },
+            { new StringContent("article-slug"), "Slug" },
+            { new StringContent(submitAction), "submitAction" },
+        };
+        if (remove)
+        {
+            content.Add(new StringContent("true"), "RemoveCoverImage");
+        }
+
+        if (image is not null)
+        {
+            var file = new ByteArrayContent(image);
+            file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            content.Add(file, "CoverImage", "cover.png");
+        }
+
+        return await client.PostAsync($"/admin/articles/{id:D}/action", content);
     }
 
     private HttpClient CreateAdminClient(string? email = null, WebApplicationFactory<Program>? sourceFactory = null)

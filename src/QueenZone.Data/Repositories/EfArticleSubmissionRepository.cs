@@ -65,7 +65,10 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
             entity.Slug = GenerateSlug(draft.Title);
             entity.Excerpt = SubmissionInput.NormalizeOptional(draft.Excerpt, 500);
             entity.Body = draft.Body ?? string.Empty;
-            entity.CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512);
+            if (draft.CoverImageBlobPath is not null)
+            {
+                entity.CoverImageBlobPath = SubmissionInput.NormalizeOptional(draft.CoverImageBlobPath, 512);
+            }
             entity.Tags = SubmissionInput.NormalizeOptional(draft.Tags, 500);
             entity.WordCount = EstimateWordCount(entity.Body);
         }
@@ -195,6 +198,11 @@ public sealed class EfArticleSubmissionRepository(QueenZoneDbContext dbContext) 
         if (tags is not null)
         {
             entity.Tags = SubmissionInput.NormalizeOptional(tags, 500);
+        }
+
+        if (publication?.CoverImageBlobPath is { } cover)
+        {
+            entity.CoverImageBlobPath = SubmissionInput.NormalizeOptional(cover, 512);
         }
 
         if (status == ArticleSubmissionStatus.Published)
