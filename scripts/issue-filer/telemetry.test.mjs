@@ -135,15 +135,25 @@ test('Sentry issue search splits new, regressed, and escalating and omits OR', (
     assert.equal(url.pathname, '/api/0/projects/self-0tb/queenzone-mobile/issues/');
     assert.equal(url.searchParams.get('query'), query);
     assert.equal(url.searchParams.get('limit'), '25');
-    assert.equal(url.searchParams.get('statsPeriod'), '26h');
+    assert.equal(url.searchParams.get('statsPeriod'), '14d');
   }
+});
+
+test('Sentry statsPeriod is always an allowed project-issues value', () => {
+  const allowed = new Set(['', '24h', '14d']);
+  for (const hours of [1, 2, 24, 26, 28, 168, undefined]) {
+    assert.equal(allowed.has(sentryStatsPeriod(hours)), true);
+  }
+  assert.equal(sentryStatsPeriod(), '14d');
+  assert.equal(sentryStatsPeriod(TELEMETRY_WINDOW_HOURS), '14d');
+  assert.equal(buildSentryIssuesUrl({ query: 'is:unresolved is:new lastSeen:-28h' }).searchParams.get('statsPeriod'), '14d');
 });
 
 test('telemetry window is cadence plus overlap and drives ARG and evidence spans', () => {
   assert.equal(SCHEDULE_CADENCE_HOURS, 24);
   assert.equal(WINDOW_OVERLAP_HOURS, 4);
   assert.equal(TELEMETRY_WINDOW_HOURS, 28);
-  assert.equal(sentryStatsPeriod(TELEMETRY_WINDOW_HOURS), '28h');
+  assert.equal(sentryStatsPeriod(TELEMETRY_WINDOW_HOURS), '14d');
   assert.match(argAlertsQuery(TELEMETRY_WINDOW_HOURS), /ago\(28h\)/);
   assert.doesNotMatch(argAlertsQuery(TELEMETRY_WINDOW_HOURS), /ago\(2h\)/);
   assert.equal(evidenceTimespan(TELEMETRY_WINDOW_HOURS), 'PT28H');

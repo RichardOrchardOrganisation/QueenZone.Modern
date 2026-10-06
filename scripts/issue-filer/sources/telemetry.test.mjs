@@ -139,7 +139,7 @@ test('defaultSentrySearch refuses a Link next URL off sentry.io', async () => {
   assert.equal(urls.length, 1);
   assert.match(urls[0], /sentry\.io/);
   assert.match(urls[0], /query=is%3Aunresolved\+is%3Anew\+lastSeen%3A-2h/);
-  assert.match(urls[0], /statsPeriod=28h/);
+  assert.match(urls[0], /statsPeriod=14d/);
 });
 
 test('defaultSentrySearch runs new, regressed, and escalating queries and merges by id', async () => {
@@ -168,7 +168,7 @@ test('defaultSentrySearch runs new, regressed, and escalating queries and merges
   assert.ok(urls.some((url) => url.includes('is%3Aregressed')));
   assert.ok(urls.some((url) => url.includes('is%3Aescalating')));
   assert.ok(urls.every((url) => !url.includes('OR')));
-  assert.ok(urls.every((url) => url.includes('statsPeriod=2h')));
+  assert.ok(urls.every((url) => url.includes('statsPeriod=14d')));
   assert.deepEqual(issues.map((issue) => issue.id), ['1', '2', '3', '4']);
   assert.equal(issues.find((issue) => issue.id === '2').title, 'shared');
 });

@@ -58,8 +58,11 @@ function resolvedLookbackHours(lookbackHours) {
     : TELEMETRY_WINDOW_HOURS;
 }
 
-export function sentryStatsPeriod(lookbackHours = TELEMETRY_WINDOW_HOURS) {
-  return `${resolvedLookbackHours(lookbackHours)}h`;
+// Project issues only accept '', '24h', or '14d'
+// (docs.sentry.io/api/events/list-a-projects-issues). Anything else is
+// HTTP 400 Invalid stats_period. Filtering stays on lastSeen:-Nh.
+export function sentryStatsPeriod() {
+  return '14d';
 }
 
 const SENTRY_STATS_PERIOD = sentryStatsPeriod();
