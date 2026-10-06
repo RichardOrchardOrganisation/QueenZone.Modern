@@ -555,6 +555,8 @@ try {
     $testArgs = @(
         "test", $e2eProject,
         "--configuration", $Configuration,
+        "--logger", "trx;LogFilePrefix=e2e-$Mode",
+        "--results-directory", $artifactDir,
         "--filter", $testFilter
     )
     if ($NoBuild) { $testArgs += "--no-build" }

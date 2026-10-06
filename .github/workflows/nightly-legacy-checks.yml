@@ -115,6 +115,7 @@ jobs:
 
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore local dotnet tools (sqlpackage)
@@ -172,6 +173,7 @@ jobs:
 
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify .NET SDK
@@ -203,7 +205,24 @@ jobs:
 
           dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj \
             --configuration Release \
+            --logger "trx;LogFilePrefix=legacy-reads" \
+            --results-directory test-results/legacy-probes \
             --filter "FullyQualifiedName=QueenZone.Web.Tests.EfAdminNewsRepositoryLegacyProbeTests.Probe_legacy_admin_news_repository_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfAdminPhotoRepositoryLegacyProbeTests.Probe_legacy_admin_photo_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfBiographyRepositoryLegacyProbeTests.Probe_legacy_biography_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfDiscographyRepositoryLegacyProbeTests.Probe_legacy_discography_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfFreddieTributeRepositoryLegacyProbeTests.Probe_legacy_freddie_tribute_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfMemberLookupRepositoryLegacyProbeTests.Probe_legacy_member_lookup_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfArticlesRepositoryLegacyProbeTests.Probe_legacy_article_archive_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfPhotoRepositoryLegacyProbeTests.Probe_legacy_photo_gallery_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfLinksRepositoryLegacyProbeTests.Probe_legacy_links_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfNewsSectionLiveProbeTests.Public_news_probe_materializes_archive_detail_search_and_sitemap_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfNewsRepositoryLegacyProbeTests.Probe_legacy_news_archive_reads_when_connection_configured|FullyQualifiedName~EfNewsFullTextSearchLiveProbeTests|FullyQualifiedName~EfSiteSearchFullTextSearchLiveProbeTests|FullyQualifiedName=QueenZone.Web.Tests.ModernForumRepositoryLiveProbeTests.Forum_reads_and_fulltext_search_materialize_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfFanPerformanceRepositoryLegacyProbeTests.Probe_legacy_fan_performance_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfAdminFanPerformanceRepositoryLegacyProbeTests.Probe_legacy_admin_fan_performance_reads_when_connection_configured|FullyQualifiedName=QueenZone.Web.Tests.EfLegacyForumRepositoryLegacyProbeTests.Probe_legacy_forum_reads_when_connection_configured"
+
+      - name: Export safe test outcomes
+        id: safe-test-reports
+        if: always() && steps.checkout.outcome == 'success'
+        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/legacy-probes -OutputPath test-results/safe-reports/results.json
+
+      - name: Upload test reports
+        if: always() && steps.safe-test-reports.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: legacy-test-reports-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/safe-reports/results.json
+          if-no-files-found: ignore
+          retention-days: 14
 
   apply-ef-migrations-mirror:
     name: Apply EF migrations to SQL Express mirror
@@ -224,6 +243,7 @@ jobs:
 
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore tools and solution
@@ -253,6 +273,7 @@ jobs:
 
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore
@@ -298,11 +319,29 @@ jobs:
           RUN_NEWS_AGENT_URL_INGESTION_PROBE: "true"
         run:           ./scripts/Probe-NewsAgentUrlIngestion.ps1 -Full
 
+      - name: Export safe test outcomes
+        id: safe-test-reports
+        if: always() && steps.checkout.outcome == 'success'
+        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/legacy-probes -OutputPath test-results/safe-reports/results.json
+
+      - name: Upload test reports
+        if: always() && steps.safe-test-reports.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: legacy-test-reports-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/safe-reports/results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   ui-e2e-realdata:
     name: UI E2E RealData (${{ matrix.os }})
     needs: [sync-legacy-db, legacy-read-probes, legacy-write-probes, apply-ef-migrations-mirror]
     if: always() && needs.apply-ef-migrations-mirror.result == 'success' && needs.legacy-write-probes.result == 'success' && (needs.sync-legacy-db.result == 'success' || needs.sync-legacy-db.result == 'skipped')
     strategy:
+      # Both OS suites write/reindex the same mirror. Keep OS coverage while
+      # avoiding the cross-suite SQL deadlock/timeout seen in run 36652000637.
+      max-parallel: 1
       fail-fast: false
       matrix:
         include:
@@ -330,6 +369,7 @@ jobs:
           pkill -f "$qz_app_pattern" || true
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify .NET SDK
@@ -395,13 +435,30 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+      - name: Export safe test outcomes
+        id: safe-test-reports
+        if: always() && steps.checkout.outcome == 'success'
+        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/e2e -OutputPath test-results/safe-reports/results.json
+
+      - name: Upload test reports
+        if: always() && steps.safe-test-reports.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: legacy-test-reports-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/safe-reports/results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   residue-check:
     name: Verify no probe or UI-test residue remains
     # Runs after both the write probes and the UI suite (not as the last step
     # of legacy-write-probes) so it validates UI-test cleanup too, not just
     # probe cleanup.
-    needs: [legacy-write-probes, ui-e2e-realdata]
-    if: always() && needs.legacy-write-probes.result == 'success'
+    needs: [apply-ef-migrations-mirror, legacy-write-probes, ui-e2e-realdata]
+    # Failed/timed-out probes can leave rows too. Read-only inspection must still
+    # wait for both UI jobs and a usable migrated mirror; never delete residue.
+    if: always() && needs.apply-ef-migrations-mirror.result == 'success' && needs.legacy-write-probes.result != 'skipped'
     runs-on: [self-hosted, Windows]
     timeout-minutes: 15
     env:
@@ -409,6 +466,7 @@ jobs:
 
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore
@@ -418,6 +476,24 @@ jobs:
         env:
           RUN_LEGACY_PROBE_RESIDUE_CHECK: "true"
         run: |
+          ./scripts/Assert-SqlExpressMirrorConnection.ps1 -ConnectionString $env:ConnectionStrings__QueenZoneLegacy
           dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj `
             --configuration Release `
+            --logger "trx;LogFilePrefix=residue" `
+            --results-directory test-results/legacy-probes `
             --filter "FullyQualifiedName=QueenZone.Web.Tests.EfLegacyProbeResidueTests.Known_probe_and_web_test_markers_are_absent_when_check_enabled"
+
+      - name: Export safe test outcomes
+        id: safe-test-reports
+        if: always() && steps.checkout.outcome == 'success'
+        shell: ${{ runner.os == 'Windows' && 'powershell' || 'pwsh' }}
+        run: ./scripts/Export-SafeTestReports.ps1 -ResultsDirectory test-results/legacy-probes -OutputPath test-results/safe-reports/results.json
+
+      - name: Upload test reports
+        if: always() && steps.safe-test-reports.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: legacy-test-reports-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/safe-reports/results.json
+          if-no-files-found: ignore
+          retention-days: 14
