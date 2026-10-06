@@ -314,6 +314,31 @@ function canonicalIgnore(candidate, entries) {
     && (matchesIgnoreCriteria(candidate, entry) || matchesIgnoreCriteria(sentryCandidate, entry)));
 }
 
+function matchRankedCandidates(ranked, existing, entries, skipped) {
+  const unmatched = [];
+  const matched = [];
+  for (const candidate of ranked) {
+    // Expiry ends suppression, not canonical issue identity. Never create a
+    // duplicate when a pinned issue is missing or has an incompatible marker.
+    const pinned = canonicalIgnore(candidate, entries);
+    if (pinned) {
+      const match = existing.find((issue) => issue.number === pinned.recurrence.issueNumber
+        && !issue.pullRequest && parseFilerMarker(issue.body)?.keys.includes(pinned.match.key));
+      if (match) matched.push({ candidate, match, canonical: true });
+      else skipped.push({ candidate, reason: 'canonical-issue-missing', issue: pinned.recurrence.issueNumber });
+      continue;
+    }
+    const match = findMatch(candidate, existing);
+    if (match) {
+      matched.push({ candidate, match });
+    } else {
+      unmatched.push(candidate);
+    }
+  }
+
+  return { unmatched, matched };
+}
+
 /**
  * Pure planner. No I/O.
  * @returns {{ create: object[], comment: object[], reopen: object[], skipped: object[], expiredIgnores: object[] }}
@@ -355,26 +380,7 @@ export function planFilings({
   const reopenDays = config.match?.closedCompletedReopenDays ?? 30;
   const stormThreshold = config.caps?.stormThreshold ?? 5;
 
-  const unmatched = [];
-  const matched = [];
-  for (const candidate of ranked) {
-    // Expiry ends suppression, not canonical issue identity. Never create a
-    // duplicate when a pinned issue is missing or has an incompatible marker.
-    const pinned = canonicalIgnore(candidate, [...active, ...expiredIgnores]);
-    if (pinned) {
-      const match = existing.find((issue) => issue.number === pinned.recurrence.issueNumber
-        && !issue.pullRequest && parseFilerMarker(issue.body)?.keys.includes(pinned.match.key));
-      if (match) matched.push({ candidate, match, canonical: true });
-      else skipped.push({ candidate, reason: 'canonical-issue-missing', issue: pinned.recurrence.issueNumber });
-      continue;
-    }
-    const match = findMatch(candidate, existing);
-    if (match) {
-      matched.push({ candidate, match });
-    } else {
-      unmatched.push(candidate);
-    }
-  }
+  const { unmatched, matched } = matchRankedCandidates(ranked, existing, [...active, ...expiredIgnores], skipped);
 
   const createQueue = queueUnmatchedCreates({
     unmatched,
