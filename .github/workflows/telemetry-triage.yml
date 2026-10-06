@@ -1,6 +1,6 @@
-# Part of #1805. Scheduled poller that turns new/regressed Sentry issues
-# and fired qz-prod-* App Insights alerts into GitHub issues through the
-# shared #1804 issue filer. No inbound webhook. No auto-fix PRs.
+# Part of #1805. Scheduled poller that turns new/regressed/escalating
+# Sentry issues and fired qz-prod-* App Insights alerts into GitHub issues
+# through the shared #1804 issue filer. No inbound webhook. No auto-fix PRs.
 #
 # Safety: scheduled runs default to dry-run (log the plan, file nothing)
 # unless repository variable TELEMETRY_TRIAGE_FILE_ISSUES is exactly `true`.
@@ -39,10 +39,16 @@ permissions:
 jobs:
   triage:
     name: Poll Sentry and App Insights
-    if: github.ref == 'refs/heads/main'
+    # Scheduled runs stay on main. Dry-run workflow_dispatch may run on a
+    # feature branch so a PR can confirm the Sentry escalating query.
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: telemetry-read
+    # Daily cron 17 23 * * * (07:17 Perth) typically starts 2.5–3.5h late.
+    # Window = 24h cadence + 4h overlap.
+    env:
+      TELEMETRY_WINDOW_HOURS: "28"
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -149,6 +155,7 @@ jobs:
           set -euo pipefail
           node scripts/issue-filer/collect-azure.mjs \
             --subscription "${ARM_SUBSCRIPTION_ID}" \
+            --lookback-hours "${TELEMETRY_WINDOW_HOURS}" \
             --alerts-out "${RUNNER_TEMP}/telemetry-alerts.json" \
             --evidence-out "${RUNNER_TEMP}/telemetry-evidence.json" \
             --warnings-out "${RUNNER_TEMP}/telemetry-azure-warnings.txt"
@@ -182,6 +189,6 @@ jobs:
           fi
           node scripts/issue-filer/run.mjs \
             --loop telemetry \
-            --lookback-hours 26 \
+            --lookback-hours "${TELEMETRY_WINDOW_HOURS}" \
             --max-issues 3 \
             "${extra[@]}"

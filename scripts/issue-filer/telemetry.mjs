@@ -11,16 +11,62 @@ const METHOD_RE = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/i;
 const CORRELATE_WINDOW_MS = 10 * 60 * 1000;
 // Issues search rejects OR/AND/parentheses (docs.sentry.io/concepts/search/
 // "Using OR and AND" — those operators are only for Explore, Dashboards, and
-// Monitors). Split new vs regressed and merge by id. lastSeen:-Nh is the
-// documented 2h lookback (docs.sentry.io/concepts/search/searchable-properties/issues/).
-const SENTRY_STATUS_FILTERS = ['is:unresolved is:new', 'is:unresolved is:regressed'];
+// Monitors). One query per status, then merge by id. lastSeen:-Nh is the
+// documented lookback (docs.sentry.io/concepts/search/searchable-properties/issues/).
+// Do not replace these with a plain is:unresolved query.
+const SENTRY_STATUS_FILTERS = [
+  'is:unresolved is:new',
+  'is:unresolved is:regressed',
+  'is:unresolved is:escalating',
+];
 const DEFAULT_SENTRY_HOST = 'https://sentry.io';
 const DEFAULT_SENTRY_ORG = 'self-0tb';
 const DEFAULT_SENTRY_PROJECT = 'queenzone-mobile';
 const SENTRY_ISSUES_LIMIT = 25;
-const SENTRY_STATS_PERIOD = '24h';
 
-export const LOOKBACK_HOURS = 2;
+// Daily cron 17 23 * * * (07:17 Perth) typically starts 2.5–3.5h late, so
+// overlap is 4h rather than 2h. Window = cadence + overlap = 28h.
+export const SCHEDULE_CADENCE_HOURS = 24;
+export const WINDOW_OVERLAP_HOURS = 4;
+export const TELEMETRY_WINDOW_HOURS = SCHEDULE_CADENCE_HOURS + WINDOW_OVERLAP_HOURS;
+export const MIN_LOOKBACK_HOURS = 1;
+export const MAX_LOOKBACK_HOURS = 168;
+export const LOOKBACK_HOURS = TELEMETRY_WINDOW_HOURS;
+
+export function parseLookbackHours(value, { fallback } = {}) {
+  if (value == null || value === '') {
+    if (fallback !== undefined) {
+      return fallback;
+    }
+    throw new Error('--lookback-hours must be a whole number from 1 to 168');
+  }
+  const raw = String(value).trim();
+  if (!/^\d+$/.test(raw)) {
+    throw new Error('--lookback-hours must be a whole number from 1 to 168');
+  }
+  const hours = Number(raw);
+  if (hours < MIN_LOOKBACK_HOURS || hours > MAX_LOOKBACK_HOURS) {
+    throw new Error('--lookback-hours must be a whole number from 1 to 168');
+  }
+  return hours;
+}
+
+function resolvedLookbackHours(lookbackHours) {
+  const hours = Number(lookbackHours);
+  return Number.isInteger(hours) && hours >= MIN_LOOKBACK_HOURS && hours <= MAX_LOOKBACK_HOURS
+    ? hours
+    : TELEMETRY_WINDOW_HOURS;
+}
+
+export function sentryStatsPeriod(lookbackHours = TELEMETRY_WINDOW_HOURS) {
+  return `${resolvedLookbackHours(lookbackHours)}h`;
+}
+
+const SENTRY_STATS_PERIOD = sentryStatsPeriod();
+
+export function evidenceTimespan(lookbackHours = TELEMETRY_WINDOW_HOURS) {
+  return `PT${resolvedLookbackHours(lookbackHours)}H`;
+}
 export const REDACT_MAX_LENGTH = 120;
 
 const NON_WHITESPACE_RE = /\S+/g;
@@ -63,9 +109,8 @@ export function redact(text, { maxLength = REDACT_MAX_LENGTH } = {}) {
   return value;
 }
 
-export function sentrySearchQueries({ lookbackHours = LOOKBACK_HOURS } = {}) {
-  const hours = Number(lookbackHours);
-  const windowHours = Number.isFinite(hours) && hours > 0 ? hours : LOOKBACK_HOURS;
+export function sentrySearchQueries({ lookbackHours = TELEMETRY_WINDOW_HOURS } = {}) {
+  const windowHours = resolvedLookbackHours(lookbackHours);
   const lookback = `lastSeen:-${windowHours}h`;
   return SENTRY_STATUS_FILTERS.map((filter) => `${filter} ${lookback}`);
 }
@@ -139,14 +184,19 @@ export function isTelemetryCollectFailure(warning) {
   return false;
 }
 
-export const ARG_ALERTS_QUERY = `
+export function argAlertsQuery(windowHours = TELEMETRY_WINDOW_HOURS) {
+  const hours = resolvedLookbackHours(windowHours);
+  return `
 alertsmanagementresources
 | where type =~ 'microsoft.alertsmanagement/alerts'
 | where properties.essentials.monitorCondition =~ 'Fired'
 | where properties.essentials.alertRule has 'qz-prod-'
-| where todatetime(properties.essentials.startDateTime) >= ago(2h)
+| where todatetime(properties.essentials.startDateTime) >= ago(${hours}h)
 | project id, name, alertRule=tostring(properties.essentials.alertRule), startDateTime=tostring(properties.essentials.startDateTime), essentials=properties.essentials, context=properties.context
 `.trim();
+}
+
+export const ARG_ALERTS_QUERY = argAlertsQuery();
 
 const EVIDENCE_COLUMNS = `project ProblemId, operation_Name, ResultCode, operation_Ids, ItemCount, AppVersion, AppRoleInstance, lastSeen, DependencyType, target, test`;
 export const REQUIRES_DIMENSION = new Set([
@@ -676,11 +726,15 @@ export function parseSentryIssue(issue, event, {
   const areaFromFile = typeof areaForFile === 'function' ? areaForFile(file, areas) : 'unknown';
   const area = feature?.area || (areaFromFile && areaFromFile !== 'unknown' ? areaFromFile : 'unknown');
   const count = Number(issue.count || event?.count || 1) || 1;
+  const userCount = Number(issue.userCount ?? issue.user_count ?? 0) || 0;
+  const shortId = String(issue.shortId || issue.short_id || '').trim();
   const permalink = issue.permalink || issue.web_url || '';
   return {
     source: 'sentry',
     sources: ['sentry'],
     keys: [sentryKey(issue.id)],
+    shortId,
+    userCount,
     title: redact(`[sentry] ${issue.title || issue.metadata?.title || issue.id}`),
     area,
     featureId: feature?.id || '',
@@ -770,6 +824,8 @@ function mergeCandidates(left, right, reason) {
     source: sources.length > 1 ? 'telemetry' : (left.source || right.source),
     sources,
     keys: uniqueKeys([left.keys || [], right.keys || []]),
+    shortId: left.shortId || right.shortId || '',
+    userCount: Math.max(left.userCount || 0, right.userCount || 0),
     title,
     area: left.area !== 'unknown' ? left.area : right.area,
     featureId,

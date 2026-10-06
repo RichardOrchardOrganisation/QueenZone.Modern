@@ -139,10 +139,10 @@ test('defaultSentrySearch refuses a Link next URL off sentry.io', async () => {
   assert.equal(urls.length, 1);
   assert.match(urls[0], /sentry\.io/);
   assert.match(urls[0], /query=is%3Aunresolved\+is%3Anew\+lastSeen%3A-2h/);
-  assert.match(urls[0], /statsPeriod=24h/);
+  assert.match(urls[0], /statsPeriod=28h/);
 });
 
-test('defaultSentrySearch runs new and regressed queries and merges by id', async () => {
+test('defaultSentrySearch runs new, regressed, and escalating queries and merges by id', async () => {
   const urls = [];
   const issues = await defaultSentrySearch({
     token: 't',
@@ -151,20 +151,25 @@ test('defaultSentrySearch runs new and regressed queries and merges by id', asyn
     fetchImpl: async (url) => {
       urls.push(String(url));
       const query = new URL(url).searchParams.get('query');
+      const payload = query.includes('is:new')
+        ? [{ id: '1', title: 'new' }, { id: '2', title: 'shared' }]
+        : query.includes('is:regressed')
+          ? [{ id: '2', title: 'regressed' }, { id: '3', title: 'only-regressed' }]
+          : [{ id: '2', title: 'escalating' }, { id: '4', title: 'only-escalating' }];
       return {
         ok: true,
-        json: async () => (query.includes('is:new')
-          ? [{ id: '1', title: 'new' }, { id: '2', title: 'shared' }]
-          : [{ id: '2', title: 'regressed' }, { id: '3', title: 'only-regressed' }]),
+        json: async () => payload,
         headers: { get: () => '' },
       };
     },
   });
-  assert.equal(urls.length, 2);
+  assert.equal(urls.length, 3);
   assert.ok(urls.some((url) => url.includes('is%3Anew')));
   assert.ok(urls.some((url) => url.includes('is%3Aregressed')));
+  assert.ok(urls.some((url) => url.includes('is%3Aescalating')));
   assert.ok(urls.every((url) => !url.includes('OR')));
-  assert.deepEqual(issues.map((issue) => issue.id), ['1', '2', '3']);
+  assert.ok(urls.every((url) => url.includes('statsPeriod=2h')));
+  assert.deepEqual(issues.map((issue) => issue.id), ['1', '2', '3', '4']);
   assert.equal(issues.find((issue) => issue.id === '2').title, 'shared');
 });
 

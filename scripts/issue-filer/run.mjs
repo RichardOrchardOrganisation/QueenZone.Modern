@@ -4,7 +4,7 @@
  *
  *   node scripts/issue-filer/run.mjs --validate
  *   node scripts/issue-filer/run.mjs --loop gardener --lookback-days 7 --max-issues 2 --dry-run
- *   node scripts/issue-filer/run.mjs --loop telemetry --lookback-hours 2 --max-issues 3 --dry-run
+ *   node scripts/issue-filer/run.mjs --loop telemetry --lookback-hours 28 --max-issues 3 --dry-run
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,7 @@ import { collect as collectReview, DEFAULT_INGEST_FINDINGS, ingestedCandidates }
 import { collect as collectSonar, defaultSonarSearch } from './sources/sonar.mjs';
 import { collect as collectSuppressions } from './sources/suppressions.mjs';
 import { collect as collectTelemetry } from './sources/telemetry.mjs';
-import { isTelemetryCollectFailure } from './telemetry.mjs';
+import { isTelemetryCollectFailure, parseLookbackHours } from './telemetry.mjs';
 import {
   buildComment,
   buildIssue,
@@ -69,7 +69,7 @@ export function parseArgs(argv) {
         args.lookbackDays = Number(list.shift());
         break;
       case '--lookback-hours':
-        args.lookbackHours = Number(list.shift());
+        args.lookbackHours = parseLookbackHours(list.shift());
         break;
       case '--max-issues':
         args.maxIssues = Number(list.shift());
@@ -89,8 +89,8 @@ export function parseArgs(argv) {
   if (!Number.isFinite(args.lookbackDays) || args.lookbackDays < 1) {
     throw new Error('--lookback-days must be a positive number');
   }
-  if (args.lookbackHours != null && (!Number.isFinite(args.lookbackHours) || args.lookbackHours <= 0)) {
-    throw new Error('--lookback-hours must be a positive number');
+  if (args.lookbackHours != null && (!Number.isInteger(args.lookbackHours) || args.lookbackHours < 1 || args.lookbackHours > 168)) {
+    throw new Error('--lookback-hours must be a whole number from 1 to 168');
   }
   if (!Number.isFinite(args.maxIssues) || args.maxIssues < 1) {
     throw new Error('--max-issues must be a positive number');
@@ -344,6 +344,7 @@ export async function runFiler(options = {}) {
     malformed,
     unregistered: unregisteredRules(candidates, findingRules),
     warnings,
+    dryRun: Boolean(options.dryRun),
   };
   const summary = formatPlanSummary(plan, extras);
   if (options.writeSummary) {

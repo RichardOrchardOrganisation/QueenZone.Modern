@@ -238,6 +238,136 @@ export function buildRankedReport(candidates) {
   return lines.join('\n');
 }
 
+function summarySource(candidate) {
+  if (candidate?.kind === 'correlated' || candidate?.source === 'telemetry') {
+    return 'correlated';
+  }
+  if (candidate?.source === 'sentry') {
+    return 'sentry';
+  }
+  if (candidate?.source === 'appinsights') {
+    return 'appinsights';
+  }
+  return candidate?.source || 'unknown';
+}
+
+function summaryId(candidate) {
+  return candidate?.shortId || candidate?.keys?.[0] || '';
+}
+
+function summaryPermalink(candidate) {
+  const evidence = candidate?.evidence || [];
+  for (const item of evidence) {
+    const url = safeUrl(item?.url);
+    if (url) {
+      return url;
+    }
+  }
+  return '';
+}
+
+function summaryLink(item) {
+  const issueNumber = item.issueNumber || item.issue || item.previousIssue;
+  const parts = [];
+  if (issueNumber) {
+    parts.push(`#${issueNumber}`);
+  }
+  const permalink = summaryPermalink(item.candidate);
+  if (permalink) {
+    parts.push(permalink);
+  }
+  return parts.join(' ');
+}
+
+function skipAction(item) {
+  const reason = item?.reason || 'unknown';
+  if (reason === 'ignored') {
+    return 'ignored';
+  }
+  if (reason === 'comment-cooldown' || reason === 'comment-cap') {
+    return 'deduped';
+  }
+  if (reason === 'cap' && item.issue) {
+    return 'deduped';
+  }
+  return `skipped:${reason}`;
+}
+
+function actionLabel(action, extras = {}) {
+  const dry = Boolean(extras.dryRun);
+  if (action.startsWith('skipped:')) {
+    return dry ? `would skip:${action.slice('skipped:'.length)}` : action;
+  }
+  const labels = {
+    filed: dry ? 'would file' : 'filed',
+    updated: dry ? 'would update' : 'updated',
+    reopened: dry ? 'would reopen' : 'reopened',
+    deduped: dry ? 'would dedupe' : 'deduped',
+    ignored: dry ? 'would ignore' : 'ignored',
+  };
+  return labels[action] || action;
+}
+
+function tableCell(value) {
+  return String(value ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+}
+
+export function planSummaryRows(plan, extras = {}) {
+  const rows = [];
+  const push = (item, action) => {
+    const candidate = item.candidate || {};
+    rows.push({
+      source: summarySource(candidate),
+      id: summaryId(candidate),
+      title: safeTitle(candidate.title),
+      count: candidate.count ?? '',
+      users: candidate.userCount ?? '',
+      lastSeen: candidate.lastSeen || '',
+      release: redact(candidate.release || '', { maxLength: 80 }),
+      action: actionLabel(action, extras),
+      link: summaryLink(item),
+    });
+  };
+  for (const item of plan.create || []) {
+    push(item, 'filed');
+  }
+  for (const item of plan.comment || []) {
+    push(item, 'updated');
+  }
+  for (const item of plan.reopen || []) {
+    push(item, 'reopened');
+  }
+  for (const item of plan.skipped || []) {
+    push(item, skipAction(item));
+  }
+  return rows;
+}
+
+function formatSummaryTable(rows) {
+  if (rows.length === 0) {
+    return [];
+  }
+  const lines = [
+    '',
+    '| source | id | title | count | users | last seen | release | action | link |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+  ];
+  for (const row of rows) {
+    lines.push(`| ${[
+      row.source,
+      row.id,
+      row.title,
+      row.count,
+      row.users,
+      row.lastSeen,
+      row.release,
+      row.action,
+      row.link,
+    ].map(tableCell).join(' | ')} |`);
+  }
+  return lines;
+}
+
 export function formatPlanSummary(plan, extras = {}) {
   const lines = [
     '## Issue filer plan',
@@ -264,6 +394,7 @@ export function formatPlanSummary(plan, extras = {}) {
       lines.push('', 'Silent run: nothing to file.');
     }
   }
+  lines.push(...formatSummaryTable(planSummaryRows(plan, extras)));
   for (const item of plan.create) {
     lines.push(`- will create: ${safeTitle(item.candidate.title)}`);
   }
