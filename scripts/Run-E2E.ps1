@@ -423,10 +423,17 @@ function Update-SqlExpressMirrorMigrations {
     # Tool restore does not write project.assets.json. Restore Data+Web via the
     # solution before ef update so a clean checkout cannot hit NETSDK1004 (#1630).
     Invoke-DotNet -Arguments @("restore", "QueenZone.sln")
+    # EF's implicit build can hide the compiler failure behind "Build failed".
+    # Build explicitly in the same configuration as the host, then reuse it.
+    Invoke-DotNet -Arguments @(
+        "build", "src/QueenZone.Web/QueenZone.Web.csproj",
+        "--configuration", $Configuration, "--no-restore"
+    )
     Invoke-DotNet -Arguments @(
         "ef", "database", "update",
         "--project", "src/QueenZone.Data/QueenZone.Data.csproj",
-        "--startup-project", "src/QueenZone.Web/QueenZone.Web.csproj"
+        "--startup-project", "src/QueenZone.Web/QueenZone.Web.csproj",
+        "--configuration", $Configuration, "--no-build"
     )
 }
 
