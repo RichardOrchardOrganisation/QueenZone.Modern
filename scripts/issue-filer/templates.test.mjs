@@ -275,6 +275,24 @@ test('plan summary writes one row per action with redacted titles', () => {
   assert.doesNotMatch(summary, /user@example\.com/);
 });
 
+test('summary table cells escape backslashes before pipes', () => {
+  const summary = formatPlanSummary({
+    create: [{
+      candidate: {
+        source: 'appinsights',
+        keys: ['ai:exc:a|b\\c'],
+        title: 'plain',
+        count: 1,
+      },
+    }],
+    comment: [],
+    reopen: [],
+    skipped: [],
+    expiredIgnores: [],
+  });
+  assert.match(summary, /ai:exc:a\\\|b\\\\c/);
+});
+
 test('Sentry query 4xx is a dedicated step-summary error line', () => {
   const summary = formatPlanSummary(
     { create: [], comment: [], reopen: [], skipped: [], expiredIgnores: [] },

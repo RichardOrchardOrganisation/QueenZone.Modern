@@ -309,7 +309,10 @@ function actionLabel(action, extras = {}) {
 }
 
 function tableCell(value) {
-  return String(value ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, ' ');
 }
 
 export function planSummaryRows(plan, extras = {}) {
