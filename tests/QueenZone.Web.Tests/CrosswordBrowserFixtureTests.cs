@@ -63,16 +63,8 @@ public sealed class CrosswordBrowserFixtureTests
     }
 }
 
-[Collection(ProductionHostCollection.Name)]
 public sealed class CrosswordBrowserFixtureProductionConfigTests
 {
-    private readonly ProductionHostFixture production;
-
-    public CrosswordBrowserFixtureProductionConfigTests(ProductionHostFixture production)
-    {
-        this.production = production;
-    }
-
     [Fact]
     public void Production_host_config_does_not_enable_crossword_browser_fixture()
     {
@@ -84,7 +76,10 @@ public sealed class CrosswordBrowserFixtureProductionConfigTests
             ProductionHostSettings.Values.TryGetValue("CrosswordBrowserFixture:Enabled", out var stub)
             && bool.TryParse(stub, out var enabled)
             && enabled);
-        Assert.False(production.Factory.Services.GetRequiredService<IConfiguration>()
-            .GetValue<bool>("CrosswordBrowserFixture:Enabled"));
+        var production = new ConfigurationBuilder()
+            .AddJsonFile(RepoPaths.Combine("src", "QueenZone.Web", "appsettings.json"))
+            .AddInMemoryCollection(ProductionHostSettings.Values)
+            .Build();
+        Assert.False(production.GetValue<bool>("CrosswordBrowserFixture:Enabled"));
     }
 }
