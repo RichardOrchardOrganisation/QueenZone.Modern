@@ -1,0 +1,11 @@
+10-05 23:10:02.407  2201  2201 F libc    : Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0 in tid 2201 (ndroid.systemui), pid 2201 (ndroid.systemui)
+10-05 23:10:02.418  2210  2210 I crash_dump64: obtaining output fd from tombstoned, type: kDebuggerdTombstoneProto
+10-05 23:10:02.471  2210  2210 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+10-05 23:10:02.471  2210  2210 F DEBUG   : Cmdline: com.android.systemui
+10-05 23:10:02.471  2210  2210 F DEBUG   : pid: 2201, tid: 2201, name: ndroid.systemui  >>> com.android.systemui <<<
+10-05 23:10:02.471  2210  2210 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000000000000000
+10-05 23:10:02.471  2210  2210 F DEBUG   : backtrace:
+10-05 23:10:02.471  2210  2210 F DEBUG   :       #00 pc 0000000000012345  /system/lib64/libfoo.so (foo+16)
+10-05 23:10:02.480  2210  2210 F DEBUG   : Tombstone written to: /data/tombstones/tombstone_03
+10-05 23:10:03.100   498   512 I ActivityManager: Start proc 5154:org.queenzone.mobile/u0a192 for next-top-activity {org.queenzone.mobile/org.queenzone.mobile.MainActivity}
+10-05 23:10:04.200   498   512 I ActivityManager: Process org.queenzone.mobile has died

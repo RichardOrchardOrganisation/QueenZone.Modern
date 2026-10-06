@@ -1,0 +1,22 @@
+10-05 23:10:01.512  5154  5154 I ReactNativeJS: Running "main"
+10-05 23:10:02.407  5154  5154 F libc    : Fatal signal 11 (SIGSEGV), code 2 (SEGV_ACCERR), fault addr 0x7e0c76b0e000 in tid 5154 (ueenzone.mobile), pid 5154 (ueenzone.mobile)
+10-05 23:10:02.418  5160  5160 I crash_dump64: obtaining output fd from tombstoned, type: kDebuggerdTombstoneProto
+10-05 23:10:02.471  5160  5160 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+10-05 23:10:02.471  5160  5160 F DEBUG   : Build fingerprint: 'google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.050/12077443:userdebug/dev-keys'
+10-05 23:10:02.471  5160  5160 F DEBUG   : Revision: '0'
+10-05 23:10:02.471  5160  5160 F DEBUG   : ABI: 'x86_64'
+10-05 23:10:02.471  5160  5160 F DEBUG   : Timestamp: 2026-10-05 23:10:02.471524143+0000
+10-05 23:10:02.471  5160  5160 F DEBUG   : Process uptime: 2s
+10-05 23:10:02.471  5160  5160 F DEBUG   : Cmdline: org.queenzone.mobile
+10-05 23:10:02.471  5160  5160 F DEBUG   : pid: 5154, tid: 5154, name: ueenzone.mobile  >>> org.queenzone.mobile <<<
+10-05 23:10:02.471  5160  5160 F DEBUG   : uid: 10192
+10-05 23:10:02.471  5160  5160 F DEBUG   : signal 11 (SIGSEGV), code 2 (SEGV_ACCERR), fault addr 0x00007e0c76b0e000
+10-05 23:10:02.471  5160  5160 F DEBUG   : 16 total frames
+10-05 23:10:02.471  5160  5160 F DEBUG   : backtrace:
+10-05 23:10:02.471  5160  5160 F DEBUG   :       #00 pc 00000000000cfd45  /apex/com.android.runtime/lib64/bionic/libc.so (android_unsafe_frame_pointer_chase+117) (BuildId: fa337969c798946280caa45e2d71a2e7)
+10-05 23:10:02.471  5160  5160 F DEBUG   :       #01 pc 0000000000051a77  /apex/com.android.runtime/lib64/bionic/libc.so (gwp_asan::AllocationMetadata::CallSiteInfo::RecordBacktrace(unsigned long (*)(unsigned long*, unsigned long))+87) (BuildId: fa337969c798946280caa45e2d71a2e7)
+10-05 23:10:02.471  5160  5160 F DEBUG   :       #02 pc 000000000005230c  /apex/com.android.runtime/lib64/bionic/libc.so (gwp_asan::GuardedPoolAllocator::deallocate(void*)+380) (BuildId: fa337969c798946280caa45e2d71a2e7)
+10-05 23:10:02.471  5160  5160 F DEBUG   :       #03 pc 0000000000045384  /apex/com.android.runtime/lib64/bionic/libc.so ((anonymous namespace)::gwp_asan_realloc(void*, unsigned long)+132) (BuildId: fa337969c798946280caa45e2d71a2e7)
+10-05 23:10:02.471  5160  5160 F DEBUG   :       #04 pc 00000000000b8ced  base.apk!libhermesvm.so (offset 0x4c10000) (BuildId: 8d927b4d4757e3548fed384ed5666d66ee44c365)
+10-05 23:10:02.471  5160  5160 F DEBUG   :       #05 pc 00000000000b2132  base.apk!libhermesvm.so (offset 0x4c10000) (BuildId: 8d927b4d4757e3548fed384ed5666d66ee44c365)
+10-05 23:10:02.471  5160  5160 F DEBUG   : Tombstone written to: /data/tombstones/tombstone_06

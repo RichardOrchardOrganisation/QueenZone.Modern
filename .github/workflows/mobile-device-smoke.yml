@@ -203,8 +203,21 @@ jobs:
         if: steps.android-smoke.outcome == 'failure'
         working-directory: .
         run: |
+          CRASH=src/QueenZone.Mobile/maestro-results/android-app-crash
           MARKER=src/QueenZone.Mobile/maestro-results/android-transport-death
-          if [ -f "$MARKER" ]; then
+          if [ -f "$CRASH" ]; then
+            echo "retry=false" >> "$GITHUB_OUTPUT"
+            echo "First Android smoke attempt was APP_CRASH. Not retrying."
+            echo "--- android-app-crash ---"
+            cat "$CRASH" || true
+            if [ -f src/QueenZone.Mobile/maestro-results/android-app-crash-frames.txt ]; then
+              echo "--- APP_CRASH frames ---"
+              cat src/QueenZone.Mobile/maestro-results/android-app-crash-frames.txt
+            fi
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f src/QueenZone.Mobile/maestro-results/android-app-crash-summary.md ]; then
+              cat src/QueenZone.Mobile/maestro-results/android-app-crash-summary.md >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ -f "$MARKER" ]; then
             echo "retry=true" >> "$GITHUB_OUTPUT"
             echo "First Android smoke attempt died on device transport. Retrying once with a fresh emulator."
             rm -rf src/QueenZone.Mobile/maestro-results-transport-first
@@ -253,6 +266,9 @@ jobs:
           if [ ! -s src/QueenZone.Mobile/maestro-results/logcat.txt ]; then
             timeout 30 adb logcat -d > src/QueenZone.Mobile/maestro-results/logcat.txt 2>/dev/null || true
           fi
+          if [ ! -s src/QueenZone.Mobile/maestro-results/logcat-crash.txt ]; then
+            timeout 30 adb logcat -b crash -d > src/QueenZone.Mobile/maestro-results/logcat-crash.txt 2>/dev/null || true
+          fi
           for f in "$HOME"/.android/*.log "$HOME"/.android/avd/*/*.log; do
             [ -f "$f" ] || continue
             cp "$f" "src/QueenZone.Mobile/maestro-results/$(basename "$f")" || true
@@ -290,7 +306,22 @@ jobs:
           && steps.android-smoke-retry.outcome != 'success'
         working-directory: .
         run: |
-          if [ -f src/QueenZone.Mobile/maestro-results/android-transport-death ] \
+          CRASH_DIR=src/QueenZone.Mobile/maestro-results
+          if [ ! -f "$CRASH_DIR/android-app-crash" ] \
+            && [ -f src/QueenZone.Mobile/maestro-results-transport-first/android-app-crash ]; then
+            CRASH_DIR=src/QueenZone.Mobile/maestro-results-transport-first
+          fi
+          if [ -f "$CRASH_DIR/android-app-crash" ]; then
+            echo "::error::Android smoke failed because the app process crashed (APP_CRASH). Not a selector miss."
+            cat "$CRASH_DIR/android-app-crash" || true
+            if [ -f "$CRASH_DIR/android-app-crash-frames.txt" ]; then
+              echo "--- APP_CRASH frames ---"
+              cat "$CRASH_DIR/android-app-crash-frames.txt"
+            fi
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$CRASH_DIR/android-app-crash-summary.md" ]; then
+              cat "$CRASH_DIR/android-app-crash-summary.md" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ -f src/QueenZone.Mobile/maestro-results/android-transport-death ] \
             || [ -f src/QueenZone.Mobile/maestro-results-transport-first/android-transport-death ]; then
             echo "::error::Android smoke failed after device transport death (emulator/Maestro device server). Not a selector miss."
           else
@@ -597,8 +628,21 @@ jobs:
         if: steps.android-journeys.outcome == 'failure'
         working-directory: .
         run: |
+          CRASH=src/QueenZone.Mobile/maestro-results/android-app-crash
           MARKER=src/QueenZone.Mobile/maestro-results/android-transport-death
-          if [ -f "$MARKER" ]; then
+          if [ -f "$CRASH" ]; then
+            echo "retry=false" >> "$GITHUB_OUTPUT"
+            echo "First Android journeys attempt was APP_CRASH. Not retrying."
+            echo "--- android-app-crash ---"
+            cat "$CRASH" || true
+            if [ -f src/QueenZone.Mobile/maestro-results/android-app-crash-frames.txt ]; then
+              echo "--- APP_CRASH frames ---"
+              cat src/QueenZone.Mobile/maestro-results/android-app-crash-frames.txt
+            fi
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f src/QueenZone.Mobile/maestro-results/android-app-crash-summary.md ]; then
+              cat src/QueenZone.Mobile/maestro-results/android-app-crash-summary.md >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ -f "$MARKER" ]; then
             echo "retry=true" >> "$GITHUB_OUTPUT"
             echo "First Android journeys attempt died on device transport. Retrying once with a fresh emulator."
             rm -rf src/QueenZone.Mobile/maestro-results-transport-first
@@ -645,6 +689,9 @@ jobs:
           if [ ! -s src/QueenZone.Mobile/maestro-results/logcat.txt ]; then
             timeout 30 adb logcat -d > src/QueenZone.Mobile/maestro-results/logcat.txt 2>/dev/null || true
           fi
+          if [ ! -s src/QueenZone.Mobile/maestro-results/logcat-crash.txt ]; then
+            timeout 30 adb logcat -b crash -d > src/QueenZone.Mobile/maestro-results/logcat-crash.txt 2>/dev/null || true
+          fi
           for f in "$HOME"/.android/*.log "$HOME"/.android/avd/*/*.log; do
             [ -f "$f" ] || continue
             cp "$f" "src/QueenZone.Mobile/maestro-results/$(basename "$f")" || true
@@ -682,7 +729,22 @@ jobs:
           && steps.android-journeys-retry.outcome != 'success'
         working-directory: .
         run: |
-          if [ -f src/QueenZone.Mobile/maestro-results/android-transport-death ] \
+          CRASH_DIR=src/QueenZone.Mobile/maestro-results
+          if [ ! -f "$CRASH_DIR/android-app-crash" ] \
+            && [ -f src/QueenZone.Mobile/maestro-results-transport-first/android-app-crash ]; then
+            CRASH_DIR=src/QueenZone.Mobile/maestro-results-transport-first
+          fi
+          if [ -f "$CRASH_DIR/android-app-crash" ]; then
+            echo "::error::Android journeys failed because the app process crashed (APP_CRASH). Not a selector miss."
+            cat "$CRASH_DIR/android-app-crash" || true
+            if [ -f "$CRASH_DIR/android-app-crash-frames.txt" ]; then
+              echo "--- APP_CRASH frames ---"
+              cat "$CRASH_DIR/android-app-crash-frames.txt"
+            fi
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$CRASH_DIR/android-app-crash-summary.md" ]; then
+              cat "$CRASH_DIR/android-app-crash-summary.md" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ -f src/QueenZone.Mobile/maestro-results/android-transport-death ] \
             || [ -f src/QueenZone.Mobile/maestro-results-transport-first/android-transport-death ]; then
             echo "::error::Android journeys failed after device transport death (emulator/Maestro device server). Not a selector miss."
           else

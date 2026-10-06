@@ -15,13 +15,18 @@
 #   ./scripts/run-mobile-device-smoke.sh --platform android --suite proof --feature mobile.photos.viewer
 #   ./scripts/run-mobile-device-smoke.sh --dump-android-host
 #   ./scripts/run-mobile-device-smoke.sh --self-test-adb-timeout
+#   ./scripts/run-mobile-device-smoke.sh --self-test-app-crash
 #
-# Maestro selector and assertion failures are not retried. One Android device
-# transport failure (DeviceServerDied / emulator gone) or pre-flow iOS
-# driver-startup failure may retry after device recovery. android-transport-death
-# is written only when the emulator is gone, ADB recover times out, or the
-# in-process retry itself dies as transport, so CI can boot a fresh emulator.
-# A selector miss on a live emulator must not retrigger that outer restart.
+# Maestro selector and assertion failures are not retried. An APP_CRASH
+# (logcat/tombstone Fatal signal / crash_dump for org.queenzone.mobile) is
+# reported separately from a selector miss and is also not retried. A
+# failed or empty pidof probe is not a crash and must not drop transport
+# retry. One Android device transport failure
+# (DeviceServerDied / emulator gone) or pre-flow iOS driver-startup failure
+# may retry after device recovery. android-transport-death is written only
+# when the emulator is gone, ADB recover times out, or the in-process retry
+# itself dies as transport, so CI can boot a fresh emulator. A selector miss
+# or APP_CRASH on a live emulator must not retrigger that outer restart.
 # Android smoke CI recreates an isolated AVD on that one outer retry (#1454);
 # this script does not add a third attempt. A wedged `adb start-server` is
 # hard-capped (~45s) so the step fails instead of hanging until the 90m job
@@ -38,6 +43,7 @@ no_build_host=false
 prove_failure=false
 dump_android_host=false
 self_test_adb_timeout=false
+self_test_app_crash=false
 suite="smoke"
 feature=""
 apk=""
@@ -50,7 +56,7 @@ android_logcat_pid=""
 android_watchdog_pid=""
 
 usage() {
-  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -107,6 +113,10 @@ while [[ "$#" -gt 0 ]]; do
       self_test_adb_timeout=true
       shift
       ;;
+    --self-test-app-crash)
+      self_test_app_crash=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -119,7 +129,7 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-if [[ "$dump_android_host" != true ]] && [[ "$self_test_adb_timeout" != true ]] && [[ "$platform" != "android" ]] && [[ "$platform" != "ios" ]]; then
+if [[ "$dump_android_host" != true ]] && [[ "$self_test_adb_timeout" != true ]] && [[ "$self_test_app_crash" != true ]] && [[ "$platform" != "android" ]] && [[ "$platform" != "ios" ]]; then
   echo "--platform android|ios is required." >&2
   exit 2
 fi
@@ -297,6 +307,144 @@ copy_android_disk_logs() {
   done
 }
 
+# Only "true"/"false" when the remote pidof ran. Timeout, adb errors, and
+# missing markers stay "unknown" so they cannot look like process death.
+interpret_android_pidof_probe() {
+  local status="$1"
+  local output="$2"
+  local remote="" pids=""
+  output="$(printf '%s' "$output" | tr -d '\r')"
+  if [[ "$status" -eq 124 ]]; then
+    printf '%s\n' unknown
+    return 0
+  fi
+  if [[ "$output" != *__QZ_PIDOF_STATUS:* ]]; then
+    printf '%s\n' unknown
+    return 0
+  fi
+  remote="${output##*__QZ_PIDOF_STATUS:}"
+  remote="${remote%%$'\n'*}"
+  pids="${output%__QZ_PIDOF_STATUS:*}"
+  pids="$(printf '%s' "$pids" | tr -d '\n')"
+  pids="${pids#"${pids%%[![:space:]]*}"}"
+  pids="${pids%"${pids##*[![:space:]]}"}"
+  if [[ "$remote" = "0" && "$pids" =~ ^[0-9]+([ \t]+[0-9]+)*$ ]]; then
+    printf '%s\n' true
+    return 0
+  fi
+  if [[ "$remote" = "1" && -z "$pids" ]]; then
+    printf '%s\n' false
+    return 0
+  fi
+  printf '%s\n' unknown
+}
+
+android_app_process_state() {
+  local output="" status=0
+  if ! command -v adb >/dev/null; then
+    printf '%s\n' unknown
+    return 0
+  fi
+  if [[ "$(android_adb_state)" != "device" ]]; then
+    printf '%s\n' unknown
+    return 0
+  fi
+  set +e
+  output="$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb shell 'pidof org.queenzone.mobile; echo __QZ_PIDOF_STATUS:$?' 2>/dev/null)"
+  status=$?
+  set -e
+  interpret_android_pidof_probe "$status" "$output"
+}
+
+collect_android_tombstone() {
+  local listing="" entry remote content
+  listing="$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb shell ls -t /data/tombstones 2>/dev/null || true)"
+  listing="$(printf '%s\n' "$listing" | tr -d '\r')"
+  [[ -n "$listing" ]] || return 0
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    case "$entry" in
+      *.pb) continue ;;
+      tombstone_[0-9]*|tombstone[0-9]*) ;;
+      *) continue ;;
+    esac
+    remote="/data/tombstones/${entry}"
+    content="$(run_with_timeout "$ANDROID_ADB_PROBE_TIMEOUT_SECONDS" adb exec-out cat "$remote" 2>/dev/null || true)"
+    if printf '%s' "$content" | grep -Eq 'org\.queenzone\.mobile|ueenzone\.mobile'; then
+      printf '%s\n' "$content" > "$results_dir/tombstone"
+      echo "android_tombstone=$remote" >> "$results_dir/harness.log"
+      return 0
+    fi
+  done <<< "$listing"
+}
+
+collect_android_crash_artifacts() {
+  mkdir -p "$results_dir"
+  if ! command -v adb >/dev/null; then
+    return 0
+  fi
+  if [[ "$(android_adb_state)" != "device" ]]; then
+    return 0
+  fi
+  if [[ ! -s "$results_dir/logcat-crash.txt" ]]; then
+    run_with_timeout 30 adb logcat -b crash -d > "$results_dir/logcat-crash.txt" 2>/dev/null || true
+  fi
+  if [[ ! -s "$results_dir/tombstone" ]]; then
+    collect_android_tombstone
+  fi
+}
+
+append_app_crash_step_summary() {
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] && [[ -f "$results_dir/android-app-crash-summary.md" ]]; then
+    cat "$results_dir/android-app-crash-summary.md" >> "$GITHUB_STEP_SUMMARY" || true
+  fi
+}
+
+detect_android_app_crash() {
+  local process_alive="unknown"
+  local classifier_status=0
+  local classifier="${QZ_ANDROID_CRASH_CLASSIFIER:-$root/scripts/classify-android-app-crash.mjs}"
+  if [[ -f "$results_dir/android-app-crash" ]]; then
+    return 0
+  fi
+  if command -v adb >/dev/null && [[ "$(android_adb_state)" = "device" ]]; then
+    process_alive="$(android_app_process_state)"
+  fi
+  collect_android_crash_artifacts
+  set +e
+  node "$classifier" \
+    --logcat "$results_dir/logcat.txt" \
+    --crash-buffer "$results_dir/logcat-crash.txt" \
+    --tombstone "$results_dir/tombstone" \
+    --process-alive "$process_alive" \
+    --write-dir "$results_dir" \
+    --print-report
+  classifier_status=$?
+  set -e
+  if [[ "$classifier_status" -ne 0 ]]; then
+    echo "Android app-crash classifier failed (status ${classifier_status}); falling back to miss or transport classification." >&2
+    rm -f "$results_dir/android-app-crash" \
+      "$results_dir/android-app-crash-frames.txt" \
+      "$results_dir/android-app-crash-summary.md"
+    return 0
+  fi
+  if [[ -f "$results_dir/android-app-crash" ]]; then
+    if grep -qE '^source=(logcat|crash-buffer|tombstone)$' "$results_dir/android-app-crash"; then
+      rm -f "$results_dir/android-transport-death"
+      echo "android_failure_class=APP_CRASH" >> "$results_dir/harness.log"
+      append_app_crash_step_summary
+    else
+      rm -f "$results_dir/android-app-crash" \
+        "$results_dir/android-app-crash-frames.txt" \
+        "$results_dir/android-app-crash-summary.md"
+    fi
+  fi
+}
+
+android_app_crashed() {
+  [[ -f "$results_dir/android-app-crash" ]]
+}
+
 write_android_transport_marker() {
   local reason="${1:-device-server-or-emulator-transport-loss}"
   local qemu_state="missing"
@@ -418,8 +566,70 @@ EOF
   echo "ADB timeout self-test passed."
 }
 
+run_app_crash_self_test() {
+  local got tmp boom
+  got="$(interpret_android_pidof_probe 124 '')"
+  if [[ "$got" != "unknown" ]]; then
+    echo "self-test: timed-out pidof should be unknown, got $got" >&2
+    exit 1
+  fi
+  got="$(interpret_android_pidof_probe 1 '')"
+  if [[ "$got" != "unknown" ]]; then
+    echo "self-test: pidof without a remote status marker should be unknown, got $got" >&2
+    exit 1
+  fi
+  got="$(interpret_android_pidof_probe 0 $'5154\n__QZ_PIDOF_STATUS:0')"
+  if [[ "$got" != "true" ]]; then
+    echo "self-test: successful pidof should be true, got $got" >&2
+    exit 1
+  fi
+  got="$(interpret_android_pidof_probe 0 $'\n__QZ_PIDOF_STATUS:1')"
+  if [[ "$got" != "false" ]]; then
+    echo "self-test: successful empty pidof should be false, got $got" >&2
+    exit 1
+  fi
+
+  tmp="$(mktemp -d)"
+  results_dir="$tmp"
+  mkdir -p "$tmp"
+  echo "class=transport_death" > "$tmp/android-transport-death"
+  cp "$root/scripts/fixtures/android-app-crash/other-process-then-our-app.logcat" "$tmp/logcat.txt"
+  detect_android_app_crash
+  if [[ -f "$tmp/android-app-crash" ]]; then
+    echo "self-test: mixed logcat must not write android-app-crash" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  if [[ ! -f "$tmp/android-transport-death" ]]; then
+    echo "self-test: mixed logcat / pidof-alone must not delete android-transport-death" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+
+  boom="$tmp/boom.mjs"
+  printf '%s\n' 'throw new Error("ENOENT reproduced");' > "$boom"
+  QZ_ANDROID_CRASH_CLASSIFIER="$boom" detect_android_app_crash
+  if [[ -f "$tmp/android-app-crash" ]]; then
+    echo "self-test: classifier throw must not leave android-app-crash" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  if [[ ! -f "$tmp/android-transport-death" ]]; then
+    echo "self-test: classifier throw must not delete android-transport-death" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  rm -rf "$tmp"
+  echo "Android app-crash self-test passed."
+}
+
 if [[ "$self_test_adb_timeout" = true ]]; then
   run_adb_timeout_self_test
+  exit 0
+fi
+
+if [[ "$self_test_app_crash" = true ]]; then
+  run_app_crash_self_test
   exit 0
 fi
 
@@ -428,7 +638,12 @@ if [[ "$dump_android_host" = true ]]; then
   exit 0
 fi
 
-rm -f "$results_dir/android-transport-death"
+rm -f "$results_dir/android-transport-death" \
+  "$results_dir/android-app-crash" \
+  "$results_dir/android-app-crash-frames.txt" \
+  "$results_dir/android-app-crash-summary.md" \
+  "$results_dir/logcat-crash.txt" \
+  "$results_dir/tombstone"
 {
   echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "platform=$platform"
@@ -503,6 +718,7 @@ collect_diagnostics() {
     if [[ ! -s "$results_dir/logcat.txt" ]] && command -v adb >/dev/null; then
       run_with_timeout 30 adb logcat -d > "$results_dir/logcat.txt" 2>/dev/null || true
     fi
+    collect_android_crash_artifacts
   fi
   if [[ "$platform" = "ios" ]]; then
     xcrun simctl spawn "${IOS_SIM_UDID:-booted}" log show --last 5m --style compact \
@@ -942,10 +1158,16 @@ set -e
 # still alive. A hierarchy timeout is not a product assert failure. If the
 # emulator process is gone or ADB recover times out, write
 # android-transport-death so CI can boot a fresh emulator and rerun the same
-# flows. A selector miss after a live in-process retry must not write that
-# marker. Selector and assertion failures stay single-attempt.
+# flows. A selector miss or APP_CRASH after a live in-process retry must not
+# write that marker. Selector, assertion, and app-crash failures stay
+# single-attempt.
+if [[ "$platform" = "android" ]] \
+  && [[ "$maestro_status" -ne 0 ]]; then
+  detect_android_app_crash
+fi
 if [[ "$platform" = "android" ]] \
   && [[ "$maestro_status" -ne 0 ]] \
+  && ! android_app_crashed \
   && android_transport_died; then
   echo "Maestro lost the Android device transport; recovering ADB and retrying once."
   if [[ -d "$results_dir/debug" ]]; then
@@ -987,8 +1209,13 @@ if [[ "$platform" = "android" ]] \
       elif android_latest_attempt_transport_died; then
         write_android_transport_marker "retry-still-transport-death"
       else
-        echo "In-process Android retry failed on a selector or assertion miss. Not requesting a fresh emulator." >&2
-        echo "android_failure_class=selector_miss" >> "$results_dir/harness.log"
+        detect_android_app_crash
+        if android_app_crashed; then
+          echo "In-process Android retry failed because the app process crashed. Not requesting a fresh emulator." >&2
+        else
+          echo "In-process Android retry failed on a selector or assertion miss. Not requesting a fresh emulator." >&2
+          echo "android_failure_class=selector_miss" >> "$results_dir/harness.log"
+        fi
       fi
     else
       write_android_transport_marker "emulator-gone"
@@ -1071,7 +1298,14 @@ fi
 if [[ "$maestro_status" -ne 0 ]]; then
   echo "Maestro failed with status $maestro_status" >&2
   android_failure_class="selector_miss"
-  if [[ "$platform" = "android" ]] \
+  if [[ "$platform" = "android" ]]; then
+    detect_android_app_crash
+  fi
+  if android_app_crashed; then
+    android_failure_class="APP_CRASH"
+    echo "Maestro failing cause: APP_CRASH" >&2
+    echo "The app process died; this is not a selector or assertion miss." >&2
+  elif [[ "$platform" = "android" ]] \
     && { [[ -f "$results_dir/android-transport-death" ]] || android_latest_attempt_transport_died; }; then
     android_failure_class="transport_death"
     echo "Maestro failing cause: Android device transport death" >&2
@@ -1088,7 +1322,7 @@ if [[ "$maestro_status" -ne 0 ]]; then
     node -e '
       const fs = require("fs");
       const xml = fs.readFileSync(process.argv[1], "utf8");
-      const printSelector = process.argv[2] !== "transport_death";
+      const printSelector = process.argv[2] === "selector_miss";
       const cases = [...xml.matchAll(/<testcase\b([^>]*)>([\s\S]*?)<\/testcase>/g)];
       for (const c of cases) {
         const name = /name="([^"]*)"/.exec(c[1])?.[1] ?? "?";
