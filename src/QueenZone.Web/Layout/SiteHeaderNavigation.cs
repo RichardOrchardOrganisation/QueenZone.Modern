@@ -10,7 +10,6 @@ public static class SiteHeaderNavigation
     [
         new("Biography", "/biography", "The story of the band, member by member", ""),
         new("Discography", "/discography", "The core albums", ""),
-        new("Songs", "/songs", "Every Queen song, one page each", ""),
         new("Rare Discography", "/discography/rare-discography", "John S Stuart's rare recordings and analysis posts", ""),
         new("Timeline", "/timeline", "Five decades, year by year", ""),
         new("Trivia", "/trivia", "Random Queen facts from the archive", ""),
