@@ -1,0 +1,19 @@
+name: Validate complete Bitwarden exports
+description: Validate mapping and publish complete outputs without global environment exports.
+inputs:
+  phase:
+    description: preflight, check or publish
+    required: true
+  mapping:
+    description: Existing mapping to validate
+    required: true
+  attempt:
+    description: Successful attempt number for nonsecret recovery reporting
+    required: false
+    default: '1'
+outputs:
+  complete:
+    description: All requested secret outputs are present and validated
+runs:
+  using: node24
+  main: index.cjs
