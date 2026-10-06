@@ -1,7 +1,8 @@
 namespace QueenZone.Data;
 
 /// <summary>
-/// One active-album appearance of a canonical song. Notes and the single flag stay per row.
+/// One active-album appearance of a canonical song. Notes, the single flag, and any
+/// single cover stay per row.
 /// </summary>
 public sealed record SongAppearance(
     int AlbumId,
@@ -9,4 +10,5 @@ public sealed record SongAppearance(
     string AlbumSlug,
     int? ReleaseYear,
     bool IsSingle,
-    string? Notes);
+    string? Notes,
+    string? CoverUrl = null);

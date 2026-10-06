@@ -47,6 +47,7 @@
     var minCropWidth = Number(root.dataset.minCropWidth) || 400;
     var minCropHeight = Number(root.dataset.minCropHeight) || 267;
     var maxBytes = Number(root.dataset.maxBytes) || 10 * 1024 * 1024;
+    var imageLabel = root.dataset.imageLabel || "Article image";
     var objectUrl = "";
     var cropper = null;
     var cropApplied = false;
@@ -67,7 +68,7 @@
         return;
       }
 
-      var rejection = validateFile(file, maxBytes);
+      var rejection = validateFile(file, maxBytes, imageLabel);
       if (rejection) {
         showError(rejection);
         input.value = "";
@@ -134,7 +135,7 @@
       }
       if (preview) {
         assignBlobImageSrc(preview, objectUrl);
-        preview.alt = "Article image";
+        preview.alt = imageLabel;
         preview.style.objectPosition =
           ((crop.x + crop.width / 2) / Math.max(stageImg.naturalWidth, 1)) * 100 + "% " +
           ((crop.y + crop.height / 2) / Math.max(stageImg.naturalHeight, 1)) * 100 + "%";
@@ -442,7 +443,7 @@
     return true;
   }
 
-  function validateFile(file, maxBytes) {
+  function validateFile(file, maxBytes, imageLabel) {
     var name = (file.name || "").toLowerCase();
     var dot = name.lastIndexOf(".");
     var ext = dot >= 0 ? name.slice(dot) : "";
@@ -450,11 +451,11 @@
     var typeOk = type === "image/jpeg" || type === "image/png" || type === "image/webp"
       || type === "image/jpg";
     if (!typeOk && !allowedExtensions[ext]) {
-      return "Article image must be a JPEG, PNG, or WebP file.";
+      return imageLabel + " must be a JPEG, PNG, or WebP file.";
     }
 
     if (file.size > maxBytes) {
-      return "Article image must be " + maxBytes + " bytes or smaller.";
+      return imageLabel + " must be " + maxBytes + " bytes or smaller.";
     }
 
     return "";

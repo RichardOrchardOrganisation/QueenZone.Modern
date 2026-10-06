@@ -1,0 +1,21 @@
+@page "/admin/discography/new"
+@model NewModel
+@{
+  ViewData["Artists"] = Model.Artists;
+}
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <div class="admin-form-panel">
+    <h1>Add album</h1>
+    <partial name="_Status" model="Model" />
+    <p>Save the album first, then add its songs and cover on the next page.</p>
+    <form method="post" class="admin-form">
+      <partial name="_AlbumFields" for="AlbumForm" />
+      <div class="admin-form-actions">
+        <button type="submit">Create album</button>
+        <a href="@AdminDiscographyPageModel.SectionPath">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>

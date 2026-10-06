@@ -1,0 +1,29 @@
+@model AlbumFormInput
+@{
+  var artists = ViewData["Artists"] as IReadOnlyList<AdminArtist> ?? [];
+}
+<label>
+  Album name
+  <input type="text" asp-for="Name" required maxlength="@AdminDiscographyValidation.AlbumNameMaxLength">
+</label>
+<label>
+  Artist
+  <select asp-for="ArtistId">
+    @foreach (var artist in artists)
+    {
+      <option value="@artist.ArtistId" selected="@(artist.ArtistId == Model.ArtistId)">@artist.Name</option>
+    }
+  </select>
+</label>
+<label>
+  Release date <span class="admin-form-hint">(the public discography is ordered by this)</span>
+  <input type="date" asp-for="ReleaseDate" value="@Model.ReleaseDate?.ToString("yyyy-MM-dd")">
+</label>
+<label>
+  Album notes <span class="admin-form-hint">(optional; basic HTML such as &lt;p&gt; and &lt;strong&gt; is allowed)</span>
+  <textarea asp-for="GeneralNotes" rows="6" maxlength="@AdminDiscographyValidation.GeneralNotesMaxLength"></textarea>
+</label>
+<label>
+  <input type="checkbox" asp-for="IsActive">
+  Visible on the public discography
+</label>

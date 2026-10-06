@@ -65,13 +65,15 @@ public static class PublicQueryCacheKeys
 
     public const string BiographyChapters = Prefix + ":biography:chapters";
 
-    public const string DiscographyAlbums = Prefix + ":discography:albums";
+    public const string DiscographyVersion = Prefix + ":discography:version";
 
-    public const string Songs = Prefix + ":songs";
+    public static string DiscographyAlbums(string version) => $"{Prefix}:discography:albums:v{version}";
 
-    public static string DiscographyAlbum(int id) => $"{Prefix}:discography:album:{id}";
+    public static string Songs(string version) => $"{Prefix}:songs:v{version}";
 
-    public static string Song(string slug) => $"{Prefix}:song:{slug}";
+    public static string DiscographyAlbum(string version, int id) => $"{Prefix}:discography:album:v{version}:{id}";
+
+    public static string Song(string version, string slug) => $"{Prefix}:song:v{version}:{slug}";
 
     public static string LatestNews(string version, int count) =>
         $"{LatestNewsSegment}:v{version}:{count}";

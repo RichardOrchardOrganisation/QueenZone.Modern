@@ -1,0 +1,60 @@
+@model CoverUploadViewModel
+@{
+  var label = Model.Label.ToLowerInvariant();
+  var cropViewData = new ViewDataDictionary(ViewData)
+  {
+    ["CropDialogTitle"] = "Crop " + label,
+    ["CropDialogSquare"] = true,
+  };
+}
+<form method="post" action="@Model.Action" enctype="multipart/form-data" asp-antiforgery="true" class="admin-form">
+  <div class="qz-field"
+       data-article-image-crop
+       data-aspect-width="@DiscographyCoverImageProcessor.AspectWidth"
+       data-aspect-height="@DiscographyCoverImageProcessor.AspectHeight"
+       data-min-crop-width="@DiscographyCoverImageProcessor.MinCropSize"
+       data-min-crop-height="@DiscographyCoverImageProcessor.MinCropSize"
+       data-max-bytes="@DiscographyCoverImageProcessor.MaxUploadBytes"
+       data-image-label="@Model.Label">
+    <div class="qz-dropzone">
+      <figure class="admin-discography-cover qz-dropzone-media">
+        @if (Model.CurrentUrl is not null)
+        {
+          <img src="@Model.CurrentUrl" alt="Current @label" width="300" height="300" data-article-image-preview>
+        }
+        else
+        {
+          <img src="/images/news-article-placeholder.svg" alt="" width="300" height="300" data-article-image-preview>
+          <figcaption class="qz-help">No @label yet.</figcaption>
+        }
+      </figure>
+      <div class="qz-dropzone-body">
+        <div class="qz-dropzone-actions">
+          <button type="button" class="qz-button qz-button--outline qz-button--sm" data-article-image-choose>Choose image</button>
+        </div>
+        <p class="qz-help">@Model.HelpText</p>
+      </div>
+      <input type="file"
+             name="coverFile"
+             accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+             aria-label="@Model.Label"
+             data-article-image-input
+             class="visually-hidden">
+    </div>
+    <p class="qz-error" data-article-image-error hidden></p>
+    <input type="hidden" name="cropX" data-crop-x value="">
+    <input type="hidden" name="cropY" data-crop-y value="">
+    <input type="hidden" name="cropWidth" data-crop-width value="">
+    <input type="hidden" name="cropHeight" data-crop-height value="">
+    <partial name="_ArticleImageCropDialog" view-data="cropViewData" />
+  </div>
+  <div class="admin-form-actions">
+    <button type="submit">Upload @label</button>
+  </div>
+</form>
+@if (Model.CurrentUrl is not null)
+{
+  <form method="post" action="@Model.RemoveAction" asp-antiforgery="true" class="qz-inline-form">
+    <button type="submit" class="qz-button qz-button--ghost qz-button--sm">Remove @label</button>
+  </form>
+}

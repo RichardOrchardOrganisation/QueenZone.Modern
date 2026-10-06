@@ -1,0 +1,98 @@
+@page "/admin/discography/{id:int}"
+@model AlbumModel
+@{
+  var album = Model.Album;
+  var albumPath = AdminDiscographyPageModel.AlbumPath(album.AlbumId);
+  ViewData["Artists"] = Model.Artists;
+  ViewData["Positions"] = Model.InsertPositions;
+  var songCount = album.Songs.Count;
+}
+@section Head {
+  <link rel="stylesheet" href="~/css/admin/cropper.min.css" asp-append-version="true" />
+}
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <div class="admin-form-panel">
+    <h1>@album.Name</h1>
+    <p>
+      @(album.IsActive ? "Visible on the public site." : "Hidden from the public site.")
+      @if (album.IsActive)
+      {
+        <a href="@DiscographyRoutes.GetAlbumPath(album.AlbumId, album.Slug)" target="_blank" rel="noopener">View public page</a>
+      }
+    </p>
+
+    <partial name="_Status" model="Model" />
+
+    <form method="post" action="@albumPath?handler=Save" asp-antiforgery="true" class="admin-form">
+      <partial name="_AlbumFields" for="AlbumForm" />
+      <div class="admin-form-actions">
+        <button type="submit">Save album</button>
+      </div>
+    </form>
+
+    <section class="admin-discography-section" aria-labelledby="album-cover-heading">
+      <h2 id="album-cover-heading">Album cover</h2>
+      <partial name="_CoverUpload" model="@(new CoverUploadViewModel(
+        $"{albumPath}?handler=Cover",
+        $"{albumPath}?handler=RemoveCover",
+        "Album cover",
+        album.CoverUrl,
+        $"JPEG, PNG or WebP · max 10 MB · cropped square, at least {DiscographyCoverImageProcessor.MinCropSize}×{DiscographyCoverImageProcessor.MinCropSize} px. Saved at up to {DiscographyCoverImageProcessor.FullMaxSide} px plus a {DiscographyCoverImageProcessor.ThumbSize} px thumbnail."))" />
+    </section>
+
+    <section class="admin-discography-section" id="tracklist" aria-labelledby="tracklist-heading">
+      <h2 id="tracklist-heading">Tracklist (@songCount)</h2>
+      @if (songCount == 0)
+      {
+        <p>No songs yet. Add the first track below.</p>
+      }
+      else
+      {
+        <table class="admin-table admin-discography-tracks">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th></th>
+              <th>Title</th>
+              <th>Order</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var song in album.Songs)
+            {
+              <partial name="_TrackRow" model="@(new TrackRowViewModel(song, songCount, albumPath))" />
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <section class="admin-discography-section" aria-labelledby="add-song-heading">
+      <h2 id="add-song-heading">Add a song</h2>
+      <form method="post" action="@albumPath?handler=AddSong" asp-antiforgery="true" class="admin-form">
+        <partial name="_SongFields" for="NewSong" />
+        <div class="admin-form-actions">
+          <button type="submit">Add song</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="admin-discography-section" aria-labelledby="delete-album-heading">
+      <h2 id="delete-album-heading">Delete album</h2>
+      <p>To take an album off the site temporarily, untick “Visible on the public discography” instead.</p>
+      <partial name="_DeleteAction" model="@(new DiscographyDeleteViewModel(
+        $"{albumPath}?handler=Delete",
+        "Delete album",
+        $"Delete “{album.Name}”?",
+        $"The album and all {songCount} of its songs (with lyrics and covers) will be permanently removed. This cannot be undone."))" />
+    </section>
+  </div>
+</div>
+
+@section Scripts {
+  <script src="~/js/admin/cropper.min.js" asp-append-version="true"></script>
+  <script src="~/js/admin/article-image-crop.js" asp-append-version="true"></script>
+}

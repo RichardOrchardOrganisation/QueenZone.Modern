@@ -54,7 +54,9 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
             SONG_NOTES varchar(2000) NULL,
             Q_ARTIST_ID tinyint NOT NULL,
             IS_SINGLE tinyint NOT NULL,
-            CREATE_DATE smalldatetime NOT NULL
+            CREATE_DATE smalldatetime NOT NULL,
+            TRACK_NUMBER smallint NULL,
+            COVER_URL varchar(100) NULL
         );
         """,
         """
@@ -141,6 +143,31 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
         await using var schema = new EmptySchemaContext(SchemaOptions());
         await schema.Database.EnsureDeletedAsync();
         await dbContext.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Tracklist_orders_by_track_number_then_id_and_maps_single_cover()
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO dbo.Q_ARTIST_T (ARTIST_NAME) VALUES ('Queen');
+            INSERT INTO dbo.Q_ALBUM_T (Q_ALBUM_ID, ALBUM_NAME, ARTIST, RELEASE_DATE, ACTIVE, CREATE_DATE)
+            VALUES (2, 'Queen II', 1, '1974-03-08', 1, '2020-01-01');
+            INSERT INTO dbo.Q_ALBUM_SONG_T
+                (SONG_TITLE, SONG_LYRICS, Q_ALBUM_ID, SONG_NOTES, Q_ARTIST_ID, IS_SINGLE, CREATE_DATE, TRACK_NUMBER, COVER_URL)
+            VALUES
+                ('Procession', '', 2, NULL, 1, 0, '2020-01-01', 1, NULL),
+                ('Father to Son', '', 2, NULL, 1, 0, '2020-01-01', 2, NULL),
+                ('Untracked', '', 2, NULL, 1, 0, '2020-01-01', NULL, NULL),
+                ('Ogre Battle', '', 2, NULL, 1, 1, '2020-01-01', 3, 'ogre.webp');
+            """);
+
+        var album = await repository.GetAlbumByIdAsync(2);
+
+        // Ogre Battle was inserted last (highest identity) but numbered 3; NULL track numbers sort last.
+        Assert.Equal(["Procession", "Father to Son", "Ogre Battle", "Untracked"], album!.Songs.Select(song => song.Title));
+        Assert.Equal(AlbumCoverUrl.Build("ogre.webp"), album.Songs[2].CoverUrl);
+        Assert.Null(album.Songs[0].CoverUrl);
     }
 
     [Fact]

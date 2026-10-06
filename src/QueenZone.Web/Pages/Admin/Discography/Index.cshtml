@@ -1,0 +1,57 @@
+@page "/admin/discography"
+@model IndexModel
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <h1>Discography</h1>
+  <p>
+    <a class="qz-button" href="@AdminDiscographyPageModel.SectionPath/new">Add album</a>
+  </p>
+
+  <partial name="_Status" model="Model" />
+
+  @if (Model.Albums.Count == 0)
+  {
+    <p>No albums yet.</p>
+  }
+  else
+  {
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Album</th>
+          <th>Released</th>
+          <th>Tracks</th>
+          <th>Visibility</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var album in Model.Albums)
+        {
+          <tr>
+            <td>
+              @if (album.ThumbnailUrl is not null)
+              {
+                <img src="@album.ThumbnailUrl" alt="" width="56" height="56" class="qz-thumb-cover" loading="lazy" />
+              }
+            </td>
+            <td><a href="@AdminDiscographyPageModel.AlbumPath(album.AlbumId)">@album.Name</a></td>
+            <td>@album.ReleaseDate?.ToString("d MMM yyyy")</td>
+            <td>@album.SongCount</td>
+            <td>@(album.IsActive ? "Visible" : "Hidden")</td>
+            <td>
+              <a href="@AdminDiscographyPageModel.AlbumPath(album.AlbumId)">Edit</a>
+              @if (album.IsActive)
+              {
+                <text> · </text>
+                <a href="@DiscographyRoutes.GetAlbumPath(album.AlbumId, NewsSlug.Slugify(album.Name))" target="_blank" rel="noopener">View</a>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

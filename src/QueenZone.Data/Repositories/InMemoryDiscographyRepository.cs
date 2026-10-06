@@ -2,62 +2,23 @@ namespace QueenZone.Data;
 
 public sealed class InMemoryDiscographyRepository : IDiscographyRepository
 {
-    private readonly IReadOnlyList<AlbumSeed> seedAlbums;
+    private readonly InMemoryDiscographyStore store;
 
     public InMemoryDiscographyRepository(IReadOnlyList<AlbumSeed> seedAlbums)
+        : this(new InMemoryDiscographyStore(seedAlbums))
     {
-        this.seedAlbums = seedAlbums;
     }
 
-    public Task<IReadOnlyList<AlbumSummary>> GetAlbumsAsync(CancellationToken cancellationToken = default)
+    public InMemoryDiscographyRepository(InMemoryDiscographyStore store)
     {
-        IReadOnlyList<AlbumSummary> albums = seedAlbums
-            .OrderBy(seed => seed.ReleaseYear)
-            .Select(seed => new AlbumSummary(
-                AlbumId: seed.AlbumId,
-                Name: seed.Name,
-                Slug: NewsSlug.Slugify(seed.Name),
-                ReleaseYear: seed.ReleaseYear,
-                ThumbnailUrl: AlbumCoverUrl.Build($"{NewsSlug.Slugify(seed.Name)}-thumb.jpg")))
-            .ToList();
-
-        return Task.FromResult(albums);
+        this.store = store;
     }
 
-    public Task<AlbumDetail?> GetAlbumByIdAsync(int albumId, CancellationToken cancellationToken = default)
-    {
-        var seed = seedAlbums.FirstOrDefault(s => s.AlbumId == albumId);
-        if (seed is null)
-        {
-            return Task.FromResult<AlbumDetail?>(null);
-        }
+    public Task<IReadOnlyList<AlbumSummary>> GetAlbumsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.GetActiveAlbums());
 
-        var slug = NewsSlug.Slugify(seed.Name);
-        var songs = seed.SongTitles
-            .Select((title, index) => new AlbumSong(
-                SongId: (seed.AlbumId * 1000) + index + 1,
-                Title: title,
-                IsSingle: false,
-                // The first track of each album carries sample lyrics containing a
-                // line that looks like raw markup ("</li></ol>"), to guard against
-                // lyrics text breaking the surrounding tracklist when rendered.
-                Lyrics: index == 0 ? $"First line of {title}\nSecond line </li></ol> third line" : null,
-                Notes: null))
-            .ToList();
-
-        var detail = new AlbumDetail(
-            AlbumId: seed.AlbumId,
-            Name: seed.Name,
-            Slug: slug,
-            ReleaseYear: seed.ReleaseYear,
-            ArtistName: "Queen",
-            GeneralNotes: seed.GeneralNotes,
-            CoverUrl: AlbumCoverUrl.Build($"{slug}-cover.jpg"),
-            Songs: songs,
-            ReleaseDate: new DateTime(seed.ReleaseYear, 1, 1, 0, 0, 0, DateTimeKind.Unspecified));
-
-        return Task.FromResult<AlbumDetail?>(detail);
-    }
+    public Task<AlbumDetail?> GetAlbumByIdAsync(int albumId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.GetActiveAlbum(albumId));
 
     public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
         SongCatalog.GetSongsAsync(this, cancellationToken);

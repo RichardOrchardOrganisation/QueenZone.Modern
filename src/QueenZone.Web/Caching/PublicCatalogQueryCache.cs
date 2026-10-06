@@ -110,7 +110,7 @@ public sealed class PublicCatalogQueryCache(
     public Task<IReadOnlyList<AlbumSummary>> GetDiscographyAlbumsAsync(
         CancellationToken cancellationToken = default) =>
         store.GetOrCreateAsync(
-            PublicQueryCacheKeys.DiscographyAlbums,
+            PublicQueryCacheKeys.DiscographyAlbums(store.GetDiscographyCacheVersion()),
             options.Value.CatalogCacheDuration,
             () => discographyRepository.GetAlbumsAsync(cancellationToken),
             cancellationToken);
@@ -122,7 +122,7 @@ public sealed class PublicCatalogQueryCache(
         int albumId,
         CancellationToken cancellationToken = default) =>
         store.GetOrCreateAsync(
-            PublicQueryCacheKeys.DiscographyAlbum(albumId),
+            PublicQueryCacheKeys.DiscographyAlbum(store.GetDiscographyCacheVersion(), albumId),
             options.Value.CatalogCacheDuration,
             () => discographyRepository.GetAlbumByIdAsync(albumId, cancellationToken),
             cancellationToken);
@@ -130,7 +130,7 @@ public sealed class PublicCatalogQueryCache(
     public Task<IReadOnlyList<SongSummary>> GetSongsAsync(
         CancellationToken cancellationToken = default) =>
         store.GetOrCreateAsync(
-            PublicQueryCacheKeys.Songs,
+            PublicQueryCacheKeys.Songs(store.GetDiscographyCacheVersion()),
             options.Value.CatalogCacheDuration,
             () => discographyRepository.GetSongsAsync(cancellationToken),
             cancellationToken);
@@ -139,7 +139,7 @@ public sealed class PublicCatalogQueryCache(
         string slug,
         CancellationToken cancellationToken = default) =>
         store.GetOrCreateAsync(
-            PublicQueryCacheKeys.Song(slug.Trim().ToLowerInvariant()),
+            PublicQueryCacheKeys.Song(store.GetDiscographyCacheVersion(), slug.Trim().ToLowerInvariant()),
             options.Value.CatalogCacheDuration,
             () => discographyRepository.GetSongBySlugAsync(slug, cancellationToken),
             cancellationToken);
@@ -174,14 +174,11 @@ public sealed class PublicCatalogQueryCache(
     public void InvalidateBiographyCache() => cache.Remove(PublicQueryCacheKeys.BiographyChapters);
 
     /// <summary>
-    /// Evicts the public discography album list. No admin write path exists today;
-    /// TTL is the freshness fallback until a sync/admin writer is wired.
+    /// Bumps the discography version so album lists, album details, and song pages all
+    /// reload after an admin edit. Old versioned entries age out on their TTL.
     /// </summary>
-    public void InvalidateDiscographyCache()
-    {
-        cache.Remove(PublicQueryCacheKeys.DiscographyAlbums);
-        cache.Remove(PublicQueryCacheKeys.Songs);
-    }
+    public void InvalidateDiscographyCache() =>
+        cache.Set(PublicQueryCacheKeys.DiscographyVersion, PublicQueryCacheStore.CreateCacheVersion(), PublicQueryCacheStore.VersionEntryOptions);
 
     public void InvalidateHistoryCache()
     {

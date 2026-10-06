@@ -4112,6 +4112,10 @@ a.qz-forum-post__author-link:focus-visible {
   cursor: grab;
 }
 
+.admin-article-crop--square .admin-article-crop__stage {
+  aspect-ratio: 1 / 1;
+}
+
 .admin-article-crop__stage:active {
   cursor: grabbing;
 }
@@ -4147,6 +4151,45 @@ a.qz-forum-post__author-link:focus-visible {
 .admin-article-crop__zoom {
   display: block;
   margin-bottom: 1rem;
+}
+
+/* Admin discography: square album / single covers and the tracklist editor. */
+.admin-discography-cover {
+  margin: 0;
+}
+
+.admin-discography-cover img {
+  display: block;
+  width: min(16rem, 100%);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: var(--surface-inverse);
+}
+
+.admin-discography-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--hairline);
+}
+
+.admin-discography-tracks td {
+  vertical-align: middle;
+}
+
+.admin-discography-tracks__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.admin-discography-tracks__thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
 }
 
 .admin-gallery-picker {
@@ -5443,6 +5486,20 @@ select.qz-input {
 .qz-album-tracklist__title-link:hover,
 .qz-album-tracklist__title-link:focus-visible {
   text-decoration: underline;
+}
+
+.qz-album-track__aside {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.qz-album-track__cover {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
 }
 
 .qz-album-tracklist__single {

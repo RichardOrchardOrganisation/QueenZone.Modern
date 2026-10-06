@@ -1,0 +1,60 @@
+@page "/admin/discography/songs/{id:int}"
+@model SongModel
+@{
+  var song = Model.Song;
+  var songPath = AdminDiscographyPageModel.SongPath(song.SongId);
+  ViewData["Positions"] = Model.MovePositions;
+}
+@section Head {
+  <link rel="stylesheet" href="~/css/admin/cropper.min.css" asp-append-version="true" />
+}
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <div class="admin-form-panel">
+    <h1>@song.Title</h1>
+    <p>
+      Track @song.TrackNumber of @Model.Album.Songs.Count on
+      <a href="@AdminDiscographyPageModel.AlbumPath(Model.Album.AlbumId)">@Model.Album.Name</a>.
+      @if (Model.Album.IsActive)
+      {
+        <a href="@SongRoutes.GetSongPath(NewsSlug.Slugify(song.Title))" target="_blank" rel="noopener">View public song page</a>
+      }
+    </p>
+
+    <partial name="_Status" model="Model" />
+
+    <form method="post" action="@songPath?handler=Save" asp-antiforgery="true" class="admin-form">
+      <partial name="_SongFields" for="SongForm" />
+      <div class="admin-form-actions">
+        <button type="submit">Save song</button>
+        <a href="@AdminDiscographyPageModel.AlbumPath(Model.Album.AlbumId)#tracklist">Back to album</a>
+      </div>
+    </form>
+
+    <section class="admin-discography-section" aria-labelledby="single-cover-heading">
+      <h2 id="single-cover-heading">Single cover</h2>
+      <p class="admin-form-hint">Optional artwork for this track, for example the single’s sleeve. It shows beside the track on the album page and on the song page.</p>
+      <partial name="_CoverUpload" model="@(new CoverUploadViewModel(
+        $"{songPath}?handler=Cover",
+        $"{songPath}?handler=RemoveCover",
+        "Single cover",
+        song.CoverUrl,
+        $"JPEG, PNG or WebP · max 10 MB · cropped square, at least {DiscographyCoverImageProcessor.MinCropSize}×{DiscographyCoverImageProcessor.MinCropSize} px."))" />
+    </section>
+
+    <section class="admin-discography-section" aria-labelledby="delete-song-heading">
+      <h2 id="delete-song-heading">Delete song</h2>
+      <partial name="_DeleteAction" model="@(new DiscographyDeleteViewModel(
+        $"{songPath}?handler=Delete",
+        "Delete song",
+        $"Delete “{song.Title}”?",
+        $"The song will be removed from {Model.Album.Name} along with its lyrics and single cover. Later tracks move up. This cannot be undone."))" />
+    </section>
+  </div>
+</div>
+
+@section Scripts {
+  <script src="~/js/admin/cropper.min.js" asp-append-version="true"></script>
+  <script src="~/js/admin/article-image-crop.js" asp-append-version="true"></script>
+}

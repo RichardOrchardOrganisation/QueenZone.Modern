@@ -930,6 +930,21 @@ public sealed class PublicQueryCacheServiceTests
     }
 
     [Fact]
+    public async Task DiscographyInvalidation_reloads_album_details()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var repository = new CountingDiscographyRepository();
+        var service = CreateService(memoryCache, discographyRepository: repository);
+
+        var first = await service.GetDiscographyAlbumByIdAsync(1);
+        service.InvalidateDiscographyCache();
+        var second = await service.GetDiscographyAlbumByIdAsync(1);
+
+        Assert.NotSame(first, second);
+        Assert.Equal(2, repository.DetailCallCount);
+    }
+
+    [Fact]
     public async Task CatalogInvalidation_does_not_evict_unrelated_families()
     {
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
