@@ -20,11 +20,34 @@ describe('Maestro device flows (#1281)', () => {
     assert.match(nav, /reselectRoot\('ForumTab', 'ForumIndex', \{ always: true \}\)/);
   });
 
-  it('does not add journeys to smoke.yaml', () => {
+  it('does not add journeys or crossword play to smoke.yaml', () => {
     const smoke = readMaestro('smoke.yaml');
     assert.match(smoke, /flows\/01-launch\.yaml/);
     assert.match(smoke, /flows\/09-authenticated\.yaml/);
     assert.doesNotMatch(smoke, /10-forum-attach|11-news-discussion|12-masthead-unread/);
+    assert.doesNotMatch(smoke, /31-crossword|32-crossword-large|33-crossword-theme/);
+  });
+
+  it('schedules crossword play 31-33 with weekday journeys, not the #872 smoke set', () => {
+    const journeys = readMaestro('journeys.yaml');
+    assert.match(journeys, /flows\/10-forum-attach\.yaml/);
+    assert.match(journeys, /flows\/11-news-discussion\.yaml/);
+    assert.match(journeys, /flows\/12-masthead-unread\.yaml/);
+    assert.match(journeys, /flows\/31-crossword\.yaml/);
+    assert.match(journeys, /flows\/32-crossword-large\.yaml/);
+    assert.match(journeys, /flows\/33-crossword-theme\.yaml/);
+
+    const smoke = readMaestro('smoke.yaml');
+    assert.doesNotMatch(smoke, /31-crossword|32-crossword-large|33-crossword-theme/);
+
+    const workflow = readRepo('mobile-device-smoke.yml', workflowsDir);
+    const journeysJob = workflow.slice(
+      workflow.indexOf('  mobile-android-journeys:'),
+      workflow.indexOf('  mobile-android-release:'),
+    );
+    assert.match(journeysJob, /0 16 \* \* 1-5/);
+    assert.match(journeysJob, /DEVICE_SUITE_ARGS=--suite journeys/);
+    assert.doesNotMatch(journeysJob, /DEVICE_SUITE_ARGS=--suite smoke/);
   });
 
   it('keeps the P0 release suite separate and independently resets each write journey', () => {

@@ -1,5 +1,5 @@
 # Shared Maestro defaults for Android emulator + iOS Simulator (#872 Option A).
-# Suite entry points: smoke.yaml (9 flows) and journeys.yaml (#1071).
+# Suite entry points: smoke.yaml (9 #872 flows) and journeys.yaml (#1071 + crossword 31–33).
 # Platform overlays belong in flows/ only when Android and iOS truly differ.
 appId: org.queenzone.mobile
 name: QueenZone device smoke

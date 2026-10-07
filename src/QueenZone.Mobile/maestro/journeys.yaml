@@ -1,7 +1,11 @@
 appId: org.queenzone.mobile
 name: QueenZone on-demand Maestro journeys
 ---
-# Three weekday/on-demand journeys (#1071–#1074). Do not add these to smoke.yaml.
+# Weekday/on-demand journeys (#1071–#1074) plus crossword play 31–33 (#2160).
+# Do not add these to smoke.yaml — smoke stays the 9 #872 flows.
 - runFlow: flows/10-forum-attach.yaml
 - runFlow: flows/11-news-discussion.yaml
 - runFlow: flows/12-masthead-unread.yaml
+- runFlow: flows/31-crossword.yaml
+- runFlow: flows/32-crossword-large.yaml
+- runFlow: flows/33-crossword-theme.yaml
