@@ -36,6 +36,14 @@ public static class StreamingProviders
         _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null),
     };
 
+    /// <summary>Stable lowercase key used in storage.</summary>
+    public static string Key(this StreamingLinkSource source) => source switch
+    {
+        StreamingLinkSource.Manual => "manual",
+        StreamingLinkSource.Imported => "imported",
+        _ => throw new ArgumentOutOfRangeException(nameof(source), source, null),
+    };
+
     public static string DisplayName(this StreamingProvider provider) => provider switch
     {
         StreamingProvider.Spotify => "Spotify",
@@ -48,13 +56,6 @@ public static class StreamingProviders
         "spotify" => StreamingProvider.Spotify,
         "apple-music" => StreamingProvider.AppleMusic,
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown streaming provider key."),
-    };
-
-    public static string Key(this StreamingLinkSource source) => source switch
-    {
-        StreamingLinkSource.Manual => "manual",
-        StreamingLinkSource.Imported => "imported",
-        _ => throw new ArgumentOutOfRangeException(nameof(source), source, null),
     };
 
     public static StreamingLinkSource SourceFromKey(string key) => key switch
