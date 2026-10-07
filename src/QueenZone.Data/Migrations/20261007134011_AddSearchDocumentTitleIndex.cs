@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,7 +10,8 @@ namespace QueenZone.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // ONLINE is Azure SQL only (EngineEdition = 5). SQL Express (#1628) rejects it.
+            // ONLINE must be assembled in dynamic SQL. SQL Express parses every
+            // CREATE INDEX in the batch even when EngineEdition <> 5 (#1628).
             migrationBuilder.Sql("""
                 IF OBJECT_ID(N'dbo.SearchDocument', N'U') IS NOT NULL
                    AND NOT EXISTS (
@@ -19,15 +20,12 @@ namespace QueenZone.Data.Migrations
                         WHERE object_id = OBJECT_ID(N'dbo.SearchDocument', N'U')
                           AND name = N'IX_SearchDocument_Title')
                 BEGIN
+                    DECLARE @sql nvarchar(max);
                     IF SERVERPROPERTY('EngineEdition') = 5
-                        CREATE INDEX IX_SearchDocument_Title
-                            ON dbo.SearchDocument (Title)
-                            INCLUDE (ContentType, Url)
-                            WITH (ONLINE = ON);
+                        SET @sql = N'CREATE INDEX IX_SearchDocument_Title ON dbo.SearchDocument (Title) INCLUDE (ContentType, Url) WITH (ONLINE = ON);';
                     ELSE
-                        CREATE INDEX IX_SearchDocument_Title
-                            ON dbo.SearchDocument (Title)
-                            INCLUDE (ContentType, Url);
+                        SET @sql = N'CREATE INDEX IX_SearchDocument_Title ON dbo.SearchDocument (Title) INCLUDE (ContentType, Url);';
+                    EXEC sys.sp_executesql @sql;
                 END
                 """);
         }

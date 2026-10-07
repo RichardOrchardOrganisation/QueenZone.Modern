@@ -62,6 +62,7 @@ public sealed class SearchDocumentTitleIndexTests
         Assert.Contains("INCLUDE (ContentType, Url)", operation.Sql, StringComparison.Ordinal);
         Assert.Contains("SERVERPROPERTY('EngineEdition') = 5", operation.Sql, StringComparison.Ordinal);
         Assert.Contains("WITH (ONLINE = ON)", operation.Sql, StringComparison.Ordinal);
+        Assert.Contains("sp_executesql", operation.Sql, StringComparison.Ordinal);
         Assert.DoesNotContain("ALTER TABLE", operation.Sql, StringComparison.Ordinal);
         Assert.DoesNotContain("CommandTimeout", operation.Sql, StringComparison.Ordinal);
 
