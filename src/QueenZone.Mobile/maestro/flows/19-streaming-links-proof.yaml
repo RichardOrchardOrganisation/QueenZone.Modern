@@ -10,6 +10,11 @@ name: Discography Listen on links proof
     visible:
       id: archive-hub-screen
     timeout: 15000
+# The hub header is tall; Discography is below the fold on CI emulators.
+- scrollUntilVisible:
+    element: ".*Discography.*"
+    direction: DOWN
+    timeout: 20000
 - tapOn: ".*Discography.*"
 - extendedWaitUntil:
     visible: Discography
