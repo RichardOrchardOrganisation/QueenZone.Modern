@@ -85,48 +85,75 @@ internal static partial class StreamingLinkMatcher
 
     public static ScoredMatch<CatalogAlbum> ScoreAlbum(string albumName, int? releaseYear, int trackCount, CatalogAlbum candidate)
     {
-        var local = Normalize(albumName);
-        var remote = Normalize(candidate.Name);
-        var score = 0;
-        if (local.Length > 0 && local == remote)
-        {
-            score += 50;
-        }
-        else if (local.Length > 0 && remote.Contains(local, StringComparison.Ordinal))
-        {
-            score += 25;
-        }
-        else
+        var titlePoints = TitlePoints(Normalize(albumName), Normalize(candidate.Name));
+        if (titlePoints == 0)
         {
             // Without a title match the other signals are noise.
             return new ScoredMatch<CatalogAlbum>(candidate, 0, []);
         }
 
-        if (releaseYear is int year && candidate.ReleaseYear is int candidateYear)
-        {
-            var difference = Math.Abs(year - candidateYear);
-            score += difference == 0 ? 20 : difference == 1 ? 10 : 0;
-        }
-
-        if (trackCount > 0)
-        {
-            var difference = Math.Abs(trackCount - candidate.TrackCount);
-            score += difference == 0 ? 20 : difference <= 2 ? 10 : 0;
-        }
-
         var flags = Flags(candidate.Name, candidate.IsCompilation, albumName);
-        score += 10;
+        var score = titlePoints
+            + YearPoints(releaseYear, candidate.ReleaseYear)
+            + TrackCountPoints(trackCount, candidate.TrackCount)
+            + 10
+            - FlagPenalty(flags);
+        return new ScoredMatch<CatalogAlbum>(candidate, Math.Clamp(score, 0, 100), flags);
+    }
+
+    private static int TitlePoints(string local, string remote)
+    {
+        if (local.Length == 0)
+        {
+            return 0;
+        }
+
+        if (local == remote)
+        {
+            return 50;
+        }
+
+        return remote.Contains(local, StringComparison.Ordinal) ? 25 : 0;
+    }
+
+    private static int YearPoints(int? releaseYear, int? candidateYear) =>
+        (releaseYear, candidateYear) switch
+        {
+            (int year, int other) when year == other => 20,
+            (int year, int other) when Math.Abs(year - other) == 1 => 10,
+            _ => 0,
+        };
+
+    private static int TrackCountPoints(int trackCount, int candidateTrackCount)
+    {
+        if (trackCount <= 0)
+        {
+            return 0;
+        }
+
+        var difference = Math.Abs(trackCount - candidateTrackCount);
+        if (difference == 0)
+        {
+            return 20;
+        }
+
+        return difference <= 2 ? 10 : 0;
+    }
+
+    private static int FlagPenalty(IReadOnlyList<string> flags)
+    {
+        var penalty = 0;
         if (flags.Contains(DeluxeFlag) || flags.Contains(EditionFlag))
         {
-            score -= 10;
+            penalty += 10;
         }
 
         if (flags.Contains(LiveFlag) || flags.Contains(CompilationFlag))
         {
-            score -= 15;
+            penalty += 15;
         }
 
-        return new ScoredMatch<CatalogAlbum>(candidate, Math.Clamp(score, 0, 100), flags);
+        return penalty;
     }
 
     /// <summary>

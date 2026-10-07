@@ -87,19 +87,21 @@ internal sealed class SpotifyCatalogClient(
 
     private async Task<JsonDocument> GetJsonAsync(string url, CancellationToken cancellationToken)
     {
-        for (var attempt = 0; ; attempt++)
+        var attempt = 0;
+        while (true)
         {
+            attempt++;
             await pacer.WaitAsync(cancellationToken);
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await TokenAsync(cancellationToken));
             using var response = await http.SendAsync(request, cancellationToken);
-            if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt < MaxRetries)
+            if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt <= MaxRetries)
             {
                 await Task.Delay(RetryAfter(response), cancellationToken);
                 continue;
             }
 
-            if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0)
+            if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 1)
             {
                 // Tokens last an hour; a long run can outlive one.
                 accessToken = null;

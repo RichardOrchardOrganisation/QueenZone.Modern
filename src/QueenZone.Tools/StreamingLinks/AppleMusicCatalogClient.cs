@@ -9,7 +9,7 @@ namespace QueenZone.Tools;
 /// 20 calls per minute, so requests are spaced by <see cref="DefaultMinInterval"/>.
 /// URLs are passed through <see cref="StreamingLinkUrl"/> to drop the <c>uo</c> tracking parameter.
 /// </summary>
-internal sealed class ITunesCatalogClient(HttpClient http, string country, TimeSpan minInterval) : IStreamingCatalogClient
+internal sealed class AppleMusicCatalogClient(HttpClient http, string country, TimeSpan minInterval) : IStreamingCatalogClient
 {
     public static readonly TimeSpan DefaultMinInterval = TimeSpan.FromSeconds(3);
 
