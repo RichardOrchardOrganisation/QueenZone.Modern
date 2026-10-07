@@ -160,10 +160,12 @@ as a repository variable after creating the Bitwarden secret:
 
 ### `BITWARDEN_DEV_AUTH_E2E_SECRETS`
 
-Used by `.github/workflows/dev-member-auth-e2e.yml` (`member-auth` on `dev-deploy`) to fetch the
-synthetic curated-snapshot member password for the password `DeployedAuth` browser check
-(`https://dev.queenzone.org` only). See [`docs/architecture/testing-policy.md`](architecture/testing-policy.md)
-("Deployed dev member authentication").
+Used by `.github/workflows/dev-member-auth-e2e.yml` (`member-auth` on `dev-deploy`) and
+`.github/workflows/dev-journey-e2e.yml` (`dev-journey` on `dev-deploy`) to fetch the
+synthetic curated-snapshot member password for the password `DeployedAuth` cookie check and
+the `DevJourney` tip gate (`https://dev.queenzone.org` only). See
+[`docs/architecture/testing-policy.md`](architecture/testing-policy.md)
+("Deployed dev member authentication" and "Production tip gates").
 
 Store this mapping as a **repository** variable. The left-hand side is the Bitwarden secret ID
 for the existing `DEV_SNAPSHOT_MEMBER_PASSWORD` secret in the `Queenzone Development` project
@@ -173,10 +175,12 @@ for the existing `DEV_SNAPSHOT_MEMBER_PASSWORD` secret in the `Queenzone Develop
 <DEV_SNAPSHOT_MEMBER_PASSWORD_SECRET_UUID> > DEV_SNAPSHOT_MEMBER_PASSWORD
 ```
 
-The workflow reads `steps.member-secret.outputs.DEV_SNAPSHOT_MEMBER_PASSWORD` into
+Both workflows read `steps.member-secret.outputs.DEV_SNAPSHOT_MEMBER_PASSWORD` into
 `DEV_AUTH_E2E_PASSWORD` for the test step only. Do not commit the password, echo it, or upload
-Playwright traces, screenshots, videos, or HAR files from that job — those can contain the
-password form. This mapping is DEV-only. There is no production password auth e2e.
+Playwright traces, videos, or HAR files from those jobs — those can contain the
+password form. The member-auth job records no screenshots. The journey job may upload
+post-sign-in failure screenshots of journey pages only. This mapping is DEV-only. There is no
+production password auth e2e.
 
 **Rotation:** update the `DEV_SNAPSHOT_MEMBER_PASSWORD` value in Bitwarden in place. Keep the
 secret UUID. Leave `BITWARDEN_DEV_AUTH_E2E_SECRETS` unchanged. After a snapshot refresh that

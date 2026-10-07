@@ -111,6 +111,10 @@ powershell -File ./scripts/Run-E2E.ps1 -Mode RealData
 
 # Read-only sweep against a deployed site (refuses localhost):
 powershell -File ./scripts/Run-E2E.ps1 -Mode LiveSite -BaseUrl https://www.queenzone.org
+
+# Deployed DEV journey tip gate (never starts a local app; exact https://dev.queenzone.org):
+$env:DEV_AUTH_E2E_PASSWORD = "<synthetic member password>"
+powershell -File ./scripts/Run-E2E.ps1 -Mode DevJourney
 ```
 
 On macOS, invoke with `pwsh` instead of `powershell`. Pass `-SkipAppStart` to attach to an app you already started at `-BaseUrl`.

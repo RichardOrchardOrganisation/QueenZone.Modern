@@ -20,17 +20,10 @@ public class DeployedMemberAuthTests : PageTest
     [Test]
     public async Task SyntheticMemberCanSignInKeepSessionAndSignOut()
     {
-        var password = Environment.GetEnvironmentVariable("DEV_AUTH_E2E_PASSWORD");
-        Assert.That(password, Is.Not.Null.And.Not.Empty,
-            "DEV_AUTH_E2E_PASSWORD must come from the dev snapshot member secret.");
-
         await Page.GotoAsync("/account/settings");
         await Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(".*/account/login\\?ReturnUrl=.*"));
 
-        await Page.GetByText("Other ways to sign in").ClickAsync();
-        await Page.GetByLabel("Email").FillAsync(DeployedAuthTarget.MemberEmail);
-        await Page.GetByLabel("Password").FillAsync(password!);
-        await Page.GetByRole(AriaRole.Button, new() { Name = "Sign in" }).ClickAsync();
+        await DeployedMemberSignIn.FillPasswordFormAndSubmitAsync(Page);
 
         await Expect(Page).ToHaveURLAsync("https://dev.queenzone.org/account/settings");
         await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Account settings", Level = 1 }))

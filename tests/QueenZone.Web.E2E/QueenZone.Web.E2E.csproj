@@ -27,6 +27,7 @@
       the web app into the E2E suite or affect the Deterministic (DB-free) default run.
     -->
     <ProjectReference Include="..\..\src\QueenZone.Data\QueenZone.Data.csproj" />
+    <ProjectReference Include="..\..\src\QueenZone.Search.Shared\QueenZone.Search.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
