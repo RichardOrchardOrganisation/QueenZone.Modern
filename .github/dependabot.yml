@@ -2,8 +2,9 @@ version: 2
 # Group minor/patch updates per ecosystem so CI (especially the ~30 min
 # mobile Android/iOS jobs) runs once per batch instead of once per package.
 # Keep unrelated major bumps as individual PRs — they often need code changes.
-# Expo and ASP.NET Core families stay grouped even on majors because those
-# packages are meant to move together.
+# ASP.NET Core family stays grouped even on majors because those packages
+# are meant to move together. Expo SDK majors and SDK-pinned natives are
+# manual via `npx expo install --fix` under #1782 (see the mobile npm ignore).
 # Do not use multi-ecosystem-groups: a mixed nuget+npm PR would run both
 # the .NET suite and the native mobile builds (see scripts/classify-pipeline-changes.sh).
 updates:
@@ -38,37 +39,82 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/src/QueenZone.Mobile"
+    # Expo SDK majors and SDK-pinned natives are manual via
+    # `npx expo install --fix` under #1782. This ignore list mirrors
+    # expo@57.0.27 bundledNativeModules.json (exact vs ~ split from that
+    # file, not memory) and is revisited at each SDK upgrade.
+    #
+    # GitHub: `ignore` applies to version updates AND security updates
+    # (https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated#ignoring-specific-dependencies).
+    # A bare ignore (no update-types) therefore suppresses Dependabot
+    # security PRs; a GHSA on those exact-pinned packages is fixed as
+    # its own targeted pin PR (#2159 precedent).
+    # `update-types: [version-update:…]` only filters version updates —
+    # GitHub documents that update-types do not apply to security updates,
+    # which still open (https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated#allowing-specific-semantic-versioning-levels-for-updates).
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    ignore:
+      # Expo family: in-SDK patches and minors still flow through expo-sdk.
+      - dependency-name: "expo" # SDK 57 pin: ~57.0.27
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "expo-*" # SDK 57 family (bundledNativeModules ~57.x)
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@expo/*" # SDK 57 family (e.g. @expo/ui ~57.0.22)
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "babel-preset-expo" # SDK 57 pin: ~57.0.4
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "jest-expo" # SDK 57 pin: ~57.0.5
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "eslint-config-expo" # SDK 57 pin: ~57.0.2
+        update-types:
+          - "version-update:semver-major"
+      # Exact bundledNativeModules pins: ignore all version updates.
+      - dependency-name: "@react-native-async-storage/async-storage" # SDK 57 pin: 2.2.0
+      - dependency-name: "react" # SDK 57 pin: 19.2.3
+      - dependency-name: "react-native" # SDK 57 pin: 0.86.3
+      - dependency-name: "react-native-reanimated" # SDK 57 pin: 4.5.1
+      - dependency-name: "react-native-svg" # SDK 57 pin: 15.15.4
+      - dependency-name: "react-native-worklets" # SDK 57 pin: 0.10.1
+      # Tilde bundledNativeModules pins: ignore major and minor; patches still come.
+      - dependency-name: "@sentry/react-native" # SDK 57 pin: ~7.11.0
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+      - dependency-name: "react-native-gesture-handler" # SDK 57 pin: ~2.32.0
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+      - dependency-name: "react-native-safe-area-context" # SDK 57 pin: ~5.7.0
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+      - dependency-name: "react-native-screens" # SDK 57 pin: ~4.26.0
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
     groups:
       expo-sdk:
         applies-to: version-updates
         patterns:
           - "expo"
           - "expo-*"
+          - "@expo/*"
           - "babel-preset-expo"
           - "jest-expo"
+          - "eslint-config-expo"
       mobile-npm-minor-patch:
         applies-to: version-updates
         patterns:
           - "*"
-        exclude-patterns:
-          # 4.6.0 peers worklets 0.12.x; Expo 57 stays on worklets 0.10.1.
-          - "react-native-reanimated"
-          # Expo 57 pins; 19.2.8 also fights react-test-renderer / react-dom 19.2.3 overrides.
-          - "react"
-          # Expo 57 pin; RN majors peer-break reanimated 4.5.1 / worklets 0.10.1.
-          - "react-native"
-          - "react-native-safe-area-context"
-          - "react-native-screens"
-          - "react-native-svg"
-          # Expo 57 / reanimated 4.5.1 stay on worklets 0.10.1; newer worklets peer-break that pin.
-          - "react-native-worklets"
-          # Expo 57 expo-doctor rejected 7.13.0 on #1259; keep ~7.11.0 until Expo 58.
-          - "@sentry/react-native"
         update-types:
           - "minor"
           - "patch"
