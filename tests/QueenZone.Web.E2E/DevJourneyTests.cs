@@ -22,32 +22,52 @@ namespace QueenZone.Web.E2E;
 /// the password form). Failure screenshots are taken only after sign-in, on
 /// journey pages.
 /// </para>
+/// <para>
+/// Sign-in is once per fixture (<c>[OneTimeSetUp]</c>). The shared helper
+/// captures Playwright storage state after that single password submit, and
+/// each test context is created from it. A test that finds itself signed out
+/// fails with a clear message instead of signing in again.
+/// </para>
 /// </summary>
 [TestFixture]
 [Category(E2ECategories.DevJourney)]
 public class DevJourneyTests : PageTest
 {
-    private bool _signedIn;
+    private static string? _signedInStorageState;
+    private static bool _fixtureSignedIn;
 
-    public override BrowserNewContextOptions ContextOptions() => new()
+    public override BrowserNewContextOptions ContextOptions()
     {
-        BaseURL = DeployedAuthTarget.RequireDevUrl(Environment.GetEnvironmentVariable("E2E_BASE_URL")).ToString(),
-    };
+        Assert.That(
+            _signedInStorageState,
+            Is.Not.Null.And.Not.Empty,
+            DeployedMemberSignIn.SignedOutMessage);
+        return new BrowserNewContextOptions
+        {
+            BaseURL = DeployedAuthTarget.RequireDevUrl(Environment.GetEnvironmentVariable("E2E_BASE_URL")).ToString(),
+            StorageState = _signedInStorageState,
+        };
+    }
+
+    [OneTimeSetUp]
+    public async Task SignInOnceForFixtureAsync()
+    {
+        _fixtureSignedIn = false;
+        _signedInStorageState = await DeployedMemberSignIn.CaptureSignedInStorageStateAsync(
+            Environment.GetEnvironmentVariable("E2E_BASE_URL"));
+        _fixtureSignedIn = true;
+    }
 
     [SetUp]
-    public async Task SignInForJourneyAsync()
+    public async Task AssertFixtureSessionStillActiveAsync()
     {
-        _signedIn = false;
-        await DeployedMemberSignIn.SignInAsync(Page);
-        await Expect(Page.GetByRole(AriaRole.Button, new() { Name = "Sign out" }).First)
-            .ToBeVisibleAsync();
-        _signedIn = true;
+        await DeployedMemberSignIn.AssertContextHasMemberSessionAsync(Context);
     }
 
     [TearDown]
     public async Task CaptureJourneyFailureScreenshotAsync()
     {
-        if (!_signedIn)
+        if (!_fixtureSignedIn)
         {
             return;
         }
