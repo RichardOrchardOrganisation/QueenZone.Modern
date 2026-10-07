@@ -77,6 +77,7 @@ public class E2ECategoryGuardTests
             nameof(ForumPostingWorkflowTests),
             nameof(ForumSafetyWorkflowTests),
             nameof(ForumYoutubeVideoTests),
+            nameof(LiveSiteNavigationRecheckTests),
             nameof(LiveSiteTransportRetryTests),
             nameof(PageShapeAssertionTests),
             nameof(ParticipationClarityTests),
@@ -269,6 +270,25 @@ public class E2ECategoryGuardTests
         Assert.That(ci, Does.Not.Contain("DevJourney"));
         Assert.That(ci, Does.Not.Contain("TestCategory=DevJourney"));
         Assert.That(ci, Does.Not.Contain("-Mode DevJourney"));
+    }
+
+    [Test]
+    public void LiveSiteSweepWorkflowUsesDeployQuietGateNotSharedConcurrency()
+    {
+        var path = Path.GetFullPath(Path.Combine(RepoRoot(), ".github", "workflows", "livesite-readonly-sweep.yml"));
+        Assert.That(File.Exists(path), Is.True, $"Expected live-site sweep workflow at {path}.");
+
+        var yaml = File.ReadAllText(path);
+        Assert.That(yaml, Does.Contain("cron: \"23 6 * * *\""));
+        Assert.That(yaml, Does.Contain("deploy-quiet-gate:"));
+        Assert.That(yaml, Does.Contain("needs.deploy-quiet-gate.outputs.run == 'true'"));
+        Assert.That(yaml, Does.Contain("ignore_deploy_gate"));
+        Assert.That(yaml, Does.Contain("actions: read"));
+        Assert.That(yaml, Does.Contain("Wait-DeployQuiet.sh"));
+        Assert.That(yaml, Does.Contain("title=Production /warmup not ready"));
+        Assert.That(yaml, Does.Contain("group: livesite-readonly-sweep"));
+        Assert.That(yaml, Does.Not.Contain("prod-site"));
+        Assert.That(yaml, Does.Not.Contain("group: deploy-"));
     }
 
     private static bool IsNUnitFixture(Type type)

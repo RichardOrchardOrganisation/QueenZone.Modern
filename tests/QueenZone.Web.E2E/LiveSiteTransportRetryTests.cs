@@ -89,6 +89,21 @@ public class LiveSiteTransportRetryTests
 
         Assert.That(LiveSiteTransportRetry.IsTransientCancel(exception), Is.True);
         Assert.That(LiveSiteTransportRetry.ShouldRetry(exception, getEnv: ReadOnlyEnv), Is.True);
+        Assert.That(LiveSiteTransportRetry.IsTransientSocketOrCancel(exception), Is.True);
+        Assert.That(LiveSiteTransportRetry.ShouldRetrySocketOrCancel(exception, getEnv: ReadOnlyEnv), Is.True);
+    }
+
+    [Test]
+    public void ShouldRetrySocketOrCancel_FalseForPlaywrightNavigationTimeout()
+    {
+        var exception = new PlaywrightException("Timeout 30000ms exceeded.");
+
+        Assert.That(LiveSiteTransportRetry.IsTransientCancel(exception), Is.True);
+        Assert.That(LiveSiteTransportRetry.ShouldRetry(exception, getEnv: ReadOnlyEnv), Is.True);
+        Assert.That(LiveSiteTransportRetry.IsTransientSocketOrCancel(exception), Is.False);
+        Assert.That(
+            LiveSiteTransportRetry.ShouldRetrySocketOrCancel(exception, getEnv: ReadOnlyEnv),
+            Is.False);
     }
 
     [Test]
