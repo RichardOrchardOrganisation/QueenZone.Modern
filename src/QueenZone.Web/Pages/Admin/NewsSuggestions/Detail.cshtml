@@ -72,19 +72,19 @@
 
     <section>
       <h2>Reject</h2>
-      <form method="post" action="/admin/news-suggestions/@suggestion.Id/reject" class="admin-inline-form" onsubmit="return confirm('Reject this suggestion?');">
+      <form method="post" action="/admin/news-suggestions/@suggestion.Id/reject" class="admin-inline-form">
         <input type="hidden" name="@AdminNewsSuggestionsPageModel.AntiforgeryTokenFieldName" value="@token" />
         <label>
           Internal review notes
           <input name="reviewNotes" maxlength="500" />
         </label>
-        <button type="submit">Reject</button>
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Reject", "Reject this suggestion?"))" />
       </form>
     </section>
 
     <section>
       <h2>Mark as duplicate</h2>
-      <form method="post" action="/admin/news-suggestions/@suggestion.Id/markduplicate" class="admin-inline-form" onsubmit="return confirm('Mark as duplicate of an AI candidate?');">
+      <form method="post" action="/admin/news-suggestions/@suggestion.Id/markduplicate" class="admin-inline-form">
         <input type="hidden" name="@AdminNewsSuggestionsPageModel.AntiforgeryTokenFieldName" value="@token" />
         <label>
           Discovery candidate ID
@@ -94,7 +94,7 @@
           Internal review notes
           <input name="reviewNotes" maxlength="500" />
         </label>
-        <button type="submit">Mark duplicate</button>
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Mark duplicate", "Mark as duplicate of an AI candidate?", IsDanger: false))" />
       </form>
     </section>
 

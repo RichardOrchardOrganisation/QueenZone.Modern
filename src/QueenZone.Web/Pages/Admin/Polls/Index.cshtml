@@ -77,10 +77,10 @@ else
               }
               @if (poll.VoteCount == 0)
               {
-                <form method="post" action="/admin/polls?handler=Delete" style="display:inline" onsubmit="return confirm('Delete this poll?');">
+                <form method="post" action="/admin/polls?handler=Delete" style="display:inline">
                   <input type="hidden" name="@AdminPollPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
                   <input type="hidden" name="id" value="@poll.Id">
-                  <button type="submit">Delete</button>
+                  <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Delete", "Delete this poll?", Detail: "This cannot be undone."))" />
                 </form>
               }
             </td>

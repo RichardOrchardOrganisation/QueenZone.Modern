@@ -1,8 +1,7 @@
 @page "/admin/reviewer-accounts/{id:guid}"
 @model QueenZone.Web.Pages.Admin.ReviewerAccounts.EditModel
 @{
-  var removeConfirmMessage = System.Text.Json.JsonSerializer.Serialize(
-    $"Remove password sign-in for {Model.Account.Email}? The member record and content will remain.");
+  var removeConfirmMessage = $"Remove password sign-in for {Model.Account.Email}? The member record and content will remain.";
 }
 
 <div class="admin-shell">
@@ -42,8 +41,8 @@
   <section class="admin-form">
     <h2>Remove password sign-in</h2>
     <p>This prevents future local password sign-ins. Existing sessions are not ended. The member record, audit history, and contributed content remain.</p>
-    <form method="post" asp-page-handler="Delete" onsubmit="return confirm(@removeConfirmMessage);">
-      <button type="submit" class="qz-button qz-button--danger">Remove password sign-in</button>
+    <form method="post" asp-page-handler="Delete">
+      <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Remove password sign-in", removeConfirmMessage, TriggerClass: "qz-button qz-button--danger"))" />
     </form>
   </section>
 </div>

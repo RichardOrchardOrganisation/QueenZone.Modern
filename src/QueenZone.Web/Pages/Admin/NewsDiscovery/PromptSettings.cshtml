@@ -57,7 +57,7 @@
         <button type="submit">Save draft</button>
       </form>
 
-      <form method="post" action="/admin/news-discovery/prompt-settings?handler=Publish" class="admin-inline-form" onsubmit="return confirm('Publish this draft? Future runs will use it. Existing candidates stay unchanged.');">
+      <form method="post" action="/admin/news-discovery/prompt-settings?handler=Publish" class="admin-inline-form">
         <input type="hidden" name="@AdminNewsDiscoveryPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken" />
         <input type="hidden" name="type" value="@guidance.Type" />
         <input type="hidden" name="rowVersion" value="@guidance.DraftRowVersion" />
@@ -65,17 +65,24 @@
           <input type="checkbox" name="confirm" value="true" />
           Confirm publish
         </label>
-        <button type="submit" @(guidance.Draft is null ? "disabled" : null)>Publish draft</button>
+        @if (guidance.Draft is null)
+        {
+          <button type="button" disabled>Publish draft</button>
+        }
+        else
+        {
+          <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Publish draft", "Publish this draft?", "Future runs will use it. Existing candidates stay unchanged.", IsDanger: false))" />
+        }
       </form>
 
-      <form method="post" action="/admin/news-discovery/prompt-settings?handler=RestoreDefault" class="admin-inline-form" onsubmit="return confirm('Restore the compiled default? This publishes an empty overlay. History is kept.');">
+      <form method="post" action="/admin/news-discovery/prompt-settings?handler=RestoreDefault" class="admin-inline-form">
         <input type="hidden" name="@AdminNewsDiscoveryPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken" />
         <input type="hidden" name="type" value="@guidance.Type" />
         <label>
           <input type="checkbox" name="confirm" value="true" />
           Confirm restore compiled default
         </label>
-        <button type="submit">Restore compiled default</button>
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Restore compiled default", "Restore the compiled default?", Detail: "This publishes an empty overlay. History is kept.", IsDanger: false))" />
       </form>
 
       <details>
@@ -158,7 +165,7 @@
                   <td>
                     @if (revision.Status != QueenZone.Data.NewsAgentGuidanceStatus.Draft)
                     {
-                      <form method="post" action="/admin/news-discovery/prompt-settings?handler=Rollback" class="admin-inline-form" onsubmit="return confirm('Publish a new revision copied from revision @revision.RevisionNumber? History is kept.');">
+                      <form method="post" action="/admin/news-discovery/prompt-settings?handler=Rollback" class="admin-inline-form">
                         <input type="hidden" name="@AdminNewsDiscoveryPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken" />
                         <input type="hidden" name="type" value="@guidance.Type" />
                         <input type="hidden" name="revisionId" value="@revision.Id" />
@@ -166,7 +173,7 @@
                           <input type="checkbox" name="confirm" value="true" />
                           Confirm rollback
                         </label>
-                        <button type="submit">Rollback</button>
+                        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Rollback", $"Publish a new revision copied from revision {revision.RevisionNumber}?", "History is kept.", IsDanger: false))" />
                       </form>
                     }
                   </td>

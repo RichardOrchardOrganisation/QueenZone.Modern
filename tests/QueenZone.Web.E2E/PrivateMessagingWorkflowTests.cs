@@ -104,8 +104,7 @@ public class PrivateMessagingWorkflowTests : RealDataPageTest
         await Page.GotoAsync("/messages");
         await Expect(Page.Locator(".qz-message-list__item").Filter(new() { HasText = replyBody })).ToBeVisibleAsync();
 
-        // Blocking: B blocks A from B's view of A's profile; confirm the JS confirm() dialog.
-        pageB.Dialog += async (_, dialog) => await dialog.AcceptAsync();
+        // Blocking: B blocks A from B's view of A's profile; confirm in the styled dialog.
         var profilePath = $"/members/{memberA.Id}";
         try
         {
@@ -119,6 +118,7 @@ public class PrivateMessagingWorkflowTests : RealDataPageTest
         }
 
         await pageB.GetByRole(AriaRole.Button, new() { Name = "Block", Exact = true }).ClickAsync();
+        await pageB.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Block" }).ClickAsync();
         await Expect(pageB.GetByText("Member blocked. They can no longer send you private messages.")).ToBeVisibleAsync();
 
         // A can no longer message B: the "Message" affordance disappears from B's profile...

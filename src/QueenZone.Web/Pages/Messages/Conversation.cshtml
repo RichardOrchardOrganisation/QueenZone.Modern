@@ -32,8 +32,8 @@
         <form method="post" asp-page-handler="Archive" class="qz-messages-toolbar__action">
           <button class="qz-button qz-button--ghost" type="submit">Archive conversation</button>
         </form>
-        <form method="post" asp-page-handler="Remove" class="qz-messages-toolbar__action" onsubmit="return confirm('Remove this conversation from your inbox?');">
-          <button class="qz-button qz-button--ghost" type="submit">Remove conversation</button>
+        <form method="post" asp-page-handler="Remove" class="qz-messages-toolbar__action">
+          <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Remove conversation", "Remove this conversation from your inbox?", TriggerClass: "qz-button qz-button--ghost"))" />
         </form>
         @if (Model.HasBlockedOtherParticipant)
         {
@@ -43,8 +43,8 @@
         }
         else
         {
-          <form method="post" asp-page-handler="Block" class="qz-messages-toolbar__action" onsubmit="return confirm('Block this member from sending you private messages?');">
-            <button class="qz-button qz-button--ghost" type="submit">Block @Model.Detail.OtherParticipantDisplayName</button>
+          <form method="post" asp-page-handler="Block" class="qz-messages-toolbar__action">
+            <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel($"Block {Model.Detail.OtherParticipantDisplayName}", $"Block {Model.Detail.OtherParticipantDisplayName}?", "They will no longer be able to send you private messages.", TriggerClass: "qz-button qz-button--ghost"))" />
           </form>
         }
       </div>
@@ -72,10 +72,10 @@
                 }
                 else
                 {
-                  <form method="post" asp-page-handler="Report" class="qz-message-report" onsubmit="return confirm('Report this message to moderators?');">
+                  <form method="post" asp-page-handler="Report" class="qz-message-report">
                     <input type="hidden" name="pageNumber" value="@Model.PageNumber" />
                     <input type="hidden" name="ReportInput.MessageId" value="@message.Id" />
-                    <button class="qz-message-report__link" type="submit">Report message</button>
+                    <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Report message", "Report this message to moderators?", TriggerClass: "qz-message-report__link", IsDanger: false))" />
                   </form>
                 }
               </footer>

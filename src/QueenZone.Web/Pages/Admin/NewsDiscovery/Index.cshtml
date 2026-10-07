@@ -169,7 +169,7 @@
   {
     <p class="admin-muted">Showing @Model.RangeStart–@Model.RangeEnd of @Model.TotalCount candidates.</p>
 
-    <form method="post" action="/admin/news-discovery?handler=ignorelisted" class="admin-inline-form" onsubmit="return confirm('Ignore all candidates shown on this page?');">
+    <form method="post" action="/admin/news-discovery?handler=ignorelisted" class="admin-inline-form">
       <input type="hidden" name="@AdminNewsDiscoveryPageModel.AntiforgeryTokenFieldName" value="@Antiforgery.GetAndStoreTokens(HttpContext).RequestToken">
       @if (Model.CurrentPage > 1)
       {
@@ -211,7 +211,7 @@
       {
         <input type="hidden" name="hasDraft" value="@(Model.HasDraft.Value ? "true" : "false")">
       }
-      <button type="submit">Ignore this page / remove from queue</button>
+      <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Ignore this page / remove from queue", "Ignore all candidates shown on this page?", ConfirmLabel: "Ignore all", IsDanger: false))" />
     </form>
 
     <table class="admin-table">

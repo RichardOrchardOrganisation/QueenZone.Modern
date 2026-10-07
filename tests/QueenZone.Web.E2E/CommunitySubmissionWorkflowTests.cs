@@ -254,10 +254,10 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         await Expect(adminRow.GetByText("Pending")).ToBeVisibleAsync();
         await adminRow.GetByRole(AriaRole.Link, new() { Name = "Review" }).ClickAsync();
 
-        adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
         const string rejectionReason = "Not a good fit for the trivia rotation.";
         await adminPage.GetByLabel("Rejection reason (shown to submitter)").FillAsync(rejectionReason);
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
+        await adminPage.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
         await Expect(adminPage.GetByText("Trivia suggestion rejected.")).ToBeVisibleAsync();
         await Expect(adminPage.Locator("dl")).ToContainTextAsync("Rejected");
 
@@ -321,10 +321,10 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
         await Expect(adminRow.GetByText("Pending")).ToBeVisibleAsync();
         await adminRow.GetByRole(AriaRole.Link, new() { Name = "Review" }).ClickAsync();
 
-        adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
         const string rejectionReason = "Audio quality is not a good fit for the archive.";
         await adminPage.GetByLabel("Rejection reason (shown to submitter)").FillAsync(rejectionReason);
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
+        await adminPage.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
         await Expect(adminPage.GetByText("Fan performance rejected.")).ToBeVisibleAsync();
         await Expect(adminPage.Locator("dl")).ToContainTextAsync("Rejected");
 

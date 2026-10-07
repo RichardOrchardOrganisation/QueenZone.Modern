@@ -1,4 +1,3 @@
-using System.Text.Json;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 
@@ -22,7 +21,7 @@ public sealed class IndexModel(
 
     public ForumAuthorContentSummary? NoAccountAuthor { get; private set; }
 
-    public string? HideAuthorConfirmMessageJson { get; private set; }
+    public string? HideAuthorConfirmMessage { get; private set; }
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
@@ -39,8 +38,8 @@ public sealed class IndexModel(
             NoAccountAuthor = await forumWriteRepository.FindNoAccountForumAuthorAsync(Query, cancellationToken);
             if (NoAccountAuthor is not null)
             {
-                HideAuthorConfirmMessageJson = JsonSerializer.Serialize(
-                    $"Hide all posts and threads started by {NoAccountAuthor.DisplayName}? Other people's posts stay.");
+                HideAuthorConfirmMessage =
+                    $"Hide all posts and threads started by {NoAccountAuthor.DisplayName}? Other people's posts stay.";
             }
         }
         ViewData["Title"] = "Members";

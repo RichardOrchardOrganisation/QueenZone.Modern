@@ -58,8 +58,8 @@ public sealed class QuizSprintProgressTests : E2EPageTest
         finally
         {
             await admin.GotoAsync("/admin/quizzes");
-            admin.Dialog += (_, dialog) => dialog.AcceptAsync();
             await quiz.GetByRole(AriaRole.Button, new() { Name = "Delete", Exact = true }).ClickAsync();
+            await admin.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Delete" }).ClickAsync();
         }
         Assert.That(consoleErrors.Where(PageShapeAssertions.IsActionableConsoleError), Is.Empty,
             "Unexpected browser console errors during the countdown.");

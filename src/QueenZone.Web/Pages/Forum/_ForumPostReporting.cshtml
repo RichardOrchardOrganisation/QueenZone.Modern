@@ -18,10 +18,10 @@
                 }
                 else
                 {
-                  <form method="post" action="/forum/post/@post.Id/block" class="admin-inline-form" onsubmit="return confirm('Block @post.AuthorUsername? They will no longer be able to contact you privately.');">
+                  <form method="post" action="/forum/post/@post.Id/block" class="admin-inline-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="returnUrl" value="@(Model.ReturnPath)" />
-                    <button type="submit" class="qz-link-button">Block member</button>
+                    <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Block member", $"Block {post.AuthorUsername}?", "They will no longer be able to contact you privately.", TriggerClass: "qz-link-button", ConfirmLabel: "Block"))" />
                   </form>
                 }
               }

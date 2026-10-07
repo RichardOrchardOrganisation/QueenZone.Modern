@@ -84,7 +84,7 @@
 
         <section>
           <h2>Reject</h2>
-          <form method="post" action="/admin/photo-submissions/@submission.Id/reject" class="admin-inline-form" onsubmit="return confirm('Reject this submission?');">
+          <form method="post" action="/admin/photo-submissions/@submission.Id/reject" class="admin-inline-form">
             <input type="hidden" name="@AdminPhotoSubmissionsPageModel.AntiforgeryTokenFieldName" value="@token" />
             <label>
               Rejection reason (shown to submitter)
@@ -94,7 +94,7 @@
               Internal review notes
               <input name="reviewNotes" maxlength="500" />
             </label>
-            <button type="submit">Reject</button>
+            <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Reject", "Reject this submission?", Detail: "The rejection reason is shown to the submitter."))" />
           </form>
         </section>
 

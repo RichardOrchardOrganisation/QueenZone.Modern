@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using QueenZone.Web;
@@ -128,6 +129,27 @@ public sealed class AdminPhotoRoutesTests : IClassFixture<QueenZoneWebApplicatio
         var picId = int.Parse(
             createResponse.Headers.Location!.OriginalString.Split('/')[^1],
             System.Globalization.CultureInfo.InvariantCulture);
+
+        // The CSP blocks inline handlers, so the confirmation must be the styled dialog.
+        var editBeforeDelete = await client.GetStringAsync($"/admin/photos/{picId}");
+        Assert.DoesNotContain("onsubmit=", editBeforeDelete, StringComparison.OrdinalIgnoreCase);
+        var deleteForm = Regex.Match(
+            editBeforeDelete,
+            $"<form[^>]*action=\"/admin/photos/{picId}/delete\"[^>]*>(?<body>.*?)</form>",
+            RegexOptions.Singleline);
+        Assert.True(deleteForm.Success);
+        var dialogId = Regex.Match(
+            deleteForm.Groups["body"].Value,
+            "<button type=\"button\"[^>]*data-confirm-dialog-open=\"(?<id>[^\"]+)\"[^>]*>Hard delete</button>");
+        Assert.True(dialogId.Success);
+        var dialog = Regex.Match(
+            deleteForm.Groups["body"].Value,
+            $"<dialog class=\"qz-dialog\" id=\"{dialogId.Groups["id"].Value}\" data-confirm-dialog>(?<body>.*?)</dialog>",
+            RegexOptions.Singleline);
+        Assert.True(dialog.Success);
+        Assert.Contains("Hard-delete this photo?", dialog.Groups["body"].Value);
+        Assert.Contains("data-confirm-dialog-cancel", dialog.Groups["body"].Value);
+        Assert.Matches("<button type=\"submit\"[^>]*>Hard delete</button>", dialog.Groups["body"].Value);
 
         var deleteResponse = await PostActionAsync(client, $"/admin/photos/{picId}/delete");
         Assert.Equal(HttpStatusCode.Redirect, deleteResponse.StatusCode);

@@ -33,8 +33,8 @@ public class ForumBlockWorkflowTests : RealDataPageTest
         await Page.GotoAsync(topicUrl);
         var post = Page.Locator(".qz-forum-post").Filter(new() { HasText = body });
         await Expect(post.GetByRole(AriaRole.Button, new() { Name = "Block member" })).ToBeVisibleAsync();
-        Page.Dialog += async (_, dialog) => await dialog.AcceptAsync();
         await post.GetByRole(AriaRole.Button, new() { Name = "Block member" }).ClickAsync();
+        await Page.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Block" }).ClickAsync();
 
         await Expect(Page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Member blocked" })).ToContainTextAsync("Member blocked");
         var blockedPost = Page.Locator(".qz-forum-post").Filter(new() { HasText = body });

@@ -772,6 +772,12 @@
     }
 
     trigger.addEventListener("click", () => {
+      // Validate first: an invalid field behind the modal is inert, so the
+      // dialog's submit would silently do nothing.
+      const form = trigger.closest("form");
+      if (form && !form.reportValidity()) {
+        return;
+      }
       dialog.showModal();
       const cancelButton = dialog.querySelector("[data-confirm-dialog-cancel]");
       if (cancelButton instanceof HTMLElement) {

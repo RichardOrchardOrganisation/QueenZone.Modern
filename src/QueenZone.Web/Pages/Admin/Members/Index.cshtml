@@ -26,10 +26,10 @@
       }
       else
       {
-        <form method="post" action="/admin/members/forum-author/Hide" onsubmit="return confirm(@Model.HideAuthorConfirmMessageJson);">
+        <form method="post" action="/admin/members/forum-author/Hide">
           @Html.AntiForgeryToken()
           <input type="hidden" name="DisplayName" value="@Model.NoAccountAuthor.DisplayName" />
-          <button type="submit" class="qz-button qz-button--danger">Hide all posts and threads</button>
+          <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Hide all posts and threads", Model.HideAuthorConfirmMessage!, TriggerClass: "qz-button qz-button--danger"))" />
         </form>
       }
     </section>

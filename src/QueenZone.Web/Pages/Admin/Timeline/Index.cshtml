@@ -95,13 +95,13 @@ else
                 <input type="hidden" name="Q" value="@Model.Q">
                 <button type="submit">@(item.IsPublished ? "Unpublish" : "Publish")</button>
               </form>
-              <form method="post" action="/admin/timeline?handler=Delete" style="display:inline" onsubmit="return confirm('Delete this timeline event?');">
+              <form method="post" action="/admin/timeline?handler=Delete" style="display:inline">
                 <input type="hidden" name="@AdminTimelinePageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
                 <input type="hidden" name="id" value="@item.Id">
                 <input type="hidden" name="PageNumber" value="@events.Page">
                 <input type="hidden" name="Published" value="@Model.Published">
                 <input type="hidden" name="Q" value="@Model.Q">
-                <button type="submit">Delete</button>
+                <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Delete", "Delete this timeline event?", Detail: "This cannot be undone."))" />
               </form>
             </td>
           </tr>
