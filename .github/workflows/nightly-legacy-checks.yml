@@ -59,19 +59,19 @@ concurrency:
 #      Windows runner's LAN IP (currently 192.168.1.237, ideally a DHCP
 #      reservation) ever changes.
 #
-# Sequence (#1722 Bob Ship A): sync-legacy-db ->
-# (legacy-read-probes || apply-ef-migrations-mirror) -> legacy-write-probes ->
-# ui-e2e-realdata -> residue-check. apply-ef-migrations-mirror runs after Sync
-# and before write probes so Express has pending EF columns (for example
-# PasswordFailureWindowStartedAt) before Probe-PrivateMessaging.ps1. Read
-# probes stay after Sync and do not wait on migrate. One workflow with
-# explicit `needs` ordering, rather than a second workflow racing this one,
-# so nothing can rebuild the mirror underneath a running UI suite.
+# Sequence (#2174): Sync -> Migrate -> Read probes -> Write probes ->
+# UI E2E -> residue. apply-ef-migrations-mirror runs after Sync and before
+# read and write probes so Express has pending EF columns (for example
+# COVER_URL / TRACK_NUMBER, PasswordFailureWindowStartedAt) before tip
+# reads and Probe-PrivateMessaging.ps1. Write/UI needs stay as they were
+# (#1722); reads are now an extra serial hop after migrate. One workflow
+# with explicit `needs` ordering, rather than a second workflow racing
+# this one, so nothing can rebuild the mirror underneath a running UI suite.
 #
 # Production live-site read-only sweep lives in its own workflow
 # (livesite-readonly-sweep.yml) — no DB, independent schedule, not a PR gate.
 #
-# Read probes run after Sync, in parallel with apply-ef-migrations-mirror.
+# Read probes run after Sync and apply-ef-migrations-mirror (#2174).
 # Self-cleaning write probes then exercise the same
 # SQL Express mirror locally on the Windows runner. Their scripts reject
 # Azure SQL and remote targets (the Mac's LAN address to that same mirror is
@@ -83,9 +83,9 @@ concurrency:
 #
 # apply-ef-migrations-mirror applies pending EF migrations to Express after
 # Sync (sync/skip_sync can omit modern tables such as QuizSprintRuns, or
-# columns not yet on production Azure SQL). Write probes then run against
-# that migrated schema and stay hard — they do not skip on a missing EF
-# column. ui-e2e-realdata then runs the TestCategory=RealData Playwright suite
+# columns not yet on production Azure SQL). Read and write probes then run
+# against that migrated schema; write probes stay hard — they do not skip
+# on a missing EF column. ui-e2e-realdata then runs the TestCategory=RealData Playwright suite
 # (scripts/Run-E2E.ps1 -Mode RealData) on both the Windows runner (localhost
 # mirror, Integrated Security) and the Mac runner (mirror over LAN, the
 # queenzone_probe SQL login) — the database only lives on the Windows box
@@ -158,10 +158,13 @@ jobs:
 
   legacy-read-probes:
     name: Legacy SQL read probes
-    needs: sync-legacy-db
+    # After Sync + migrate (#2174). Tip code can require columns only
+    # migrate adds vs the synced prod schema.
+    needs: [sync-legacy-db, apply-ef-migrations-mirror]
     # sync-legacy-db can be skipped via workflow_dispatch's skip_sync input;
-    # tolerate that instead of treating it like a failure.
-    if: always() && (needs.sync-legacy-db.result == 'success' || needs.sync-legacy-db.result == 'skipped')
+    # tolerate that instead of treating it like a failure. Migrate must
+    # succeed so Express has those tip columns before reads start.
+    if: always() && needs.apply-ef-migrations-mirror.result == 'success' && (needs.sync-legacy-db.result == 'success' || needs.sync-legacy-db.result == 'skipped')
     # Runs on the Mac Mini (M2) rather than the Windows box (i3) or a
     # GitHub-hosted runner — this is unattended and not time-sensitive, and
     # the Mac has the most headroom of the three for a nightly job. Reaches
