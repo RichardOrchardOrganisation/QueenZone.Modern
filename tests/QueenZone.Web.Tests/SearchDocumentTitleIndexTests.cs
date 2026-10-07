@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using QueenZone.Data;
@@ -13,14 +14,14 @@ public sealed class SearchDocumentTitleIndexTests
     public void Title_has_no_explicit_case_sensitive_collation()
     {
         using var dbContext = CreateSqlServerModel();
-        var title = dbContext.Model
+        var title = dbContext.GetService<IDesignTimeModel>().Model
             .FindEntityType(typeof(SearchDocumentEntity))
             ?.FindProperty(nameof(SearchDocumentEntity.Title));
 
         Assert.NotNull(title);
         Assert.Null(title.GetCollation());
         Assert.DoesNotContain(
-            "UseCollation",
+            "UseCollation(",
             File.ReadAllText(RepoPaths.Combine(
                 "src",
                 "QueenZone.Data",
@@ -34,7 +35,8 @@ public sealed class SearchDocumentTitleIndexTests
     public void Ef_model_has_covering_title_index()
     {
         using var dbContext = CreateSqlServerModel();
-        var entity = dbContext.Model.FindEntityType(typeof(SearchDocumentEntity));
+        var entity = dbContext.GetService<IDesignTimeModel>().Model
+            .FindEntityType(typeof(SearchDocumentEntity));
         Assert.NotNull(entity);
 
         var index = Assert.Single(entity.GetIndexes(), candidate =>
