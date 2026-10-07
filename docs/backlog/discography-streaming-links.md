@@ -150,4 +150,4 @@ Add `docs/architecture/streaming-links-backfill.md`, a runbook covering register
 
 - Phase 3: click-to-load Spotify and Apple embeds (CSP `frame-src` change, consent review).
 - Periodic link health checks. Re-run `suggest-streaming-links --only-missing`, or add a lookup-by-ID check to the `check-links` schedule.
-- Additional providers.
+- Additional providers: YouTube Music is #2184. Amazon Music has no public catalogue API (manual only), so revisit if analytics show demand.
