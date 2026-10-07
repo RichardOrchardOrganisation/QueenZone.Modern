@@ -57,7 +57,7 @@ public sealed class StreamingCatalogClientTests
     public async Task ITunes_search_keeps_queen_albums_and_normalises_urls()
     {
         var handler = new FakeHandler(_ => Json(ITunesAlbumSearch));
-        var client = new ITunesCatalogClient(new HttpClient(handler), "gb", TimeSpan.Zero);
+        var client = new AppleMusicCatalogClient(new HttpClient(handler), "gb", TimeSpan.Zero);
 
         var albums = await client.SearchAlbumsAsync("A Night at the Opera", CancellationToken.None);
 
@@ -79,7 +79,7 @@ public sealed class StreamingCatalogClientTests
     [Fact]
     public async Task ITunes_lookup_returns_tracks_with_track_links()
     {
-        var client = new ITunesCatalogClient(new HttpClient(new FakeHandler(_ => Json(ITunesLookup))), "gb", TimeSpan.Zero);
+        var client = new AppleMusicCatalogClient(new HttpClient(new FakeHandler(_ => Json(ITunesLookup))), "gb", TimeSpan.Zero);
 
         var tracks = await client.GetTracksAsync(new CatalogAlbum("1440650428", "x", 1975, 12, "https://x"), CancellationToken.None);
 
@@ -92,7 +92,7 @@ public sealed class StreamingCatalogClientTests
     [Fact]
     public async Task ITunes_http_failures_surface_as_http_request_exceptions()
     {
-        var client = new ITunesCatalogClient(
+        var client = new AppleMusicCatalogClient(
             new HttpClient(new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable))),
             "gb",
             TimeSpan.Zero);

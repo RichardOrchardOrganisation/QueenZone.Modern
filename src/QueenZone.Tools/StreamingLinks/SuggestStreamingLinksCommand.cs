@@ -53,7 +53,7 @@ internal static class SuggestStreamingLinksCommand
         options.Providers
             .Select<StreamingProvider, IStreamingCatalogClient>(provider => provider switch
             {
-                StreamingProvider.AppleMusic => new ITunesCatalogClient(http, options.Country, ITunesCatalogClient.DefaultMinInterval),
+                StreamingProvider.AppleMusic => new AppleMusicCatalogClient(http, options.Country, AppleMusicCatalogClient.DefaultMinInterval),
                 _ => new SpotifyCatalogClient(
                     http,
                     options.SpotifyClientId!,
@@ -245,73 +245,86 @@ internal sealed class SuggestStreamingLinksOptions
 
     public static SuggestStreamingLinksOptions Parse(string[] args)
     {
-        string? output = null;
-        string? connectionString = null;
-        string? settingsFile = null;
-        string? storageConnectionString = null;
-        IReadOnlyList<StreamingProvider> providers = StreamingProviders.All;
-        int? albumId = null;
-        var onlyMissing = false;
-        var country = "gb";
-
+        var state = new ParseState();
         for (var index = 0; index < args.Length; index++)
         {
-            var arg = args[index];
-            if (ToolArgs.TryReadValue(args, ref index, "--out", out var outValue))
+            var error = ReadOption(args, ref index, state);
+            if (error is not null)
             {
-                output = outValue;
-            }
-            else if (ToolArgs.TryReadCommonOption(args, ref index, ref connectionString, ref storageConnectionString, ref settingsFile))
-            {
-                // Handled.
-            }
-            else if (ToolArgs.TryReadValue(args, ref index, "--provider", out var providerValue))
-            {
-                try
-                {
-                    providers = [StreamingProviders.FromKey(providerValue.Trim().ToLowerInvariant())];
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    return Invalid("--provider must be spotify or apple-music.");
-                }
-            }
-            else if (ToolArgs.TryReadInt(args, ref index, "--album-id", 1, out var albumValue, out var albumError))
-            {
-                if (albumError is not null)
-                {
-                    return Invalid(albumError);
-                }
-
-                albumId = albumValue;
-            }
-            else if (ToolArgs.TryReadValue(args, ref index, "--country", out var countryValue))
-            {
-                country = countryValue.Trim().ToLowerInvariant();
-                if (country.Length != 2 || !country.All(char.IsAsciiLetterLower))
-                {
-                    return Invalid("--country must be a two-letter code such as gb or us.");
-                }
-            }
-            else if (string.Equals(arg, "--only-missing", StringComparison.OrdinalIgnoreCase))
-            {
-                onlyMissing = true;
-            }
-            else
-            {
-                return Invalid($"Unsupported or incomplete argument: {arg}");
+                return Invalid(error);
             }
         }
 
-        if (string.IsNullOrWhiteSpace(output))
+        return Complete(state);
+    }
+
+    /// <summary>Reads one option at <paramref name="index"/>; returns an error message or null.</summary>
+    private static string? ReadOption(string[] args, ref int index, ParseState state)
+    {
+        var arg = args[index];
+        if (ToolArgs.TryReadValue(args, ref index, "--out", out var outValue))
+        {
+            state.Output = outValue;
+            return null;
+        }
+
+        if (ToolArgs.TryReadCommonOption(args, ref index, ref state.ConnectionString, ref state.StorageConnectionString, ref state.SettingsFile))
+        {
+            return null;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--provider", out var providerValue))
+        {
+            return TryProvider(providerValue, state);
+        }
+
+        if (ToolArgs.TryReadInt(args, ref index, "--album-id", 1, out var albumValue, out var albumError))
+        {
+            state.AlbumId = albumValue;
+            return albumError;
+        }
+
+        if (ToolArgs.TryReadValue(args, ref index, "--country", out var countryValue))
+        {
+            state.Country = countryValue.Trim().ToLowerInvariant();
+            return state.Country.Length == 2 && state.Country.All(char.IsAsciiLetterLower)
+                ? null
+                : "--country must be a two-letter code such as gb or us.";
+        }
+
+        if (string.Equals(arg, "--only-missing", StringComparison.OrdinalIgnoreCase))
+        {
+            state.OnlyMissing = true;
+            return null;
+        }
+
+        return $"Unsupported or incomplete argument: {arg}";
+    }
+
+    private static string? TryProvider(string value, ParseState state)
+    {
+        try
+        {
+            state.Providers = [StreamingProviders.FromKey(value.Trim().ToLowerInvariant())];
+            return null;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return "--provider must be spotify or apple-music.";
+        }
+    }
+
+    private static SuggestStreamingLinksOptions Complete(ParseState state)
+    {
+        if (string.IsNullOrWhiteSpace(state.Output))
         {
             return Invalid("--out is required.");
         }
 
-        connectionString ??= Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
+        var connectionString = state.ConnectionString ?? Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            var settings = ToolsLocalSettings.TryLoad(settingsFile);
+            var settings = ToolsLocalSettings.TryLoad(state.SettingsFile);
             connectionString = settings?.QueenZoneLegacy ?? settings?.QueenZoneLegacyLive;
         }
 
@@ -322,7 +335,7 @@ internal sealed class SuggestStreamingLinksOptions
 
         var spotifyId = Environment.GetEnvironmentVariable("Spotify__ClientId");
         var spotifySecret = Environment.GetEnvironmentVariable("Spotify__ClientSecret");
-        if (providers.Contains(StreamingProvider.Spotify)
+        if (state.Providers.Contains(StreamingProvider.Spotify)
             && (string.IsNullOrWhiteSpace(spotifyId) || string.IsNullOrWhiteSpace(spotifySecret)))
         {
             return Invalid("Spotify needs Spotify__ClientId and Spotify__ClientSecret. Set them, or pass --provider apple-music.");
@@ -330,12 +343,12 @@ internal sealed class SuggestStreamingLinksOptions
 
         return new SuggestStreamingLinksOptions
         {
-            OutputPath = output,
+            OutputPath = state.Output,
             ConnectionString = connectionString,
-            Providers = providers,
-            AlbumId = albumId,
-            OnlyMissing = onlyMissing,
-            Country = country,
+            Providers = state.Providers,
+            AlbumId = state.AlbumId,
+            OnlyMissing = state.OnlyMissing,
+            Country = state.Country,
             SpotifyClientId = spotifyId,
             SpotifyClientSecret = spotifySecret,
             IsValid = true,
@@ -343,4 +356,23 @@ internal sealed class SuggestStreamingLinksOptions
     }
 
     private static SuggestStreamingLinksOptions Invalid(string message) => new() { ErrorMessage = message, IsValid = false };
+
+    private sealed class ParseState
+    {
+        public string? Output;
+
+        public string? ConnectionString;
+
+        public string? StorageConnectionString;
+
+        public string? SettingsFile;
+
+        public IReadOnlyList<StreamingProvider> Providers = StreamingProviders.All;
+
+        public int? AlbumId;
+
+        public bool OnlyMissing;
+
+        public string Country = "gb";
+    }
 }
