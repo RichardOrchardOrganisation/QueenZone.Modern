@@ -26,7 +26,8 @@ export function CrosswordCellView({
       backgroundColor: inWord ? c.surfaceCard : c.surfacePage,
       borderColor: selected ? c.accentPrimary : c.borderStrong, borderWidth: selected ? 3 : 0.5 }]}>
     <Text maxFontSizeMultiplier={1.2} style={[styles.number, { color: c.textSecondary, fontSize: Math.max(8, size * 0.22) }]}>{number || ''}</Text>
-    <Text maxFontSizeMultiplier={1.2} style={{ fontFamily: fonts.bodyMedium, fontSize: size * 0.5, color: c.textPrimary,
+    <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={{ alignSelf: 'stretch', textAlign: 'center',
+      fontFamily: fonts.bodyMedium, fontSize: size * 0.5, color: c.textPrimary,
       textDecorationLine: incorrect ? 'line-through' : 'none' }}>{letter === '.' ? '' : letter}</Text>
     <Text accessibilityElementsHidden style={[styles.marker, { fontSize: Math.max(9, size * 0.22), color: incorrect ? c.danger : c.accentPrimary }]}>{revealed ? '▲' : incorrect ? '×' : ''}</Text>
   </Pressable>;
