@@ -13,13 +13,15 @@
                   Applies pending EF migrations to Express before start (sync/skip_sync can
                   leave modern tables such as QuizSprintRuns missing).
     LiveSite      — no local app; E2E_READONLY=true; TestCategory=RealData&TestCategory=ReadOnly
+    DevJourney    — no local app; exact https://dev.queenzone.org (DeployedAuthTarget.RequireDevUrl);
+                  TestCategory=DevJourney; single NUnit worker. Docs/local entry only.
 
   Windows starts the published exe via WMI Win32_Process.Create so the process is not tied to a
   runner Job Object (Start-Process children die when a CI step ends). macOS launches via
   `dotnet <dll>` because the native app host cannot find tool-managed SDK installs.
 
 .PARAMETER Mode
-  Deterministic | RealData | LiveSite
+  Deterministic | RealData | LiveSite | DevJourney
 
 .PARAMETER BaseUrl
   App URL. Defaults to http://127.0.0.1:5099. Required (and must not be localhost) for LiveSite.
@@ -35,7 +37,7 @@
 
 .PARAMETER SkipAppStart
   Do not publish or start a local app; attach to whatever is already listening at -BaseUrl.
-  Ignored for LiveSite (which never starts an app).
+  Ignored for LiveSite and DevJourney (which never start an app).
 
 .PARAMETER CategoryFilter
   Optional substring narrowing the run to fully-qualified test names containing it (dotnet test
@@ -51,11 +53,15 @@
 
 .EXAMPLE
   pwsh -File ./scripts/Run-E2E.ps1 -Mode LiveSite -BaseUrl https://www.queenzone.org
+
+.EXAMPLE
+  $env:DEV_AUTH_E2E_PASSWORD = "<synthetic member password>"
+  pwsh -File ./scripts/Run-E2E.ps1 -Mode DevJourney
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Deterministic", "RealData", "LiveSite")]
+    [ValidateSet("Deterministic", "RealData", "LiveSite", "DevJourney")]
     [string] $Mode,
 
     [Parameter()]
@@ -149,6 +155,27 @@ function Test-IsLocalHostUrl {
         $hostName -eq "::1" -or
         $hostName -eq "[::1]"
     )
+}
+
+function Assert-DeployedAuthTargetRequireDevUrl {
+    param([string] $Url)
+
+    # Same origin rules as DeployedAuthTarget.RequireDevUrl (exact https://dev.queenzone.org).
+    $uri = $null
+    if (-not [Uri]::TryCreate($Url, [UriKind]::Absolute, [ref]$uri)) {
+        throw "DevJourney E2E runs only against https://dev.queenzone.org. Received: '$Url'"
+    }
+
+    $hostMatches = [string]::Equals($uri.Host, "dev.queenzone.org", [StringComparison]::OrdinalIgnoreCase)
+    if ($uri.Scheme -ne [Uri]::UriSchemeHttps -or
+        -not $hostMatches -or
+        $uri.Port -ne 443 -or
+        $uri.UserInfo.Length -gt 0 -or
+        $uri.AbsolutePath -ne "/" -or
+        $uri.Query.Length -gt 0 -or
+        $uri.Fragment.Length -gt 0) {
+        throw "DevJourney E2E runs only against https://dev.queenzone.org. Received: '$Url'"
+    }
 }
 
 # Scope Mac cleanup to the published DLL in this checkout. A broad name match
@@ -478,6 +505,17 @@ switch ($Mode) {
             Write-Information -InformationAction Continue "SkipAppStart is implied for LiveSite; ignoring the switch."
         }
     }
+    "DevJourney" {
+        $startsApp = $false
+        $testFilter = "TestCategory=DevJourney"
+        if (Test-IsLocalHostUrl -Url $BaseUrl) {
+            $BaseUrl = "https://dev.queenzone.org"
+        }
+        Assert-DeployedAuthTargetRequireDevUrl -Url $BaseUrl
+        if ($SkipAppStart) {
+            Write-Information -InformationAction Continue "SkipAppStart is implied for DevJourney; ignoring the switch."
+        }
+    }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($CategoryFilter)) {
@@ -549,7 +587,7 @@ try {
 
         Wait-ForAppReady -HealthUrl "$BaseUrl/health" -ProcessId $script:AppPid
     }
-    elseif ($Mode -ne "LiveSite") {
+    elseif ($Mode -ne "LiveSite" -and $Mode -ne "DevJourney") {
         Write-Information -InformationAction Continue "SkipAppStart: expecting an already-running app at $BaseUrl"
         Wait-ForAppReady -HealthUrl "$BaseUrl/health" -ProcessId $null -MaxAttempts 15 -SleepSeconds 1
     }
@@ -581,6 +619,10 @@ try {
         # does not trip in-app rate limiting (AddQueenZoneRateLimiting).
         $testArgs += @("--", "NUnit.NumberOfTestWorkers=1")
         Write-Information -InformationAction Continue "LiveSite: single NUnit worker (polite load against production)."
+    }
+    elseif ($Mode -eq "DevJourney") {
+        $testArgs += @("--", "NUnit.NumberOfTestWorkers=1")
+        Write-Information -InformationAction Continue "DevJourney: single NUnit worker against https://dev.queenzone.org."
     }
 
     Write-Information -InformationAction Continue ">> dotnet $($testArgs -join ' ')"

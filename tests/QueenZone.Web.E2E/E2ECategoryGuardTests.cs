@@ -5,7 +5,8 @@ namespace QueenZone.Web.E2E;
 
 /// <summary>
 /// Ensures every concrete Playwright fixture is tagged so CI filters cannot silently
-/// drop new tests outside the PR gate, nightly mirror suite, or deployed dev auth check.
+/// drop new tests outside the PR gate, nightly mirror suite, deployed dev auth check,
+/// or deployed DEV journey tip gate.
 /// </summary>
 [TestFixture]
 [Category(E2ECategories.Deterministic)]
@@ -16,7 +17,8 @@ public class E2ECategoryGuardTests
     [
         E2ECategories.Deterministic,
         E2ECategories.RealData,
-        E2ECategories.DeployedAuth
+        E2ECategories.DeployedAuth,
+        E2ECategories.DevJourney
     ];
 
     [Test]
@@ -39,7 +41,7 @@ public class E2ECategoryGuardTests
         Assert.That(
             missing,
             Is.Empty,
-            "These fixtures need [Category(\"Deterministic\")], [Category(\"RealData\")], or [Category(\"DeployedAuth\")] " +
+            "These fixtures need [Category(\"Deterministic\")], [Category(\"RealData\")], [Category(\"DeployedAuth\")], or [Category(\"DevJourney\")] " +
             "(and optionally [Category(\"ReadOnly\")]): " + string.Join(", ", missing));
     }
 
@@ -161,6 +163,66 @@ public class E2ECategoryGuardTests
         Assert.That(fixtures, Is.EqualTo(new[] { nameof(DeployedMemberAuthTests) }));
     }
 
+    [Test]
+    public void DevJourneyFilterSelectsOnlyTheDevJourneyFixture()
+    {
+        var fixtures = typeof(E2EPageTest).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false, IsPublic: true })
+            .Where(IsNUnitFixture)
+            .Where(t => HasCategory(t, E2ECategories.DevJourney))
+            .Select(t => t.Name)
+            .ToList();
+
+        Assert.That(fixtures, Is.EqualTo(new[] { nameof(DevJourneyTests) }));
+        Assert.That(HasCategory(typeof(DevJourneyTests), E2ECategories.RealData), Is.False);
+        Assert.That(HasCategory(typeof(DevJourneyTests), E2ECategories.ReadOnly), Is.False);
+        Assert.That(HasCategory(typeof(DevJourneyTests), E2ECategories.Deterministic), Is.False);
+        Assert.That(HasCategory(typeof(DevJourneyTests), E2ECategories.DeployedAuth), Is.False);
+    }
+
+    [Test]
+    public void DevJourneyDiscovery_PicksFirstAlphabeticWordOfAtLeastThreeLetters()
+    {
+        Assert.That(DevJourneyDiscovery.FirstSearchWord("A Night at the Opera"), Is.EqualTo("Night"));
+        Assert.That(DevJourneyDiscovery.FirstSearchWord("News: Live Aid 1985"), Is.EqualTo("News"));
+    }
+
+    [Test]
+    public void DevJourneyDiscovery_RejectsEmptyOrTinyTokens()
+    {
+        Assert.Throws<AssertionException>(() => DevJourneyDiscovery.FirstSearchWord(""));
+        Assert.Throws<AssertionException>(() => DevJourneyDiscovery.FirstSearchWord("a I"));
+    }
+
+    [Test]
+    public void DevJourneyWorkflowIsASiblingTipGateNotAPrCheck()
+    {
+        var workflowPath = Path.GetFullPath(Path.Combine(RepoRoot(), ".github", "workflows", "dev-journey-e2e.yml"));
+        Assert.That(File.Exists(workflowPath), Is.True, $"Expected DevJourney workflow at {workflowPath}.");
+
+        var workflow = File.ReadAllText(workflowPath);
+        Assert.That(workflow, Does.Contain("TestCategory=DevJourney"));
+        Assert.That(workflow, Does.Contain("environment: dev-deploy"));
+        Assert.That(workflow, Does.Contain("https://dev.queenzone.org"));
+        Assert.That(workflow, Does.Contain("0 7 * * *"));
+        Assert.That(workflow, Does.Not.Contain("TestCategory=Deterministic"));
+        Assert.That(workflow, Does.Not.Contain("TestCategory=DeployedAuth"));
+        Assert.That(workflow, Does.Not.Contain("TestCategory=RealData"));
+    }
+
+    [Test]
+    public void RunE2EScriptExposesDevJourneyModeWithoutStartingALocalApp()
+    {
+        var scriptPath = Path.GetFullPath(Path.Combine(RepoRoot(), "scripts", "Run-E2E.ps1"));
+        Assert.That(File.Exists(scriptPath), Is.True, $"Expected Run-E2E.ps1 at {scriptPath}.");
+
+        var script = File.ReadAllText(scriptPath);
+        Assert.That(script, Does.Contain("\"DevJourney\""));
+        Assert.That(script, Does.Contain("TestCategory=DevJourney"));
+        Assert.That(script, Does.Contain("RequireDevUrl"));
+        Assert.That(script, Does.Contain("NUnit.NumberOfTestWorkers=1"));
+    }
+
     [TestCase("https://dev.queenzone.org")]
     [TestCase("https://dev.queenzone.org/")]
     public void DeployedAuthTargetAcceptsOnlyTheDevOrigin(string url) =>
@@ -177,8 +239,9 @@ public class E2ECategoryGuardTests
     [Test]
     public void CiPullRequestE2eJobStaysDeterministicOnly()
     {
-        // #1597: RealData (nightly/live-site) and DeployedAuth (dev member cookie)
-        // must not become required PR checks. The merge-gate job pins Mode=Deterministic.
+        // #1597: RealData (nightly/live-site), DeployedAuth (dev member cookie),
+        // and DevJourney (deployed DEV journey) must not become required PR checks.
+        // The merge-gate job pins Mode=Deterministic.
         var ciPath = Path.GetFullPath(Path.Combine(RepoRoot(), ".github", "workflows", "ci.yml"));
         Assert.That(File.Exists(ciPath), Is.True, $"Expected CI workflow at {ciPath}.");
 
@@ -187,6 +250,9 @@ public class E2ECategoryGuardTests
         Assert.That(ci, Does.Not.Contain("-Mode RealData"));
         Assert.That(ci, Does.Not.Contain("-Mode LiveSite"));
         Assert.That(ci, Does.Not.Contain("TestCategory=DeployedAuth"));
+        Assert.That(ci, Does.Not.Contain("DevJourney"));
+        Assert.That(ci, Does.Not.Contain("TestCategory=DevJourney"));
+        Assert.That(ci, Does.Not.Contain("-Mode DevJourney"));
     }
 
     private static bool IsNUnitFixture(Type type)

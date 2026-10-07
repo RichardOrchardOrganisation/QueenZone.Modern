@@ -1,0 +1,111 @@
+# Third production tip gate: Playwright DevJourney suite against deployed DEV.
+# Not a required PR check (#1597). Red on the exact tip SHA of main means no
+# production v* tag. Same tip-SHA rule as Nightly RealData and DEV member-auth;
+# no waives. Sibling of dev-member-auth-e2e.yml so DeployedAuth stays
+# password-safe (no traces) and this check has a distinct name.
+name: Dev journey browser check
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: dev-journey-e2e
+  cancel-in-progress: false
+
+jobs:
+  dev-journey:
+    name: Home search forum articles discography on dev
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: dev-deploy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Azure login for dev readiness
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Require a connected dev snapshot
+        id: snapshot
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          settings="$(az webapp config appsettings list --name queenzone-devbox --resource-group Queenzone-Dev-RG -o json)"
+          ready="$(jq -r '[.[] | select(.name == "DevSnapshot__Ready") | .value][0] // ""' <<< "$settings")"
+          connection="$(jq -r '[.[] | select(.name == "ConnectionStrings__QueenZoneLegacy") | .value][0] // ""' <<< "$settings")"
+          if [ "$ready" != "true" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::DevSnapshot__Ready is not true. The dev site is using sample data and has no persistent synthetic member account."
+              exit 1
+            fi
+            echo "Dev journey check skipped: curated snapshot is not connected." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "$connection" ]; then
+            echo "::error::DevSnapshot__Ready is true, but the dev SQL connection is missing."
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up .NET
+        if: steps.snapshot.outputs.ready == 'true'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Fetch the synthetic dev member password
+        if: steps.snapshot.outputs.ready == 'true'
+        id: member-secret
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
+          secrets: ${{ vars.BITWARDEN_DEV_AUTH_E2E_SECRETS }}
+
+      - name: Build browser tests and install Chromium
+        if: steps.snapshot.outputs.ready == 'true'
+        shell: pwsh
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: |
+          dotnet restore tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj --configuration Release --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tests/QueenZone.Web.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Check deployed DEV journey
+        if: steps.snapshot.outputs.ready == 'true'
+        shell: pwsh
+        env:
+          E2E_BASE_URL: https://dev.queenzone.org
+          E2E_ARTIFACT_DIR: test-results/e2e
+          DEV_AUTH_E2E_PASSWORD: ${{ steps.member-secret.outputs.DEV_SNAPSHOT_MEMBER_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:DEV_AUTH_E2E_PASSWORD)) {
+            throw 'DEV_SNAPSHOT_MEMBER_PASSWORD is absent from BITWARDEN_DEV_AUTH_E2E_SECRETS.'
+          }
+          dotnet test tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj --configuration Release --no-build --filter TestCategory=DevJourney -- NUnit.NumberOfTestWorkers=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'Deployed DEV journey passed. No password-bearing trace or video was recorded.' >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload post-sign-in journey failure screenshots
+        if: failure() && steps.snapshot.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dev-journey-e2e-${{ github.run_id }}
+          path: test-results/e2e/*.png
+          if-no-files-found: ignore
+          retention-days: 1
