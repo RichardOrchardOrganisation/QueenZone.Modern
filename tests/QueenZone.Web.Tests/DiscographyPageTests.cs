@@ -53,6 +53,51 @@ public sealed class DiscographyPageTests : IClassFixture<QueenZoneWebApplication
     }
 
     [Fact]
+    public async Task DiscographyAlbumDetail_RendersListenOnLinksForAlbumAndTracks()
+    {
+        var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/discography/albums/4/a-night-at-the-opera");
+
+        // Album-level buttons in the hero, Spotify first.
+        Assert.Contains("aria-label=\"Listen to A Night at the Opera\"", body);
+        var spotify = body.IndexOf("href=\"https://open.spotify.com/album/0SampleNightAtTheOpera\"", StringComparison.Ordinal);
+        var apple = body.IndexOf("href=\"https://music.apple.com/gb/album/a-night-at-the-opera/1000000004\"", StringComparison.Ordinal);
+        Assert.True(spotify > 0 && apple > spotify, "Album links should render Spotify then Apple Music.");
+        Assert.Contains("Listen on Spotify<span class=\"visually-hidden\">: A Night at the Opera (opens in a new tab)</span>", body);
+        Assert.Contains("rel=\"noopener external\"", body);
+        Assert.Contains("data-streaming-link=\"apple-music\"", body);
+        Assert.Contains("data-streaming-target=\"album\"", body);
+
+        // Track-level compact links only on the track that has them.
+        Assert.Contains("href=\"https://open.spotify.com/track/0SampleBohemianRhapsod\"", body);
+        Assert.Contains(": listen to Bohemian Rhapsody (opens in a new tab)", body);
+        Assert.Equal(1, CountOccurrences(body, "qz-listen--compact"));
+    }
+
+    [Fact]
+    public async Task DiscographyAlbumDetail_WithoutLinks_RendersNoListenOnMarkup()
+    {
+        var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/discography/albums/3/sheer-heart-attack");
+
+        Assert.DoesNotContain("qz-listen", body);
+        Assert.DoesNotContain("data-streaming-link", body);
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        for (var index = text.IndexOf(value, StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    [Fact]
     public async Task DiscographyAlbumDetail_RendersTracklist()
     {
         var client = factory.CreateClient();

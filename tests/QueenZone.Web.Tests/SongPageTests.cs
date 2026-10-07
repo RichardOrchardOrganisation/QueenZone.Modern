@@ -48,6 +48,35 @@ public sealed class SongPageTests : IClassFixture<QueenZoneWebApplicationFactory
     }
 
     [Fact]
+    public async Task SongDetail_ListenOnResolvesEachProviderFromItsEarliestAppearance()
+    {
+        var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/songs/seven-seas-of-rhye");
+
+        // Header: Spotify comes from "Queen" (1973), Apple Music from "Queen II" (1974).
+        var header = body[..body.IndexOf("Appearances", StringComparison.Ordinal)];
+        Assert.Contains("aria-label=\"Listen to Seven Seas of Rhye\"", header);
+        Assert.Contains("href=\"https://open.spotify.com/track/0SampleSevenSeasOfRhye\"", header);
+        Assert.Contains("href=\"https://music.apple.com/gb/album/queen-ii/1000000002?i=1000000211\"", header);
+
+        // Each appearance shows only its own track link.
+        var appearances = body[body.IndexOf("Appearances", StringComparison.Ordinal)..];
+        Assert.Contains(": listen to Seven Seas of Rhye on Queen (opens in a new tab)", appearances);
+        Assert.Contains(": listen to Seven Seas of Rhye on Queen II (opens in a new tab)", appearances);
+    }
+
+    [Fact]
+    public async Task SongDetail_WithoutLinks_RendersNoListenOnMarkup()
+    {
+        var client = factory.CreateClient();
+
+        var body = await client.GetStringAsync("/songs/killer-queen");
+
+        Assert.DoesNotContain("data-streaming-link", body);
+    }
+
+    [Fact]
     public async Task SongDetail_RedirectsWhenSlugCaseDiffers()
     {
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });

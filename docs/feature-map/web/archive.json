@@ -167,11 +167,14 @@
     {
       "aliases": [],
       "sources": [
-        "src/QueenZone.Web/Pages/Discography/Album.cshtml"
+        "src/QueenZone.Web/Pages/Discography/Album.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_StreamingLinks.cshtml"
       ],
       "testIds": [],
       "flows": [],
-      "specs": [],
+      "specs": [
+        "tests/QueenZone.Web.Tests/DiscographyPageTests.cs"
+      ],
       "selectors": [],
       "signIn": "none",
       "recipe": "",
@@ -209,7 +212,9 @@
         "lyrics"
       ],
       "sources": [
-        "src/QueenZone.Web/Pages/Songs/Detail.cshtml"
+        "src/QueenZone.Web/Pages/Songs/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Songs/_SongHeading.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_StreamingLinks.cshtml"
       ],
       "testIds": [],
       "flows": [],

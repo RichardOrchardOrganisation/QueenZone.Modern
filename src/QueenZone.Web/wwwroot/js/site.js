@@ -796,3 +796,18 @@
     });
   });
 })();
+
+(() => {
+  // "Listen on" Spotify / Apple Music clicks. gtag only exists when analytics loaded.
+  document.addEventListener("click", (event) => {
+    const link = event.target instanceof Element ? event.target.closest("a[data-streaming-link]") : null;
+    if (!link || typeof window.gtag !== "function") {
+      return;
+    }
+
+    window.gtag("event", "streaming_link_click", {
+      provider: link.dataset.streamingLink,
+      target_type: link.dataset.streamingTarget,
+    });
+  });
+})();

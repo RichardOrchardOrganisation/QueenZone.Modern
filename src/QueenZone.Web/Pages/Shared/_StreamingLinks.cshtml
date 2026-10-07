@@ -1,0 +1,32 @@
+@model StreamingLinksViewModel
+@if (Model.Links.Count > 0)
+{
+  @if (Model.Compact)
+  {
+    <span class="qz-listen qz-listen--compact">
+      @foreach (var link in Model.Links)
+      {
+        <a class="qz-listen__link"
+           href="@link.Url"
+           target="_blank"
+           rel="noopener external"
+           data-streaming-link="@link.Provider.Key()"
+           data-streaming-target="@Model.TargetType">@link.Provider.DisplayName()<span class="visually-hidden">: listen to @Model.Subject (opens in a new tab)</span></a>
+      }
+    </span>
+  }
+  else
+  {
+    <div class="qz-listen" role="group" aria-label="Listen to @Model.Subject">
+      @foreach (var link in Model.Links)
+      {
+        <a class="qz-button qz-listen__button"
+           href="@link.Url"
+           target="_blank"
+           rel="noopener external"
+           data-streaming-link="@link.Provider.Key()"
+           data-streaming-target="@Model.TargetType">Listen on @link.Provider.DisplayName()<span class="visually-hidden">: @Model.Subject (opens in a new tab)</span></a>
+      }
+    </div>
+  }
+}
