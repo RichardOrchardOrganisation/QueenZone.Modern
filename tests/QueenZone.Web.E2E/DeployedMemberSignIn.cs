@@ -9,6 +9,9 @@ namespace QueenZone.Web.E2E;
 /// </summary>
 internal static class DeployedMemberSignIn
 {
+    internal const string SignedOutMessage =
+        "DevJourney signed in once at fixture setup. This test's browser context has no member session; refusing to sign in again.";
+
     internal static string RequirePassword()
     {
         var password = Environment.GetEnvironmentVariable("DEV_AUTH_E2E_PASSWORD");
@@ -32,5 +35,46 @@ internal static class DeployedMemberSignIn
     {
         await page.GotoAsync("/account/settings");
         await FillPasswordFormAndSubmitAsync(page);
+    }
+
+    /// <summary>
+    /// Sign in once in a dedicated browser, assert signed-in chrome, and return
+    /// Playwright storage state JSON for later test contexts. Does not start
+    /// tracing or video.
+    /// </summary>
+    internal static async Task<string> CaptureSignedInStorageStateAsync(string? baseUrl)
+    {
+        var origin = DeployedAuthTarget.RequireDevUrl(baseUrl).ToString();
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync();
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = origin,
+        });
+        var page = await context.NewPageAsync();
+        await SignInAsync(page);
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Sign out" }).First)
+            .ToBeVisibleAsync();
+        return await context.StorageStateAsync();
+    }
+
+    /// <summary>
+    /// Opens <c>/</c> and hard-expects signed-in chrome. A missing Sign out
+    /// button fails with <see cref="SignedOutMessage"/> instead of submitting
+    /// the password form again. Cookie presence is not enough: public journey
+    /// pages still render when DEV has rejected the session.
+    /// </summary>
+    internal static async Task AssertSignedInChromeAsync(IPage page)
+    {
+        await page.GotoAsync("/");
+        try
+        {
+            await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Sign out" }).First)
+                .ToBeVisibleAsync();
+        }
+        catch (Exception ex) when (ex is TimeoutException or PlaywrightException)
+        {
+            Assert.Fail(SignedOutMessage);
+        }
     }
 }
