@@ -30,7 +30,9 @@
       <ol class="qz-album-tracklist">
         @foreach (var appearance in Model.Song.Appearances)
         {
-          <partial name="_SongAppearance" model="@(new SongAppearanceViewModel(appearance, Model.Song.Title))" />
+          <li class="qz-album-track">
+            <partial name="_SongAppearance" model="@(new SongAppearanceViewModel(appearance, Model.Song.Title))" />
+          </li>
         }
       </ol>
 
