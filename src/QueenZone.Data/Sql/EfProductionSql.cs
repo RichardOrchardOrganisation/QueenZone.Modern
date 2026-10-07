@@ -246,6 +246,37 @@ internal static class EfProductionSql
                 ORDER BY ISNULL(s.TRACK_NUMBER, 32767), s.Q_ALBUM_SONG_ID
                 """);
 
+    /// <summary>
+    /// Set-based tracklist for every active album id from <c>Q_ALBUM_LIST_SP</c>.
+    /// Parameter names are <c>@albumId0</c> … <c>@albumId{n-1}</c>.
+    /// </summary>
+    public static string CreateDiscographyCatalogSongsSql(int albumCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(albumCount);
+
+        var parameters = string.Join(
+            ", ",
+            Enumerable.Range(0, albumCount).Select(index => "@albumId" + index));
+        return $"""
+            SELECT
+                CAST(s.Q_ALBUM_SONG_ID AS int) AS Q_ALBUM_SONG_ID,
+                s.SONG_TITLE,
+                CAST(s.IS_SINGLE AS int) AS IS_SINGLE,
+                s.SONG_LYRICS,
+                s.SONG_NOTES,
+                s.COVER_URL,
+                CAST(s.Q_ALBUM_ID AS int) AS Q_ALBUM_ID,
+                a.ALBUM_NAME,
+                a.RELEASE_DATE,
+                CAST(s.TRACK_NUMBER AS int) AS TRACK_NUMBER
+            FROM dbo.Q_ALBUM_SONG_T s
+            INNER JOIN dbo.Q_ALBUM_T a ON CAST(a.Q_ALBUM_ID AS int) = CAST(s.Q_ALBUM_ID AS int)
+            WHERE a.ACTIVE = 1
+              AND CAST(s.Q_ALBUM_ID AS int) IN ({parameters})
+            ORDER BY ISNULL(s.TRACK_NUMBER, 32767), s.Q_ALBUM_SONG_ID
+            """;
+    }
+
     public static (bool UseProcs, string PageSelect, string CountSql, Func<int, FormattableString> ByIdSql)
         CreateFanPerformanceQueries() =>
         (

@@ -62,13 +62,13 @@ public static class SongCatalog
     public static async Task<IReadOnlyList<SongSummary>> GetSongsAsync(
         IDiscographyRepository repository,
         CancellationToken cancellationToken = default) =>
-        Summaries(await LoadTracksAsync(repository, cancellationToken));
+        Summaries(await repository.GetActiveAlbumTracksAsync(cancellationToken));
 
     public static async Task<SongDetail?> GetSongBySlugAsync(
         IDiscographyRepository repository,
         string slug,
         CancellationToken cancellationToken = default) =>
-        DetailFor(await LoadTracksAsync(repository, cancellationToken), slug);
+        DetailFor(await repository.GetActiveAlbumTracksAsync(cancellationToken), slug);
 
     private static IEnumerable<IGrouping<string, SongTrackSource>> Groups(IEnumerable<SongTrackSource> tracks) =>
         tracks
