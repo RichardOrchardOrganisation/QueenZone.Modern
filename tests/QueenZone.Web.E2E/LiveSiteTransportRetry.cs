@@ -80,7 +80,7 @@ internal static class LiveSiteTransportRetry
         }
     }
 
-    private static bool IsPlaywrightNavigationTimeout(Exception exception) =>
+    internal static bool IsPlaywrightNavigationTimeout(Exception exception) =>
         exception is PlaywrightException
         && exception.Message.Contains("Timeout", StringComparison.Ordinal)
         && exception.Message.Contains("exceeded", StringComparison.OrdinalIgnoreCase);
