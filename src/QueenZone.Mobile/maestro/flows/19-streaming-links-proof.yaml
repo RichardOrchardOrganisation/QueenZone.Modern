@@ -24,14 +24,17 @@ name: Discography Listen on links proof
     direction: DOWN
     timeout: 20000
 - tapOn: "Open album A Night at the Opera"
-- extendedWaitUntil:
-    visible:
-      id: album-listen-on
+# The square cover fills small emulators, so scroll each element into view before asserting.
+- scrollUntilVisible:
+    element:
+      id: album-listen-on-spotify
+    direction: DOWN
     timeout: 30000
-- assertVisible:
-    id: album-listen-on-spotify
-- assertVisible:
-    id: album-listen-on-apple-music
+- scrollUntilVisible:
+    element:
+      id: album-listen-on-apple-music
+    direction: DOWN
+    timeout: 10000
 - takeScreenshot: album-listen-on
 - scrollUntilVisible:
     element:
@@ -40,10 +43,14 @@ name: Discography Listen on links proof
     timeout: 20000
 - takeScreenshot: album-track-listen-on
 - tapOn: Bohemian Rhapsody
-- extendedWaitUntil:
-    visible:
-      id: song-listen-on
+- scrollUntilVisible:
+    element:
+      id: song-listen-on-spotify
+    direction: DOWN
     timeout: 30000
-- assertVisible:
-    id: song-appearance-listen-on-4
+- scrollUntilVisible:
+    element:
+      id: song-appearance-listen-on-4-spotify
+    direction: DOWN
+    timeout: 10000
 - takeScreenshot: song-listen-on
