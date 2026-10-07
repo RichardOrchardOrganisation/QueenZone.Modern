@@ -44,14 +44,10 @@ updates:
     # expo@57.0.27 bundledNativeModules.json (exact vs ~ split from that
     # file, not memory) and is revisited at each SDK upgrade.
     #
-    # GitHub: `ignore` applies to version updates AND security updates
-    # (https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated#ignoring-specific-dependencies).
-    # A bare ignore (no update-types) therefore suppresses Dependabot
-    # security PRs; a GHSA on those exact-pinned packages is fixed as
-    # its own targeted pin PR (#2159 precedent).
-    # `update-types: [version-update:…]` only filters version updates —
-    # GitHub documents that update-types do not apply to security updates,
-    # which still open (https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated#allowing-specific-semantic-versioning-levels-for-updates).
+    # Every ignore uses update-types to block only ordinary version updates.
+    # Security PRs remain eligible and require SDK compatibility review.
+    # GitHub documents that update-types do not apply to security updates:
+    # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/controlling-dependencies-updated#allowing-specific-semantic-versioning-levels-for-updates
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
@@ -79,11 +75,35 @@ updates:
           - "version-update:semver-major"
       # Exact bundledNativeModules pins: ignore all version updates.
       - dependency-name: "@react-native-async-storage/async-storage" # SDK 57 pin: 2.2.0
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "react" # SDK 57 pin: 19.2.3
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "react-native" # SDK 57 pin: 0.86.3
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "react-native-reanimated" # SDK 57 pin: 4.5.1
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "react-native-svg" # SDK 57 pin: 15.15.4
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "react-native-worklets" # SDK 57 pin: 0.10.1
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       # Tilde bundledNativeModules pins: ignore major and minor; patches still come.
       - dependency-name: "@sentry/react-native" # SDK 57 pin: ~7.11.0
         update-types:
