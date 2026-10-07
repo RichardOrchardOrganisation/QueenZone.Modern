@@ -328,6 +328,112 @@ public sealed partial class AdminDiscographyRoutesTests : IClassFixture<QueenZon
         Assert.Contains("Song 987654 was not found.", await client.GetStringAsync(AlbumPath(albumId)));
     }
 
+    [Fact]
+    public async Task Album_streaming_links_save_normalised_skip_unchanged_and_remove()
+    {
+        var client = AdminClient();
+        var albumId = await CreateAlbumAsync(client, "Streaming Album", visible: true);
+        var cache = factory.Services.GetRequiredService<PublicQueryCacheService>();
+        Assert.Empty((await cache.GetDiscographyAlbumByIdAsync(albumId))!.StreamingLinks);
+
+        var save = await PostStreamingLinksAsync(client, AlbumPath(albumId), new()
+        {
+            ["StreamingLinksForm.Spotify"] = $"{SpotifyAlbumUrl}?si=tracking",
+            ["StreamingLinksForm.AppleMusic"] = "",
+        });
+        Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        Assert.Equal(AlbumPath(albumId) + "#streaming-links", save.Headers.Location!.OriginalString);
+
+        var body = await client.GetStringAsync(AlbumPath(albumId));
+        Assert.Contains("Streaming links saved.", body);
+        Assert.Contains($"value=\"{SpotifyAlbumUrl}\"", body);
+        Assert.DoesNotContain("si=tracking", body);
+        Assert.Contains("Open on Spotify", body);
+        Assert.Contains($"by {AdminHttpTestHelpers.AdminEmail}", body);
+
+        // The admin write invalidates the cached public album.
+        var link = Assert.Single((await cache.GetDiscographyAlbumByIdAsync(albumId))!.StreamingLinks);
+        Assert.Equal(new QueenZone.Data.StreamingLink(QueenZone.Data.StreamingProvider.Spotify, SpotifyAlbumUrl), link);
+
+        await PostStreamingLinksAsync(client, AlbumPath(albumId), new() { ["StreamingLinksForm.Spotify"] = SpotifyAlbumUrl });
+        Assert.Contains("No changes to the streaming links.", await client.GetStringAsync(AlbumPath(albumId)));
+
+        await PostStreamingLinksAsync(client, AlbumPath(albumId), new() { ["StreamingLinksForm.Spotify"] = " " });
+        Assert.DoesNotContain("Open on Spotify", await client.GetStringAsync(AlbumPath(albumId)));
+        Assert.Empty((await cache.GetDiscographyAlbumByIdAsync(albumId))!.StreamingLinks);
+    }
+
+    [Fact]
+    public async Task Invalid_streaming_link_shows_the_error_keeps_input_and_saves_nothing()
+    {
+        var client = AdminClient();
+        var albumId = await CreateAlbumAsync(client, "Bad Link Album", visible: false);
+
+        var response = await PostStreamingLinksAsync(client, AlbumPath(albumId), new()
+        {
+            ["StreamingLinksForm.Spotify"] = SpotifyAlbumUrl,
+            ["StreamingLinksForm.AppleMusic"] = "https://apple.co/short",
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Apple Music link: Only open.spotify.com and music.apple.com links are accepted.", body);
+        Assert.Contains("value=\"https://apple.co/short\"", body);
+        Assert.Contains("value=\"Bad Link Album\"", body);
+        Assert.DoesNotContain("Open on Spotify", await client.GetStringAsync(AlbumPath(albumId)));
+    }
+
+    [Fact]
+    public async Task Song_streaming_links_need_track_links()
+    {
+        var client = AdminClient();
+        var albumId = await CreateAlbumAsync(client, "Track Link Album", visible: true);
+        var songId = await AddSongAsync(client, albumId, "Linked Song", position: 1);
+        var songPath = $"/admin/discography/songs/{songId}";
+
+        var wrongKind = await PostStreamingLinksAsync(client, songPath, new() { ["StreamingLinksForm.Spotify"] = SpotifyAlbumUrl });
+        Assert.Equal(HttpStatusCode.OK, wrongKind.StatusCode);
+        Assert.Contains("this field needs a track link.", await wrongKind.Content.ReadAsStringAsync());
+
+        var save = await PostStreamingLinksAsync(client, songPath, new()
+        {
+            ["StreamingLinksForm.AppleMusic"] = "https://music.apple.com/gb/album/track-link-album/111?i=222&ls",
+        });
+        Assert.Equal(songPath + "#streaming-links", save.Headers.Location!.OriginalString);
+        Assert.Contains("Open on Apple Music", await client.GetStringAsync(songPath));
+        Assert.Contains("· Apple Music</span>", await client.GetStringAsync(AlbumPath(albumId)));
+
+        var publicSong = Assert.Single((await factory.Services.GetRequiredService<PublicQueryCacheService>()
+            .GetDiscographyAlbumByIdAsync(albumId))!.Songs);
+        Assert.Equal("https://music.apple.com/gb/album/track-link-album/111?i=222", Assert.Single(publicSong.StreamingLinks).Url);
+    }
+
+    [Fact]
+    public async Task Index_shows_link_coverage_and_filters_albums_missing_links()
+    {
+        var client = AdminClient();
+        var albumId = await CreateAlbumAsync(client, "Unlinked Coverage Album", visible: false);
+
+        var all = await client.GetStringAsync("/admin/discography");
+        Assert.Contains("Streaming links", all);
+        Assert.Contains("href=\"/admin/discography?missing=links\"", all);
+
+        var missing = await client.GetStringAsync("/admin/discography?missing=links");
+        Assert.Contains($"href=\"/admin/discography/{albumId}\"", missing);
+
+        // Seed album 4 (A Night at the Opera) has both album-level links.
+        Assert.DoesNotContain("href=\"/admin/discography/4\"", missing);
+        Assert.Contains("href=\"/admin/discography/4\"", all);
+    }
+
+    private const string SpotifyAlbumUrl = "https://open.spotify.com/album/4KfrGvYXcZsFgMHVIdzkoW";
+
+    private static Task<HttpResponseMessage> PostStreamingLinksAsync(
+        HttpClient client,
+        string pagePath,
+        Dictionary<string, string> fields) =>
+        PostFormAsync(client, pagePath, pagePath + "?handler=StreamingLinks", fields);
+
     private static string AlbumPath(int albumId) => $"/admin/discography/{albumId}";
 
     private HttpClient AdminClient() => AdminHttpTestHelpers.CreateClient(factory, AdminHttpTestHelpers.AdminEmail);

@@ -1,0 +1,44 @@
+@model StreamingLinksViewModel
+@{
+  var kind = Model.Kind == StreamingLinkKind.Album ? "album" : "track";
+}
+<p class="admin-form-hint">
+  Paste the @kind’s share link from each service. Leave a field empty to remove that link. Tracking parameters are removed when you save.
+</p>
+@if (Model.Errors.Count > 0)
+{
+  <ul class="admin-errors" role="alert">
+    @foreach (var error in Model.Errors)
+    {
+      <li>@error</li>
+    }
+  </ul>
+}
+<form method="post" action="@Model.Action" asp-antiforgery="true" class="admin-form">
+  @foreach (var provider in StreamingProviders.All)
+  {
+    var field = StreamingLinksFormInput.FieldName(provider);
+    var stored = Model.StoredFor(provider);
+    <label>
+      @provider.DisplayName() @kind link <span class="admin-form-hint">(optional)</span>
+      <input type="url"
+             name="StreamingLinksForm.@field"
+             value="@Model.Form.Value(provider)"
+             maxlength="@StreamingLinkUrl.MaxUrlLength"
+             placeholder="@Model.Example(provider)"
+             inputmode="url"
+             autocomplete="off"
+             data-streaming-link="@provider.Key()">
+    </label>
+    @if (stored is not null)
+    {
+      <p class="qz-help">
+        <a href="@stored.Url" target="_blank" rel="noopener noreferrer">Open on @provider.DisplayName()</a>
+        · @StreamingLinksViewModel.Provenance(stored)
+      </p>
+    }
+  }
+  <div class="admin-form-actions">
+    <button type="submit">Save links</button>
+  </div>
+</form>

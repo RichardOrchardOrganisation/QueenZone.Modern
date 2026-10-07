@@ -181,6 +181,48 @@ public sealed partial class AdminDiscographyService(
         await InvalidatePublicCachesAsync(cancellationToken);
     }
 
+    public async Task SaveAlbumStreamingLinksAsync(
+        int albumId,
+        IReadOnlyList<StreamingLinkChange> changes,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var change in changes)
+        {
+            await repository.SetAlbumStreamingLinkAsync(albumId, change.Provider, change.Link, cancellationToken);
+            logger.LogInformation(
+                "Discography album {AlbumId} {Provider} link {Action}",
+                albumId,
+                change.Provider.Key(),
+                change.Link is null ? "removed" : "set");
+        }
+
+        if (changes.Count > 0)
+        {
+            await InvalidatePublicCachesAsync(cancellationToken);
+        }
+    }
+
+    public async Task SaveSongStreamingLinksAsync(
+        int songId,
+        IReadOnlyList<StreamingLinkChange> changes,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var change in changes)
+        {
+            await repository.SetSongStreamingLinkAsync(songId, change.Provider, change.Link, cancellationToken);
+            logger.LogInformation(
+                "Discography song {SongId} {Provider} link {Action}",
+                songId,
+                change.Provider.Key(),
+                change.Link is null ? "removed" : "set");
+        }
+
+        if (changes.Count > 0)
+        {
+            await InvalidatePublicCachesAsync(cancellationToken);
+        }
+    }
+
     /// <summary>True for cover names this service generates (GUID stem, WebP).</summary>
     public static bool IsOwnedCoverFileName(string? fileName) =>
         fileName is not null && OwnedCoverFileName().IsMatch(fileName);

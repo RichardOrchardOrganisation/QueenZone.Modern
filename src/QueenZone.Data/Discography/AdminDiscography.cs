@@ -11,6 +11,15 @@ public sealed record AdminAlbumListItem(
     int SongCount)
 {
     public string? ThumbnailUrl => AlbumCoverUrl.Build(ThumbFileName);
+
+    /// <summary>Providers with an album-level link, in <see cref="StreamingProviders.All"/> order.</summary>
+    public IReadOnlyList<StreamingProvider> AlbumLinkProviders { get; init; } = [];
+
+    /// <summary>Tracks on this album with at least one track-level link.</summary>
+    public int TracksWithLinks { get; init; }
+
+    /// <summary>True when any provider is missing an album-level link.</summary>
+    public bool IsMissingAlbumLinks => AlbumLinkProviders.Count < StreamingProviders.All.Count;
 }
 
 /// <summary>
