@@ -5,7 +5,7 @@
 # group, so a queued sweep could cancel a queued release tag (or the reverse).
 # Leave deploy.yml concurrency alone.
 #
-# Quiet = no deploy.yml run is queued / in_progress / waiting, and no run
+# Quiet = no deploy.yml run is unfinished (status != completed), and no run
 # completed in the last 10 minutes.
 #
 # Usage:
@@ -40,7 +40,7 @@ fetch_deploy_runs() {
     return 1
   fi
   local api="${GITHUB_API_URL:-https://api.github.com}"
-  curl -sS -f \
+  curl -sS -f --max-time 30 --retry 2 \
     -H "Authorization: Bearer ${token}" \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -58,9 +58,7 @@ first_blocker() {
     else
       (.workflow_runs // [])
       | map(select(
-          .status == "queued"
-          or .status == "in_progress"
-          or .status == "waiting"
+          .status != "completed"
           or (
             .status == "completed"
             and (.updated_at | type == "string")
@@ -168,6 +166,12 @@ if [[ "${1:-}" = "--self-test" ]]; then
 
   got="$(first_blocker "{\"workflow_runs\":[{\"id\":13,\"status\":\"waiting\",\"updated_at\":\"${old_iso}\"}]}" "${now}" 600)"
   assert_eq waiting "13|waiting|${old_iso}" "${got}" || fail=1
+
+  got="$(first_blocker "{\"workflow_runs\":[{\"id\":14,\"status\":\"pending\",\"updated_at\":\"${old_iso}\"}]}" "${now}" 600)"
+  assert_eq pending "14|pending|${old_iso}" "${got}" || fail=1
+
+  got="$(first_blocker "{\"workflow_runs\":[{\"id\":15,\"status\":\"requested\",\"updated_at\":\"${old_iso}\"}]}" "${now}" 600)"
+  assert_eq requested "15|requested|${old_iso}" "${got}" || fail=1
 
   got="$(first_blocker "{\"workflow_runs\":[{\"id\":21,\"status\":\"completed\",\"updated_at\":\"${recent_iso}\"}]}" "${now}" 600)"
   assert_eq recent "21|completed|${recent_iso}" "${got}" || fail=1

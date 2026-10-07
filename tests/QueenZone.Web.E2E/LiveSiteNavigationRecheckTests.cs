@@ -189,6 +189,67 @@ public class LiveSiteNavigationRecheckTests
     }
 
     [Test]
+    public async Task RunAsync_ConnectionResetGoesThroughImmediateTransportRetry()
+    {
+        var calls = 0;
+        var logs = new List<string>();
+        var warmupCalls = 0;
+
+        var result = await LiveSiteNavigationRecheck.RunAsync(
+            "/about",
+            LiveSiteNavigationRecheck.WithImmediateSocketRetry(
+                () =>
+                {
+                    calls++;
+                    if (calls == 1)
+                    {
+                        throw new PlaywrightException(
+                            "net::ERR_CONNECTION_RESET at https://www.queenzone.org/about");
+                    }
+
+                    return Task.FromResult(200);
+                },
+                getEnv: ReadOnlyEnv),
+            status => status,
+            InstantOptions(logs, () => warmupCalls++));
+
+        Assert.That(result, Is.EqualTo(200));
+        Assert.That(calls, Is.EqualTo(2));
+        Assert.That(warmupCalls, Is.EqualTo(0));
+        Assert.That(logs, Is.Empty);
+    }
+
+    [Test]
+    public async Task RunAsync_TimeoutDoesNotUseImmediateTransportRetry()
+    {
+        var calls = 0;
+        var logs = new List<string>();
+        var warmupCalls = 0;
+
+        var result = await LiveSiteNavigationRecheck.RunAsync(
+            "/articles",
+            LiveSiteNavigationRecheck.WithImmediateSocketRetry(
+                () =>
+                {
+                    calls++;
+                    if (calls == 1)
+                    {
+                        throw new PlaywrightException("Timeout 60000ms exceeded.");
+                    }
+
+                    return Task.FromResult(200);
+                },
+                getEnv: ReadOnlyEnv),
+            status => status,
+            InstantOptions(logs, () => warmupCalls++));
+
+        Assert.That(result, Is.EqualTo(200));
+        Assert.That(calls, Is.EqualTo(2));
+        Assert.That(warmupCalls, Is.EqualTo(1));
+        Assert.That(logs, Has.One.EqualTo("LIVESITE RECHECK /articles: timeout -> 200"));
+    }
+
+    [Test]
     public void RunAsync_DoesNotRecheckWhenNotLiveSite()
     {
         var calls = 0;

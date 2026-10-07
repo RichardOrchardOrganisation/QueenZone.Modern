@@ -26,7 +26,16 @@ test('Wait-DeployQuiet self-test covers active, recent, quiet, and bound-hit', (
   assert.match(result.stderr, /PASS recent/);
   assert.match(result.stderr, /PASS quiet/);
   assert.match(result.stderr, /PASS bound-hit-stdout/);
+  assert.match(result.stderr, /PASS pending/);
+  assert.match(result.stderr, /PASS requested/);
   assert.match(result.stderr, /Wait-DeployQuiet self-test passed/);
+});
+
+test('Wait-DeployQuiet curl has a bound and retries, and treats any unfinished status as active', () => {
+  const script = readFileSync(path.join(repoRoot, 'scripts/Wait-DeployQuiet.sh'), 'utf8');
+  assert.match(script, /--max-time 30/);
+  assert.match(script, /--retry 2/);
+  assert.match(script, /\.status != "completed"/);
 });
 
 test('live-site sweep uses a deploy-quiet gate instead of sharing deploy.yml concurrency', () => {

@@ -45,9 +45,27 @@ internal static class LiveSiteNavigationRecheck
         ArgumentNullException.ThrowIfNull(page);
         return await RunAsync(
             url,
-            () => page.GotoAsync(url, options),
+            WithImmediateSocketRetry(
+                () => page.GotoAsync(url, options),
+                getEnv: optionsOverride?.GetEnv),
             response => response?.Status,
             optionsOverride).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Immediate #1543 retry for socket / cancel errors only. Timeouts stay
+    /// on the warmup recheck so they are not tried three times.
+    /// </summary>
+    internal static Func<Task<T>> WithImmediateSocketRetry<T>(
+        Func<Task<T>> navigate,
+        CancellationToken cancellationToken = default,
+        Func<string, string?>? getEnv = null)
+    {
+        ArgumentNullException.ThrowIfNull(navigate);
+        return () => LiveSiteTransportRetry.RunSocketOrCancelAsync(
+            navigate,
+            cancellationToken,
+            getEnv);
     }
 
     public static async Task<T> RunAsync<T>(
