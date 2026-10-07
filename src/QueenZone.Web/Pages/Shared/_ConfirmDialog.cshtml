@@ -1,0 +1,17 @@
+@model QueenZone.Web.Pages.ConfirmDialogViewModel
+@* Render inside the <form> it confirms, in place of its submit button. site.js wires data-confirm-dialog-*. *@
+@{
+  var dialogId = "confirm-" + Guid.NewGuid().ToString("N");
+}
+<button type="button" class="@Model.TriggerClass" data-confirm-dialog-open="@dialogId">@Model.TriggerLabel</button>
+<dialog class="qz-dialog" id="@dialogId" data-confirm-dialog>
+  <h2>@Model.Question</h2>
+  @if (!string.IsNullOrWhiteSpace(Model.Detail))
+  {
+    <p>@Model.Detail</p>
+  }
+  <div class="qz-dialog-actions">
+    <button type="button" class="qz-button qz-button--outline" data-confirm-dialog-cancel>Cancel</button>
+    <button type="submit" class="qz-button@(Model.IsDanger ? " qz-button--danger" : null)">@(Model.ConfirmLabel ?? Model.TriggerLabel)</button>
+  </div>
+</dialog>

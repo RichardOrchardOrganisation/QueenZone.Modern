@@ -1,8 +1,7 @@
 @page "/admin/members/{id:guid}"
 @model DetailModel
 @{
-  var hideConfirmMessage = System.Text.Json.JsonSerializer.Serialize(
-    $"Hide all posts and threads started by {Model.Member!.DisplayName}? Other people's posts stay.");
+  var hideConfirmMessage = $"Hide all posts and threads started by {Model.Member!.DisplayName}? Other people's posts stay.";
 }
 
 <div class="admin-shell">
@@ -49,9 +48,9 @@
     }
     else if (Model.ForumContent.PostCount + Model.ForumContent.ThreadCount > 0)
     {
-      <form method="post" action="/admin/members/@Model.Member.Id/HideForumContent" onsubmit="return confirm(@hideConfirmMessage);">
+      <form method="post" action="/admin/members/@Model.Member.Id/HideForumContent">
         @Html.AntiForgeryToken()
-        <button type="submit" class="qz-button qz-button--danger">Hide all posts and threads</button>
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Hide all posts and threads", hideConfirmMessage, TriggerClass: "qz-button qz-button--danger"))" />
       </form>
     }
   </section>

@@ -57,10 +57,10 @@ else
                 <input type="hidden" name="isPublished" value="@quote.IsPublished">
                 <button type="submit">@(quote.IsPublished ? "Unpublish" : "Publish")</button>
               </form>
-              <form method="post" action="/admin/quotes?handler=Delete" style="display:inline" onsubmit="return confirm('Delete this quote?');">
+              <form method="post" action="/admin/quotes?handler=Delete" style="display:inline">
                 <input type="hidden" name="@AdminQuotePageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
                 <input type="hidden" name="id" value="@quote.Id">
-                <button type="submit">Delete</button>
+                <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Delete", "Delete this quote?", Detail: "This cannot be undone."))" />
               </form>
             </td>
           </tr>

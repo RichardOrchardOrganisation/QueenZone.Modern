@@ -43,9 +43,9 @@
                 <input type="hidden" name="conversationId" value="@conversation.ConversationId" />
                 <button class="qz-button qz-button--ghost" type="submit">Archive</button>
               </form>
-              <form method="post" asp-page-handler="Remove" class="qz-message-list__action" onsubmit="return confirm('Remove this conversation from your inbox?');">
+              <form method="post" asp-page-handler="Remove" class="qz-message-list__action">
                 <input type="hidden" name="conversationId" value="@conversation.ConversationId" />
-                <button class="qz-button qz-button--ghost" type="submit">Remove</button>
+                <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Remove", "Remove this conversation from your inbox?", TriggerClass: "qz-button qz-button--ghost"))" />
               </form>
             </div>
           </li>

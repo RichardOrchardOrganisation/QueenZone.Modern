@@ -4,12 +4,18 @@
 <form method="post"
       action="@Model.Action"
       class="admin-inline-form"
-      onsubmit="@(Model.Confirm ? "return confirm('Are you sure?');" : null)"
       data-busy-submit="@(Model.BusyLabel is not null ? "true" : null)"
       data-busy-label="@Model.BusyLabel"
       data-busy-timer="@(Model.BusyLabel is not null ? "true" : null)">
   <input type="hidden" name="@AdminNewsDiscoveryPageModel.AntiforgeryTokenFieldName" value="@Antiforgery.GetAndStoreTokens(Context).RequestToken">
-  <button type="submit">@Model.Label</button>
+  @if (Model.Confirm)
+  {
+    <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel(Model.Label, $"{Model.Label}?", IsDanger: false))" />
+  }
+  else
+  {
+    <button type="submit">@Model.Label</button>
+  }
   @if (Model.BusyLabel is not null)
   {
     <span class="admin-muted" data-busy-status hidden aria-live="polite"></span>

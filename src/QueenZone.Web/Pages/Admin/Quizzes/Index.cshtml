@@ -71,10 +71,10 @@ else
               }
               @if (quiz.AttemptCount == 0)
               {
-                <form method="post" action="/admin/quizzes?handler=Delete" style="display:inline" onsubmit="return confirm('Delete this quiz?');">
+                <form method="post" action="/admin/quizzes?handler=Delete" style="display:inline">
                   <input type="hidden" name="@AdminQuizPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
                   <input type="hidden" name="id" value="@quiz.Id">
-                  <button type="submit">Delete</button>
+                  <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Delete", "Delete this quiz?", Detail: "This cannot be undone."))" />
                 </form>
               }
             </td>

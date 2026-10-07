@@ -69,8 +69,8 @@
             }
             else
             {
-              <form method="post" asp-page-handler="Block" class="qz-messages-toolbar__action" onsubmit="return confirm('Block this member from sending you private messages?');">
-                <button class="qz-button qz-button--ghost" type="submit">Block</button>
+              <form method="post" asp-page-handler="Block" class="qz-messages-toolbar__action">
+                <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Block", "Block this member?", Detail: "They will no longer be able to send you private messages.", TriggerClass: "qz-button qz-button--ghost"))" />
               </form>
             }
           </p>

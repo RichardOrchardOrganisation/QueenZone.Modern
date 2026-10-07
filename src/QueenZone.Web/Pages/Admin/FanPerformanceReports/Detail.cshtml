@@ -51,9 +51,9 @@
   {
     <section>
       <h2>Actions</h2>
-      <form method="post" action="/admin/fan-performance-reports/@report.Id/hide" class="admin-inline-form" onsubmit="return confirm('Hide this published performance and mark the report resolved?');">
+      <form method="post" action="/admin/fan-performance-reports/@report.Id/hide" class="admin-inline-form">
         <input type="hidden" name="@AdminFanPerformanceReportsPageModel.AntiforgeryTokenFieldName" value="@token" />
-        <button type="submit" class="qz-button">Hide and resolve</button>
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Hide and resolve", "Hide this published performance?", Detail: "The performance is hidden from the public site and the report is marked resolved.", TriggerClass: "qz-button"))" />
       </form>
       <form method="post" action="/admin/fan-performance-reports/@report.Id/dismiss" class="admin-inline-form">
         <input type="hidden" name="@AdminFanPerformanceReportsPageModel.AntiforgeryTokenFieldName" value="@token" />

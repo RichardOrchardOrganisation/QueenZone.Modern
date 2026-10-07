@@ -110,10 +110,9 @@
       <button type="submit">Regenerate WebP thumbnail</button>
     </form>
 
-    <form method="post" action="/admin/photos/@photo.PicId/delete" class="qz-inline-form qz-inline-form--spaced"
-          onsubmit="return confirm('Hard-delete this photo and its gallery blobs (original + thumbnail)? Prefer Hide for soft removal.');">
+    <form method="post" action="/admin/photos/@photo.PicId/delete" class="qz-inline-form qz-inline-form--spaced">
       <input type="hidden" name="@AdminPhotosPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken" />
-      <button type="submit">Hard delete</button>
+      <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Hard delete", "Hard-delete this photo?", Detail: "The photo and its gallery blobs (original + thumbnail) are permanently removed. Prefer Hide for soft removal."))" />
     </form>
   </div>
 </div>

@@ -83,12 +83,12 @@ else
                 <input type="hidden" name="category" value="@Model.CategoryFilter">
                 <button type="submit">@(fact.IsPublished ? "Unpublish" : "Publish")</button>
               </form>
-              <form method="post" action="/admin/trivia?handler=Delete" style="display:inline" onsubmit="return confirm('Delete this trivia fact?');">
+              <form method="post" action="/admin/trivia?handler=Delete" style="display:inline">
                 <input type="hidden" name="@AdminTriviaPageModel.AntiforgeryTokenFieldName" value="@antiforgeryToken">
                 <input type="hidden" name="id" value="@fact.Id">
                 <input type="hidden" name="PageNumber" value="@Model.PageNumber">
                 <input type="hidden" name="category" value="@Model.CategoryFilter">
-                <button type="submit">Delete</button>
+                <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Delete", "Delete this trivia fact?", Detail: "This cannot be undone."))" />
               </form>
             </td>
           </tr>

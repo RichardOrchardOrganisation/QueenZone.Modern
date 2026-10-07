@@ -81,10 +81,10 @@ public class AdminModerationWorkflowTests : RealDataPageTest
         var adminPage = await adminContext.NewPageAsync();
         await OpenSubmissionDetailAsync(adminPage, "/admin/photo-submissions", title);
 
-        adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
         const string rejectionReason = "Not a good fit for the gallery.";
         await adminPage.GetByLabel("Rejection reason (shown to submitter)").FillAsync(rejectionReason);
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
+        await adminPage.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
         await Expect(adminPage.GetByText("Photo rejected.")).ToBeVisibleAsync();
 
         await Page.GotoAsync("/account/my-submissions");
@@ -171,8 +171,8 @@ public class AdminModerationWorkflowTests : RealDataPageTest
         var adminPage = await adminContext.NewPageAsync();
         await OpenSubmissionDetailAsync(adminPage, "/admin/news-suggestions", headline);
 
-        adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
+        await adminPage.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Reject" }).ClickAsync();
         await Expect(adminPage.GetByText("Suggestion rejected.")).ToBeVisibleAsync();
         await Expect(adminPage.Locator("dl")).ToContainTextAsync("Rejected");
     }
@@ -249,9 +249,9 @@ public class AdminModerationWorkflowTests : RealDataPageTest
 
         await ReloadAndAssertTitlePersistedAsync(adminPage, updatedTitle);
 
-        adminPage.Dialog += async (_, dialog) => await dialog.AcceptAsync();
         await adminPage.GetByRole(AriaRole.Button, new() { Name = "Hard delete" })
             .ClickAsync(new() { Timeout = 60_000 });
+        await adminPage.Locator("dialog[open]").GetByRole(AriaRole.Button, new() { Name = "Hard delete" }).ClickAsync();
         await Expect(adminPage).ToHaveURLAsync(new Regex("/admin/photos/?$"), new() { Timeout = 60_000 });
         await Expect(adminPage.GetByText("Deleted photo #").First).ToBeVisibleAsync();
     }

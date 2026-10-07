@@ -376,9 +376,11 @@ public sealed class AdminMembersRoutesTests :
         Assert.DoesNotContain(hidden ? "/admin/members/forum-author/Hide" : "/admin/members/forum-author/Unhide", decoded);
         if (!hidden)
         {
-            var confirmation = System.Text.Json.JsonSerializer.Serialize(
-                $"Hide all posts and threads started by {name}? Other people's posts stay.");
-            Assert.Contains("return confirm(" + confirmation + ");", decoded);
+            Assert.Contains(
+                $"<h2>Hide all posts and threads started by {name}? Other people's posts stay.</h2>",
+                decoded);
+            Assert.Contains("data-confirm-dialog-open=", decoded);
+            Assert.DoesNotContain("onsubmit=", decoded, StringComparison.OrdinalIgnoreCase);
         }
     }
 
