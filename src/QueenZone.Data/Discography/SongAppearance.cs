@@ -11,4 +11,8 @@ public sealed record SongAppearance(
     int? ReleaseYear,
     bool IsSingle,
     string? Notes,
-    string? CoverUrl = null);
+    string? CoverUrl = null)
+{
+    /// <summary>Track-level links for this appearance.</summary>
+    public IReadOnlyList<StreamingLink> StreamingLinks { get; init; } = [];
+}

@@ -65,4 +65,24 @@ public sealed class InMemoryAdminDiscographyRepository(InMemoryDiscographyStore 
         store.DeleteSong(songId);
         return Task.CompletedTask;
     }
+
+    public Task SetAlbumStreamingLinkAsync(
+        int albumId,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        CancellationToken cancellationToken = default)
+    {
+        store.SetAlbumStreamingLink(albumId, provider, link);
+        return Task.CompletedTask;
+    }
+
+    public Task SetSongStreamingLinkAsync(
+        int songId,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        CancellationToken cancellationToken = default)
+    {
+        store.SetSongStreamingLink(songId, provider, link);
+        return Task.CompletedTask;
+    }
 }

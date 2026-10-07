@@ -103,6 +103,7 @@ public sealed class AdminDiscographyRepositorySqlServerTests : IAsyncLifetime
         dbContext = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlServer(ConnectionString).Options);
         repository = new EfAdminDiscographyRepository(dbContext);
+        await DiscographyStreamingLinkSchema.CreateAsync(dbContext);
     }
 
     public async Task DisposeAsync()
@@ -245,6 +246,90 @@ public sealed class AdminDiscographyRepositorySqlServerTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SetSongCoverAsync(9999, null));
         await Assert.ThrowsAsync<InvalidOperationException>(() => repository.DeleteSongAsync(9999));
     }
+
+    [Fact]
+    public async Task Streaming_links_set_replace_remove_and_are_deleted_with_their_album_or_song()
+    {
+        await ApplyMigrationAsync(up: true);
+        var album = (await repository.GetAlbumAsync(2))!;
+        var procession = album.Songs[0].SongId;
+        var fatherToSon = album.Songs[1].SongId;
+
+        await repository.SetAlbumStreamingLinkAsync(2, StreamingProvider.Spotify, Write("https://open.spotify.com/album/4KfrGvYXcZsFgMHVIdzkoW?si=1", StreamingLinkKind.Album, "admin@example.test"));
+        await repository.SetAlbumStreamingLinkAsync(2, StreamingProvider.AppleMusic, Write("https://music.apple.com/gb/album/queen-ii/111", StreamingLinkKind.Album));
+        await repository.SetSongStreamingLinkAsync(procession, StreamingProvider.AppleMusic, Write("https://music.apple.com/gb/album/queen-ii/111?i=222", StreamingLinkKind.Track));
+        await repository.SetSongStreamingLinkAsync(fatherToSon, StreamingProvider.Spotify, Write("spotify:track:0000000000000000000001", StreamingLinkKind.Track));
+
+        album = (await repository.GetAlbumAsync(2))!;
+        Assert.Equal([StreamingProvider.Spotify, StreamingProvider.AppleMusic], album.StreamingLinks.Select(link => link.Provider));
+        Assert.Equal("https://open.spotify.com/album/4KfrGvYXcZsFgMHVIdzkoW", album.StreamingLinks[0].Url);
+        Assert.Equal("admin@example.test", album.StreamingLinks[0].UpdatedBy);
+        Assert.Equal("222", Assert.Single(album.Songs[0].StreamingLinks).ExternalId);
+        Assert.Equal(StreamingProvider.Spotify, Assert.Single((await repository.GetSongAsync(fatherToSon))!.StreamingLinks).Provider);
+
+        // Replacing keeps one row per slot; an imported overwrite records its source.
+        await repository.SetAlbumStreamingLinkAsync(
+            2,
+            StreamingProvider.AppleMusic,
+            new StreamingLinkWrite(Parse("https://music.apple.com/us/album/queen-ii/333", StreamingLinkKind.Album), StreamingLinkSource.Imported, null));
+        var apple = (await repository.GetAlbumAsync(2))!.StreamingLinks.Single(link => link.Provider == StreamingProvider.AppleMusic);
+        Assert.Equal("333", apple.ExternalId);
+        Assert.Equal(StreamingLinkSource.Imported, apple.Source);
+        Assert.Equal(4, await LinkCountAsync());
+
+        await repository.SetAlbumStreamingLinkAsync(2, StreamingProvider.Spotify, null);
+        await repository.SetAlbumStreamingLinkAsync(2, StreamingProvider.Spotify, null);
+        Assert.Equal([StreamingProvider.AppleMusic], (await repository.GetAlbumAsync(2))!.StreamingLinks.Select(link => link.Provider));
+
+        await repository.DeleteSongAsync(procession);
+        Assert.Equal(2, await LinkCountAsync());
+        await repository.DeleteAlbumAsync(2);
+        Assert.Equal(0, await LinkCountAsync());
+
+        var track = Write("spotify:track:0000000000000000000001", StreamingLinkKind.Track);
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SetAlbumStreamingLinkAsync(5, StreamingProvider.Spotify, track));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SetSongStreamingLinkAsync(4, StreamingProvider.AppleMusic, track));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SetAlbumStreamingLinkAsync(99, StreamingProvider.Spotify, null));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SetSongStreamingLinkAsync(9999, StreamingProvider.Spotify, track));
+    }
+
+    [Fact]
+    public async Task Streaming_link_indexes_allow_one_row_per_album_or_track_and_provider()
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO dbo.DiscographyStreamingLinks (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (2, NULL, 'spotify', 'a', 'https://open.spotify.com/album/a', 'manual', '2026-01-01'),
+                (2, NULL, 'apple-music', 'b', 'https://music.apple.com/gb/album/b/1', 'manual', '2026-01-01'),
+                (2, 1, 'spotify', 'c', 'https://open.spotify.com/track/c', 'manual', '2026-01-01'),
+                (2, 2, 'spotify', 'd', 'https://open.spotify.com/track/d', 'manual', '2026-01-01'),
+                (5, NULL, 'spotify', 'e', 'https://open.spotify.com/album/e', 'manual', '2026-01-01');
+            """);
+
+        await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => dbContext.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO dbo.DiscographyStreamingLinks (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES (2, NULL, 'spotify', 'f', 'https://open.spotify.com/album/f', 'manual', '2026-01-01');
+            """));
+        await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => dbContext.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO dbo.DiscographyStreamingLinks (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES (2, 1, 'spotify', 'g', 'https://open.spotify.com/track/g', 'manual', '2026-01-01');
+            """));
+    }
+
+    private static StreamingLinkWrite Write(string url, StreamingLinkKind kind, string? updatedBy = null) =>
+        new(Parse(url, kind), StreamingLinkSource.Manual, updatedBy);
+
+    private static ParsedStreamingLink Parse(string url, StreamingLinkKind kind)
+    {
+        Assert.True(StreamingLinkUrl.TryParse(url, kind, out var link, out var error), error);
+        return link;
+    }
+
+    private Task<int> LinkCountAsync() =>
+        dbContext.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM dbo.DiscographyStreamingLinks").SingleAsync();
 
     private async Task<IReadOnlyList<string>> TitlesAsync() =>
         (await repository.GetAlbumAsync(2))!.Songs.Select(song => song.Title).ToList();

@@ -13,10 +13,16 @@ public sealed class InMemoryDiscographyStore
     private readonly List<AlbumState> albums;
     private int nextSongId;
 
-    public InMemoryDiscographyStore(IReadOnlyList<AlbumSeed> seedAlbums)
+    private static readonly DateTime SeedLinkTimestamp = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    public InMemoryDiscographyStore(IReadOnlyList<AlbumSeed> seedAlbums, IReadOnlyList<StreamingLinkSeed>? seedLinks = null)
     {
         albums = seedAlbums.Select(FromSeed).ToList();
         nextSongId = albums.SelectMany(album => album.Songs).Select(song => song.SongId).DefaultIfEmpty(0).Max() + 1;
+        foreach (var seed in seedLinks ?? [])
+        {
+            AddSeedLink(seed);
+        }
     }
 
     public IReadOnlyList<AlbumSummary> GetActiveAlbums()
@@ -62,9 +68,15 @@ public sealed class InMemoryDiscographyStore
                         song.IsSingle,
                         song.Lyrics,
                         song.Notes,
-                        AlbumCoverUrl.Build(song.CoverFileName)))
+                        AlbumCoverUrl.Build(song.CoverFileName))
+                    {
+                        StreamingLinks = PublicLinks(song.Links),
+                    })
                     .ToList(),
-                ReleaseDate: album.ReleaseDate);
+                ReleaseDate: album.ReleaseDate)
+            {
+                StreamingLinks = PublicLinks(album.Links),
+            };
         }
     }
 
@@ -204,6 +216,64 @@ public sealed class InMemoryDiscographyStore
         }
     }
 
+    public void SetAlbumStreamingLink(int albumId, StreamingProvider provider, StreamingLinkWrite? link)
+    {
+        link?.EnsureFits(provider, StreamingLinkKind.Album);
+        lock (gate)
+        {
+            SetLink(RequireAlbum(albumId).Links, provider, link);
+        }
+    }
+
+    public void SetSongStreamingLink(int songId, StreamingProvider provider, StreamingLinkWrite? link)
+    {
+        link?.EnsureFits(provider, StreamingLinkKind.Track);
+        lock (gate)
+        {
+            SetLink(RequireSong(songId).Song.Links, provider, link);
+        }
+    }
+
+    private static void SetLink(
+        Dictionary<StreamingProvider, AdminStreamingLink> links,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        DateTime? updatedAtUtc = null)
+    {
+        if (link is null)
+        {
+            links.Remove(provider);
+            return;
+        }
+
+        links[provider] = new AdminStreamingLink(
+            provider,
+            link.Link.ExternalId,
+            link.Link.Url,
+            link.Source,
+            updatedAtUtc ?? DateTime.UtcNow,
+            link.TrimmedUpdatedBy());
+    }
+
+    private static IReadOnlyList<StreamingLink> PublicLinks(Dictionary<StreamingProvider, AdminStreamingLink> links) =>
+        OrderedLinks(links).Select(link => link.ToPublic()).ToList();
+
+    private static IReadOnlyList<AdminStreamingLink> OrderedLinks(Dictionary<StreamingProvider, AdminStreamingLink> links) =>
+        StreamingProviders.All.Where(links.ContainsKey).Select(provider => links[provider]).ToList();
+
+    private void AddSeedLink(StreamingLinkSeed seed)
+    {
+        var album = RequireAlbum(seed.AlbumId);
+        var kind = seed.TrackNumber is null ? StreamingLinkKind.Album : StreamingLinkKind.Track;
+        if (!StreamingLinkUrl.TryParse(seed.Url, kind, out var parsed, out var error))
+        {
+            throw new InvalidOperationException($"Invalid sample streaming link {seed.Url}: {error}");
+        }
+
+        var target = seed.TrackNumber is int track ? album.Songs[track - 1].Links : album.Links;
+        SetLink(target, parsed.Provider, new StreamingLinkWrite(parsed, StreamingLinkSource.Manual, null), SeedLinkTimestamp);
+    }
+
     private static AlbumState FromSeed(AlbumSeed seed)
     {
         var slug = NewsSlug.Slugify(seed.Name);
@@ -262,10 +332,16 @@ public sealed class InMemoryDiscographyStore
             album.IsActive,
             album.ThumbFileName,
             album.PictureFileName,
-            album.Songs.Select((song, index) => ToAdmin(album, song, index)).ToList());
+            album.Songs.Select((song, index) => ToAdmin(album, song, index)).ToList())
+        {
+            StreamingLinks = OrderedLinks(album.Links),
+        };
 
     private static AdminAlbumSong ToAdmin(AlbumState album, SongState song, int index) =>
-        new(song.SongId, album.AlbumId, index + 1, song.Title, song.Lyrics, song.Notes, song.IsSingle, song.CoverFileName);
+        new(song.SongId, album.AlbumId, index + 1, song.Title, song.Lyrics, song.Notes, song.IsSingle, song.CoverFileName)
+        {
+            StreamingLinks = OrderedLinks(song.Links),
+        };
 
     private AlbumState? Find(int albumId) => albums.FirstOrDefault(album => album.AlbumId == albumId);
 
@@ -301,6 +377,8 @@ public sealed class InMemoryDiscographyStore
         public string? PictureFileName { get; set; }
 
         public List<SongState> Songs { get; } = [];
+
+        public Dictionary<StreamingProvider, AdminStreamingLink> Links { get; } = [];
     }
 
     private sealed class SongState
@@ -316,5 +394,7 @@ public sealed class InMemoryDiscographyStore
         public bool IsSingle { get; set; }
 
         public string? CoverFileName { get; set; }
+
+        public Dictionary<StreamingProvider, AdminStreamingLink> Links { get; } = [];
     }
 }

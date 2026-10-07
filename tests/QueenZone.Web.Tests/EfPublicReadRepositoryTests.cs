@@ -46,6 +46,17 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 SONG_LYRICS TEXT,
                 SONG_NOTES TEXT
             );
+            CREATE TABLE DiscographyStreamingLinks (
+                Id INTEGER PRIMARY KEY,
+                AlbumId INTEGER NOT NULL,
+                AlbumSongId INTEGER,
+                Provider TEXT NOT NULL,
+                ExternalId TEXT NOT NULL,
+                Url TEXT NOT NULL,
+                Source TEXT NOT NULL,
+                UpdatedAtUtc TEXT NOT NULL,
+                UpdatedBy TEXT
+            );
             CREATE TABLE StageList (
                 Q_STAGE_ID INTEGER NOT NULL,
                 TITLE TEXT NOT NULL,
@@ -120,6 +131,12 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
             VALUES (2, 'Hidden', '1970-01-01', NULL, 'Queen', NULL, NULL, 0);
             INSERT INTO AlbumSong (Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES)
             VALUES (10, 'Bohemian Rhapsody', 1, 'Is this the real life', 'Single');
+            INSERT INTO DiscographyStreamingLinks (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (1, NULL, 'apple-music', '1', 'https://music.apple.com/gb/album/opera/1', 'manual', '2026-01-01'),
+                (1, NULL, 'spotify', 'a', 'https://open.spotify.com/album/a', 'imported', '2026-01-01'),
+                (1, 10, 'spotify', 't', 'https://open.spotify.com/track/t', 'manual', '2026-01-01'),
+                (2, NULL, 'spotify', 'h', 'https://open.spotify.com/album/hidden', 'manual', '2026-01-01');
             """);
 
         var repository = new EfDiscographyRepository(
@@ -146,6 +163,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Single(detail.Songs);
         Assert.True(detail.Songs[0].IsSingle);
         Assert.Equal(AlbumCoverUrl.Build("bo-rhap.webp"), detail.Songs[0].CoverUrl);
+        Assert.Equal(
+            [
+                new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/album/a"),
+                new StreamingLink(StreamingProvider.AppleMusic, "https://music.apple.com/gb/album/opera/1"),
+            ],
+            detail.StreamingLinks);
+        Assert.Equal([new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/track/t")], detail.Songs[0].StreamingLinks);
 
         Assert.Null(await repository.GetAlbumByIdAsync(2));
         Assert.Null(await repository.GetAlbumByIdAsync(99));

@@ -5,7 +5,8 @@ namespace QueenZone.Data;
 /// <summary>
 /// Reads the legacy studio-album catalogue via its original stored procedures
 /// (<c>Q_ALBUM_LIST_SP</c>, <c>Q_ALBUM_T_DISPLAY_SP</c>) plus a direct tracklist query
-/// ordered by <c>TRACK_NUMBER</c>, invoked through EF Core rather than Dapper.
+/// ordered by <c>TRACK_NUMBER</c>, invoked through EF Core rather than Dapper. Streaming links
+/// come from the EF-managed <c>DiscographyStreamingLinks</c> table.
 /// </summary>
 public sealed class EfDiscographyRepository : IDiscographyRepository
 {
@@ -108,6 +109,19 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
                 .ToListAsync(cancellationToken);
         }
 
+        var links = await dbContext.DiscographyStreamingLinks
+            .AsNoTracking()
+            .Where(link => link.AlbumId == albumId)
+            .Select(link => new { link.AlbumSongId, link.Provider, link.Url })
+            .ToListAsync(cancellationToken);
+
+        IReadOnlyList<StreamingLink> LinksFor(int? albumSongId) =>
+            links
+                .Where(link => link.AlbumSongId == albumSongId)
+                .OrderBy(link => link.Provider)
+                .Select(link => new StreamingLink(link.Provider, link.Url))
+                .ToList();
+
         var songItems = songRows
             .Select(row => new AlbumSong(
                 row.Q_ALBUM_SONG_ID,
@@ -115,7 +129,10 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
                 row.IS_SINGLE == 1,
                 string.IsNullOrWhiteSpace(row.SONG_LYRICS) ? null : row.SONG_LYRICS,
                 string.IsNullOrWhiteSpace(row.SONG_NOTES) ? null : row.SONG_NOTES,
-                AlbumCoverUrl.Build(row.COVER_URL)))
+                AlbumCoverUrl.Build(row.COVER_URL))
+            {
+                StreamingLinks = LinksFor(row.Q_ALBUM_SONG_ID),
+            })
             .ToList();
 
         return new AlbumDetail(
@@ -127,7 +144,10 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
             GeneralNotes: string.IsNullOrWhiteSpace(album.GENERAL_NOTES) ? null : album.GENERAL_NOTES,
             CoverUrl: AlbumCoverUrl.Build(album.PICTURE_URL) ?? AlbumCoverUrl.Build(album.THUMB_URL),
             Songs: songItems,
-            ReleaseDate: album.RELEASE_DATE);
+            ReleaseDate: album.RELEASE_DATE)
+        {
+            StreamingLinks = LinksFor(null),
+        };
     }
 
     public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>

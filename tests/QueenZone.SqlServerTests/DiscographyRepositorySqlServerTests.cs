@@ -136,6 +136,7 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
         dbContext = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlServer(ConnectionString).Options);
         repository = new EfDiscographyRepository(dbContext);
+        await DiscographyStreamingLinkSchema.CreateAsync(dbContext);
     }
 
     public async Task DisposeAsync()
@@ -160,6 +161,11 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
                 ('Father to Son', '', 2, NULL, 1, 0, '2020-01-01', 2, NULL),
                 ('Untracked', '', 2, NULL, 1, 0, '2020-01-01', NULL, NULL),
                 ('Ogre Battle', '', 2, NULL, 1, 1, '2020-01-01', 3, 'ogre.webp');
+            INSERT INTO dbo.DiscographyStreamingLinks (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (2, NULL, 'apple-music', '1', 'https://music.apple.com/gb/album/queen-ii/1', 'manual', '2026-01-01'),
+                (2, 4, 'spotify', 'o', 'https://open.spotify.com/track/o', 'imported', '2026-01-01'),
+                (3, NULL, 'spotify', 'x', 'https://open.spotify.com/album/x', 'manual', '2026-01-01');
             """);
 
         var album = await repository.GetAlbumByIdAsync(2);
@@ -168,6 +174,11 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
         Assert.Equal(["Procession", "Father to Son", "Ogre Battle", "Untracked"], album!.Songs.Select(song => song.Title));
         Assert.Equal(AlbumCoverUrl.Build("ogre.webp"), album.Songs[2].CoverUrl);
         Assert.Null(album.Songs[0].CoverUrl);
+
+        // Links come from the EF table: album-level rows on the album, track rows on their song.
+        Assert.Equal([new StreamingLink(StreamingProvider.AppleMusic, "https://music.apple.com/gb/album/queen-ii/1")], album.StreamingLinks);
+        Assert.Equal([new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/track/o")], album.Songs[2].StreamingLinks);
+        Assert.Empty(album.Songs[0].StreamingLinks);
     }
 
     [Fact]

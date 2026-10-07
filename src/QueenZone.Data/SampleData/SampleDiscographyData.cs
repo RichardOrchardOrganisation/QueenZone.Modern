@@ -40,6 +40,26 @@ public static class SampleDiscographyData
             "Fight from the Inside", "Get Down, Make Love", "Sleeping on the Sidewalk", "Who Needs You", "It's Late", "My Melancholy Blues",
         ]),
     ];
+
+    /// <summary>
+    /// Made-up provider ids in the real URL shapes (not live releases). Seven Seas of Rhye has
+    /// Spotify on "Queen" and Apple Music on "Queen II", so song pages resolve each provider from
+    /// a different appearance.
+    /// </summary>
+    public static IReadOnlyList<StreamingLinkSeed> CreateSeedStreamingLinks() =>
+    [
+        new StreamingLinkSeed(4, null, "https://open.spotify.com/album/0SampleNightAtTheOpera"),
+        new StreamingLinkSeed(4, null, "https://music.apple.com/gb/album/a-night-at-the-opera/1000000004"),
+        new StreamingLinkSeed(4, 11, "https://open.spotify.com/track/0SampleBohemianRhapsod"),
+        new StreamingLinkSeed(4, 11, "https://music.apple.com/gb/album/a-night-at-the-opera/1000000004?i=1000000411"),
+        new StreamingLinkSeed(1, 10, "https://open.spotify.com/track/0SampleSevenSeasOfRhye"),
+        new StreamingLinkSeed(2, 11, "https://music.apple.com/gb/album/queen-ii/1000000002?i=1000000211"),
+    ];
 }
+
+/// <summary>
+/// A sample link for an album (<paramref name="TrackNumber"/> null) or its 1-based track.
+/// </summary>
+public sealed record StreamingLinkSeed(int AlbumId, int? TrackNumber, string Url);
 
 public sealed record AlbumSeed(int AlbumId, string Name, int ReleaseYear, string GeneralNotes, IReadOnlyList<string> SongTitles);

@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
@@ -81,7 +82,13 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             return null;
         }
 
-        var songs = await GetSongsForAlbumAsync(albumId, cancellationToken);
+        var links = await dbContext.DiscographyStreamingLinks
+            .AsNoTracking()
+            .Where(link => link.AlbumId == albumId)
+            .ToListAsync(cancellationToken);
+        var songs = (await GetSongsForAlbumAsync(albumId, cancellationToken))
+            .Select(song => song with { StreamingLinks = LinksFor(links, song.SongId) })
+            .ToList();
         return new AdminAlbum(
             row.AlbumId,
             row.Name,
@@ -91,7 +98,10 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             row.IsActive,
             AdminDiscographyValidation.NullIfBlank(row.ThumbFileName),
             AdminDiscographyValidation.NullIfBlank(row.PictureFileName),
-            songs);
+            songs)
+        {
+            StreamingLinks = LinksFor(links, albumSongId: null),
+        };
     }
 
     public async Task<IReadOnlyList<AdminArtist>> GetArtistsAsync(CancellationToken cancellationToken = default)
@@ -202,6 +212,11 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             {
                 await EfSql.ExecuteNonQuerySqlAsync(
                     dbContext,
+                    "DELETE FROM dbo.DiscographyStreamingLinks WHERE AlbumId = @AlbumId",
+                    command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
+                    cancellationToken: token);
+                await EfSql.ExecuteNonQuerySqlAsync(
+                    dbContext,
                     "DELETE FROM dbo.Q_ALBUM_SONG_T WHERE Q_ALBUM_ID = @AlbumId",
                     command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
                     cancellationToken: token);
@@ -226,7 +241,17 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             sql,
             command => command.Parameters.Add(EfSql.Input(SongIdParameter, songId)),
             cancellationToken: cancellationToken);
-        return rows.Where(row => row.SongId == songId).Select(MapSong).FirstOrDefault();
+        var song = rows.Where(row => row.SongId == songId).Select(MapSong).FirstOrDefault();
+        if (song is null)
+        {
+            return null;
+        }
+
+        var links = await dbContext.DiscographyStreamingLinks
+            .AsNoTracking()
+            .Where(link => link.AlbumSongId == songId)
+            .ToListAsync(cancellationToken);
+        return song with { StreamingLinks = LinksFor(links, songId) };
     }
 
     public Task<int> CreateSongAsync(
@@ -327,12 +352,115 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
                 var albumId = await GetAlbumIdForSongAsync(songId, token);
                 await EfSql.ExecuteNonQuerySqlAsync(
                     dbContext,
+                    "DELETE FROM dbo.DiscographyStreamingLinks WHERE AlbumSongId = @SongId",
+                    command => command.Parameters.Add(EfSql.Input(SongIdParameter, songId)),
+                    cancellationToken: token);
+                await EfSql.ExecuteNonQuerySqlAsync(
+                    dbContext,
                     "DELETE FROM dbo.Q_ALBUM_SONG_T WHERE Q_ALBUM_SONG_ID = @SongId",
                     command => command.Parameters.Add(EfSql.Input(SongIdParameter, songId)),
                     cancellationToken: token);
                 await RenumberAsync(albumId, await GetOrderedSongIdsAsync(albumId, token), token);
             },
             cancellationToken);
+
+    public Task SetAlbumStreamingLinkAsync(
+        int albumId,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        CancellationToken cancellationToken = default)
+    {
+        link?.EnsureFits(provider, StreamingLinkKind.Album);
+        return InTransactionAsync(
+            async token =>
+            {
+                var albumRows = await EfSql.QuerySqlAsync<ValueRow>(
+                    dbContext,
+                    "SELECT CAST(Q_ALBUM_ID AS int) AS Value FROM dbo.Q_ALBUM_T WITH (UPDLOCK) WHERE Q_ALBUM_ID = @AlbumId",
+                    command => command.Parameters.Add(EfSql.Input(AlbumIdParameter, albumId)),
+                    cancellationToken: token);
+                if (albumRows.Count == 0)
+                {
+                    throw new InvalidOperationException($"Album {albumId} was not found.");
+                }
+
+                await SaveLinkAsync(albumId, albumSongId: null, provider, link, token);
+            },
+            cancellationToken);
+    }
+
+    public Task SetSongStreamingLinkAsync(
+        int songId,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        CancellationToken cancellationToken = default)
+    {
+        link?.EnsureFits(provider, StreamingLinkKind.Track);
+        return InTransactionAsync(
+            async token =>
+            {
+                var albumId = await GetAlbumIdForSongAsync(songId, token);
+                await SaveLinkAsync(albumId, songId, provider, link, token);
+            },
+            cancellationToken);
+    }
+
+    private async Task SaveLinkAsync(
+        int albumId,
+        int? albumSongId,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.DiscographyStreamingLinks
+            .FirstOrDefaultAsync(
+                row => row.AlbumId == albumId && row.AlbumSongId == albumSongId && row.Provider == provider,
+                cancellationToken);
+
+        if (link is null)
+        {
+            if (existing is not null)
+            {
+                dbContext.DiscographyStreamingLinks.Remove(existing);
+            }
+        }
+        else
+        {
+            if (existing is null)
+            {
+                existing = new DiscographyStreamingLinkEntity
+                {
+                    AlbumId = albumId,
+                    AlbumSongId = albumSongId,
+                    Provider = provider,
+                };
+                dbContext.DiscographyStreamingLinks.Add(existing);
+            }
+
+            existing.ExternalId = link.Link.ExternalId;
+            existing.Url = link.Link.Url;
+            existing.Source = link.Source;
+            existing.UpdatedAtUtc = DateTime.UtcNow;
+            existing.UpdatedBy = link.TrimmedUpdatedBy();
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static IReadOnlyList<AdminStreamingLink> LinksFor(
+        IEnumerable<DiscographyStreamingLinkEntity> links,
+        int? albumSongId) =>
+        links
+            .Where(link => link.AlbumSongId == albumSongId)
+            .OrderBy(link => link.Provider)
+            .Select(link => new AdminStreamingLink(
+                link.Provider,
+                link.ExternalId,
+                link.Url,
+                link.Source,
+                link.UpdatedAtUtc,
+                link.UpdatedBy))
+            .ToList();
 
     private async Task<IReadOnlyList<AdminAlbumSong>> GetSongsForAlbumAsync(int albumId, CancellationToken cancellationToken)
     {

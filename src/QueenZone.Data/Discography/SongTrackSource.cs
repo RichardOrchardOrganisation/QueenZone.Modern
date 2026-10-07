@@ -12,4 +12,8 @@ public sealed record SongTrackSource(
     int AlbumId,
     string AlbumName,
     DateTime? AlbumReleaseDate,
-    string? CoverUrl = null);
+    string? CoverUrl = null)
+{
+    /// <summary>Track-level links for this row.</summary>
+    public IReadOnlyList<StreamingLink> StreamingLinks { get; init; } = [];
+}
