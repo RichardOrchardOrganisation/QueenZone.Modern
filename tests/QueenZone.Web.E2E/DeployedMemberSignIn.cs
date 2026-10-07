@@ -9,14 +9,6 @@ namespace QueenZone.Web.E2E;
 /// </summary>
 internal static class DeployedMemberSignIn
 {
-    /// <summary>
-    /// ASP.NET Core cookie name for <c>MembersCookie</c> (and chunked
-    /// <c>…C1</c> suffixes). Matches
-    /// <c>AdminAuthenticationSchemes.MemberCookieName</c> without referencing
-    /// the web project.
-    /// </summary>
-    internal const string MemberSessionCookieName = ".AspNetCore.MembersCookie";
-
     internal const string SignedOutMessage =
         "DevJourney signed in once at fixture setup. This test's browser context has no member session; refusing to sign in again.";
 
@@ -66,17 +58,23 @@ internal static class DeployedMemberSignIn
         return await context.StorageStateAsync();
     }
 
-    internal static async Task AssertContextHasMemberSessionAsync(IBrowserContext context)
+    /// <summary>
+    /// Opens <c>/</c> and hard-expects signed-in chrome. A missing Sign out
+    /// button fails with <see cref="SignedOutMessage"/> instead of submitting
+    /// the password form again. Cookie presence is not enough: public journey
+    /// pages still render when DEV has rejected the session.
+    /// </summary>
+    internal static async Task AssertSignedInChromeAsync(IPage page)
     {
-        AssertHasMemberSession(await context.CookiesAsync());
+        await page.GotoAsync("/");
+        try
+        {
+            await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Sign out" }).First)
+                .ToBeVisibleAsync();
+        }
+        catch (Exception ex) when (ex is TimeoutException or PlaywrightException)
+        {
+            Assert.Fail(SignedOutMessage);
+        }
     }
-
-    internal static void AssertHasMemberSession(IReadOnlyList<BrowserContextCookiesResult> cookies)
-    {
-        Assert.That(cookies.Any(IsMemberSessionCookie), Is.True, SignedOutMessage);
-    }
-
-    internal static bool IsMemberSessionCookie(BrowserContextCookiesResult cookie) =>
-        cookie.Name.StartsWith(MemberSessionCookieName, StringComparison.Ordinal)
-        && !string.IsNullOrEmpty(cookie.Value);
 }

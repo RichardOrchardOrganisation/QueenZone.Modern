@@ -1,4 +1,4 @@
-using Microsoft.Playwright;
+using System.Runtime.CompilerServices;
 
 namespace QueenZone.Web.E2E;
 
@@ -12,71 +12,37 @@ namespace QueenZone.Web.E2E;
 public class DeployedMemberSignInTests
 {
     [Test]
-    public void AssertHasMemberSession_PassesWhenCookiePresent()
+    public void SignedOutMessage_RefusesToSignInAgain()
     {
-        var cookies = new[]
-        {
-            new BrowserContextCookiesResult
-            {
-                Name = DeployedMemberSignIn.MemberSessionCookieName,
-                Value = "ticket",
-            },
-        };
-
-        Assert.DoesNotThrow(() => DeployedMemberSignIn.AssertHasMemberSession(cookies));
+        Assert.That(DeployedMemberSignIn.SignedOutMessage, Does.Contain("signed in once"));
+        Assert.That(DeployedMemberSignIn.SignedOutMessage, Does.Contain("refusing to sign in again"));
+        Assert.That(DeployedMemberSignIn.SignedOutMessage, Does.Not.Contain("SignInAsync"));
     }
 
     [Test]
-    public void AssertHasMemberSession_AcceptsChunkedCookieName()
+    public void AssertSignedInChrome_OpensHomeAndHardExpectsSignOut()
     {
-        var cookies = new[]
-        {
-            new BrowserContextCookiesResult
-            {
-                Name = DeployedMemberSignIn.MemberSessionCookieName + "C1",
-                Value = "chunk",
-            },
-        };
+        var path = Path.GetFullPath(Path.Combine(RepoRoot(), "tests", "QueenZone.Web.E2E", "DeployedMemberSignIn.cs"));
+        var source = File.ReadAllText(path);
+        const string marker = "internal static async Task AssertSignedInChromeAsync";
+        var start = source.IndexOf(marker, StringComparison.Ordinal);
+        Assert.That(start, Is.GreaterThanOrEqualTo(0), "Expected AssertSignedInChromeAsync on the shared helper.");
+        var after = source.IndexOf("internal static", start + marker.Length, StringComparison.Ordinal);
+        var method = after < 0 ? source[start..] : source[start..after];
 
-        Assert.DoesNotThrow(() => DeployedMemberSignIn.AssertHasMemberSession(cookies));
+        Assert.That(method, Does.Contain("GotoAsync(\"/\")"));
+        Assert.That(method, Does.Contain("Name = \"Sign out\""));
+        Assert.That(method, Does.Contain("ToBeVisibleAsync()"));
+        Assert.That(method, Does.Contain("Assert.Fail(SignedOutMessage)"));
+        Assert.That(method, Does.Not.Contain("CookiesAsync"));
+        Assert.That(method, Does.Not.Contain("SignInAsync"));
+        Assert.That(method, Does.Not.Contain("FillPasswordFormAndSubmitAsync"));
     }
 
-    [Test]
-    public void AssertHasMemberSession_FailsWithClearMessageWhenMissing()
+    private static string RepoRoot([CallerFilePath] string thisFile = "")
     {
-        var ex = Assert.Throws<AssertionException>(() =>
-            DeployedMemberSignIn.AssertHasMemberSession([]));
-
-        Assert.That(ex!.Message, Does.Contain(DeployedMemberSignIn.SignedOutMessage));
-        Assert.That(ex.Message, Does.Not.Contain("SignInAsync"));
-    }
-
-    [Test]
-    public void AssertHasMemberSession_FailsWhenCookieValueEmpty()
-    {
-        var cookies = new[]
-        {
-            new BrowserContextCookiesResult
-            {
-                Name = DeployedMemberSignIn.MemberSessionCookieName,
-                Value = string.Empty,
-            },
-        };
-
-        var ex = Assert.Throws<AssertionException>(() =>
-            DeployedMemberSignIn.AssertHasMemberSession(cookies));
-        Assert.That(ex!.Message, Does.Contain("refusing to sign in again"));
-    }
-
-    [Test]
-    public void IsMemberSessionCookie_RejectsUnrelatedCookies()
-    {
-        var cookie = new BrowserContextCookiesResult
-        {
-            Name = ".AspNetCore.Antiforgery",
-            Value = "token",
-        };
-
-        Assert.That(DeployedMemberSignIn.IsMemberSessionCookie(cookie), Is.False);
+        var directory = Path.GetDirectoryName(thisFile);
+        Assert.That(directory, Is.Not.Null.And.Not.Empty);
+        return Path.GetFullPath(Path.Combine(directory!, "..", ".."));
     }
 }

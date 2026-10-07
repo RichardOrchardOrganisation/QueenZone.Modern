@@ -25,8 +25,9 @@ namespace QueenZone.Web.E2E;
 /// <para>
 /// Sign-in is once per fixture (<c>[OneTimeSetUp]</c>). The shared helper
 /// captures Playwright storage state after that single password submit, and
-/// each test context is created from it. A test that finds itself signed out
-/// fails with a clear message instead of signing in again.
+/// each test context is created from it. Each test <c>[SetUp]</c> opens
+/// <c>/</c> and hard-expects the Sign out button. If it is missing, the
+/// fixture fails with a clear message instead of signing in again.
 /// </para>
 /// </summary>
 [TestFixture]
@@ -61,7 +62,7 @@ public class DevJourneyTests : PageTest
     [SetUp]
     public async Task AssertFixtureSessionStillActiveAsync()
     {
-        await DeployedMemberSignIn.AssertContextHasMemberSessionAsync(Context);
+        await DeployedMemberSignIn.AssertSignedInChromeAsync(Page);
     }
 
     [TearDown]
