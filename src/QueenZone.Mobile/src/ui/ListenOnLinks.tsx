@@ -24,20 +24,20 @@ export function knownStreamingLinks(links: StreamingLink[] | null | undefined): 
 
   return providers.flatMap((provider) => {
     const link = links.find((candidate) => candidate.provider === provider.key);
-    return link && link.url.startsWith(provider.origin)
+    return link?.url.startsWith(provider.origin)
       ? [{ key: provider.key, name: provider.name, url: link.url }]
       : [];
   });
 }
 
-type Props = {
+type Props = Readonly<{
   links: StreamingLink[] | null | undefined;
   /** Album or song title, used in each accessibility label. */
   subject: string;
   /** Small inline text links for track and appearance rows. */
   compact?: boolean;
   testID?: string;
-};
+}>;
 
 export function ListenOnLinks({ links, subject, compact, testID }: Props) {
   const { c } = useTheme();
