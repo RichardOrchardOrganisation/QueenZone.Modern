@@ -30,35 +30,7 @@
       <ol class="qz-album-tracklist">
         @foreach (var appearance in Model.Song.Appearances)
         {
-          <li class="qz-album-track">
-            <div class="qz-album-track__row">
-              <a class="qz-album-tracklist__title-link" href="@DiscographyRoutes.GetAlbumPath(appearance.AlbumId, appearance.AlbumSlug)">@appearance.AlbumName</a>
-              @if (appearance.IsSingle || appearance.StreamingLinks.Count > 0)
-              {
-                <span class="qz-album-track__aside">
-                  <partial name="_StreamingLinks" model="@(new StreamingLinksViewModel(appearance.StreamingLinks, $"{Model.Song.Title} on {appearance.AlbumName}", StreamingLinkKind.Track, Compact: true))" />
-                  @if (appearance.IsSingle)
-                  {
-                    <span class="qz-album-tracklist__single">Single</span>
-                  }
-                </span>
-              }
-            </div>
-            <p class="qz-album-track__notes">
-              @if (appearance.ReleaseYear is int year)
-              {
-                @year
-              }
-              @if (appearance.Notes is not null)
-              {
-                @if (appearance.ReleaseYear is not null)
-                {
-                  @(" · ")
-                }
-                @appearance.Notes
-              }
-            </p>
-          </li>
+          <partial name="_SongAppearance" model="@(new SongAppearanceViewModel(appearance, Model.Song.Title))" />
         }
       </ol>
 

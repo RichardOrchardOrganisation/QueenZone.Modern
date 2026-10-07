@@ -56,7 +56,7 @@ public sealed class SongPageTests : IClassFixture<QueenZoneWebApplicationFactory
 
         // Header: Spotify comes from "Queen" (1973), Apple Music from "Queen II" (1974).
         var header = body[..body.IndexOf("Appearances", StringComparison.Ordinal)];
-        Assert.Contains("aria-label=\"Listen to Seven Seas of Rhye\"", header);
+        Assert.Contains("Listen on Spotify<span class=\"visually-hidden\">: Seven Seas of Rhye (opens in a new tab)</span>", header);
         Assert.Contains("href=\"https://open.spotify.com/track/0SampleSevenSeasOfRhye\"", header);
         Assert.Contains("href=\"https://music.apple.com/gb/album/queen-ii/1000000002?i=1000000211\"", header);
 

@@ -60,7 +60,7 @@ public sealed class DiscographyPageTests : IClassFixture<QueenZoneWebApplication
         var body = await client.GetStringAsync("/discography/albums/4/a-night-at-the-opera");
 
         // Album-level buttons in the hero, Spotify first.
-        Assert.Contains("aria-label=\"Listen to A Night at the Opera\"", body);
+        Assert.DoesNotContain("role=\"group\"", body);
         var spotify = body.IndexOf("href=\"https://open.spotify.com/album/0SampleNightAtTheOpera\"", StringComparison.Ordinal);
         var apple = body.IndexOf("href=\"https://music.apple.com/gb/album/a-night-at-the-opera/1000000004\"", StringComparison.Ordinal);
         Assert.True(spotify > 0 && apple > spotify, "Album links should render Spotify then Apple Music.");
