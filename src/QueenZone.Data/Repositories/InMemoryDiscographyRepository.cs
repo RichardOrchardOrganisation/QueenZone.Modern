@@ -20,6 +20,16 @@ public sealed class InMemoryDiscographyRepository : IDiscographyRepository
     public Task<AlbumDetail?> GetAlbumByIdAsync(int albumId, CancellationToken cancellationToken = default) =>
         Task.FromResult(store.GetActiveAlbum(albumId));
 
+    public Task<IReadOnlyList<SongTrackSource>> GetActiveAlbumTracksAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var details = store.GetActiveAlbums()
+            .Select(album => store.GetActiveAlbum(album.AlbumId))
+            .OfType<AlbumDetail>()
+            .ToList();
+        return Task.FromResult(SongCatalog.TracksFromAlbums(details));
+    }
+
     public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
         SongCatalog.GetSongsAsync(this, cancellationToken);
 
