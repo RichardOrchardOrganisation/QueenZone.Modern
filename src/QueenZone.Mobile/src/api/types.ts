@@ -182,6 +182,15 @@ export type AlbumListItem = {
   detailPath: string;
 };
 
+/**
+ * One "Listen on" link. `provider` is a stable key (`spotify`, `apple-music`); unknown keys are
+ * ignored by the client so the server can add providers without breaking installed builds.
+ */
+export type StreamingLink = {
+  provider: string;
+  url: string;
+};
+
 export type AlbumSong = {
   songId: number;
   title: string;
@@ -189,6 +198,8 @@ export type AlbumSong = {
   lyrics: string | null;
   notes: string | null;
   detailPath?: string | null;
+  /** Optional: older servers and offline-cached responses omit it. */
+  streamingLinks?: StreamingLink[];
 };
 
 export type SongListItem = {
@@ -205,6 +216,7 @@ export type SongAppearance = {
   isSingle: boolean;
   notes: string | null;
   albumPath: string;
+  streamingLinks?: StreamingLink[];
 };
 
 export type SongRelatedItem = {
@@ -220,6 +232,7 @@ export type SongDetail = {
   detailPath: string;
   appearances: SongAppearance[];
   related: SongRelatedItem[];
+  streamingLinks?: StreamingLink[];
 };
 
 export type AlbumDetail = {
@@ -231,6 +244,7 @@ export type AlbumDetail = {
   coverUrl: string | null;
   detailPath: string;
   songs: AlbumSong[];
+  streamingLinks?: StreamingLink[];
 };
 
 /** Shape for `/api/v1/content/timeline`, `/api/v1/content/timeline/{id}`, and `/api/v1/content/on-this-day`. */

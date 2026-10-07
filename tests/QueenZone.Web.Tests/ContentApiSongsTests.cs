@@ -62,6 +62,28 @@ public sealed class ContentApiSongsTests : IClassFixture<QueenZoneWebApplication
     }
 
     [Fact]
+    public async Task Songs_detail_resolves_streaming_links_per_provider_and_per_appearance()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        using var document = System.Text.Json.JsonDocument.Parse(
+            await client.GetStringAsync($"{ContentApiEndpoints.RootPath}/songs/seven-seas-of-rhye"));
+        var root = document.RootElement;
+
+        Assert.Equal(
+            ["spotify", "apple-music"],
+            root.GetProperty("streamingLinks").EnumerateArray().Select(link => link.GetProperty("provider").GetString()));
+        var appearances = root.GetProperty("appearances").EnumerateArray().ToList();
+        Assert.Equal("Queen", appearances[0].GetProperty("albumName").GetString());
+        Assert.Equal("spotify", Assert.Single(appearances[0].GetProperty("streamingLinks").EnumerateArray()).GetProperty("provider").GetString());
+        Assert.Equal("apple-music", Assert.Single(appearances[1].GetProperty("streamingLinks").EnumerateArray()).GetProperty("provider").GetString());
+
+        using var withoutLinks = System.Text.Json.JsonDocument.Parse(
+            await client.GetStringAsync($"{ContentApiEndpoints.RootPath}/songs/keep-yourself-alive"));
+        Assert.Equal(0, withoutLinks.RootElement.GetProperty("streamingLinks").GetArrayLength());
+    }
+
+    [Fact]
     public void ToSongDetail_formats_lyrics_like_the_website()
     {
         var song = new SongDetail(

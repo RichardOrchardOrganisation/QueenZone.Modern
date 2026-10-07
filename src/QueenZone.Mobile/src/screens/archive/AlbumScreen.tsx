@@ -4,8 +4,10 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError, fetchAlbumDetail, toPlainText, type AlbumDetail } from '../../api';
 import type { ArchiveStackParamList } from '../../navigation/types';
 import { ArchiveImage } from '../../ui/ArchiveImage';
+import { ListenOnLinks } from '../../ui/ListenOnLinks';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { radius, space, type, useTheme } from '../../theme';
+import { testIds } from '../../test/testIds';
 import { songSlugFromAlbumTrack } from './SongScreen';
 
 type Props = NativeStackScreenProps<ArchiveStackParamList, 'Album'>;
@@ -86,6 +88,7 @@ export function AlbumScreen({ navigation, route }: Props) {
       {notes ? (
         <Text style={[type.body, { color: c.textSecondary, marginTop: space.xl }]}>{notes}</Text>
       ) : null}
+      <ListenOnLinks links={album.streamingLinks} subject={album.name} testID={testIds.albumListenOn} />
       <Text style={[type.eyebrow, { color: c.textSecondary, marginTop: space.xxl }]}>Track list</Text>
       <View style={{ marginTop: space.md }}>
         {album.songs.map((song, index) => {
@@ -107,24 +110,37 @@ export function AlbumScreen({ navigation, route }: Props) {
             </>
           );
 
+          // Track links sit beside the row, not inside its Pressable, so screen readers can reach them.
+          const links = (
+            <ListenOnLinks
+              links={song.streamingLinks}
+              subject={song.title}
+              compact
+              testID={`${testIds.albumTrackListenOn}-${song.songId}`}
+            />
+          );
+
           if (!songSlug) {
             return (
-              <View key={song.songId} style={[styles.track, { borderTopColor: c.hairline }]}>
-                {row}
+              <View key={song.songId} style={[styles.trackItem, { borderTopColor: c.hairline }]}>
+                <View style={styles.track}>{row}</View>
+                <View style={styles.trackLinks}>{links}</View>
               </View>
             );
           }
 
           return (
-            <Pressable
-              key={song.songId}
-              onPress={() => navigation.navigate('Song', { slug: songSlug })}
-              style={[styles.track, { borderTopColor: c.hairline }]}
-              accessibilityRole="button"
-              accessibilityLabel={song.title}
-            >
-              {row}
-            </Pressable>
+            <View key={song.songId} style={[styles.trackItem, { borderTopColor: c.hairline }]}>
+              <Pressable
+                onPress={() => navigation.navigate('Song', { slug: songSlug })}
+                style={styles.track}
+                accessibilityRole="button"
+                accessibilityLabel={song.title}
+              >
+                {row}
+              </Pressable>
+              <View style={styles.trackLinks}>{links}</View>
+            </View>
           );
         })}
       </View>
@@ -146,11 +162,19 @@ const styles = StyleSheet.create({
     marginTop: space.base,
     borderRadius: radius.xs,
   },
+  trackItem: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   track: {
     flexDirection: 'row',
     gap: space.sm,
     paddingVertical: space.base,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  trackLinks: {
+    // Line up with the title column (28px number + gap) and keep the row's bottom padding.
+    marginLeft: 28 + space.sm,
+    marginTop: -space.sm,
+    marginBottom: space.sm,
   },
   trackBody: {
     flex: 1,
