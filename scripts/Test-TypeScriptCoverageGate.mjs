@@ -35,6 +35,30 @@ const projectPrefix = projectRoot === '.' ? '' : `${projectRoot}/`;
 
 export const COVERABLE_GLOB = `${projectPrefix}src/**/*.{ts,tsx}`;
 
+const knownGitExecutables = [
+  '/usr/bin/git',
+  '/usr/local/bin/git',
+  '/opt/homebrew/bin/git',
+  'C:\\Program Files\\Git\\cmd\\git.exe',
+  'C:\\Program Files\\Git\\mingw64\\bin\\git.exe',
+];
+
+/** An absolute git path (GIT_EXECUTABLE, else a standard install), so a writable PATH entry cannot supply git. */
+export function resolveGitExecutable(env = process.env, exists = existsSync) {
+  const configured = env.GIT_EXECUTABLE;
+  if (configured) {
+    if (!path.isAbsolute(configured)) {
+      throw new Error('GIT_EXECUTABLE must be an absolute path.');
+    }
+    return configured;
+  }
+  const found = knownGitExecutables.find((candidate) => exists(candidate));
+  if (!found) {
+    throw new Error(`git not found. Set GIT_EXECUTABLE to an absolute path or install git at ${knownGitExecutables.join(', ')}.`);
+  }
+  return found;
+}
+
 export function toPosix(value) {
   return String(value).replace(/\\/g, '/');
 }
@@ -529,23 +553,24 @@ export function getChangedLines({ repoRoot, baseRef, headRef, paths }) {
   if (!baseRef) {
     throw new Error('Changed-line coverage requires a base ref.');
   }
+  const git = resolveGitExecutable();
 
   let resolved = baseRef;
   if (!baseRef.startsWith('origin/')) {
     const remoteRef = `origin/${baseRef}`;
-    const probe = spawnSync('git', ['rev-parse', '--verify', '--quiet', remoteRef], { cwd: repoRoot });
+    const probe = spawnSync(git, ['rev-parse', '--verify', '--quiet', remoteRef], { cwd: repoRoot });
     if (probe.status === 0) {
       resolved = remoteRef;
     }
   }
 
-  const available = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${resolved}^{commit}`], { cwd: repoRoot });
+  const available = spawnSync(git, ['rev-parse', '--verify', '--quiet', `${resolved}^{commit}`], { cwd: repoRoot });
   if (available.status !== 0) {
     throw new Error(`Base ref '${baseRef}' is not available locally.`);
   }
 
   const diff = spawnSync(
-    'git',
+    git,
     ['diff', '--unified=0', '--no-color', `${resolved}...${headRef}`, '--', ...paths],
     { cwd: repoRoot, encoding: 'utf8' },
   );
@@ -1047,8 +1072,8 @@ function runSelfTest() {
     writeFileSync(
       path.join(jestDir, 'coverage-final.json'),
       JSON.stringify({
-        [`/tmp/fixture/${projectPrefix}src/api/text.ts`]: {
-          path: `/tmp/fixture/${projectPrefix}src/api/text.ts`,
+        [`/fixture-repo/${projectPrefix}src/api/text.ts`]: {
+          path: `/fixture-repo/${projectPrefix}src/api/text.ts`,
           statementMap: { 0: { start: { line: 2, column: 0 } }, 1: { start: { line: 3, column: 0 } } },
           s: { 0: 1, 1: 0 },
           fnMap: { 0: { name: 'toPlainText', decl: { start: { line: 2 } } } },
@@ -1069,7 +1094,7 @@ function runSelfTest() {
 
     assert('gate publishes suite totals and enforces floors', () => {
       const summary = runGate({
-        repoRoot: '/tmp/fixture',
+        repoRoot: '/fixture-repo',
         reports: path.join(fixtureRoot, 'coverage'),
         floors: path.join(tempRoot, 'floors.json'),
         merged: path.join(tempRoot, 'merged-pass'),
@@ -1093,7 +1118,7 @@ function runSelfTest() {
       let failed = false;
       try {
         runGate({
-          repoRoot: '/tmp/fixture',
+          repoRoot: '/fixture-repo',
           reports: path.join(fixtureRoot, 'coverage'),
           floors: path.join(tempRoot, 'floors-high.json'),
           merged: path.join(tempRoot, 'merged-fail'),
@@ -1111,7 +1136,7 @@ function runSelfTest() {
 
     assert('changed-line gate skips when no coverable TypeScript lines changed', () => {
       const summary = runGate({
-        repoRoot: '/tmp/fixture',
+        repoRoot: '/fixture-repo',
         reports: path.join(fixtureRoot, 'coverage'),
         floors: path.join(tempRoot, 'floors.json'),
         merged: path.join(tempRoot, 'merged-skip'),
@@ -1152,6 +1177,26 @@ function runSelfTest() {
       );
       if (configuredFloorsPath(configRoot) !== path.join(configRoot, 'config/floors.json')) {
         throw new Error('expected the configured floors path relative to the repository root');
+      }
+    });
+
+    assert('git runs from an absolute path, never a PATH lookup', () => {
+      if (resolveGitExecutable({ GIT_EXECUTABLE: path.resolve('/opt/git/bin/git') }, () => false) !== path.resolve('/opt/git/bin/git')) {
+        throw new Error('expected GIT_EXECUTABLE to win');
+      }
+      for (const env of [{ GIT_EXECUTABLE: 'git' }, {}]) {
+        let failed = false;
+        try {
+          resolveGitExecutable(env, () => false);
+        } catch {
+          failed = true;
+        }
+        if (!failed) {
+          throw new Error(`expected ${JSON.stringify(env)} to fail closed`);
+        }
+      }
+      if (!path.isAbsolute(resolveGitExecutable({}, (candidate) => candidate === '/usr/bin/git'))) {
+        throw new Error('expected a known absolute install');
       }
     });
 
