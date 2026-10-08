@@ -7,7 +7,7 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | | |
 | --- | --- |
 | Source | `https://github.com/RichardOrchardOrganisation/development-standards` |
-| Commit | `e4939ccce59fb29880de13cf366d7315ef0a8e53` (merge of development-standards PR #14; `main` at update) |
+| Commit | `7fbff8b1a9e1af62cd95d46140b36ab1b5d5f091` (merge of development-standards PR #15; `main` at update) |
 | Kit version | `0.3.0` |
 | Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater; `keptLocal` lists the two reviewed conflicts below |
 | Attribution | [`docs/development-standards-LICENSE`](../development-standards-LICENSE); QueenZone's own `LICENSE` is unchanged |
@@ -17,6 +17,7 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | 0.2.0 | `c958b458725b30590445f3e6fa3033e439cd5587` | Adoption: staged install and manual reconciliation (initial kit, development-standards PR #2; updater, PR #4) |
 | 0.3.0 | `5e1cee668d5784c5146576e413736ed9d19bcb8b` | First update, through `scripts/update.mjs` with `--keep-local` for `scripts/check-pr-verification.mjs` and `scripts/Test-TypeScriptCoverageGate.mjs` |
 | 0.3.0 | `e4939ccce59fb29880de13cf366d7315ef0a8e53` | Update adopting the kit TypeScript gate (development-standards PRs #13 and #14): it reads `typescript.projectRoot` and replaces `Test-MobileCoverageGate.mjs`. No conflicts kept local |
+| 0.3.0 | `7fbff8b1a9e1af62cd95d46140b36ab1b5d5f091` | Lock-only update: QueenZone already carried the identical change from development-standards PR #15 (absolute-path `git`) |
 
 0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. CI never loads the kit at run time; everything it uses is a committed copy.
 
@@ -59,7 +60,7 @@ Every path in the kit's `installation-manifest.json` is a managed path. The upda
 | `.github/pull_request_template.md` | QueenZone template kept, kit wording merged | Keeps issue-link, legacy-probe, UI proof, review-finding, migration, and follow-up sections the QueenZone checks parse |
 | `config/feature-map.json` | **Deliberately absent** | Would be a second, hand-maintained feature map beside `docs/feature-map/` |
 | `config/typescript-coverage.json` | **Deliberately absent** | Its 90 / 70 / 70 new-project floors would compete with the measured mobile floors |
-| `scripts/Test-TypeScriptCoverageGate.mjs` | Kit version (since `e4939cc`) | Replaced QueenZone's `Test-MobileCoverageGate.mjs`, which it was generalised from. It resolves `src/QueenZone.Mobile` from `typescript.projectRoot`, works from any directory (CI, the `coverage:gate` npm script), and `Get-MobileCrapReport.mjs` imports its helpers. Merged totals are identical to the old gate. Its absolute-path `git` resolution (`resolveGitExecutable`, SonarCloud S4036/S5443) is a local change identical to development-standards PR #15; the next update takes it from the kit with no conflict |
+| `scripts/Test-TypeScriptCoverageGate.mjs` | Kit version (since `e4939cc`) | Replaced QueenZone's `Test-MobileCoverageGate.mjs`, which it was generalised from. It resolves `src/QueenZone.Mobile` from `typescript.projectRoot`, works from any directory (CI, the `coverage:gate` npm script), and `Get-MobileCrapReport.mjs` imports its helpers. Merged totals are identical to the old gate. Since `7fbff8b` (development-standards PR #15) it runs `git` from an absolute path (`resolveGitExecutable`, SonarCloud S4036/S5443) |
 
 The updater keeps a deletion while the kit leaves that file unchanged. If a future kit version changes one of the absent files, the update reports a conflict; review the change, port anything useful into the QueenZone equivalent, then pass `--keep-local <path>` to keep it absent.
 
