@@ -103,8 +103,30 @@ Leave rows blank to skip them. To fix a link by hand, paste it on the admin page
 
 ## 4. Apply
 
-`apply-streaming-links --file streaming-links.csv` is a dry run by default. Add `--apply` to write.
-It imports approved rows as `Source = imported`. See #2182.
+```powershell
+# Dry run: prints what would change and writes nothing
+dotnet run --project src/QueenZone.Tools -- apply-streaming-links --file streaming-links.csv
+
+# Write
+dotnet run --project src/QueenZone.Tools -- apply-streaming-links --file streaming-links.csv --apply
+```
+
+- Only rows with `approved` = `yes` (any case) are considered. Columns are matched by name, so a CSV re-saved from a spreadsheet still works (BOM, reordered or extra columns).
+- **All approved rows are validated before anything is written.** If any approved row is invalid, the command lists every problem with its row number and exits `1` without writing. Validation covers:
+  - a positive `albumId` / `albumSongId`
+  - a known `provider`
+  - `candidateUrl` passing the shared `StreamingLinkUrl` validator, with the provider and kind (album vs track) matching
+  - the album existing, and the song being on that album
+  - no second approved row for the same album or track and provider
+- Each row is then planned:
+  - **insert** when there is no link yet
+  - **unchanged** when the URL is already stored
+  - **update** when the stored link is `imported` and differs
+  - **skip (manual link kept)** when the stored link was entered by an admin. Pass `--overwrite-manual` to replace those.
+- Writes use `Source = imported` and `UpdatedBy = apply-streaming-links`. Re-running the same file is a no-op.
+- The tool writes the database directly, so it does not clear the website's public query cache. Album and song pages show new links when their cache entry expires (up to 30 minutes). Saving any discography change in the admin UI clears it immediately.
+
+Run against DEV first (`dev.queenzone.org`), check a few album and song pages, then repeat for production.
 
 ## Re-runs
 
