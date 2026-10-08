@@ -216,8 +216,9 @@ function main() {
     const conflicting = fixtureVersion(kit, lock.commit, proofVersion(lock.version, 2), [
       (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"solution": "YourProject.sln"', '"solution": "Example.sln"')),
       (root) => editText(root, 'config/typescript-coverage.json', (text) => replaceOnce(text, '"globalLine": 90', '"globalLine": 91')),
-      // QueenZone keeps its own PR checker (keptLocal), so any upstream edit overlaps it.
-      (root) => editText(root, 'scripts/check-pr-verification.mjs', (text) => `// Proof fixture: upstream checker change.\n${text}`),
+      // Inside evaluate(), which QueenZone's kept-local PR checker does not share, so it overlaps.
+      (root) => editText(root, 'scripts/check-pr-verification.mjs', (text) =>
+        replaceOnce(text, '  if (!uiFiles.length) return { ok: true, ui: false };', "  if (!uiFiles.length) return { ok: true, ui: false, reason: 'No UI files changed.' };")),
       (root) => editText(root, 'docs/testing.md', (text) => `${text}\nProof fixture: a clean change that must not be written during a conflict.\n`),
     ]);
     log(`## 3. Conflicting update ${lock.commit.slice(0, 7)} -> ${conflicting.slice(0, 7)}`);
