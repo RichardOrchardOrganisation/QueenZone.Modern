@@ -2,14 +2,20 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 
 class FetchValidationError extends Error {}
+// Env-var / Actions output names, including conventional TF_VAR_<lowercase>
+// aliases used by OpenTofu. COMPLETE is reserved by the official action and
+// this guard's own complete marker.
+function isAllowedSecretName(name) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && name.toUpperCase() !== 'COMPLETE';
+}
 function parseMapping(text) {
   const entries = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const ids = new Set(); const names = new Set();
   if (!entries.length) throw new FetchValidationError('Secret mapping is empty.');
   for (const line of entries) {
-    const match = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*>\s*([A-Z][A-Z0-9_]*)$/i.exec(line);
-    if (!match || !/^[A-Z][A-Z0-9_]*$/.test(match[2]) || match[2] === 'COMPLETE') {
-      throw new FetchValidationError('Secret mapping must contain UUID > UPPERCASE_NAME entries.');
+    const match = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*>\s*([A-Za-z_][A-Za-z0-9_]*)$/i.exec(line);
+    if (!match || !isAllowedSecretName(match[2])) {
+      throw new FetchValidationError('Secret mapping must contain UUID > env-var name entries.');
     }
     const id = match[1].toLowerCase(); const name = match[2];
     if (ids.has(id) || names.has(name)) throw new FetchValidationError('Secret mapping has duplicate IDs or output names.');
@@ -59,4 +65,4 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-module.exports = { parseMapping, validateOutputs, execute };
+module.exports = { parseMapping, validateOutputs, execute, isAllowedSecretName };

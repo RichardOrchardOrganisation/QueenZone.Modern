@@ -16,13 +16,20 @@ concurrency:
 
 # Issue #625 ("Operations: scheduled read-only drift plan with actionable
 # notification"). Uses the opentofu-plan environment only — that identity has
-# Reader on Queenzone-RG and cannot apply, so this workflow is structurally
-# incapable of changing production, regardless of what the plan proposes.
-# Drift is reported as a GitHub issue rather than only a workflow log, since
-# that is this repo's realistic notification surface for a solo maintainer.
+# Reader on Queenzone-RG and Queenzone-Dev-RG and cannot apply, so this
+# workflow is structurally incapable of changing either environment,
+# regardless of what the plan proposes. Drift is reported as a GitHub issue
+# rather than only a workflow log, since that is this repo's realistic
+# notification surface for a solo maintainer. A failed detector run (any
+# step, including Bitwarden preflight) opens a separate labelled issue and
+# still concludes failed (#2210).
 jobs:
   drift-plan:
-    name: Detect drift (read-only)
+    name: ${{ matrix.root }} drift (read-only)
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [production, dev]
     runs-on: ubuntu-latest
     environment: opentofu-plan
     permissions:
@@ -47,6 +54,7 @@ jobs:
           tofu_wrapper: false
 
       - name: Fetch Bitwarden OpenTofu plan secrets
+        if: matrix.root == 'production'
         id: bitwarden-secrets
         uses: ./.github/actions/bitwarden-retry
         timeout-minutes: 8
@@ -55,12 +63,14 @@ jobs:
           secrets: ${{ vars.BITWARDEN_OPENTOFU_PLAN_SECRETS }}
 
       - name: Export ephemeral target SQL administrator password
+        if: matrix.root == 'production'
         shell: pwsh
         env:
           SQL_CONNECTION_STRING: ${{ steps.bitwarden-secrets.outputs.QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING }}
         run: ./scripts/Export-EphemeralSqlAdminPassword.ps1
 
       - name: Verify Cloudflare plan token is configured
+        if: matrix.root == 'production'
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -70,12 +80,12 @@ jobs:
           fi
 
       - name: OpenTofu init
-        working-directory: infra/environments/production
-        run: tofu init -input=false -reconfigure -backend-config=../../backend/production.backend.hcl
+        working-directory: infra/environments/${{ matrix.root }}
+        run: tofu init -input=false -reconfigure -backend-config=../../backend/${{ matrix.root }}.backend.hcl
 
       - name: OpenTofu plan (detect drift)
         id: plan
-        working-directory: infra/environments/production
+        working-directory: infra/environments/${{ matrix.root }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -91,7 +101,7 @@ jobs:
 
       - name: Render plan as JSON
         if: steps.plan.outputs.exit_code == '2'
-        working-directory: infra/environments/production
+        working-directory: infra/environments/${{ matrix.root }}
         run: tofu show -json tfplan > plan.json
 
       - name: Build drift summary
@@ -102,21 +112,25 @@ jobs:
           # exit code from `tofu plan -detailed-exitcode` (2) is what tells
           # us drift exists, not this script's own destroy/replace gate.
           ./scripts/Test-OpenTofuPlanSafety.ps1 `
-            -PlanJsonPath infra/environments/production/plan.json `
+            -PlanJsonPath infra/environments/${{ matrix.root }}/plan.json `
             -SummaryPath drift-summary.md
         continue-on-error: true
 
       - name: Open or update the drift issue
         if: steps.plan.outputs.exit_code == '2'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DRIFT_ROOT: ${{ matrix.root }}
         with:
           script: |
             const fs = require('fs');
+            const root = process.env.DRIFT_ROOT;
+            const marker = `<!-- opentofu-drift-${root} -->`;
             const summary = fs.existsSync('drift-summary.md')
               ? fs.readFileSync('drift-summary.md', 'utf8')
               : 'OpenTofu detected drift, but the summary could not be generated — see the workflow run logs.';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = `OpenTofu detected drift between the committed configuration and live production on ${new Date().toISOString().slice(0, 10)}.\n\n${summary}\n\nWorkflow run: ${runUrl}\n\nThis is read-only detection — nothing was applied. Investigate whether the drift is expected (a manual/break-glass change per docs/architecture/opentofu-state-and-identity.md) and either reconcile it back into a PR or document why it is intentional.`;
+            const body = `${marker}\nOpenTofu detected drift between the committed configuration and live ${root} on ${new Date().toISOString().slice(0, 10)}.\n\n${summary}\n\nWorkflow run: ${runUrl}\n\nThis is read-only detection — nothing was applied. Investigate whether the drift is expected (a manual/break-glass change per docs/architecture/opentofu-state-and-identity.md) and either reconcile it back into a PR or document why it is intentional.`;
 
             try {
               await github.rest.issues.createLabel({
@@ -137,21 +151,75 @@ jobs:
               repo: context.repo.repo,
               state: 'open',
               labels: 'opentofu-drift',
+              per_page: 100,
             });
+            const existing = openIssues.data.find((issue) => issue.body && issue.body.includes(marker));
 
-            if (openIssues.data.length > 0) {
+            if (existing) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: openIssues.data[0].number,
+                issue_number: existing.number,
                 body,
               });
             } else {
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `OpenTofu drift detected — ${new Date().toISOString().slice(0, 10)}`,
+                title: `OpenTofu ${root} drift detected — ${new Date().toISOString().slice(0, 10)}`,
                 body,
                 labels: ['opentofu-drift'],
+              });
+            }
+
+      - name: Open or update the drift-check failure issue
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DRIFT_ROOT: ${{ matrix.root }}
+        with:
+          script: |
+            const root = process.env.DRIFT_ROOT;
+            const marker = `<!-- opentofu-drift-failure-${root} -->`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `${marker}\nThe read-only OpenTofu ${root} drift check failed on ${new Date().toISOString().slice(0, 10)}.\n\nThis is a detector failure (including Bitwarden preflight, init, or plan), not a drift report. The workflow conclusion stays failed.\n\nWorkflow run: ${runUrl}\n`;
+
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'opentofu-drift-failure',
+                color: 'D73A4A',
+                description: 'Failed OpenTofu drift-check run (see .github/workflows/opentofu-drift.yml)',
+              });
+            } catch (error) {
+              if (error.status !== 422) {
+                throw error;
+              }
+            }
+
+            const openIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'opentofu-drift-failure',
+              per_page: 100,
+            });
+            const existing = openIssues.data.find((issue) => issue.body && issue.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `OpenTofu ${root} drift check failed — ${new Date().toISOString().slice(0, 10)}`,
+                body,
+                labels: ['opentofu-drift-failure'],
               });
             }

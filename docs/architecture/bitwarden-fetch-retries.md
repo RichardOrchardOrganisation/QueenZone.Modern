@@ -18,11 +18,14 @@ and may retry; values from different attempts are never combined.
 ## Complete outputs before downstream use
 
 A dependency-free Node 24 guard rejects empty/malformed mappings and duplicate
-IDs or aliases before the first request. Current mapping aliases are uppercase
-identifiers. Every successful fetch must return exactly all requested aliases
-as strings; missing, extra, malformed or partial outputs are rejected. Empty
-string values remain valid output values, matching the official action; the
-existing consumer-specific configuration checks still apply.
+IDs or aliases before the first request. Mapping aliases must be valid
+environment-variable names (`[A-Za-z_][A-Za-z0-9_]*`), including conventional
+OpenTofu `TF_VAR_<lowercase>` names. `COMPLETE` remains reserved (official
+action status plus this guard's own complete marker). Every successful fetch
+must return exactly all requested aliases as strings; missing, extra, malformed
+or partial outputs are rejected. Empty string values remain valid output
+values, matching the official action; the existing consumer-specific
+configuration checks still apply.
 
 Each official attempt uses `set_env: false`: it retains the official masking
 behavior but never puts partial aliases into the caller's global environment.
