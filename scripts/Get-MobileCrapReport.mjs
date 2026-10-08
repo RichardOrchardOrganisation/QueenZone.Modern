@@ -8,7 +8,7 @@
  * complexity, so comp comes from ESLint's core `complexity` rule (reported at
  * max 0, so every function is listed) and cov comes from Jest's
  * coverage-final.json, overlaid with Node test-runner lcov hits by line — the
- * same Jest-universe overlay Test-MobileCoverageGate.mjs uses.
+ * same Jest-universe overlay Test-TypeScriptCoverageGate.mjs uses.
  *
  * Each Istanbul statement belongs to the innermost function that contains it,
  * matching ESLint, which scores nested functions on their own. Anonymous
@@ -29,7 +29,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isCoverableRepoPath, toRepoPath } from './Test-MobileCoverageGate.mjs';
+import { isCoverableRepoPath, toRepoPath } from './Test-TypeScriptCoverageGate.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = path.resolve(scriptDir, '..');

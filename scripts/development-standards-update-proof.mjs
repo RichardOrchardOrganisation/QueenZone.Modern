@@ -13,7 +13,7 @@
  * uncommitted work is not part of the proof.
  *
  * Scenarios: a compatible update (shared doc, managed AGENTS section, new managed
- * file, config key, and a QueenZone-customised script) applies and keeps local
+ * file, a config key merged into QueenZone's configuration, and a kit script) applies and keeps local
  * paths, floors, maps, and the suppression baseline; repeating it is a no-op; an
  * overlapping change is refused with no file or lock changes; --keep-local
  * resolves that conflict; and a changed shared floor default is refused for review
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BEGIN = '<!-- development-standards:begin -->';
 const END = '<!-- development-standards:end -->';
-const DELETED = ['config/feature-map.json', 'config/typescript-coverage.json', 'scripts/Test-TypeScriptCoverageGate.mjs'];
+const DELETED = ['config/feature-map.json', 'config/typescript-coverage.json'];
 // Files the compatible fixture does not touch: QueenZone-owned, kept local, or taken verbatim from the kit.
 const UNTOUCHED = [
   'config/suppression-baseline.json',
@@ -38,6 +38,7 @@ const UNTOUCHED = [
   'scripts/check-suppressions.mjs',
   'scripts/Test-CoverageGate.ps1',
   'scripts/Get-CrapReport.ps1',
+  'scripts/Test-TypeScriptCoverageGate.mjs',
   'scripts/mobile-coverage-floors.json',
   'docs/feature-map/README.md',
   '.github/pull_request_template.md',
@@ -162,7 +163,7 @@ function main() {
     const compatible = fixtureVersion(kit, lock.commit, proofVersion(lock.version, 1), [
       (root) => editText(root, 'docs/testing.md', (text) => `${text}\nProof fixture: a shared testing rule added upstream.\n`),
       (root) => editText(root, 'templates/AGENTS.fragment.md', (text) => `${text.trimEnd()}\n- Proof fixture: a shared agent rule added upstream.\n`),
-      // Away from QueenZone's one-line adapter in verify.mjs, so it three-way merges.
+      // QueenZone uses verify.mjs verbatim, so the upstream change applies directly.
       (root) => editText(root, 'scripts/verify.mjs', (text) =>
         replaceOnce(text, "  run(process.execPath, ['scripts/check-feature-map.mjs']);\n", "  run(process.execPath, ['scripts/check-feature-map.mjs']);\n  console.log('Proof fixture: verification finished.');\n")),
       (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"version": 1,\n', '"version": 1,\n  "proofFixtureKey": true,\n')),
@@ -196,8 +197,8 @@ function main() {
     check('AGENTS.md project guidance outside the markers is unchanged', outsideManagedSection(guide) === outsideManagedSection(beforeGuide));
     check('AGENTS.md managed section gains the upstream rule', guide.includes('- Proof fixture: a shared agent rule added upstream.'));
     const runner = readText(project, 'scripts/verify.mjs');
-    check('customised verify.mjs three-way merges: upstream line plus the local mobile-gate adapter',
-      runner.includes('Proof fixture: verification finished.') && runner.includes("'scripts/Test-MobileCoverageGate.mjs'"));
+    check('verify.mjs (a verbatim kit copy) takes the upstream change and keeps the kit TypeScript gate',
+      runner.includes('Proof fixture: verification finished.') && runner.includes("'scripts/Test-TypeScriptCoverageGate.mjs'"));
     check('shared doc updated and new managed file added',
       readText(project, 'docs/testing.md').includes('Proof fixture: a shared testing rule') && readText(project, 'docs/proof-fixture.md') !== null);
     const touched = changedPaths(beforeHashes, treeHashes(project));

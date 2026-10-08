@@ -7,7 +7,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPolicy } from './check-suppressions.mjs';
-import { configuredFloorsPath, loadFloors } from './Test-MobileCoverageGate.mjs';
+import { COVERABLE_GLOB, configuredFloorsPath, loadFloors, resolveProjectRoot } from './Test-TypeScriptCoverageGate.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFileSync(path.join(root, relative), 'utf8');
@@ -65,10 +65,18 @@ test('each numeric floor has one source', () => {
 
 test('managed kit files that would compete with QueenZone sources stay absent', () => {
   // config/feature-map.json -> docs/feature-map/; config/typescript-coverage.json ->
-  // scripts/mobile-coverage-floors.json; Test-TypeScriptCoverageGate.mjs -> Test-MobileCoverageGate.mjs.
-  for (const relative of ['config/feature-map.json', 'config/typescript-coverage.json', 'scripts/Test-TypeScriptCoverageGate.mjs']) {
+  // scripts/mobile-coverage-floors.json; the kit's Test-TypeScriptCoverageGate.mjs replaced
+  // QueenZone's own mobile gate, so a second gate must not come back.
+  for (const relative of ['config/feature-map.json', 'config/typescript-coverage.json', 'scripts/Test-MobileCoverageGate.mjs']) {
     assert.equal(existsSync(path.join(root, relative)), false, `${relative} would be a second source of truth`);
   }
+});
+
+test('the kit TypeScript gate resolves the mobile project from development-standards.json', () => {
+  assert.equal(resolveProjectRoot(root, {}), 'src/QueenZone.Mobile');
+  assert.equal(COVERABLE_GLOB, 'src/QueenZone.Mobile/src/**/*.{ts,tsx}');
+  const mobile = json('src/QueenZone.Mobile/package.json');
+  assert.equal(mobile.scripts['coverage:gate'], 'node ../../scripts/Test-TypeScriptCoverageGate.mjs');
 });
 
 test('suppression policy skips generated native projects and needs (#NN) issue links', () => {
@@ -80,7 +88,7 @@ test('suppression policy skips generated native projects and needs (#NN) issue l
 
 test('verify.mjs only invokes scripts that exist', () => {
   const referenced = [...read('scripts/verify.mjs').matchAll(/'(scripts\/[\w.-]+)'/g)].map((match) => match[1]);
-  assert.ok(referenced.includes('scripts/Test-MobileCoverageGate.mjs'));
+  assert.ok(referenced.includes('scripts/Test-TypeScriptCoverageGate.mjs'));
   for (const relative of referenced) {
     assert.ok(existsSync(path.join(root, relative)), relative);
   }
