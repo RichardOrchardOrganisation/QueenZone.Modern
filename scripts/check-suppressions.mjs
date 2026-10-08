@@ -40,7 +40,7 @@ export const KINDS = {
 
 /** `(#N)` with at least `minIssueDigits` digits, or a full GitHub issue URL. */
 export function issueLinkPattern(minIssueDigits = 1) {
-  return new RegExp(`\\(#\\d{${minIssueDigits},}\\)|github\\.com\\/[\\w.-]+\\/[\\w.-]+\\/issues\\/\\d+`);
+  return new RegExp(String.raw`\(#\d{${minIssueDigits},}\)|github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+`);
 }
 
 export const DEFAULT_POLICY = Object.freeze({ skippedPaths: new Set(), issueLink: issueLinkPattern() });
