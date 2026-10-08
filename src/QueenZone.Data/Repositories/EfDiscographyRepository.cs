@@ -14,6 +14,7 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
     private readonly string listSql;
     private readonly Func<int, FormattableString> displaySql;
     private readonly Func<int, FormattableString> songsSql;
+    private readonly Func<IReadOnlyList<int>, FormattableString>? catalogSongsSql;
 
     public EfDiscographyRepository(QueenZoneDbContext dbContext)
         : this(
@@ -28,12 +29,14 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
         QueenZoneDbContext dbContext,
         string listSql,
         Func<int, FormattableString> displaySql,
-        Func<int, FormattableString> songsSql)
+        Func<int, FormattableString> songsSql,
+        Func<IReadOnlyList<int>, FormattableString>? catalogSongsSql = null)
     {
         this.dbContext = dbContext;
         this.listSql = listSql;
         this.displaySql = displaySql;
         this.songsSql = songsSql;
+        this.catalogSongsSql = catalogSongsSql;
     }
 
     public async Task<IReadOnlyList<AlbumSummary>> GetAlbumsAsync(CancellationToken cancellationToken = default)
@@ -156,6 +159,73 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
     public Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
         SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
 
+    public async Task<IReadOnlyList<SongTrackSource>> GetActiveAlbumTracksAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var albums = await GetAlbumsAsync(cancellationToken);
+        if (albums.Count == 0)
+        {
+            return [];
+        }
+
+        var albumIds = albums.Select(album => album.AlbumId).ToList();
+        IReadOnlyList<CatalogSongRow> songRows;
+        if (catalogSongsSql is not null)
+        {
+            songRows = await dbContext.Database
+                .SqlQuery<CatalogSongRow>(catalogSongsSql(albumIds))
+                .ToListAsync(cancellationToken);
+        }
+        else if (IsExec(listSql))
+        {
+            songRows = await QueryProductionCatalogAsync(albumIds, cancellationToken);
+        }
+        else
+        {
+            return await SongCatalog.LoadTracksAsync(this, cancellationToken);
+        }
+
+        return songRows
+            .GroupBy(row => (row.Q_ALBUM_ID, row.Q_ALBUM_SONG_ID))
+            .Select(group =>
+            {
+                var row = group.First();
+                return new SongTrackSource(
+                    row.Q_ALBUM_SONG_ID,
+                    row.SONG_TITLE,
+                    string.IsNullOrWhiteSpace(row.SONG_LYRICS) ? null : row.SONG_LYRICS,
+                    string.IsNullOrWhiteSpace(row.SONG_NOTES) ? null : row.SONG_NOTES,
+                    row.IS_SINGLE == 1,
+                    row.Q_ALBUM_ID,
+                    row.ALBUM_NAME ?? string.Empty,
+                    row.RELEASE_DATE,
+                    AlbumCoverUrl.Build(row.COVER_URL))
+                {
+                    StreamingLinks = group
+                        .Where(link => link.STREAMING_PROVIDER is not null && link.STREAMING_URL is not null)
+                        .Select(link => new StreamingLink(StreamingProviders.FromKey(link.STREAMING_PROVIDER!), link.STREAMING_URL!))
+                        .OrderBy(link => link.Provider)
+                        .ToList(),
+                };
+            })
+            .ToList();
+    }
+
+    private Task<IReadOnlyList<CatalogSongRow>> QueryProductionCatalogAsync(
+        IReadOnlyList<int> albumIds,
+        CancellationToken cancellationToken) =>
+        EfSql.QuerySqlAsync<CatalogSongRow>(
+            dbContext,
+            EfProductionSql.CreateDiscographyCatalogSongsSql(albumIds.Count),
+            command =>
+            {
+                for (var index = 0; index < albumIds.Count; index++)
+                {
+                    command.Parameters.Add(EfSql.Input("@albumId" + index, albumIds[index]));
+                }
+            },
+            cancellationToken: cancellationToken);
+
     private static bool IsExec(string sql) =>
         sql.TrimStart().StartsWith("EXEC", StringComparison.OrdinalIgnoreCase);
 
@@ -214,5 +284,32 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
         public string? SONG_NOTES { get; set; }
 
         public string? COVER_URL { get; set; }
+    }
+
+    internal sealed class CatalogSongRow
+    {
+        public int Q_ALBUM_SONG_ID { get; set; }
+
+        public string SONG_TITLE { get; set; } = string.Empty;
+
+        public int IS_SINGLE { get; set; }
+
+        public string? SONG_LYRICS { get; set; }
+
+        public string? SONG_NOTES { get; set; }
+
+        public string? COVER_URL { get; set; }
+
+        public int Q_ALBUM_ID { get; set; }
+
+        public string? ALBUM_NAME { get; set; }
+
+        public DateTime? RELEASE_DATE { get; set; }
+
+        public int? TRACK_NUMBER { get; set; }
+
+        public string? STREAMING_PROVIDER { get; set; }
+
+        public string? STREAMING_URL { get; set; }
     }
 }

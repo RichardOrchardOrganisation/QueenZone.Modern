@@ -10,9 +10,21 @@
 
   <partial name="_Status" model="Model" />
 
+  <p>
+    @if (Model.MissingLinksOnly)
+    {
+      <text>Showing albums missing a Spotify or Apple Music album link. </text>
+      <a href="@AdminDiscographyPageModel.SectionPath">Show all albums</a>
+    }
+    else
+    {
+      <a href="@AdminDiscographyPageModel.SectionPath?missing=links">Show albums missing streaming links</a>
+    }
+  </p>
+
   @if (Model.Albums.Count == 0)
   {
-    <p>No albums yet.</p>
+    <p>@(Model.MissingLinksOnly ? "Every album has its streaming links." : "No albums yet.")</p>
   }
   else
   {
@@ -24,6 +36,7 @@
           <th>Released</th>
           <th>Tracks</th>
           <th>Visibility</th>
+          <th>Streaming links</th>
           <th></th>
         </tr>
       </thead>
@@ -41,6 +54,10 @@
             <td>@album.ReleaseDate?.ToString("d MMM yyyy")</td>
             <td>@album.SongCount</td>
             <td>@(album.IsActive ? "Visible" : "Hidden")</td>
+            <td>
+              @(album.AlbumLinkProviders.Count == 0 ? "None" : string.Join(", ", album.AlbumLinkProviders.Select(provider => provider.DisplayName())))
+              <span class="admin-form-hint">· @album.TracksWithLinks of @album.SongCount tracks</span>
+            </td>
             <td>
               <a href="@AdminDiscographyPageModel.AlbumPath(album.AlbumId)">Edit</a>
               @if (album.IsActive)

@@ -28,6 +28,7 @@
           {
             <div class="lede">@Html.Raw(NewsArticleContent.FormatBody(Model.Album.GeneralNotes))</div>
           }
+          <partial name="_StreamingLinks" model="@(new StreamingLinksViewModel(Model.Album.StreamingLinks, Model.Album.Name, StreamingLinkKind.Album))" />
         </div>
       </div>
     </div>
@@ -42,9 +43,10 @@
           <li class="qz-album-track">
             <div class="qz-album-track__row">
               <a class="qz-album-tracklist__title-link" href="@SongRoutes.GetSongPath(NewsSlug.Slugify(track.Title))">@track.Title</a>
-              @if (track.IsSingle || track.CoverUrl is not null)
+              @if (track.IsSingle || track.CoverUrl is not null || track.StreamingLinks.Count > 0)
               {
                 <span class="qz-album-track__aside">
+                  <partial name="_StreamingLinks" model="@(new StreamingLinksViewModel(track.StreamingLinks, track.Title, StreamingLinkKind.Track, Compact: true))" />
                   @if (track.CoverUrl is not null)
                   {
                     <img class="qz-album-track__cover" src="@track.CoverUrl" alt="@track.Title single cover" width="40" height="40" loading="lazy">

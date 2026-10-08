@@ -1,0 +1,28 @@
+@model SongAppearanceViewModel
+<div class="qz-album-track__row">
+  <a class="qz-album-tracklist__title-link" href="@DiscographyRoutes.GetAlbumPath(Model.Appearance.AlbumId, Model.Appearance.AlbumSlug)">@Model.Appearance.AlbumName</a>
+  @if (Model.Appearance.IsSingle || Model.Appearance.StreamingLinks.Count > 0)
+  {
+    <span class="qz-album-track__aside">
+      <partial name="_StreamingLinks" model="@(new StreamingLinksViewModel(Model.Appearance.StreamingLinks, $"{Model.SongTitle} on {Model.Appearance.AlbumName}", StreamingLinkKind.Track, Compact: true))" />
+      @if (Model.Appearance.IsSingle)
+      {
+        <span class="qz-album-tracklist__single">Single</span>
+      }
+    </span>
+  }
+</div>
+<p class="qz-album-track__notes">
+  @if (Model.Appearance.ReleaseYear is int year)
+  {
+    @year
+  }
+  @if (Model.Appearance.Notes is not null)
+  {
+    @if (Model.Appearance.ReleaseYear is not null)
+    {
+      @(" · ")
+    }
+    @Model.Appearance.Notes
+  }
+</p>

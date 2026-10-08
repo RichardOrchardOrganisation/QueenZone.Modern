@@ -42,6 +42,16 @@
         $"JPEG, PNG or WebP · max 10 MB · cropped square, at least {DiscographyCoverImageProcessor.MinCropSize}×{DiscographyCoverImageProcessor.MinCropSize} px. Saved at up to {DiscographyCoverImageProcessor.FullMaxSide} px plus a {DiscographyCoverImageProcessor.ThumbSize} px thumbnail."))" />
     </section>
 
+    <section class="admin-discography-section" id="streaming-links" aria-labelledby="streaming-links-heading">
+      <h2 id="streaming-links-heading">Listen on</h2>
+      <partial name="_StreamingLinks" model="@(new StreamingLinksViewModel(
+        $"{albumPath}?handler=StreamingLinks",
+        StreamingLinkKind.Album,
+        Model.StreamingLinksForm,
+        album.StreamingLinks,
+        Model.StreamingLinkErrors))" />
+    </section>
+
     <section class="admin-discography-section" id="tracklist" aria-labelledby="tracklist-heading">
       <h2 id="tracklist-heading">Tracklist (@songCount)</h2>
       @if (songCount == 0)

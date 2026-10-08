@@ -6,6 +6,7 @@ import type { ArchiveStackParamList } from '../../navigation/types';
 import { ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { space, type, useTheme } from '../../theme';
 import { testIds } from '../../test/testIds';
+import { ListenOnLinks } from '../../ui/ListenOnLinks';
 
 type Props = NativeStackScreenProps<ArchiveStackParamList, 'Song'>;
 
@@ -86,29 +87,42 @@ export function SongScreen({ navigation, route }: Props) {
       <Text style={[type.meta, { color: c.textMuted, marginTop: space.md }]}>
         {song.appearances.length} {song.appearances.length === 1 ? 'appearance' : 'appearances'}
       </Text>
+      <ListenOnLinks links={song.streamingLinks} subject={song.title} testID={testIds.songListenOn} />
       <Text style={[type.eyebrow, { color: c.textSecondary, marginTop: space.xxl }]}>Appearances</Text>
       <View style={{ marginTop: space.md }}>
         {song.appearances.map((appearance) => (
-          <Pressable
+          <View
             key={`${appearance.albumId}-${appearance.albumName}`}
-            onPress={() => navigation.navigate('Album', { id: appearance.albumId })}
-            style={[styles.row, { borderTopColor: c.hairline }]}
+            style={[styles.item, { borderTopColor: c.hairline }]}
           >
-            <Text style={[type.listTitle, { color: c.textPrimary }]}>{appearance.albumName}</Text>
-            {appearance.releaseYear != null ? (
-              <Text style={[type.meta, { color: c.textMuted, marginTop: space.xs }]}>
-                {String(appearance.releaseYear)}
-              </Text>
-            ) : null}
-            {appearance.isSingle ? (
-              <Text style={[type.meta, { color: c.accentPrimary, marginTop: space.xs }]}>Single</Text>
-            ) : null}
-            {appearance.notes ? (
-              <Text style={[type.caption, { color: c.textSecondary, marginTop: space.xs }]}>
-                {toPlainText(appearance.notes)}
-              </Text>
-            ) : null}
-          </Pressable>
+            <Pressable
+              onPress={() => navigation.navigate('Album', { id: appearance.albumId })}
+              style={styles.row}
+            >
+              <Text style={[type.listTitle, { color: c.textPrimary }]}>{appearance.albumName}</Text>
+              {appearance.releaseYear != null ? (
+                <Text style={[type.meta, { color: c.textMuted, marginTop: space.xs }]}>
+                  {String(appearance.releaseYear)}
+                </Text>
+              ) : null}
+              {appearance.isSingle ? (
+                <Text style={[type.meta, { color: c.accentPrimary, marginTop: space.xs }]}>Single</Text>
+              ) : null}
+              {appearance.notes ? (
+                <Text style={[type.caption, { color: c.textSecondary, marginTop: space.xs }]}>
+                  {toPlainText(appearance.notes)}
+                </Text>
+              ) : null}
+            </Pressable>
+            <View style={styles.rowLinks}>
+              <ListenOnLinks
+                links={appearance.streamingLinks}
+                subject={`${song.title} on ${appearance.albumName}`}
+                compact
+                testID={`${testIds.songAppearanceListenOn}-${appearance.albumId}`}
+              />
+            </View>
+          </View>
         ))}
       </View>
       {lyrics ? (
@@ -129,8 +143,14 @@ const styles = StyleSheet.create({
     paddingTop: space.xl,
     paddingBottom: space.section,
   },
+  item: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   row: {
     paddingVertical: space.base,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  rowLinks: {
+    marginTop: -space.sm,
+    marginBottom: space.sm,
   },
 });

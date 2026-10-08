@@ -3649,6 +3649,11 @@ namespace QueenZone.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("UQ_SearchDocument_SourceKey");
 
+                    b.HasIndex("Title")
+                        .HasDatabaseName("IX_SearchDocument_Title");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Title"), new[] { "ContentType", "Url" });
+
                     b.HasIndex("ContentType", "PublishedAt")
                         .IsDescending(false, true)
                         .HasDatabaseName("IX_SearchDocument_ContentType_PublishedAt");

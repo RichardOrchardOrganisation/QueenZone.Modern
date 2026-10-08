@@ -5,3 +5,4 @@
   @Model.Appearances.Count
   @(Model.Appearances.Count == 1 ? " appearance" : " appearances")
 </div>
+<partial name="_StreamingLinks" model="@(new StreamingLinksViewModel(Model.StreamingLinks, Model.Title, StreamingLinkKind.Track))" />

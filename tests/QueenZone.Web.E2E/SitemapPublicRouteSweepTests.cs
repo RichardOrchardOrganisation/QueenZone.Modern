@@ -336,14 +336,14 @@ public class SitemapPublicRouteSweepTests : RealDataPageTest
             cancellationToken);
 
     private static Task<IResponse?> GotoWithLiveSiteRetryAsync(IPage page, string url) =>
-        LiveSiteTransportRetry.RunAsync(
-            () => page.GotoAsync(
-                url,
-                new PageGotoOptions
-                {
-                    WaitUntil = WaitUntilState.DOMContentLoaded,
-                    Timeout = (float)NavigationTimeout.TotalMilliseconds,
-                }));
+        LiveSiteNavigationRecheck.GotoAsync(
+            page,
+            url,
+            new PageGotoOptions
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+                Timeout = (float)NavigationTimeout.TotalMilliseconds,
+            });
 
     private HttpClient CreateHttpClient()
     {

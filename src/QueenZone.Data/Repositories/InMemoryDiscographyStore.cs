@@ -94,7 +94,11 @@ public sealed class InMemoryDiscographyStore
                     album.ReleaseDate,
                     album.IsActive,
                     album.ThumbFileName,
-                    album.Songs.Count))
+                    album.Songs.Count)
+                {
+                    AlbumLinkProviders = OrderedLinks(album.Links).Select(link => link.Provider).ToList(),
+                    TracksWithLinks = album.Songs.Count(song => song.Links.Count > 0),
+                })
                 .ToList();
         }
     }

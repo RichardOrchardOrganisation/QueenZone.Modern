@@ -151,7 +151,17 @@ public sealed record AlbumDetailDto(
     string? GeneralNotes,
     string? CoverUrl,
     string DetailPath,
-    IReadOnlyList<AlbumSongDto> Songs);
+    IReadOnlyList<AlbumSongDto> Songs)
+{
+    /// <summary>Album-level "Listen on" links; always present, empty when there are none.</summary>
+    public IReadOnlyList<StreamingLinkDto> StreamingLinks { get; init; } = [];
+}
+
+/// <summary>
+/// One "Listen on" link. <c>Provider</c> is a stable key (<c>spotify</c>, <c>apple-music</c>);
+/// clients should ignore keys they do not recognise so new providers can be added in v1.
+/// </summary>
+public sealed record StreamingLinkDto(string Provider, string Url);
 
 /// <summary>
 /// A single track within an <see cref="AlbumDetailDto"/>. <c>Lyrics</c> is encoded display HTML
@@ -163,7 +173,11 @@ public sealed record AlbumSongDto(
     bool IsSingle,
     string? Lyrics,
     string? Notes,
-    string? DetailPath = null);
+    string? DetailPath = null)
+{
+    /// <summary>Track-level "Listen on" links; always present, empty when there are none.</summary>
+    public IReadOnlyList<StreamingLinkDto> StreamingLinks { get; init; } = [];
+}
 
 /// <summary>
 /// List-card shape for <c>/api/v1/content/songs</c>. Identity is the slug from
@@ -185,7 +199,11 @@ public sealed record SongAppearanceDto(
     int? ReleaseYear,
     bool IsSingle,
     string? Notes,
-    string AlbumPath);
+    string AlbumPath)
+{
+    /// <summary>This appearance's track-level links; always present, empty when there are none.</summary>
+    public IReadOnlyList<StreamingLinkDto> StreamingLinks { get; init; } = [];
+}
 
 /// <summary>
 /// Related archive hit whose search-document title equals the canonical song title.
@@ -202,7 +220,13 @@ public sealed record SongDetailDto(
     string? Lyrics,
     string DetailPath,
     IReadOnlyList<SongAppearanceDto> Appearances,
-    IReadOnlyList<SongRelatedItemDto> Related);
+    IReadOnlyList<SongRelatedItemDto> Related)
+{
+    /// <summary>
+    /// Per provider, the link from the earliest appearance that has one; always present.
+    /// </summary>
+    public IReadOnlyList<StreamingLinkDto> StreamingLinks { get; init; } = [];
+}
 
 /// <summary>
 /// List-card shape for <c>/api/v1/content/freddietribute</c>. No detail endpoint: the

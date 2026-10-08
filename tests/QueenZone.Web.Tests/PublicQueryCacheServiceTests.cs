@@ -927,6 +927,41 @@ public sealed class PublicQueryCacheServiceTests
         Assert.NotNull(first);
         Assert.Null(other);
         Assert.Equal(2, repository.DetailCallCount);
+
+        var otherAgain = await service.GetDiscographyAlbumByIdAsync(2);
+        Assert.Null(otherAgain);
+        Assert.Equal(2, repository.DetailCallCount);
+    }
+
+    [Fact]
+    public async Task SongCatalogue_is_loaded_once_and_shared_by_list_and_slug_lookups()
+    {
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var repository = new CountingDiscographyRepository();
+        var service = CreateService(memoryCache, discographyRepository: repository);
+
+        var first = await service.GetSongBySlugAsync("cached-song");
+        var second = await service.GetSongBySlugAsync("keep-yourself-alive");
+        var missing = await service.GetSongBySlugAsync("not-a-queen-song");
+        var missingAgain = await service.GetSongBySlugAsync("not-a-queen-song");
+        var songs = await service.GetSongsAsync();
+
+        Assert.NotNull(first);
+        Assert.Equal("Cached Song", first.Title);
+        Assert.Equal("The lyrics", first.Lyrics);
+        Assert.Equal("Credits", first.Appearances[0].Notes);
+        Assert.Equal(AlbumCoverUrl.Build("cached.webp"), first.CoverUrl);
+        Assert.Null(second);
+        Assert.Null(missing);
+        Assert.Null(missingAgain);
+        Assert.Equal("cached-song", Assert.Single(songs).Slug);
+        Assert.Equal(1, repository.CatalogueCallCount);
+        Assert.Equal(0, repository.SongBySlugCallCount);
+        Assert.Equal(0, repository.SongsListCallCount);
+
+        service.InvalidateDiscographyCache();
+        Assert.NotNull(await service.GetSongBySlugAsync("cached-song"));
+        Assert.Equal(2, repository.CatalogueCallCount);
     }
 
     [Fact]
@@ -1655,9 +1690,26 @@ public sealed class PublicQueryCacheServiceTests
     {
         private readonly AlbumSummary album = new(1, "Cached album", "cached-album", 1975, null);
 
+        private readonly AlbumDetail albumDetail = new(
+            1,
+            "Cached album",
+            "cached-album",
+            1975,
+            "Queen",
+            null,
+            null,
+            [new AlbumSong(10, "Cached Song", false, "The lyrics", "Credits", AlbumCoverUrl.Build("cached.webp"))],
+            new DateTime(1975, 11, 21));
+
         public int AlbumsCallCount { get; private set; }
 
         public int DetailCallCount { get; private set; }
+
+        public int CatalogueCallCount { get; private set; }
+
+        public int SongsListCallCount { get; private set; }
+
+        public int SongBySlugCallCount { get; private set; }
 
         public Task<IReadOnlyList<AlbumSummary>> GetAlbumsAsync(CancellationToken cancellationToken = default)
         {
@@ -1669,15 +1721,28 @@ public sealed class PublicQueryCacheServiceTests
         {
             DetailCallCount++;
             return Task.FromResult<AlbumDetail?>(albumId == 1
-                ? new AlbumDetail(1, "Cached album", "cached-album", 1975, "Queen", null, null, [])
+                ? albumDetail with { Songs = [.. albumDetail.Songs] }
                 : null);
         }
 
-        public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
-            SongCatalog.GetSongsAsync(this, cancellationToken);
+        public Task<IReadOnlyList<SongTrackSource>> GetActiveAlbumTracksAsync(
+            CancellationToken cancellationToken = default)
+        {
+            CatalogueCallCount++;
+            return Task.FromResult(SongCatalog.TracksFromAlbums([albumDetail]));
+        }
 
-        public Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default) =>
-            SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
+        public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default)
+        {
+            SongsListCallCount++;
+            return SongCatalog.GetSongsAsync(this, cancellationToken);
+        }
+
+        public Task<SongDetail?> GetSongBySlugAsync(string slug, CancellationToken cancellationToken = default)
+        {
+            SongBySlugCallCount++;
+            return SongCatalog.GetSongBySlugAsync(this, slug, cancellationToken);
+        }
     }
 
     private sealed class ConcurrentEntryGate(int expected)

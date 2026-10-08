@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { Linking } from 'react-native';
 import { fetchSongDetail } from '../../api';
 import type { SongDetail } from '../../api/types';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
@@ -63,6 +64,47 @@ describe('SongScreen', () => {
 
     fireEvent.press(screen.getByText('A Night at the Opera'));
     expect(navigation.navigate).toHaveBeenCalledWith('Album', { id: 4 });
+  });
+
+  it('shows the resolved header links and each appearance link', async () => {
+    const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    fetchDetail.mockResolvedValue(
+      songDetailFixture({
+        streamingLinks: [{ provider: 'spotify', url: 'https://open.spotify.com/track/rhapsody' }],
+        appearances: [
+          {
+            albumId: 4,
+            albumName: 'A Night at the Opera',
+            releaseYear: 1975,
+            isSingle: true,
+            notes: null,
+            albumPath: '/discography/albums/4/a-night-at-the-opera',
+            streamingLinks: [{ provider: 'spotify', url: 'https://open.spotify.com/track/rhapsody' }],
+          },
+          {
+            albumId: 9,
+            albumName: 'Live Killers',
+            releaseYear: 1979,
+            isSingle: false,
+            notes: null,
+            albumPath: '/discography/albums/9/live-killers',
+          },
+        ],
+      }),
+    );
+
+    const navigation = renderSong();
+    await waitFor(() => expect(screen.getByTestId(testIds.songListenOn)).toBeOnTheScreen());
+
+    expect(screen.getByText('Listen on Spotify')).toBeOnTheScreen();
+    expect(screen.queryByText('Listen on Apple Music')).toBeNull();
+    expect(screen.getByTestId(`${testIds.songAppearanceListenOn}-4-spotify`)).toBeOnTheScreen();
+    expect(screen.queryByTestId(`${testIds.songAppearanceListenOn}-9`)).toBeNull();
+
+    fireEvent.press(screen.getByLabelText('Spotify: listen to Bohemian Rhapsody on A Night at the Opera'));
+    await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://open.spotify.com/track/rhapsody'));
+    expect(navigation.navigate).not.toHaveBeenCalled();
+    openUrl.mockRestore();
   });
 });
 
