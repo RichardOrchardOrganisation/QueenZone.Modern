@@ -6,6 +6,8 @@ Maintain config/feature-map.json. Each feature has a stable id, source files or 
 
 For opt-outs, use the no-ui-verification label plus Verification-skip-reason: and explain why verification is unnecessary. Keep proof artifacts free of secrets and private user data. Store links or retained CI artifacts; generated local output need not be committed.
 
+The generic map is the portable interface. A project with a richer model can keep its own map and checker as a reviewed local customisation of these managed files. Examples include domain-split maps validated against navigation registrations, page directives, test IDs, or device flows. QueenZone.Modern does this, because that validation depends on its frameworks. Keep the PR-evidence rules above either way.
+
 The sample map is empty. Populate it after configuring uiPaths. Browser start commands, device IDs, test accounts, selectors, capture commands, runner labels, and proof storage are project-specific. Do not copy QueenZone’s runners or database fixtures.
 
 The verification runner covers host-free code checks. Browser/device capture and safe real-data probes remain explicit project jobs. The PR must distinguish passed, failed, and NOT RUN checks and name every skipped requirement.

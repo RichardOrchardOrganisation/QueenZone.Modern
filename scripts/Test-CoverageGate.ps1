@@ -12,7 +12,7 @@ param(
 
     [switch]$RequireBaseRef,
 
-    # Floors default to dotnet.globalLine / dotnet.changedLine in this file (development-standards, #2116).
+    # Floors default to dotnet.globalLine / dotnet.changedLine in this file.
     [string]$ConfigPath = (Join-Path $PSScriptRoot "../development-standards.json"),
 
     [switch]$SelfTest
@@ -55,6 +55,12 @@ function Convert-ToRepoPath {
     )
 
     $normalizedPath = $Path.Replace('\', [System.IO.Path]::DirectorySeparatorChar).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+    # Prefer an existing repo-relative filename. This also avoids macOS /var
+    # versus /private/var aliases in coverage source roots and child processes.
+    if (-not [System.IO.Path]::IsPathRooted($normalizedPath) -and (Test-Path -LiteralPath $normalizedPath)) {
+        return ($normalizedPath -replace '\\', '/')
+    }
+
     $candidatePaths = @()
 
     if ([System.IO.Path]::IsPathRooted($normalizedPath)) {
@@ -223,7 +229,7 @@ function Get-CoberturaDocuments {
 function New-SampleCoberturaXml {
     param(
         [string]$SourceRoot,
-        [string]$FileName = "src/QueenZone.Web/CoverageGateSample.cs"
+        [string]$FileName = "src/Example.Web/CoverageGateSample.cs"
     )
 
     return @"
@@ -233,9 +239,9 @@ function New-SampleCoberturaXml {
     <source>$SourceRoot</source>
   </sources>
   <packages>
-    <package name="QueenZone.Web" line-rate="1" branch-rate="1" complexity="1">
+    <package name="Example.Web" line-rate="1" branch-rate="1" complexity="1">
       <classes>
-        <class name="QueenZone.Web.CoverageGateSample" filename="$FileName" line-rate="1" branch-rate="1" complexity="1">
+        <class name="Example.Web.CoverageGateSample" filename="$FileName" line-rate="1" branch-rate="1" complexity="1">
           <lines>
             <line number="10" hits="1" branch="false" />
             <line number="11" hits="1" branch="false" />
@@ -269,7 +275,7 @@ function Invoke-BaseShaSelfTest {
         # Git resolves macOS /var -> /private/var; use the same root as child processes.
         $repoRoot = (git rev-parse --show-toplevel).Trim()
 
-        $sampleDir = Join-Path $repoRoot "src/QueenZone.Web"
+        $sampleDir = Join-Path $repoRoot "src/Example.Web"
         New-Item -ItemType Directory -Path $sampleDir | Out-Null
         $samplePath = Join-Path $sampleDir "CoverageGateSample.cs"
         $baseLines = 1..9 | ForEach-Object { "// line $_" }
@@ -346,7 +352,7 @@ function Invoke-ConfiguredFloorSelfTest {
 }
 
 function Invoke-CoverageGateSelfTest {
-    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("qz-coverage-gate-" + [guid]::NewGuid().ToString("N"))
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("standards-coverage-gate-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
 
     try {
@@ -362,7 +368,7 @@ function Invoke-CoverageGateSelfTest {
         $nulCopyPath = Join-Path $trxInboxDir "coverage.cobertura.xml"
         [System.IO.File]::WriteAllText($nulCopyPath, $validXml, [System.Text.Encoding]::Unicode)
 
-        $trxPath = Join-Path $tempRoot "QueenZone.Web.Tests-shard-0.trx"
+        $trxPath = Join-Path $tempRoot "Example.Web.Tests-shard-0.trx"
         [System.IO.File]::WriteAllText($trxPath, "<TestRun></TestRun>", [System.Text.Encoding]::Unicode)
 
         $wrongRootPath = Join-Path $junkDir "coverage.cobertura.xml"
@@ -455,7 +461,7 @@ if ($loadedReports.Count -eq 0) {
 $reportFiles = @($loadedReports | ForEach-Object { $_.File })
 
 # Merge line hits across reports by file path. Do NOT sum each report's lines-valid /
-# lines-covered: coverlet emits overlapping assemblies (e.g. QueenZone.Data from both
+# lines-covered: coverlet emits overlapping assemblies (e.g. Example.Data from both
 # Web.Tests and NewsAgent.Tests), and summing double-counts those lines and understates
 # global coverage when a sparse report includes a large shared surface.
 $coveredLinesByFile = @{}

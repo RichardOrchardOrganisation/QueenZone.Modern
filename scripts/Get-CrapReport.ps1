@@ -7,8 +7,7 @@
 
   comp is the cyclomatic complexity Coverlet records on each <method>, and cov is the
   method's line coverage (0..1). Line hits are unioned across every report, so a method
-  exercised by different Web.Tests shards (or by Web.Tests and NewsAgent.Tests) is scored
-  on its combined coverage, the same way Test-CoverageGate.ps1 merges global coverage.
+  exercised by different test projects or shards is scored on its combined coverage, the same way Test-CoverageGate.ps1 merges global coverage.
 
   Async and iterator state machines (`Type/<Method>d__N` + MoveNext) are reported under
   their source method name. Lambdas keep a `<Method>::lambda` name so they rank on their own.
@@ -25,8 +24,8 @@
   -WriteBaseline applies that proposal to the -Baseline file (or creates it when missing).
 
   -FromCsv rebuilds from an earlier crap-report.csv, e.g. one downloaded from the CI
-  coverage-report artifact, because a local run without the SQL Server shard does not
-  match CI coverage.
+  coverage-report artifact, because a local run without CI-only suites (for example a
+  provider-specific shard) does not match CI coverage.
 
 .EXAMPLE
   pwsh -File ./scripts/Get-CrapReport.ps1 -Reports ./TestResults -OutputDirectory ./coverage-report/crap
@@ -433,7 +432,7 @@ function Write-CrapBaseline {
     )
 
     $document = [ordered]@{
-        description = "CRAP ratchet baseline. Methods above the threshold that already existed. Lower or remove entries; never raise by hand. See AGENTS.md (Change risk)."
+        description = "CRAP ratchet baseline. Methods above the threshold that already existed. Lower or remove entries; never raise by hand. See docs/coverage.md."
         threshold   = if ($Threshold -eq [math]::Floor($Threshold)) { [int]$Threshold } else { $Threshold }
         hotspots    = $Hotspots
     }
@@ -520,7 +519,7 @@ function Import-CrapCsv {
 }
 
 function New-SelfTestRow {
-    param([double]$Crap, [string]$Method, [string]$Class = "QueenZone.Web.Sample", [string]$File = "src/Sample.cs")
+    param([double]$Crap, [string]$Method, [string]$Class = "Example.Web.Sample", [string]$File = "src/Sample.cs")
 
     return [pscustomobject]@{ Crap = $Crap; Complexity = 1; LineCoverage = 0; Lines = 1; Method = $Method; Class = $Class; File = $File; Line = 1 }
 }
@@ -528,17 +527,17 @@ function New-SelfTestRow {
 function Invoke-RatchetSelfTest {
     param([string]$TempRoot)
 
-    $key = Get-BaselineKey -Row (New-SelfTestRow -Crap 1 -Method "Run::lambda" -Class "QueenZone.Web.Sample/<>c__DisplayClass43_0")
-    if ($key -ne "src/Sample.cs|QueenZone.Web.Sample|Run::lambda") {
+    $key = Get-BaselineKey -Row (New-SelfTestRow -Crap 1 -Method "Run::lambda" -Class "Example.Web.Sample/<>c__DisplayClass43_0")
+    if ($key -ne "src/Sample.cs|Example.Web.Sample|Run::lambda") {
         throw "Self-test failed: baseline keys must drop compiler-generated type segments (got '$key')."
     }
 
     $baseline = @{
-        "src/Sample.cs|QueenZone.Web.Sample|Stable"   = 100.0
-        "src/Sample.cs|QueenZone.Web.Sample|Worse"    = 40.0
-        "src/Sample.cs|QueenZone.Web.Sample|Better"   = 90.0
-        "src/Sample.cs|QueenZone.Web.Sample|Fixed"    = 50.0
-        "src/Sample.cs|QueenZone.Web.Sample|Deleted"  = 60.0
+        "src/Sample.cs|Example.Web.Sample|Stable"   = 100.0
+        "src/Sample.cs|Example.Web.Sample|Worse"    = 40.0
+        "src/Sample.cs|Example.Web.Sample|Better"   = 90.0
+        "src/Sample.cs|Example.Web.Sample|Fixed"    = 50.0
+        "src/Sample.cs|Example.Web.Sample|Deleted"  = 60.0
     }
     $rows = @(
         (New-SelfTestRow -Crap 100.05 -Method "Stable"),
@@ -551,7 +550,7 @@ function Invoke-RatchetSelfTest {
         (New-SelfTestRow -Crap 33 -Method "Overload")
     )
     $scores = Get-MethodScores -Rows $rows
-    if ($scores["src/Sample.cs|QueenZone.Web.Sample|Overload"] -ne 35) {
+    if ($scores["src/Sample.cs|Example.Web.Sample|Overload"] -ne 35) {
         throw "Self-test failed: overloads sharing a key must keep the highest score."
     }
 
@@ -577,7 +576,7 @@ function Invoke-RatchetSelfTest {
     $baselinePath = Join-Path $TempRoot "baseline.json"
     Write-CrapBaseline -Hotspots $proposed -Threshold 30 -Path $baselinePath
     $roundTrip = Read-CrapBaseline -Path $baselinePath
-    if ($roundTrip.Count -ne 3 -or $roundTrip["src/Sample.cs|QueenZone.Web.Sample|Better"] -ne 70) {
+    if ($roundTrip.Count -ne 3 -or $roundTrip["src/Sample.cs|Example.Web.Sample|Better"] -ne 70) {
         throw "Self-test failed: baseline JSON did not round-trip."
     }
 }
@@ -596,9 +595,9 @@ function Invoke-CrapReportSelfTest {
 <coverage line-rate="0" branch-rate="0" version="1.9" timestamp="1">
   <sources><source>$tempRoot</source></sources>
   <packages>
-    <package name="QueenZone.Web">
+    <package name="Example.Web">
       <classes>
-        <class name="QueenZone.Web.Complex" filename="src/Complex.cs">
+        <class name="Example.Web.Complex" filename="src/Complex.cs">
           <methods>
             <method name="Run" signature="(System.Int32)" complexity="10">
               <lines>
@@ -611,7 +610,7 @@ function Invoke-CrapReportSelfTest {
             </method>
           </methods>
         </class>
-        <class name="QueenZone.Web.Complex/&lt;LoadAsync&gt;d__4" filename="src/Complex.cs">
+        <class name="Example.Web.Complex/&lt;LoadAsync&gt;d__4" filename="src/Complex.cs">
           <methods>
             <method name="MoveNext" signature="()" complexity="4">
               <lines><line number="30" hits="1" /><line number="31" hits="0" /></lines>
@@ -649,13 +648,13 @@ function Invoke-CrapReportSelfTest {
         }
 
         $async = $rows | Where-Object { $_.Method -eq "LoadAsync" }
-        if ($null -eq $async -or $async.Class -ne "QueenZone.Web.Complex" -or $async.Crap -ne 6) {
+        if ($null -eq $async -or $async.Class -ne "Example.Web.Complex" -or $async.Crap -ne 6) {
             throw "Self-test failed: async state machines should report under the source method (expected CRAP 6)."
         }
 
-        $lambda = Get-MethodIdentity -ClassName "QueenZone.Data.Repo/<>c__DisplayClass5_0" -MethodName "<GetRecentAsync>b__0" -Signature "()"
+        $lambda = Get-MethodIdentity -ClassName "Example.Data.Repo/<>c__DisplayClass5_0" -MethodName "<GetRecentAsync>b__0" -Signature "()"
         $asyncLambda = Get-MethodIdentity -ClassName "Pages_Admin_Index/<<ExecuteAsync>b__15_1>d" -MethodName "MoveNext" -Signature "()"
-        if ($lambda.Class -ne "QueenZone.Data.Repo" -or $lambda.Method -ne "GetRecentAsync::lambda" -or
+        if ($lambda.Class -ne "Example.Data.Repo" -or $lambda.Method -ne "GetRecentAsync::lambda" -or
             $asyncLambda.Class -ne "Pages_Admin_Index" -or $asyncLambda.Method -ne "ExecuteAsync::lambda") {
             throw "Self-test failed: lambdas and async lambdas should report under their declaring type and parent method."
         }

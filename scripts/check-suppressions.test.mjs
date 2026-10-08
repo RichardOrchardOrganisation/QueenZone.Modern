@@ -10,6 +10,8 @@ import {
   findSuppressions,
   formatBaseline,
   isScannedPath,
+  issueLinkPattern,
+  loadPolicy,
   listSourceFiles,
   main,
   readRepo,
@@ -72,16 +74,16 @@ test('findSuppressions splits CRLF the same as LF', () => {
 });
 
 test('isScannedPath keeps source files and skips generated, vendored, and doc paths', () => {
-  assert.equal(isScannedPath('src/QueenZone.Web/Program.cs'), true);
-  assert.equal(isScannedPath('src/QueenZone.Mobile/src/App.tsx'), true);
+  assert.equal(isScannedPath('src/Example.Web/Program.cs'), true);
+  assert.equal(isScannedPath('app/src/App.tsx'), true);
   assert.equal(isScannedPath('Directory.Build.props'), true);
-  assert.equal(isScannedPath('src/QueenZone.Data/Migrations/20260101_Init.Designer.cs'), false);
-  assert.equal(isScannedPath('src/QueenZone.Web/wwwroot/lib/jquery/jquery.js'), false);
-  assert.equal(isScannedPath('src/QueenZone.Web/wwwroot/js/site.min.js'), false);
+  assert.equal(isScannedPath('src/Example.Data/Migrations/20260101_Init.Designer.cs'), false);
+  assert.equal(isScannedPath('src/Example.Web/wwwroot/lib/jquery/jquery.js'), false);
+  assert.equal(isScannedPath('src/Example.Web/wwwroot/js/site.min.js'), false);
   assert.equal(isScannedPath('design/tokens/colors.css'), false);
-  assert.equal(isScannedPath('docs/architecture/workaround-audit.md'), false);
+  assert.equal(isScannedPath('docs/suppressions.md'), false);
   assert.equal(isScannedPath('scripts/check-suppressions.mjs'), false);
-  assert.equal(isScannedPath('src\\QueenZone.Web\\Program.cs'), true);
+  assert.equal(isScannedPath('src\\Example.Web\\Program.cs'), true);
 });
 
 test('countUnlinked counts only unlinked hits, sorted by file and kind', () => {
@@ -124,21 +126,22 @@ function makeRepo(files) {
   return root;
 }
 
-test('listSourceFiles skips dot-directories, build output, and generated native projects', () => {
+test('listSourceFiles skips dot-directories and build output while retaining project source', () => {
   const root = makeRepo({
     'src/a.ts': 'a',
-    'src/QueenZone.Web/bin/Release/b.cs': 'b',
-    'src/QueenZone.Web/obj/c.cs': 'c',
-    'src/QueenZone.Mobile/node_modules/pkg/d.js': 'd',
-    'src/QueenZone.Mobile/android/app/e.js': 'e',
-    'src/QueenZone.Mobile/src/f.tsx': 'f',
+    'src/Example.Web/bin/Release/b.cs': 'b',
+    'src/Example.Web/obj/c.cs': 'c',
+    'app/node_modules/pkg/d.js': 'd',
+    'app/android/app/e.js': 'e',
+    'app/src/f.tsx': 'f',
     '.claude/worktrees/copy/src/g.ts': 'g',
     '.git/h.js': 'h',
     'Directory.Build.props': 'i',
   });
   assert.deepEqual(listSourceFiles(root).sort(), [
     'Directory.Build.props',
-    'src/QueenZone.Mobile/src/f.tsx',
+    'app/android/app/e.js',
+    'app/src/f.tsx',
     'src/a.ts',
   ]);
 });
@@ -180,4 +183,38 @@ test('main --write then check passes, and a new unlinked suppression fails', () 
   writeFileSync(path.join(root, 'src/a.ts'), '// eslint-disable-line\n');
   assert.equal(main(['--list'], io), 0);
   assert.deepEqual(logs, ['src/a.ts:1 [eslint-disable] // eslint-disable-line']);
+});
+
+test('project policy skips configured generated directories and sets the issue-link digits', () => {
+  const root = makeRepo({
+    'development-standards.json': JSON.stringify({ version: 1, suppressions: { skippedPaths: ['app/android'], minIssueDigits: 2 } }),
+    'app/android/app/e.js': '// eslint-disable-line\n',
+    'config/suppression-baseline.json': '{"files":{}}\n',
+    'app/src/f.ts': '// eslint-disable-line -- reason (#7)\n// eslint-disable-line -- reason (#1234)\n',
+  });
+  const policy = loadPolicy(root);
+  assert.deepEqual([...policy.skippedPaths], ['app/android']);
+  assert.deepEqual(listSourceFiles(root, '', policy.skippedPaths).sort(), ['app/src/f.ts', 'config/suppression-baseline.json', 'development-standards.json']);
+  assert.deepEqual(findSuppressions('// eslint-disable-line -- (#7)', policy).map((hit) => hit.linked), [false]);
+  assert.deepEqual(findSuppressions('// eslint-disable-line -- (#7)').map((hit) => hit.linked), [true]);
+
+  const logs = [];
+  const io = { root, log: (line) => logs.push(line), error: () => {} };
+  assert.equal(main(['--write'], io), 0);
+  const baseline = JSON.parse(readFileSync(path.join(root, BASELINE_PATH), 'utf8'));
+  assert.deepEqual(baseline.files, { 'app/src/f.ts': { 'eslint-disable': 1 } });
+  logs.length = 0;
+  assert.equal(main(['--list'], io), 0);
+  assert.deepEqual(logs, ['app/src/f.ts:1 [eslint-disable] // eslint-disable-line -- reason (#7)']);
+});
+
+test('policy defaults without configuration and rejects unsafe or invalid settings', () => {
+  assert.equal(loadPolicy(makeRepo({ 'src/a.ts': 'a' })).skippedPaths.size, 0);
+  assert.equal(loadPolicy(makeRepo({ 'development-standards.json': '{"version":1}' })).issueLink.test('(#1)'), true);
+  assert.equal(issueLinkPattern(3).test('(#12)'), false);
+  assert.equal(issueLinkPattern(3).test('https://github.com/org/repo/issues/1'), true);
+  for (const suppressions of [{ skippedPaths: ['../x'] }, { skippedPaths: ['/abs'] }, { skippedPaths: ['gen/'] }, { skippedPaths: 'gen' }, { minIssueDigits: 0 }, { minIssueDigits: 1.5 }]) {
+    const root = makeRepo({ 'development-standards.json': JSON.stringify({ version: 1, suppressions }) });
+    assert.throws(() => loadPolicy(root), /suppressions\./, JSON.stringify(suppressions));
+  }
 });

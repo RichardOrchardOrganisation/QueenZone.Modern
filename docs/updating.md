@@ -34,6 +34,7 @@ Before applying, finish or commit unrelated target work so the resulting diff is
 | Only the project changed a file | Preserve the project’s version |
 | Both changed different lines | Attempt a Git three-way text merge |
 | Both changed overlapping lines | Report a conflict and stop before writes |
+| An update would change a project-owned value, such as a coverage floor | Report a conflict, even when the text merges cleanly |
 | New standards file has no local collision | Add it |
 | Removed standards file is unchanged locally | Remove it |
 | Removal collides with edits, or a new file collides with project content | Report a conflict |
@@ -42,7 +43,9 @@ Before applying, finish or commit unrelated target work so the resulting diff is
 
 Only the marked shared section of `AGENTS.md` is merged. Project guidance before and after it stays intact. Missing, duplicate, or malformed markers require manual repair. Existing CRLF line endings are retained for updated local files.
 
-Configuration uses the same three-way comparison. For example, a locally changed coverage floor survives an unrelated upstream settings change. If the shared default and the local floor both change on the same line, review that conflict rather than allowing the updater to pick a value. Text merging cannot establish semantic compatibility; inspect configuration and run the application’s checks afterward.
+Configuration uses the same three-way comparison. For example, a locally changed coverage floor survives an unrelated upstream settings change. Text merging cannot establish semantic compatibility; inspect configuration and run the application’s checks afterward.
+
+Coverage floors are project policy, so an update never changes them silently. The installation manifest lists project-owned JSON values for a managed file as `reviewKeys` (dot paths such as `dotnet.globalLine`). The shipped floors in `development-standards.json` and `config/typescript-coverage.json` are listed. If an update would change one of those values in the project, the updater reports a conflict that names the old and new values. This applies even when the project still has the starter value, or when its edits are on other lines and Git would merge cleanly. To adopt the new value, set it in the project file and rerun the update. To keep the project’s whole file, use `--keep-local`. The incoming manifest decides which values are reviewed. A merge that leaves a reviewed file as invalid JSON is also reported as a conflict.
 
 The installation manifest defines managed source/destination paths for each standards commit. The updater also recognizes the known initial v0.1 installer, so projects installed before manifests were introduced can update. Unknown legacy installers, unsupported manifests, unsafe paths, symlinked destinations, dirty source checkouts, and invalid locks are rejected.
 

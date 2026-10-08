@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadPolicy } from './check-suppressions.mjs';
 import { configuredFloorsPath, loadFloors } from './Test-MobileCoverageGate.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -68,6 +69,13 @@ test('managed kit files that would compete with QueenZone sources stay absent', 
   for (const relative of ['config/feature-map.json', 'config/typescript-coverage.json', 'scripts/Test-TypeScriptCoverageGate.mjs']) {
     assert.equal(existsSync(path.join(root, relative)), false, `${relative} would be a second source of truth`);
   }
+});
+
+test('suppression policy skips generated native projects and needs (#NN) issue links', () => {
+  const policy = loadPolicy(root);
+  assert.deepEqual([...policy.skippedPaths].sort(), ['src/QueenZone.Mobile/android', 'src/QueenZone.Mobile/ios']);
+  assert.equal(policy.issueLink.test('// eslint-disable-line -- reason (#7)'), false);
+  assert.equal(policy.issueLink.test('// eslint-disable-line -- reason (#1801)'), true);
 });
 
 test('verify.mjs only invokes scripts that exist', () => {

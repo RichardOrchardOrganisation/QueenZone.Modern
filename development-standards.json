@@ -11,6 +11,10 @@
     "reports": "src/QueenZone.Mobile/coverage",
     "floors": "scripts/mobile-coverage-floors.json"
   },
+  "suppressions": {
+    "skippedPaths": ["src/QueenZone.Mobile/ios", "src/QueenZone.Mobile/android"],
+    "minIssueDigits": 2
+  },
   "uiPaths": [
     "src/QueenZone.Mobile/src/screens/",
     "src/QueenZone.Mobile/src/navigation/",

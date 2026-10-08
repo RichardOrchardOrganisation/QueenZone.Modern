@@ -22,11 +22,7 @@ jobs:
           script: |
             const { pathToFileURL } = require('node:url');
             const path = require('node:path');
-            const file = (name) => pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, 'scripts', name)).href;
-            const { loadMap } = await import(file('check-feature-map.mjs'));
-            const { evaluate } = await import(file('check-pr-verification.mjs'));
-            const pr = context.payload.pull_request;
-            const files = await github.paginate(github.rest.pulls.listFiles, { ...context.repo, pull_number: pr.number, per_page: 100 });
-            const result = evaluate({ body: pr.body || '', files: files.map(f => f.filename), labels: pr.labels.map(l => l.name), ...loadMap() });
-            core.info(JSON.stringify(result));
-            if (!result.ok) core.setFailed(result.reason);
+            const href = pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, 'scripts/check-pr-verification.mjs')).href;
+            const { checkPullRequestVerification } = await import(href);
+            // label: true also manages a needs-verification label; grant issues: write and pull-requests: write first.
+            await checkPullRequestVerification({ github, context, core });

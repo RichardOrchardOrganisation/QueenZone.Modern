@@ -254,7 +254,7 @@ node scripts/verify.mjs --profile typescript --base-ref "$BASE_SHA"
 
 That example command is for a POSIX CI shell; in PowerShell use `$env:BASE_SHA`. Set the base from the workflow event, retain a full checkout (`fetch-depth: 0`), and ensure the base object is available. Add the profile for each application you intend to verify. The supplied configuration has one TypeScript profile; multiple independently configured applications need their own explicit orchestration.
 
-The PR verification example checks the feature map and PR evidence when the PR changes or its description/labels are edited. It uses read-only GitHub permissions.
+The PR verification example checks the feature map and PR evidence when the PR changes or its description/labels are edited. It calls `checkPullRequestVerification({ github, context, core })` from `scripts/check-pr-verification.mjs`, which exempts Dependabot and uses read-only GitHub permissions. Pass `label: true` to also add or remove a `needs-verification` label; that needs `issues: write` and `pull-requests: write`.
 
 Configure repository rules so the relevant quality/proof jobs are required before merging. Workflow files alone do not create branch protection or a merge queue. Add project-specific browser/device jobs, safe provider probes, dependency/security checks, smoke checks, and deployment protections where needed. Do not import QueenZone’s database connections or runner labels.
 
