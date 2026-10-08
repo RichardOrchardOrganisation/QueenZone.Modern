@@ -184,7 +184,7 @@ run "production_target_locks_down_firewall_and_audits" {
       azurerm_mssql_server_extended_auditing_policy.production[0].enabled &&
       azurerm_mssql_server_extended_auditing_policy.production[0].log_monitoring_enabled &&
       azurerm_mssql_database_extended_auditing_policy.production[0].enabled == false &&
-      azurerm_mssql_database_extended_auditing_policy.production[0].log_monitoring_enabled == false &&
+      azurerm_mssql_database_extended_auditing_policy.production[0].log_monitoring_enabled &&
       azurerm_mssql_server_extended_auditing_policy.production[0].retention_in_days == 0 &&
       length(azurerm_monitor_diagnostic_setting.sql_server_audit) == 1 &&
       length(azurerm_monitor_diagnostic_setting.sql_database_audit) == 0

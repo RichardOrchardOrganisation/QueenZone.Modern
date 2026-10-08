@@ -195,9 +195,11 @@ resource "azurerm_mssql_server_extended_auditing_policy" "production" {
 resource "azurerm_mssql_database_extended_auditing_policy" "production" {
   count = var.manage_sql_database ? 1 : 0
 
-  database_id            = azurerm_mssql_database.production[0].id
-  enabled                = var.sql_database_extended_auditing_enabled
-  log_monitoring_enabled = var.sql_database_extended_auditing_enabled
+  database_id = azurerm_mssql_database.production[0].id
+  enabled     = var.sql_database_extended_auditing_enabled
+  # Azure leaves isAzureMonitorTargetEnabled set after the #2204 disable.
+  # Keep it on whenever server audit is on so a production plan is a no-op.
+  log_monitoring_enabled = var.sql_database_extended_auditing_enabled || var.sql_extended_auditing_enabled
   retention_in_days      = 0
 
   lifecycle {

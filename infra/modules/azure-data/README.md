@@ -14,8 +14,10 @@ SQL server-level extended auditing is off unless
 the `master` diagnostic setting only. Database-level auditing is a separate
 opt-in (`sql_database_extended_auditing_enabled`, default false) because the
 server-level policy already covers the user database. Production Canada East
-keeps server audit on and the database copy off (#2204). When enabled, both
-paths point at `queenzone-prod-law`. Retention follows that workspace
+keeps server audit on and the database copy off (#2204). Azure still reports
+`log_monitoring_enabled` on that disabled database policy; the module keeps
+that flag on whenever server audit is on so a production plan is a no-op.
+When enabled, both paths point at `queenzone-prod-law`. Retention follows that workspace
 (30 days). Do not add a storage-account audit destination. `public_network_access_enabled`
 stays true, and `azuread_authentication_only` stays false while
 `ignore_changes = [azuread_administrator]` is set and the app still uses SQL
