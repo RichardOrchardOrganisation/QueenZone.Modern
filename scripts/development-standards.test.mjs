@@ -74,8 +74,8 @@ test('managed kit files that would compete with QueenZone sources stay absent', 
 test('suppression policy skips generated native projects and needs (#NN) issue links', () => {
   const policy = loadPolicy(root);
   assert.deepEqual([...policy.skippedPaths].sort(), ['src/QueenZone.Mobile/android', 'src/QueenZone.Mobile/ios']);
-  assert.equal(policy.issueLink.test('// eslint-disable-line -- reason (#7)'), false);
-  assert.equal(policy.issueLink.test('// eslint-disable-line -- reason (#1801)'), true);
+  assert.equal(policy.issueLink.test('reason (#7)'), false);
+  assert.equal(policy.issueLink.test('reason (#1801)'), true);
 });
 
 test('verify.mjs only invokes scripts that exist', () => {
