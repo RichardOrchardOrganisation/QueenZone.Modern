@@ -138,7 +138,7 @@ Treatments:
 | Legacy webtest `queenzone-dev-health` | `…/webtests/queenzone-dev-health` | retired | Deleted on **2026-09-14** because it targeted the retired app |
 | Legacy metric / query alerts | listed in import JSON | retired | Five rules scoped only to the old Application Insights or Log Analytics resources were deleted on **2026-09-14** |
 | Smart detector `Failure Anomalies - queenzone-dev-ai` | alertsmanagement | retired | Deleted with the old Application Insights component on **2026-09-14** |
-| Diagnostic settings (web/sql/storage) | SQL audit only | manage | `sql-security-audit` sends `SQLSecurityAuditEvents` to `queenzone-prod-law`. Do not add other diagnostic categories. |
+| Diagnostic settings (web/sql/storage) | SQL audit only | manage | Server-level `sql-security-audit` on `master` sends `SQLSecurityAuditEvents` to `queenzone-prod-law`. The duplicate database-level setting was deleted on 8 Oct 2026 (#2204). Do not add other diagnostic categories. |
 
 ### Cloudflare (API inventory complete)
 
@@ -286,10 +286,10 @@ Documented for [#622](https://github.com/RichardOrchardOrganisation/QueenZone.Mo
 | Observation | Guidance |
 | --- | --- |
 | Smart detection failure anomalies rule | Leave as Azure default unless product wants it managed |
-| App Insights billing cap 100 GB | Far above LAW 0.1 GB daily cap; LAW cap is the real budget control — do not “harmonise” upward |
+| App Insights billing cap 100 GB | Far above LAW 0.25 GB daily cap (#2204); LAW cap is the real budget control — do not “harmonise” upward |
 | `use32BitWorkerProcess: true` on a Linux .NET site | Likely portal noise; verify before encoding |
 | Retired metric alert `queenzone-dev-failed-requests` | Deleted with the old telemetry stack on **2026-09-14**; do not recreate |
-| SQL auditing | Enabled to `queenzone-prod-law`. Workspace retention is 30 days. Do not add a storage-account audit key. |
+| SQL auditing | Server-level only to `queenzone-prod-law` (#2204). Workspace retention is 30 days. Do not add a storage-account audit key or recreate the database-level diagnostic setting. |
 | Storage versioning off | Do not enable in first apply |
 | Operator SQL firewall ClientIP rule | Do not encode personal IPs as production IaC without renaming |
 | Legacy GH secrets alongside Bitwarden | Clean up separately; do not duplicate into OpenTofu |

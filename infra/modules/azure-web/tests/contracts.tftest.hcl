@@ -47,6 +47,10 @@ run "production_defaults" {
     error_message = "Always-on single-worker B1 must be preserved."
   }
   assert {
+    condition     = azurerm_log_analytics_workspace.production.daily_quota_gb == 0.1
+    error_message = "The module default Log Analytics daily quota must stay 0.1 so non-prod callers are unchanged."
+  }
+  assert {
     condition = (
       length(azurerm_monitor_action_group.alerts) == 1 &&
       azurerm_monitor_action_group.alerts[0].name == "queenzone-alerts" &&
@@ -89,6 +93,17 @@ run "dev_bootstrap" {
   assert {
     condition     = length(azurerm_monitor_action_group.alerts) == 0 && length(azurerm_monitor_scheduled_query_rules_alert_v2.production) == 0 && length(azurerm_application_insights_standard_web_test.health) == 0 && length(azurerm_monitor_metric_alert.availability) == 0
     error_message = "Dev must not create production App Insights alert rules or import queenzone-alerts."
+  }
+}
+
+run "production_can_raise_log_analytics_quota" {
+  command = plan
+  variables {
+    log_analytics_daily_quota_gb = 0.25
+  }
+  assert {
+    condition     = azurerm_log_analytics_workspace.production.daily_quota_gb == 0.25
+    error_message = "Production must be able to set the Log Analytics daily quota to 0.25."
   }
 }
 

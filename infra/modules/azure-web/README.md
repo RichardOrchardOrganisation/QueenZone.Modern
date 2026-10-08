@@ -26,6 +26,11 @@ cannot describe them without the private PFX material, and their renewal path
 has not been confirmed. The hostname resources retain the current SNI state and
 certificate thumbprints without putting certificate secrets in state.
 
+The Log Analytics workspace daily cap is `log_analytics_daily_quota_gb`
+(default `0.1`). Production sets `0.25` so `queenzone-prod-law` matches the
+live #2204 quota. Dev and other callers keep the default unless they pass a
+different value.
+
 Every irreplaceable resource must include `lifecycle { prevent_destroy = true }`.
 Do not use broad `ignore_changes`; record each externally owned attribute and
 its reason. OpenTofu never manages `app_settings` or `connection_string` under

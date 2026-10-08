@@ -42,5 +42,8 @@ migration runners have a firewall path of their own. `queenzone-sql-server`
 keeps its Azure-services rule for `queenzone-dev-db`.
 
 Auditing writes `SQLSecurityAuditEvents` to `queenzone-prod-law` (30-day
-workspace retention). Entra-only SQL authentication is not part of this
+workspace retention) through the server-level policy and the `master`
+diagnostic setting. The duplicate database-level policy stays disabled and
+its diagnostic setting is not managed (#2204). `queenzone-prod-law` uses a
+`0.25` GB daily cap. Entra-only SQL authentication is not part of this
 change.

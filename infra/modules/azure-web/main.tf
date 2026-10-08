@@ -37,7 +37,7 @@ resource "azurerm_log_analytics_workspace" "production" {
   resource_group_name = var.resource_group_name
   sku                 = "PerGB2018"
   retention_in_days   = 30
-  daily_quota_gb      = 0.1
+  daily_quota_gb      = var.log_analytics_daily_quota_gb
 
   allow_resource_only_permissions = true
   internet_ingestion_access_type  = "Enabled"

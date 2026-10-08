@@ -132,7 +132,13 @@ variable "sql_firewall_rules" {
 }
 
 variable "sql_extended_auditing_enabled" {
-  description = "Enable server and database extended auditing to Azure Monitor. Retention follows the Log Analytics workspace."
+  description = "Enable the SQL server-level extended auditing policy and the master diagnostic setting to Azure Monitor. Retention follows the Log Analytics workspace. Does not enable the duplicate database-level copy."
+  type        = bool
+  default     = false
+}
+
+variable "sql_database_extended_auditing_enabled" {
+  description = "Enable the user-database extended auditing policy and its diagnostic setting. Default false: the server-level policy already covers the user database, and a second copy doubles AzureDiagnostics volume (#2204)."
   type        = bool
   default     = false
 }

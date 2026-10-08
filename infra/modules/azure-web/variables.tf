@@ -34,6 +34,17 @@ variable "application_insights_name" {
   default     = "queenzone-dev-ai"
 }
 
+variable "log_analytics_daily_quota_gb" {
+  description = "Log Analytics workspace daily ingestion cap in GB. Production sets 0.25 after the #2204 cap-hit fix; the default keeps non-prod workspaces at 0.1."
+  type        = number
+  default     = 0.1
+
+  validation {
+    condition     = var.log_analytics_daily_quota_gb > 0
+    error_message = "log_analytics_daily_quota_gb must be greater than zero."
+  }
+}
+
 variable "custom_hostnames" {
   description = "Existing custom hostname bindings and their uploaded certificate thumbprints. Thumbprints are identifiers, not secrets."
   type        = map(string)
