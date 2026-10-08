@@ -71,6 +71,7 @@ public class E2ECategoryGuardTests
             nameof(CrosswordReplayTests),
             nameof(CrosswordResultsTests),
             nameof(CuratedPageLayoutSmokeTests),
+            nameof(DeployedMemberSignInTests),
             nameof(E2ECategoryGuardTests),
             nameof(EditorWorkflowTests),
             nameof(ForumPostingWorkflowTests),
@@ -178,6 +179,21 @@ public class E2ECategoryGuardTests
         Assert.That(HasCategory(typeof(DevJourneyTests), E2ECategories.ReadOnly), Is.False);
         Assert.That(HasCategory(typeof(DevJourneyTests), E2ECategories.Deterministic), Is.False);
         Assert.That(HasCategory(typeof(DevJourneyTests), E2ECategories.DeployedAuth), Is.False);
+    }
+
+    [Test]
+    public void DevJourneySignsInOncePerFixtureAndDoesNotResignInFromSetUp()
+    {
+        var path = Path.GetFullPath(Path.Combine(RepoRoot(), "tests", "QueenZone.Web.E2E", "DevJourneyTests.cs"));
+        var source = File.ReadAllText(path);
+
+        Assert.That(source, Does.Contain("[OneTimeSetUp]"));
+        Assert.That(source, Does.Contain("CaptureSignedInStorageStateAsync"));
+        Assert.That(source, Does.Contain("StorageState = _signedInStorageState"));
+        Assert.That(source, Does.Contain("AssertSignedInChromeAsync"));
+        Assert.That(source, Does.Not.Contain("AssertContextHasMemberSessionAsync"));
+        Assert.That(source, Does.Not.Contain("await DeployedMemberSignIn.SignInAsync(Page);"));
+        Assert.That(source, Does.Contain("Write coverage is skipped for Ship A"));
     }
 
     [Test]

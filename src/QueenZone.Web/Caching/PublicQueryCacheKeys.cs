@@ -71,6 +71,8 @@ public static class PublicQueryCacheKeys
 
     public static string Songs(string version) => $"{Prefix}:songs:v{version}";
 
+    public static string SongCatalogue(string version) => $"{Prefix}:songs:catalogue:v{version}";
+
     public static string DiscographyAlbum(string version, int id) => $"{Prefix}:discography:album:v{version}:{id}";
 
     public static string Song(string version, string slug) => $"{Prefix}:song:v{version}:{slug}";

@@ -55,6 +55,85 @@ public sealed class SongIdentityTests
     }
 
     [Fact]
+    public void Set_based_catalogue_matches_album_detail_aggregation_for_multi_album_songs()
+    {
+        var cover = AlbumCoverUrl.Build("kya.webp");
+        var albums = new[]
+        {
+            new AlbumDetail(
+                1,
+                "Queen",
+                "queen",
+                1973,
+                "Queen",
+                null,
+                null,
+                [
+                    new AlbumSong(101, "Seven Seas of Rhye", false, "Early lyrics", null, null),
+                    new AlbumSong(102, "Keep Yourself Alive", true, "KYA lyrics", "Debut single", cover),
+                ],
+                new DateTime(1973, 7, 13)),
+            new AlbumDetail(
+                2,
+                "Queen II",
+                "queen-ii",
+                1974,
+                "Queen",
+                null,
+                null,
+                [new AlbumSong(201, "Seven Seas of Rhye", false, "Later lyrics", "II notes", null)],
+                new DateTime(1974, 3, 8)),
+        };
+
+        var fromAlbums = SongCatalog.TracksFromAlbums(albums);
+        var fromSet = new[]
+        {
+            new SongTrackSource(101, "Seven Seas of Rhye", "Early lyrics", null, false, 1, "Queen", new DateTime(1973, 7, 13)),
+            new SongTrackSource(102, "Keep Yourself Alive", "KYA lyrics", "Debut single", true, 1, "Queen", new DateTime(1973, 7, 13), cover),
+            new SongTrackSource(201, "Seven Seas of Rhye", "Later lyrics", "II notes", false, 2, "Queen II", new DateTime(1974, 3, 8)),
+        };
+
+        var sevenSeas = SongCatalog.DetailFor(fromSet, "seven-seas-of-rhye");
+        AssertSongDetailEqual(SongCatalog.DetailFor(fromAlbums, "seven-seas-of-rhye"), sevenSeas);
+        Assert.Equal("Seven Seas of Rhye", sevenSeas!.Title);
+        Assert.Equal("Early lyrics", sevenSeas.Lyrics);
+        Assert.Equal("Queen", sevenSeas.Appearances[0].AlbumName);
+        Assert.Equal(1973, sevenSeas.Appearances[0].ReleaseYear);
+        Assert.Equal("II notes", sevenSeas.Appearances[1].Notes);
+        Assert.Equal("/discography/albums/1/queen", DiscographyRoutes.GetAlbumPath(sevenSeas.Appearances[0].AlbumId, sevenSeas.Appearances[0].AlbumSlug));
+        Assert.Equal("/discography/albums/2/queen-ii", DiscographyRoutes.GetAlbumPath(sevenSeas.Appearances[1].AlbumId, sevenSeas.Appearances[1].AlbumSlug));
+
+        var keepAlive = SongCatalog.DetailFor(fromSet, "keep-yourself-alive");
+        AssertSongDetailEqual(SongCatalog.DetailFor(fromAlbums, "keep-yourself-alive"), keepAlive);
+        Assert.Equal(cover, keepAlive!.CoverUrl);
+        Assert.True(keepAlive.Appearances[0].IsSingle);
+        Assert.Equal("Debut single", keepAlive.Appearances[0].Notes);
+        Assert.Equal(cover, keepAlive.Appearances[0].CoverUrl);
+    }
+
+    internal static void AssertSongDetailEqual(SongDetail? expected, SongDetail? actual)
+    {
+        Assert.Equal(expected is null, actual is null);
+        if (expected is null || actual is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected.Slug, actual.Slug);
+        Assert.Equal(expected.Title, actual.Title);
+        Assert.Equal(expected.Lyrics, actual.Lyrics);
+        Assert.Equal(expected.CoverUrl, actual.CoverUrl);
+        Assert.Equal(expected.StreamingLinks, actual.StreamingLinks);
+        Assert.Equal(
+            expected.Appearances.Select(appearance => (appearance.AlbumId, appearance.AlbumName, appearance.AlbumSlug, appearance.ReleaseYear, appearance.IsSingle, appearance.Notes, appearance.CoverUrl)),
+            actual.Appearances.Select(appearance => (appearance.AlbumId, appearance.AlbumName, appearance.AlbumSlug, appearance.ReleaseYear, appearance.IsSingle, appearance.Notes, appearance.CoverUrl)));
+        foreach (var (expectedAppearance, actualAppearance) in expected.Appearances.Zip(actual.Appearances))
+        {
+            Assert.Equal(expectedAppearance.StreamingLinks, actualAppearance.StreamingLinks);
+        }
+    }
+
+    [Fact]
     public async Task Canonical_lyrics_come_from_the_earliest_non_blank_appearance()
     {
         var tracks = new[]

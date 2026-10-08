@@ -135,10 +135,17 @@ public sealed class EfSearchIndexService(QueenZoneDbContext dbContext, SearchInd
             return [];
         }
 
-        var needle = title.ToLowerInvariant();
+        // Title inherits the database CI collation, so equality is sargable.
+        // Project only the song-related-content columns — Body is unused and huge.
         var candidates = await dbContext.SearchDocuments
             .AsNoTracking()
-            .Where(document => document.Title.ToLower() == needle)
+            .Where(document => document.Title == title)
+            .Select(document => new SearchDocumentEntity
+            {
+                Title = document.Title,
+                Url = document.Url,
+                ContentType = document.ContentType,
+            })
             .ToListAsync(cancellationToken);
 
         return candidates
