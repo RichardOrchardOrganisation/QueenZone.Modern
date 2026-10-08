@@ -16,8 +16,8 @@
  * file, config key, and a QueenZone-customised script) applies and keeps local
  * paths, floors, maps, and the suppression baseline; repeating it is a no-op; an
  * overlapping change is refused with no file or lock changes; --keep-local
- * resolves that conflict; and a changed shared floor default is reported, because
- * QueenZone's C# floors currently equal the kit defaults.
+ * resolves that conflict; and changed shared floor defaults show the review
+ * hazard: QueenZone's C# floors equal the kit defaults, so one can merge silently.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -34,7 +34,7 @@ const QUEENZONE_ONLY = [
   'config/suppression-baseline.json',
   'scripts/check-feature-map.mjs',
   'scripts/check-pr-verification.mjs',
-  'scripts/check-suppressions.mjs',
+  'scripts/Test-CoverageGate.ps1',
   'scripts/Get-CrapReport.ps1',
   'scripts/mobile-coverage-floors.json',
   'docs/feature-map/README.md',
@@ -158,8 +158,7 @@ function main() {
     const compatible = fixtureVersion(kit, lock.commit, '0.2.1-proof', [
       (root) => editText(root, 'docs/testing.md', (text) => `${text}\nProof fixture: a shared testing rule added upstream.\n`),
       (root) => editText(root, 'templates/AGENTS.fragment.md', (text) => `${text.trimEnd()}\n- Proof fixture: a shared agent rule added upstream.\n`),
-      (root) => editText(root, 'scripts/Test-CoverageGate.ps1', (text) =>
-        replaceOnce(text, '# Coverlet writes UTF-8 coverage.cobertura.xml under a GUID folder.', '# Coverlet writes UTF-8 coverage.cobertura.xml under a GUID folder (proof fixture).')),
+      (root) => editText(root, 'scripts/check-suppressions.mjs', (text) => replaceOnce(text, "  '.cjs',\n]);", "  '.cjs',\n  '.razor',\n]);")),
       (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"version": 1,\n', '"version": 1,\n  "proofFixtureKey": true,\n')),
       (root) => {
         writeFileSync(path.join(root, 'docs/proof-fixture.md'), '# Proof fixture\n\nA new managed policy document.\n');
@@ -190,15 +189,15 @@ function main() {
     const guide = readText(project, 'AGENTS.md');
     check('AGENTS.md project guidance outside the markers is unchanged', outsideManagedSection(guide) === outsideManagedSection(beforeGuide));
     check('AGENTS.md managed section gains the upstream rule', guide.includes('- Proof fixture: a shared agent rule added upstream.'));
-    const gate = readText(project, 'scripts/Test-CoverageGate.ps1');
-    check('customised coverage gate three-way merges: upstream edit plus local floor loading',
-      gate.includes('GUID folder (proof fixture)') && gate.includes('$ConfigPath'));
+    const checker = readText(project, 'scripts/check-suppressions.mjs');
+    check('customised suppression checker three-way merges: upstream extension plus local generated-path skips',
+      checker.includes("'.razor',") && checker.includes("'src/QueenZone.Mobile/ios'"));
     check('shared doc updated and new managed file added',
       readText(project, 'docs/testing.md').includes('Proof fixture: a shared testing rule') && readText(project, 'docs/proof-fixture.md') !== null);
     const touched = changedPaths(beforeHashes, treeHashes(project));
     log(`    changed files: ${touched.join(', ')}`);
     check('only managed paths and the lock changed', touched.every((name) =>
-      ['AGENTS.md', 'development-standards.json', 'development-standards.lock.json', 'docs/proof-fixture.md', 'docs/testing.md', 'scripts/Test-CoverageGate.ps1'].includes(name)));
+      ['AGENTS.md', 'development-standards.json', 'development-standards.lock.json', 'docs/proof-fixture.md', 'docs/testing.md', 'scripts/check-suppressions.mjs'].includes(name)));
     log();
 
     log('## 2. Repeat the same version');
@@ -211,6 +210,9 @@ function main() {
     const conflicting = fixtureVersion(kit, lock.commit, '0.2.2-proof', [
       (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"solution": "YourProject.sln"', '"solution": "Example.sln"')),
       (root) => editText(root, 'config/typescript-coverage.json', (text) => replaceOnce(text, '"globalLine": 90', '"globalLine": 91')),
+      // Next to QueenZone's diff-parsing refactor, so it overlaps the local customisation.
+      (root) => editText(root, 'scripts/Test-CoverageGate.ps1', (text) =>
+        replaceOnce(text, '# Coverlet writes UTF-8 coverage.cobertura.xml under a GUID folder.', '# Coverlet writes UTF-8 coverage.cobertura.xml under a GUID folder (proof fixture).')),
       (root) => editText(root, 'docs/testing.md', (text) => `${text}\nProof fixture: a clean change that must not be written during a conflict.\n`),
     ]);
     log(`## 3. Conflicting update ${lock.commit.slice(0, 7)} -> ${conflicting.slice(0, 7)}`);
@@ -220,31 +222,38 @@ function main() {
     check('conflict exits nonzero', refused.status !== 0);
     check('conflict names the overlapping config line', refused.output.includes('CONFLICT: development-standards.json'));
     check('conflict names the edited file QueenZone deliberately removed', refused.output.includes('CONFLICT: config/typescript-coverage.json'));
+    check('conflict names the overlapping edit to a QueenZone-customised script', refused.output.includes('CONFLICT: scripts/Test-CoverageGate.ps1'));
     check('no target file or lock changed, including docs/testing.md', changedPaths(beforeConflict, treeHashes(conflictProject)).length === 0);
     log();
 
     log('## 4. Reviewed --keep-local resolution');
-    const kept = update(kit, conflictProject, '--keep-local', 'development-standards.json', '--keep-local', 'config/typescript-coverage.json');
+    const keepPaths = ['development-standards.json', 'config/typescript-coverage.json', 'scripts/Test-CoverageGate.ps1'];
+    const keptBefore = new Map(keepPaths.map((name) => [name, readText(conflictProject, name)]));
+    const kept = update(kit, conflictProject, ...keepPaths.flatMap((name) => ['--keep-local', name]));
     const keptLock = JSON.parse(readText(conflictProject, 'development-standards.lock.json'));
     check('keep-local update applies', kept.status === 0, kept.output);
-    check('QueenZone solution path is kept', JSON.parse(readText(conflictProject, 'development-standards.json')).dotnet.solution === 'QueenZone.sln');
-    check('removed kit floors file stays absent', readText(conflictProject, 'config/typescript-coverage.json') === null);
+    for (const [name, text] of keptBefore) check(`kept QueenZone version: ${name}`, readText(conflictProject, name) === text);
     check('clean change from the same version applies', readText(conflictProject, 'docs/testing.md').includes('must not be written during a conflict'));
-    check('lock records the kept paths',
-      keptLock.commit === conflicting && JSON.stringify(keptLock.keptLocal) === JSON.stringify(['development-standards.json', 'config/typescript-coverage.json']));
+    check('lock records the kept paths', keptLock.commit === conflicting && JSON.stringify([...keptLock.keptLocal].sort()) === JSON.stringify([...keepPaths].sort()));
     log();
 
-    // 5. Known limitation: a shared default that equals QueenZone's value reaches QueenZone.
-    const defaults = fixtureVersion(kit, lock.commit, '0.2.3-proof', [
+    // 5. QueenZone's C# floors equal the kit defaults; line adjacency decides whether a default change conflicts.
+    log('## 5. Shared floor default changes (review hazard)');
+    const changedDefault = fixtureVersion(kit, lock.commit, '0.2.3-proof', [
+      (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"changedLine": 70', '"changedLine": 80')),
+    ]);
+    const changedProject = cloneProject(workspace, 'queenzone-changed-default');
+    const changedResult = update(kit, changedProject);
+    const changedFloor = JSON.parse(readText(changedProject, 'development-standards.json')).dotnet.changedLine;
+    check('a kit changedLine default change merges into the QueenZone floor without a conflict', changedResult.status === 0 && changedFloor === 80);
+    const globalDefault = fixtureVersion(kit, lock.commit, '0.2.4-proof', [
       (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"globalLine": 91', '"globalLine": 95')),
     ]);
-    log(`## 5. Shared default change ${lock.commit.slice(0, 7)} -> ${defaults.slice(0, 7)} (review hazard)`);
-    const defaultsProject = cloneProject(workspace, 'queenzone-defaults');
-    const defaultsResult = update(kit, defaultsProject);
-    const raised = JSON.parse(readText(defaultsProject, 'development-standards.json')).dotnet.globalLine;
-    check('a changed shared default is applied, not hidden', defaultsResult.status === 0 && raised === 95);
-    log('    QueenZone dotnet.globalLine equals the kit default, so a kit default change applies without a conflict.');
-    log('    Review development-standards.json in every update PR; the floor is QueenZone policy.');
+    const globalProject = cloneProject(workspace, 'queenzone-global-default');
+    const globalResult = update(kit, globalProject);
+    check('a kit globalLine default change conflicts (next to the customised solution line)',
+      globalResult.status !== 0 && globalResult.output.includes('CONFLICT: development-standards.json'));
+    log('    Floors are QueenZone policy: read the development-standards.json diff in every update PR.');
   } finally {
     if (keep) log(`\nFixtures kept at ${workspace}`);
     else rmSync(workspace, { recursive: true, force: true });

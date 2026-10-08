@@ -83,7 +83,7 @@ Keep a separate clone of the kit, for example next to this repository (`C:\works
    ```
 
 5. On a conflict nothing is written, including files that would update cleanly, and the lock does not move. Compare `git show <locked-commit>:<source>` and `git show HEAD:<source>` in the kit with the QueenZone file. Merge by hand when the upstream change should apply, or keep the QueenZone version with `--keep-local <path>` (repeat per path). `--keep-local` resolves this update only; it is not a permanent opt-out, and the lock records it under `keptLocal`.
-6. Review the QueenZone diff. **Always read the `development-standards.json` diff:** QueenZone's C# floors equal the kit's defaults, so an upstream default change merges into QueenZone's floor without a conflict (scenario 5 below). Floors are QueenZone policy; revert an unintended change before committing.
+6. Review the QueenZone diff. **Always read the `development-standards.json` diff:** QueenZone's C# floors equal the kit's defaults, so an upstream default change can merge into QueenZone's floor without a conflict (scenario 5 below). Expect conflicts on QueenZone-customised scripts whenever upstream edits near QueenZone's own changes. Floors are QueenZone policy; revert an unintended change before committing.
 7. The updater never edits active workflows. If `examples/` changed, port what applies into `.github/workflows/ci.yml` or `pr-verification-check.yml` deliberately.
 8. Run the default verification in `AGENTS.md`, `node --test $(find scripts -name '*.test.mjs')`, the coverage-gate and mobile-gate self-tests, and the mobile preflight when mobile tooling changed. Commit the files and the new lock together and open an update PR that names the old and new commits, kept-local paths, and checks run.
 
@@ -101,20 +101,123 @@ Keep application-only rules (SQL access, mobile state strategy, design tokens, e
 
 `node scripts/development-standards-update-proof.mjs --standards <kit clone>` reproduces this evidence. It clones the kit and the committed QueenZone `HEAD` into a temporary directory, adds local fixture commits on top of the locked kit commit (no upstream release is touched), and runs the kit's own `scripts/update.mjs`:
 
-1. **Compatible update**: a shared doc change, a new managed rule, a new managed file, a new config key, and an edit to a QueenZone-customised script all apply. The solution path, floors, `uiPaths`, suppression baseline, feature maps, QueenZone-owned scripts, PR template, deliberately absent files, and `AGENTS.md` text outside the markers are unchanged.
+1. **Compatible update**: a shared doc change, a new managed rule, a new managed file, a new config key, and an edit to a QueenZone-customised script (`check-suppressions.mjs`, away from its local lines) all apply. The solution path, floors, `uiPaths`, suppression baseline, feature maps, QueenZone-owned scripts, PR template, deliberately absent files, and `AGENTS.md` text outside the markers are unchanged.
 2. **Same version again**: no file changes.
-3. **Overlapping change**: nonzero exit naming the conflicting paths; no target file or lock changes, including a file that would have updated cleanly.
+3. **Overlapping change**: the config `solution` line, an edit to a deliberately absent file, and an edit next to QueenZone's `Test-CoverageGate.ps1` refactor. Nonzero exit naming all three; no target file or lock changes, including a file that would have updated cleanly.
 4. **`--keep-local`**: the reviewed conflicts keep QueenZone's versions, the clean change applies, and the lock records `keptLocal`.
-5. **Shared default change**: a kit change to the default `globalLine` reaches QueenZone without a conflict. This is the review hazard in step 6 above.
+5. **Shared floor defaults**: a kit change to the default `changedLine` merges into QueenZone's floor without a conflict, while a `globalLine` change conflicts only because it sits next to QueenZone's customised `solution` line. This is the review hazard in step 6 above.
 
 Run on 2026-10-08:
 
 ```text
-PROOF-OUTPUT-PLACEHOLDER
+QueenZone commit under test: d5f115f4afbf44a7e39c055b2b53aa804f9af3a2
+Locked standards: c958b458725b30590445f3e6fa3033e439cd5587 (v0.2.0)
+
+## 1. Compatible update c958b45 -> 11584cc
+$ node scripts/update.mjs --target <queenzone> --dry-run
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8
+    update (three-way merge): development-standards.json
+    update (three-way merge): scripts/check-suppressions.mjs
+    update: docs/testing.md
+    add: docs/proof-fixture.md
+    update: AGENTS.md
+    update: development-standards.lock.json
+    Preview only; no files changed.
+    (exit 0)
+PASS dry-run succeeds and writes nothing
+$ node scripts/update.mjs --target <queenzone>
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8
+    update (three-way merge): development-standards.json
+    update (three-way merge): scripts/check-suppressions.mjs
+    update: docs/testing.md
+    add: docs/proof-fixture.md
+    update: AGENTS.md
+    update: development-standards.lock.json
+    Update complete. Review the target diff and run its checks before committing.
+    (exit 0)
+PASS update applies
+PASS lock advances to the fixture commit and version
+PASS config merges the upstream key
+PASS solution path, floors, mobile floors file, and uiPaths survive
+PASS unchanged QueenZone-owned file: config/suppression-baseline.json
+PASS unchanged QueenZone-owned file: scripts/check-feature-map.mjs
+PASS unchanged QueenZone-owned file: scripts/check-pr-verification.mjs
+PASS unchanged QueenZone-owned file: scripts/Test-CoverageGate.ps1
+PASS unchanged QueenZone-owned file: scripts/Get-CrapReport.ps1
+PASS unchanged QueenZone-owned file: scripts/mobile-coverage-floors.json
+PASS unchanged QueenZone-owned file: docs/feature-map/README.md
+PASS unchanged QueenZone-owned file: .github/pull_request_template.md
+PASS canonical feature maps are untouched
+PASS deliberately absent file stays absent: config/feature-map.json
+PASS deliberately absent file stays absent: config/typescript-coverage.json
+PASS deliberately absent file stays absent: scripts/Test-TypeScriptCoverageGate.mjs
+PASS AGENTS.md project guidance outside the markers is unchanged
+PASS AGENTS.md managed section gains the upstream rule
+PASS customised suppression checker three-way merges: upstream extension plus local generated-path skips
+PASS shared doc updated and new managed file added
+    changed files: AGENTS.md, development-standards.json, development-standards.lock.json, docs/proof-fixture.md, docs/testing.md, scripts/check-suppressions.mjs
+PASS only managed paths and the lock changed
+
+## 2. Repeat the same version
+$ node scripts/update.mjs --target <queenzone>
+    Standards 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8 -> 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8
+    Update complete. Review the target diff and run its checks before committing.
+    (exit 0)
+PASS repeated update is a no-op
+
+## 3. Conflicting update c958b45 -> 6d47bb4
+$ node scripts/update.mjs --target <queenzone>
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 6d47bb4363886212d3c988e8bb6cd9c1898f91d9
+    update: docs/testing.md
+    CONFLICT: development-standards.json: Project and standards changed overlapping lines.
+    CONFLICT: config/typescript-coverage.json: Deletion conflicts with changes in the other version.
+    CONFLICT: scripts/Test-CoverageGate.ps1: Project and standards changed overlapping lines.
+    No project files or lock were changed. Review conflicts; --keep-local can retain an explicitly reviewed local version.
+    (exit 1)
+PASS conflict exits nonzero
+PASS conflict names the overlapping config line
+PASS conflict names the edited file QueenZone deliberately removed
+PASS conflict names the overlapping edit to a QueenZone-customised script
+PASS no target file or lock changed, including docs/testing.md
+
+## 4. Reviewed --keep-local resolution
+$ node scripts/update.mjs --target <queenzone> --keep-local development-standards.json --keep-local config/typescript-coverage.json --keep-local scripts/Test-CoverageGate.ps1
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 6d47bb4363886212d3c988e8bb6cd9c1898f91d9
+    keep-local: development-standards.json
+    keep-local: config/typescript-coverage.json
+    keep-local: scripts/Test-CoverageGate.ps1
+    update: docs/testing.md
+    update: development-standards.lock.json
+    Update complete. Review the target diff and run its checks before committing.
+    (exit 0)
+PASS keep-local update applies
+PASS kept QueenZone version: development-standards.json
+PASS kept QueenZone version: config/typescript-coverage.json
+PASS kept QueenZone version: scripts/Test-CoverageGate.ps1
+PASS clean change from the same version applies
+PASS lock records the kept paths
+
+## 5. Shared floor default changes (review hazard)
+$ node scripts/update.mjs --target <queenzone>
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 920e7aa31299f2a087c6b150540f0d5b9c09b88a
+    update (three-way merge): development-standards.json
+    update: development-standards.lock.json
+    Update complete. Review the target diff and run its checks before committing.
+    (exit 0)
+PASS a kit changedLine default change merges into the QueenZone floor without a conflict
+$ node scripts/update.mjs --target <queenzone>
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> ffc6c6032ff57e038aa222c7fcb152d615bd1081
+    CONFLICT: development-standards.json: Project and standards changed overlapping lines.
+    No project files or lock were changed. Review conflicts; --keep-local can retain an explicitly reviewed local version.
+    (exit 1)
+PASS a kit globalLine default change conflicts (next to the customised solution line)
+    Floors are QueenZone policy: read the development-standards.json diff in every update PR.
+
+All update-proof checks passed.
 ```
 
 ## Known gaps and follow-ups
 
 - QueenZone's copies of the coverage gate, CRAP report, mobile gate, suppression checker, feature-map checker, and PR checker are ahead of the kit. Converging them is upstream work: port QueenZone's refactors, CRAP ratchet, configurable generated-path skips, and the richer feature-map/PR-proof model into development-standards, then take them back through an update PR. Until then the managed paths hold reviewed QueenZone customisations.
-- The kit ships real floor values in `development-standards.json`, so a default change can reach a project's floors silently (scenario 5). A kit change that keeps project floors out of the managed template, or reports them for review, would remove the hazard.
+- The kit ships real floor values in `development-standards.json`, so a default change can reach a project's floors silently (scenario 5 merged a `changedLine` change). A kit change that keeps project floors out of the managed template, or reports them for review, would remove the hazard.
 - The kit's shared docs and managed `AGENTS.md` section name `config/feature-map.json` and `config/typescript-coverage.json`. The QueenZone mapping section after the markers in `AGENTS.md` gives the QueenZone equivalents.
