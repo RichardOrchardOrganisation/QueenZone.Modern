@@ -4,7 +4,8 @@
  *
  * #871 Option A: npm test coverage ≠ #869 contracts ≠ #872 Maestro smoke.
  * Union-by-file (do not sum overlapping reports). Fail closed on missing or
- * malformed reports. Thresholds: scripts/mobile-coverage-floors.json.
+ * malformed reports. Thresholds: the typescript.floors file named in
+ * development-standards.json (scripts/mobile-coverage-floors.json).
  */
 import { existsSync, globSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -576,6 +577,19 @@ export function evaluateChangedLines(store, changedLines) {
   };
 }
 
+/** Floors file named by typescript.floors in development-standards.json (#2116). */
+export function configuredFloorsPath(repoRoot = defaultRepoRoot) {
+  const configPath = path.join(repoRoot, 'development-standards.json');
+  if (!existsSync(configPath)) {
+    throw new Error(`Missing development-standards.json under '${repoRoot}'.`);
+  }
+  const floors = JSON.parse(readFileSync(configPath, 'utf8')).typescript?.floors;
+  if (typeof floors !== 'string' || !floors) {
+    throw new Error('Configure typescript.floors in development-standards.json.');
+  }
+  return path.join(repoRoot, floors);
+}
+
 export function loadFloors(floorsPath) {
   if (!existsSync(floorsPath)) {
     throw new Error(`Missing mobile coverage floors file '${floorsPath}'.`);
@@ -788,7 +802,7 @@ function parseArgs(argv) {
   const args = {
     repoRoot: defaultRepoRoot,
     reports: path.join(defaultRepoRoot, 'src/QueenZone.Mobile/coverage'),
-    floors: path.join(defaultRepoRoot, 'scripts/mobile-coverage-floors.json'),
+    floors: null,
     merged: path.join(defaultRepoRoot, 'src/QueenZone.Mobile/coverage/merged'),
     baseRef: process.env.GITHUB_BASE_REF || 'origin/main',
     headRef: 'HEAD',
@@ -815,7 +829,7 @@ function parseArgs(argv) {
 function collectCoverageSummary(args) {
   const jestDir = path.join(args.reports, 'jest');
   const nodeDir = path.join(args.reports, 'node');
-  const floors = loadFloors(args.floors);
+  const floors = loadFloors(args.floors ?? configuredFloorsPath(args.repoRoot));
 
   const jestStore = loadSuiteReport(jestDir, 'jest', args.repoRoot);
   const nodeStore = loadSuiteReport(nodeDir, 'node', args.repoRoot);
@@ -1085,6 +1099,37 @@ function runSelfTest() {
       });
       if (!summary.changed.skipped) {
         throw new Error('expected skip');
+      }
+    });
+
+    assert('default floors come from typescript.floors in development-standards.json', () => {
+      const configRoot = path.join(tempRoot, 'configured-repo');
+      mkdirSync(configRoot, { recursive: true });
+      let failed = false;
+      try {
+        configuredFloorsPath(configRoot);
+      } catch (error) {
+        failed = /Missing development-standards\.json/.test(error.message);
+      }
+      if (!failed) {
+        throw new Error('expected a missing project configuration to fail closed');
+      }
+      writeFileSync(path.join(configRoot, 'development-standards.json'), JSON.stringify({ version: 1, typescript: {} }));
+      failed = false;
+      try {
+        configuredFloorsPath(configRoot);
+      } catch (error) {
+        failed = /Configure typescript\.floors/.test(error.message);
+      }
+      if (!failed) {
+        throw new Error('expected a configuration without typescript.floors to fail closed');
+      }
+      writeFileSync(
+        path.join(configRoot, 'development-standards.json'),
+        JSON.stringify({ version: 1, typescript: { floors: 'config/floors.json' } }),
+      );
+      if (configuredFloorsPath(configRoot) !== path.join(configRoot, 'config/floors.json')) {
+        throw new Error('expected the configured floors path relative to the repository root');
       }
     });
 

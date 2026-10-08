@@ -6,7 +6,7 @@
 
 ## Summary
 
-<!-- What changed and why? -->
+<!-- What changed and why: the problem and the resulting behavior. -->
 
 ## Testing
 
@@ -15,14 +15,14 @@
 - [ ] `dotnet restore QueenZone.sln`
 - [ ] `dotnet build QueenZone.sln --configuration Release --no-restore`
 - [ ] `dotnet test QueenZone.sln --configuration Release --no-build`
-- [ ] Coverage gate passed locally (`scripts/Test-CoverageGate.ps1` with `-BaseRef origin/main`; see `AGENTS.md`)
+- [ ] Coverage gate passed locally (`scripts/Test-CoverageGate.ps1 -Reports ./TestResults -BaseRef origin/main`; floors come from `development-standards.json`), or `node scripts/verify.mjs --profile dotnet --base-ref origin/main`
 - [ ] If this PR changes `src/QueenZone.Mobile`: `npm ci` + `npm run preflight` (combined typecheck of app + tests via `tsconfig.test.json`, lint, unit tests, **Expo Doctor** — not app typecheck + Jest alone)
 - [ ] Route/page tests avoid brittle CSS class or exact markup assertions unless markup shape is the contract
 - [ ] If this PR touches EF migrations / `QueenZoneDbContext` / `Entities/`: `dotnet ef migrations has-pending-model-changes` passed, and CI **EF migrations (SQL Express mirror)** is green (or you ran `dotnet ef database update` against the SQL Express mirror locally). Production Azure SQL apply is `deploy.yml` migrate after merge.
 
 ## Legacy database checks
 
-<!-- Were opt-in legacy SQL Server checks run? If skipped, say why. -->
+<!-- Were opt-in legacy SQL Server / provider probes run? State RUN or NOT RUN, with the reason. -->
 
 - [ ] Not required for this change
 - [ ] Ran with `RUN_LEGACY_DB_TESTS=true`
@@ -73,4 +73,4 @@ Issue:
 
 ## Follow-up
 
-<!-- Any skipped checks, known limitations, or post-merge work -->
+<!-- Skipped checks (each with its reason), known limitations, and post-merge work -->

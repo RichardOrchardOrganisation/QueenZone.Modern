@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "dotnet": {
+    "solution": "QueenZone.sln",
+    "globalLine": 91,
+    "changedLine": 70,
+    "reports": "TestResults"
+  },
+  "typescript": {
+    "projectRoot": "src/QueenZone.Mobile",
+    "reports": "src/QueenZone.Mobile/coverage",
+    "floors": "scripts/mobile-coverage-floors.json"
+  },
+  "uiPaths": [
+    "src/QueenZone.Mobile/src/screens/",
+    "src/QueenZone.Mobile/src/navigation/",
+    "src/QueenZone.Mobile/src/ui/",
+    "src/QueenZone.Web/Pages/",
+    "src/QueenZone.Web/Views/",
+    "src/QueenZone.Web/wwwroot/"
+  ]
+}

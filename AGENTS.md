@@ -6,6 +6,7 @@ This repository is the modern QueenZone rebuild. The project is archive-first: i
 
 - `README.md` gives the project overview and local development commands.
 - `docs/architecture/testing-policy.md` defines the required testing layers (including CI Web.Tests mixed sharding).
+- `docs/architecture/development-standards.md` records how QueenZone consumes the shared [development-standards](https://github.com/RichardOrchardOrganisation/development-standards) kit: the pinned version (`development-standards.lock.json`), which managed files are adopted, kept local, or deliberately absent, and how to update. `development-standards.json` is the single source for the C# coverage floors, the mobile floors file, and the UI paths the PR verification check treats as UI. The shared rules are the managed section at the end of this file.
 - `docs/decisions/` contains accepted architectural decisions ([index](docs/decisions/README.md)).
 - `docs/decisions/0006-hybrid-ef-core-admin-writes.md` is the Dapper vs EF access matrix and contributor rules for SQL in `QueenZone.Data`.
 - `docs/architecture/blob-storage-ugc.md` is the UGC blob upload foundation (`QueenZone.Storage` / `IBlobUploadService`).
@@ -303,8 +304,8 @@ GitHub Actions workflow `.github/workflows/ci.yml` blocks merge when these fail:
 | **Formatting** | `dotnet format QueenZone.sln --verify-no-changes` (matches root `.editorconfig`; CRLF via `.gitattributes`) — runs as its own job in parallel with Build/Test, not a Build step | Yes |
 | **Test (sharded)** | Mixed `QueenZone.Web.Tests` shards (Release, Coverlet) | Yes |
 | **Small test projects** | `Tools`/`Storage`/`NewsAgent` test projects, in parallel with the Web.Tests shards | Yes |
-| **Global line coverage** | At least **91%** across the union of deterministic suite reports | Yes |
-| **Changed-line coverage** | At least **70%** of changed, coverable `.cs` lines in the PR diff vs `main` | Yes |
+| **Global line coverage** | At least `dotnet.globalLine` in `development-standards.json` across the union of deterministic suite reports | Yes |
+| **Changed-line coverage** | At least `dotnet.changedLine` in `development-standards.json` of changed, coverable `.cs` lines in the PR diff vs `main` | Yes |
 | **CRAP ratchet** | No method/function above CRAP **30** unless it is listed in `config/crap-baseline.dotnet.json` / `config/crap-baseline.mobile.json`, and no baselined score may rise. Last step of `coverage` (.NET) and `mobile-js` (mobile). See "Change risk (CRAP)" below | Yes |
 | **Smoke test** | Published app responds on `/health`, `/`, `/news` (starts after `build`, overlaps coverage) | Yes |
 | **EF migrations (SQL Express mirror)** | When migration-related paths change: `has-pending-model-changes` + `database update` against the SQL Express mirror (no production Azure SQL, no prod GitHub Environment) | Yes (job runs only for those PRs) |
@@ -378,12 +379,12 @@ Run the [default verification](#default-verification-before-a-pull-request) firs
 git fetch origin main
 # After default restore/build/format, collect coverage and gate:
 dotnet test QueenZone.sln --configuration Release --no-build --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef origin/main
+powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -BaseRef origin/main
 ```
 
-On Linux or GitHub Actions, use `pwsh` instead of `powershell` for the last command.
+On Linux or GitHub Actions, use `pwsh` instead of `powershell` for the last command. The gate reads its floors from `development-standards.json`; do not pass `-GlobalLineThreshold` / `-ChangedLineThreshold` to reproduce CI. `node scripts/verify.mjs --profile dotnet --base-ref origin/main` runs restore, build, format, tests with coverage, this gate, the CRAP report, the suppression check, and the feature-map check in one command (it does not replace e2e, EF migration, or provider checks).
 
-If the gate reports uncovered changed lines, it prints up to 20 `path:line` entries. Add or extend tests until changed-line coverage is at least 70%.
+If the gate reports uncovered changed lines, it prints up to 20 `path:line` entries. Add or extend tests until changed-line coverage meets `dotnet.changedLine`.
 
 When the PR changes `src/QueenZone.Mobile`, run the same host-free gate CI uses before the coverage job — not app typecheck + Jest alone:
 
@@ -395,7 +396,7 @@ npm run preflight
 
 `npm run typecheck` is `tsc --noEmit && tsc --noEmit -p tsconfig.test.json` (app sources plus test files, `src/test/`, `jest.setup.ts`, and `contracts/**/*.ts`). `npm run preflight` is that combined typecheck + lint + unit tests + Expo Doctor. Doctor's package-version check consults Expo's current SDK list, so a lockfile that passed this morning can fail CI the same afternoon when Expo publishes a patch (`npx expo install <package>`). Do not skip Doctor on mobile PRs.
 
-When the PR also changes production TypeScript/TSX, run the mobile coverage gate (floors in `scripts/mobile-coverage-floors.json`; do not copy the web C# 91%/70% numbers):
+When the PR also changes production TypeScript/TSX, run the mobile coverage gate (floors in `scripts/mobile-coverage-floors.json`, the file `typescript.floors` names in `development-standards.json`; do not copy the web C# floors):
 
 ```powershell
 cd src/QueenZone.Mobile
@@ -502,3 +503,32 @@ configure the environment rather than exposing the key in chat or repository fil
 No database is required for local development. When `ConnectionStrings:QueenZoneLegacy` is empty (the default), the app uses in-memory/sample data, so `dotnet run --project src/QueenZone.Web/QueenZone.Web.csproj` starts with zero external services (defaults to `Development` at `http://localhost:5146`). `dotnet run` builds `Debug` by default; do not pass `--no-build` unless you have already built the `Debug` configuration (the `--configuration Release` builds live under `bin/Release`).
 
 Exercising admin editorial routes locally without real Entra: admin routes require Microsoft Entra sign-in unless `AzureAd:ClientId` is blank, in which case a test-header auth fallback is active. `appsettings.json` ships a placeholder `ClientId`, so create a git-ignored `src/QueenZone.Web/appsettings.Local.json` that sets `AzureAd:ClientId` to `""` and lists an allowed admin email under `Admin:AllowedEmails`. Then authenticate admin requests by sending the `X-Test-User-Email: <allowed-email>` header. Admin POSTs need the `__RequestVerificationToken` antiforgery field, so fetch the form first and reuse its token plus cookie. The news article body is validated as plain text (HtmlSanitizer), so a body containing HTML tags is rejected with "Article body must be plain text."
+
+<!-- development-standards:begin -->
+## Shared development standards
+
+Read `docs/testing.md`, `docs/coverage.md`, `docs/verification.md`, and `docs/suppressions.md`. Project architecture and operating details stay in the project’s own guide. Run the matching profile in `scripts/verify.mjs`; commands and floors live in `development-standards.json` and `config/typescript-coverage.json`.
+
+- Assert observable behavior, including boundaries, validation, permissions, state transitions, and error paths. Avoid tests that merely repeat implementation or execute code without meaningful assertions.
+- Add a regression test for a behavior bug when practical. Test pure logic without I/O; use deterministic integration tests for routes and composition; keep browser/device journeys focused on critical behavior. Choose tests by risk, not by an urge to maximize test count.
+- Default tests must run without production credentials, network services, or real databases. Put provider-specific behavior in opt-in probes against a safe test database. Fakes and SQLite do not establish SQL Server locking, mapping, or retry behavior.
+- Cover shared repository behavior through the interface against each implementation. Document intentional differences beside provider-specific tests.
+- Run the same build, formatting, tests, and coverage gates locally and in CI. Merge overlapping coverage by file/line hits. Include unexecuted production files; do not manufacture coverage by omitting them.
+- Read CRAP hotspots before changing complex methods; add useful tests or simplify the method. A passing coverage percentage does not replace useful assertions.
+- Do not add suppressions, exclusions, retries, or weaker assertions merely to pass a gate. Any necessary exception needs a reason and an issue for its removal on the same line. Lower the suppression baseline after removals; never raise it without explicit reviewed justification.
+- Search for existing shared helpers before adding another. Fix mistakes in code first, then automated checks, then rules, then skills, then review guidance. On a repeated finding, prefer a code fix or enforceable check.
+- UI work must identify affected feature-map IDs and capture actual browser/device evidence. Desktop or Expo web execution does not prove native mobile behavior. Report unavailable checks as NOT RUN or Not verified with the reason.
+- Do not push feature work directly to the default branch. Use `{agent}/{task}` branches, fetch the current base before a PR, and include the authoring agent, change summary, checks, real-data probe status, skipped checks, and a plain-text link to an existing issue.
+- Finish authorized work, verify it, commit, push, and open a PR unless the user explicitly reserves those steps. Follow the project’s merge policy and protected checks; do not bypass them.
+<!-- development-standards:end -->
+
+## QueenZone mapping for the shared standards
+
+The section above is managed by `node scripts/update.mjs` in the development-standards kit; put QueenZone guidance outside the markers. Where the shared rules name a generic location, QueenZone uses:
+
+- Feature map: `docs/feature-map/` (checked by `node scripts/check-feature-map.mjs`), not `config/feature-map.json`. PR proof uses the `## Verification` fields in `.github/pull_request_template.md`.
+- Mobile (TypeScript) floors: `scripts/mobile-coverage-floors.json`, named by `typescript.floors` in `development-standards.json` and enforced by `scripts/Test-MobileCoverageGate.mjs`, not `config/typescript-coverage.json`.
+- Suppression rationale: `docs/architecture/workaround-audit.md` and the [Workarounds and suppressions](#workarounds-and-suppressions) rules above.
+- Test layers, CI jobs, and real-data probes: `docs/architecture/testing-policy.md` and this file. The `scripts/verify.mjs` profiles do not replace e2e, mobile preflight, Expo Doctor, native builds, device proof, EF migration checks, or mirror probes.
+
+`docs/architecture/development-standards.md` records every managed file's adoption decision and the update procedure.

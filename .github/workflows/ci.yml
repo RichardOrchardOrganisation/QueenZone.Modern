@@ -872,11 +872,13 @@ jobs:
       # the base SHA in the event; origin/main may have moved since. Compare
       # against that fixed SHA so a moving main cannot fail the ancestor check.
       # Merge groups (and manual runs) still require origin/main as an ancestor.
+      # Floors come from dotnet.globalLine / dotnet.changedLine in
+      # development-standards.json; do not repeat them here.
       - name: Enforce coverage gate
         shell: pwsh
         env:
           COVERAGE_BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
-        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef $env:COVERAGE_BASE_REF -RequireBaseRef
+        run: ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -BaseRef $env:COVERAGE_BASE_REF -RequireBaseRef
 
       - name: Build observed Web.Tests duration map
         shell: pwsh

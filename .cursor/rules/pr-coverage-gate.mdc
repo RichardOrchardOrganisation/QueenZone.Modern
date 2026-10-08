@@ -1,24 +1,24 @@
 ---
-description: PR changed-line coverage gate (80%) and pre-PR verification
+description: PR changed-line coverage gate and pre-PR verification
 alwaysApply: true
 ---
 
 # Coverage gate before pull requests
 
-CI blocks merge when changed-line coverage is below **70%** for coverable `.cs` lines in the PR diff vs `main`. Global line coverage must be at least **91%**.
+CI blocks merge when changed-line coverage for coverable `.cs` lines in the PR diff vs `main` is below `dotnet.changedLine`, or global line coverage is below `dotnet.globalLine`. Both floors live only in `development-standards.json`; do not copy the numbers into commands or docs.
 
 ## Before opening or updating a PR
 
 1. Run build + tests (`dotnet test QueenZone.sln` locally — full suite; CI shards Web.Tests separately).
-2. Run the coverage gate locally:
+2. Run the coverage gate locally (it reads the floors from `development-standards.json`):
 
 ```powershell
 git fetch origin main
 dotnet test QueenZone.sln --configuration Release --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef origin/main
+powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -BaseRef origin/main
 ```
 
-3. If the gate fails, it prints uncovered `path:line` entries. Add or extend tests until changed-line coverage is at least 70%.
+3. If the gate fails, it prints uncovered `path:line` entries. Add or extend tests until changed-line coverage meets the floor.
 
 ## Common pitfalls
 

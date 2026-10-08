@@ -2,15 +2,18 @@ param(
     [Parameter()]
     [string]$Reports,
 
-    [double]$GlobalLineThreshold = 91,
+    [double]$GlobalLineThreshold,
 
-    [double]$ChangedLineThreshold = 70,
+    [double]$ChangedLineThreshold,
 
     [string]$BaseRef = $env:GITHUB_BASE_REF,
 
     [string]$HeadRef = "HEAD",
 
     [switch]$RequireBaseRef,
+
+    # Floors default to dotnet.globalLine / dotnet.changedLine in this file (development-standards, #2116).
+    [string]$ConfigPath = (Join-Path $PSScriptRoot "../development-standards.json"),
 
     [switch]$SelfTest
 )
@@ -19,6 +22,15 @@ $ErrorActionPreference = "Stop"
 
 if (-not $SelfTest -and [string]::IsNullOrWhiteSpace($Reports)) {
     throw "Reports is required unless -SelfTest is specified."
+}
+
+if (-not $SelfTest -and (-not $PSBoundParameters.ContainsKey('GlobalLineThreshold') -or -not $PSBoundParameters.ContainsKey('ChangedLineThreshold'))) {
+    $dotnetProfile = (Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json).dotnet
+    if ($null -eq $dotnetProfile.globalLine -or $null -eq $dotnetProfile.changedLine) {
+        throw "Configure dotnet.globalLine and dotnet.changedLine in development-standards.json."
+    }
+    if (-not $PSBoundParameters.ContainsKey('GlobalLineThreshold')) { $GlobalLineThreshold = $dotnetProfile.globalLine }
+    if (-not $PSBoundParameters.ContainsKey('ChangedLineThreshold')) { $ChangedLineThreshold = $dotnetProfile.changedLine }
 }
 
 function Get-RepoRelativePath {
@@ -306,6 +318,33 @@ function Invoke-BaseShaSelfTest {
     }
 }
 
+# Omitted thresholds come from the project configuration, so CI and local runs share one floor.
+function Invoke-ConfiguredFloorSelfTest {
+    param([string]$TempRoot, [string]$Pwsh)
+
+    $configDir = Join-Path $TempRoot "configured-floors"
+    New-Item -ItemType Directory -Path $configDir | Out-Null
+    $strictConfig = Join-Path $configDir "strict.json"
+    $missingConfig = Join-Path $configDir "missing.json"
+    [System.IO.File]::WriteAllText($strictConfig, '{ "version": 1, "dotnet": { "globalLine": 101, "changedLine": 0 } }')
+    [System.IO.File]::WriteAllText($missingConfig, '{ "version": 1, "dotnet": { "changedLine": 0 } }')
+
+    $strictOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $TempRoot -ConfigPath $strictConfig -BaseRef "" 2>&1
+    if ($LASTEXITCODE -eq 0 -or (@($strictOutput) -join [Environment]::NewLine) -notmatch 'below the required 101%') {
+        throw "Self-test failed: an omitted global threshold must come from dotnet.globalLine. Output:`n$($strictOutput | Out-String)"
+    }
+
+    $overrideOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $TempRoot -ConfigPath $strictConfig -GlobalLineThreshold 0 -BaseRef "" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Self-test failed: an explicit threshold must override the configured floor. Output:`n$($overrideOutput | Out-String)"
+    }
+
+    $missingOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $TempRoot -ConfigPath $missingConfig -BaseRef "" 2>&1
+    if ($LASTEXITCODE -eq 0 -or (@($missingOutput) -join [Environment]::NewLine) -notmatch 'Configure dotnet.globalLine') {
+        throw "Self-test failed: a configuration without dotnet floors must fail closed."
+    }
+}
+
 function Invoke-CoverageGateSelfTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("qz-coverage-gate-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
@@ -391,6 +430,8 @@ function Invoke-CoverageGateSelfTest {
         if ($emptyText -notmatch 'No valid Cobertura coverage reports') {
             throw "Self-test failed: empty reports dir produced unexpected error. Output:`n$emptyText"
         }
+
+        Invoke-ConfiguredFloorSelfTest -TempRoot $tempRoot -Pwsh $pwsh.Source
 
         Invoke-BaseShaSelfTest -TempRoot $tempRoot -Pwsh $pwsh.Source
 

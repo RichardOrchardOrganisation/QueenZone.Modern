@@ -6,6 +6,7 @@
  * link or a Not verified: line. Opt out with the no-ui-verification label plus
  * Verification-skip-reason:. Dependabot is exempt.
  */
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { compareText, listUiSourcePaths, loadFeatureMap, repoRootFrom, toPosix } from './check-feature-map.mjs';
@@ -13,8 +14,28 @@ import { compareText, listUiSourcePaths, loadFeatureMap, repoRootFrom, toPosix }
 export const NEEDS_VERIFICATION = 'needs-verification';
 export const NO_UI_VERIFICATION = 'no-ui-verification';
 
-const MOBILE_UI = /^src\/QueenZone\.Mobile\/src\/(screens|navigation|ui)\//;
-const WEB_UI = /^src\/QueenZone\.Web\/(Pages|Views|wwwroot)\//;
+/**
+ * UI source prefixes from uiPaths in development-standards.json (#2116). A
+ * trailing / is a directory prefix; anything else is one exact file. This
+ * web + mobile repository must configure at least one.
+ */
+export function loadUiPaths(root = repoRootFrom()) {
+  const config = JSON.parse(readFileSync(path.join(root, 'development-standards.json'), 'utf8'));
+  const uiPaths = config.uiPaths;
+  if (!Array.isArray(uiPaths) || uiPaths.length === 0) {
+    throw new Error('development-standards.json must list the web and mobile uiPaths.');
+  }
+  for (const uiPath of uiPaths) {
+    if (typeof uiPath !== 'string' || !uiPath || uiPath.startsWith('/') || uiPath.includes('\\') || uiPath.split('/').includes('..')) {
+      throw new Error(`Invalid uiPaths entry in development-standards.json: ${uiPath}`);
+    }
+  }
+  return uiPaths;
+}
+
+function matchesUiPath(posix, uiPaths) {
+  return uiPaths.some((uiPath) => (uiPath.endsWith('/') ? posix.startsWith(uiPath) : posix === uiPath));
+}
 
 export function isIgnoredVerificationPath(file) {
   const posix = toPosix(file);
@@ -36,12 +57,12 @@ export function isIgnoredVerificationPath(file) {
   return false;
 }
 
-export function isUiChangedPath(file, mobileSources) {
+export function isUiChangedPath(file, mobileSources, uiPaths = loadUiPaths()) {
   const posix = toPosix(file);
   if (isIgnoredVerificationPath(posix)) {
     return false;
   }
-  if (MOBILE_UI.test(posix) || WEB_UI.test(posix)) {
+  if (matchesUiPath(posix, uiPaths)) {
     return true;
   }
   return mobileSources.has(posix);
@@ -90,12 +111,14 @@ export function evaluatePrVerification({
   dependabot = false,
   mapIds = new Set(),
   mobileSources = new Set(),
+  uiPaths = null,
 } = {}) {
   if (dependabot) {
     return { ok: true, ui: false, reason: 'Dependabot is exempt.' };
   }
 
-  const uiFiles = files.filter((file) => isUiChangedPath(file, mobileSources));
+  const configuredUiPaths = uiPaths ?? loadUiPaths();
+  const uiFiles = files.filter((file) => isUiChangedPath(file, mobileSources, configuredUiPaths));
   const ui = uiFiles.length > 0;
   const labelNames = labels.map((label) => (typeof label === 'string' ? label : label.name));
   const skipLabel = labelNames.includes(NO_UI_VERIFICATION);
@@ -233,6 +256,7 @@ export async function checkPullRequestVerification({ github, context, core, root
     dependabot: isDependabot(pullRequest),
     mapIds,
     mobileSources,
+    uiPaths: loadUiPaths(root),
   });
 
   await setNeedsVerification(
