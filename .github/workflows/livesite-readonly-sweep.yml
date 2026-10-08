@@ -2,9 +2,10 @@ name: Live-site read-only public sweep
 
 on:
   schedule:
-    # 06:00 UTC daily — offset from nightly-legacy-checks (03:00 UTC) so this
-    # cheap no-DB job does not contend with the Mac for mirror probes / RealData UI.
-    - cron: "0 6 * * *"
+    # 06:23 UTC daily — off the top of the hour to reduce GitHub schedule lag,
+    # and still offset from nightly-legacy-checks (03:00 UTC) so this cheap
+    # no-DB job does not contend with the Mac for mirror probes / RealData UI.
+    - cron: "23 6 * * *"
   workflow_dispatch:
     inputs:
       base_url:
@@ -12,6 +13,11 @@ on:
         required: false
         type: string
         default: "https://www.queenzone.org"
+      ignore_deploy_gate:
+        description: "Skip waiting for a quiet deploy.yml window (manual only)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -29,12 +35,46 @@ concurrency:
 # fixture is selected. Continuous signal only — not a required check on any PR, and
 # deploy.yml does not depend on it.
 #
+# Do not share a concurrency group with deploy.yml (#2195). GitHub keeps one pending
+# slot per group; a queued sweep could cancel a queued release tag (or the reverse).
+# deploy.yml's group is deploy-${{ github.ref }} (per tag). A first-job poll of
+# deploy.yml run state waits on a condition instead.
+#
 # Failures mean production/CDN/deploy drift is broken — a different signal from
 # ui-e2e-realdata in nightly-legacy-checks.yml (which means the mirror/code path is broken).
 
 jobs:
+  deploy-quiet-gate:
+    name: Wait for a quiet production deploy window
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Self-test deploy-quiet gate
+        run: bash ./scripts/Wait-DeployQuiet.sh --self-test
+
+      - name: Wait until deploy.yml is quiet
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          IGNORE_DEPLOY_GATE: ${{ github.event_name == 'workflow_dispatch' && inputs.ignore_deploy_gate || false }}
+        run: bash ./scripts/Wait-DeployQuiet.sh
+
   livesite-readonly-sweep:
     name: Live-site read-only public sweep (production)
+    needs: deploy-quiet-gate
+    if: needs.deploy-quiet-gate.outputs.run == 'true'
     runs-on: [self-hosted, queenzone]
     timeout-minutes: 20
 
@@ -44,6 +84,43 @@ jobs:
 
       - name: Verify .NET SDK
         run: dotnet --version
+
+      - name: Wait for production /warmup
+        shell: pwsh
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          $baseUrl = $env:BASE_URL
+          if ([string]::IsNullOrWhiteSpace($baseUrl)) {
+            $baseUrl = "https://www.queenzone.org"
+          }
+          $uri = $null
+          if (-not [Uri]::TryCreate($baseUrl, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne [Uri]::UriSchemeHttps) {
+            Write-Host "::error::base_url must be an https:// URL."
+            exit 1
+          }
+          $warmupUrl = $baseUrl.TrimEnd('/') + "/warmup"
+          $deadline = [DateTimeOffset]::UtcNow.AddMinutes(5)
+          $ready = $false
+          while ([DateTimeOffset]::UtcNow -lt $deadline) {
+            try {
+              $response = Invoke-WebRequest -Uri $warmupUrl -UseBasicParsing -TimeoutSec 30
+              if ($response.StatusCode -eq 200) {
+                Write-Host "Production /warmup returned 200."
+                $ready = $true
+                break
+              }
+              Write-Host "HTTP $($response.StatusCode) from /warmup; retrying..."
+            }
+            catch {
+              Write-Host "/warmup not ready: $($_.Exception.Message)"
+            }
+            Start-Sleep -Seconds 10
+          }
+          if (-not $ready) {
+            Write-Host "::error title=Production /warmup not ready::$warmupUrl did not return 200 within 5 minutes."
+            exit 1
+          }
 
       - name: Run live-site read-only public sweep
         shell: pwsh

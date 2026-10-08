@@ -237,6 +237,58 @@ public sealed class DiscographyRepositorySqlServerTests : IAsyncLifetime
         Assert.Null(await repository.GetAlbumByIdAsync(99));
     }
 
+    [Fact]
+    public async Task Cold_catalogue_build_issues_at_most_two_commands()
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO dbo.Q_ARTIST_T (ARTIST_NAME) VALUES ('Queen');
+            INSERT INTO dbo.Q_ALBUM_T
+                (Q_ALBUM_ID, ALBUM_NAME, ARTIST, RELEASE_DATE, GENERAL_NOTES, THUMB_URL, PICTURE_URL, ACTIVE, CREATE_DATE)
+            VALUES
+                (1, 'Queen', 1, '1973-07-13', NULL, NULL, NULL, 1, '2020-01-01'),
+                (2, 'Queen II', 1, '1974-03-08', NULL, NULL, NULL, 1, '2020-01-01'),
+                (4, 'Hidden', 1, '1970-01-01', NULL, NULL, NULL, 0, '2020-01-01');
+            INSERT INTO dbo.Q_ALBUM_SONG_T
+                (SONG_TITLE, SONG_LYRICS, Q_ALBUM_ID, SONG_NOTES, Q_ARTIST_ID, IS_SINGLE, CREATE_DATE, TRACK_NUMBER, COVER_URL)
+            VALUES
+                ('Seven Seas of Rhye', 'Early lyrics', 1, NULL, 1, 0, '2020-01-01', 10, NULL),
+                ('Keep Yourself Alive', 'KYA lyrics', 1, 'Debut single', 1, 1, '2020-01-01', 1, 'kya.webp'),
+                ('Seven Seas of Rhye', 'Later lyrics', 2, 'II notes', 1, 0, '2020-01-01', 11, NULL),
+                ('Hidden Track', 'Hidden lyrics', 4, NULL, 1, 0, '2020-01-01', 1, NULL);
+            """);
+
+        var connection = (Microsoft.Data.SqlClient.SqlConnection)dbContext.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            await dbContext.Database.OpenConnectionAsync();
+        }
+
+        connection.StatisticsEnabled = true;
+        connection.ResetStatistics();
+
+        var tracks = await repository.GetActiveAlbumTracksAsync();
+        var stats = connection.RetrieveStatistics();
+        var commands = Convert.ToInt64(stats["SelectCount"]);
+
+        Assert.True(commands <= 2, $"Cold catalogue issued {commands} commands.");
+        Assert.Equal(3, tracks.Count);
+        Assert.DoesNotContain(tracks, track => track.AlbumId == 4);
+
+        var sevenSeas = SongCatalog.DetailFor(tracks, "seven-seas-of-rhye");
+        Assert.NotNull(sevenSeas);
+        Assert.Equal("Seven Seas of Rhye", sevenSeas.Title);
+        Assert.Equal("Early lyrics", sevenSeas.Lyrics);
+        Assert.Equal(2, sevenSeas.Appearances.Count);
+        Assert.Equal("Queen", sevenSeas.Appearances[0].AlbumName);
+        Assert.Equal("II notes", sevenSeas.Appearances[1].Notes);
+
+        var keepAlive = SongCatalog.DetailFor(tracks, "keep-yourself-alive");
+        Assert.Equal(AlbumCoverUrl.Build("kya.webp"), keepAlive!.CoverUrl);
+        Assert.Equal("Debut single", keepAlive.Appearances[0].Notes);
+        Assert.True(keepAlive.Appearances[0].IsSingle);
+    }
+
     private DbContextOptions<EmptySchemaContext> SchemaOptions() =>
         new DbContextOptionsBuilder<EmptySchemaContext>().UseSqlServer(ConnectionString).Options;
 

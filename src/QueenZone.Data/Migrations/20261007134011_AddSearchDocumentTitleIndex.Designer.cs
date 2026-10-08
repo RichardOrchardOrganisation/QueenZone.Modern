@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QueenZone.Data;
 
@@ -11,9 +12,11 @@ using QueenZone.Data;
 namespace QueenZone.Data.Migrations
 {
     [DbContext(typeof(QueenZoneDbContext))]
-    partial class QueenZoneDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007134011_AddSearchDocumentTitleIndex")]
+    partial class AddSearchDocumentTitleIndex
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -425,68 +428,6 @@ namespace QueenZone.Data.Migrations
                         .HasDatabaseName("IX_DeviceTokens_MemberAccountId");
 
                     b.ToTable("DeviceTokens", (string)null);
-                });
-
-            modelBuilder.Entity("QueenZone.Data.Entities.DiscographyStreamingLinkEntity", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("AlbumId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("AlbumSongId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ExternalId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(300)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AlbumId");
-
-                    b.HasIndex("AlbumId", "Provider")
-                        .IsUnique()
-                        .HasDatabaseName("IX_DiscographyStreamingLinks_Album_Provider")
-                        .HasFilter("[AlbumSongId] IS NULL");
-
-                    b.HasIndex("AlbumSongId", "Provider")
-                        .IsUnique()
-                        .HasDatabaseName("IX_DiscographyStreamingLinks_Track_Provider")
-                        .HasFilter("[AlbumSongId] IS NOT NULL");
-
-                    b.ToTable("DiscographyStreamingLinks", (string)null);
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.EditorialArticleEntity", b =>

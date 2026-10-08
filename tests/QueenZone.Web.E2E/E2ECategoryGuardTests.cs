@@ -71,11 +71,13 @@ public class E2ECategoryGuardTests
             nameof(CrosswordReplayTests),
             nameof(CrosswordResultsTests),
             nameof(CuratedPageLayoutSmokeTests),
+            nameof(DeployedMemberSignInTests),
             nameof(E2ECategoryGuardTests),
             nameof(EditorWorkflowTests),
             nameof(ForumPostingWorkflowTests),
             nameof(ForumSafetyWorkflowTests),
             nameof(ForumYoutubeVideoTests),
+            nameof(LiveSiteNavigationRecheckTests),
             nameof(LiveSiteTransportRetryTests),
             nameof(PageShapeAssertionTests),
             nameof(ParticipationClarityTests),
@@ -181,6 +183,21 @@ public class E2ECategoryGuardTests
     }
 
     [Test]
+    public void DevJourneySignsInOncePerFixtureAndDoesNotResignInFromSetUp()
+    {
+        var path = Path.GetFullPath(Path.Combine(RepoRoot(), "tests", "QueenZone.Web.E2E", "DevJourneyTests.cs"));
+        var source = File.ReadAllText(path);
+
+        Assert.That(source, Does.Contain("[OneTimeSetUp]"));
+        Assert.That(source, Does.Contain("CaptureSignedInStorageStateAsync"));
+        Assert.That(source, Does.Contain("StorageState = _signedInStorageState"));
+        Assert.That(source, Does.Contain("AssertSignedInChromeAsync"));
+        Assert.That(source, Does.Not.Contain("AssertContextHasMemberSessionAsync"));
+        Assert.That(source, Does.Not.Contain("await DeployedMemberSignIn.SignInAsync(Page);"));
+        Assert.That(source, Does.Contain("Write coverage is skipped for Ship A"));
+    }
+
+    [Test]
     public void DevJourneyDiscovery_PicksFirstAlphabeticWordOfAtLeastThreeLetters()
     {
         Assert.That(DevJourneyDiscovery.FirstSearchWord("A Night at the Opera"), Is.EqualTo("Night"));
@@ -253,6 +270,25 @@ public class E2ECategoryGuardTests
         Assert.That(ci, Does.Not.Contain("DevJourney"));
         Assert.That(ci, Does.Not.Contain("TestCategory=DevJourney"));
         Assert.That(ci, Does.Not.Contain("-Mode DevJourney"));
+    }
+
+    [Test]
+    public void LiveSiteSweepWorkflowUsesDeployQuietGateNotSharedConcurrency()
+    {
+        var path = Path.GetFullPath(Path.Combine(RepoRoot(), ".github", "workflows", "livesite-readonly-sweep.yml"));
+        Assert.That(File.Exists(path), Is.True, $"Expected live-site sweep workflow at {path}.");
+
+        var yaml = File.ReadAllText(path);
+        Assert.That(yaml, Does.Contain("cron: \"23 6 * * *\""));
+        Assert.That(yaml, Does.Contain("deploy-quiet-gate:"));
+        Assert.That(yaml, Does.Contain("needs.deploy-quiet-gate.outputs.run == 'true'"));
+        Assert.That(yaml, Does.Contain("ignore_deploy_gate"));
+        Assert.That(yaml, Does.Contain("actions: read"));
+        Assert.That(yaml, Does.Contain("Wait-DeployQuiet.sh"));
+        Assert.That(yaml, Does.Contain("title=Production /warmup not ready"));
+        Assert.That(yaml, Does.Contain("group: livesite-readonly-sweep"));
+        Assert.That(yaml, Does.Not.Contain("prod-site"));
+        Assert.That(yaml, Does.Not.Contain("group: deploy-"));
     }
 
     private static bool IsNUnitFixture(Type type)
