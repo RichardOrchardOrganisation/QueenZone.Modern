@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { parseMapping, validateOutputs, execute } = require('../.github/actions/bitwarden-retry/guard/index.cjs');
+const { parseMapping, validateOutputs, execute, isAllowedSecretName } = require('../.github/actions/bitwarden-retry/guard/index.cjs');
 const actionPath = new URL('../.github/actions/bitwarden-retry/action.yml', import.meta.url);
 // Read the fixed scalar/step subset of the committed action; tests evaluate its
 // actual conditions, rather than using a separate retry policy or real services.
@@ -116,11 +116,43 @@ test('three permanent or transient failures remain a hard failure and export not
   assert.ok(Object.values(result.exported).every((value) => value === ''));
 });
 test('malformed/duplicate mappings fail preflight with no fetch or wait', () => {
-  for (const inputMapping of ['', 'bad > NAME', mapping + '\n00000000-0000-0000-0000-000000000003 > MOBILE_AUTH_SIGNING_KEY', '00000000-0000-0000-0000-000000000001 > COMPLETE']) {
+  for (const inputMapping of ['', 'bad > NAME', mapping + '\n00000000-0000-0000-0000-000000000003 > MOBILE_AUTH_SIGNING_KEY', '00000000-0000-0000-0000-000000000001 > COMPLETE', '00000000-0000-0000-0000-000000000001 > complete', '00000000-0000-0000-0000-000000000001 > not-valid!']) {
     const result = simulate([{}], { inputMapping });
     assert.equal(result.failed, true); assert.equal(result.attempts.length, 0); assert.deepEqual(result.waits, []);
     assert.ok(Object.values(result.exported).every((value) => value === ''));
   }
+});
+const tofuMapping = '00000000-0000-0000-0000-000000000010 > CLOUDFLARE_API_TOKEN\n00000000-0000-0000-0000-000000000011 > QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING\n00000000-0000-0000-0000-000000000012 > TF_VAR_target_sql_admin_password';
+const tofuComplete = {
+  CLOUDFLARE_API_TOKEN: 'fake-cf-token',
+  QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING: 'fake-sql-cs',
+  TF_VAR_target_sql_admin_password: 'fake-sql-password',
+};
+test('guard accepts conventional TF_VAR mapping names used by OpenTofu plan secrets', () => {
+  assert.equal(isAllowedSecretName('CLOUDFLARE_API_TOKEN'), true);
+  assert.equal(isAllowedSecretName('TF_VAR_target_sql_admin_password'), true);
+  assert.equal(isAllowedSecretName('COMPLETE'), false);
+  assert.equal(isAllowedSecretName('complete'), false);
+  assert.equal(isAllowedSecretName('not-valid!'), false);
+  assert.deepEqual(parseMapping(tofuMapping), [
+    'CLOUDFLARE_API_TOKEN',
+    'QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING',
+    'TF_VAR_target_sql_admin_password',
+  ]);
+  assert.throws(() => parseMapping('00000000-0000-0000-0000-000000000001 > COMPLETE'), /env-var name/);
+  const events = [];
+  execute({
+    phase: 'publish', mapping: tofuMapping, data: JSON.stringify(tofuComplete), outputPath: 'output',
+    mask: () => events.push('mask'), append: (_, value) => events.push(value),
+  });
+  assert.deepEqual(events.slice(0, 3), ['mask', 'mask', 'mask']);
+  assert.match(events[3], /TF_VAR_target_sql_admin_password<</);
+  assert.match(events[3], /complete=true\n$/);
+  const result = simulate([{ outputs: tofuComplete }], { inputMapping: tofuMapping });
+  assert.equal(result.failed, false);
+  assert.equal(result.attempts.length, 1);
+  assert.equal(result.publications.length, 1);
+  assert.match(result.publications[0], /TF_VAR_target_sql_admin_password<</);
 });
 test('partial successful exports are discarded and never combined across attempts', () => {
   const result = simulate([{ outputs: { AZURE_WEBAPP_PUBLISH_PROFILE: 'old-partial' } },
