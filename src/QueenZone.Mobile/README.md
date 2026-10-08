@@ -99,10 +99,10 @@ Jest `coverageThreshold`. Contracts (#869) and Maestro stay out.
 
 ```powershell
 npm run test:coverage
-node ../../scripts/Test-MobileCoverageGate.mjs
+node ../../scripts/Test-TypeScriptCoverageGate.mjs
 # or:
 npm run coverage
-node ../../scripts/Test-MobileCoverageGate.mjs --self-test
+node ../../scripts/Test-TypeScriptCoverageGate.mjs --self-test
 ```
 
 Do not commit `coverage/`. Policy, measured baseline, and the changed-line
@@ -534,7 +534,7 @@ new tests to a path list in `package.json`. `npm run preflight` is typecheck
 + lint + those tests + `npm run doctor` (see Clean checkout: Doctor's version
 check can move when Expo publishes a patch). CI `mobile-js` runs the
 #837 npm advisory gate, then collects coverage from both suites and
-enforces `scripts/Test-MobileCoverageGate.mjs`.
+enforces `scripts/Test-TypeScriptCoverageGate.mjs`.
 
 PR check **names** (job `name:` values; these are the strings to require on
 `main`):

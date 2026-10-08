@@ -138,7 +138,7 @@ For an application in `app/`, with production code under `app/src/`:
 }
 ```
 
-For an application at the repository root, set `projectRoot` to `"."`, reports to `"coverage"`, and use UI paths such as `"src/screens/"`. A nested application can use a path such as `"clients/mobile"`. The configured application directory must contain `src/`.
+For an application at the repository root, set `projectRoot` to `"."`, reports to `"coverage"`, and use UI paths such as `"src/screens/"`. A nested application can use a path such as `"clients/mobile"`. The configured application directory must contain `src/`. `scripts/Test-TypeScriptCoverageGate.mjs` reads `projectRoot` from this file, so it can run from any directory, for example through an npm script in the application folder. The `STANDARDS_TS_PROJECT` environment variable overrides it.
 
 Set TypeScript numeric floors in `config/typescript-coverage.json`:
 

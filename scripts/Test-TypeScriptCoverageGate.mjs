@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Merge QueenZone.Mobile Jest + Node coverage and enforce documented floors.
+ * Merge TypeScript Jest + Node coverage and enforce documented floors.
  *
- * #871 Option A: npm test coverage ≠ #869 contracts ≠ #872 Maestro smoke.
+ * npm test coverage ≠ consumer contracts ≠ device smoke.
  * Union-by-file (do not sum overlapping reports). Fail closed on missing or
  * malformed reports. Thresholds: the typescript.floors file named in
- * development-standards.json (scripts/mobile-coverage-floors.json).
+ * development-standards.json (config/typescript-coverage.json by default).
  */
 import { existsSync, globSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -13,12 +13,54 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+// The kit installs this script in <repo>/scripts, so it finds its repository from any working directory.
 const defaultRepoRoot = path.resolve(scriptDir, '..');
 
-export const COVERABLE_GLOB = 'src/QueenZone.Mobile/src/**/*.{ts,tsx}';
+/** STANDARDS_TS_PROJECT, else typescript.projectRoot in development-standards.json, else app. */
+export function resolveProjectRoot(repoRoot = defaultRepoRoot, env = process.env) {
+  let configured = env.STANDARDS_TS_PROJECT || undefined;
+  if (configured === undefined) {
+    const configPath = path.join(repoRoot, 'development-standards.json');
+    configured = existsSync(configPath) ? JSON.parse(readFileSync(configPath, 'utf8')).typescript?.projectRoot : undefined;
+  }
+  const value = configured ?? 'app';
+  if (typeof value !== 'string' || !value || path.isAbsolute(value) || value.split(/[\\/]/).includes('..')) {
+    throw new Error(`Invalid TypeScript project root: ${JSON.stringify(value)}.`);
+  }
+  return value.replaceAll('\\', '/').replace(/\/$/, '');
+}
+
+const projectRoot = resolveProjectRoot();
+const projectPrefix = projectRoot === '.' ? '' : `${projectRoot}/`;
+
+export const COVERABLE_GLOB = `${projectPrefix}src/**/*.{ts,tsx}`;
+
+const knownGitExecutables = [
+  '/usr/bin/git',
+  '/usr/local/bin/git',
+  '/opt/homebrew/bin/git',
+  String.raw`C:\Program Files\Git\cmd\git.exe`,
+  String.raw`C:\Program Files\Git\mingw64\bin\git.exe`,
+];
+
+/** An absolute git path (GIT_EXECUTABLE, else a standard install), so a writable PATH entry cannot supply git. */
+export function resolveGitExecutable(env = process.env, exists = existsSync) {
+  const configured = env.GIT_EXECUTABLE;
+  if (configured) {
+    if (!path.isAbsolute(configured)) {
+      throw new Error('GIT_EXECUTABLE must be an absolute path.');
+    }
+    return configured;
+  }
+  const found = knownGitExecutables.find((candidate) => exists(candidate));
+  if (!found) {
+    throw new Error(`git not found. Set GIT_EXECUTABLE to an absolute path or install git at ${knownGitExecutables.join(', ')}.`);
+  }
+  return found;
+}
 
 export function toPosix(value) {
-  return String(value).replace(/\\/g, '/');
+  return String(value).replaceAll('\\', '/');
 }
 
 export function stripFileUrl(value) {
@@ -36,9 +78,9 @@ export function toRepoPath(filePath, sources = [], repoRoot = defaultRepoRoot) {
   const posixRoot = toPosix(path.resolve(repoRoot)).replace(/\/$/, '');
   let candidate = stripFileUrl(filePath);
 
-  const marker = 'src/QueenZone.Mobile/';
+  const marker = projectPrefix;
   const markerAt = candidate.toLowerCase().indexOf(marker.toLowerCase());
-  if (markerAt >= 0) {
+  if (marker && markerAt >= 0) {
     return candidate.slice(markerAt);
   }
 
@@ -51,13 +93,13 @@ export function toRepoPath(filePath, sources = [], repoRoot = defaultRepoRoot) {
   } else {
     const fromMobile = candidate.replace(/^\.\//, '');
     if (fromMobile.startsWith('src/')) {
-      return `src/QueenZone.Mobile/${fromMobile}`;
+      return `${projectPrefix}${fromMobile}`;
     }
 
     for (const source of sources) {
       const joined = toPosix(path.posix.join(toPosix(source).replace(/\/$/, ''), fromMobile));
       const sourceMarkerAt = joined.toLowerCase().indexOf(marker.toLowerCase());
-      if (sourceMarkerAt >= 0) {
+      if (marker && sourceMarkerAt >= 0) {
         return joined.slice(sourceMarkerAt);
       }
     }
@@ -68,7 +110,7 @@ export function toRepoPath(filePath, sources = [], repoRoot = defaultRepoRoot) {
 
 export function isCoverableRepoPath(repoPath) {
   const posix = toPosix(repoPath);
-  if (!/^src\/QueenZone\.Mobile\/src\/.+\.(ts|tsx)$/.test(posix)) {
+  if (!posix.startsWith(`${projectPrefix}src/`) || !/\.(ts|tsx)$/.test(posix)) {
     return false;
   }
   if (posix.endsWith('.d.ts')) {
@@ -77,7 +119,7 @@ export function isCoverableRepoPath(repoPath) {
   if (/\.test\.(ts|tsx)$/.test(posix)) {
     return false;
   }
-  if (posix.includes('/src/test/')) {
+  if (posix.startsWith(`${projectPrefix}src/test/`)) {
     return false;
   }
   return true;
@@ -294,11 +336,11 @@ export function parseLcov(contents, { sources = [], repoRoot = defaultRepoRoot }
 
 function decodeXml(value) {
   return String(value)
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&');
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&amp;', '&');
 }
 
 function readCoberturaMethods(block, coverage) {
@@ -324,7 +366,7 @@ function readCoberturaLines(block, coverage, repoPath) {
     const number = Number(/number="(\d+)"/.exec(attrs)?.[1]);
     const hits = Number(/hits="(\d+)"/.exec(attrs)?.[1]);
     if (!Number.isFinite(number)) {
-      throw new Error(`Malformed Cobertura report: line is missing a number in ${repoPath}.`);
+      throw new TypeError(`Malformed Cobertura report: line is missing a number in ${repoPath}.`);
     }
     addHit(coverage.lines, number, hits);
     addHit(coverage.statements, String(number), hits);
@@ -458,15 +500,17 @@ export function loadSuiteReport(suiteDir, kind, repoRoot) {
 
 export function listCoverableProductionFiles(repoRoot) {
   return globSync('src/**/*.{ts,tsx}', {
-    cwd: path.join(repoRoot, 'src/QueenZone.Mobile'),
+    cwd: path.join(repoRoot, projectRoot),
   })
-    .map((relative) => toPosix(`src/QueenZone.Mobile/${relative}`))
+    .map((relative) => toPosix(`${projectPrefix}${relative}`))
     .filter((repoPath) => isCoverableRepoPath(repoPath))
     .sort();
 }
 
 export function assertProductionFilesPresent(store, repoRoot) {
-  const missing = listCoverableProductionFiles(repoRoot).filter((repoPath) => !store.has(repoPath));
+  const production = listCoverableProductionFiles(repoRoot);
+  if (!production.length) throw new Error('No production TypeScript files found; check typescript.projectRoot (or STANDARDS_TS_PROJECT).');
+  const missing = production.filter((repoPath) => !store.has(repoPath));
   if (missing.length > 0) {
     const sample = missing.slice(0, 20).join('\n  ');
     throw new Error(
@@ -507,25 +551,26 @@ function parseChangedDiff(contents) {
 
 export function getChangedLines({ repoRoot, baseRef, headRef, paths }) {
   if (!baseRef) {
-    return { skipped: 'No base ref supplied; skipping changed-line coverage gate.', lines: new Map() };
+    throw new Error('Changed-line coverage requires a base ref.');
   }
+  const git = resolveGitExecutable();
 
   let resolved = baseRef;
   if (!baseRef.startsWith('origin/')) {
     const remoteRef = `origin/${baseRef}`;
-    const probe = spawnSync('git', ['rev-parse', '--verify', '--quiet', remoteRef], { cwd: repoRoot });
+    const probe = spawnSync(git, ['rev-parse', '--verify', '--quiet', remoteRef], { cwd: repoRoot });
     if (probe.status === 0) {
       resolved = remoteRef;
     }
   }
 
-  const available = spawnSync('git', ['rev-parse', '--verify', '--quiet', resolved], { cwd: repoRoot });
+  const available = spawnSync(git, ['rev-parse', '--verify', '--quiet', `${resolved}^{commit}`], { cwd: repoRoot });
   if (available.status !== 0) {
-    return { skipped: `Base ref '${baseRef}' is not available locally; skipping changed-line coverage gate.`, lines: new Map() };
+    throw new Error(`Base ref '${baseRef}' is not available locally.`);
   }
 
   const diff = spawnSync(
-    'git',
+    git,
     ['diff', '--unified=0', '--no-color', `${resolved}...${headRef}`, '--', ...paths],
     { cwd: repoRoot, encoding: 'utf8' },
   );
@@ -564,7 +609,7 @@ export function evaluateChangedLines(store, changedLines) {
 
   if (coverable === 0) {
     return {
-      skipped: 'Changed mobile TypeScript/TSX lines do not overlap coverable lines in the merged report.',
+      skipped: 'Changed TypeScript/TSX lines do not overlap coverable lines in the merged report.',
       metric: metric({ covered: 0, total: 0 }),
       uncovered: [],
     };
@@ -577,7 +622,7 @@ export function evaluateChangedLines(store, changedLines) {
   };
 }
 
-/** Floors file named by typescript.floors in development-standards.json (#2116). */
+/** Floors file named by typescript.floors in development-standards.json. */
 export function configuredFloorsPath(repoRoot = defaultRepoRoot) {
   const configPath = path.join(repoRoot, 'development-standards.json');
   if (!existsSync(configPath)) {
@@ -603,13 +648,13 @@ export function loadFloors(floorsPath) {
   }
 
   if (typeof floors.globalLine !== 'number') {
-    throw new Error(`Malformed mobile coverage floors file: globalLine must be a number.`);
+    throw new TypeError('Malformed mobile coverage floors file: globalLine must be a number.');
   }
   if (floors.globalBranch != null && typeof floors.globalBranch !== 'number') {
     throw new Error(`Malformed mobile coverage floors file: globalBranch must be a number or null.`);
   }
   if (typeof floors.changedLine !== 'number') {
-    throw new Error(`Malformed mobile coverage floors file: changedLine must be a number.`);
+    throw new TypeError('Malformed mobile coverage floors file: changedLine must be a number.');
   }
 
   return floors;
@@ -617,14 +662,14 @@ export function loadFloors(floorsPath) {
 
 function escapeXml(value) {
   return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
 }
 
 function escapeHtml(value) {
-  return escapeXml(value).replace(/'/g, '&#39;');
+  return escapeXml(value).replaceAll("'", '&#39;');
 }
 
 export function writeMergedReports({ store, summary, destDir, sources }) {
@@ -665,7 +710,7 @@ function renderCobertura(store, merged, sources) {
     );
   }
 
-  return `<?xml version="1.0" ?>\n<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">\n<coverage lines-valid="${merged.lines.total}" lines-covered="${merged.lines.covered}" line-rate="${merged.lines.pct / 100}" branches-valid="${merged.branches.total}" branches-covered="${merged.branches.covered}" branch-rate="${merged.branches.pct / 100}" complexity="0" version="0.1">\n  <sources>\n${sourceXml}\n  </sources>\n  <packages>\n    <package name="QueenZone.Mobile" line-rate="${merged.lines.pct / 100}" branch-rate="${merged.branches.pct / 100}">\n      <classes>\n${classes.join('\n')}\n      </classes>\n    </package>\n  </packages>\n</coverage>\n`;
+  return `<?xml version="1.0" ?>\n<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">\n<coverage lines-valid="${merged.lines.total}" lines-covered="${merged.lines.covered}" line-rate="${merged.lines.pct / 100}" branches-valid="${merged.branches.total}" branches-covered="${merged.branches.covered}" branch-rate="${merged.branches.pct / 100}" complexity="0" version="0.1">\n  <sources>\n${sourceXml}\n  </sources>\n  <packages>\n    <package name="app" line-rate="${merged.lines.pct / 100}" branch-rate="${merged.branches.pct / 100}">\n      <classes>\n${classes.join('\n')}\n      </classes>\n    </package>\n  </packages>\n</coverage>\n`;
 }
 
 function metricFromMap(map) {
@@ -708,7 +753,7 @@ function renderHtml(summary, store) {
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>QueenZone.Mobile coverage</title>
+  <title>TypeScript coverage</title>
   <style>
     body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 2rem; color: #111; }
     table { border-collapse: collapse; width: 100%; }
@@ -718,8 +763,8 @@ function renderHtml(summary, store) {
   </style>
 </head>
 <body>
-  <h1>QueenZone.Mobile coverage</h1>
-  <p class="muted">npm test coverage (#871) ≠ #869 contracts ≠ #872 Maestro smoke. Merged totals union Jest and Node by file; they do not sum overlapping reports.</p>
+  <h1>TypeScript coverage</h1>
+  <p class="muted">npm test coverage  ≠ consumer contracts ≠ device smoke. Merged totals union Jest and Node by file; they do not sum overlapping reports.</p>
   <h2>Suite totals</h2>
   <table>
     <tr><th>Suite</th><th>Lines</th><th>Branches</th><th>Functions</th><th>Statements</th></tr>
@@ -752,9 +797,9 @@ export function renderSummaryMarkdown(summary) {
   const uncovered = (summary.changed.uncovered ?? []).slice(0, 20);
   const extra = (summary.changed.uncovered?.length ?? 0) - uncovered.length;
 
-  return `## QueenZone.Mobile coverage (#871)
+  return `## TypeScript coverage
 
-\`npm test coverage\` ≠ \`#869 contracts\` ≠ \`#872 Maestro smoke\`. Contracts and device smoke stay out of these totals.
+\`npm test coverage\` ≠ \`consumer contracts\` ≠ \`device smoke\`. Contracts and device smoke stay out of these totals.
 
 | Suite | Lines | Branches | Functions | Statements |
 | --- | --- | --- | --- | --- |
@@ -801,9 +846,9 @@ export function enforceFloors(summary) {
 function parseArgs(argv) {
   const args = {
     repoRoot: defaultRepoRoot,
-    reports: path.join(defaultRepoRoot, 'src/QueenZone.Mobile/coverage'),
+    reports: path.join(defaultRepoRoot, projectRoot, 'coverage'),
     floors: null,
-    merged: path.join(defaultRepoRoot, 'src/QueenZone.Mobile/coverage/merged'),
+    merged: path.join(defaultRepoRoot, projectRoot, 'coverage/merged'),
     baseRef: process.env.GITHUB_BASE_REF || 'origin/main',
     headRef: 'HEAD',
     selfTest: false,
@@ -845,7 +890,7 @@ function collectCoverageSummary(args) {
         repoRoot: args.repoRoot,
         baseRef: args.baseRef,
         headRef: args.headRef,
-        paths: ['src/QueenZone.Mobile/src'],
+        paths: [`${projectPrefix}src`],
       });
   const changed = changedDiff.skipped
     ? { skipped: changedDiff.skipped, metric: metric({ covered: 0, total: 0 }), uncovered: [] }
@@ -869,7 +914,7 @@ function reportCoverageSummary(args, summary, mergedStore, log) {
     store: mergedStore,
     summary,
     destDir: args.merged,
-    sources: [path.join(args.repoRoot, 'src/QueenZone.Mobile')],
+    sources: [path.join(args.repoRoot, projectRoot)],
   });
 
   const markdown = renderSummaryMarkdown(summary);
@@ -916,7 +961,9 @@ export function runGate(args) {
 }
 
 function runSelfTest() {
-  const tempRoot = path.join(defaultRepoRoot, 'src/QueenZone.Mobile/coverage/self-test');
+  // Fixtures follow the configured project, so the self-test passes in any consuming repository.
+  const sourceRoot = projectPrefix ? `/repo/${projectRoot}` : '/repo';
+  const tempRoot = path.join(defaultRepoRoot, '.standards-test-tmp');
   rmSync(tempRoot, { recursive: true, force: true });
   mkdirSync(tempRoot, { recursive: true });
 
@@ -934,10 +981,10 @@ function runSelfTest() {
   try {
     assert('posix and windows paths normalize', () => {
       const a = toRepoPath('src/api/client.ts');
-      const b = toRepoPath('src\\api\\client.ts');
-      const c = toRepoPath('C:/repo/src/QueenZone.Mobile/src/api/client.ts', [], 'C:/repo');
-      const d = toRepoPath('/workspace/src/QueenZone.Mobile/src/api/client.ts', [], '/workspace');
-      if (a !== 'src/QueenZone.Mobile/src/api/client.ts') {
+      const b = toRepoPath(String.raw`src\api\client.ts`);
+      const c = toRepoPath(`C:/repo/${projectPrefix}src/api/client.ts`, [], 'C:/repo');
+      const d = toRepoPath(`/workspace/${projectPrefix}src/api/client.ts`, [], '/workspace');
+      if (a !== `${projectPrefix}src/api/client.ts`) {
         throw new Error(a);
       }
       if (b !== a || c !== a || d !== a) {
@@ -946,23 +993,23 @@ function runSelfTest() {
     });
 
     assert('exclusions stay narrow', () => {
-      if (isCoverableRepoPath('src/QueenZone.Mobile/src/screens/home/HomeScreen.tsx') !== true) {
+      if (isCoverableRepoPath(`${projectPrefix}src/screens/home/HomeScreen.tsx`) !== true) {
         throw new Error('screens must stay coverable');
       }
-      if (isCoverableRepoPath('src/QueenZone.Mobile/src/api/client.test.tsx')) {
+      if (isCoverableRepoPath(`${projectPrefix}src/api/client.test.tsx`)) {
         throw new Error('tests must be excluded');
       }
-      if (isCoverableRepoPath('src/QueenZone.Mobile/src/test/fixtures.ts')) {
+      if (isCoverableRepoPath(`${projectPrefix}src/test/fixtures.ts`)) {
         throw new Error('fixtures must be excluded');
       }
-      if (isCoverableRepoPath('src/QueenZone.Mobile/contracts/consumer.test.ts')) {
+      if (isCoverableRepoPath(`${projectPrefix}contracts/consumer.test.ts`)) {
         throw new Error('contracts must stay out');
       }
     });
 
     assert('union does not double-count overlapping lines', () => {
       const lcov = parseLcov('TN:\nSF:src/api/text.ts\nDA:2,1\nDA:3,0\nend_of_record\n');
-      const cobertura = parseCobertura(`<?xml version="1.0"?><coverage><sources><source>/repo/src/QueenZone.Mobile</source></sources><packages><package><classes><class filename="src/api/text.ts"><lines><line number="2" hits="4"/><line number="4" hits="0"/></lines></class></classes></package></packages></coverage>`);
+      const cobertura = parseCobertura(`<?xml version="1.0"?><coverage><sources><source>${sourceRoot}</source></sources><packages><package><classes><class filename="src/api/text.ts"><lines><line number="2" hits="4"/><line number="4" hits="0"/></lines></class></classes></package></packages></coverage>`);
       const merged = mergeStores([lcov, cobertura]);
       const summary = summarizeStore(merged, { coverableOnly: false });
       if (summary.lines.total !== 3 || summary.lines.covered !== 1) {
@@ -975,14 +1022,14 @@ function runSelfTest() {
         '<method name="first" hits="2"><lines><line number="4" hits="2"/></lines></method>' +
         '<method name="second" hits="0"><lines><line number="9" hits="0"/></lines></method>' +
         '</methods></class></coverage>');
-      const functions = report.get('src/QueenZone.Mobile/src/api/text.ts')?.functions;
+      const functions = report.get(`${projectPrefix}src/api/text.ts`)?.functions;
       if (functions?.get('4:first') !== 2 || functions?.get('9:second') !== 0) {
         throw new Error(JSON.stringify([...functions || []]));
       }
     });
 
     assert('overlay keeps the Jest coverable universe', () => {
-      const jest = parseCobertura(`<?xml version="1.0"?><coverage><sources><source>/repo/src/QueenZone.Mobile</source></sources><packages><package><classes><class filename="src/api/text.ts"><lines><line number="2" hits="0"/><line number="3" hits="0"/></lines></class></classes></package></packages></coverage>`);
+      const jest = parseCobertura(`<?xml version="1.0"?><coverage><sources><source>${sourceRoot}</source></sources><packages><package><classes><class filename="src/api/text.ts"><lines><line number="2" hits="0"/><line number="3" hits="0"/></lines></class></classes></package></packages></coverage>`);
       const node = parseLcov('TN:\nSF:src/api/text.ts\nDA:2,3\nDA:3,0\nDA:40,1\nend_of_record\n');
       const merged = overlayHits(jest, node);
       const summary = summarizeStore(merged, { coverableOnly: false });
@@ -1025,8 +1072,8 @@ function runSelfTest() {
     writeFileSync(
       path.join(jestDir, 'coverage-final.json'),
       JSON.stringify({
-        '/tmp/fixture/src/QueenZone.Mobile/src/api/text.ts': {
-          path: '/tmp/fixture/src/QueenZone.Mobile/src/api/text.ts',
+        [`/fixture-repo/${projectPrefix}src/api/text.ts`]: {
+          path: `/fixture-repo/${projectPrefix}src/api/text.ts`,
           statementMap: { 0: { start: { line: 2, column: 0 } }, 1: { start: { line: 3, column: 0 } } },
           s: { 0: 1, 1: 0 },
           fnMap: { 0: { name: 'toPlainText', decl: { start: { line: 2 } } } },
@@ -1047,7 +1094,7 @@ function runSelfTest() {
 
     assert('gate publishes suite totals and enforces floors', () => {
       const summary = runGate({
-        repoRoot: '/tmp/fixture',
+        repoRoot: '/fixture-repo',
         reports: path.join(fixtureRoot, 'coverage'),
         floors: path.join(tempRoot, 'floors.json'),
         merged: path.join(tempRoot, 'merged-pass'),
@@ -1071,12 +1118,12 @@ function runSelfTest() {
       let failed = false;
       try {
         runGate({
-          repoRoot: '/tmp/fixture',
+          repoRoot: '/fixture-repo',
           reports: path.join(fixtureRoot, 'coverage'),
           floors: path.join(tempRoot, 'floors-high.json'),
           merged: path.join(tempRoot, 'merged-fail'),
           skipProductionCheck: true,
-          changedLines: new Map([['src/QueenZone.Mobile/src/api/text.ts', new Set([3])]]),
+          changedLines: new Map([[`${projectPrefix}src/api/text.ts`, new Set([3])]]),
           quiet: true,
         });
       } catch (error) {
@@ -1087,9 +1134,9 @@ function runSelfTest() {
       }
     });
 
-    assert('changed-line gate skips when no coverable mobile lines changed', () => {
+    assert('changed-line gate skips when no coverable TypeScript lines changed', () => {
       const summary = runGate({
-        repoRoot: '/tmp/fixture',
+        repoRoot: '/fixture-repo',
         reports: path.join(fixtureRoot, 'coverage'),
         floors: path.join(tempRoot, 'floors.json'),
         merged: path.join(tempRoot, 'merged-skip'),
@@ -1133,8 +1180,28 @@ function runSelfTest() {
       }
     });
 
+    assert('git runs from an absolute path, never a PATH lookup', () => {
+      if (resolveGitExecutable({ GIT_EXECUTABLE: path.resolve('/opt/git/bin/git') }, () => false) !== path.resolve('/opt/git/bin/git')) {
+        throw new Error('expected GIT_EXECUTABLE to win');
+      }
+      for (const env of [{ GIT_EXECUTABLE: 'git' }, {}]) {
+        let failed = false;
+        try {
+          resolveGitExecutable(env, () => false);
+        } catch {
+          failed = true;
+        }
+        if (!failed) {
+          throw new Error(`expected ${JSON.stringify(env)} to fail closed`);
+        }
+      }
+      if (!path.isAbsolute(resolveGitExecutable({}, (candidate) => candidate === '/usr/bin/git'))) {
+        throw new Error('expected a known absolute install');
+      }
+    });
+
     console.log(cases.join('\n'));
-    console.log('Test-MobileCoverageGate self-test passed.');
+    console.log('Test-TypeScriptCoverageGate self-test passed.');
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

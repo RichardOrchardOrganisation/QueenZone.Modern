@@ -78,7 +78,7 @@ jobs:
 
       - name: Self-test mobile coverage gate
         working-directory: ${{ github.workspace }}
-        run: node scripts/Test-MobileCoverageGate.mjs --self-test
+        run: node scripts/Test-TypeScriptCoverageGate.mjs --self-test
 
       - name: Self-test npm advisory gate
         working-directory: ${{ github.workspace }}
@@ -111,7 +111,7 @@ jobs:
 
       - name: Enforce mobile coverage gate
         working-directory: ${{ github.workspace }}
-        run: node scripts/Test-MobileCoverageGate.mjs
+        run: node scripts/Test-TypeScriptCoverageGate.mjs
 
       # Ranks functions by CRAP (ESLint complexity x uncovered statements) and
       # compares against config/crap-baseline.mobile.json (#1979). Report only

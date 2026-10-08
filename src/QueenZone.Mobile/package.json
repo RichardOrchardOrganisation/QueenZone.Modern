@@ -25,7 +25,7 @@
     "lint": "eslint .",
     "test": "node scripts/run-tests.mjs",
     "test:coverage": "node scripts/run-tests.mjs --coverage",
-    "coverage:gate": "node ../../scripts/Test-MobileCoverageGate.mjs",
+    "coverage:gate": "node ../../scripts/Test-TypeScriptCoverageGate.mjs",
     "coverage": "npm run test:coverage && npm run coverage:gate",
     "test:api-contracts": "node scripts/run-api-contracts.mjs",
     "doctor": "expo-doctor",

@@ -4,7 +4,7 @@
  * run on Jest + jest-expo. A self-check writes unlisted probes of both kinds
  * so new tests do not need a package.json path list (see #870 / #833).
  * Pass --coverage (or COLLECT_COVERAGE=1) to write Jest + Node reports for
- * scripts/Test-MobileCoverageGate.mjs. Contracts and Maestro stay out.
+ * scripts/Test-TypeScriptCoverageGate.mjs. Contracts and Maestro stay out.
  */
 import { existsSync, globSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';

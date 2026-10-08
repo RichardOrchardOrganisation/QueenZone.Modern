@@ -21,7 +21,7 @@ module.exports = {
   clearMocks: true,
   restoreMocks: true,
   // Coverage floors live in scripts/mobile-coverage-floors.json (enforced by
-  // scripts/Test-MobileCoverageGate.mjs). Do not put thresholds here — this
+  // scripts/Test-TypeScriptCoverageGate.mjs). Do not put thresholds here — this
   // runner is only one of two suites (#871 Option A).
   collectCoverageFrom: [
     '**/src/**/*.{ts,tsx}',

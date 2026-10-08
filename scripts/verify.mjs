@@ -37,7 +37,7 @@ try {
       if (process.platform === 'win32') run(process.execPath, [path.join(path.dirname(npmPath), 'node_modules/npm/bin/npm-cli.js'), 'run', script], { cwd });
       else run(npmPath, ['run', script], { cwd });
     }
-    run(process.execPath, ['scripts/Test-MobileCoverageGate.mjs', '--reports', path.resolve(p.reports), '--floors', path.resolve(p.floors), '--repo-root', process.cwd(), '--base-ref', base]); // QueenZone keeps its mobile gate in place of Test-TypeScriptCoverageGate.mjs (#2116).
+    run(process.execPath, ['scripts/Test-TypeScriptCoverageGate.mjs', '--reports', path.resolve(p.reports), '--floors', path.resolve(p.floors), '--repo-root', process.cwd(), '--base-ref', base], { env: { ...process.env, STANDARDS_TS_PROJECT: p.projectRoot } });
   }
   run(process.execPath, ['scripts/check-suppressions.mjs']);
   run(process.execPath, ['scripts/check-feature-map.mjs']);
