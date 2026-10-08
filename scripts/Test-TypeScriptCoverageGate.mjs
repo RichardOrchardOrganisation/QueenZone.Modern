@@ -39,8 +39,8 @@ const knownGitExecutables = [
   '/usr/bin/git',
   '/usr/local/bin/git',
   '/opt/homebrew/bin/git',
-  'C:\\Program Files\\Git\\cmd\\git.exe',
-  'C:\\Program Files\\Git\\mingw64\\bin\\git.exe',
+  String.raw`C:\Program Files\Git\cmd\git.exe`,
+  String.raw`C:\Program Files\Git\mingw64\bin\git.exe`,
 ];
 
 /** An absolute git path (GIT_EXECUTABLE, else a standard install), so a writable PATH entry cannot supply git. */
@@ -60,7 +60,7 @@ export function resolveGitExecutable(env = process.env, exists = existsSync) {
 }
 
 export function toPosix(value) {
-  return String(value).replace(/\\/g, '/');
+  return String(value).replaceAll('\\', '/');
 }
 
 export function stripFileUrl(value) {
@@ -336,11 +336,11 @@ export function parseLcov(contents, { sources = [], repoRoot = defaultRepoRoot }
 
 function decodeXml(value) {
   return String(value)
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&');
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&amp;', '&');
 }
 
 function readCoberturaMethods(block, coverage) {
@@ -366,7 +366,7 @@ function readCoberturaLines(block, coverage, repoPath) {
     const number = Number(/number="(\d+)"/.exec(attrs)?.[1]);
     const hits = Number(/hits="(\d+)"/.exec(attrs)?.[1]);
     if (!Number.isFinite(number)) {
-      throw new Error(`Malformed Cobertura report: line is missing a number in ${repoPath}.`);
+      throw new TypeError(`Malformed Cobertura report: line is missing a number in ${repoPath}.`);
     }
     addHit(coverage.lines, number, hits);
     addHit(coverage.statements, String(number), hits);
@@ -648,13 +648,13 @@ export function loadFloors(floorsPath) {
   }
 
   if (typeof floors.globalLine !== 'number') {
-    throw new Error(`Malformed mobile coverage floors file: globalLine must be a number.`);
+    throw new TypeError('Malformed mobile coverage floors file: globalLine must be a number.');
   }
   if (floors.globalBranch != null && typeof floors.globalBranch !== 'number') {
     throw new Error(`Malformed mobile coverage floors file: globalBranch must be a number or null.`);
   }
   if (typeof floors.changedLine !== 'number') {
-    throw new Error(`Malformed mobile coverage floors file: changedLine must be a number.`);
+    throw new TypeError('Malformed mobile coverage floors file: changedLine must be a number.');
   }
 
   return floors;
@@ -662,14 +662,14 @@ export function loadFloors(floorsPath) {
 
 function escapeXml(value) {
   return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
 }
 
 function escapeHtml(value) {
-  return escapeXml(value).replace(/'/g, '&#39;');
+  return escapeXml(value).replaceAll("'", '&#39;');
 }
 
 export function writeMergedReports({ store, summary, destDir, sources }) {
@@ -981,7 +981,7 @@ function runSelfTest() {
   try {
     assert('posix and windows paths normalize', () => {
       const a = toRepoPath('src/api/client.ts');
-      const b = toRepoPath('src\\api\\client.ts');
+      const b = toRepoPath(String.raw`src\api\client.ts`);
       const c = toRepoPath(`C:/repo/${projectPrefix}src/api/client.ts`, [], 'C:/repo');
       const d = toRepoPath(`/workspace/${projectPrefix}src/api/client.ts`, [], '/workspace');
       if (a !== `${projectPrefix}src/api/client.ts`) {

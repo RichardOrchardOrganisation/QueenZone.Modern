@@ -7,7 +7,7 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | | |
 | --- | --- |
 | Source | `https://github.com/RichardOrchardOrganisation/development-standards` |
-| Commit | `7fbff8b1a9e1af62cd95d46140b36ab1b5d5f091` (merge of development-standards PR #15; `main` at update) |
+| Commit | `16d9ff11983a93d1de95b7e713542ad5bc360dfa` (merge of development-standards PR #16; `main` at update) |
 | Kit version | `0.3.0` |
 | Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater; `keptLocal` lists the two reviewed conflicts below |
 | Attribution | [`docs/development-standards-LICENSE`](../development-standards-LICENSE); QueenZone's own `LICENSE` is unchanged |
@@ -18,6 +18,7 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | 0.3.0 | `5e1cee668d5784c5146576e413736ed9d19bcb8b` | First update, through `scripts/update.mjs` with `--keep-local` for `scripts/check-pr-verification.mjs` and `scripts/Test-TypeScriptCoverageGate.mjs` |
 | 0.3.0 | `e4939ccce59fb29880de13cf366d7315ef0a8e53` | Update adopting the kit TypeScript gate (development-standards PRs #13 and #14): it reads `typescript.projectRoot` and replaces `Test-MobileCoverageGate.mjs`. No conflicts kept local |
 | 0.3.0 | `7fbff8b1a9e1af62cd95d46140b36ab1b5d5f091` | Lock-only update: QueenZone already carried the identical change from development-standards PR #15 (absolute-path `git`) |
+| 0.3.0 | `16d9ff11983a93d1de95b7e713542ad5bc360dfa` | Kit cleanup of the TypeScript gate (development-standards PR #16: SonarCloud style findings, no behaviour change); applied cleanly |
 
 0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. CI never loads the kit at run time; everything it uses is a committed copy.
 
