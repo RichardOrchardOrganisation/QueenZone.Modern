@@ -11,30 +11,7 @@
 
 @if (Model.Item is not null)
 {
-  <section class="qz-article-hero">
-    <div class="qz-container qz-article-hero__content qz-breadcrumbs-on-dark">
-      <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
-      <div class="qz-eyebrow">Community article</div>
-      <h1>@Model.Item.Title</h1>
-      <div class="qz-meta">
-        @if (Model.Item.AuthorMemberId is Guid authorMemberId && !string.IsNullOrWhiteSpace(Model.Item.AuthorDisplayName))
-        {
-          <span>Submitted by <a class="qz-attribution-link" href="/members/@authorMemberId">@Model.Item.AuthorDisplayName</a> &middot; </span>
-        }
-        <time datetime="@Model.Item.PublishedAt.ToString("yyyy-MM-dd")">@Model.Item.PublishedAt.ToString("dd MMMM yyyy")</time>
-        <span> &middot; @Model.Item.ReadTimeMinutes min read</span>
-      </div>
-    </div>
-  </section>
-
-  @if (Model.CoverImageUrl is not null)
-  {
-    <div class="qz-article-cover">
-      <div class="qz-container">
-        <img src="@Model.CoverImageUrl" alt="@Model.Item.Title" class="qz-article-cover__img" loading="lazy" />
-      </div>
-    </div>
-  }
+  <partial name="_ArticleHeader" model="Model.Header" />
 
   <div class="qz-reading">
     @if (!string.IsNullOrWhiteSpace(Model.Item.Excerpt))

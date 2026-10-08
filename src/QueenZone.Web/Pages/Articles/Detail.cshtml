@@ -10,40 +10,8 @@
 
 @if (Model.Item is not null)
 {
-  <section class="qz-article-hero">
-    @if (!string.IsNullOrWhiteSpace(Model.Item.ImageUrl))
-    {
-      <img src="@Model.Item.ImageUrl"
-           alt="@Model.Item.Title"
-           width="600"
-           height="400"
-           decoding="async"
-           fetchpriority="high">
-    }
-    else
-    {
-      <partial name="_PictureImage" model="@("/design-system/assets/img-hero.jpg", "", false, (string?)null)" />
-    }
-    <div class="qz-container qz-article-hero__content qz-breadcrumbs-on-dark">
-      <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
-      @if (!string.IsNullOrWhiteSpace(Model.Item.CategoryName))
-      {
-        <div class="qz-eyebrow">@Model.Item.CategoryName</div>
-      }
-      else
-      {
-        <div class="qz-eyebrow">Articles archive</div>
-      }
-      <h1>@Model.Item.Title</h1>
-      <div class="qz-meta">
-        @if (!string.IsNullOrWhiteSpace(Model.Item.AuthorName))
-        {
-          <span>@Model.Item.AuthorName &middot; </span>
-        }
-        <time datetime="@Model.Item.PublishedAt.ToString("yyyy-MM-dd")">@Model.Item.PublishedAt.ToString("dd MMMM yyyy")</time>
-      </div>
-    </div>
-  </section>
+  <partial name="_ArticleHeader" model="Model.Header" />
+
   <div class="qz-reading">
     @if (!string.IsNullOrWhiteSpace(Model.Item.Excerpt))
     {

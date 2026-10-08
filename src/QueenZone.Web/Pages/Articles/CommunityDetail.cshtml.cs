@@ -20,6 +20,8 @@ public sealed class CommunityDetailModel(
 
     public PublishedArticleSubmission? NextArticle { get; private set; }
 
+    public ArticleHeader? Header { get; private set; }
+
     public string StructuredDataJson { get; private set; } = string.Empty;
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
@@ -65,6 +67,11 @@ public sealed class CommunityDetailModel(
         ViewData["Title"] = $"{item.Title} | QueenZone articles";
         ViewData["CanonicalPath"] = canonicalPath;
         ViewData["Description"] = item.Excerpt;
+
+        Header = new ArticleHeader(item.Title, CoverImageUrl, Breadcrumbs, "Community article",
+            item.PublishedAt.DateTime,
+            item.AuthorMemberId is not null ? item.AuthorDisplayName : null,
+            item.AuthorMemberId, item.ReadTimeMinutes);
 
         return Page();
     }

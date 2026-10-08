@@ -196,6 +196,44 @@ public sealed class CommunityArticleRoutesTests : IClassFixture<WebHostVariantCa
         Assert.Contains("My Published Article", body);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    [InlineData("members/test/cover.webp")]
+    public async Task Community_cover_is_in_shared_hero_with_metadata_and_no_duplicate(string? cover)
+    {
+        var authorId = Guid.NewGuid();
+        var item = Published("shared-hero", "A long article title about Freddie & Queen in Montreux",
+            new DateTimeOffset(2026, 10, 8, 0, 0, 0, TimeSpan.Zero), authorMemberId: authorId)
+        with
+        { CoverImageBlobPath = cover, Body = "<p>Body with <img src=\"/ugc/articles/members/test/inline.webp\" alt=\"Inline photo\"></p>" };
+        var client = (await WithRepo([item])).CreateClient();
+
+        var html = await client.GetStringAsync("/articles/shared-hero");
+        var hero = TestHtmlAssertions.SingleElement(html, ".qz-article-hero");
+        var image = Assert.Single(hero.QuerySelectorAll("img"));
+        Assert.Equal(item.Title, hero.QuerySelector("h1")!.TextContent);
+        Assert.Equal("Community article", hero.QuerySelector(".qz-eyebrow")!.TextContent);
+        Assert.Equal("2026-10-08", hero.QuerySelector("time")!.GetAttribute("datetime"));
+        Assert.Contains("min read", hero.TextContent);
+        Assert.Equal("Test Author", hero.QuerySelector($"a[href='/members/{authorId}']")!.TextContent);
+        Assert.Empty(TestHtmlAssertions.Select(html, ".qz-article-cover"));
+        Assert.Single(TestHtmlAssertions.Select(html, "article.article-body img"));
+        Assert.EndsWith("/articles/shared-hero", TestHtmlAssertions.LinkHref(html, "canonical"));
+        if (string.IsNullOrWhiteSpace(cover))
+        {
+            Assert.StartsWith("/design-system/assets/img-hero", image.GetAttribute("src"));
+            Assert.Equal(string.Empty, image.GetAttribute("alt"));
+        }
+        else
+        {
+            Assert.Equal("/ugc/articles/" + cover, image.GetAttribute("src"));
+            Assert.Equal(item.Title, image.GetAttribute("alt"));
+            Assert.Equal("high", image.GetAttribute("fetchpriority"));
+            Assert.NotEqual("lazy", image.GetAttribute("loading"));
+        }
+    }
+
     [Fact]
     public async Task CommunityArticle_ListAndDetailLinkSubmittedByProfile()
     {

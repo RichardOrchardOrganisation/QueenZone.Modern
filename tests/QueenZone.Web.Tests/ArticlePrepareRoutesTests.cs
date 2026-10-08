@@ -136,6 +136,10 @@ public sealed partial class ArticleSubmitRoutesTests
         var afterPublish = await publicClient.GetStringAsync(publicPath);
         Assert.Contains("Edited published submission", afterPublish);
         Assert.Contains(UgcProxyPaths.GetPath(BlobUploadContainers.Articles, draft.ImageBlobKey), afterPublish);
+        var hero = TestHtmlAssertions.SingleElement(afterPublish, ".qz-article-hero");
+        Assert.Equal(UgcProxyPaths.GetPath(BlobUploadContainers.Articles, draft.ImageBlobKey),
+            Assert.Single(hero.QuerySelectorAll("img")).GetAttribute("src"));
+        Assert.Empty(TestHtmlAssertions.Select(afterPublish, ".qz-article-cover"));
         var preservedSubmission = await submissions.GetByIdAsync(id);
         Assert.NotNull(preservedSubmission);
         Assert.Equal(original.AuthorMemberId, preservedSubmission.AuthorMemberId);
