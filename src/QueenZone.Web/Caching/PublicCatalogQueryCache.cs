@@ -127,21 +127,21 @@ public sealed class PublicCatalogQueryCache(
             () => discographyRepository.GetAlbumByIdAsync(albumId, cancellationToken),
             cancellationToken);
 
-    public Task<IReadOnlyList<SongSummary>> GetSongsAsync(
+    public async Task<IReadOnlyList<SongSummary>> GetSongsAsync(
         CancellationToken cancellationToken = default) =>
-        store.GetOrCreateAsync(
-            PublicQueryCacheKeys.Songs(store.GetDiscographyCacheVersion()),
-            options.Value.CatalogCacheDuration,
-            () => discographyRepository.GetSongsAsync(cancellationToken),
-            cancellationToken);
+        SongCatalog.Summaries(await GetTrackCatalogueAsync(cancellationToken));
 
-    public Task<SongDetail?> GetSongBySlugAsync(
+    public async Task<SongDetail?> GetSongBySlugAsync(
         string slug,
         CancellationToken cancellationToken = default) =>
+        SongCatalog.DetailFor(await GetTrackCatalogueAsync(cancellationToken), slug);
+
+    private Task<IReadOnlyList<SongTrackSource>> GetTrackCatalogueAsync(
+        CancellationToken cancellationToken) =>
         store.GetOrCreateAsync(
-            PublicQueryCacheKeys.Song(store.GetDiscographyCacheVersion(), slug.Trim().ToLowerInvariant()),
+            PublicQueryCacheKeys.SongCatalogue(store.GetDiscographyCacheVersion()),
             options.Value.CatalogCacheDuration,
-            () => discographyRepository.GetSongBySlugAsync(slug, cancellationToken),
+            () => discographyRepository.GetActiveAlbumTracksAsync(cancellationToken),
             cancellationToken);
 
     /// <summary>
@@ -174,8 +174,8 @@ public sealed class PublicCatalogQueryCache(
     public void InvalidateBiographyCache() => cache.Remove(PublicQueryCacheKeys.BiographyChapters);
 
     /// <summary>
-    /// Bumps the discography version so album lists, album details, and song pages all
-    /// reload after an admin edit. Old versioned entries age out on their TTL.
+    /// Bumps the discography version so album lists, album details, and the song
+    /// catalogue all reload after an admin edit. Old versioned entries age out on their TTL.
     /// </summary>
     public void InvalidateDiscographyCache() =>
         cache.Set(PublicQueryCacheKeys.DiscographyVersion, PublicQueryCacheStore.CreateCacheVersion(), PublicQueryCacheStore.VersionEntryOptions);

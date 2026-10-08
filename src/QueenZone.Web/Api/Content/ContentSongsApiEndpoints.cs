@@ -37,12 +37,12 @@ public static class ContentSongsApiEndpoints
     }
 
     internal static async Task<IResult> GetSongDetailAsync(
-        IDiscographyRepository discographyRepository,
+        PublicQueryCacheService publicQueryCache,
         ISearchIndexService searchIndex,
         string slug,
         CancellationToken cancellationToken)
     {
-        var song = await discographyRepository.GetSongBySlugAsync(slug, cancellationToken);
+        var song = await publicQueryCache.GetSongBySlugAsync(slug, cancellationToken);
         if (song is null)
         {
             return ApiV1EndpointHelpers.NotFound($"No song with slug '{slug}'.");

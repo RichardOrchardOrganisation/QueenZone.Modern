@@ -56,7 +56,7 @@
       <article class="article-body">@Html.Raw(Model.FormattedBody)</article>
     </div>
 
-    <form method="post" asp-page-handler="Prepare"><input type="hidden" name="__RequestVerificationToken" value="@token" /><button class="qz-button" type="submit">Edit and prepare article</button></form>
+    <form method="post" asp-page-handler="Prepare"><button class="qz-button" type="submit">Edit and prepare article</button></form>
 
     @if (canAct)
     {

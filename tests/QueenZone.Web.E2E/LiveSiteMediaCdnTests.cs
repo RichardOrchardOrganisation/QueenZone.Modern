@@ -98,14 +98,14 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     [Test]
     public async Task PhotographyImages_ResolveThroughAllowedCdnHostsAsync()
     {
-        var response = await LiveSiteTransportRetry.RunAsync(
-            () => Page.GotoAsync(
-                "/photography",
-                new PageGotoOptions
-                {
-                    WaitUntil = WaitUntilState.DOMContentLoaded,
-                    Timeout = 60_000,
-                }));
+        var response = await LiveSiteNavigationRecheck.GotoAsync(
+            Page,
+            "/photography",
+            new PageGotoOptions
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+                Timeout = 60_000,
+            });
 
         Assert.That(
             response?.Status,
