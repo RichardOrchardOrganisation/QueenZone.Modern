@@ -183,18 +183,64 @@ run "production_target_locks_down_firewall_and_audits" {
     condition = (
       azurerm_mssql_server_extended_auditing_policy.production[0].enabled &&
       azurerm_mssql_server_extended_auditing_policy.production[0].log_monitoring_enabled &&
-      azurerm_mssql_database_extended_auditing_policy.production[0].enabled &&
+      azurerm_mssql_database_extended_auditing_policy.production[0].enabled == false &&
       azurerm_mssql_database_extended_auditing_policy.production[0].log_monitoring_enabled &&
       azurerm_mssql_server_extended_auditing_policy.production[0].retention_in_days == 0 &&
       length(azurerm_monitor_diagnostic_setting.sql_server_audit) == 1 &&
-      length(azurerm_monitor_diagnostic_setting.sql_database_audit) == 1
+      length(azurerm_monitor_diagnostic_setting.sql_database_audit) == 0
     )
-    error_message = "Production SQL auditing must be enabled to Azure Monitor, with diagnostic settings on master and the user database."
+    error_message = "Production SQL auditing must keep the server/master Azure Monitor path and leave the duplicate database-level audit and diagnostic setting off."
   }
 
   assert {
     condition     = azurerm_mssql_server.created[0].public_network_access_enabled && azurerm_mssql_server.created[0].azuread_administrator[0].azuread_authentication_only == false
     error_message = "Public SQL access and SQL authentication stay until Entra auth and non-app clients have a path."
+  }
+}
+
+run "database_level_audit_is_opt_in" {
+  command = plan
+
+  override_resource {
+    target = azurerm_mssql_database.production
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/queenzone-prod-sql/databases/queenzone-db"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.storage_account
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/queenzoneprod"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.blob_service
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/queenzoneprod/blobServices/default"
+    }
+  }
+
+  variables {
+    create_sql_server_with_write_only_password = true
+    create_azure_services_firewall_rule        = false
+    blob_service_is_preexisting                = false
+    sql_extended_auditing_enabled              = true
+    sql_database_extended_auditing_enabled     = true
+    log_analytics_workspace_id                 = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.OperationalInsights/workspaces/queenzone-prod-law"
+    sql_server_name                            = "queenzone-prod-sql"
+    storage_account_name                       = "queenzoneprod"
+  }
+
+  assert {
+    condition = (
+      azurerm_mssql_database_extended_auditing_policy.production[0].enabled &&
+      azurerm_mssql_database_extended_auditing_policy.production[0].log_monitoring_enabled &&
+      length(azurerm_monitor_diagnostic_setting.sql_server_audit) == 1 &&
+      length(azurerm_monitor_diagnostic_setting.sql_database_audit) == 1
+    )
+    error_message = "Opting into database-level auditing must enable the user-database policy and both diagnostic settings."
   }
 }
 

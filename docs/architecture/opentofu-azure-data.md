@@ -28,13 +28,15 @@ network access stays enabled for those clients. `queenzone-sql-server` keeps
 `queenzone-dev-db` through it, and this root does not know that app's
 outbound addresses.
 
-Server and database extended auditing is enabled to `queenzone-prod-law`.
-Diagnostic settings send `SQLSecurityAuditEvents` from `master` and from
-`queenzone-db`. Retention is the workspace's 30 days. The auditing policy's
-`retention_in_days` stays 0 because that field is storage-account retention,
-and this stack does not put a storage key in state. Entra-only authentication
-stays off: `ignore_changes = [azuread_administrator]` would drop that flip,
-and the app connection string is still SQL authentication.
+Server-level extended auditing is enabled to `queenzone-prod-law`. The
+database-level copy is disabled so `queenzone-db` events are not duplicated
+(#2204). The `master` diagnostic setting sends `SQLSecurityAuditEvents`; the
+database diagnostic setting is absent. Retention is the workspace's 30 days.
+The auditing policy's `retention_in_days` stays 0 because that field is
+storage-account retention, and this stack does not put a storage key in
+state. Entra-only authentication stays off:
+`ignore_changes = [azuread_administrator]` would drop that flip, and the app
+connection string is still SQL authentication.
 
 OpenTofu records the existing SQL server administrator name because ARM requires
 it, but does not manage its password. The write-only administrator password

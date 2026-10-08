@@ -68,6 +68,7 @@ module "azure_web_target" {
   web_app_name                 = "queenzone-prod"
   log_analytics_workspace_name = "queenzone-prod-law"
   application_insights_name    = "queenzone-prod-ai"
+  log_analytics_daily_quota_gb = 0.25
   sku_name                     = var.app_service_sku
   worker_count                 = var.app_service_worker_count
   environment_name             = "production"
@@ -93,11 +94,12 @@ module "azure_data_target" {
   sql_server_administrator_password_wo       = var.target_sql_admin_password
   # The copied database was admitted only after exact source/target row-count
   # verification. Its declarative imports are in imports.tf.
-  manage_sql_database                 = true
-  create_azure_services_firewall_rule = false
-  sql_firewall_rules                  = local.production_app_service_sql_firewall_rules
-  sql_extended_auditing_enabled       = true
-  log_analytics_workspace_id          = module.azure_web_target.log_analytics_workspace_id
+  manage_sql_database                    = true
+  create_azure_services_firewall_rule    = false
+  sql_firewall_rules                     = local.production_app_service_sql_firewall_rules
+  sql_extended_auditing_enabled          = true
+  sql_database_extended_auditing_enabled = false
+  log_analytics_workspace_id             = module.azure_web_target.log_analytics_workspace_id
 }
 
 # azure-data can also attach a database to an existing logical server for the

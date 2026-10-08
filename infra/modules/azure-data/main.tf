@@ -172,8 +172,8 @@ resource "azurerm_mssql_database" "production" {
 
 check "sql_auditing_has_workspace" {
   assert {
-    condition     = !var.sql_extended_auditing_enabled || var.log_analytics_workspace_id != null
-    error_message = "sql_extended_auditing_enabled requires log_analytics_workspace_id."
+    condition     = !(var.sql_extended_auditing_enabled || var.sql_database_extended_auditing_enabled) || var.log_analytics_workspace_id != null
+    error_message = "SQL extended auditing requires log_analytics_workspace_id."
   }
 }
 
@@ -195,9 +195,11 @@ resource "azurerm_mssql_server_extended_auditing_policy" "production" {
 resource "azurerm_mssql_database_extended_auditing_policy" "production" {
   count = var.manage_sql_database ? 1 : 0
 
-  database_id            = azurerm_mssql_database.production[0].id
-  enabled                = var.sql_extended_auditing_enabled
-  log_monitoring_enabled = var.sql_extended_auditing_enabled
+  database_id = azurerm_mssql_database.production[0].id
+  enabled     = var.sql_database_extended_auditing_enabled
+  # Azure leaves isAzureMonitorTargetEnabled set after the #2204 disable.
+  # Keep it on whenever server audit is on so a production plan is a no-op.
+  log_monitoring_enabled = var.sql_database_extended_auditing_enabled || var.sql_extended_auditing_enabled
   retention_in_days      = 0
 
   lifecycle {
@@ -205,8 +207,8 @@ resource "azurerm_mssql_database_extended_auditing_policy" "production" {
   }
 }
 
-# Server audit events are read from master. Database events are read from
-# the user database. Both use the same workspace.
+# Server audit events are read from master. The optional database-level
+# copy reads the user database and is off unless a caller opts in (#2204).
 resource "azurerm_monitor_diagnostic_setting" "sql_server_audit" {
   count = var.create_server_extended_auditing_policy && var.sql_extended_auditing_enabled ? 1 : 0
 
@@ -224,7 +226,7 @@ resource "azurerm_monitor_diagnostic_setting" "sql_server_audit" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "sql_database_audit" {
-  count = var.manage_sql_database && var.sql_extended_auditing_enabled ? 1 : 0
+  count = var.manage_sql_database && var.sql_database_extended_auditing_enabled ? 1 : 0
 
   name                       = "sql-security-audit"
   target_resource_id         = azurerm_mssql_database.production[0].id
@@ -234,8 +236,13 @@ resource "azurerm_monitor_diagnostic_setting" "sql_database_audit" {
     category = "SQLSecurityAuditEvents"
   }
 
+  # Count going to zero would be a destroy, and prevent_destroy rejects that
+  # plan. Gilfoyle already deleted the live production copy on 8 Oct 2026.
+  # destroy = false forgets the state address instead of recreating or
+  # failing the plan.
   lifecycle {
     prevent_destroy = true
+    destroy         = false
   }
 }
 

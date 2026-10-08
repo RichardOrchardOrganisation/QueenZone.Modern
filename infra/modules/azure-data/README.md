@@ -9,8 +9,15 @@ addresses instead. Turning the flag off drops the instance count to zero.
 `lifecycle.destroy = false` forgets that state address instead of deleting
 the Azure rule. `prevent_destroy` stays set.
 
-SQL extended auditing is off unless `sql_extended_auditing_enabled` is set.
-Production points it at `queenzone-prod-law`. Retention follows that workspace
+SQL server-level extended auditing is off unless
+`sql_extended_auditing_enabled` is set. That flag owns the server policy and
+the `master` diagnostic setting only. Database-level auditing is a separate
+opt-in (`sql_database_extended_auditing_enabled`, default false) because the
+server-level policy already covers the user database. Production Canada East
+keeps server audit on and the database copy off (#2204). Azure still reports
+`log_monitoring_enabled` on that disabled database policy; the module keeps
+that flag on whenever server audit is on so a production plan is a no-op.
+When enabled, both paths point at `queenzone-prod-law`. Retention follows that workspace
 (30 days). Do not add a storage-account audit destination. `public_network_access_enabled`
 stays true, and `azuread_authentication_only` stays false while
 `ignore_changes = [azuread_administrator]` is set and the app still uses SQL
@@ -26,8 +33,12 @@ account keys and connection strings into state. The resources export IDs only.
 The SQL database remains Basic 5 DTU with a 2 GB limit, 7-day LRS short-term
 retention, and no long-term retention. The personal workstation firewall rule
 is outside this stack. The only diagnostic settings this module creates are
-`sql-security-audit` for `SQLSecurityAuditEvents` when auditing is enabled.
-No stack-owned RBAC assignments exist.
+`sql-security-audit` for `SQLSecurityAuditEvents` on `master` when server
+auditing is enabled, and the matching database setting only when
+`sql_database_extended_auditing_enabled` is true. Dropping that database
+setting's count to zero sets `lifecycle.destroy = false` so OpenTofu forgets
+the state address instead of failing `prevent_destroy`. No stack-owned RBAC
+assignments exist.
 
 Blob and container soft delete remain seven days. Versioning, change feed,
 point-in-time restore, and lifecycle rules remain disabled or absent. This is a
