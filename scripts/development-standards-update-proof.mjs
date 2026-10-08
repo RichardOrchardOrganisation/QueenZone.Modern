@@ -42,17 +42,18 @@ const QUEENZONE_ONLY = [
 ];
 const IDENTITY = ['-c', 'user.name=Standards Update Proof', '-c', 'user.email=proof@example.invalid', '-c', 'commit.gpgsign=false'];
 
-const lines = [];
 let failures = 0;
 
 function log(line = '') {
-  lines.push(line);
   console.log(line);
 }
 
+const byText = (left, right) => left.localeCompare(right);
+
 function check(label, condition, detail = '') {
   if (!condition) failures += 1;
-  log(`${condition ? 'PASS' : 'FAIL'} ${label}${!condition && detail ? ` — ${detail}` : ''}`);
+  const suffix = !condition && detail ? ` — ${detail}` : '';
+  log(`${condition ? 'PASS' : 'FAIL'} ${label}${suffix}`);
 }
 
 function run(command, args, cwd) {
@@ -102,7 +103,7 @@ function treeHashes(root) {
 
 function changedPaths(before, after) {
   const names = new Set([...before.keys(), ...after.keys()]);
-  return [...names].filter((name) => before.get(name) !== after.get(name)).sort();
+  return [...names].filter((name) => before.get(name) !== after.get(name)).sort(byText);
 }
 
 function outsideManagedSection(guide) {
@@ -234,7 +235,7 @@ function main() {
     check('keep-local update applies', kept.status === 0, kept.output);
     for (const [name, text] of keptBefore) check(`kept QueenZone version: ${name}`, readText(conflictProject, name) === text);
     check('clean change from the same version applies', readText(conflictProject, 'docs/testing.md').includes('must not be written during a conflict'));
-    check('lock records the kept paths', keptLock.commit === conflicting && JSON.stringify([...keptLock.keptLocal].sort()) === JSON.stringify([...keepPaths].sort()));
+    check('lock records the kept paths', keptLock.commit === conflicting && JSON.stringify([...keptLock.keptLocal].sort(byText)) === JSON.stringify([...keepPaths].sort(byText)));
     log();
 
     // 5. QueenZone's C# floors equal the kit defaults; line adjacency decides whether a default change conflicts.
@@ -242,6 +243,7 @@ function main() {
     const changedDefault = fixtureVersion(kit, lock.commit, '0.2.3-proof', [
       (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"changedLine": 70', '"changedLine": 80')),
     ]);
+    log(`### changedLine 70 -> 80 (${lock.commit.slice(0, 7)} -> ${changedDefault.slice(0, 7)})`);
     const changedProject = cloneProject(workspace, 'queenzone-changed-default');
     const changedResult = update(kit, changedProject);
     const changedFloor = JSON.parse(readText(changedProject, 'development-standards.json')).dotnet.changedLine;
@@ -249,6 +251,7 @@ function main() {
     const globalDefault = fixtureVersion(kit, lock.commit, '0.2.4-proof', [
       (root) => editText(root, 'development-standards.json', (text) => replaceOnce(text, '"globalLine": 91', '"globalLine": 95')),
     ]);
+    log(`### globalLine 91 -> 95 (${lock.commit.slice(0, 7)} -> ${globalDefault.slice(0, 7)})`);
     const globalProject = cloneProject(workspace, 'queenzone-global-default');
     const globalResult = update(kit, globalProject);
     check('a kit globalLine default change conflicts (next to the customised solution line)',
