@@ -96,6 +96,15 @@ dotnet tool run reportgenerator -reports:".\TestResults\**\coverage.cobertura.xm
 
 Open `coverage-report/index.html` to inspect the report. Coverage reports and raw test result folders are local artifacts and should not be committed.
 
+To run the same coverage gates CI enforces (floors live in `development-standards.json`; fetch `origin/main` first so changed-line coverage has a base):
+
+```powershell
+git fetch origin main
+node scripts/verify.mjs --profile dotnet --base-ref origin/main
+```
+
+That runs restore, Release build, format verification, tests with coverage, the coverage gate, the CRAP report, the suppression check, and the feature-map check. It needs Node 24, PowerShell 7 (`pwsh`), and the .NET SDK. For mobile, `npm ci` in `src/QueenZone.Mobile` and then `node scripts/verify.mjs --profile typescript --base-ref origin/main` runs typecheck, lint, both coverage suites, and the mobile coverage gate. Neither replaces e2e, Expo Doctor (`npm run preflight`), native builds, device proof, or the opt-in database probes in [`docs/architecture/testing-policy.md`](docs/architecture/testing-policy.md). These checks come from the shared [development-standards](docs/architecture/development-standards.md) kit.
+
 Local secrets belong in `src/QueenZone.Web/appsettings.Local.json`, which is ignored by git. You can also set `ConnectionStrings__QueenZoneLegacy` in your shell or a local `.env` file for tooling that loads dotenv values. If no `ConnectionStrings:QueenZoneLegacy` value is present, the site uses sample news data so the first slice can still run locally.
 
 Bitwarden **Secrets Manager** (`bws` CLI — not the password vault `bw`) is the shared local secret store for development agents. Use machine account **`windows-codex`** on Windows or **`mac-codex`** on Macs; project **`Queenzone Development`**. Auth is user-scoped **`BWS_ACCESS_TOKEN`**. Do not commit or print that token.

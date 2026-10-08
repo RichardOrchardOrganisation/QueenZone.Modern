@@ -2,15 +2,18 @@ param(
     [Parameter()]
     [string]$Reports,
 
-    [double]$GlobalLineThreshold = 91,
+    [double]$GlobalLineThreshold,
 
-    [double]$ChangedLineThreshold = 70,
+    [double]$ChangedLineThreshold,
 
     [string]$BaseRef = $env:GITHUB_BASE_REF,
 
     [string]$HeadRef = "HEAD",
 
     [switch]$RequireBaseRef,
+
+    # Floors default to dotnet.globalLine / dotnet.changedLine in this file.
+    [string]$ConfigPath = (Join-Path $PSScriptRoot "../development-standards.json"),
 
     [switch]$SelfTest
 )
@@ -19,6 +22,15 @@ $ErrorActionPreference = "Stop"
 
 if (-not $SelfTest -and [string]::IsNullOrWhiteSpace($Reports)) {
     throw "Reports is required unless -SelfTest is specified."
+}
+
+if (-not $SelfTest -and (-not $PSBoundParameters.ContainsKey('GlobalLineThreshold') -or -not $PSBoundParameters.ContainsKey('ChangedLineThreshold'))) {
+    $dotnetProfile = (Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json).dotnet
+    if ($null -eq $dotnetProfile.globalLine -or $null -eq $dotnetProfile.changedLine) {
+        throw "Configure dotnet.globalLine and dotnet.changedLine in development-standards.json."
+    }
+    if (-not $PSBoundParameters.ContainsKey('GlobalLineThreshold')) { $GlobalLineThreshold = $dotnetProfile.globalLine }
+    if (-not $PSBoundParameters.ContainsKey('ChangedLineThreshold')) { $ChangedLineThreshold = $dotnetProfile.changedLine }
 }
 
 function Get-RepoRelativePath {
@@ -43,6 +55,12 @@ function Convert-ToRepoPath {
     )
 
     $normalizedPath = $Path.Replace('\', [System.IO.Path]::DirectorySeparatorChar).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+    # Prefer an existing repo-relative filename. This also avoids macOS /var
+    # versus /private/var aliases in coverage source roots and child processes.
+    if (-not [System.IO.Path]::IsPathRooted($normalizedPath) -and (Test-Path -LiteralPath $normalizedPath)) {
+        return ($normalizedPath -replace '\\', '/')
+    }
+
     $candidatePaths = @()
 
     if ([System.IO.Path]::IsPathRooted($normalizedPath)) {
@@ -211,7 +229,7 @@ function Get-CoberturaDocuments {
 function New-SampleCoberturaXml {
     param(
         [string]$SourceRoot,
-        [string]$FileName = "src/QueenZone.Web/CoverageGateSample.cs"
+        [string]$FileName = "src/Example.Web/CoverageGateSample.cs"
     )
 
     return @"
@@ -221,9 +239,9 @@ function New-SampleCoberturaXml {
     <source>$SourceRoot</source>
   </sources>
   <packages>
-    <package name="QueenZone.Web" line-rate="1" branch-rate="1" complexity="1">
+    <package name="Example.Web" line-rate="1" branch-rate="1" complexity="1">
       <classes>
-        <class name="QueenZone.Web.CoverageGateSample" filename="$FileName" line-rate="1" branch-rate="1" complexity="1">
+        <class name="Example.Web.CoverageGateSample" filename="$FileName" line-rate="1" branch-rate="1" complexity="1">
           <lines>
             <line number="10" hits="1" branch="false" />
             <line number="11" hits="1" branch="false" />
@@ -257,7 +275,7 @@ function Invoke-BaseShaSelfTest {
         # Git resolves macOS /var -> /private/var; use the same root as child processes.
         $repoRoot = (git rev-parse --show-toplevel).Trim()
 
-        $sampleDir = Join-Path $repoRoot "src/QueenZone.Web"
+        $sampleDir = Join-Path $repoRoot "src/Example.Web"
         New-Item -ItemType Directory -Path $sampleDir | Out-Null
         $samplePath = Join-Path $sampleDir "CoverageGateSample.cs"
         $baseLines = 1..9 | ForEach-Object { "// line $_" }
@@ -306,8 +324,35 @@ function Invoke-BaseShaSelfTest {
     }
 }
 
+# Omitted thresholds come from the project configuration, so CI and local runs share one floor.
+function Invoke-ConfiguredFloorSelfTest {
+    param([string]$TempRoot, [string]$Pwsh)
+
+    $configDir = Join-Path $TempRoot "configured-floors"
+    New-Item -ItemType Directory -Path $configDir | Out-Null
+    $strictConfig = Join-Path $configDir "strict.json"
+    $missingConfig = Join-Path $configDir "missing.json"
+    [System.IO.File]::WriteAllText($strictConfig, '{ "version": 1, "dotnet": { "globalLine": 101, "changedLine": 0 } }')
+    [System.IO.File]::WriteAllText($missingConfig, '{ "version": 1, "dotnet": { "changedLine": 0 } }')
+
+    $strictOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $TempRoot -ConfigPath $strictConfig -BaseRef "" 2>&1
+    if ($LASTEXITCODE -eq 0 -or (@($strictOutput) -join [Environment]::NewLine) -notmatch 'below the required 101%') {
+        throw "Self-test failed: an omitted global threshold must come from dotnet.globalLine. Output:`n$($strictOutput | Out-String)"
+    }
+
+    $overrideOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $TempRoot -ConfigPath $strictConfig -GlobalLineThreshold 0 -BaseRef "" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Self-test failed: an explicit threshold must override the configured floor. Output:`n$($overrideOutput | Out-String)"
+    }
+
+    $missingOutput = & $Pwsh -NoProfile -File $PSCommandPath -Reports $TempRoot -ConfigPath $missingConfig -BaseRef "" 2>&1
+    if ($LASTEXITCODE -eq 0 -or (@($missingOutput) -join [Environment]::NewLine) -notmatch 'Configure dotnet.globalLine') {
+        throw "Self-test failed: a configuration without dotnet floors must fail closed."
+    }
+}
+
 function Invoke-CoverageGateSelfTest {
-    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("qz-coverage-gate-" + [guid]::NewGuid().ToString("N"))
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("standards-coverage-gate-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
 
     try {
@@ -323,7 +368,7 @@ function Invoke-CoverageGateSelfTest {
         $nulCopyPath = Join-Path $trxInboxDir "coverage.cobertura.xml"
         [System.IO.File]::WriteAllText($nulCopyPath, $validXml, [System.Text.Encoding]::Unicode)
 
-        $trxPath = Join-Path $tempRoot "QueenZone.Web.Tests-shard-0.trx"
+        $trxPath = Join-Path $tempRoot "Example.Web.Tests-shard-0.trx"
         [System.IO.File]::WriteAllText($trxPath, "<TestRun></TestRun>", [System.Text.Encoding]::Unicode)
 
         $wrongRootPath = Join-Path $junkDir "coverage.cobertura.xml"
@@ -392,6 +437,8 @@ function Invoke-CoverageGateSelfTest {
             throw "Self-test failed: empty reports dir produced unexpected error. Output:`n$emptyText"
         }
 
+        Invoke-ConfiguredFloorSelfTest -TempRoot $tempRoot -Pwsh $pwsh.Source
+
         Invoke-BaseShaSelfTest -TempRoot $tempRoot -Pwsh $pwsh.Source
 
         Write-Information -InformationAction Continue "Test-CoverageGate.ps1 self-test passed."
@@ -414,7 +461,7 @@ if ($loadedReports.Count -eq 0) {
 $reportFiles = @($loadedReports | ForEach-Object { $_.File })
 
 # Merge line hits across reports by file path. Do NOT sum each report's lines-valid /
-# lines-covered: coverlet emits overlapping assemblies (e.g. QueenZone.Data from both
+# lines-covered: coverlet emits overlapping assemblies (e.g. Example.Data from both
 # Web.Tests and NewsAgent.Tests), and summing double-counts those lines and understates
 # global coverage when a sparse report includes a large shared surface.
 $coveredLinesByFile = @{}

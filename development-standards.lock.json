@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/RichardOrchardOrganisation/development-standards",
+  "commit": "5e1cee668d5784c5146576e413736ed9d19bcb8b",
+  "version": "0.3.0",
+  "keptLocal": [
+    "scripts/Test-TypeScriptCoverageGate.mjs",
+    "scripts/check-pr-verification.mjs"
+  ]
+}

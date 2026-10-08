@@ -16,6 +16,8 @@ The first release is archive-first and visitor read-only, with news as the first
 
 Use a layered test suite. Keep the default local and CI test path fast, deterministic, and independent of the restored legacy database.
 
+This document is QueenZone's own test and CI contract. The shared, project-neutral rules from the [development-standards](development-standards.md) kit are in [`docs/testing.md`](../testing.md), [`docs/coverage.md`](../coverage.md), [`docs/verification.md`](../verification.md), and [`docs/suppressions.md`](../suppressions.md). They still apply; this document adds the QueenZone layers, jobs, environments, and probes. Numeric coverage floors live only in `development-standards.json` (C#) and the `typescript.floors` file it names (mobile).
+
 ## Test Layers
 
 ### Unit Tests
@@ -426,7 +428,7 @@ migration candidates run their respective gates. A manual `workflow_dispatch`
 run conservatively enables all gates. `scripts/Test-MergeGroupChangeRange.sh`
 checks the docs, mobile, web, migration, and multi-PR path cases.
 
-The 91% global and 70% changed-line C# coverage gates apply to web changes in
+The global and changed-line C# coverage gates apply to web changes in
 both event types, and the gate fails if its base is missing or is not an
 ancestor of the checked-out commit. Merge groups (and manual runs) pass
 `origin/main`, so a candidate must provably contain `main` and the diff covers
@@ -527,10 +529,12 @@ Implemented in `scripts/Test-CoverageGate.ps1` and invoked from the `coverage` j
 
 | Gate | Threshold | What it measures |
 | --- | --- | --- |
-| **Global line coverage** | **≥ 91%** | Line coverage across the union of Cobertura reports from all shards / test projects |
-| **Changed-line coverage** | **≥ 70%** | Coverable `.cs` lines added or modified in the PR or combined queue diff against `main` |
+| **Global line coverage** | `dotnet.globalLine` | Line coverage across the union of Cobertura reports from all shards / test projects |
+| **Changed-line coverage** | `dotnet.changedLine` | Coverable `.cs` lines added or modified in the PR or combined queue diff against `main` |
 
 Rules:
+
+- The thresholds live in `development-standards.json`. The gate reads them when `-GlobalLineThreshold` / `-ChangedLineThreshold` are omitted, and neither CI nor the documented local commands pass them. Raising a floor is a reviewable edit to that file; lowering one needs an explicit justification.
 
 - Changed-line coverage is computed from `git diff <base>...HEAD` for `*.cs` files only, where `<base>` is the PR event's base SHA on pull requests and `origin/main` on merge groups (see [Pull request and merge-group checks](#pull-request-and-merge-group-checks)). Locally, pass `-BaseRef origin/main` after `git fetch origin main`.
 - Only lines that appear in the Cobertura report count as coverable. Non-executable lines, some boilerplate, and excluded files do not count.
@@ -560,9 +564,9 @@ Jest `collectCoverageFrom` includes every production `src/**/*.{ts,tsx}` file, n
 
 The merged aggregate overlays Node/V8 hits onto the Jest/Istanbul coverable universe (union by file and line; do **not** sum overlapping reports). V8 emits a DA row for almost every physical line; a naive union of those line sets with Istanbul statements inflates global % because well-tested files gain extra covered V8 lines while untested screens keep only Istanbul's smaller uncovered set. Job summaries always publish **separate** suite totals **and** the merged aggregate. Never drop a suite to inflate the number. Missing or malformed reports fail closed.
 
-**Enforcement.** Floors live in `scripts/mobile-coverage-floors.json` and are applied by `scripts/Test-MobileCoverageGate.mjs`. They are **not** Jest `coverageThreshold` values — Jest is only one runner. Changing a floor is an explicit, reviewable edit to that JSON (and this document). Later ratchets are separate PRs, not silent bumps.
+**Enforcement.** Floors live in `scripts/mobile-coverage-floors.json`, which `typescript.floors` in `development-standards.json` names, and are applied by `scripts/Test-MobileCoverageGate.mjs`. They are **not** Jest `coverageThreshold` values — Jest is only one runner. Changing a floor is an explicit, reviewable edit to that JSON. Later ratchets are separate PRs, not silent bumps. The development-standards kit's suggested new-project TypeScript floors do not apply here.
 
-Measured baseline on 2026-08-24 from `61eab2b` (after #833 / #883), then enforced as no-regression floors rounded down one decimal to absorb single-line jitter:
+Measured baseline on 2026-08-24 from `61eab2b` (after #833 / #883), then enforced as no-regression floors rounded down one decimal to absorb single-line jitter. The table records that measurement; the JSON holds the active floors:
 
 | Gate | Floor | Measured | What it measures |
 | --- | --- | --- | --- |
@@ -570,7 +574,7 @@ Measured baseline on 2026-08-24 from `61eab2b` (after #833 / #883), then enforce
 | **Global branch** | **≥ 16.1%** | 16.19% (382/2360) | Jest/Istanbul branch map across all production files (V8 `BRDA` keys do not overlay) |
 | **Changed-line** | **≥ 70%** | n/a (new-code bar) | Coverable `src/QueenZone.Mobile/src/**/*.{ts,tsx}` lines in `git diff origin/main...HEAD` |
 
-Changed-line starts at 70% because the #833 component/hook harness can cover TSX; it is **not** a copy of the web C# 70% without evidence. The global floor is the measured mobile baseline (42.8%), not the web C# 91%. If a pull request changes no coverable mobile TypeScript/TSX lines, the changed-line gate is skipped. Paths are normalized to POSIX `src/QueenZone.Mobile/...` so Windows and Linux reports match.
+Changed-line starts at 70% because the #833 component/hook harness can cover TSX; it is **not** a copy of the web C# changed-line floor without evidence. The global floor is the measured mobile baseline (42.8%), not the web C# global floor. If a pull request changes no coverable mobile TypeScript/TSX lines, the changed-line gate is skipped. Paths are normalized to POSIX `src/QueenZone.Mobile/...` so Windows and Linux reports match.
 
 **CI.** `mobile-js` (same path triggers as preflight, plus the coverage script/floors files) runs the #837 npm advisory gate after `npm ci`, then typecheck, lint, `npm run test:coverage`, the coverage gate, and Expo Doctor. It writes a job summary with line/branch/function/statement totals for both suites and the merge, plus uncovered changed coverable lines. Artifacts: machine-readable merged Cobertura + `summary.json` (3-day) and a short HTML report (1-day). Do not commit `coverage/` output.
 
@@ -734,8 +738,10 @@ dotnet restore QueenZone.sln
 dotnet build QueenZone.sln --configuration Release --no-restore
 dotnet format QueenZone.sln --verify-no-changes
 dotnet test QueenZone.sln --configuration Release --no-build --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
-powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -GlobalLineThreshold 91 -ChangedLineThreshold 70 -BaseRef origin/main
+powershell -File ./scripts/Test-CoverageGate.ps1 -Reports ./TestResults -BaseRef origin/main
 ```
+
+`node scripts/verify.mjs --profile dotnet --base-ref origin/main` runs the same restore, build, format, coverage collection, and gate, then the CRAP report, suppression check, and feature-map check. It is a convenience wrapper; the migration, e2e, mobile, and probe checks below still apply.
 
 If the pull request touches `QueenZoneDbContext`, entity mappings, or files under `src/QueenZone.Data/Migrations/`, also run:
 
@@ -757,7 +763,7 @@ Use `pwsh` instead of `powershell` on Linux or macOS.
    - Unit tests for pure logic (no I/O).
    - Fake HTTP clients, in-memory repositories, or SQLite EF tests for data-access and service code.
    - Web integration tests for Razor route behavior.
-3. Re-run the checklist until changed-line coverage is at least 70%.
+3. Re-run the checklist until changed-line coverage meets `dotnet.changedLine` in `development-standards.json`.
 4. Do not rely on live network, OpenRouter, or legacy SQL for default tests.
 
 Optional manual checks (report skipped in PRs when not run):

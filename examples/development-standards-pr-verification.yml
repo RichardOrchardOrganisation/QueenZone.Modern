@@ -1,0 +1,28 @@
+# Copy to .github/workflows/pr-verification.yml after configuring the feature map.
+name: PR verification
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Feature map
+        run: node scripts/check-feature-map.mjs
+      - name: Check PR evidence
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { pathToFileURL } = require('node:url');
+            const path = require('node:path');
+            const href = pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, 'scripts/check-pr-verification.mjs')).href;
+            const { checkPullRequestVerification } = await import(href);
+            // label: true also manages a needs-verification label; grant issues: write and pull-requests: write first.
+            await checkPullRequestVerification({ github, context, core });
