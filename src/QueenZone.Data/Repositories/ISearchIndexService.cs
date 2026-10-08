@@ -29,7 +29,8 @@ public interface ISearchIndexService
 
     /// <summary>
     /// Documents whose title equals <paramref name="title"/> (ordinal ignore-case). Used for
-    /// song-page related content. Default is empty so test doubles stay source-compatible.
+    /// song-page related content. The EF implementation projects Title, Url, and ContentType
+    /// only. Default is empty so test doubles stay source-compatible.
     /// </summary>
     Task<IReadOnlyList<SearchDocumentEntity>> FindByExactTitleAsync(
         string title,

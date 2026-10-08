@@ -59,9 +59,9 @@ public sealed class PublicQueryCacheStore(
         Func<Task<T>> factory,
         CancellationToken cancellationToken)
     {
-        if (cache.TryGetValue(key, out T? cached) && cached is not null)
+        if (TryGetCached(key, out T? cached))
         {
-            return cached;
+            return cached!;
         }
 
         var gate = RentLoadGate(key);
@@ -70,13 +70,13 @@ public sealed class PublicQueryCacheStore(
             await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                if (cache.TryGetValue(key, out cached) && cached is not null)
+                if (TryGetCached(key, out cached))
                 {
-                    return cached;
+                    return cached!;
                 }
 
                 var value = await factory().ConfigureAwait(false);
-                cache.Set(key, value, duration);
+                cache.Set(key, (object?)value ?? NullSentinel.Instance, duration);
                 return value;
             }
             finally
@@ -88,6 +88,30 @@ public sealed class PublicQueryCacheStore(
         {
             ReturnLoadGate(key, gate);
         }
+    }
+
+    private bool TryGetCached<T>(string key, out T? cached)
+    {
+        if (!cache.TryGetValue(key, out object? boxed))
+        {
+            cached = default;
+            return false;
+        }
+
+        if (ReferenceEquals(boxed, NullSentinel.Instance))
+        {
+            cached = default;
+            return true;
+        }
+
+        if (boxed is T typed)
+        {
+            cached = typed;
+            return true;
+        }
+
+        cached = default;
+        return false;
     }
 
     internal static LoadGate RentLoadGate(string key)
@@ -125,6 +149,11 @@ public sealed class PublicQueryCacheStore(
         public SemaphoreSlim Semaphore { get; } = new(1, 1);
 
         public int ReferenceCount { get; set; }
+    }
+
+    private sealed class NullSentinel
+    {
+        internal static readonly NullSentinel Instance = new();
     }
 
 }

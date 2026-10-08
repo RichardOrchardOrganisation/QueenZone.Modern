@@ -13,6 +13,7 @@ public sealed class SearchDocumentEntityConfiguration : IEntityTypeConfiguration
 
         builder.Property(document => document.SourceKey).HasMaxLength(200).IsRequired();
         builder.Property(document => document.ContentType).HasMaxLength(50).IsRequired();
+        // No UseCollation: Title inherits the database CI collation so Title == value is sargable.
         builder.Property(document => document.Title).HasMaxLength(300).IsRequired();
         builder.Property(document => document.Body).IsRequired();
         builder.Property(document => document.Summary).HasMaxLength(500);
@@ -35,5 +36,9 @@ public sealed class SearchDocumentEntityConfiguration : IEntityTypeConfiguration
             .IsDescending(false, true)
             .IncludeProperties(document => document.SourceKey)
             .HasDatabaseName("IX_SearchDocument_ContentType_PublishedAt");
+
+        builder.HasIndex(document => document.Title)
+            .IncludeProperties(document => new { document.ContentType, document.Url })
+            .HasDatabaseName("IX_SearchDocument_Title");
     }
 }
