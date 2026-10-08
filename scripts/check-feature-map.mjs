@@ -4,7 +4,7 @@
  *
  * Node 24, no npm dependencies. Fails when a mobile screen or public/member
  * Razor page is missing from docs/feature-map/, or when an entry points at a
- * file, flow, spec, testId, or #id selector that no longer exists.
+ * file, flow, spec, mobile testId, or web identifier selector that no longer exists.
  *
  *   node scripts/check-feature-map.mjs
  *   node scripts/check-feature-map.mjs --write
@@ -283,6 +283,13 @@ export function generateIndexMarkdown(map) {
     'Agents and the verify skills read these JSON files; do not hand-edit this index.',
     'Regenerate with `node scripts/check-feature-map.mjs --write`.',
     '',
+    'Mobile `testIds` are keys from `src/QueenZone.Mobile/src/test/testIds.ts`; `flows` are Maestro paths.',
+    'Web `selectors` map stable `#id` or `[data-testid="value"]` locators in sources or Pages/Shared.',
+    'Web entries with no mapped identifiers require `selectorsReason`: explain role/text locators,',
+    'a mapping gap, or handler/redirect behaviour. Empty selectors do not imply missing tests.',
+    'Prefer role and text locators for clear headings and links; add identifiers only for fragile locators.',
+    '`specs` links test files; it does not certify coverage. `--write` only regenerates this index.',
+    '',
   ];
 
   const renderSurface = (title, areas, surface) => {
@@ -416,6 +423,18 @@ function validateEntryMetadata(entry, errors) {
 
 function validateWebEntry(entry, errors) {
   if (entry._surface === 'web') {
+    for (const field of ['testIds', 'flows']) {
+      if (Object.hasOwn(entry, field)) {
+        errors.push(`${entry.id}: ${field} is mobile-only; web entries use selectors and specs.`);
+      }
+    }
+    if (!Array.isArray(entry.selectors)) {
+      errors.push(`${entry.id}: web selectors must be an array.`);
+    }
+    if (asList(entry.selectors).length === 0 &&
+        (typeof entry.selectorsReason !== 'string' || !entry.selectorsReason.trim())) {
+      errors.push(`${entry.id}: empty web selectors require selectorsReason.`);
+    }
     if (!entry.page) {
       errors.push(`${entry.id}: web entries need page.`);
     }
@@ -489,6 +508,9 @@ function validateTestIds(root, map, errors) {
   const testIdsPath = path.join(root, 'src/QueenZone.Mobile/src/test/testIds.ts');
   const testIdKeys = parseTestIdKeys(readText(testIdsPath));
   for (const entry of map.entries) {
+    if (entry._surface !== 'mobile') {
+      continue;
+    }
     for (const key of asList(entry.testIds)) {
       if (!testIdKeys.has(key)) {
         errors.push(`${entry.id}: testIds key '${key}' is missing from testIds.ts.`);
@@ -526,22 +548,41 @@ function validateSelectors(root, map, errors) {
     .map((file) => readText(file))
     .join('\n');
   for (const entry of map.entries) {
+    if (entry._surface !== 'web') {
+      continue;
+    }
     for (const selector of asList(entry.selectors)) {
-      if (!selector.startsWith('#')) {
-        errors.push(`${entry.id}: selector '${selector}' must be a #id.`);
+      const attribute = parseWebSelector(selector);
+      if (!attribute) {
+        errors.push(`${entry.id}: selector '${selector}' must be #id or [data-testid="value"].`);
         continue;
       }
-      const id = selector.slice(1);
-      const idPattern = new RegExp(`\\bid=["']${id}["']`);
       const inSources = asList(entry.sources).some((source) => {
         const full = path.join(root, source);
-        return existsSync(full) && idPattern.test(readText(full));
+        return existsSync(full) && hasHtmlAttribute(readText(full), attribute);
       });
-      if (!inSources && !idPattern.test(sharedText)) {
-        errors.push(`${entry.id}: #id selector '${selector}' was not found in sources or Pages/Shared.`);
+      if (!inSources && !hasHtmlAttribute(sharedText, attribute)) {
+        errors.push(`${entry.id}: selector '${selector}' was not found in sources or Pages/Shared.`);
       }
     }
   }
+}
+
+function parseWebSelector(selector) {
+  if (typeof selector !== 'string') {
+    return null;
+  }
+  const id = selector.match(/^#([A-Za-z_][A-Za-z0-9_-]*)$/);
+  if (id) {
+    return { name: 'id', value: id[1] };
+  }
+  const testId = selector.match(/^\[data-testid=(["'])([A-Za-z0-9_-]+)\1\]$/);
+  return testId ? { name: 'data-testid', value: testId[2] } : null;
+}
+
+function hasHtmlAttribute(source, attribute) {
+  return [...source.matchAll(/\s(id|data-testid)\s*=\s*(["'])([^"']*)\2/g)]
+    .some((match) => match[1] === attribute.name && match[3] === attribute.value);
 }
 
 function validateScreenFiles(root, map, usedComponents, errors) {

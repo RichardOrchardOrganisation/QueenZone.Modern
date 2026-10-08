@@ -9,12 +9,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/Messages/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/PrivateMessagingWorkflowTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.messages.inbox",
@@ -28,10 +27,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Messages/Archived.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.messages.archived",
@@ -45,12 +43,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/Messages/Conversation.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/PrivateMessagingWorkflowTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.messages.conversation",
@@ -64,10 +61,10 @@
       "sources": [
         "src/QueenZone.Web/Pages/Messages/Compose.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
-      "selectors": [],
+      "selectors": [
+        "#recipient-query"
+      ],
       "signIn": "member",
       "recipe": "",
       "id": "web.messages.compose",

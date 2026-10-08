@@ -10,13 +10,12 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/ParticipationClarityTests.cs",
         "tests/QueenZone.Web.E2E/SmokeTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
       "id": "web.forum.index",
@@ -32,10 +31,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/Category.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
       "id": "web.forum.category",
@@ -49,10 +47,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/CategoryPage.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.forum.categoryPage",
@@ -71,14 +68,14 @@
         "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
         "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/SmokeTests.cs",
         "tests/QueenZone.Web.E2E/ForumPostingWorkflowTests.cs",
         "tests/QueenZone.Web.E2E/ForumYoutubeVideoTests.cs"
       ],
-      "selectors": [],
+      "selectors": [
+        "[data-testid=\"forum-video-card\"]"
+      ],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
       "id": "web.forum.topic",
@@ -95,12 +92,12 @@
         "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
         "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/ForumYoutubeVideoTests.cs"
       ],
-      "selectors": [],
+      "selectors": [
+        "[data-testid=\"forum-video-card\"]"
+      ],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
       "id": "web.forum.topicPage",
@@ -114,12 +111,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/NewThread.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/ForumPostingWorkflowTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.forum.newThread",
@@ -133,10 +129,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/EditPost.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.forum.editPost",
@@ -150,10 +145,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/Report.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.forum.report",
@@ -167,12 +161,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/Block.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/ForumBlockWorkflowTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.forum.block",
@@ -186,10 +179,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/HideAuthor.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.forum.hideAuthor",
@@ -203,10 +195,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/ArchiveAuthor.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.forum.archiveAuthor",
@@ -224,12 +215,12 @@
         "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
         "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/ForumYoutubeVideoTests.cs"
       ],
-      "selectors": [],
+      "selectors": [
+        "[data-testid=\"forum-video-card\"]"
+      ],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/forum.md",
       "id": "web.forum.youtube",
@@ -244,10 +235,9 @@
         "src/QueenZone.Web/Pages/Forum/LegacyPostRedirect.cshtml",
         "src/QueenZone.Web/Content/LegacyQueenZoneLinks.cs"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "Handler or redirect: verify the response, destination and any session change; no page control to select.",
       "signIn": "none",
       "recipe": "",
       "id": "web.forum.legacyPostRedirect",

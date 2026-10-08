@@ -7,10 +7,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/About.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.about",
@@ -24,10 +23,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Privacy.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.privacy",
@@ -41,10 +39,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Terms.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.terms",
@@ -58,10 +55,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Links.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.links",
@@ -75,12 +71,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/MobileApps.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/ParticipationClarityTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.mobileApps",
@@ -94,10 +89,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Help/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.contact",
@@ -111,10 +105,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Help/Confirmation.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.contactConfirmation",
@@ -128,10 +121,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Help/LegacyRedirect.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "Handler or redirect: verify the response, destination and any session change; no page control to select.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.helpRedirect",
@@ -146,10 +138,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Error.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.error",
@@ -163,10 +154,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/NotFound.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.static.notFound",
@@ -188,12 +178,11 @@
         "src/QueenZone.Web/Pages/Appearance.cshtml",
         "src/QueenZone.Web/Pages/Appearance.cshtml.cs"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.Tests/AppearancePageTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": ""
     }

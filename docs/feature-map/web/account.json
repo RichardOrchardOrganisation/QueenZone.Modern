@@ -11,10 +11,9 @@
         "src/QueenZone.Web/Pages/Shared/_AccountSocialProfilesSettings.cshtml",
         "src/QueenZone.Web/Pages/Shared/_AccountMessagePrivacySettings.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.account.settings",
@@ -35,10 +34,9 @@
         "src/QueenZone.Web/Pages/Account/_MySubmissionTabs.cshtml",
         "src/QueenZone.Web/Pages/Account/_MySubmissionTrivia.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.account.submissions",
@@ -52,10 +50,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Account/Delete.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.account.delete",
@@ -69,10 +66,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Account/DeletionRequested.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.account.deletionRequested",
@@ -86,10 +82,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Account/DeletionStatus.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.account.deletionStatus",
@@ -105,10 +100,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Members/Profile.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.account.profile",
@@ -122,10 +116,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/DataDeletion.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.account.dataDeletion",
@@ -140,8 +133,6 @@
         "src/QueenZone.Web/Pages/Account/Crosswords.cshtml",
         "src/QueenZone.Web/Pages/Account/Crosswords.cshtml.cs"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/CrosswordResultsTests.cs"
       ],
