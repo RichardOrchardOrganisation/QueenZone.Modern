@@ -5,18 +5,10 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const workflow = readFileSync(
-  path.join(repoRoot, '.github/workflows/opentofu-drift.yml'),
-  'utf8',
-);
-const planWorkflow = readFileSync(
-  path.join(repoRoot, '.github/workflows/opentofu-plan.yml'),
-  'utf8',
-);
-const passwordExport = readFileSync(
-  path.join(repoRoot, 'scripts/Export-EphemeralSqlAdminPassword.ps1'),
-  'utf8',
-);
+const readText = (relativePath) => readFileSync(path.join(repoRoot, relativePath), 'utf8').replaceAll('\r\n', '\n');
+const workflow = readText('.github/workflows/opentofu-drift.yml');
+const planWorkflow = readText('.github/workflows/opentofu-plan.yml');
+const passwordExport = readText('scripts/Export-EphemeralSqlAdminPassword.ps1');
 
 test('drift check plans production and dev with the same read-only identity as opentofu-plan', () => {
   assert.match(workflow, /matrix:\n\s+root: \[production, dev\]/);
