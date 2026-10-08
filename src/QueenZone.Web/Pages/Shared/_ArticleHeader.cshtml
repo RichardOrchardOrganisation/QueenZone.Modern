@@ -1,0 +1,39 @@
+@model ArticleHeader
+<section class="qz-article-hero">
+  @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
+  {
+    <img src="@Model.ImageUrl"
+         alt="@Model.Title"
+         width="600"
+         height="400"
+         decoding="async"
+         fetchpriority="high">
+  }
+  else
+  {
+    <partial name="_PictureImage" model="@("/design-system/assets/img-hero.jpg", "", false, (string?)null)" />
+  }
+  <div class="qz-container qz-article-hero__content qz-breadcrumbs-on-dark">
+    <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+    <div class="qz-eyebrow">@Model.Label</div>
+    <h1>@Model.Title</h1>
+    <div class="qz-meta">
+      @if (!string.IsNullOrWhiteSpace(Model.AuthorName))
+      {
+        if (Model.AuthorMemberId is Guid authorMemberId)
+        {
+          <span>Submitted by <a class="qz-attribution-link" href="/members/@authorMemberId">@Model.AuthorName</a> &middot; </span>
+        }
+        else
+        {
+          <span>@Model.AuthorName &middot; </span>
+        }
+      }
+      <time datetime="@Model.PublishedAt.ToString("yyyy-MM-dd")">@Model.PublishedAt.ToString("dd MMMM yyyy")</time>
+      @if (Model.ReadTimeMinutes is int readTimeMinutes)
+      {
+        <span> &middot; @readTimeMinutes min read</span>
+      }
+    </div>
+  </div>
+</section>

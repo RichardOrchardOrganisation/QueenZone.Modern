@@ -26,3 +26,14 @@ public sealed record ArticleDetailItem(
     string? ImageUrl = null,
     string? AuthorName = null,
     string? Tags = null);
+
+/// <summary>Shared public article hero, independent of the article's storage and route.</summary>
+public sealed record ArticleHeader(
+    string Title,
+    string? ImageUrl,
+    IReadOnlyList<BreadcrumbItem> Breadcrumbs,
+    string Label,
+    DateTime PublishedAt,
+    string? AuthorName = null,
+    Guid? AuthorMemberId = null,
+    int? ReadTimeMinutes = null);

@@ -11,6 +11,8 @@ public sealed class DetailModel(
 {
     public ArticleDetailItem? Item { get; private set; }
 
+    public ArticleHeader? Header { get; private set; }
+
     public string StructuredDataJson { get; private set; } = string.Empty;
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
@@ -45,6 +47,10 @@ public sealed class DetailModel(
             detail.Excerpt,
             siteOptions.Value.PublicBaseUrl,
             detail.AuthorName);
+
+        Header = new ArticleHeader(detail.Title, detail.ImageUrl, Breadcrumbs,
+            string.IsNullOrWhiteSpace(detail.CategoryName) ? "Articles archive" : detail.CategoryName,
+            detail.PublishedAt, detail.AuthorName);
 
         return Page();
     }

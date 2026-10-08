@@ -63,7 +63,8 @@
     {
       "aliases": [],
       "sources": [
-        "src/QueenZone.Web/Pages/Articles/Detail.cshtml"
+        "src/QueenZone.Web/Pages/Articles/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_ArticleHeader.cshtml"
       ],
       "testIds": [],
       "flows": [],
@@ -80,7 +81,8 @@
     {
       "aliases": [],
       "sources": [
-        "src/QueenZone.Web/Pages/Articles/CommunityDetail.cshtml"
+        "src/QueenZone.Web/Pages/Articles/CommunityDetail.cshtml",
+        "src/QueenZone.Web/Pages/Shared/_ArticleHeader.cshtml"
       ],
       "testIds": [],
       "flows": [],

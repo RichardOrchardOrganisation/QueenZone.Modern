@@ -122,6 +122,14 @@ public sealed class ArticlesRoutesTests : IClassFixture<QueenZoneWebApplicationF
         Assert.Contains("tags", body);
         Assert.Contains(NewsArticleImage.ResolveImageUrl("editors/admin/overlay.webp", null)!, body);
         Assert.DoesNotContain("/design-system/assets/img-hero.jpg", body);
+        var hero = TestHtmlAssertions.SingleElement(body, ".qz-article-hero");
+        var image = Assert.Single(hero.QuerySelectorAll("img"));
+        Assert.Equal(NewsArticleImage.ResolveImageUrl("editors/admin/overlay.webp", null), image.GetAttribute("src"));
+        Assert.Equal("Overlay archive title", image.GetAttribute("alt"));
+        Assert.Equal("high", image.GetAttribute("fetchpriority"));
+        Assert.Equal("Overlay archive title", hero.QuerySelector("h1")!.TextContent);
+        Assert.Contains("Overlay Author", hero.TextContent);
+        Assert.DoesNotContain("min read", hero.TextContent);
     }
 
     [Fact]
@@ -132,6 +140,9 @@ public sealed class ArticlesRoutesTests : IClassFixture<QueenZoneWebApplicationF
         var body = await client.GetStringAsync("/articles/101/inside-the-making-of-bohemian-rhapsody");
 
         Assert.Contains("Six weeks, three studios", body);
+        var fallback = TestHtmlAssertions.SingleElement(body, ".qz-article-hero picture img");
+        Assert.StartsWith("/design-system/assets/img-hero", fallback.GetAttribute("src"));
+        Assert.Equal(string.Empty, fallback.GetAttribute("alt"));
         Assert.Contains("qz-breadcrumbs", body);
         Assert.Contains("href=\"/articles\"", body);
         Assert.Contains(">Articles<", body);
