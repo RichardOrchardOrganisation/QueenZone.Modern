@@ -81,6 +81,22 @@ internal static class ToolArgs
         return true;
     }
 
+    /// <summary>
+    /// Resolves the legacy SQL connection string: the explicit value, then
+    /// <c>ConnectionStrings__QueenZoneLegacy</c>, then <c>appsettings.Local.json</c>. Returns null when none is set.
+    /// </summary>
+    public static string? ResolveLegacyConnectionString(string? explicitValue, string? settingsFile)
+    {
+        var connectionString = explicitValue ?? Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            var settings = ToolsLocalSettings.TryLoad(settingsFile);
+            connectionString = settings?.QueenZoneLegacy ?? settings?.QueenZoneLegacyLive;
+        }
+
+        return string.IsNullOrWhiteSpace(connectionString) ? null : connectionString;
+    }
+
     /// <summary>Waits between processed rows only when a positive delay was requested.</summary>
     public static Task DelayIfPositiveAsync(int milliseconds, CancellationToken cancellationToken) =>
         milliseconds > 0 ? Task.Delay(milliseconds, cancellationToken) : Task.CompletedTask;

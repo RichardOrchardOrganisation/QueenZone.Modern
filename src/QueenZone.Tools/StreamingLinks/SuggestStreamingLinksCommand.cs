@@ -20,7 +20,7 @@ internal sealed record StreamingLinkSuggestion(
 /// <summary>
 /// <c>suggest-streaming-links</c>: searches Apple Music (iTunes Search API) and Spotify (Web API)
 /// for every album and track and writes a CSV for a human to review. It never writes to the
-/// database; <c>apply-streaming-links</c> (#2182) imports rows marked <c>approved=yes</c>.
+/// database; <see cref="ApplyStreamingLinksCommand"/> imports rows marked <c>approved=yes</c>.
 /// See <c>docs/architecture/streaming-links-backfill.md</c>.
 /// </summary>
 internal static class SuggestStreamingLinksCommand
@@ -321,14 +321,8 @@ internal sealed class SuggestStreamingLinksOptions
             return Invalid("--out is required.");
         }
 
-        var connectionString = state.ConnectionString ?? Environment.GetEnvironmentVariable("ConnectionStrings__QueenZoneLegacy");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            var settings = ToolsLocalSettings.TryLoad(state.SettingsFile);
-            connectionString = settings?.QueenZoneLegacy ?? settings?.QueenZoneLegacyLive;
-        }
-
-        if (string.IsNullOrWhiteSpace(connectionString))
+        var connectionString = ToolArgs.ResolveLegacyConnectionString(state.ConnectionString, state.SettingsFile);
+        if (connectionString is null)
         {
             return Invalid("--connection-string, ConnectionStrings__QueenZoneLegacy, or appsettings.Local.json is required.");
         }

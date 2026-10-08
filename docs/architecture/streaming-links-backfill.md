@@ -96,15 +96,52 @@ Open the CSV in a spreadsheet and set `approved` to `yes` on rows to keep. Check
 
 - **Flags.** A `remaster` flag is normal for Queen, because the 2011 remasters are the main catalogue. Prefer the standard edition over `deluxe` and `edition` candidates, and reject `live` and `compilation` candidates for studio albums.
 - **Rows below about 90**, especially when the year or track count is off.
-- **`existingUrl`.** Approving a row replaces the stored link. Manual links are protected unless `--overwrite-manual` is passed to apply (#2182).
+- **`existingUrl`.** Approving a row replaces the stored link. Manual links are protected unless `--overwrite-manual` is passed to apply.
 - **Open a sample of links** to confirm they play the right recording.
 
 Leave rows blank to skip them. To fix a link by hand, paste it on the admin page instead.
 
 ## 4. Apply
 
-`apply-streaming-links --file streaming-links.csv` is a dry run by default. Add `--apply` to write.
-It imports approved rows as `Source = imported`. See #2182.
+```powershell
+# Dry run (the default): prints what would be inserted, updated or skipped. Reads the database, writes nothing.
+dotnet run --project src/QueenZone.Tools -- apply-streaming-links --file streaming-links.csv
+
+# Write the changes.
+dotnet run --project src/QueenZone.Tools -- apply-streaming-links --file streaming-links.csv --apply
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--file <path>` | The reviewed CSV. Columns are read by header name, so a spreadsheet may reorder them or add its own. `albumId`, `albumSongId`, `provider`, `candidateUrl` and `approved` are required. |
+| `--apply` | Write. Without it the run is a dry run. |
+| `--overwrite-manual` | Also replace links an admin entered by hand. Off by default. |
+| `--connection-string`, `--settings-file` | As for suggest. The dry run needs the database too, to compare with the stored links. |
+
+Rules:
+- Only rows with `approved` = `yes` (any case) are considered. Everything else is counted as "not approved" and ignored.
+- Every `candidateUrl` is re-validated and normalised with the same `StreamingLinkUrl` validator as the admin page. Album rows (empty `albumSongId`) need an album link and track rows need a track link, from the provider named in `provider`.
+- The album must exist and the track must be on that album. A second approved row for the same album or track and provider is rejected as a duplicate; the first one wins.
+- Links are written with `Source = imported` and `UpdatedBy = apply-streaming-links`.
+- A stored link with the same URL is left alone, so **re-running the same file changes nothing**.
+- A stored `imported` link with a different URL is updated. A stored `manual` link is skipped and reported unless `--overwrite-manual` is passed.
+
+Each approved row prints one line (`insert`, `update`, `skip (unchanged)`, `skip (manual link …)` or `skip (invalid)` with the reason), followed by counts.
+Invalid rows never stop the run: valid rows are still applied. The exit code is `1` when any approved row was invalid or a write failed, so fix the CSV and re-run. Re-running is safe.
+
+### When the site shows the new links
+
+The public discography pages and the `/api/v1` discography responses are cached in the web app's memory
+(`PublicQueryCacheService`, see [`public-query-cache.md`](public-query-cache.md)) for up to **30 minutes**.
+The tool runs on an admin's machine and cannot clear that cache. Either wait for the TTL, or clear it now by
+saving any album or song on `/admin/discography` (every admin discography write calls `InvalidateDiscographyCache`),
+or by restarting the App Service. Admin pages are not cached, so `/admin/discography` shows the new links straight away.
+
+### First backfill
+
+Run the full loop against DEV (`dev.queenzone.org`) first: suggest, review, dry run, `--apply`, then check a few
+album and song pages. Repeat against production with a fresh suggest run, because album and song ids are only
+guaranteed to match within one database.
 
 ## Re-runs
 
