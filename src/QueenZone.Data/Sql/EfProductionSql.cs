@@ -268,9 +268,14 @@ internal static class EfProductionSql
                 CAST(s.Q_ALBUM_ID AS int) AS Q_ALBUM_ID,
                 a.ALBUM_NAME,
                 a.RELEASE_DATE,
-                CAST(s.TRACK_NUMBER AS int) AS TRACK_NUMBER
+                CAST(s.TRACK_NUMBER AS int) AS TRACK_NUMBER,
+                links.Provider AS STREAMING_PROVIDER,
+                links.Url AS STREAMING_URL
             FROM dbo.Q_ALBUM_SONG_T s
             INNER JOIN dbo.Q_ALBUM_T a ON CAST(a.Q_ALBUM_ID AS int) = CAST(s.Q_ALBUM_ID AS int)
+            LEFT JOIN dbo.DiscographyStreamingLinks links
+                ON links.AlbumId = CAST(s.Q_ALBUM_ID AS int)
+               AND links.AlbumSongId = CAST(s.Q_ALBUM_SONG_ID AS int)
             WHERE a.ACTIVE = 1
               AND CAST(s.Q_ALBUM_ID AS int) IN ({parameters})
             ORDER BY ISNULL(s.TRACK_NUMBER, 32767), s.Q_ALBUM_SONG_ID

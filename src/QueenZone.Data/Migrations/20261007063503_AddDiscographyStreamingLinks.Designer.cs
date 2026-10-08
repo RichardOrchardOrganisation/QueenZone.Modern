@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QueenZone.Data;
 
@@ -11,9 +12,11 @@ using QueenZone.Data;
 namespace QueenZone.Data.Migrations
 {
     [DbContext(typeof(QueenZoneDbContext))]
-    partial class QueenZoneDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261007063503_AddDiscographyStreamingLinks")]
+    partial class AddDiscographyStreamingLinks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3648,11 +3651,6 @@ namespace QueenZone.Data.Migrations
                     b.HasIndex("SourceKey")
                         .IsUnique()
                         .HasDatabaseName("UQ_SearchDocument_SourceKey");
-
-                    b.HasIndex("Title")
-                        .HasDatabaseName("IX_SearchDocument_Title");
-
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Title"), new[] { "ContentType", "Url" });
 
                     b.HasIndex("ContentType", "PublishedAt")
                         .IsDescending(false, true)

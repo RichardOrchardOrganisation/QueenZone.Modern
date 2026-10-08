@@ -190,7 +190,9 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddSingleton<IFanPerformanceRepository>(_ => new InMemoryFanPerformanceRepository(fanPerformanceStore));
         services.AddSingleton<IAdminFanPerformanceRepository>(_ => new InMemoryAdminFanPerformanceRepository(fanPerformanceStore));
         services.AddSingleton<ILegacyMemberLookupRepository>(_ => new InMemoryLegacyMemberLookupRepository(SampleLegacyMemberData.CreateSeedMatches()));
-        var discographyStore = new InMemoryDiscographyStore(SampleDiscographyData.CreateSeedAlbums());
+        var discographyStore = new InMemoryDiscographyStore(
+            SampleDiscographyData.CreateSeedAlbums(),
+            SampleDiscographyData.CreateSeedStreamingLinks());
         services.AddSingleton<IDiscographyRepository>(_ => new InMemoryDiscographyRepository(discographyStore));
         services.AddSingleton<IAdminDiscographyRepository>(_ => new InMemoryAdminDiscographyRepository(discographyStore));
         var historyStore = new SharedQueenHistoryStore(SampleQueenHistoryData.CreateSeedEvents());

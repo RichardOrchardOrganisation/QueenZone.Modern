@@ -48,6 +48,17 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 SONG_LYRICS TEXT,
                 SONG_NOTES TEXT
             );
+            CREATE TABLE DiscographyStreamingLinks (
+                Id INTEGER PRIMARY KEY,
+                AlbumId INTEGER NOT NULL,
+                AlbumSongId INTEGER,
+                Provider TEXT NOT NULL,
+                ExternalId TEXT NOT NULL,
+                Url TEXT NOT NULL,
+                Source TEXT NOT NULL,
+                UpdatedAtUtc TEXT NOT NULL,
+                UpdatedBy TEXT
+            );
             CREATE TABLE StageList (
                 Q_STAGE_ID INTEGER NOT NULL,
                 TITLE TEXT NOT NULL,
@@ -122,6 +133,12 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
             VALUES (2, 'Hidden', '1970-01-01', NULL, 'Queen', NULL, NULL, 0);
             INSERT INTO AlbumSong (Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES)
             VALUES (10, 'Bohemian Rhapsody', 1, 'Is this the real life', 'Single');
+            INSERT INTO DiscographyStreamingLinks (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (1, NULL, 'apple-music', '1', 'https://music.apple.com/gb/album/opera/1', 'manual', '2026-01-01'),
+                (1, NULL, 'spotify', 'a', 'https://open.spotify.com/album/a', 'imported', '2026-01-01'),
+                (1, 10, 'spotify', 't', 'https://open.spotify.com/track/t', 'manual', '2026-01-01'),
+                (2, NULL, 'spotify', 'h', 'https://open.spotify.com/album/hidden', 'manual', '2026-01-01');
             """);
 
         var repository = new EfDiscographyRepository(
@@ -148,6 +165,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Single(detail.Songs);
         Assert.True(detail.Songs[0].IsSingle);
         Assert.Equal(AlbumCoverUrl.Build("bo-rhap.webp"), detail.Songs[0].CoverUrl);
+        Assert.Equal(
+            [
+                new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/album/a"),
+                new StreamingLink(StreamingProvider.AppleMusic, "https://music.apple.com/gb/album/opera/1"),
+            ],
+            detail.StreamingLinks);
+        Assert.Equal([new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/track/t")], detail.Songs[0].StreamingLinks);
 
         Assert.Null(await repository.GetAlbumByIdAsync(2));
         Assert.Null(await repository.GetAlbumByIdAsync(99));
@@ -239,6 +263,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 (102, 10, 'Keep Yourself Alive', 1, 'KYA lyrics', 'Debut single', 'kya.webp', 1),
                 (111, 11, 'Seven Seas of Rhye', 0, 'Later lyrics', 'II notes', NULL, 11),
                 (131, 13, 'Seven Seas of Rhye', 0, 'Hidden lyrics', NULL, NULL, 1);
+            INSERT INTO DiscographyStreamingLinks
+                (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (10, 101, 'apple-music', 'early-apple', 'https://music.apple.com/track/early', 'manual', '2026-10-07'),
+                (10, 101, 'spotify', 'early-spotify', 'https://open.spotify.com/track/early', 'manual', '2026-10-07'),
+                (11, 111, 'spotify', 'later-spotify', 'https://open.spotify.com/track/later', 'manual', '2026-10-07'),
+                (10, NULL, 'spotify', 'album-only', 'https://open.spotify.com/album/debut', 'manual', '2026-10-07');
             """);
 
         var fallback = new EfDiscographyRepository(
@@ -281,6 +312,17 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 PICTURE_URL TEXT,
                 ACTIVE INTEGER NOT NULL
             );
+            CREATE TABLE DiscographyStreamingLinks (
+                Id INTEGER PRIMARY KEY,
+                AlbumId INTEGER NOT NULL,
+                AlbumSongId INTEGER,
+                Provider TEXT NOT NULL,
+                ExternalId TEXT NOT NULL,
+                Url TEXT NOT NULL,
+                Source TEXT NOT NULL,
+                UpdatedAtUtc TEXT NOT NULL,
+                UpdatedBy TEXT
+            );
             CREATE TABLE AlbumSongByAlbum (
                 Q_ALBUM_SONG_ID INTEGER NOT NULL,
                 Q_ALBUM_ID INTEGER NOT NULL,
@@ -305,6 +347,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                 (102, 10, 'Keep Yourself Alive', 1, 'KYA lyrics', 'Debut single', 'kya.webp', 1),
                 (111, 11, 'Seven Seas of Rhye', 0, 'Later lyrics', 'II notes', NULL, 11),
                 (131, 13, 'Seven Seas of Rhye', 0, 'Hidden lyrics', NULL, NULL, 1);
+            INSERT INTO DiscographyStreamingLinks
+                (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (10, 101, 'apple-music', 'early-apple', 'https://music.apple.com/track/early', 'manual', '2026-10-07'),
+                (10, 101, 'spotify', 'early-spotify', 'https://open.spotify.com/track/early', 'manual', '2026-10-07'),
+                (11, 111, 'spotify', 'later-spotify', 'https://open.spotify.com/track/later', 'manual', '2026-10-07'),
+                (10, NULL, 'spotify', 'album-only', 'https://open.spotify.com/album/debut', 'manual', '2026-10-07');
             """);
 
         var repository = new EfDiscographyRepository(
@@ -330,9 +379,13 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
                     s.Q_ALBUM_ID,
                     d.ALBUM_NAME,
                     d.RELEASE_DATE,
-                    s.TRACK_NUMBER
+                    s.TRACK_NUMBER,
+                    links.Provider AS STREAMING_PROVIDER,
+                    links.Url AS STREAMING_URL
                 FROM AlbumSongByAlbum s
                 INNER JOIN AlbumDisplay d ON d.Q_ALBUM_ID = s.Q_ALBUM_ID
+                LEFT JOIN DiscographyStreamingLinks links
+                    ON links.AlbumId = s.Q_ALBUM_ID AND links.AlbumSongId = s.Q_ALBUM_SONG_ID
                 WHERE d.ACTIVE = 1
                 """);
         counter.Reads = 0;
@@ -346,6 +399,18 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         SongIdentityTests.AssertSongDetailEqual(expectedKeep, keepAlive);
         Assert.Equal(AlbumCoverUrl.Build("kya.webp"), keepAlive!.CoverUrl);
         Assert.DoesNotContain(tracks, track => track.AlbumId == 13);
+        Assert.Equal(3, tracks.Count);
+        Assert.Equal(
+            new[]
+            {
+                new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/track/early"),
+                new StreamingLink(StreamingProvider.AppleMusic, "https://music.apple.com/track/early"),
+            },
+            tracks.Single(track => track.AlbumSongId == 101).StreamingLinks);
+        Assert.Equal(
+            new[] { new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/track/later") },
+            tracks.Single(track => track.AlbumSongId == 111).StreamingLinks);
+        Assert.Empty(tracks.Single(track => track.AlbumSongId == 102).StreamingLinks);
     }
 
     [Fact]
@@ -379,6 +444,9 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         Assert.Contains("SONG_LYRICS", sql, StringComparison.Ordinal);
         Assert.Contains("SONG_NOTES", sql, StringComparison.Ordinal);
         Assert.Contains("a.ACTIVE = 1", sql, StringComparison.Ordinal);
+        Assert.Contains("LEFT JOIN dbo.DiscographyStreamingLinks", sql, StringComparison.Ordinal);
+        Assert.Contains("links.AlbumId = CAST(s.Q_ALBUM_ID AS int)", sql, StringComparison.Ordinal);
+        Assert.Contains("links.AlbumSongId = CAST(s.Q_ALBUM_SONG_ID AS int)", sql, StringComparison.Ordinal);
         Assert.Contains("@albumId0", sql, StringComparison.Ordinal);
         Assert.Contains("@albumId17", sql, StringComparison.Ordinal);
         Assert.DoesNotContain("LOWER(", sql, StringComparison.OrdinalIgnoreCase);

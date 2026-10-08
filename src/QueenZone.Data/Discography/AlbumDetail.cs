@@ -9,4 +9,8 @@ public sealed record AlbumDetail(
     string? GeneralNotes,
     string? CoverUrl,
     IReadOnlyList<AlbumSong> Songs,
-    DateTime? ReleaseDate = null);
+    DateTime? ReleaseDate = null)
+{
+    /// <summary>Album-level links from <c>DiscographyStreamingLinks</c>.</summary>
+    public IReadOnlyList<StreamingLink> StreamingLinks { get; init; } = [];
+}

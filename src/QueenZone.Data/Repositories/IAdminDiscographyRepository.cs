@@ -41,4 +41,26 @@ public interface IAdminDiscographyRepository
 
     /// <summary>Deletes the song and closes the gap in its album's track numbers.</summary>
     Task DeleteSongAsync(int songId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores the album-level link for <paramref name="provider"/>, or removes it when
+    /// <paramref name="link"/> is null. Throws <see cref="ArgumentException"/> when the link is
+    /// for another provider or is not an album link.
+    /// </summary>
+    Task SetAlbumStreamingLinkAsync(
+        int albumId,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores the track-level link for <paramref name="provider"/>, or removes it when
+    /// <paramref name="link"/> is null. Throws <see cref="ArgumentException"/> when the link is
+    /// for another provider or is not a track link.
+    /// </summary>
+    Task SetSongStreamingLinkAsync(
+        int songId,
+        StreamingProvider provider,
+        StreamingLinkWrite? link,
+        CancellationToken cancellationToken = default);
 }

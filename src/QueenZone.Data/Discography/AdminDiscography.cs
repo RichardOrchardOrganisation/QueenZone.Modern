@@ -31,6 +31,9 @@ public sealed record AdminAlbum(
 
     public string? CoverUrl => AlbumCoverUrl.Build(PictureFileName) ?? AlbumCoverUrl.Build(ThumbFileName);
 
+    /// <summary>Album-level links (track links are on each <see cref="AdminAlbumSong"/>).</summary>
+    public IReadOnlyList<AdminStreamingLink> StreamingLinks { get; init; } = [];
+
     public AdminAlbumInput ToInput() => new(Name, ArtistId, ReleaseDate, GeneralNotes, IsActive);
 }
 
@@ -49,6 +52,8 @@ public sealed record AdminAlbumSong(
     string? CoverFileName)
 {
     public string? CoverUrl => AlbumCoverUrl.Build(CoverFileName);
+
+    public IReadOnlyList<AdminStreamingLink> StreamingLinks { get; init; } = [];
 
     public AdminSongInput ToInput() => new(Title, Lyrics, Notes, IsSingle);
 }

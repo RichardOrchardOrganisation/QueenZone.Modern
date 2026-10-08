@@ -5,7 +5,8 @@ namespace QueenZone.Data;
 /// <summary>
 /// Reads the legacy studio-album catalogue via its original stored procedures
 /// (<c>Q_ALBUM_LIST_SP</c>, <c>Q_ALBUM_T_DISPLAY_SP</c>) plus a direct tracklist query
-/// ordered by <c>TRACK_NUMBER</c>, invoked through EF Core rather than Dapper.
+/// ordered by <c>TRACK_NUMBER</c>, invoked through EF Core rather than Dapper. Streaming links
+/// come from the EF-managed <c>DiscographyStreamingLinks</c> table.
 /// </summary>
 public sealed class EfDiscographyRepository : IDiscographyRepository
 {
@@ -111,6 +112,19 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
                 .ToListAsync(cancellationToken);
         }
 
+        var links = await dbContext.DiscographyStreamingLinks
+            .AsNoTracking()
+            .Where(link => link.AlbumId == albumId)
+            .Select(link => new { link.AlbumSongId, link.Provider, link.Url })
+            .ToListAsync(cancellationToken);
+
+        IReadOnlyList<StreamingLink> LinksFor(int? albumSongId) =>
+            links
+                .Where(link => link.AlbumSongId == albumSongId)
+                .OrderBy(link => link.Provider)
+                .Select(link => new StreamingLink(link.Provider, link.Url))
+                .ToList();
+
         var songItems = songRows
             .Select(row => new AlbumSong(
                 row.Q_ALBUM_SONG_ID,
@@ -118,7 +132,10 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
                 row.IS_SINGLE == 1,
                 string.IsNullOrWhiteSpace(row.SONG_LYRICS) ? null : row.SONG_LYRICS,
                 string.IsNullOrWhiteSpace(row.SONG_NOTES) ? null : row.SONG_NOTES,
-                AlbumCoverUrl.Build(row.COVER_URL)))
+                AlbumCoverUrl.Build(row.COVER_URL))
+            {
+                StreamingLinks = LinksFor(row.Q_ALBUM_SONG_ID),
+            })
             .ToList();
 
         return new AlbumDetail(
@@ -130,7 +147,10 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
             GeneralNotes: string.IsNullOrWhiteSpace(album.GENERAL_NOTES) ? null : album.GENERAL_NOTES,
             CoverUrl: AlbumCoverUrl.Build(album.PICTURE_URL) ?? AlbumCoverUrl.Build(album.THUMB_URL),
             Songs: songItems,
-            ReleaseDate: album.RELEASE_DATE);
+            ReleaseDate: album.RELEASE_DATE)
+        {
+            StreamingLinks = LinksFor(null),
+        };
     }
 
     public Task<IReadOnlyList<SongSummary>> GetSongsAsync(CancellationToken cancellationToken = default) =>
@@ -166,16 +186,28 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
         }
 
         return songRows
-            .Select(row => new SongTrackSource(
-                row.Q_ALBUM_SONG_ID,
-                row.SONG_TITLE,
-                string.IsNullOrWhiteSpace(row.SONG_LYRICS) ? null : row.SONG_LYRICS,
-                string.IsNullOrWhiteSpace(row.SONG_NOTES) ? null : row.SONG_NOTES,
-                row.IS_SINGLE == 1,
-                row.Q_ALBUM_ID,
-                row.ALBUM_NAME ?? string.Empty,
-                row.RELEASE_DATE,
-                AlbumCoverUrl.Build(row.COVER_URL)))
+            .GroupBy(row => (row.Q_ALBUM_ID, row.Q_ALBUM_SONG_ID))
+            .Select(group =>
+            {
+                var row = group.First();
+                return new SongTrackSource(
+                    row.Q_ALBUM_SONG_ID,
+                    row.SONG_TITLE,
+                    string.IsNullOrWhiteSpace(row.SONG_LYRICS) ? null : row.SONG_LYRICS,
+                    string.IsNullOrWhiteSpace(row.SONG_NOTES) ? null : row.SONG_NOTES,
+                    row.IS_SINGLE == 1,
+                    row.Q_ALBUM_ID,
+                    row.ALBUM_NAME ?? string.Empty,
+                    row.RELEASE_DATE,
+                    AlbumCoverUrl.Build(row.COVER_URL))
+                {
+                    StreamingLinks = group
+                        .Where(link => link.STREAMING_PROVIDER is not null && link.STREAMING_URL is not null)
+                        .Select(link => new StreamingLink(StreamingProviders.FromKey(link.STREAMING_PROVIDER!), link.STREAMING_URL!))
+                        .OrderBy(link => link.Provider)
+                        .ToList(),
+                };
+            })
             .ToList();
     }
 
@@ -275,5 +307,9 @@ public sealed class EfDiscographyRepository : IDiscographyRepository
         public DateTime? RELEASE_DATE { get; set; }
 
         public int? TRACK_NUMBER { get; set; }
+
+        public string? STREAMING_PROVIDER { get; set; }
+
+        public string? STREAMING_URL { get; set; }
     }
 }

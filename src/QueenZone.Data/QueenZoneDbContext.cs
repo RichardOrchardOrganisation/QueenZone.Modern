@@ -115,6 +115,8 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<QueenLinkCheckEntity> QueenLinkChecks => Set<QueenLinkCheckEntity>();
 
+    public DbSet<DiscographyStreamingLinkEntity> DiscographyStreamingLinks => Set<DiscographyStreamingLinkEntity>();
+
     public DbSet<PrivateConversationEntity> PrivateConversations => Set<PrivateConversationEntity>();
 
     public DbSet<PrivateConversationParticipantEntity> PrivateConversationParticipants =>

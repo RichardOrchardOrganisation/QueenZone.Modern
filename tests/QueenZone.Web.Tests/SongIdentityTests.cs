@@ -123,7 +123,14 @@ public sealed class SongIdentityTests
         Assert.Equal(expected.Title, actual.Title);
         Assert.Equal(expected.Lyrics, actual.Lyrics);
         Assert.Equal(expected.CoverUrl, actual.CoverUrl);
-        Assert.Equal(expected.Appearances, actual.Appearances);
+        Assert.Equal(expected.StreamingLinks, actual.StreamingLinks);
+        Assert.Equal(
+            expected.Appearances.Select(appearance => (appearance.AlbumId, appearance.AlbumName, appearance.AlbumSlug, appearance.ReleaseYear, appearance.IsSingle, appearance.Notes, appearance.CoverUrl)),
+            actual.Appearances.Select(appearance => (appearance.AlbumId, appearance.AlbumName, appearance.AlbumSlug, appearance.ReleaseYear, appearance.IsSingle, appearance.Notes, appearance.CoverUrl)));
+        foreach (var (expectedAppearance, actualAppearance) in expected.Appearances.Zip(actual.Appearances))
+        {
+            Assert.Equal(expectedAppearance.StreamingLinks, actualAppearance.StreamingLinks);
+        }
     }
 
     [Fact]

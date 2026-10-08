@@ -19,7 +19,10 @@ public static class SongCatalog
                 album.AlbumId,
                 album.Name,
                 album.ReleaseDate ?? YearStart(album.ReleaseYear),
-                song.CoverUrl)))
+                song.CoverUrl)
+            {
+                StreamingLinks = song.StreamingLinks,
+            }))
             .ToList();
 
     public static async Task<IReadOnlyList<SongTrackSource>> LoadTracksAsync(
@@ -120,10 +123,24 @@ public static class SongCatalog
                     track.AlbumReleaseDate?.Year,
                     track.IsSingle,
                     string.IsNullOrWhiteSpace(track.Notes) ? null : track.Notes,
-                    track.CoverUrl))
+                    track.CoverUrl)
+                {
+                    StreamingLinks = track.StreamingLinks,
+                })
                 .ToList(),
-            CoverUrl: coverUrl);
+            CoverUrl: coverUrl)
+        {
+            StreamingLinks = EarliestLinkPerProvider(ordered),
+        };
     }
+
+    private static IReadOnlyList<StreamingLink> EarliestLinkPerProvider(IReadOnlyList<SongTrackSource> ordered) =>
+        StreamingProviders.All
+            .Select(provider => ordered
+                .SelectMany(track => track.StreamingLinks)
+                .FirstOrDefault(link => link.Provider == provider))
+            .OfType<StreamingLink>()
+            .ToList();
 
     private static DateTime? YearStart(int? year) =>
         year is int value ? new DateTime(value, 1, 1, 0, 0, 0, DateTimeKind.Unspecified) : null;

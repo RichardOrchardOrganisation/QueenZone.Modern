@@ -10,4 +10,8 @@ public sealed record SongDetail(
     string Title,
     string? Lyrics,
     IReadOnlyList<SongAppearance> Appearances,
-    string? CoverUrl = null);
+    string? CoverUrl = null)
+{
+    /// <summary>Per provider, the link from the earliest appearance that has one.</summary>
+    public IReadOnlyList<StreamingLink> StreamingLinks { get; init; } = [];
+}
