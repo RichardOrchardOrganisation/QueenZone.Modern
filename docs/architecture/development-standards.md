@@ -110,12 +110,12 @@ Keep application-only rules (SQL access, mobile state strategy, design tokens, e
 Run on 2026-10-08:
 
 ```text
-QueenZone commit under test: d5f115f4afbf44a7e39c055b2b53aa804f9af3a2
+QueenZone commit under test: ab71e007bde6e69ac4e24b16e6e08230c314594e
 Locked standards: c958b458725b30590445f3e6fa3033e439cd5587 (v0.2.0)
 
-## 1. Compatible update c958b45 -> 11584cc
+## 1. Compatible update c958b45 -> dd67ebc
 $ node scripts/update.mjs --target <queenzone> --dry-run
-    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> dd67ebcc1fa4e9fbc8d83ab08cef762624852b6e
     update (three-way merge): development-standards.json
     update (three-way merge): scripts/check-suppressions.mjs
     update: docs/testing.md
@@ -126,7 +126,7 @@ $ node scripts/update.mjs --target <queenzone> --dry-run
     (exit 0)
 PASS dry-run succeeds and writes nothing
 $ node scripts/update.mjs --target <queenzone>
-    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> dd67ebcc1fa4e9fbc8d83ab08cef762624852b6e
     update (three-way merge): development-standards.json
     update (three-way merge): scripts/check-suppressions.mjs
     update: docs/testing.md
@@ -160,14 +160,14 @@ PASS only managed paths and the lock changed
 
 ## 2. Repeat the same version
 $ node scripts/update.mjs --target <queenzone>
-    Standards 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8 -> 11584ccaf212d27cc1a6f0f4d8330a27759eaaf8
+    Standards dd67ebcc1fa4e9fbc8d83ab08cef762624852b6e -> dd67ebcc1fa4e9fbc8d83ab08cef762624852b6e
     Update complete. Review the target diff and run its checks before committing.
     (exit 0)
 PASS repeated update is a no-op
 
-## 3. Conflicting update c958b45 -> 6d47bb4
+## 3. Conflicting update c958b45 -> 9c06371
 $ node scripts/update.mjs --target <queenzone>
-    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 6d47bb4363886212d3c988e8bb6cd9c1898f91d9
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 9c0637115fd1582d722a1e0352d341deb860f3b3
     update: docs/testing.md
     CONFLICT: development-standards.json: Project and standards changed overlapping lines.
     CONFLICT: config/typescript-coverage.json: Deletion conflicts with changes in the other version.
@@ -182,7 +182,7 @@ PASS no target file or lock changed, including docs/testing.md
 
 ## 4. Reviewed --keep-local resolution
 $ node scripts/update.mjs --target <queenzone> --keep-local development-standards.json --keep-local config/typescript-coverage.json --keep-local scripts/Test-CoverageGate.ps1
-    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 6d47bb4363886212d3c988e8bb6cd9c1898f91d9
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 9c0637115fd1582d722a1e0352d341deb860f3b3
     keep-local: development-standards.json
     keep-local: config/typescript-coverage.json
     keep-local: scripts/Test-CoverageGate.ps1
@@ -198,15 +198,17 @@ PASS clean change from the same version applies
 PASS lock records the kept paths
 
 ## 5. Shared floor default changes (review hazard)
+### changedLine 70 -> 80 (c958b45 -> 5ac340c)
 $ node scripts/update.mjs --target <queenzone>
-    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 920e7aa31299f2a087c6b150540f0d5b9c09b88a
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 5ac340c1bf2171034386bc417736c0daac6d74bc
     update (three-way merge): development-standards.json
     update: development-standards.lock.json
     Update complete. Review the target diff and run its checks before committing.
     (exit 0)
 PASS a kit changedLine default change merges into the QueenZone floor without a conflict
+### globalLine 91 -> 95 (c958b45 -> 64b515e)
 $ node scripts/update.mjs --target <queenzone>
-    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> ffc6c6032ff57e038aa222c7fcb152d615bd1081
+    Standards c958b458725b30590445f3e6fa3033e439cd5587 -> 64b515e6975e3f5e9c3e38d5ec53a44bf9d28580
     CONFLICT: development-standards.json: Project and standards changed overlapping lines.
     No project files or lock were changed. Review conflicts; --keep-local can retain an explicitly reviewed local version.
     (exit 1)
