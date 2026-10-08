@@ -24,3 +24,6 @@ jobs:
 
       - name: Check feature map
         run: node scripts/check-feature-map.mjs
+
+      - name: Test feature map validator
+        run: node --test scripts/check-feature-map.test.mjs

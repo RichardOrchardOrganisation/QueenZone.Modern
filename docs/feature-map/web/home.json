@@ -29,8 +29,6 @@
         "src/QueenZone.Web/Pages/_HomeSprintQuiz.cshtml",
         "src/QueenZone.Web/Pages/_HomeTicker.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/SmokeTests.cs",
         "tests/QueenZone.Web.E2E/CuratedPageLayoutSmokeTests.cs"
@@ -40,7 +38,8 @@
         "#news",
         "#forum",
         "#play",
-        "#home-poll"
+        "#home-poll",
+        "[data-testid=\"env-banner\"]"
       ],
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/homepage.md",

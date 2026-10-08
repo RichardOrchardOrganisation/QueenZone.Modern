@@ -10,8 +10,6 @@
       "sources": [
         "src/QueenZone.Web/Pages/Search.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/SmokeTests.cs"
       ],
@@ -31,10 +29,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Articles/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.articles",
@@ -48,10 +45,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Articles/Page.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.articlesPage",
@@ -66,10 +62,9 @@
         "src/QueenZone.Web/Pages/Articles/Detail.cshtml",
         "src/QueenZone.Web/Pages/Shared/_ArticleHeader.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.articleDetail",
@@ -84,10 +79,9 @@
         "src/QueenZone.Web/Pages/Articles/CommunityDetail.cshtml",
         "src/QueenZone.Web/Pages/Shared/_ArticleHeader.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.communityArticle",
@@ -103,10 +97,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Article.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.articleSample",
@@ -120,10 +113,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Biography/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.biography",
@@ -137,10 +129,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Biography/Detail.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.biographyDetail",
@@ -154,10 +145,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Discography/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.discography",
@@ -172,12 +162,11 @@
         "src/QueenZone.Web/Pages/Discography/Album.cshtml",
         "src/QueenZone.Web/Pages/Shared/_StreamingLinks.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.Tests/DiscographyPageTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.album",
@@ -194,12 +183,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/Songs/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.Tests/SongPageTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.songs",
@@ -218,12 +206,11 @@
         "src/QueenZone.Web/Pages/Songs/_SongHeading.cshtml",
         "src/QueenZone.Web/Pages/Shared/_StreamingLinks.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.Tests/SongPageTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.song",
@@ -237,10 +224,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Discography/RareDiscography.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.rareDiscography",
@@ -254,8 +240,6 @@
       "sources": [
         "src/QueenZone.Web/Pages/Timeline/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [
         "#qz-htl-filterbar"
@@ -273,10 +257,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/FreddieTribute/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.freddieTribute",
@@ -290,10 +273,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/FreddieTribute/Page.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.freddieTributePage",
@@ -307,10 +289,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Trivia/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.trivia",
@@ -324,10 +305,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Quizzes/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.quizzes",
@@ -341,10 +321,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Quizzes/Play.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.quizPlay",
@@ -358,10 +337,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Quizzes/Leaderboard.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.quizLeaderboard",
@@ -375,12 +353,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/Quizzes/Sprint.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/QuizSprintProgressTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.quizSprint",
@@ -394,10 +371,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/FanPerformances/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.fanPerformances",
@@ -411,10 +387,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/FanPerformances/Page.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": "",
       "id": "web.archive.fanPerformancesPage",
@@ -428,10 +403,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/FanPerformances/Report.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.fanPerformanceReport",
@@ -447,10 +421,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Following.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.following",
@@ -464,12 +437,12 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/Article.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/CommunitySubmissionWorkflowTests.cs"
       ],
-      "selectors": [],
+      "selectors": [
+        "#article-form"
+      ],
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitArticle",
@@ -483,10 +456,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/ArticleConfirmation.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitArticleConfirmation",
@@ -500,10 +472,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/Trivia.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitTrivia",
@@ -517,10 +488,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/TriviaConfirmation.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitTriviaConfirmation",
@@ -534,10 +504,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/QuizQuestion.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitQuiz",
@@ -551,10 +520,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/QuizQuestionConfirmation.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitQuizConfirmation",
@@ -568,10 +536,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/FanPerformance.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitFanPerformance",
@@ -585,10 +552,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/FanPerformanceConfirmation.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.archive.submitFanPerformanceConfirmation",
@@ -609,8 +575,6 @@
       "sources": [
         "src/QueenZone.Web/Pages/Crosswords/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/CrosswordPlayTests.cs"
       ],
@@ -640,8 +604,6 @@
         "src/QueenZone.Web/wwwroot/js/crossword-account.js",
         "src/QueenZone.Web/Pages/Shared/_CrosswordOfflineLayout.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/CrosswordPlayTests.cs",
         "tests/QueenZone.Web.E2E/CrosswordReplayTests.cs"
@@ -658,8 +620,6 @@
         "src/QueenZone.Web/Pages/Crosswords/Leaderboard.cshtml",
         "src/QueenZone.Web/Pages/Crosswords/Leaderboard.cshtml.cs"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/CrosswordResultsTests.cs"
       ],

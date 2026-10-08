@@ -227,6 +227,8 @@ function fixtureRoot() {
             entry: 'Sign out',
             sources: ['src/QueenZone.Web/Pages/Account/Logout.cshtml'],
             kind: 'handler',
+            selectors: [],
+            selectorsReason: 'Handler: verify the redirect and session change.',
             signIn: 'member',
           },
         ],
@@ -286,7 +288,7 @@ test('checkFeatureMap reports metadata and every referenced resource failure', (
     name: '', aliases: null, entry: '', signIn: 'invalid', screen: '',
     sources: ['missing-source'], flows: ['missing-flow'], specs: ['missing-spec'],
     recipe: 'missing-recipe', drive: { smoke: 'missing-drive' },
-    testIds: ['missingKey'], selectors: ['invalid-selector', '#missing-selector'],
+    testIds: ['missingKey'],
   });
   writeFileSync(mapFile, JSON.stringify(doc));
   const { ok, errors } = checkFeatureMap({ root, write: true });
@@ -297,11 +299,67 @@ test('checkFeatureMap reports metadata and every referenced resource failure', (
     'source missing missing-source.', 'flow missing missing-flow.',
     'spec missing missing-spec.', 'recipe missing missing-recipe.',
     'drive.smoke missing missing-drive.', "testIds key 'missingKey' is missing",
-    "selector 'invalid-selector' must be a #id.", "#id selector '#missing-selector' was not found",
     'Unmapped screen registration HomeStack/Home',
   ]) {
     assert.ok(errors.some((error) => error.includes(message)), message);
   }
+});
+
+function changeWebHome(root, changes) {
+  const file = path.join(root, 'docs/feature-map/web/home.json');
+  const doc = JSON.parse(readFileSync(file, 'utf8'));
+  Object.assign(doc.entries[0], changes);
+  writeFileSync(file, JSON.stringify(doc));
+}
+
+test('web identifiers resolve in page sources and shared partials with either quote style', () => {
+  const root = fixtureRoot();
+  write(root, 'src/QueenZone.Web/Pages/Shared/_Banner.cshtml', '<div data-testid = \'env-banner\'></div>');
+  write(root, 'src/QueenZone.Web/Pages/_Video.cshtml', '<span data-testid="forum-video-card"></span>');
+  changeWebHome(root, {
+    sources: ['src/QueenZone.Web/Pages/Index.cshtml', 'src/QueenZone.Web/Pages/_Video.cshtml'],
+    selectors: ['#qz-hero-archive', '#qz-mobile-menu', '[data-testid="env-banner"]', "[data-testid='forum-video-card']"],
+  });
+  const result = checkFeatureMap({ root, write: true });
+  assert.equal(result.ok, true, result.errors.join('\n'));
+});
+
+test('web validation rejects missing identifiers, unsupported selectors and attribute lookalikes', () => {
+  const root = fixtureRoot();
+  write(root, 'src/QueenZone.Web/Pages/Index.cshtml', '@page "/"\n<div data-id="lookalike" x-data-testid="fake"></div>');
+  changeWebHome(root, {
+    selectors: ['#missing', '#lookalike', '[data-testid="fake"]', '.css-class', '#wild.card', '[data-testid=""]', null],
+  });
+  const { errors } = checkFeatureMap({ root, write: true });
+  for (const selector of ['#missing', '#lookalike', '[data-testid="fake"]']) {
+    assert.ok(errors.some((error) => error.includes(`selector '${selector}' was not found`)));
+  }
+  for (const selector of ['.css-class', '#wild.card', '[data-testid=""]', null]) {
+    assert.ok(errors.some((error) => error.includes(`selector '${selector}' must be #id or [data-testid="value"].`)));
+  }
+});
+
+test('empty web selectors need a reason and mobile-only fields are rejected', () => {
+  const root = fixtureRoot();
+  changeWebHome(root, { selectors: [], selectorsReason: ' ', testIds: ['notAMobileKey'], flows: [] });
+  const { errors } = checkFeatureMap({ root, write: true });
+  assert.ok(errors.some((error) => error.includes('empty web selectors require selectorsReason')));
+  assert.ok(errors.some((error) => error.includes('testIds is mobile-only')));
+  assert.ok(errors.some((error) => error.includes('flows is mobile-only')));
+  assert.ok(!errors.some((error) => error.includes("testIds key 'notAMobileKey'")));
+  changeWebHome(root, { selectorsReason: 'Mapping gap: identify a stable locator for the interactive control.' });
+  const file = path.join(root, 'docs/feature-map/web/home.json');
+  const doc = JSON.parse(readFileSync(file, 'utf8'));
+  delete doc.entries[0].testIds;
+  delete doc.entries[0].flows;
+  writeFileSync(file, JSON.stringify(doc));
+  assert.equal(checkFeatureMap({ root, write: true }).ok, true);
+});
+
+test('web selectors must be arrays even with a reason', () => {
+  const root = fixtureRoot();
+  changeWebHome(root, { selectors: '#qz-hero-archive', selectorsReason: 'Role locator.' });
+  assert.ok(checkFeatureMap({ root, write: true }).errors.some((error) => error.includes('web selectors must be an array')));
 });
 
 test('main --resolve prints a real repo entry', () => {

@@ -4,6 +4,13 @@ Machine-readable map of every mobile screen and public or member web page.
 Agents and the verify skills read these JSON files; do not hand-edit this index.
 Regenerate with `node scripts/check-feature-map.mjs --write`.
 
+Mobile `testIds` are keys from `src/QueenZone.Mobile/src/test/testIds.ts`; `flows` are Maestro paths.
+Web `selectors` map stable `#id` or `[data-testid="value"]` locators in sources or Pages/Shared.
+Web entries with no mapped identifiers require `selectorsReason`: explain role/text locators,
+a mapping gap, or handler/redirect behaviour. Empty selectors do not imply missing tests.
+Prefer role and text locators for clear headings and links; add identifiers only for fragile locators.
+`specs` links test files; it does not certify coverage. `--write` only regenerates this index.
+
 ## Mobile
 
 ### home

@@ -10,12 +10,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/News/Index.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/SmokeTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/news.md",
       "id": "web.news.index",
@@ -31,10 +30,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/News/Page.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/news.md",
       "id": "web.news.page",
@@ -52,12 +50,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/News/Detail.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/SmokeTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/news.md",
       "id": "web.news.detail",
@@ -73,10 +70,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/News/Search.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
       "recipe": ".cursor/skills/verify-queenzone/features/search.md",
       "id": "web.news.search",
@@ -92,12 +88,11 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/News.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [
         "tests/QueenZone.Web.E2E/CommunitySubmissionWorkflowTests.cs"
       ],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.news.submit",
@@ -111,10 +106,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Submit/NewsConfirmation.cshtml"
       ],
-      "testIds": [],
-      "flows": [],
       "specs": [],
       "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",
       "recipe": "",
       "id": "web.news.submitConfirmation",
