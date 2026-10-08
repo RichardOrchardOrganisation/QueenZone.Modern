@@ -44,6 +44,11 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
             """;
 
         var rows = await EfSql.QuerySqlAsync<AlbumListRow>(dbContext, sql, cancellationToken: cancellationToken);
+        var links = await dbContext.DiscographyStreamingLinks
+            .AsNoTracking()
+            .Select(link => new { link.AlbumId, link.AlbumSongId, link.Provider })
+            .ToListAsync(cancellationToken);
+        var linksByAlbum = links.ToLookup(link => link.AlbumId);
         return rows
             .Select(row => new AdminAlbumListItem(
                 row.AlbumId,
@@ -51,7 +56,19 @@ public sealed class EfAdminDiscographyRepository(QueenZoneDbContext dbContext) :
                 row.ReleaseDate,
                 row.IsActive,
                 AdminDiscographyValidation.NullIfBlank(row.ThumbFileName),
-                row.SongCount))
+                row.SongCount)
+            {
+                AlbumLinkProviders = linksByAlbum[row.AlbumId]
+                    .Where(link => link.AlbumSongId is null)
+                    .Select(link => link.Provider)
+                    .Order()
+                    .ToList(),
+                TracksWithLinks = linksByAlbum[row.AlbumId]
+                    .Where(link => link.AlbumSongId is not null)
+                    .Select(link => link.AlbumSongId)
+                    .Distinct()
+                    .Count(),
+            })
             .ToList();
     }
 

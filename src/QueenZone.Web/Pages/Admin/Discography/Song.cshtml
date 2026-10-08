@@ -32,6 +32,16 @@
       </div>
     </form>
 
+    <section class="admin-discography-section" id="streaming-links" aria-labelledby="streaming-links-heading">
+      <h2 id="streaming-links-heading">Listen on</h2>
+      <partial name="_StreamingLinks" model="@(new StreamingLinksViewModel(
+        $"{songPath}?handler=StreamingLinks",
+        StreamingLinkKind.Track,
+        Model.StreamingLinksForm,
+        song.StreamingLinks,
+        Model.StreamingLinkErrors))" />
+    </section>
+
     <section class="admin-discography-section" aria-labelledby="single-cover-heading">
       <h2 id="single-cover-heading">Single cover</h2>
       <p class="admin-form-hint">Optional artwork for this track, for example the single’s sleeve. It shows beside the track on the album page and on the song page.</p>

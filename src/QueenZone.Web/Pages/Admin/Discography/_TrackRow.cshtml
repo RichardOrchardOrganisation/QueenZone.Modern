@@ -16,6 +16,10 @@
     {
       <span class="admin-form-hint">· Single</span>
     }
+    @if (song.StreamingLinks.Count > 0)
+    {
+      <span class="admin-form-hint">· @string.Join(", ", song.StreamingLinks.Select(link => link.Provider.DisplayName()))</span>
+    }
   </td>
   <td>
     <div class="admin-discography-tracks__actions">

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -18,6 +19,11 @@ public abstract class AdminDiscographyPageModel : PageModel
     public string? StatusMessageKind { get; private set; }
 
     public IReadOnlyList<string> Errors { get; protected set; } = [];
+
+    public IReadOnlyList<string> StreamingLinkErrors { get; protected set; } = [];
+
+    [BindProperty]
+    public StreamingLinksFormInput StreamingLinksForm { get; set; } = new();
 
     [BindProperty(Name = "coverFile")]
     public IFormFile? CoverFile { get; set; }
@@ -88,6 +94,15 @@ public abstract class AdminDiscographyPageModel : PageModel
         Flash("Choose an image to upload.", success: false);
         return Redirect(redirectPath);
     }
+
+    protected string EditorEmail =>
+        User.FindFirstValue(ClaimTypes.Email)
+        ?? User.FindFirstValue("preferred_username")
+        ?? User.Identity?.Name
+        ?? "unknown";
+
+    protected static string StreamingLinksMessage(IReadOnlyList<StreamingLinkChange> changes) =>
+        changes.Count == 0 ? "No changes to the streaming links." : "Streaming links saved.";
 
     protected void Flash(string message, bool success)
     {
@@ -173,9 +188,16 @@ public sealed class IndexModel(IAdminDiscographyRepository repository) : AdminDi
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
+    /// <summary><c>?missing=links</c> keeps albums without both album-level links.</summary>
+    [BindProperty(SupportsGet = true, Name = "missing")]
+    public string? Missing { get; set; }
+
+    public bool MissingLinksOnly => string.Equals(Missing, "links", StringComparison.OrdinalIgnoreCase);
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        Albums = await repository.GetAlbumsAsync(cancellationToken);
+        var albums = await repository.GetAlbumsAsync(cancellationToken);
+        Albums = MissingLinksOnly ? albums.Where(album => album.IsMissingAlbumLinks).ToList() : albums;
         LoadStatus();
         ViewData["Title"] = "Discography";
         Breadcrumbs = AdminBreadcrumbs.Section("Discography", SectionPath);
@@ -260,6 +282,31 @@ public sealed class AlbumModel(IAdminDiscographyRepository repository, AdminDisc
         return Page();
     }
 
+    public async Task<IActionResult> OnPostStreamingLinksAsync(int id, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken, keepStreamingLinksForm: true))
+        {
+            return NotFound();
+        }
+
+        var (changes, errors) = DiscographyStreamingLinkForm.Parse(
+            StreamingLinksForm,
+            StreamingLinkKind.Album,
+            Album.StreamingLinks,
+            EditorEmail);
+        if (errors.Count > 0)
+        {
+            StreamingLinkErrors = errors;
+            AlbumForm = AlbumFormInput.From(Album);
+            return Page();
+        }
+
+        return await RunAsync(
+            () => service.SaveAlbumStreamingLinksAsync(id, changes, cancellationToken),
+            StreamingLinksMessage(changes),
+            AlbumPath(id) + "#streaming-links");
+    }
+
     public async Task<IActionResult> OnPostSaveAsync(int id, CancellationToken cancellationToken)
     {
         var input = AlbumForm.ToInput();
@@ -337,7 +384,7 @@ public sealed class AlbumModel(IAdminDiscographyRepository repository, AdminDisc
         return Page();
     }
 
-    private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken)
+    private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken, bool keepStreamingLinksForm = false)
     {
         var album = await repository.GetAlbumAsync(id, cancellationToken);
         if (album is null)
@@ -346,6 +393,11 @@ public sealed class AlbumModel(IAdminDiscographyRepository repository, AdminDisc
         }
 
         Album = album;
+        if (!keepStreamingLinksForm)
+        {
+            StreamingLinksForm = StreamingLinksFormInput.From(album.StreamingLinks);
+        }
+
         Artists = await repository.GetArtistsAsync(cancellationToken);
         InsertPositions = DiscographyTrackPositions.ForInsert(album.Songs);
         ViewData["Title"] = $"Edit album — {album.Name}";
@@ -401,6 +453,31 @@ public sealed class SongModel(IAdminDiscographyRepository repository, AdminDisco
             SongPath(id));
     }
 
+    public async Task<IActionResult> OnPostStreamingLinksAsync(int id, CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(id, cancellationToken, keepStreamingLinksForm: true))
+        {
+            return NotFound();
+        }
+
+        var (changes, errors) = DiscographyStreamingLinkForm.Parse(
+            StreamingLinksForm,
+            StreamingLinkKind.Track,
+            Song.StreamingLinks,
+            EditorEmail);
+        if (errors.Count > 0)
+        {
+            StreamingLinkErrors = errors;
+            SongForm = SongFormInput.From(Song);
+            return Page();
+        }
+
+        return await RunAsync(
+            () => service.SaveSongStreamingLinksAsync(id, changes, cancellationToken),
+            StreamingLinksMessage(changes),
+            SongPath(id) + "#streaming-links");
+    }
+
     public async Task<IActionResult> OnPostCoverAsync(int id, CancellationToken cancellationToken) =>
         RequireCoverFile(SongPath(id))
         ?? await RunAsync(
@@ -429,7 +506,7 @@ public sealed class SongModel(IAdminDiscographyRepository repository, AdminDisco
             SongPath(id));
     }
 
-    private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken)
+    private async Task<bool> LoadAsync(int id, CancellationToken cancellationToken, bool keepStreamingLinksForm = false)
     {
         var song = await repository.GetSongAsync(id, cancellationToken);
         var album = song is null ? null : await repository.GetAlbumAsync(song.AlbumId, cancellationToken);
@@ -439,12 +516,42 @@ public sealed class SongModel(IAdminDiscographyRepository repository, AdminDisco
         }
 
         Song = song;
+        if (!keepStreamingLinksForm)
+        {
+            StreamingLinksForm = StreamingLinksFormInput.From(song.StreamingLinks);
+        }
+
         Album = album;
         MovePositions = DiscographyTrackPositions.ForMove(album.Songs, song.SongId);
         ViewData["Title"] = $"Edit song — {song.Title}";
         Breadcrumbs = AdminBreadcrumbs.Page("Discography", SectionPath, album.Name, AlbumPath(album.AlbumId), song.Title);
         return true;
     }
+}
+
+/// <summary>The "Listen on" section: one field per provider plus what is stored now.</summary>
+public sealed record StreamingLinksViewModel(
+    string Action,
+    StreamingLinkKind Kind,
+    StreamingLinksFormInput Form,
+    IReadOnlyList<AdminStreamingLink> Stored,
+    IReadOnlyList<string> Errors)
+{
+    public AdminStreamingLink? StoredFor(StreamingProvider provider) =>
+        Stored.FirstOrDefault(link => link.Provider == provider);
+
+    public string Example(StreamingProvider provider) => (provider, Kind) switch
+    {
+        (StreamingProvider.Spotify, StreamingLinkKind.Album) => "https://open.spotify.com/album/…",
+        (StreamingProvider.Spotify, _) => "https://open.spotify.com/track/…",
+        (_, StreamingLinkKind.Album) => "https://music.apple.com/gb/album/…/…",
+        _ => "https://music.apple.com/gb/song/…/… or an album link with ?i=",
+    };
+
+    public static string Provenance(AdminStreamingLink link) =>
+        string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{(link.Source == StreamingLinkSource.Imported ? "Imported" : "Added")} {link.UpdatedAtUtc:d MMM yyyy}{(link.UpdatedBy is null ? string.Empty : $" by {link.UpdatedBy}")}");
 }
 
 /// <summary>Square cover upload form using the shared news crop dialog.</summary>

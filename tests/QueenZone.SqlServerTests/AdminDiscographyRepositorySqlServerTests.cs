@@ -267,6 +267,13 @@ public sealed class AdminDiscographyRepositorySqlServerTests : IAsyncLifetime
         Assert.Equal("222", Assert.Single(album.Songs[0].StreamingLinks).ExternalId);
         Assert.Equal(StreamingProvider.Spotify, Assert.Single((await repository.GetSongAsync(fatherToSon))!.StreamingLinks).Provider);
 
+        var listed = await repository.GetAlbumsAsync();
+        Assert.Equal([StreamingProvider.Spotify, StreamingProvider.AppleMusic], listed[0].AlbumLinkProviders);
+        Assert.Equal(2, listed[0].TracksWithLinks);
+        Assert.False(listed[0].IsMissingAlbumLinks);
+        Assert.Empty(listed[1].AlbumLinkProviders);
+        Assert.True(listed[1].IsMissingAlbumLinks);
+
         // Replacing keeps one row per slot; an imported overwrite records its source.
         await repository.SetAlbumStreamingLinkAsync(
             2,
