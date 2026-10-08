@@ -5509,6 +5509,45 @@ select.qz-input {
   color: var(--qz-gold);
 }
 
+/* "Listen on" Spotify / Apple Music links (text only; no third-party marks or scripts). */
+.qz-listen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.qz-album-hero .qz-listen__button {
+  background: transparent;
+  border-color: var(--border-on-dark);
+  color: var(--text-on-dark);
+}
+
+.qz-album-hero .qz-listen__button:hover,
+.qz-album-hero .qz-listen__button:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--qz-gold);
+  color: var(--text-on-dark);
+}
+
+.qz-listen--compact {
+  display: inline-flex;
+  gap: var(--space-3);
+  margin-top: 0;
+}
+
+.qz-listen__link {
+  font: var(--type-meta);
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.qz-listen__link:hover,
+.qz-listen__link:focus-visible {
+  color: var(--text-primary);
+}
+
 .qz-song-index {
   list-style: none;
   margin: 0;
