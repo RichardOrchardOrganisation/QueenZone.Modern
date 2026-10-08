@@ -119,15 +119,15 @@ Keep application-only rules (SQL access, mobile state strategy, design tokens, e
 4. **`--keep-local`**: the reviewed conflicts keep QueenZone's versions, the clean change applies, and the lock records `keptLocal`.
 5. **Shared floor defaults**: kit changes to the default `changedLine` and `globalLine` are both refused with no writes. The `changedLine` conflict names `dotnet.changedLine 70 -> 80`. On 0.2.0 the same `changedLine` change merged silently into QueenZone's floor, which is what development-standards#5 fixed.
 
-Run against `e4939cc` on 2026-10-08:
+Run against `16d9ff1` on 2026-10-08:
 
 ```text
-QueenZone commit under test: 40b34765b3c76e9a3db3d132dc0e95e226b76e84
-Locked standards: e4939ccce59fb29880de13cf366d7315ef0a8e53 (v0.3.0)
+QueenZone commit under test: 1847450e6cb7067e9b3574f796d9e9c2279b01f9
+Locked standards: 16d9ff11983a93d1de95b7e713542ad5bc360dfa (v0.3.0)
 
-## 1. Compatible update e4939cc -> f3074e1
+## 1. Compatible update 16d9ff1 -> cb85455
 $ node scripts/update.mjs --target <queenzone> --dry-run
-    Standards e4939ccce59fb29880de13cf366d7315ef0a8e53 -> f3074e173104f60fed467bdc6d004a54ba3c1959
+    Standards 16d9ff11983a93d1de95b7e713542ad5bc360dfa -> cb8545560cdadfafba6d6032ed2fe464ca66bf5e
     update (three-way merge): development-standards.json
     update: scripts/verify.mjs
     update: docs/testing.md
@@ -138,7 +138,7 @@ $ node scripts/update.mjs --target <queenzone> --dry-run
     (exit 0)
 PASS dry-run succeeds and writes nothing
 $ node scripts/update.mjs --target <queenzone>
-    Standards e4939ccce59fb29880de13cf366d7315ef0a8e53 -> f3074e173104f60fed467bdc6d004a54ba3c1959
+    Standards 16d9ff11983a93d1de95b7e713542ad5bc360dfa -> cb8545560cdadfafba6d6032ed2fe464ca66bf5e
     update (three-way merge): development-standards.json
     update: scripts/verify.mjs
     update: docs/testing.md
@@ -173,14 +173,14 @@ PASS only managed paths and the lock changed
 
 ## 2. Repeat the same version
 $ node scripts/update.mjs --target <queenzone>
-    Standards f3074e173104f60fed467bdc6d004a54ba3c1959 -> f3074e173104f60fed467bdc6d004a54ba3c1959
+    Standards cb8545560cdadfafba6d6032ed2fe464ca66bf5e -> cb8545560cdadfafba6d6032ed2fe464ca66bf5e
     Update complete. Review the target diff and run its checks before committing.
     (exit 0)
 PASS repeated update is a no-op
 
-## 3. Conflicting update e4939cc -> 124ac9f
+## 3. Conflicting update 16d9ff1 -> 288f9af
 $ node scripts/update.mjs --target <queenzone>
-    Standards e4939ccce59fb29880de13cf366d7315ef0a8e53 -> 124ac9f31120e07c6131729219599cbe32cde5c2
+    Standards 16d9ff11983a93d1de95b7e713542ad5bc360dfa -> 288f9af2cd3473bb1e72ecdc15c30472f9df6ee5
     update: docs/testing.md
     CONFLICT: development-standards.json: Project and standards changed overlapping lines.
     CONFLICT: config/typescript-coverage.json: Deletion conflicts with changes in the other version.
@@ -195,7 +195,7 @@ PASS no target file or lock changed, including docs/testing.md
 
 ## 4. Reviewed --keep-local resolution
 $ node scripts/update.mjs --target <queenzone> --keep-local development-standards.json --keep-local config/typescript-coverage.json --keep-local scripts/check-pr-verification.mjs
-    Standards e4939ccce59fb29880de13cf366d7315ef0a8e53 -> 124ac9f31120e07c6131729219599cbe32cde5c2
+    Standards 16d9ff11983a93d1de95b7e713542ad5bc360dfa -> 288f9af2cd3473bb1e72ecdc15c30472f9df6ee5
     keep-local: development-standards.json
     keep-local: config/typescript-coverage.json
     keep-local: scripts/check-pr-verification.mjs
@@ -211,16 +211,16 @@ PASS clean change from the same version applies
 PASS lock records the kept paths
 
 ## 5. Shared floor default changes are refused for review
-### changedLine 70 -> 80 (e4939cc -> c1b25bf)
+### changedLine 70 -> 80 (16d9ff1 -> 1dae971)
 $ node scripts/update.mjs --target <queenzone>
-    Standards e4939ccce59fb29880de13cf366d7315ef0a8e53 -> c1b25bf0750acbb19ce51e0c82c278e5b5b9f804
+    Standards 16d9ff11983a93d1de95b7e713542ad5bc360dfa -> 1dae97128e44ea1aed777c902dde3ee46710cd20
     CONFLICT: development-standards.json: Project-owned value would change (dotnet.changedLine 70 -> 80). Set it in the project file deliberately, or keep the local file with --keep-local.
     No project files or lock were changed. Review conflicts; --keep-local can retain an explicitly reviewed local version.
     (exit 1)
 PASS a kit changedLine default change is refused, naming the floor, with no writes
-### globalLine 91 -> 95 (e4939cc -> 936e8fe)
+### globalLine 91 -> 95 (16d9ff1 -> df92222)
 $ node scripts/update.mjs --target <queenzone>
-    Standards e4939ccce59fb29880de13cf366d7315ef0a8e53 -> 936e8fee1cf9081a242181500dc563b3e1e5476f
+    Standards 16d9ff11983a93d1de95b7e713542ad5bc360dfa -> df92222251c1f7bccc9d047f22f594539b08c6c2
     CONFLICT: development-standards.json: Project and standards changed overlapping lines.
     No project files or lock were changed. Review conflicts; --keep-local can retain an explicitly reviewed local version.
     (exit 1)
