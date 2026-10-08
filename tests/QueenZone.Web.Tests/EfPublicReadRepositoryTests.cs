@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using QueenZone.Data;
 
 namespace QueenZone.Web.Tests;
@@ -230,6 +232,225 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
         var dedicated = await repository.GetSongBySlugAsync("death-on-two-legs-dedicated-to");
         Assert.NotNull(dedicated);
         Assert.Null(await repository.GetSongBySlugAsync("death-on-two-legs"));
+    }
+
+    [Fact]
+    public async Task Discography_set_based_catalog_matches_album_walk_and_issues_two_reads()
+    {
+        dbContext.Database.ExecuteSqlRaw(
+            """
+            CREATE TABLE IF NOT EXISTS AlbumSongByAlbum (
+                Q_ALBUM_SONG_ID INTEGER NOT NULL,
+                Q_ALBUM_ID INTEGER NOT NULL,
+                SONG_TITLE TEXT NOT NULL,
+                IS_SINGLE INTEGER NOT NULL,
+                SONG_LYRICS TEXT,
+                SONG_NOTES TEXT,
+                COVER_URL TEXT,
+                TRACK_NUMBER INTEGER
+            );
+            INSERT INTO AlbumList (Q_ALBUM_ID, ALBUM_NAME, release_year, thumb_url)
+            VALUES (10, 'Queen', 1973, NULL), (11, 'Queen II', 1974, NULL);
+            INSERT INTO AlbumDisplay (Q_ALBUM_ID, ALBUM_NAME, RELEASE_DATE, GENERAL_NOTES, ARTIST_NAME, THUMB_URL, PICTURE_URL, ACTIVE)
+            VALUES
+                (10, 'Queen', '1973-07-13', NULL, 'Queen', NULL, NULL, 1),
+                (11, 'Queen II', '1974-03-08', NULL, 'Queen', NULL, NULL, 1),
+                (13, 'Hidden', '1970-01-01', NULL, 'Queen', NULL, NULL, 0);
+            INSERT INTO AlbumSongByAlbum
+                (Q_ALBUM_SONG_ID, Q_ALBUM_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES, COVER_URL, TRACK_NUMBER)
+            VALUES
+                (101, 10, 'Seven Seas of Rhye', 0, 'Early lyrics', NULL, NULL, 10),
+                (102, 10, 'Keep Yourself Alive', 1, 'KYA lyrics', 'Debut single', 'kya.webp', 1),
+                (111, 11, 'Seven Seas of Rhye', 0, 'Later lyrics', 'II notes', NULL, 11),
+                (131, 13, 'Seven Seas of Rhye', 0, 'Hidden lyrics', NULL, NULL, 1);
+            INSERT INTO DiscographyStreamingLinks
+                (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (10, 101, 'apple-music', 'early-apple', 'https://music.apple.com/track/early', 'manual', '2026-10-07'),
+                (10, 101, 'spotify', 'early-spotify', 'https://open.spotify.com/track/early', 'manual', '2026-10-07'),
+                (11, 111, 'spotify', 'later-spotify', 'https://open.spotify.com/track/later', 'manual', '2026-10-07'),
+                (10, NULL, 'spotify', 'album-only', 'https://open.spotify.com/album/debut', 'manual', '2026-10-07');
+            """);
+
+        var fallback = new EfDiscographyRepository(
+            dbContext,
+            listSql: "SELECT Q_ALBUM_ID, ALBUM_NAME, release_year, thumb_url FROM AlbumList WHERE Q_ALBUM_ID IN (10, 11)",
+            displaySql: id => $"""
+                SELECT Q_ALBUM_ID, ALBUM_NAME, RELEASE_DATE, GENERAL_NOTES, ARTIST_NAME, THUMB_URL, PICTURE_URL, ACTIVE
+                FROM AlbumDisplay WHERE Q_ALBUM_ID = {id}
+                """,
+            songsSql: id => $"""
+                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES, COVER_URL
+                FROM AlbumSongByAlbum
+                WHERE Q_ALBUM_ID = {id}
+                """);
+        var expected = await fallback.GetSongBySlugAsync("seven-seas-of-rhye");
+        var expectedKeep = await fallback.GetSongBySlugAsync("keep-yourself-alive");
+
+        await using var counted = new SqliteConnection("Data Source=:memory:");
+        counted.Open();
+        var counter = new CatalogQueryCounter();
+        await using var countedDb = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
+            .UseSqlite(counted)
+            .AddInterceptors(counter)
+            .Options);
+        countedDb.Database.ExecuteSqlRaw(
+            """
+            CREATE TABLE AlbumList (
+                Q_ALBUM_ID INTEGER NOT NULL,
+                ALBUM_NAME TEXT NOT NULL,
+                release_year INTEGER,
+                thumb_url TEXT
+            );
+            CREATE TABLE AlbumDisplay (
+                Q_ALBUM_ID INTEGER NOT NULL,
+                ALBUM_NAME TEXT NOT NULL,
+                RELEASE_DATE TEXT,
+                GENERAL_NOTES TEXT,
+                ARTIST_NAME TEXT NOT NULL,
+                THUMB_URL TEXT,
+                PICTURE_URL TEXT,
+                ACTIVE INTEGER NOT NULL
+            );
+            CREATE TABLE DiscographyStreamingLinks (
+                Id INTEGER PRIMARY KEY,
+                AlbumId INTEGER NOT NULL,
+                AlbumSongId INTEGER,
+                Provider TEXT NOT NULL,
+                ExternalId TEXT NOT NULL,
+                Url TEXT NOT NULL,
+                Source TEXT NOT NULL,
+                UpdatedAtUtc TEXT NOT NULL,
+                UpdatedBy TEXT
+            );
+            CREATE TABLE AlbumSongByAlbum (
+                Q_ALBUM_SONG_ID INTEGER NOT NULL,
+                Q_ALBUM_ID INTEGER NOT NULL,
+                SONG_TITLE TEXT NOT NULL,
+                IS_SINGLE INTEGER NOT NULL,
+                SONG_LYRICS TEXT,
+                SONG_NOTES TEXT,
+                COVER_URL TEXT,
+                TRACK_NUMBER INTEGER
+            );
+            INSERT INTO AlbumList (Q_ALBUM_ID, ALBUM_NAME, release_year, thumb_url)
+            VALUES (10, 'Queen', 1973, NULL), (11, 'Queen II', 1974, NULL);
+            INSERT INTO AlbumDisplay (Q_ALBUM_ID, ALBUM_NAME, RELEASE_DATE, GENERAL_NOTES, ARTIST_NAME, THUMB_URL, PICTURE_URL, ACTIVE)
+            VALUES
+                (10, 'Queen', '1973-07-13', NULL, 'Queen', NULL, NULL, 1),
+                (11, 'Queen II', '1974-03-08', NULL, 'Queen', NULL, NULL, 1),
+                (13, 'Hidden', '1970-01-01', NULL, 'Queen', NULL, NULL, 0);
+            INSERT INTO AlbumSongByAlbum
+                (Q_ALBUM_SONG_ID, Q_ALBUM_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES, COVER_URL, TRACK_NUMBER)
+            VALUES
+                (101, 10, 'Seven Seas of Rhye', 0, 'Early lyrics', NULL, NULL, 10),
+                (102, 10, 'Keep Yourself Alive', 1, 'KYA lyrics', 'Debut single', 'kya.webp', 1),
+                (111, 11, 'Seven Seas of Rhye', 0, 'Later lyrics', 'II notes', NULL, 11),
+                (131, 13, 'Seven Seas of Rhye', 0, 'Hidden lyrics', NULL, NULL, 1);
+            INSERT INTO DiscographyStreamingLinks
+                (AlbumId, AlbumSongId, Provider, ExternalId, Url, Source, UpdatedAtUtc)
+            VALUES
+                (10, 101, 'apple-music', 'early-apple', 'https://music.apple.com/track/early', 'manual', '2026-10-07'),
+                (10, 101, 'spotify', 'early-spotify', 'https://open.spotify.com/track/early', 'manual', '2026-10-07'),
+                (11, 111, 'spotify', 'later-spotify', 'https://open.spotify.com/track/later', 'manual', '2026-10-07'),
+                (10, NULL, 'spotify', 'album-only', 'https://open.spotify.com/album/debut', 'manual', '2026-10-07');
+            """);
+
+        var repository = new EfDiscographyRepository(
+            countedDb,
+            listSql: "SELECT Q_ALBUM_ID, ALBUM_NAME, release_year, thumb_url FROM AlbumList WHERE Q_ALBUM_ID IN (10, 11)",
+            displaySql: id => $"""
+                SELECT Q_ALBUM_ID, ALBUM_NAME, RELEASE_DATE, GENERAL_NOTES, ARTIST_NAME, THUMB_URL, PICTURE_URL, ACTIVE
+                FROM AlbumDisplay WHERE Q_ALBUM_ID = {id}
+                """,
+            songsSql: id => $"""
+                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES, COVER_URL
+                FROM AlbumSongByAlbum
+                WHERE Q_ALBUM_ID = {id}
+                """,
+            catalogSongsSql: _ => $"""
+                SELECT
+                    s.Q_ALBUM_SONG_ID,
+                    s.SONG_TITLE,
+                    s.IS_SINGLE,
+                    s.SONG_LYRICS,
+                    s.SONG_NOTES,
+                    s.COVER_URL,
+                    s.Q_ALBUM_ID,
+                    d.ALBUM_NAME,
+                    d.RELEASE_DATE,
+                    s.TRACK_NUMBER,
+                    links.Provider AS STREAMING_PROVIDER,
+                    links.Url AS STREAMING_URL
+                FROM AlbumSongByAlbum s
+                INNER JOIN AlbumDisplay d ON d.Q_ALBUM_ID = s.Q_ALBUM_ID
+                LEFT JOIN DiscographyStreamingLinks links
+                    ON links.AlbumId = s.Q_ALBUM_ID AND links.AlbumSongId = s.Q_ALBUM_SONG_ID
+                WHERE d.ACTIVE = 1
+                """);
+        counter.Reads = 0;
+
+        var tracks = await repository.GetActiveAlbumTracksAsync();
+        var sevenSeas = SongCatalog.DetailFor(tracks, "seven-seas-of-rhye");
+        var keepAlive = SongCatalog.DetailFor(tracks, "keep-yourself-alive");
+
+        Assert.True(counter.Reads <= 2, $"Set-based catalogue issued {counter.Reads} commands.");
+        SongIdentityTests.AssertSongDetailEqual(expected, sevenSeas);
+        SongIdentityTests.AssertSongDetailEqual(expectedKeep, keepAlive);
+        Assert.Equal(AlbumCoverUrl.Build("kya.webp"), keepAlive!.CoverUrl);
+        Assert.DoesNotContain(tracks, track => track.AlbumId == 13);
+        Assert.Equal(3, tracks.Count);
+        Assert.Equal(
+            new[]
+            {
+                new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/track/early"),
+                new StreamingLink(StreamingProvider.AppleMusic, "https://music.apple.com/track/early"),
+            },
+            tracks.Single(track => track.AlbumSongId == 101).StreamingLinks);
+        Assert.Equal(
+            new[] { new StreamingLink(StreamingProvider.Spotify, "https://open.spotify.com/track/later") },
+            tracks.Single(track => track.AlbumSongId == 111).StreamingLinks);
+        Assert.Empty(tracks.Single(track => track.AlbumSongId == 102).StreamingLinks);
+    }
+
+    [Fact]
+    public async Task Discography_catalog_returns_empty_when_album_list_is_empty()
+    {
+        var repository = new EfDiscographyRepository(
+            dbContext,
+            listSql: "SELECT Q_ALBUM_ID, ALBUM_NAME, release_year, thumb_url FROM AlbumList WHERE 1 = 0",
+            displaySql: id => $"""
+                SELECT Q_ALBUM_ID, ALBUM_NAME, RELEASE_DATE, GENERAL_NOTES, ARTIST_NAME, THUMB_URL, PICTURE_URL, ACTIVE
+                FROM AlbumDisplay WHERE Q_ALBUM_ID = {id}
+                """,
+            songsSql: id => $"""
+                SELECT Q_ALBUM_SONG_ID, SONG_TITLE, IS_SINGLE, SONG_LYRICS, SONG_NOTES, NULL AS COVER_URL
+                FROM AlbumSong
+                WHERE Q_ALBUM_ID = {id}
+                """);
+
+        Assert.Empty(await repository.GetActiveAlbumTracksAsync());
+        Assert.Empty(await repository.GetSongsAsync());
+        Assert.Null(await repository.GetSongBySlugAsync("bohemian-rhapsody"));
+    }
+
+    [Fact]
+    public void Discography_catalog_sql_projects_track_number_cover_lyrics_and_active_filter()
+    {
+        var sql = EfProductionSql.CreateDiscographyCatalogSongsSql(18);
+
+        Assert.Contains("TRACK_NUMBER", sql, StringComparison.Ordinal);
+        Assert.Contains("COVER_URL", sql, StringComparison.Ordinal);
+        Assert.Contains("SONG_LYRICS", sql, StringComparison.Ordinal);
+        Assert.Contains("SONG_NOTES", sql, StringComparison.Ordinal);
+        Assert.Contains("a.ACTIVE = 1", sql, StringComparison.Ordinal);
+        Assert.Contains("LEFT JOIN dbo.DiscographyStreamingLinks", sql, StringComparison.Ordinal);
+        Assert.Contains("links.AlbumId = CAST(s.Q_ALBUM_ID AS int)", sql, StringComparison.Ordinal);
+        Assert.Contains("links.AlbumSongId = CAST(s.Q_ALBUM_SONG_ID AS int)", sql, StringComparison.Ordinal);
+        Assert.Contains("@albumId0", sql, StringComparison.Ordinal);
+        Assert.Contains("@albumId17", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("LOWER(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Throws<ArgumentOutOfRangeException>(() => EfProductionSql.CreateDiscographyCatalogSongsSql(0));
     }
 
     [Fact]
@@ -1092,5 +1313,20 @@ public sealed class EfPublicReadRepositoryTests : IAsyncDisposable
 
         Assert.Equal(2008, range.MinYear);
         Assert.Equal(2026, range.MaxYear);
+    }
+
+    private sealed class CatalogQueryCounter : DbCommandInterceptor
+    {
+        public int Reads { get; set; }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 }

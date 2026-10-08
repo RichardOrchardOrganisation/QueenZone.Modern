@@ -222,6 +222,34 @@ public sealed class EfSearchIndexServiceTests : IAsyncDisposable
         Assert.Empty(await dbContext.SearchDocuments.AsNoTracking().ToListAsync());
     }
 
+    [Fact]
+    public async Task FindByExactTitleAsync_ReturnsMatchingTitlesAndKeepsInMemoryFilter()
+    {
+        await service.UpsertAsync(Document("news:rhapsody", SiteSearchContentType.News, "Bohemian Rhapsody"));
+        await service.UpsertAsync(Document("forum-thread:other", SiteSearchContentType.Forum, "Somebody to Love"));
+
+        var matches = await service.FindByExactTitleAsync("Bohemian Rhapsody");
+
+        var match = Assert.Single(matches);
+        Assert.Equal("Bohemian Rhapsody", match.Title);
+        Assert.Equal("/search-test/news:rhapsody", match.Url);
+        Assert.Equal(SiteSearchContentType.News, match.ContentType);
+        Assert.True(string.IsNullOrEmpty(match.Body));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task FindByExactTitleAsync_BlankTitle_ReturnsEmpty(string? title)
+    {
+        await service.UpsertAsync(Document("news:rhapsody", SiteSearchContentType.News, "Bohemian Rhapsody"));
+
+        var matches = await service.FindByExactTitleAsync(title!);
+
+        Assert.Empty(matches);
+    }
+
     private static SearchDocumentEntity Document(string sourceKey, string contentType, string title) =>
         new()
         {

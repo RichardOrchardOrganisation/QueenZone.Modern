@@ -34,32 +34,34 @@ internal static class LiveSiteTransportRetry
         return IsTransientCancel(exception);
     }
 
-    public static bool IsTransientCancel(Exception? exception)
+    public static bool ShouldRetrySocketOrCancel(
+        Exception exception,
+        CancellationToken cancellationToken = default,
+        Func<string, string?>? getEnv = null)
     {
-        for (var current = exception; current is not null; current = current.InnerException)
+        if (!RealDataMarkers.IsReadOnlyMode(getEnv))
         {
-            if (current is TaskCanceledException or SocketException)
-            {
-                return true;
-            }
-
-            // Playwright goto reports "Timeout 30000ms exceeded" as PlaywrightException,
-            // not TaskCanceledException. Live-site 404/nav flakes on the runner are the
-            // same transport interrupt (issue #1543).
-            if (IsPlaywrightNavigationTimeout(current))
-            {
-                return true;
-            }
-
-            if (current is HttpRequestException or IOException or PlaywrightException
-                && LooksLikeSocketCancel(current.Message))
-            {
-                return true;
-            }
+            return false;
         }
 
-        return false;
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        return IsTransientSocketOrCancel(exception);
     }
+
+    public static bool IsTransientCancel(Exception? exception) =>
+        MatchesTransient(exception, includeNavigationTimeout: true);
+
+    /// <summary>
+    /// Socket / cancel class only. Playwright navigation timeouts are excluded so
+    /// <see cref="LiveSiteNavigationRecheck"/> can recheck them after <c>/warmup</c>
+    /// instead of retrying immediately (issue #2195 / #1543).
+    /// </summary>
+    public static bool IsTransientSocketOrCancel(Exception? exception) =>
+        MatchesTransient(exception, includeNavigationTimeout: false);
 
     public static async Task<T> RunAsync<T>(
         Func<Task<T>> action,
@@ -80,7 +82,57 @@ internal static class LiveSiteTransportRetry
         }
     }
 
-    private static bool IsPlaywrightNavigationTimeout(Exception exception) =>
+    /// <summary>
+    /// Immediate one-retry for socket and cancel errors only. Does not retry
+    /// Playwright navigation timeouts — those belong on the #2195 warmup recheck.
+    /// </summary>
+    public static async Task<T> RunSocketOrCancelAsync<T>(
+        Func<Task<T>> action,
+        CancellationToken cancellationToken = default,
+        Func<string, string?>? getEnv = null)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        try
+        {
+            return await action().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ShouldRetrySocketOrCancel(ex, cancellationToken, getEnv))
+        {
+            TestContext.Out.WriteLine(
+                $"Live-site transport cancel; retrying once ({ex.GetType().Name}: {ex.Message})");
+            return await action().ConfigureAwait(false);
+        }
+    }
+
+    private static bool MatchesTransient(Exception? exception, bool includeNavigationTimeout)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TaskCanceledException or SocketException)
+            {
+                return true;
+            }
+
+            // Playwright goto reports "Timeout 30000ms exceeded" as PlaywrightException.
+            // HTTP sitemap fetches still treat that as a transport cancel (#1543).
+            // Navigation uses LiveSiteNavigationRecheck for timeouts instead.
+            if (includeNavigationTimeout && IsPlaywrightNavigationTimeout(current))
+            {
+                return true;
+            }
+
+            if (current is HttpRequestException or IOException or PlaywrightException
+                && LooksLikeSocketCancel(current.Message))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool IsPlaywrightNavigationTimeout(Exception exception) =>
         exception is PlaywrightException
         && exception.Message.Contains("Timeout", StringComparison.Ordinal)
         && exception.Message.Contains("exceeded", StringComparison.OrdinalIgnoreCase);

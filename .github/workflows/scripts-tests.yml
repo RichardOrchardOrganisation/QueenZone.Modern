@@ -36,6 +36,9 @@ jobs:
       - name: Run node:test
         run: node --test $(find scripts -name '*.test.mjs' | sort)
 
+      - name: Self-test live-site deploy-quiet gate
+        run: bash ./scripts/Wait-DeployQuiet.sh --self-test
+
       - name: Test Android app-crash classifier harness
         run: ./scripts/run-mobile-device-smoke.sh --self-test-app-crash
 
