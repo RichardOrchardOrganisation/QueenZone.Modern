@@ -123,11 +123,19 @@
         "studio album"
       ],
       "sources": [
-        "src/QueenZone.Mobile/src/screens/archive/AlbumScreen.tsx"
+        "src/QueenZone.Mobile/src/screens/archive/AlbumScreen.tsx",
+        "src/QueenZone.Mobile/src/ui/ListenOnLinks.tsx"
       ],
-      "testIds": [],
-      "flows": [],
-      "specs": [],
+      "testIds": [
+        "albumListenOn",
+        "albumTrackListenOn"
+      ],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/19-streaming-links-proof.yaml"
+      ],
+      "specs": [
+        "src/QueenZone.Mobile/src/screens/archive/AlbumScreen.test.tsx"
+      ],
       "selectors": [],
       "signIn": "none",
       "recipe": "",
@@ -142,13 +150,20 @@
         "song detail"
       ],
       "sources": [
-        "src/QueenZone.Mobile/src/screens/archive/SongScreen.tsx"
+        "src/QueenZone.Mobile/src/screens/archive/SongScreen.tsx",
+        "src/QueenZone.Mobile/src/ui/ListenOnLinks.tsx"
       ],
       "testIds": [
-        "songScreen"
+        "songScreen",
+        "songListenOn",
+        "songAppearanceListenOn"
       ],
-      "flows": [],
-      "specs": [],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/19-streaming-links-proof.yaml"
+      ],
+      "specs": [
+        "src/QueenZone.Mobile/src/screens/archive/SongScreen.test.tsx"
+      ],
       "selectors": [],
       "signIn": "none",
       "recipe": "",

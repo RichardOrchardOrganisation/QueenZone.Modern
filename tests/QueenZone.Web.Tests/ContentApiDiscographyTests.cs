@@ -58,6 +58,35 @@ public sealed class ContentApiDiscographyTests : IClassFixture<QueenZoneWebAppli
     }
 
     [Fact]
+    public async Task Discography_detail_includes_streaming_links_as_provider_keys()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        using var withLinks = System.Text.Json.JsonDocument.Parse(
+            await client.GetStringAsync($"{ContentApiEndpoints.RootPath}/discography/4"));
+        var albumLinks = withLinks.RootElement.GetProperty("streamingLinks");
+        Assert.Equal(
+            ["spotify", "apple-music"],
+            albumLinks.EnumerateArray().Select(link => link.GetProperty("provider").GetString()));
+        Assert.Equal(
+            "https://open.spotify.com/album/0SampleNightAtTheOpera",
+            albumLinks[0].GetProperty("url").GetString());
+
+        var songs = withLinks.RootElement.GetProperty("songs").EnumerateArray().ToList();
+        var bohemian = songs.Single(song => song.GetProperty("title").GetString() == "Bohemian Rhapsody");
+        Assert.Equal(2, bohemian.GetProperty("streamingLinks").GetArrayLength());
+        Assert.All(
+            songs.Where(song => song.GetProperty("title").GetString() != "Bohemian Rhapsody"),
+            song => Assert.Equal(0, song.GetProperty("streamingLinks").GetArrayLength()));
+
+        // Albums without links still carry an empty array, never null or a missing property.
+        using var withoutLinks = System.Text.Json.JsonDocument.Parse(
+            await client.GetStringAsync($"{ContentApiEndpoints.RootPath}/discography/3"));
+        Assert.Equal(System.Text.Json.JsonValueKind.Array, withoutLinks.RootElement.GetProperty("streamingLinks").ValueKind);
+        Assert.Equal(0, withoutLinks.RootElement.GetProperty("streamingLinks").GetArrayLength());
+    }
+
+    [Fact]
     public void ToAlbumDetail_formats_notes_and_lyrics_like_the_website()
     {
         var album = new AlbumDetail(

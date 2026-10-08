@@ -68,6 +68,10 @@ export const testIds = {
 
   archiveHubScreen: 'archive-hub-screen',
   songScreen: 'song-screen',
+  songListenOn: 'song-listen-on',
+  songAppearanceListenOn: 'song-appearance-listen-on',
+  albumListenOn: 'album-listen-on',
+  albumTrackListenOn: 'album-track-listen-on',
   articleStoryScreen: 'article-story-screen',
   timelineBack: 'timeline-back',
   timelineEventScreen: 'timeline-event-screen',

@@ -228,7 +228,13 @@ public static class ContentApiMapper
             album.GeneralNotes is null ? null : NewsArticleContent.FormatBody(album.GeneralNotes),
             album.CoverUrl,
             DiscographyRoutes.GetAlbumPath(album.AlbumId, album.Slug),
-            ToAlbumSongs(album.Songs));
+            ToAlbumSongs(album.Songs))
+        {
+            StreamingLinks = ToStreamingLinks(album.StreamingLinks),
+        };
+
+    public static IReadOnlyList<StreamingLinkDto> ToStreamingLinks(IEnumerable<StreamingLink> links) =>
+        links.Select(link => new StreamingLinkDto(link.Provider.Key(), link.Url)).ToList();
 
     private static IReadOnlyList<AlbumSongDto> ToAlbumSongs(IEnumerable<AlbumSong> songs) =>
         songs
@@ -238,7 +244,10 @@ public static class ContentApiMapper
                 song.IsSingle,
                 song.Lyrics is null ? null : LyricsFormatter.Format(song.Lyrics),
                 song.Notes,
-                SongRoutes.GetSongPath(NewsSlug.Slugify(song.Title))))
+                SongRoutes.GetSongPath(NewsSlug.Slugify(song.Title)))
+            {
+                StreamingLinks = ToStreamingLinks(song.StreamingLinks),
+            })
             .ToList();
 
     public static SongListItemDto ToSongListItem(SongSummary song) =>
@@ -260,14 +269,20 @@ public static class ContentApiMapper
                     appearance.ReleaseYear,
                     appearance.IsSingle,
                     appearance.Notes,
-                    DiscographyRoutes.GetAlbumPath(appearance.AlbumId, appearance.AlbumSlug)))
+                    DiscographyRoutes.GetAlbumPath(appearance.AlbumId, appearance.AlbumSlug))
+                {
+                    StreamingLinks = ToStreamingLinks(appearance.StreamingLinks),
+                })
                 .ToList(),
             (related ?? [])
                 .SelectMany(section => section.Links.Select(link => new SongRelatedItemDto(
                     link.ContentType,
                     link.Title,
                     link.Url)))
-                .ToList());
+                .ToList())
+        {
+            StreamingLinks = ToStreamingLinks(song.StreamingLinks),
+        };
 
     public static FreddieTributeDto ToFreddieTributeDto(FreddieTribute tribute) =>
         new(

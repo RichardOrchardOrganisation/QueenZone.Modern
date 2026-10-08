@@ -1,0 +1,56 @@
+appId: org.queenzone.mobile
+name: Discography Listen on links proof
+---
+# Testing seed (SampleDiscographyData): A Night at the Opera has album links and
+# Bohemian Rhapsody has track links; Seven Seas of Rhye resolves Spotify from
+# "Queen" and Apple Music from "Queen II" (#2180). Proof only: links are not tapped.
+- tapOn:
+    id: tab-archive
+- extendedWaitUntil:
+    visible:
+      id: archive-hub-screen
+    timeout: 15000
+# The hub header is tall; Discography is below the fold on CI emulators.
+- scrollUntilVisible:
+    element: ".*Discography.*"
+    direction: DOWN
+    timeout: 20000
+- tapOn: ".*Discography.*"
+- extendedWaitUntil:
+    visible: Discography
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Open album A Night at the Opera"
+    direction: DOWN
+    timeout: 20000
+- tapOn: "Open album A Night at the Opera"
+# The square cover fills small emulators, so scroll each element into view before asserting.
+- scrollUntilVisible:
+    element:
+      id: album-listen-on-spotify
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: album-listen-on-apple-music
+    direction: DOWN
+    timeout: 10000
+- takeScreenshot: album-listen-on
+- scrollUntilVisible:
+    element:
+      id: album-track-listen-on-4011
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: album-track-listen-on
+- tapOn: Bohemian Rhapsody
+- scrollUntilVisible:
+    element:
+      id: song-listen-on-spotify
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: song-appearance-listen-on-4-spotify
+    direction: DOWN
+    timeout: 10000
+- takeScreenshot: song-listen-on
