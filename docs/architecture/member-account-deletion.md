@@ -20,3 +20,7 @@ Members who already have a 30-day scheduled request can still sign in and cancel
 The other participant's private conversation remains, with the deleted member's messages reduced to placeholders. Modern forum posts similarly remain as placeholders to preserve thread continuity. Reports involving the deleted member are removed, and preceding conversation context in other reports is cleared. This account-deletion rule supersedes the general reported-message retention rule in [ADR 0015](../decisions/0015-private-message-report-retention-and-audit.md) for reports involving a deleted member.
 
 Deleted accounts are excluded from recipient search, and conversations with them cannot receive new replies.
+
+## Provider diagnostics
+
+The account-deletion receipt covers the lifecycle above, not Sentry diagnostics, Azure logs or backups. Follow the [manual diagnostic-data deletion runbook](diagnostic-data-deletion-runbook.md) for operator review and provider requests. Richard has confirmed responsibility for the daily manual review in that runbook; the accompanying wording remains subject to review and deployment approval. No automatic provider deletion is implemented here.
