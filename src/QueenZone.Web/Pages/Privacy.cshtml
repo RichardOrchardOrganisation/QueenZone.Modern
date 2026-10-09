@@ -5,7 +5,7 @@
   ViewData["CanonicalPath"] = "/privacy";
 }
 
-<partial name="_PageHero" model='@(("Your Data", "Privacy Policy", "A plain-English explanation of what we collect, why, and how you stay in control.", "Last updated 23 September 2026"))' />
+<partial name="_PageHero" model='@(("Your Data", "Privacy Policy", "A plain-English explanation of what we collect, why, and how you stay in control.", "Last updated 9 October 2026"))' />
 
 <section class="qz-section qz-section--warm">
   <div class="qz-container qz-container--text">
@@ -13,7 +13,7 @@
     <p class="lede">Queenzone is an independent fan archive. This page explains, in plain English, what information we collect when you use the site, why we collect it, and what choices you have.</p>
 
     <h2>Who we are</h2>
-    <p>Queenzone (queenzone.org) is a fan-run archive of news, articles, photography, discography and community history. We are not affiliated with Queen or its representatives. If you have questions about this policy, contact us at <a href="mailto:privacy@queenzone.org">privacy@queenzone.org</a>.</p>
+    <p>Queenzone (queenzone.org) is a fan-run archive of news, articles, photography, discography and community history. We are not affiliated with Queen or its representatives. If you have questions about this policy, contact us at <a href="mailto:support@queenzone.org">support@queenzone.org</a>.</p>
 
     <h2>Information you give us</h2>
     <p>If you create a member account, we store your email address, display name and (if you sign up with a password rather than a social login) a securely hashed password. We never store your password in plain text.</p>
@@ -29,9 +29,15 @@
     <p>We use a small number of cookies on the website to keep you signed in and to support analytics and advertising as described above. You can block or delete cookies in your browser settings; doing so may sign you out or affect site features.</p>
 
     <h2>Our mobile app</h2>
-    <p>The Queenzone mobile app does not use Google Analytics, Google AdSense, advertising, or cross-app tracking. It uses Sentry for crash and performance diagnostics. If you consent, it uses TelemetryDeck to count anonymous active app installations, visits to the five main sections, and coarse country or device-region information. TelemetryDeck receives a random installation identifier that its SDK hashes before transmission; we do not send your member ID, email, content, searches, or precise location. This data is used only to improve the app and is not linked to your Queenzone account or shared for advertising.</p>
+    <p>The Queenzone mobile app does not use Google Analytics, Google AdSense, advertising, or cross-app tracking. It automatically sends crash reports, performance measurements and navigation diagnostics to Sentry to help us find and fix app problems. These diagnostics can include device and app information, request paths and error details. They are separate from optional TelemetryDeck analytics.</p>
+    <p>If you consent, it uses TelemetryDeck to count anonymous active app installations, visits to the five main sections, and coarse country or device-region information. TelemetryDeck receives a random installation identifier that its SDK hashes before transmission; we do not send your member ID, email, content, searches, or precise location. This data is used only to improve the app and is not linked to your Queenzone account or shared for advertising.</p>
     <p>You can refuse analytics when first asked, or grant or withdraw consent later under Profile → Analytics preferences. Withdrawal stops future collection and deletes the analytics identifier stored on your device. Previously sent events are anonymous and cannot be matched back to you for individual deletion. TelemetryDeck currently has no guaranteed cold-storage deletion schedule and says it expects to delete anonymous events after 7–10 years.</p>
     <p>You can sign in to the app using a Google, Microsoft, Discord, GitHub or Apple account, and manage notifications or delete your account from Settings within the app.</p>
+
+    <h2>Diagnostics and data requests</h2>
+    <p>Our Sentry project suppresses IP addresses and filters search values from supported request URLs, query strings, HTTP breadcrumbs and performance span fields before new events are stored. These server-side controls do not stop the app transmitting diagnostics, cover every possible error field, or erase older events.</p>
+    <p>Account-deletion requests also need a manual review of associated identifiable diagnostic data; the account-deletion status receipt does not confirm deletion by Sentry or other providers. For requests or follow-up, contact <a href="mailto:support@queenzone.org">support@queenzone.org</a> or use our <a href="/contact">Contact</a> form. We will explain what we can associate with your account, what was removed or referred to a provider, and any remaining retention limits. Do not send passwords, access tokens or private message content.</p>
+    <p>Diagnostic retention depends on the provider, data type and subscription settings. Older diagnostic events and backups are not erased immediately by account deletion; they may remain until separately removed or their configured retention period expires. We cannot promise individual deletion of events that cannot be linked to you. Any information retained for a legitimate security or legal reason will be explained when we respond.</p>
 
     <h2>How we use your information</h2>
     <ul>
@@ -65,7 +71,7 @@
     <p>If we make material changes to this policy, we'll update the date at the top of this page. Continued use of the site after a change means you accept the updated policy.</p>
 
     <h2>Contact us</h2>
-    <p>Questions about this policy or your data? Use the <a href="/contact">Contact</a> form, or email <a href="mailto:privacy@queenzone.org">privacy@queenzone.org</a>.</p>
+    <p>Questions about this policy or your data? Use the <a href="/contact">Contact</a> form, or email <a href="mailto:support@queenzone.org">support@queenzone.org</a>.</p>
 
   </div>
 </section>
