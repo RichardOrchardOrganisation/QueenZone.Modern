@@ -107,7 +107,8 @@ resource "cloudflare_zone_setting" "development_mode" {
 # Keep high-volume archive crawlers at the edge. These user agents were the
 # sustained source of expensive forum-author/topic reads in Application Insights
 # on 6-9 September 2026. Search-engine crawlers such as Googlebot and bingbot are
-# deliberately unaffected.
+# deliberately unaffected. Matching is case-insensitive via lower(), which is a
+# strict superset of the previous case-sensitive matches.
 resource "cloudflare_ruleset" "bot_blocking" {
   zone_id     = var.zone_id
   name        = "QueenZone custom firewall rules"
@@ -135,13 +136,14 @@ resource "cloudflare_ruleset" "bot_blocking" {
       description = "Block crawlers proven to overload the forum archive"
       expression  = <<-EOT
         (http.host in {"queenzone.org" "www.queenzone.org"}) and (
-          http.user_agent contains "ClaudeBot" or
-          http.user_agent contains "Claude-SearchBot" or
-          http.user_agent contains "AionBot" or
-          http.user_agent contains "Amazonbot" or
-          http.user_agent contains "SemrushBot" or
-          http.user_agent contains "MJ12bot" or
-          http.user_agent contains "serpstatbot"
+          lower(http.user_agent) contains "claudebot" or
+          lower(http.user_agent) contains "claude-searchbot" or
+          lower(http.user_agent) contains "aionbot" or
+          lower(http.user_agent) contains "amazonbot" or
+          lower(http.user_agent) contains "semrushbot" or
+          lower(http.user_agent) contains "mj12bot" or
+          lower(http.user_agent) contains "serpstatbot" or
+          lower(http.user_agent) contains "shapbot"
         )
       EOT
       action      = "block"
@@ -150,24 +152,35 @@ resource "cloudflare_ruleset" "bot_blocking" {
   ]
 }
 
-# Archive-author pages perform database-backed lookups for each distinct legacy
-# author ID. Limit bursts per source IP while leaving ordinary browsing and
-# search-engine discovery unaffected. The exact Serpstat crawler currently
-# causing sustained traffic is blocked above; this rule is the safety net for
-# other clients that sweep unique author IDs too quickly for edge caching to help.
+# Forum page views are database-backed (topics, topic pages, archive authors)
+# and a long-tail crawler sweeping unique IDs gets no help from the edge cache.
+# The zone is on the Cloudflare Free plan (infra/import/cloudflare-hostnames.json),
+# which allows exactly one rate-limiting rule, a 10-second counting period, a
+# 10-second mitigation timeout, per-IP counting only, and no method or cookie
+# fields. So one rule counts every /forum/ page view (GET, HEAD and POST alike)
+# per IP, with archive-author pages sharing that counter rather than keeping a
+# separate tighter one, and signed-in members cannot be exempted by cookie.
+# ASP.NET routing is case-insensitive, so the path is lowered before matching
+# (lower() has no plan restriction in the Rules language function reference),
+# and the bare /forum index counts too. Attachment downloads are excluded so a
+# topic with many images cannot trip it.
+# 20 per 10 seconds is ~3x the busiest non-crawler client seen in Application
+# Insights over 14 days (6 sampled forum requests in a 10s window; p99.9 is 4).
 resource "cloudflare_ruleset" "archive_author_rate_limit" {
   zone_id     = var.zone_id
   name        = "QueenZone rate limiting rules"
-  description = "Rate limit bursts across expensive archive-author pages"
+  description = "Rate limit bursts across database-backed forum pages"
   kind        = "zone"
   phase       = "http_ratelimit"
 
   rules = [{
     ref         = "rate_limit_archive_author_requests"
-    description = "Block archive-author clients exceeding 10 requests in 10 seconds"
+    description = "Block forum clients exceeding 20 page requests in 10 seconds"
     expression  = <<-EOT
       (http.host in {"queenzone.org" "www.queenzone.org"}) and
-      starts_with(http.request.uri.path, "/forum/archive-authors/")
+      (lower(http.request.uri.path) eq "/forum" or
+      starts_with(lower(http.request.uri.path), "/forum/")) and
+      not starts_with(lower(http.request.uri.path), "/forum/attachment/")
     EOT
     action      = "block"
     enabled     = true
@@ -175,14 +188,18 @@ resource "cloudflare_ruleset" "archive_author_rate_limit" {
     ratelimit = {
       characteristics     = ["cf.colo.id", "ip.src"]
       period              = 10
-      requests_per_period = 10
+      requests_per_period = 20
       mitigation_timeout  = 10
     }
   }]
 }
 
 # Archive-author pages are public and identical for cookie-free visitors. Cache
-# them at Cloudflare for an hour so repeat legitimate crawler/browser requests do
+# them at Cloudflare for an hour. HEAD is matched alongside GET: Cloudflare
+# shares one cache entry for GET and HEAD and converts a cacheable HEAD miss to
+# an origin GET, so HEAD both hits and fills the cache
+# (https://developers.cloudflare.com/cache/concepts/cache-behavior/). Before
+# this, crawler HEADs were DYNAMIC and always reached the origin so repeat legitimate crawler/browser requests do
 # not reach App Service or Azure SQL. Requests carrying any cookie bypass this
 # rule and retain the application's normal authentication-aware caching path.
 resource "cloudflare_ruleset" "archive_author_cache" {
@@ -194,10 +211,10 @@ resource "cloudflare_ruleset" "archive_author_cache" {
 
   rules = [{
     ref         = "cache_anonymous_archive_authors"
-    description = "Cache cookie-free archive-author GET requests for one hour"
+    description = "Cache cookie-free archive-author GET and HEAD requests for one hour"
     expression  = <<-EOT
       (http.host in {"queenzone.org" "www.queenzone.org"}) and
-      (http.request.method eq "GET") and
+      (http.request.method in {"GET" "HEAD"}) and
       starts_with(http.request.uri.path, "/forum/archive-authors/") and
       (http.cookie eq "")
     EOT
