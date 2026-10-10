@@ -91,9 +91,16 @@ test('real-source state pauses others; spoofed messages and load do not imply pl
   const [a,b] = f.frames();
   a.fire('load');
   assert.deepEqual(a.messages.map(m => m.event), ['listening']);
+  assert.equal(a.messages[0].channel, 'widget');
+  f.advance(250);
+  assert.equal(a.messages.filter(m => m.event === 'listening').length, 2);
+  f.message(a, {event:'onReady'});
+  f.advance(500);
+  assert.equal(a.messages.filter(m => m.event === 'listening').length, 2);
   f.message(b, {event:'onStateChange',info:1}, 'https://evil.example');
   f.message(b, {event:'onStateChange',info:1}, 'https://www.youtube-nocookie.com', {});
-  assert.equal(a.messages.length, 1);
+  assert.equal(a.messages.length, 2);
+  assert.ok(a.messages.every(m => m.event === 'listening'));
   f.message(b, {event:'onStateChange',info:1});
   assert.equal(a.messages.at(-1).func, 'pauseVideo');
   f.document.hidden = true; f.document.fire('visibilitychange');
@@ -101,7 +108,8 @@ test('real-source state pauses others; spoofed messages and load do not imply pl
   const count = a.messages.length + b.messages.length;
   f.document.hidden = false; f.document.fire('visibilitychange');
   assert.equal(a.messages.length + b.messages.length, count);
-  assert.ok(f.allFrames.flatMap(frame => frame.messages).every(m => m.event === 'listening' || m.func === 'pauseVideo'));
+  assert.ok(f.allFrames.flatMap(frame => frame.messages).every(m =>
+    (m.event === 'listening' || m.func === 'pauseVideo') && m.channel === 'widget' && m.func !== 'playVideo'));
 });
 test('retention cancels on re-entry, skips fullscreen and preserves focus on eviction', () => {
   const f = fixture(); f.observers[0].deliver([0], true);

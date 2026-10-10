@@ -12,8 +12,13 @@
   let preloadObserver;
   let retainObserver;
   let mutationObserver;
-  const send = (card, message) => card.frame?.contentWindow?.postMessage(JSON.stringify(message), playerOrigin);
-  const pause = card => send(card, { event: "command", func: "pauseVideo", args: [] });
+  const allowed = message => message.event === "listening" || (message.event === "command" && message.func === "pauseVideo");
+  const send = (card, message) => {
+    if (!allowed(message)) return;
+    card.frame?.contentWindow?.postMessage(JSON.stringify(message), playerOrigin);
+  };
+  const pause = card => send(card, { event: "command", func: "pauseVideo", args: [], channel: "widget" });
+  const listen = card => send(card, { event: "listening", id: card.id, channel: "widget" });
   const focusFallback = card => {
     if (card.element.contains(document.activeElement)) card.link.focus({ preventScroll: true });
   };
@@ -22,6 +27,7 @@
     pause(card);
     focusFallback(card);
     clearTimeout(card.timer);
+    clearTimeout(card.handshake);
     card.frameLifetime?.abort();
     card.frame?.remove();
     card.frame = null;
@@ -59,8 +65,13 @@
     frame.addEventListener("load", () => {
       if (!alive()) return;
       // Load is not readiness or playback. Unknown players retain the failure deadline.
-      if (card.originMatches) send(card, { event: "listening", id: card.id });
-      else { clearTimeout(card.timer); card.state = "mounted"; }
+      if (!card.originMatches) { clearTimeout(card.timer); card.state = "mounted"; return; }
+      const handshake = () => {
+        if (!alive() || card.state === "mounted" || card.state === "failed") return;
+        listen(card);
+        card.handshake = setTimeout(handshake, 250);
+      };
+      handshake();
     }, { signal: card.frameLifetime.signal });
     frame.addEventListener("error", fail, { signal: card.frameLifetime.signal });
     card.timer = setTimeout(fail, 12000);
@@ -117,10 +128,14 @@
     const text = element.dataset.startSeconds;
     const start = text ? Number(text) : null;
     if (!/^[A-Za-z0-9_-]{11}$/.test(id || "") || (text && (!/^\d+$/.test(text) || !Number.isSafeInteger(start) || start > 86400))) continue;
+    const viewport = element.querySelector("[data-video-viewport]");
+    const placeholder = element.querySelector("[data-video-placeholder]");
+    const button = element.querySelector("[data-video-load]");
+    const status = element.querySelector("[data-video-status]");
+    const link = element.querySelector(".qz-forum-video__fallback a");
+    if (!viewport || !placeholder || !button || !status || !link) continue;
     const card = { element, id, start, state: "idle", playerState: null, frame: null, evictAt: null, preload: false,
-      viewport: element.querySelector("[data-video-viewport]"), placeholder: element.querySelector("[data-video-placeholder]"),
-      button: element.querySelector("[data-video-load]"), status: element.querySelector("[data-video-status]"),
-      link: element.querySelector(".qz-forum-video__fallback a"), originMatches: element.dataset.qzPlayerOrigin === location.origin };
+      viewport, placeholder, button, status, link, originMatches: element.dataset.qzPlayerOrigin === location.origin };
     card.auto = card.originMatches && typeof IntersectionObserver !== "undefined";
     card.button.hidden = false;
     cards.push(card);
@@ -161,6 +176,7 @@
     if (!message) return;
     if (message.error) { release(card, true); schedule(); return; }
     clearTimeout(card.timer);
+    clearTimeout(card.handshake);
     card.state = "mounted";
     if (message.playerState !== undefined) {
       card.playerState = message.playerState;
@@ -171,6 +187,7 @@
   }, { signal: lifetime.signal });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) cards.forEach(pause);
+    else schedule();
   }, { signal: lifetime.signal });
   document.addEventListener("fullscreenchange", schedule, { signal: lifetime.signal });
   window.addEventListener("resize", schedule, { signal: lifetime.signal });

@@ -32,7 +32,7 @@ No remote thumbnail, metadata request, `iframe_api` script, preconnect or DNS-pr
 
 ### Playback bridge and cleanup
 
-The handwritten postMessage bridge sends only the `listening` handshake and `pauseVideo`. It never sends play, seek, mute or volume commands. Incoming JSON must come from the exact nocookie origin and the `contentWindow` of a currently pooled frame. Only `onReady`, numeric `onStateChange` / `infoDelivery.playerState` states (-1, 0, 1, 2, 3, 5), and known `onError` codes (2, 5, 100, 101, 150, 153) are accepted. Malformed and spoofed messages are ignored.
+The handwritten postMessage bridge sends only the `listening` handshake (`channel: "widget"`) and `pauseVideo`. It never sends play, seek, mute or volume commands. `listening` is repeated every 250ms until the frame reports a valid event or the readiness timeout fires; that is handshake, not remount or auto-retry. Incoming JSON must come from the exact nocookie origin and the `contentWindow` of a currently pooled frame. Only `onReady`, numeric `onStateChange` / `infoDelivery.playerState` states (-1, 0, 1, 2, 3, 5), and known `onError` codes (2, 5, 100, 101, 150, 153) are accepted. Malformed and spoofed messages are ignored.
 
 Only state **1** means playing; iframe load does not. Unknown frames have no playing priority. When one reports playing, all other pooled frames receive pause. Hidden documents pause all; returning never resumes playback. `pagehide` or removal of a post containing a card releases the whole pool, disconnects observers/listeners, clears timers, and increments a generation to invalidate queued callbacks. A restored history-cache page keeps readable external links; reload to re-enable players after teardown.
 

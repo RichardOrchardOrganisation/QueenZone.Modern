@@ -33,6 +33,12 @@ jobs:
       - name: Warm up PowerShell
         run: pwsh -NoProfile -Command '$PSVersionTable.PSVersion'
 
+      - name: Check forum JavaScript syntax and scheduler tests
+        run: |
+          node --check src/QueenZone.Web/wwwroot/js/forum/youtube-scheduler.js
+          node --check src/QueenZone.Web/wwwroot/js/forum/youtube-video.js
+          node --test tests/js/youtube-scheduler.test.cjs tests/js/youtube-video.test.cjs
+
       - name: Run node:test
         run: node --test $(find scripts -name '*.test.mjs' | sort)
 
