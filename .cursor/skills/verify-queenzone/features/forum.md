@@ -36,7 +36,7 @@ Preconditions:
 
 ## YouTube card proof (`web.forum.youtube`)
 
-Open `/forum/topic/1029/archive-sample-thread-1029` for 30 cards across 15 posts. Players within the 300px preload margin load automatically; far cards make no YouTube requests. Scroll rapidly in both directions: never more than three frames or duplicate frames per card. Leaving the 600px retention range pauses/removes after 250ms; re-entry cancels eviction. A visible playing player and fullscreen player must remain mounted. Use the stubbed deterministic spec for repeatable bridge, spoof rejection, hidden-tab pause, no auto-resume, failure/Retry, layout and cleanup assertions.
+Open `/forum/topic/1029/archive-sample-thread-1029` for 30 cards across 15 posts. Players within the 300px preload margin load automatically; far cards make no YouTube requests. Scroll rapidly in both directions: never more than three frames or duplicate frames per card. Leaving the 600px retention range pauses/removes after 250ms; re-entry cancels eviction. A visible playing player and fullscreen player must remain mounted. Use the stubbed deterministic spec for repeatable bridge, spoof rejection, hidden-tab pause, no auto-resume, failure/Retry, layout, cleanup, and bfcache pageshow re-init assertions.
 
 Open `/forum/topic/1030/archive-sample-thread-1030` for the duplicate, quote, inline link, signature and pagination fixture. Verify all original links remain and quote/composer output contains no cards. Verify one privacy notice above the first card. At 320px and larger the player must be at least 200 × 200px without overflow. Check no-JS, offline, blocked, and missing-observer/origin-mismatch click-to-load fallbacks. Focus must remain on a stable external link during mount/eviction without scrolling.
 

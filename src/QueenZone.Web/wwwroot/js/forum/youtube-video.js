@@ -3,7 +3,7 @@
   "use strict";
   const scheduler = window.QzYoutubeScheduler;
   const playerOrigin = "https://www.youtube-nocookie.com";
-  const lifetime = new AbortController();
+  let lifetime = new AbortController();
   const cards = [];
   let generation = 0;
   let stopped = false;
@@ -139,6 +139,9 @@
     card.auto = card.originMatches && typeof IntersectionObserver !== "undefined";
     card.button.hidden = false;
     cards.push(card);
+    bindCard(card);
+  }
+  function bindCard(card) {
     card.button.addEventListener("click", () => {
       if (stopped) return;
       if (!card.auto && scheduler.occupied(card)) { release(card); return; }
@@ -147,53 +150,59 @@
         // The fallback retains the previous single-player click-to-load behavior.
         for (const other of cards) if (other !== card) release(other);
       }
-      if (cards.filter(card => scheduler.occupied(card)).length < scheduler.CAPACITY) mount(card);
+      if (cards.filter(item => scheduler.occupied(item)).length < scheduler.CAPACITY) mount(card);
     }, { signal: lifetime.signal });
   }
-  if (!cards.length) return;
-  const epoch = generation;
-  if (typeof IntersectionObserver !== "undefined") {
-    preloadObserver = new IntersectionObserver(entries => {
-      if (!scheduler.current(epoch, generation)) return;
-      for (const entry of entries) cards.find(card => card.viewport === entry.target).preload = entry.isIntersecting;
-      schedule();
-    }, { rootMargin: scheduler.PRELOAD_MARGIN });
-    retainObserver = new IntersectionObserver(entries => {
-      if (!scheduler.current(epoch, generation)) return;
-      for (const entry of entries) {
-        const card = cards.find(item => item.viewport === entry.target);
-        card.evictAt = scheduler.retention(card, entry.isIntersecting, performance.now());
-      }
-      schedule();
-    }, { rootMargin: scheduler.RETAIN_MARGIN });
-    for (const card of cards.filter(card => card.auto)) { preloadObserver.observe(card.viewport); retainObserver.observe(card.viewport); }
-  }
-  window.addEventListener("message", event => {
-    if (event.origin !== playerOrigin) return;
-    const card = cards.find(item => item.frame?.contentWindow === event.source);
-    if (!card) return;
-    const message = scheduler.parseMessage(event.data);
-    if (!message) return;
-    if (message.error) { release(card, true); schedule(); return; }
-    clearTimeout(card.timer);
-    clearTimeout(card.handshake);
-    card.state = "mounted";
-    if (message.playerState !== undefined) {
-      card.playerState = message.playerState;
-      if (message.playerState === 1) {
-        for (const other of cards) if (other !== card || document.hidden) pause(other);
-      }
+  function bindRuntime() {
+    const epoch = generation;
+    if (typeof IntersectionObserver !== "undefined") {
+      preloadObserver = new IntersectionObserver(entries => {
+        if (!scheduler.current(epoch, generation)) return;
+        for (const entry of entries) cards.find(card => card.viewport === entry.target).preload = entry.isIntersecting;
+        schedule();
+      }, { rootMargin: scheduler.PRELOAD_MARGIN });
+      retainObserver = new IntersectionObserver(entries => {
+        if (!scheduler.current(epoch, generation)) return;
+        for (const entry of entries) {
+          const card = cards.find(item => item.viewport === entry.target);
+          card.evictAt = scheduler.retention(card, entry.isIntersecting, performance.now());
+        }
+        schedule();
+      }, { rootMargin: scheduler.RETAIN_MARGIN });
+      for (const card of cards.filter(card => card.auto)) { preloadObserver.observe(card.viewport); retainObserver.observe(card.viewport); }
     }
-  }, { signal: lifetime.signal });
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) cards.forEach(pause);
-    else schedule();
-  }, { signal: lifetime.signal });
-  document.addEventListener("fullscreenchange", schedule, { signal: lifetime.signal });
-  window.addEventListener("resize", schedule, { signal: lifetime.signal });
-  window.addEventListener("scroll", () => {
-    if (scrollTick === null) scrollTick = requestAnimationFrame(() => { scrollTick = null; schedule(); });
-  }, { passive: true, signal: lifetime.signal });
+    window.addEventListener("message", event => {
+      if (event.origin !== playerOrigin) return;
+      const card = cards.find(item => item.frame?.contentWindow === event.source);
+      if (!card) return;
+      const message = scheduler.parseMessage(event.data);
+      if (!message) return;
+      if (message.error) { release(card, true); schedule(); return; }
+      clearTimeout(card.timer);
+      clearTimeout(card.handshake);
+      card.state = "mounted";
+      if (message.playerState !== undefined) {
+        card.playerState = message.playerState;
+        if (message.playerState === 1) {
+          for (const other of cards) if (other !== card || document.hidden) pause(other);
+        }
+      }
+    }, { signal: lifetime.signal });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) cards.forEach(pause);
+      else schedule();
+    }, { signal: lifetime.signal });
+    document.addEventListener("fullscreenchange", schedule, { signal: lifetime.signal });
+    window.addEventListener("resize", schedule, { signal: lifetime.signal });
+    window.addEventListener("scroll", () => {
+      if (scrollTick === null) scrollTick = requestAnimationFrame(() => { scrollTick = null; schedule(); });
+    }, { passive: true, signal: lifetime.signal });
+    mutationObserver = new MutationObserver(() => {
+      if (cards.some(card => !card.element.isConnected)) cleanup();
+    });
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("pagehide", cleanup, { signal: lifetime.signal });
+  }
   function cleanup() {
     if (stopped) return;
     stopped = true;
@@ -206,9 +215,21 @@
     lifetime.abort();
     cards.forEach(card => release(card));
   }
-  mutationObserver = new MutationObserver(() => {
-    if (cards.some(card => !card.element.isConnected)) cleanup();
-  });
-  mutationObserver.observe(document.body, { childList: true, subtree: true });
-  window.addEventListener("pagehide", cleanup, { signal: lifetime.signal });
+  function restore() {
+    if (!stopped) return;
+    lifetime = new AbortController();
+    stopped = false;
+    tick = null;
+    scrollTick = null;
+    for (const card of cards) {
+      card.preload = false;
+      card.evictAt = null;
+      if (card.frame) release(card);
+      bindCard(card);
+    }
+    bindRuntime();
+  }
+  if (!cards.length) return;
+  bindRuntime();
+  window.addEventListener("pageshow", event => { if (event.persisted) restore(); });
 })();

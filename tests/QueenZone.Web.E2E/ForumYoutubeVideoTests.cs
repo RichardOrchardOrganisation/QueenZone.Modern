@@ -269,4 +269,46 @@ public class ForumYoutubeVideoTests : E2EPageTest
         await Expect(Page.Locator(".qz-forum-post")).ToHaveCountAsync(2);
         await Expect(Page.Locator("[data-qz-forum-video]")).ToHaveCountAsync(1);
     }
+
+    [Test]
+    public async Task Back_navigation_reinitialises_loader_without_playback()
+    {
+        await StubPlayersAsync();
+        await Page.SetViewportSizeAsync(1280, 800);
+        await Page.GotoAsync(LongThread);
+        await Page.Locator(Cards).First.ScrollIntoViewIfNeededAsync();
+        await Expect(Page.Locator(Cards).First.Locator("iframe")).ToHaveCountAsync(1);
+
+        await Page.GotoAsync("/");
+        await Page.GoBackAsync();
+        await Expect(Page.Locator(Cards)).ToHaveCountAsync(30);
+        await Page.EvaluateAsync("""
+            () => {
+              dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+              dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+            }
+            """);
+
+        await Page.Locator(Cards).First.ScrollIntoViewIfNeededAsync();
+        await Expect(Page.Locator(Cards).First.Locator("iframe")).ToHaveCountAsync(1);
+
+        await Page.AddInitScriptAsync("window.IntersectionObserver = undefined");
+        await Page.GotoAsync(Archive);
+        await Expect(Page.Locator("iframe")).ToHaveCountAsync(0);
+        await Page.EvaluateAsync("""
+            () => {
+              dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+              dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+            }
+            """);
+        await Expect(Page.Locator("iframe")).ToHaveCountAsync(0);
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Load YouTube video", Exact = true }).First.ClickAsync();
+        await Expect(Page.Locator("iframe")).ToHaveCountAsync(1);
+        Assert.That(await Page.EvaluateAsync<bool>("""
+            () => [...document.querySelectorAll('iframe')].every(frame => {
+              try { return !(frame.contentWindow.commands || []).includes('playVideo'); }
+              catch { return true; }
+            })
+            """), Is.True);
+    }
 }

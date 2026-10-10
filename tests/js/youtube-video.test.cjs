@@ -157,6 +157,39 @@ test('origin mismatch and missing observer require explicit clicks and keep one 
     f.cards[1].button.fire('click'); assert.equal(f.frames().length, 0);
   }
 });
+test('pageshow persisted reinitialises listeners without resuming playback', () => {
+  const auto = fixture();
+  auto.observers[0].deliver([0], true);
+  assert.equal(auto.frames().length, 1);
+  auto.context.fire('pagehide');
+  assert.equal(auto.frames().length, 0);
+  auto.cards[0].button.fire('click');
+  auto.observers[0].deliver([0], true);
+  assert.equal(auto.frames().length, 0);
+  auto.context.fire('pageshow', { persisted: false });
+  auto.cards[0].button.fire('click');
+  assert.equal(auto.frames().length, 0);
+  auto.context.fire('pageshow', { persisted: true });
+  const live = auto.observers.filter(observer => !observer.disconnected);
+  assert.equal(live.length, 2);
+  live[0].deliver([0, 1], true);
+  assert.equal(auto.frames().length, 2);
+  auto.cards[3].button.fire('click');
+  assert.equal(auto.cards[3].viewport.frames.length, 1);
+  assert.ok(auto.allFrames.flatMap(frame => frame.messages).every(message =>
+    (message.event === 'listening' || message.func === 'pauseVideo') && message.func !== 'playVideo'));
+
+  const fallback = fixture({ observer: false });
+  fallback.cards[0].button.fire('click');
+  assert.equal(fallback.frames().length, 1);
+  fallback.context.fire('pagehide');
+  fallback.cards[0].button.fire('click');
+  assert.equal(fallback.frames().length, 0);
+  fallback.context.fire('pageshow', { persisted: true });
+  fallback.cards[0].button.fire('click');
+  assert.equal(fallback.frames().length, 1);
+  assert.ok(fallback.allFrames.flatMap(frame => frame.messages).every(message => message.func !== 'playVideo'));
+});
 test('pagehide and removed cards release resources and invalidate queued callbacks', () => {
   for (const removed of [false,true]) {
     const f = fixture(); f.observers[0].deliver([0], true);
