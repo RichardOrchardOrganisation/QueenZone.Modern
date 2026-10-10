@@ -197,6 +197,8 @@ public sealed class ModernForumRepositorySqlServerTests : IAsyncLifetime
 
         // Anonymous topic data: the production proc plus MergeModernAsync. EF's
         // DbCommandInterceptor alone misses the proc's direct SqlCommand execution.
+        // CI's sql-server-tests job sets ConnectionStrings__SqlServerTest (Docker MSSQL);
+        // local fallback is LocalDB.
         var page = await repository.GetTopicPostsPageAsync(2000, 1, 15);
         var commands = Convert.ToInt64(connection.RetrieveStatistics()["ServerRoundtrips"]);
 

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.OutputCaching;
 
@@ -64,7 +65,7 @@ public static class PublicOutputCachePolicies
         }
 
         var method = context.Request.Method;
-        var body = context.Response.Body;
+        var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
         try
         {
             context.Request.Method = HttpMethods.Get;
@@ -74,7 +75,10 @@ public static class PublicOutputCachePolicies
         finally
         {
             context.Request.Method = method;
-            context.Response.Body = body;
+            if (originalBodyFeature is not null)
+            {
+                context.Features.Set(originalBodyFeature);
+            }
         }
     }
 

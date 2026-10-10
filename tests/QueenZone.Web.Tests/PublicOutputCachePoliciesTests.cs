@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -83,6 +84,7 @@ public sealed class PublicOutputCachePoliciesTests
         context.Request.Method = HttpMethods.Head;
         await using var wire = new MemoryStream();
         context.Response.Body = wire;
+        var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
         var calls = 0;
 
         await PublicOutputCachePolicies.ShareForumHeadCacheAsync(context, async request =>
@@ -95,6 +97,7 @@ public sealed class PublicOutputCachePoliciesTests
         Assert.Equal(1, calls);
         Assert.Equal(HttpMethods.Head, context.Request.Method);
         Assert.Same(wire, context.Response.Body);
+        Assert.Same(originalBodyFeature, context.Features.Get<IHttpResponseBodyFeature>());
         Assert.Equal(normalized, wire.Length == 0);
     }
 
@@ -104,6 +107,7 @@ public sealed class PublicOutputCachePoliciesTests
         var context = CreateContext("/forum/topic/1002/title", false, "Production");
         context.Request.Method = HttpMethods.Head;
         var body = context.Response.Body;
+        var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             PublicOutputCachePolicies.ShareForumHeadCacheAsync(context, _ =>
@@ -111,6 +115,7 @@ public sealed class PublicOutputCachePoliciesTests
 
         Assert.Equal(HttpMethods.Head, context.Request.Method);
         Assert.Same(body, context.Response.Body);
+        Assert.Same(originalBodyFeature, context.Features.Get<IHttpResponseBodyFeature>());
     }
 
     private static DefaultHttpContext CreateContext(string path, bool authenticated, string environmentName)

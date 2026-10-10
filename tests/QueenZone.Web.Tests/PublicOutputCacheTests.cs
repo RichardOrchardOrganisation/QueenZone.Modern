@@ -125,9 +125,57 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
         Assert.Contains(expectedContent, html);
         Assert.Empty(await head.Content.ReadAsByteArrayAsync());
         Assert.Equal(get.Content.Headers.ContentType, head.Content.Headers.ContentType);
+        Assert.Equal(get.Content.Headers.ContentLength, head.Content.Headers.ContentLength);
+        Assert.True(
+            get.Content.Headers.ContentLength is null or > 0,
+            "A successful GET must not advertise an empty representation.");
         // A HEAD-first fill must retain the full representation, including its CSP nonce.
         Assert.Equal(html, await client.GetStringAsync(path));
         Assert.Equal(calls, production.Forum.Calls + production.ArchiveAuthors.Calls);
+    }
+
+    [Theory]
+    [InlineData("/forum/topic/1002/ranking-every-studio-album")]
+    [InlineData("/forum/archive-authors/5001")]
+    public async Task Production_anonymous_forum_html_sets_no_cookie(string path)
+    {
+        await production.ResetAsync();
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+        using var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(
+            response.Headers.Contains("Set-Cookie"),
+            "A plain visit must not set cookies; output caching skips responses that do.");
+    }
+
+    [Fact]
+    public async Task Production_articles_head_does_not_fill_the_get_cache_entry()
+    {
+        await production.ResetAsync();
+        var repository = production.Articles;
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+
+        using var headRequest = new HttpRequestMessage(HttpMethod.Head, "/articles");
+        using var head = await client.SendAsync(headRequest);
+        var callsAfterHead = repository.FeedKeysCallCount + repository.ByIdsCallCount;
+        using var get = await client.GetAsync("/articles");
+        var callsAfterGet = repository.FeedKeysCallCount + repository.ByIdsCallCount;
+
+        Assert.Equal(HttpStatusCode.OK, head.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        Assert.True(callsAfterHead > 0);
+        Assert.True(
+            callsAfterGet > callsAfterHead,
+            "HEAD normalization is forum-only; other public HTML must keep separate HEAD/GET cache keys.");
     }
 
     [Theory]
