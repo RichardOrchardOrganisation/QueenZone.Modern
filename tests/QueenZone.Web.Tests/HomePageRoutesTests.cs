@@ -87,6 +87,23 @@ public sealed class HomePageRoutesTests :
         Assert.Contains("<script src=\"/js/home-live-ticker.js?v=", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Home_offers_public_downloads_for_both_mobile_platforms()
+    {
+        using var client = factory.CreateAnonymousClient();
+
+        var html = await client.GetStringAsync("/");
+
+        Assert.Contains("href=\"https://apps.apple.com/au/app/queenzone-org/id6803889011\"", html);
+        Assert.Contains("href=\"https://play.google.com/store/apps/details?id=org.queenzone.mobile\"", html);
+        Assert.Contains("Download QueenZone for iPhone on the App Store", html);
+        Assert.Contains("Download QueenZone for Android on Google Play", html);
+        Assert.Contains("href=\"/mobile-apps\"", html);
+        Assert.DoesNotContain("Android testing", html);
+        Assert.DoesNotContain("play.google.com/apps/testing", html);
+        Assert.DoesNotContain("groups.google.com/g/queenzone-mobile", html);
+    }
+
     [Theory]
     [InlineData(0, "just now")]
     [InlineData(20, "20 min ago")]
