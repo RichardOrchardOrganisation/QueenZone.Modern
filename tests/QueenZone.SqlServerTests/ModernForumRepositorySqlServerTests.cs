@@ -1,3 +1,5 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using QueenZone.Data;
 
 namespace QueenZone.SqlServerTests;
@@ -174,6 +176,34 @@ public sealed class ModernForumRepositorySqlServerTests : IAsyncLifetime
         Assert.False(noPoll.Header.HasPoll);
         Assert.Equal(0, noPoll.TotalCount);
         Assert.Empty(noPoll.Posts);
+    }
+
+    [Fact]
+    public async Task Anonymous_topic_page_uses_at_most_two_commands()
+    {
+        await database.SeedCategoryAsync(1, 10, "General", sortOrder: 1);
+        await database.SeedThreadAsync(200, 2000, 10, 1, "Topic", "Freddie", replyCount: 14);
+        for (var index = 0; index < 15; index++)
+        {
+            await database.SeedPostAsync(300 + index, 3000 + index, 2000, 200, 10, "Freddie", "body", postedAt: Day1);
+            await database.SeedModernAttachmentAsync(300 + index, 3000 + index, $"file-{index}.pdf",
+                new DateTimeOffset(Day1, TimeSpan.Zero));
+        }
+        await database.SeedThreadStatsAsync(200, 2000, 15);
+        await dbContext.Database.OpenConnectionAsync();
+        var connection = (SqlConnection)dbContext.Database.GetDbConnection();
+        connection.StatisticsEnabled = true;
+        connection.ResetStatistics();
+
+        // Anonymous topic data: the production proc plus MergeModernAsync. EF's
+        // DbCommandInterceptor alone misses the proc's direct SqlCommand execution.
+        var page = await repository.GetTopicPostsPageAsync(2000, 1, 15);
+        var commands = Convert.ToInt64(connection.RetrieveStatistics()["ServerRoundtrips"]);
+
+        Assert.InRange(commands, 1L, 2L);
+        Assert.NotNull(page);
+        Assert.Equal(15, page.Posts.Count);
+        Assert.All(page.Posts, post => Assert.Single(post.Attachments!));
     }
 
     [Fact]

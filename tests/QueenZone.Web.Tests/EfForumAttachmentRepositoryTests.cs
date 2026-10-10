@@ -7,6 +7,7 @@ namespace QueenZone.Web.Tests;
 
 public sealed class EfForumAttachmentRepositoryTests : IAsyncDisposable
 {
+    private readonly QueryCounter queryCounter = new();
     private readonly SqliteConnection connection = new("DataSource=:memory:");
     private readonly QueenZoneDbContext dbContext;
     private readonly EfForumWriteRepository writeRepository;
@@ -17,6 +18,7 @@ public sealed class EfForumAttachmentRepositoryTests : IAsyncDisposable
         connection.Open();
         var options = new DbContextOptionsBuilder<QueenZoneDbContext>()
             .UseSqlite(connection)
+            .AddInterceptors(queryCounter)
             .Options;
         dbContext = new QueenZoneDbContext(options);
         dbContext.Database.EnsureCreated();
@@ -87,6 +89,44 @@ public sealed class EfForumAttachmentRepositoryTests : IAsyncDisposable
             merged[0].Attachments!.Select(a => a.FileName));
         Assert.Same(posts[1], merged[1]);
         Assert.Empty(await ForumAttachmentMerge.MergeModernAsync(dbContext, []));
+    }
+
+    [Fact]
+    public async Task MergeModernAsync_batches_fifteen_posts_and_many_attachments_in_one_read()
+    {
+        var member = await SeedMemberAsync();
+        await SeedCategoryAsync();
+        var posts = new List<ForumPostItem>();
+        for (var index = 0; index < 15; index++)
+        {
+            var created = await writeRepository.CreateThreadAsync(new NewForumThread(
+                1, member.Id, member.DisplayName, $"Topic {index}", "body", DateTimeOffset.UtcNow));
+            await attachmentRepository.AddAttachmentsAsync(created.StarterPostId,
+                Enumerable.Range(0, 4).Select(number => new NewForumAttachment(
+                    $"file-{number}.pdf", $"p/{index}/{number}.pdf", "ugc-forum", 10,
+                    "application/pdf", DateTimeOffset.Parse("2026-07-11T12:00:00Z").AddMinutes(number))).ToList());
+            posts.Add(new ForumPostItem(created.StarterPostId, "body", DateTime.UtcNow, "u", null, 0, null));
+        }
+        queryCounter.Reset();
+
+        var merged = await ForumAttachmentMerge.MergeModernAsync(dbContext, posts);
+
+        Assert.Equal(1, queryCounter.ReaderCount);
+        Assert.Contains("IN (", Assert.Single(queryCounter.ReaderCommands), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(15, merged.Count);
+        Assert.All(merged, post => Assert.Equal(
+            new[] { "file-0.pdf", "file-1.pdf", "file-2.pdf", "file-3.pdf" },
+            post.Attachments!.Select(attachment => attachment.FileName)));
+    }
+
+    [Fact]
+    public async Task MergeModernAsync_without_legacy_ids_does_not_read()
+    {
+        queryCounter.Reset();
+
+        Assert.Empty(await ForumAttachmentMerge.MergeModernAsync(dbContext, []));
+
+        Assert.Equal(0, queryCounter.ReaderCount);
     }
 
     [Fact]

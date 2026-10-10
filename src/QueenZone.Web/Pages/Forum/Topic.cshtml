@@ -24,7 +24,7 @@
 
 <section class="qz-section">
   <div class="qz-container">
-    @if (TempData[ReportModel.StatusMessageKey] is string reportMessage)
+    @if (Model.ReportStatusMessage is string reportMessage)
     {
       <output class="qz-status-block qz-account-notice qz-account-notice--success">@reportMessage</output>
     }

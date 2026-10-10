@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -23,9 +24,10 @@ public sealed class TopicModel : ForumTopicPageModel
         ITopicWatchRepository topicWatchRepository,
         TimeProvider timeProvider,
         IForumPostReportRepository forumPostReportRepository,
-        PrivateMessageService privateMessageService)
+        PrivateMessageService privateMessageService,
+        IOptions<CookieTempDataProviderOptions> tempDataCookieOptions)
         : base(forumRepository, topicWatchRepository, forumOptions, adminOptions, timeProvider,
-            forumPostReportRepository, privateMessageService)
+            forumPostReportRepository, privateMessageService, tempDataCookieOptions)
     {
         this.forumRepository = forumRepository;
         this.forumPollRepository = forumPollRepository;

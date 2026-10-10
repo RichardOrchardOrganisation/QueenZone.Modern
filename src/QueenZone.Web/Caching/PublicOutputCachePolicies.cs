@@ -1,3 +1,7 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.OutputCaching;
+
 namespace QueenZone.Web;
 
 public static class PublicOutputCachePolicies
@@ -6,6 +10,10 @@ public static class PublicOutputCachePolicies
 
     /// <summary>Anonymous public HTML (Razor Pages) short TTL cache.</summary>
     public const string PublicHtml = "public-html";
+
+    public const string PublicArchiveAuthors = "public-archive-authors";
+
+    public static readonly TimeSpan ArchiveAuthorsDuration = TimeSpan.FromMinutes(10);
 
     /// <summary>
     /// Output-cache tag applied to robots/sitemap routes. Evict with
@@ -24,6 +32,51 @@ public static class PublicOutputCachePolicies
 
     /// <summary>Short TTL so editorial changes without eviction still expire quickly.</summary>
     public static readonly TimeSpan HtmlDuration = TimeSpan.FromSeconds(90);
+
+    public static PageActionEndpointConventionBuilder CachePublicHtml(this PageActionEndpointConventionBuilder endpoints)
+    {
+        endpoints.Add(endpoint =>
+        {
+            var page = endpoint.Metadata.OfType<PageActionDescriptor>().LastOrDefault();
+            endpoint.Metadata.Add(new OutputCacheAttribute
+            {
+                PolicyName = page?.ViewEnginePath == "/Forum/ArchiveAuthor" ? PublicArchiveAuthors : PublicHtml,
+            });
+        });
+        return endpoints;
+    }
+
+    /// <summary>
+    /// Render a cold forum HEAD as GET so it populates the same complete cache entry.
+    /// Discard only the wire body, outside output caching; never skip the page lookup.
+    /// ASP.NET Core's default cache key includes Request.Method.
+    /// </summary>
+    public static async Task ShareForumHeadCacheAsync(HttpContext context, RequestDelegate next)
+    {
+        var path = context.Request.Path;
+        if (!HttpMethods.IsHead(context.Request.Method) ||
+            !IsCacheablePublicHtmlRequest(context) ||
+            !(path.StartsWithSegments("/forum/topic", StringComparison.OrdinalIgnoreCase) ||
+              path.StartsWithSegments("/forum/archive-authors", StringComparison.OrdinalIgnoreCase)))
+        {
+            await next(context);
+            return;
+        }
+
+        var method = context.Request.Method;
+        var body = context.Response.Body;
+        try
+        {
+            context.Request.Method = HttpMethods.Get;
+            context.Response.Body = Stream.Null;
+            await next(context);
+        }
+        finally
+        {
+            context.Request.Method = method;
+            context.Response.Body = body;
+        }
+    }
 
     private static readonly string[] ExcludedPathPrefixes =
     [
