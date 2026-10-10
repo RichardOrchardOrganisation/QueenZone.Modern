@@ -153,13 +153,16 @@ discovered later.
 Reader-only `opentofu-plan` identity — it can report drift but cannot
 apply. On detected drift it opens (or comments on) a GitHub issue labeled
 `opentofu-drift` with the redacted summary and a link to the run, so drift is
-an actionable, visible item rather than a workflow log nobody reads. A failed
-run (including Bitwarden preflight) keeps a failed job conclusion and opens
-or updates a matching `opentofu-drift-failure` issue so a broken detector
-cannot go quiet. Not every drift is a problem: a deliberate break-glass
-dashboard change (state-and-identity doc) will show up here too — the
-response is to either reconcile it into a PR or document why it's
-intentional, not to auto-suppress the alert.
+an actionable, visible item rather than a workflow log nobody reads. If that
+plan changes any blob container `publicAccess`, the job fails (a plan-diff
+issue alone is not enough) and the existing `opentofu-drift-failure` path
+fires. A failed run (including Bitwarden preflight or publicAccess drift)
+keeps a failed job conclusion and opens or updates a matching
+`opentofu-drift-failure` issue so a broken detector cannot go quiet. Not
+every other drift is a problem: a deliberate break-glass dashboard change
+(state-and-identity doc) will show up here too — the response is to either
+reconcile it into a PR or document why it's intentional, not to
+auto-suppress the alert.
 
 ## Disaster recovery
 

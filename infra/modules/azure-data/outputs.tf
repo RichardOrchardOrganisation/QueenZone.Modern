@@ -20,9 +20,9 @@ output "sql_database_id" {
 }
 
 output "public_blob_containers" {
-  description = "Containers on this account whose access is not None, for the #2211 Azure Policy allow-list. Interim: derived from var.containers until the explicit public_blob_containers allow-list variable lands, then this output returns that variable instead."
+  description = "Allow-list for the #2211 Azure Policy: the account name and var.public_blob_containers (validated to cover every container whose access is not None)."
   value = {
     account    = var.manage_storage_account ? var.storage_account_name : null
-    containers = var.manage_storage_account ? sort([for name, access in var.containers : name if access != "None"]) : []
+    containers = var.manage_storage_account ? sort(tolist(var.public_blob_containers)) : []
   }
 }

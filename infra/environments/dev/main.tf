@@ -52,7 +52,7 @@ module "azure_data" {
     "attachments"             = "None"
     "avatars"                 = "Blob"
     "brian-may"               = "Blob"
-    "css"                     = "Container"
+    "css"                     = "Blob"
     "databasebackup"          = "None"
     "fan-art"                 = "Blob"
     "fan-pics"                = "Blob"

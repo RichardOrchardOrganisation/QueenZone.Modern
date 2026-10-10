@@ -104,6 +104,13 @@ jobs:
         working-directory: infra/environments/${{ matrix.root }}
         run: tofu show -json tfplan > plan.json
 
+      - name: Fail on container publicAccess drift
+        if: steps.plan.outputs.exit_code == '2'
+        shell: pwsh
+        run: |
+          ./scripts/Test-OpenTofuContainerPublicAccessDrift.ps1 `
+            -PlanJsonPath infra/environments/${{ matrix.root }}/plan.json
+
       - name: Build drift summary
         if: steps.plan.outputs.exit_code == '2'
         shell: pwsh

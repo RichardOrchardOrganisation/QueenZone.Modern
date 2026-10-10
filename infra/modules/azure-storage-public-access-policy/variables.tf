@@ -41,3 +41,9 @@ variable "effect" {
     error_message = "effect must be Audit, Deny or Disabled."
   }
 }
+
+variable "location" {
+  description = "Region for the assignment's system-assigned managed identity."
+  type        = string
+  default     = "australiaeast"
+}

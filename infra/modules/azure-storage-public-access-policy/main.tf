@@ -52,6 +52,14 @@ resource "azurerm_resource_group_policy_assignment" "blob_container_public_acces
   resource_group_id    = each.value
   policy_definition_id = azurerm_policy_definition.blob_container_public_access.id
   enforce              = true
+  location             = var.location
+
+  # Audit/Deny need no identity. A system-assigned one (no role assignments)
+  # keeps the assignment ready for Modify/DeployIfNotExists remediation and
+  # avoids falling back to a shared credential (Sonar terraform:S6378).
+  identity {
+    type = "SystemAssigned"
+  }
 
   parameters = jsonencode({
     effect            = { value = var.effect }

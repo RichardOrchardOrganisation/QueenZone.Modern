@@ -50,6 +50,22 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     private const string AnonymousAttachmentBlobUrl =
         "https://queenzoneprod.blob.core.windows.net/attachments/probe-object-does-not-need-to-exist";
 
+    private const string ProdRawBlobOrigin = "https://queenzoneprod.blob.core.windows.net";
+
+    /// <summary>
+    /// Sample private containers that must refuse anonymous origin reads even while
+    /// <c>allowBlobPublicAccess</c> stays on (#2211). Probe names do not need to exist.
+    /// A public container also 404s a missing name with <c>BlobNotFound</c>; denial is
+    /// 404 <c>ResourceNotFound</c> or 409 <c>PublicAccessNotPermitted</c>.
+    /// </summary>
+    private static readonly string[] PrivateRawBlobSampleContainers =
+    [
+        "ugc-photos",
+        "databasebackup",
+        "attachments",
+        "songfiles",
+    ];
+
     protected override bool AllowsWrites => false;
 
     [Test]
@@ -76,8 +92,40 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     public async Task AnonymousRawBlobAttachmentUrl_IsDeniedAsync() =>
         await AssertAnonymousPrivateMediaDeniedAsync(AnonymousAttachmentBlobUrl, "attachments");
 
+    [TestCase("ugc-photos")]
+    [TestCase("databasebackup")]
+    [TestCase("attachments")]
+    [TestCase("songfiles")]
+    public async Task AnonymousRawBlobPrivateContainer_IsDeniedAsync(string container)
+    {
+        Assert.That(PrivateRawBlobSampleContainers, Does.Contain(container));
+        var url = $"{ProdRawBlobOrigin}/{container}/probe-object-does-not-need-to-exist";
+        await AssertAnonymousRawBlobPrivateContainerDeniedAsync(url, container);
+    }
+
     private async Task AssertAnonymousSongfileDeniedAsync(string url) =>
         await AssertAnonymousPrivateMediaDeniedAsync(url, "songfiles");
+
+    private async Task AssertAnonymousRawBlobPrivateContainerDeniedAsync(string url, string container)
+    {
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        using var response = await LiveSiteTransportRetry.RunAsync(() =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Range = new RangeHeaderValue(0, 1023);
+            return client.SendAsync(request);
+        });
+
+        var errorCode = LiveSiteRawBlobDenial.ReadErrorCode(response.Headers);
+        Assert.That(
+            LiveSiteRawBlobDenial.IsPrivateContainerRefusal(response),
+            Is.True,
+            FailurePrefix() +
+            $"anonymous GET {url} must return 404 {LiveSiteRawBlobDenial.ResourceNotFound} or " +
+            $"409 {LiveSiteRawBlobDenial.PublicAccessNotPermitted} for private {container} " +
+            $"on the raw blob origin; got {(int)response.StatusCode} {response.StatusCode} " +
+            $"{LiveSiteRawBlobDenial.ErrorCodeHeaderName}={errorCode ?? "(none)"}.");
+    }
 
     private async Task AssertAnonymousPrivateMediaDeniedAsync(string url, string container)
     {

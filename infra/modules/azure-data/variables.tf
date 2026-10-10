@@ -188,39 +188,70 @@ variable "blob_service_is_preexisting" {
   default     = true
 }
 
+variable "public_blob_containers" {
+  description = "Blob containers that may have publicAccess other than None. Any other public container is rejected. See docs/architecture/blob-public-access.md."
+  type        = set(string)
+  default = [
+    "album-or-single-covers",
+    "avatars",
+    "brian-may",
+    "css",
+    "fan-art",
+    "fan-pics",
+    # forum and mp3 stay public until Gilfoyle's 7-day anonymous-read metrics land (#2211).
+    "forum",
+    "freddie-mercury",
+    "freddie-tribute-concert",
+    "images",
+    "john-deacon",
+    "miscellaneous",
+    "mp3",
+    "pre-queen",
+    "queen",
+    "queen-and-adam-lambert",
+    "queen-and-paul-rodgers",
+    "queen-memorabillia",
+    "roger-taylor",
+    "special-events",
+    "us-convention-2001",
+  ]
+}
+
 variable "containers" {
   description = "Live Blob container ACLs approved for import and migration. None means private."
   type        = map(string)
   default = {
-    "album-or-single-covers"  = "Blob"
-    "attachments"             = "None"
-    "avatars"                 = "Blob"
-    "brian-may"               = "Blob"
-    "css"                     = "Container"
-    "databasebackup"          = "None"
-    "fan-art"                 = "Blob"
-    "fan-pics"                = "Blob"
+    "album-or-single-covers" = "Blob"
+    "attachments"            = "None"
+    "avatars"                = "Blob"
+    "brian-may"              = "Blob"
+    "css"                    = "Blob"
+    "databasebackup"         = "None"
+    "fan-art"                = "Blob"
+    "fan-pics"               = "Blob"
+    # Stays Blob pending Gilfoyle's 7-day anonymous-read metrics (#2211).
     "forum"                   = "Blob"
     "freddie-mercury"         = "Blob"
     "freddie-tribute-concert" = "Blob"
     "images"                  = "Blob"
     "john-deacon"             = "Blob"
     "miscellaneous"           = "Blob"
-    "mp3"                     = "Blob"
-    "pre-queen"               = "Blob"
-    "queen"                   = "Blob"
-    "queen-and-adam-lambert"  = "Blob"
-    "queen-and-paul-rodgers"  = "Blob"
-    "queen-memorabillia"      = "Blob"
-    "roger-taylor"            = "Blob"
-    "songfiles"               = "None"
-    "special-events"          = "Blob"
-    "test"                    = "Blob"
-    "ugc-articles"            = "None"
-    "ugc-avatars"             = "None"
-    "ugc-forum"               = "None"
-    "ugc-photos"              = "None"
-    "us-convention-2001"      = "Blob"
+    # Stays Blob pending Gilfoyle's 7-day anonymous-read metrics (#2211).
+    "mp3"                    = "Blob"
+    "pre-queen"              = "Blob"
+    "queen"                  = "Blob"
+    "queen-and-adam-lambert" = "Blob"
+    "queen-and-paul-rodgers" = "Blob"
+    "queen-memorabillia"     = "Blob"
+    "roger-taylor"           = "Blob"
+    "songfiles"              = "None"
+    "special-events"         = "Blob"
+    "test"                   = "None"
+    "ugc-articles"           = "None"
+    "ugc-avatars"            = "None"
+    "ugc-forum"              = "None"
+    "ugc-photos"             = "None"
+    "us-convention-2001"     = "Blob"
   }
 
   validation {
@@ -231,5 +262,13 @@ variable "containers" {
   validation {
     condition     = var.containers["databasebackup"] == "None" && lookup(var.containers, "ugc-articles", "None") == "None" && var.containers["ugc-avatars"] == "None" && var.containers["ugc-forum"] == "None" && lookup(var.containers, "ugc-photos", "None") == "None" && var.containers["songfiles"] == "None" && var.containers["attachments"] == "None"
     error_message = "Backup, modern UGC, songfiles, and legacy attachments containers must remain private."
+  }
+
+  validation {
+    condition = alltrue([
+      for name, access in var.containers :
+      access == "None" || contains(var.public_blob_containers, name)
+    ])
+    error_message = "Any container with publicAccess other than None must be named in public_blob_containers."
   }
 }

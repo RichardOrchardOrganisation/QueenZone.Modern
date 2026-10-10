@@ -1,9 +1,10 @@
 # Azure mobile builds
 
 Dedicated low-cost storage for public pre-release mobile binaries. The
-`builds` container allows anonymous reads of known blob URLs but does not allow
-container listing. It must not hold production UGC, media, secrets, or release
-signing keys.
+`builds` container is the only name on `public_blob_containers` and allows
+anonymous reads of known blob URLs but does not allow container listing. It
+must not hold production UGC, media, secrets, or release signing keys. See
+[`docs/architecture/blob-public-access.md`](../../../docs/architecture/blob-public-access.md).
 
 GitHub Actions authenticates through the existing `deploy` OIDC identity. Its
 `Storage Blob Data Contributor` role is scoped to this account only. OpenTofu

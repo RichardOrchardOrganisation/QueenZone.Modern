@@ -31,6 +31,11 @@ run "defaults_to_audit_with_per_account_allow_list" {
   }
 
   assert {
+    condition     = azurerm_resource_group_policy_assignment.blob_container_public_access["test"].identity[0].type == "SystemAssigned"
+    error_message = "The assignment must carry a managed identity rather than relying on shared credentials."
+  }
+
+  assert {
     condition     = azurerm_policy_definition.blob_container_public_access.mode == "All"
     error_message = "Containers have no location or tags, so the definition must use mode All."
   }
