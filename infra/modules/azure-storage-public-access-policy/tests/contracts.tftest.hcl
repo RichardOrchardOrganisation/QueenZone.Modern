@@ -7,6 +7,7 @@ mock_provider "azurerm" {
 }
 
 variables {
+  location    = "australiaeast"
   name_suffix = "test"
   resource_group_ids = {
     test = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test"
@@ -71,4 +72,59 @@ run "rejects_unknown_effect" {
   }
 
   expect_failures = [var.effect]
+}
+
+run "accepts_valid_container_names" {
+  command = plan
+
+  variables {
+    allowed_public_containers = {
+      queenzoneprod = ["a-b", "abc", "a1b2-c3", "${join("", [for i in range(63) : "a"])}"]
+    }
+  }
+
+  assert {
+    condition     = contains(output.allowed_full_names, "queenzoneprod/default/a-b") && length(output.allowed_full_names) == 4
+    error_message = "Valid Azure container names (3-63 chars, single hyphens) must be accepted."
+  }
+}
+
+run "rejects_container_name_too_short" {
+  command = plan
+  variables {
+    allowed_public_containers = { queenzoneprod = ["ab"] }
+  }
+  expect_failures = [var.allowed_public_containers]
+}
+
+run "rejects_container_name_too_long" {
+  command = plan
+  variables {
+    allowed_public_containers = { queenzoneprod = ["${join("", [for i in range(64) : "a"])}"] }
+  }
+  expect_failures = [var.allowed_public_containers]
+}
+
+run "rejects_consecutive_hyphens" {
+  command = plan
+  variables {
+    allowed_public_containers = { queenzoneprod = ["a--b"] }
+  }
+  expect_failures = [var.allowed_public_containers]
+}
+
+run "rejects_leading_or_trailing_hyphen_and_uppercase" {
+  command = plan
+  variables {
+    allowed_public_containers = { queenzoneprod = ["-ab"], queenzonedev = ["ab-"], queenzonemobilebuilds = ["Abc"] }
+  }
+  expect_failures = [var.allowed_public_containers]
+}
+
+run "rejects_blank_location" {
+  command = plan
+  variables {
+    location = ""
+  }
+  expect_failures = [var.location]
 }

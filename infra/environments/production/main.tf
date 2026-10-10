@@ -163,11 +163,12 @@ module "storage_public_access_policy" {
 
   name_suffix        = "production"
   resource_group_ids = { production = azurerm_resource_group.production.id }
+  # Accounts this root doesn't manage report a null account and are skipped.
   allowed_public_containers = {
-    (module.azure_data_target.public_blob_containers.account)   = module.azure_data_target.public_blob_containers.containers
-    (module.azure_mobile_builds.public_blob_containers.account) = module.azure_mobile_builds.public_blob_containers.containers
+    for entry in [module.azure_data_target.public_blob_containers, module.azure_mobile_builds.public_blob_containers] : entry.account => entry.containers if entry.account != null
   }
-  effect = var.storage_public_access_policy_effect
+  location = azurerm_resource_group.production.location
+  effect   = var.storage_public_access_policy_effect
 
   depends_on = [azurerm_role_assignment.opentofu_apply_resource_policy_contributor]
 }

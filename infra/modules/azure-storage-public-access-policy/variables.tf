@@ -25,7 +25,11 @@ variable "allowed_public_containers" {
   validation {
     condition = alltrue([
       for account, names in var.allowed_public_containers :
-      can(regex("^[a-z0-9]{3,24}$", account)) && alltrue([for n in names : can(regex("^[a-z0-9](?:[a-z0-9]|-[a-z0-9]){2,62}$", n))])
+      can(regex("^[a-z0-9]{3,24}$", account)) && alltrue([
+        # Azure container names: 3-63 chars, lowercase letters, digits and
+        # hyphens, start and end with a letter or digit, no consecutive hyphens.
+        for n in names : length(n) >= 3 && length(n) <= 63 && can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", n))
+      ])
     ])
     error_message = "Account names must be valid storage account names and container names valid blob container names."
   }
@@ -43,7 +47,12 @@ variable "effect" {
 }
 
 variable "location" {
-  description = "Region for the assignment's system-assigned managed identity."
+  description = "Region for the assignment's system-assigned managed identity. Pass the scoped resource group's location."
   type        = string
-  default     = "australiaeast"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+$", var.location))
+    error_message = "location must be an Azure region name such as australiaeast."
+  }
 }

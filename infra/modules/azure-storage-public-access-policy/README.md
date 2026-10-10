@@ -14,8 +14,27 @@ impossible (Deny) at the ARM plane, which covers portal/CLI drift like #2209.
 - `allowed_public_containers` is a per-account map, so a name allowed on one
   account is not allowed on another. Roots feed it from the
   `public_blob_containers` outputs of `azure-data` and `azure-mobile-builds`.
-- `effect` defaults to `Audit`. Once the compliance state is clean, set the
-  root variable `storage_public_access_policy_effect = "Deny"` and apply.
+- `effect` defaults to `Audit`. Switch to Deny only after the Audit compliance
+  check below reports 0 non-compliant containers in both RGs (`tofu test` is
+  mocked and proves nothing about live state). Then set
+  `storage_public_access_policy_effect = "Deny"` and apply.
+- `location` is required. Roots pass their resource group's location; it only
+  decides where the assignment's system-assigned identity lives. That identity
+  has no role assignments and matters only for Modify/DeployIfNotExists.
+- Accounts a root doesn't manage (an `azure-data` instance with
+  `manage_storage_account = false` reports a null account) are skipped.
+
+## Limits
+
+- Deny is enforced only for Azure Resource Manager requests. A container ACL
+  set through the storage data-plane API (Set Container ACL with a shared key or
+  SAS) bypasses Deny. Audit compliance still reports it on the next evaluation,
+  and the drift check catches it. No app code does this today.
+- Resource Policy Contributor on the RG (held by OpenTofu Apply) can create
+  policy exemptions and delete this assignment. That's accepted because Apply
+  already has Contributor there and runs only behind the reviewed
+  `opentofu-apply` gate. Review any `Microsoft.Authorization/policyExemptions`
+  in these RGs.
 
 Scope: `Queenzone-RG` (queenzoneprod and queenzonemobilebuilds, production
 root) and `Queenzone-Dev-RG` (queenzonedev, dev root).
@@ -40,12 +59,30 @@ definitions, policy assignments or role assignments.
   `Role Based Access Control Administrator` on each RG, with an ABAC condition
   that only allows assigning or removing Resource Policy Contributor.
 
-Run the bootstrap once as an Owner (Richard) before the first apply:
-`pwsh infra/bootstrap/Bootstrap-OpenTofuState.ps1` (use `-WhatIf` first).
+The RBAC Administrator condition follows Microsoft's "Constrain roles and
+principals" template. It limits both the role (Resource Policy Contributor) and
+the principal (the Apply identity only), for write and for delete. On rerun the
+script compares the existing condition. If it differs, the script deletes and
+recreates the assignment (`-WhatIf` shows that) and fails if the read-back
+doesn't match.
 
-Check compliance after apply:
+Run the bootstrap once as an Owner (Richard) before the first apply:
+`pwsh infra/bootstrap/Bootstrap-OpenTofuState.ps1 -WhatIf`, then without `-WhatIf`.
+
+**First-apply 403s:** new role assignments can take several minutes (up to
+about 10) to take effect. If the first apply fails creating the policy
+definition or assignment with `AuthorizationFailed` / 403 right after the
+bootstrap or the in-root role assignment, wait 10 minutes and re-run
+`opentofu-apply.yml` for that root. The apply is idempotent.
+
+Check Audit compliance after apply (required before Deny):
 
 ```sh
 az policy state summarize --resource-group Queenzone-RG \
   --filter "policyAssignmentName eq 'qz-blob-public-production'"
+az policy state trigger-scan --resource-group Queenzone-RG   # optional, forces evaluation
+az policy state list --resource-group Queenzone-RG \
+  --filter "policyAssignmentName eq 'qz-blob-public-production' and complianceState eq 'NonCompliant'" \
+  --query "[].resourceId"
+# repeat for Queenzone-Dev-RG / qz-blob-public-dev
 ```
