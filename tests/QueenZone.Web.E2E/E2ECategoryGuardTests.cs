@@ -78,6 +78,7 @@ public class E2ECategoryGuardTests
             nameof(ForumSafetyWorkflowTests),
             nameof(ForumYoutubeVideoTests),
             nameof(LiveSiteNavigationRecheckTests),
+            nameof(LiveSiteRawBlobDenialTests),
             nameof(LiveSiteTransportRetryTests),
             nameof(PageShapeAssertionTests),
             nameof(ParticipationClarityTests),

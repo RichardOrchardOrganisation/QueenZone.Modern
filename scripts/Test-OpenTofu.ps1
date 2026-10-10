@@ -27,6 +27,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "OpenTofu post-apply smoke self-test failed."
 }
 
+& (Join-Path $PSScriptRoot "Test-OpenTofuContainerPublicAccessDrift.ps1") -SelfTest
+if ($LASTEXITCODE -ne 0) {
+    throw "OpenTofu container publicAccess drift self-test failed."
+}
+
 & $tofu.Source fmt -check -recursive $infraPath
 if ($LASTEXITCODE -ne 0) {
     throw "OpenTofu formatting failed."
@@ -71,5 +76,11 @@ $dataModulePath = Join-Path $infraPath "modules/azure-data"
 if ($LASTEXITCODE -ne 0) { throw "Azure data module test initialisation failed." }
 & $tofu.Source "-chdir=$dataModulePath" test
 if ($LASTEXITCODE -ne 0) { throw "Azure data module contract tests failed." }
+
+$mobileBuildsModulePath = Join-Path $infraPath "modules/azure-mobile-builds"
+& $tofu.Source "-chdir=$mobileBuildsModulePath" init -backend=false -input=false
+if ($LASTEXITCODE -ne 0) { throw "Azure mobile-builds module test initialisation failed." }
+& $tofu.Source "-chdir=$mobileBuildsModulePath" test
+if ($LASTEXITCODE -ne 0) { throw "Azure mobile-builds module contract tests failed." }
 
 Write-Output "OpenTofu format, safety, initialisation, and root/module validation checks passed."

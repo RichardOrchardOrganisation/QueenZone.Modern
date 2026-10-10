@@ -307,7 +307,7 @@ Desired state:
 - Account `queenzoneprod` keeps blob public access enabled for legacy public gallery containers.
 - Public archive containers must remain public where visitor access is expected.
 - `databasebackup`, `ugc-avatars`, `ugc-forum`, `songfiles`, and `attachments` are private in desired state. `attachments` is still public blob in live Azure until the reviewed apply.
-- `css` stays public container access. It is published site CSS, not a member-upload bucket. `forum`, `avatars`, `mp3`, and the photo galleries stay public blob.
+- `css` is public blob access (published site CSS, not listable). `forum`, `avatars`, `mp3`, and the photo galleries stay public blob. The leftover `test` container is private. See [blob-public-access.md](blob-public-access.md).
 
 ### Standing smoke (#177)
 

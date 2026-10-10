@@ -49,9 +49,11 @@ cost-neutral first import, not a protection-policy expansion.
 only readable through the member-authenticated app proxy
 (`/fan-performances/{id}/audio`). Legacy forum files are only readable through
 `/forum/attachment/legacy/{postId}` (#1656). Published gallery containers stay
-public blob, and `css` stays public container access (legacy site CSS, not
-member uploads). The live `test` container remains public blob access and is
-preserved for the production region migration.
+public blob, and `css` is public blob access (legacy site CSS, not
+member uploads; no anonymous listing). The leftover `test` container stays
+private and is not deleted. `forum` and `mp3` stay public blob until
+anonymous-read metrics land. See
+[`docs/architecture/blob-public-access.md`](../../../docs/architecture/blob-public-access.md).
 
 `songfiles` was set to `None` on 2026-08-16 via ARM after #702 deployed. The
 `attachments` desired ACL is `None` in this module; the live container stays
