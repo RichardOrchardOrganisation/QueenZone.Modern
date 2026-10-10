@@ -1,9 +1,19 @@
 namespace QueenZone.Web;
 
-public sealed record ForumPostPresentation(ForumPostViewModel Post, bool CanReply, bool IsAdmin, string ReturnPath)
+public sealed record ForumPostPresentation(
+    ForumPostViewModel Post,
+    bool CanReply,
+    bool IsAdmin,
+    string ReturnPath,
+    bool IsSignedIn = false)
 {
-    public static ForumPostPresentation Create(ForumPostViewModel post, bool canReply, bool isAdmin, string returnPath) =>
-        new(post, canReply, isAdmin, returnPath + $"#post-{post.Id}");
+    public static ForumPostPresentation Create(
+        ForumPostViewModel post,
+        bool canReply,
+        bool isAdmin,
+        string returnPath,
+        bool isSignedIn = false) =>
+        new(post, canReply, isAdmin, returnPath + $"#post-{post.Id}", isSignedIn);
 
     public string? AuthorHref => AuthorPath(Post.AuthorMemberId, Post.AuthorLegacyUserId);
     public static string? AuthorPath(Guid? memberId, int? legacyId)
@@ -17,6 +27,7 @@ public sealed record ForumPostPresentation(ForumPostViewModel Post, bool CanRepl
     }
     public bool CanEdit => Post.IsAuthor && Post.CanEdit;
     public bool CanReport => !Post.IsAuthor;
+    public bool CanBlock => IsSignedIn && Post.AuthorMemberId is not null;
     public bool ShowActions => CanEdit || Post.CanMessage || CanReply || IsAdmin || CanReport;
     public string? MessageHref => Post.CanMessage && Post.AuthorMemberId is Guid id ? $"/messages/compose?to={id}" : null;
     public bool HasSignature => !string.IsNullOrWhiteSpace(Post.Signature);

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -67,6 +68,58 @@ public sealed class PublicOutputCachePoliciesTests
         Assert.Contains("handler", PublicOutputCachePolicies.PublicHtmlQueryKeys);
         Assert.DoesNotContain("utm_source", PublicOutputCachePolicies.PublicHtmlQueryKeys);
         Assert.DoesNotContain("*", PublicOutputCachePolicies.PublicHtmlQueryKeys);
+    }
+
+    [Theory]
+    [InlineData("/forum/topic/1002/title", false, "Production", true)]
+    [InlineData("/forum/archive-authors/5001", false, "Production", true)]
+    [InlineData("/forum/topic/1002/title", true, "Production", false)]
+    [InlineData("/forum/topic/1002/title", false, "Testing", false)]
+    [InlineData("/news", false, "Production", false)]
+    [InlineData("/forum/attachment/1002", false, "Production", false)]
+    public async Task Head_normalization_is_scoped_and_restores_request_and_body(
+        string path, bool authenticated, string environment, bool normalized)
+    {
+        var context = CreateContext(path, authenticated, environment);
+        context.Request.Method = HttpMethods.Head;
+        await using var wire = new MemoryStream();
+        context.Response.Body = wire;
+        var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
+        var calls = 0;
+
+        await PublicOutputCachePolicies.ShareForumHeadCacheAsync(context, async request =>
+        {
+            calls++;
+            Assert.Equal(normalized ? HttpMethods.Get : HttpMethods.Head, request.Request.Method);
+            await request.Response.WriteAsync("complete rendered representation");
+        });
+
+        Assert.Equal(1, calls);
+        Assert.Equal(HttpMethods.Head, context.Request.Method);
+        Assert.Same(wire, context.Response.Body);
+        Assert.Same(originalBodyFeature, context.Features.Get<IHttpResponseBodyFeature>());
+        Assert.Equal(normalized, wire.Length == 0);
+        if (normalized)
+        {
+            Assert.Equal("complete rendered representation".Length, context.Response.ContentLength);
+        }
+    }
+
+    [Fact]
+    public async Task Head_normalization_restores_state_when_rendering_throws()
+    {
+        var context = CreateContext("/forum/topic/1002/title", false, "Production");
+        context.Request.Method = HttpMethods.Head;
+        var body = context.Response.Body;
+        var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PublicOutputCachePolicies.ShareForumHeadCacheAsync(context, _ =>
+                throw new InvalidOperationException("Render failed")));
+
+        Assert.Equal(HttpMethods.Head, context.Request.Method);
+        Assert.Same(body, context.Response.Body);
+        Assert.Same(originalBodyFeature, context.Features.Get<IHttpResponseBodyFeature>());
     }
 
     private static DefaultHttpContext CreateContext(string path, bool authenticated, string environmentName)

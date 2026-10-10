@@ -56,6 +56,32 @@ public sealed class ForumApiPollTests : IClassFixture<QueenZoneWebApplicationFac
     }
 
     [Fact]
+    public async Task Anonymous_forum_html_contains_no_antiforgery_token_even_with_cookie()
+    {
+        var (topicId, _, _) = await CreateThreadWithPollAsync(Guid.NewGuid());
+        using var client = factory.CreateAnonymousClient(allowAutoRedirect: false);
+
+        using var trivia = await client.GetAsync("/trivia");
+        Assert.Equal(HttpStatusCode.OK, trivia.StatusCode);
+        var triviaHtml = await trivia.Content.ReadAsStringAsync();
+        Assert.Contains("__RequestVerificationToken", triviaHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            trivia.Headers.GetValues("Set-Cookie"),
+            cookie => cookie.Contains("Antiforgery", StringComparison.OrdinalIgnoreCase));
+
+        var topicHtml = await client.GetStringAsync($"/forum/topic/{topicId}/poll-topic");
+        Assert.Contains("Best Queen album?", topicHtml, StringComparison.Ordinal);
+        Assert.Contains("Sign in to vote", topicHtml, StringComparison.Ordinal);
+        Assert.Contains("Report post", topicHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Block member", topicHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("__RequestVerificationToken", topicHtml, StringComparison.Ordinal);
+
+        var authorHtml = await client.GetStringAsync("/forum/archive-authors/5001");
+        Assert.Contains("brightonrock", authorHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("__RequestVerificationToken", authorHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Poll_get_lets_signed_in_member_vote_once_then_rejects_second_ballot()
     {
         var authorId = Guid.NewGuid();

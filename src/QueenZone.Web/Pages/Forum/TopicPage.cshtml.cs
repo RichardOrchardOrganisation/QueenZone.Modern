@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Web;
@@ -12,14 +13,16 @@ public sealed class TopicPageModel(
     IOptions<AdminOptions> adminOptions,
     TimeProvider timeProvider,
     IForumPostReportRepository forumPostReportRepository,
-    PrivateMessageService privateMessageService) : ForumTopicPageModel(
+    PrivateMessageService privateMessageService,
+    IOptions<CookieTempDataProviderOptions> tempDataCookieOptions) : ForumTopicPageModel(
         forumRepository,
         topicWatchRepository,
         forumOptions,
         adminOptions,
         timeProvider,
         forumPostReportRepository,
-        privateMessageService)
+        privateMessageService,
+        tempDataCookieOptions)
 {
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; }
