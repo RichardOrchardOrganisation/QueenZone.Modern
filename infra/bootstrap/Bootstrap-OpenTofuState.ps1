@@ -6,6 +6,7 @@ param(
     [string]$StateStorageAccount = "queenzonetfstate",
     [string]$StateContainer = "tfstate",
     [string]$WorkloadResourceGroup = "Queenzone-RG",
+    [string]$DevWorkloadResourceGroup = "Queenzone-Dev-RG",
     [string]$GitHubRepository = "RichardOrchardOrganisation/QueenZone.Modern",
     [string]$OidcOwnerId = "333232587",
     [string]$OidcRepositoryId = "1265145026",
@@ -21,6 +22,19 @@ Set-StrictMode -Version Latest
 
 . (Join-Path $PSScriptRoot "Resolve-GitHubOidcRepositorySegment.ps1")
 . (Join-Path $PSScriptRoot "Ensure-WorkloadIdentity.ps1")
+. (Join-Path $PSScriptRoot "Ensure-ConstrainedRbacAdminAssignment.ps1")
+function Invoke-ApplyRbacAdminStep {
+    [CmdletBinding(SupportsShouldProcess)]
+    param([Parameter(Mandatory)][string]$ApplyPrincipalObjectId)
+
+    Write-Output "OpenTofu Apply principal object ID: $ApplyPrincipalObjectId"
+    Assert-ApplyPrincipalMatchesOpenTofu -PrincipalObjectId $ApplyPrincipalObjectId -RepositoryRoot (Join-Path $PSScriptRoot "../..")
+    $condition = New-ConstrainedRbacAdminCondition -RoleDefinitionId $ResourcePolicyContributorRoleId -PrincipalObjectId $ApplyPrincipalObjectId
+    foreach ($rg in @($WorkloadResourceGroup, $DevWorkloadResourceGroup)) {
+        Ensure-ConstrainedRbacAdminAssignment -PrincipalObjectId $ApplyPrincipalObjectId -Scope "/subscriptions/$SubscriptionId/resourceGroups/$rg" -Condition $condition
+    }
+}
+
 $OidcRepositorySegment = Resolve-GitHubOidcRepositorySegment -GitHubRepository $GitHubRepository -OidcOwnerId $OidcOwnerId -OidcRepositoryId $OidcRepositoryId
 
 function Invoke-Native {
@@ -206,6 +220,17 @@ if ($WhatIfPreference) {
     Write-Output "Would create or verify state storage, data protection, OIDC identities, scoped role assignments, and GitHub environments."
     Write-Output "OIDC subject repository segment: $OidcRepositorySegment"
     Write-Output "Would not import or change any QueenZone application resource."
+
+    # Real preview of the #2211 RBAC Administrator step. Everything below is
+    # read-only under -WhatIf: Ensure-WorkloadIdentity and
+    # Ensure-ConstrainedRbacAdminAssignment gate every write with ShouldProcess.
+    $whatIfApplyIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone OpenTofu Apply" -FederatedCredentialName $ApplyFederatedCredentialName -EnvironmentName "opentofu-apply"
+    if ($null -eq $whatIfApplyIdentity) {
+        Write-Output "QueenZone OpenTofu Apply does not exist yet; the RBAC Administrator grant would follow its creation."
+    }
+    else {
+        Invoke-ApplyRbacAdminStep -ApplyPrincipalObjectId $whatIfApplyIdentity.PrincipalObjectId
+    }
     return
 }
 
@@ -291,6 +316,31 @@ Ensure-RoleAssignment -PrincipalObjectId $planIdentity.PrincipalObjectId -Princi
 
 Ensure-RoleAssignment -PrincipalObjectId $applyIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role "Storage Blob Data Contributor" -Scope $containerScope
 Ensure-RoleAssignment -PrincipalObjectId $applyIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role "Contributor" -Scope $workloadScope
+
+# #2211: blob public-access Azure Policy.
+# Custom policy definitions can only live at subscription or management-group
+# scope, so Apply needs policyDefinitions/write there (and Plan needs read to
+# refresh them). This custom role grants only that, nothing else at subscription.
+$subscriptionScope = "/subscriptions/$SubscriptionId"
+$policyDefinitionWriterRole = Ensure-CustomRoleDefinition `
+    -Name "QueenZone OpenTofu Apply - Policy Definition Writer" `
+    -Description "Create, update and delete custom Azure Policy definitions. Used only by the QueenZone OpenTofu Apply identity (#2211)." `
+    -Actions @("Microsoft.Authorization/policyDefinitions/read", "Microsoft.Authorization/policyDefinitions/write", "Microsoft.Authorization/policyDefinitions/delete") `
+    -AssignableScope $subscriptionScope
+Ensure-RoleAssignment -PrincipalObjectId $applyIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role $policyDefinitionWriterRole -Scope $subscriptionScope
+
+$policyDefinitionReaderRole = Ensure-CustomRoleDefinition `
+    -Name "QueenZone OpenTofu Plan - Policy Definition Reader" `
+    -Description "Read custom Azure Policy definitions so tofu plan can refresh them. Used only by the QueenZone OpenTofu Plan identity (#2211)." `
+    -Actions @("Microsoft.Authorization/policyDefinitions/read") `
+    -AssignableScope $subscriptionScope
+Ensure-RoleAssignment -PrincipalObjectId $planIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role $policyDefinitionReaderRole -Scope $subscriptionScope
+
+# Contributor cannot write Microsoft.Authorization/*, so OpenTofu cannot create
+# its own Resource Policy Contributor assignments. Grant RBAC Administrator on
+# each workload RG, constrained to that role AND the Apply principal
+# (see Ensure-ConstrainedRbacAdminAssignment.ps1).
+Invoke-ApplyRbacAdminStep -ApplyPrincipalObjectId $applyIdentity.PrincipalObjectId
 
 if ($PSCmdlet.ShouldProcess($StateStorageAccount, "Apply CanNotDelete lock")) {
     $existingLock = Invoke-AzJson @(

@@ -18,3 +18,11 @@ output "sql_database_id" {
   description = "Managed SQL database resource ID."
   value       = var.manage_sql_database ? azurerm_mssql_database.production[0].id : null
 }
+
+output "public_blob_containers" {
+  description = "Allow-list for the #2211 Azure Policy: the account name and var.public_blob_containers (validated to cover every container whose access is not None)."
+  value = {
+    account    = var.manage_storage_account ? var.storage_account_name : null
+    containers = var.manage_storage_account ? sort(tolist(var.public_blob_containers)) : []
+  }
+}
