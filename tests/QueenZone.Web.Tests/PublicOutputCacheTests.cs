@@ -153,6 +153,36 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
             "A plain visit must not set cookies; output caching skips responses that do.");
     }
 
+    [Theory]
+    [InlineData("/forum/topic/1002/ranking-every-studio-album")]
+    [InlineData("/forum/archive-authors/5001")]
+    public async Task Production_anonymous_forum_html_contains_no_antiforgery_token_with_existing_cookie(
+        string path)
+    {
+        await production.ResetAsync();
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true,
+        });
+
+        using var trivia = await client.GetAsync("/trivia");
+        Assert.Equal(HttpStatusCode.OK, trivia.StatusCode);
+        var triviaHtml = await trivia.Content.ReadAsStringAsync();
+        Assert.Contains("__RequestVerificationToken", triviaHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            trivia.Headers.GetValues("Set-Cookie"),
+            cookie => cookie.Contains("Antiforgery", StringComparison.OrdinalIgnoreCase));
+
+        using var response = await client.GetAsync(path);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("__RequestVerificationToken", html, StringComparison.Ordinal);
+        Assert.False(
+            response.Headers.Contains("Set-Cookie"),
+            "A cached anonymous visit must not mint a new antiforgery cookie.");
+    }
+
     [Fact]
     public async Task Production_articles_head_does_not_fill_the_get_cache_entry()
     {

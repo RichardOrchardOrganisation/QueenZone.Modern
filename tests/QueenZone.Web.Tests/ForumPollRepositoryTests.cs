@@ -125,6 +125,11 @@ public sealed class ForumPollRepositoryTests
         Assert.Equal("Best album?", results!.Question);
         Assert.Equal(3, results.Options.Count);
         Assert.True(results.CanViewerVote);
+
+        var anonymous = await polls.GetPollWithResultsAsync(created.TopicId, viewerMemberId: null);
+        Assert.False(anonymous!.IsClosed);
+        Assert.False(anonymous.CanViewerVote);
+        Assert.False(anonymous.CanViewerClose);
     }
 
     private static async Task<(InMemoryForumPollRepository Repo, Guid PollId, Guid[] Options)> CreatePollAsync(
