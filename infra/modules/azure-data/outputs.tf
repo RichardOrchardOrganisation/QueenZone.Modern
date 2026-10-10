@@ -18,3 +18,11 @@ output "sql_database_id" {
   description = "Managed SQL database resource ID."
   value       = var.manage_sql_database ? azurerm_mssql_database.production[0].id : null
 }
+
+output "public_blob_containers" {
+  description = "Containers on this account whose access is not None, for the #2211 Azure Policy allow-list. Interim: derived from var.containers until the explicit public_blob_containers allow-list variable lands, then this output returns that variable instead."
+  value = {
+    account    = var.manage_storage_account ? var.storage_account_name : null
+    containers = var.manage_storage_account ? sort([for name, access in var.containers : name if access != "None"]) : []
+  }
+}

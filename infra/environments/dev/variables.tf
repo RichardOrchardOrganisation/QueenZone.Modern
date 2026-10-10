@@ -14,3 +14,14 @@ variable "azure_subscription_id" {
     error_message = "azure_subscription_id must be a lowercase GUID."
   }
 }
+
+variable "storage_public_access_policy_effect" {
+  description = "Effect of the #2211 blob-container public-access policy. Audit first; switch to Deny once compliance is clean."
+  type        = string
+  default     = "Audit"
+
+  validation {
+    condition     = contains(["Audit", "Deny", "Disabled"], var.storage_public_access_policy_effect)
+    error_message = "storage_public_access_policy_effect must be Audit, Deny or Disabled."
+  }
+}

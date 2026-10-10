@@ -91,3 +91,16 @@ moved {
   from = module.azure_data.azapi_resource.storage_account
   to   = module.azure_data.azapi_resource.storage_account[0]
 }
+
+# #2211: flag (Audit) or block (Deny) any container in Queenzone-Dev-RG that is
+# public without being on the azure-data allow-list.
+module "storage_public_access_policy" {
+  source = "../../modules/azure-storage-public-access-policy"
+
+  name_suffix        = "dev"
+  resource_group_ids = { dev = azurerm_resource_group.dev.id }
+  allowed_public_containers = {
+    (module.azure_data.public_blob_containers.account) = module.azure_data.public_blob_containers.containers
+  }
+  effect = var.storage_public_access_policy_effect
+}

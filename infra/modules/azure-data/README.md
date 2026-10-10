@@ -58,3 +58,13 @@ preserved for the production region migration.
 public blob until a reviewed apply. Do not apply this stack from a local
 operator session. A later reviewed apply should set `attachments` to `None`
 and leave `songfiles` unchanged.
+
+## Public container allow-list (#2211)
+
+`public_blob_containers` outputs the account name and every container whose
+access is not `None`. The roots pass it to
+`azure-storage-public-access-policy` as the Azure Policy allow-list. For now it
+is derived from `containers`. When the explicit `public_blob_containers`
+allow-list variable lands, this output returns that variable and nothing else
+changes. `mp3` and `forum` stay `Blob` until anonymous reads can be attributed
+per container: blob logs are off, and account metrics cannot split by container.

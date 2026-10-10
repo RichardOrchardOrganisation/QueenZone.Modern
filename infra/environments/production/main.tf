@@ -142,3 +142,18 @@ module "cloudflare_edge" {
 
 # All modules use declarative imports in imports.tf; an apply must never
 # precede plan review.
+
+# #2211: flag (Audit) or block (Deny) any container in Queenzone-RG that is
+# public without being on its account's allow-list. Covers queenzoneprod and
+# queenzonemobilebuilds.
+module "storage_public_access_policy" {
+  source = "../../modules/azure-storage-public-access-policy"
+
+  name_suffix        = "production"
+  resource_group_ids = { production = azurerm_resource_group.production.id }
+  allowed_public_containers = {
+    (module.azure_data_target.public_blob_containers.account)   = module.azure_data_target.public_blob_containers.containers
+    (module.azure_mobile_builds.public_blob_containers.account) = module.azure_mobile_builds.public_blob_containers.containers
+  }
+  effect = var.storage_public_access_policy_effect
+}
