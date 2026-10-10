@@ -61,6 +61,15 @@ public sealed class ForumVideoRenderingTests : IClassFixture<QueenZoneWebApplica
         var document = new HtmlParser().ParseDocument(await client.GetStringAsync("/forum/topic/1029/archive-sample-thread-1029"));
         Assert.Equal(30, document.QuerySelectorAll("[data-qz-forum-video]").Length);
         Assert.Single(document.QuerySelectorAll("[data-testid='forum-video-privacy']"));
+        var scripts = document.QuerySelectorAll("script[src]")
+            .Select(script => script.GetAttribute("src") ?? "")
+            .Where(src => src.Contains("youtube-", StringComparison.Ordinal))
+            .ToList();
+        Assert.Contains(scripts, src => src.Contains("youtube-scheduler", StringComparison.Ordinal));
+        Assert.Contains(scripts, src => src.Contains("youtube-video", StringComparison.Ordinal));
+        Assert.True(
+            scripts.FindIndex(src => src.Contains("youtube-scheduler", StringComparison.Ordinal))
+            < scripts.FindIndex(src => src.Contains("youtube-video", StringComparison.Ordinal)));
     }
 
     [Fact]
