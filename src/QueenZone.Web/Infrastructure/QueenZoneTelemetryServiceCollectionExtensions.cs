@@ -34,7 +34,14 @@ public static class QueenZoneTelemetryServiceCollectionExtensions
 
         logging.AddFilter<OpenTelemetryLoggerProvider>(null, exportedLogLevel);
 
+        // Azure Monitor 1.6 defaults these to true when unset. Set them before
+        // its options initialize, and redact again before exporters receive spans.
+        configuration["OTEL_DOTNET_EXPERIMENTAL_ASPNETCORE_DISABLE_URL_QUERY_REDACTION"] = "false";
+        configuration["OTEL_DOTNET_EXPERIMENTAL_HTTPCLIENT_DISABLE_URL_QUERY_REDACTION"] = "false";
+
         services.AddOpenTelemetry()
+            // Processor order matters: this must precede UseAzureMonitor's exporters.
+            .WithTracing(tracing => HttpQueryValueRedactionProcessor.AddTo(tracing))
             .ConfigureResource(resource => resource.AddService(
                 serviceName: "QueenZone.Web",
                 serviceNamespace: "QueenZone"))
