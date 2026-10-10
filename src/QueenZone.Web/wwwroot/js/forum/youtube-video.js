@@ -110,10 +110,10 @@
     }
     const candidates = scheduler.priority(cards.filter(card => scheduler.occupied(card) ||
       (card.auto && card.preload && card.viewport.clientWidth >= 200 && card.viewport.clientHeight >= 200)));
-    for (const card of cards.filter(scheduler.occupied)) {
+    for (const card of cards.filter(card => scheduler.occupied(card))) {
       if (!candidates.includes(card)) release(card);
     }
-    const pool = cards.filter(scheduler.occupied);
+    const pool = cards.filter(card => scheduler.occupied(card));
     for (const card of candidates) {
       if (!scheduler.occupied(card) && pool.length < scheduler.CAPACITY) {
         mount(card);
@@ -147,7 +147,7 @@
         // The fallback retains the previous single-player click-to-load behavior.
         for (const other of cards) if (other !== card) release(other);
       }
-      if (cards.filter(scheduler.occupied).length < scheduler.CAPACITY) mount(card);
+      if (cards.filter(card => scheduler.occupied(card)).length < scheduler.CAPACITY) mount(card);
     }, { signal: lifetime.signal });
   }
   if (!cards.length) return;
@@ -170,7 +170,7 @@
   }
   window.addEventListener("message", event => {
     if (event.origin !== playerOrigin) return;
-    const card = cards.find(item => item.frame && item.frame.contentWindow === event.source);
+    const card = cards.find(item => item.frame?.contentWindow === event.source);
     if (!card) return;
     const message = scheduler.parseMessage(event.data);
     if (!message) return;

@@ -29,8 +29,9 @@
       if (!message || typeof message !== "object") return null;
       if (message.event === "onReady") return { ready: true };
       if (message.event === "onError" && [2, 5, 100, 101, 150, 153].includes(message.info)) return { error: message.info };
-      const state = message.event === "onStateChange" ? message.info :
-        message.event === "infoDelivery" ? message.info?.playerState : undefined;
+      let state;
+      if (message.event === "onStateChange") state = message.info;
+      else if (message.event === "infoDelivery") state = message.info?.playerState;
       return [-1, 0, 1, 2, 3, 5].includes(state) ? { playerState: state } : null;
     } catch { return null; }
   }
