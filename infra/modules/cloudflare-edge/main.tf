@@ -150,24 +150,31 @@ resource "cloudflare_ruleset" "bot_blocking" {
   ]
 }
 
-# Archive-author pages perform database-backed lookups for each distinct legacy
-# author ID. Limit bursts per source IP while leaving ordinary browsing and
-# search-engine discovery unaffected. The exact Serpstat crawler currently
-# causing sustained traffic is blocked above; this rule is the safety net for
-# other clients that sweep unique author IDs too quickly for edge caching to help.
+# Forum page views are database-backed (topics, topic pages, archive authors)
+# and a long-tail crawler sweeping unique IDs gets no help from the edge cache.
+# The zone is on the Cloudflare Free plan (infra/import/cloudflare-hostnames.json),
+# which allows exactly one rate-limiting rule, a 10-second counting period, a
+# 10-second mitigation timeout, per-IP counting only, and no method or cookie
+# fields. So one rule counts every /forum/ page view (GET, HEAD and POST alike)
+# per IP, with archive-author pages sharing that counter rather than keeping a
+# separate tighter one, and signed-in members cannot be exempted by cookie.
+# Attachment downloads are excluded so a topic with many images cannot trip it.
+# 20 per 10 seconds is ~3x the busiest non-crawler client seen in Application
+# Insights over 14 days (6 sampled forum requests in a 10s window; p99.9 is 4).
 resource "cloudflare_ruleset" "archive_author_rate_limit" {
   zone_id     = var.zone_id
   name        = "QueenZone rate limiting rules"
-  description = "Rate limit bursts across expensive archive-author pages"
+  description = "Rate limit bursts across database-backed forum pages"
   kind        = "zone"
   phase       = "http_ratelimit"
 
   rules = [{
     ref         = "rate_limit_archive_author_requests"
-    description = "Block archive-author clients exceeding 10 requests in 10 seconds"
+    description = "Block forum clients exceeding 20 page requests in 10 seconds"
     expression  = <<-EOT
       (http.host in {"queenzone.org" "www.queenzone.org"}) and
-      starts_with(http.request.uri.path, "/forum/archive-authors/")
+      starts_with(http.request.uri.path, "/forum/") and
+      not starts_with(http.request.uri.path, "/forum/attachment/")
     EOT
     action      = "block"
     enabled     = true
@@ -175,7 +182,7 @@ resource "cloudflare_ruleset" "archive_author_rate_limit" {
     ratelimit = {
       characteristics     = ["cf.colo.id", "ip.src"]
       period              = 10
-      requests_per_period = 10
+      requests_per_period = 20
       mitigation_timeout  = 10
     }
   }]
