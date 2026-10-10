@@ -149,6 +149,7 @@ public abstract class ForumTopicPageModel : PageModel
 
         ViewData["Title"] = ForumRoutes.GetTopicPageTitle(header, page);
         ViewData["IsAdmin"] = IsAdmin;
+        ViewData["IsSignedIn"] = memberId is not null;
         ViewData["CanonicalPath"] = ForumRoutes.GetTopicCanonicalPath(header, page);
         ViewData["Description"] = PageMetaDescription.ForForumTopic(
             Posts.Count > 0 ? Posts[0].Body : null,

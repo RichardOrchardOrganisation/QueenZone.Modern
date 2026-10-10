@@ -72,6 +72,8 @@ public sealed class ForumApiPollTests : IClassFixture<QueenZoneWebApplicationFac
         var topicHtml = await client.GetStringAsync($"/forum/topic/{topicId}/poll-topic");
         Assert.Contains("Best Queen album?", topicHtml, StringComparison.Ordinal);
         Assert.Contains("Sign in to vote", topicHtml, StringComparison.Ordinal);
+        Assert.Contains("Report post", topicHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Block member", topicHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("__RequestVerificationToken", topicHtml, StringComparison.Ordinal);
 
         var authorHtml = await client.GetStringAsync("/forum/archive-authors/5001");

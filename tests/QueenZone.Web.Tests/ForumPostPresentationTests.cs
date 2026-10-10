@@ -20,9 +20,13 @@ public sealed class ForumPostPresentationTests
                             Assert.Equal(author && editable || message || reply || admin || !author, view.ShowActions);
                             Assert.Equal(reply, view.CanReply);
                             Assert.Equal(admin, view.IsAdmin);
+                            Assert.False(view.CanBlock);
                             Assert.Equal(message ? $"/messages/compose?to={MemberId}" : null, view.MessageHref);
                         }
         Assert.Null(ForumPostPresentation.Create(Post with { CanMessage = true }, false, false, "/forum").MessageHref);
+        Assert.True(ForumPostPresentation.Create(
+            Post with { AuthorMemberId = MemberId }, false, false, "/forum", isSignedIn: true).CanBlock);
+        Assert.False(ForumPostPresentation.Create(Post, false, false, "/forum", isSignedIn: true).CanBlock);
     }
 
     [Fact]
