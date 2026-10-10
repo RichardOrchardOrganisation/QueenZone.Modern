@@ -6,6 +6,7 @@ param(
     [string]$StateStorageAccount = "queenzonetfstate",
     [string]$StateContainer = "tfstate",
     [string]$WorkloadResourceGroup = "Queenzone-RG",
+    [string]$DevWorkloadResourceGroup = "Queenzone-Dev-RG",
     [string]$GitHubRepository = "RichardOrchardOrganisation/QueenZone.Modern",
     [string]$OidcOwnerId = "333232587",
     [string]$OidcRepositoryId = "1265145026",
@@ -291,6 +292,47 @@ Ensure-RoleAssignment -PrincipalObjectId $planIdentity.PrincipalObjectId -Princi
 
 Ensure-RoleAssignment -PrincipalObjectId $applyIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role "Storage Blob Data Contributor" -Scope $containerScope
 Ensure-RoleAssignment -PrincipalObjectId $applyIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role "Contributor" -Scope $workloadScope
+
+# #2211: blob public-access Azure Policy.
+# Custom policy definitions can only live at subscription or management-group
+# scope, so Apply needs policyDefinitions/write there (and Plan needs read to
+# refresh them). This custom role grants only that, nothing else at subscription.
+$subscriptionScope = "/subscriptions/$SubscriptionId"
+$policyDefinitionWriterRole = Ensure-CustomRoleDefinition `
+    -Name "QueenZone OpenTofu Apply - Policy Definition Writer" `
+    -Description "Create, update and delete custom Azure Policy definitions. Used only by the QueenZone OpenTofu Apply identity (#2211)." `
+    -Actions @("Microsoft.Authorization/policyDefinitions/read", "Microsoft.Authorization/policyDefinitions/write", "Microsoft.Authorization/policyDefinitions/delete") `
+    -AssignableScope $subscriptionScope
+Ensure-RoleAssignment -PrincipalObjectId $applyIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role $policyDefinitionWriterRole -Scope $subscriptionScope
+
+$policyDefinitionReaderRole = Ensure-CustomRoleDefinition `
+    -Name "QueenZone OpenTofu Plan - Policy Definition Reader" `
+    -Description "Read custom Azure Policy definitions so tofu plan can refresh them. Used only by the QueenZone OpenTofu Plan identity (#2211)." `
+    -Actions @("Microsoft.Authorization/policyDefinitions/read") `
+    -AssignableScope $subscriptionScope
+Ensure-RoleAssignment -PrincipalObjectId $planIdentity.PrincipalObjectId -PrincipalType ServicePrincipal -Role $policyDefinitionReaderRole -Scope $subscriptionScope
+
+# Contributor cannot write Microsoft.Authorization/*, so OpenTofu cannot create
+# its own Resource Policy Contributor assignments. Grant RBAC Administrator on
+# each workload RG, constrained by an ABAC condition to assigning or removing
+# only Resource Policy Contributor (36243c78-...).
+$resourcePolicyContributorId = "36243c78-bf99-498c-9df9-86d9f8d28608"
+$rbacCondition = "((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$resourcePolicyContributorId})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$resourcePolicyContributorId}))"
+foreach ($rg in @($WorkloadResourceGroup, $DevWorkloadResourceGroup)) {
+    $rgScope = "/subscriptions/$SubscriptionId/resourceGroups/$rg"
+    $existing = Invoke-AzJson @("role", "assignment", "list", "--assignee", $applyIdentity.PrincipalObjectId, "--role", "Role Based Access Control Administrator", "--scope", $rgScope)
+    if (@($existing).Count -eq 0 -and $PSCmdlet.ShouldProcess("$($applyIdentity.PrincipalObjectId) at $rgScope", "Assign constrained RBAC Administrator")) {
+        $null = Invoke-AzJson @(
+            "role", "assignment", "create",
+            "--assignee-object-id", $applyIdentity.PrincipalObjectId,
+            "--assignee-principal-type", "ServicePrincipal",
+            "--role", "Role Based Access Control Administrator",
+            "--scope", $rgScope,
+            "--condition", $rbacCondition,
+            "--condition-version", "2.0"
+        )
+    }
+}
 
 if ($PSCmdlet.ShouldProcess($StateStorageAccount, "Apply CanNotDelete lock")) {
     $existingLock = Invoke-AzJson @(

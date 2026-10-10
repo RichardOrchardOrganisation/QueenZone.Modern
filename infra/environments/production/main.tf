@@ -146,6 +146,18 @@ module "cloudflare_edge" {
 # #2211: flag (Audit) or block (Deny) any container in Queenzone-RG that is
 # public without being on its account's allow-list. Covers queenzoneprod and
 # queenzonemobilebuilds.
+# Lets the OpenTofu Apply identity manage the policy assignment on this RG
+# only. Creating this needs the one-off bootstrap grant (RBAC Administrator
+# constrained to Resource Policy Contributor); see
+# infra/modules/azure-storage-public-access-policy/README.md.
+resource "azurerm_role_assignment" "opentofu_apply_resource_policy_contributor" {
+  scope                = azurerm_resource_group.production.id
+  role_definition_name = "Resource Policy Contributor"
+  principal_id         = var.opentofu_apply_principal_object_id
+  principal_type       = "ServicePrincipal"
+  description          = "#2211: OpenTofu Apply manages the blob public-access policy assignment on this RG."
+}
+
 module "storage_public_access_policy" {
   source = "../../modules/azure-storage-public-access-policy"
 
@@ -156,4 +168,6 @@ module "storage_public_access_policy" {
     (module.azure_mobile_builds.public_blob_containers.account) = module.azure_mobile_builds.public_blob_containers.containers
   }
   effect = var.storage_public_access_policy_effect
+
+  depends_on = [azurerm_role_assignment.opentofu_apply_resource_policy_contributor]
 }

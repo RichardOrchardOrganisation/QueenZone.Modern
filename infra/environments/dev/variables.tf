@@ -25,3 +25,9 @@ variable "storage_public_access_policy_effect" {
     error_message = "storage_public_access_policy_effect must be Audit, Deny or Disabled."
   }
 }
+
+variable "opentofu_apply_principal_object_id" {
+  description = "Object ID of the QueenZone OpenTofu Apply service principal (opentofu-apply environment, ARM_CLIENT_ID 7b466caa-...)."
+  type        = string
+  default     = "e5e5ea3b-2a6e-4b62-abb8-947e5e66378c"
+}

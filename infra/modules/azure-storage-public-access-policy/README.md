@@ -20,9 +20,28 @@ impossible (Deny) at the ARM plane, which covers portal/CLI drift like #2209.
 Scope: `Queenzone-RG` (queenzoneprod and queenzonemobilebuilds, production
 root) and `Queenzone-Dev-RG` (queenzonedev, dev root).
 
-The apply identity needs `Microsoft.Authorization/policyDefinitions/write` on
-the subscription and `policyAssignments/write` on the resource group (Resource
-Policy Contributor or equivalent).
+## Permissions (one-off bootstrap by Richard)
+
+The OpenTofu Apply identity (`QueenZone OpenTofu Apply`, SP object
+`e5e5ea3b-2a6e-4b62-abb8-947e5e66378c`) has only **Contributor** on
+Queenzone-RG and Queenzone-Dev-RG. Contributor excludes
+`Microsoft.Authorization/*/write`, so on its own it cannot create policy
+definitions, policy assignments or role assignments.
+
+- **Policy definition:** custom definitions can only exist at subscription or
+  management-group scope, never at RG scope. The minimum extra right is
+  `Microsoft.Authorization/policyDefinitions/{read,write,delete}` at the
+  subscription. `infra/bootstrap/Bootstrap-OpenTofuState.ps1` grants it through the
+  custom role `QueenZone OpenTofu Apply - Policy Definition Writer`. The Plan
+  identity gets `... Plan - Policy Definition Reader` so it can refresh.
+- **Policy assignment:** the env roots create `Resource Policy Contributor`
+  for Apply on their own RG only (`azurerm_role_assignment.opentofu_apply_resource_policy_contributor`).
+  To let OpenTofu create that role assignment, the bootstrap grants Apply
+  `Role Based Access Control Administrator` on each RG, with an ABAC condition
+  that only allows assigning or removing Resource Policy Contributor.
+
+Run the bootstrap once as an Owner (Richard) before the first apply:
+`pwsh infra/bootstrap/Bootstrap-OpenTofuState.ps1` (use `-WhatIf` first).
 
 Check compliance after apply:
 
