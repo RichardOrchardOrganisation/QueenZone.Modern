@@ -258,6 +258,7 @@ function Start-AppWindows {
     $envAssignments = @(
         "set ASPNETCORE_ENVIRONMENT=$EnvironmentName",
         "set ASPNETCORE_URLS=$Urls",
+        "set Site__PublicBaseUrl=$Urls",
         "set ASPNETCORE_CONTENTROOT=$AppDir"
     )
     if ($EnvironmentName -eq "Testing") {
@@ -329,6 +330,7 @@ function Start-AppMacOS {
     $psi.CreateNoWindow = $true
     $psi.EnvironmentVariables["ASPNETCORE_ENVIRONMENT"] = $EnvironmentName
     $psi.EnvironmentVariables["ASPNETCORE_URLS"] = $Urls
+    $psi.EnvironmentVariables["Site__PublicBaseUrl"] = $Urls
     $psi.EnvironmentVariables["ASPNETCORE_CONTENTROOT"] = $AppDir
     if ($EnvironmentName -eq "Testing") {
         $psi.EnvironmentVariables["CrosswordBrowserFixture__Enabled"] = "true"

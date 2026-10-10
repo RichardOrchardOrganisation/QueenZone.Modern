@@ -65,7 +65,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/Topic.cshtml",
         "src/QueenZone.Web/Pages/Forum/_ForumVideoBody.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumPostList.cshtml",
         "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
+        "src/QueenZone.Web/wwwroot/js/forum/youtube-scheduler.js",
         "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
       "specs": [
@@ -89,7 +91,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Forum/TopicPage.cshtml",
         "src/QueenZone.Web/Pages/Forum/_ForumVideoBody.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumPostList.cshtml",
         "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
+        "src/QueenZone.Web/wwwroot/js/forum/youtube-scheduler.js",
         "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
       "specs": [
@@ -212,7 +216,9 @@
       ],
       "sources": [
         "src/QueenZone.Web/Pages/Forum/_ForumVideoBody.cshtml",
+        "src/QueenZone.Web/Pages/Forum/_ForumPostList.cshtml",
         "src/QueenZone.Web/Pages/Forum/_ForumVideoCard.cshtml",
+        "src/QueenZone.Web/wwwroot/js/forum/youtube-scheduler.js",
         "src/QueenZone.Web/wwwroot/js/forum/youtube-video.js"
       ],
       "specs": [
@@ -226,8 +232,8 @@
       "id": "web.forum.youtube",
       "name": "Forum YouTube cards",
       "page": "Pages/Forum/Topic.cshtml",
-      "url": "/forum/topic/1030/archive-sample-thread-1030",
-      "entry": "Forum board page 2 \u2192 Archive sample thread 1030"
+      "url": "/forum/topic/1029/archive-sample-thread-1029",
+      "entry": "Forum board page 2 \u2192 Archive sample thread 1029 (30 near-view video cards)"
     },
     {
       "aliases": [],

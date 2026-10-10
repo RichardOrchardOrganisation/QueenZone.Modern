@@ -11,6 +11,10 @@
 }
 else
 {
+  if (Model.Any(post => ForumVideoContent.Project(post.Body, UgcHtml).YoutubeVideos.Count > 0))
+  {
+    <p class="qz-meta" data-testid="forum-video-privacy">Videos near where you're reading load automatically from YouTube (privacy-enhanced mode) before you press Play. Loading a player connects to YouTube and shares your IP address and this site's address.</p>
+  }
   <div class="qz-forum-posts">
     @foreach (var post in Model)
     {
@@ -33,4 +37,5 @@ else
       </article>
     }
   </div>
+  <script src="~/js/forum/youtube-scheduler.js" asp-append-version="true" defer></script>
 }

@@ -21,6 +21,8 @@ public sealed class ForumVideoRenderingTests : IClassFixture<QueenZoneWebApplica
         using var response = await client.GetAsync(path);
         var document = new HtmlParser().ParseDocument(await response.Content.ReadAsStringAsync());
         Assert.Equal(2, document.QuerySelectorAll("[data-qz-forum-video]").Length);
+        Assert.Single(document.QuerySelectorAll("[data-testid='forum-video-privacy']"));
+        Assert.All(document.QuerySelectorAll("[data-qz-forum-video]"), card => Assert.False(string.IsNullOrEmpty(card.GetAttribute("data-qz-player-origin"))));
         Assert.Empty(document.QuerySelectorAll("iframe"));
         Assert.Empty(document.QuerySelectorAll("img[src^='https://'][src*='youtube'],script[src^='https://'][src*='youtube'],link[href^='https://'][href*='youtube']"));
         Assert.Equal(2, document.QuerySelectorAll("[data-video-load][hidden]").Length);
@@ -35,6 +37,39 @@ public sealed class ForumVideoRenderingTests : IClassFixture<QueenZoneWebApplica
         Assert.All(csp.Where(part => !part.TrimStart().StartsWith("frame-src", StringComparison.Ordinal)), part => Assert.DoesNotContain("youtube", part));
         Assert.Contains("frame-ancestors 'none'", csp.Select(part => part.Trim()));
         Assert.Contains("object-src 'none'", csp.Select(part => part.Trim()));
+    }
+
+    [Fact]
+    public void Player_security_headers_pin_frame_script_ancestor_object_and_referrer_policies()
+    {
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        SecurityHeaders.Apply(context);
+        var directives = context.Response.Headers["Content-Security-Policy"].ToString()
+            .Split(';', StringSplitOptions.TrimEntries)
+            .ToDictionary(part => part.Split(' ')[0]);
+        Assert.Equal("frame-src 'self' https://www.googletagmanager.com https://www.youtube-nocookie.com", directives["frame-src"]);
+        Assert.Equal("frame-ancestors 'none'", directives["frame-ancestors"]);
+        Assert.Equal("object-src 'none'", directives["object-src"]);
+        Assert.Equal($"script-src 'self' 'nonce-{CspNonce.Get(context)}' https://www.googletagmanager.com https://www.google-analytics.com", directives["script-src"]);
+        Assert.Equal("strict-origin-when-cross-origin", context.Response.Headers["Referrer-Policy"].ToString());
+    }
+
+    [Fact]
+    public async Task Long_thread_has_thirty_cards_and_one_notice()
+    {
+        using var client = factory.CreateAnonymousClient();
+        var document = new HtmlParser().ParseDocument(await client.GetStringAsync("/forum/topic/1029/archive-sample-thread-1029"));
+        Assert.Equal(30, document.QuerySelectorAll("[data-qz-forum-video]").Length);
+        Assert.Single(document.QuerySelectorAll("[data-testid='forum-video-privacy']"));
+        var scripts = document.QuerySelectorAll("script[src]")
+            .Select(script => script.GetAttribute("src") ?? "")
+            .Where(src => src.Contains("youtube-", StringComparison.Ordinal))
+            .ToList();
+        Assert.Contains(scripts, src => src.Contains("youtube-scheduler", StringComparison.Ordinal));
+        Assert.Contains(scripts, src => src.Contains("youtube-video", StringComparison.Ordinal));
+        Assert.True(
+            scripts.FindIndex(src => src.Contains("youtube-scheduler", StringComparison.Ordinal))
+            < scripts.FindIndex(src => src.Contains("youtube-video", StringComparison.Ordinal)));
     }
 
     [Fact]
