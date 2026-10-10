@@ -61,9 +61,13 @@ run "shapbot_is_blocked" {
   assert {
     condition = anytrue([
       for r in cloudflare_ruleset.bot_blocking.rules :
-      r.ref == "block_expensive_archive_crawlers" && strcontains(r.expression, "lower(http.user_agent) contains \"shapbot\"") &&
+      r.ref == "block_expensive_archive_crawlers" &&
+      alltrue([
+        for ua in ["claudebot", "claude-searchbot", "aionbot", "amazonbot", "semrushbot", "mj12bot", "serpstatbot", "shapbot"] :
+        strcontains(r.expression, "lower(http.user_agent) contains \"${ua}\"")
+      ]) &&
       !strcontains(r.expression, " http.user_agent contains")
     ])
-    error_message = "ShapBot must be in the archive crawler block list."
+    error_message = "All 8 crawler user agents (including ShapBot) must be matched case-insensitively in the block list."
   }
 }
