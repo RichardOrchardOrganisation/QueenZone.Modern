@@ -66,6 +66,14 @@ script compares the existing condition. If it differs, the script deletes and
 recreates the assignment (`-WhatIf` shows that) and fails if the read-back
 doesn't match.
 
+`-WhatIf` reaches this step: it lists the Apply principal's existing RBAC
+Administrator assignments and their conditions (read-only) and shows the
+planned delete/create. The bootstrap prints the derived Apply object ID and
+fails if it differs from `opentofu_apply_principal_object_id` in the dev or
+production root. The read-back after create retries with backoff (2/4/8/15 s).
+Fake-az self-test (not yet in CI; to wire it, add it to the pwsh step in `.github/workflows/scripts-tests.yml`):
+`pwsh -File infra/bootstrap/tests/Test-ConstrainedRbacAdmin.ps1`.
+
 Run the bootstrap once as an Owner (Richard) before the first apply:
 `pwsh infra/bootstrap/Bootstrap-OpenTofuState.ps1 -WhatIf`, then without `-WhatIf`.
 
