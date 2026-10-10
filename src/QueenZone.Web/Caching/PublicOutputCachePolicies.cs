@@ -66,10 +66,11 @@ public static class PublicOutputCachePolicies
 
         var method = context.Request.Method;
         var originalBodyFeature = context.Features.Get<IHttpResponseBodyFeature>();
+        var discard = new DiscardingCountStream();
         try
         {
             context.Request.Method = HttpMethods.Get;
-            context.Response.Body = Stream.Null;
+            context.Response.Body = discard;
             await next(context);
         }
         finally
@@ -79,6 +80,63 @@ public static class PublicOutputCachePolicies
             {
                 context.Features.Set(originalBodyFeature);
             }
+
+            // HEAD must advertise the GET representation size. Writes went to the
+            // discard stream (and may have marked HttpResponse.HasStarted), so set
+            // the header directly after restoring the original body feature.
+            if (discard.BytesWritten > 0 && context.Response.ContentLength is null or 0)
+            {
+                context.Response.Headers.ContentLength = discard.BytesWritten;
+            }
+        }
+    }
+
+    private sealed class DiscardingCountStream : Stream
+    {
+        public long BytesWritten { get; private set; }
+
+        public override bool CanRead => false;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => BytesWritten;
+
+        public override long Position
+        {
+            get => BytesWritten;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(ReadOnlySpan<byte> buffer) =>
+            BytesWritten += buffer.Length;
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            BytesWritten += count;
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            BytesWritten += count;
+            return Task.CompletedTask;
+        }
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            BytesWritten += buffer.Length;
+            return ValueTask.CompletedTask;
         }
     }
 

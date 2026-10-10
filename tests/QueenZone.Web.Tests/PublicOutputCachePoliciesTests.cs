@@ -99,6 +99,10 @@ public sealed class PublicOutputCachePoliciesTests
         Assert.Same(wire, context.Response.Body);
         Assert.Same(originalBodyFeature, context.Features.Get<IHttpResponseBodyFeature>());
         Assert.Equal(normalized, wire.Length == 0);
+        if (normalized)
+        {
+            Assert.Equal("complete rendered representation".Length, context.Response.ContentLength);
+        }
     }
 
     [Fact]
