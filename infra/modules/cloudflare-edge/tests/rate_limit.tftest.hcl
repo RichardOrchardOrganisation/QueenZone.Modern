@@ -39,3 +39,29 @@ run "forum_rate_limit_fits_free_plan" {
     error_message = "The forum rule must cover /forum/ (archive authors included), skip attachments, count every method, and use only Free-plan fields."
   }
 }
+
+run "archive_author_cache_includes_head" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for r in cloudflare_ruleset.archive_author_cache.rules :
+      strcontains(r.expression, "(http.request.method in {\"GET\" \"HEAD\"})") &&
+      strcontains(r.expression, "starts_with(http.request.uri.path, \"/forum/archive-authors/\")") &&
+      strcontains(r.expression, "(http.cookie eq \"\")")
+    ])
+    error_message = "Archive-author cache rule must cover cookie-free GET and HEAD only on /forum/archive-authors/."
+  }
+}
+
+run "shapbot_is_blocked" {
+  command = plan
+
+  assert {
+    condition = anytrue([
+      for r in cloudflare_ruleset.bot_blocking.rules :
+      r.ref == "block_expensive_archive_crawlers" && strcontains(r.expression, "http.user_agent contains \"ShapBot\"")
+    ])
+    error_message = "ShapBot must be in the archive crawler block list."
+  }
+}

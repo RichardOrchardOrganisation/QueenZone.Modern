@@ -141,7 +141,8 @@ resource "cloudflare_ruleset" "bot_blocking" {
           http.user_agent contains "Amazonbot" or
           http.user_agent contains "SemrushBot" or
           http.user_agent contains "MJ12bot" or
-          http.user_agent contains "serpstatbot"
+          http.user_agent contains "serpstatbot" or
+          http.user_agent contains "ShapBot"
         )
       EOT
       action      = "block"
@@ -189,7 +190,11 @@ resource "cloudflare_ruleset" "archive_author_rate_limit" {
 }
 
 # Archive-author pages are public and identical for cookie-free visitors. Cache
-# them at Cloudflare for an hour so repeat legitimate crawler/browser requests do
+# them at Cloudflare for an hour. HEAD is matched alongside GET: Cloudflare
+# shares one cache entry for GET and HEAD and converts a cacheable HEAD miss to
+# an origin GET, so HEAD both hits and fills the cache
+# (https://developers.cloudflare.com/cache/concepts/cache-behavior/). Before
+# this, crawler HEADs were DYNAMIC and always reached the origin so repeat legitimate crawler/browser requests do
 # not reach App Service or Azure SQL. Requests carrying any cookie bypass this
 # rule and retain the application's normal authentication-aware caching path.
 resource "cloudflare_ruleset" "archive_author_cache" {
@@ -201,10 +206,10 @@ resource "cloudflare_ruleset" "archive_author_cache" {
 
   rules = [{
     ref         = "cache_anonymous_archive_authors"
-    description = "Cache cookie-free archive-author GET requests for one hour"
+    description = "Cache cookie-free archive-author GET and HEAD requests for one hour"
     expression  = <<-EOT
       (http.host in {"queenzone.org" "www.queenzone.org"}) and
-      (http.request.method eq "GET") and
+      (http.request.method in {"GET" "HEAD"}) and
       starts_with(http.request.uri.path, "/forum/archive-authors/") and
       (http.cookie eq "")
     EOT
