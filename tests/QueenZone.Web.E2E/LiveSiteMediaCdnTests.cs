@@ -54,9 +54,9 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
 
     /// <summary>
     /// Sample private containers that must refuse anonymous origin reads even while
-    /// <c>allowBlobPublicAccess</c> stays on (#2211). Probe names do not need to exist:
-    /// a public container would still 404 this particular name, but 200 would mean the
-    /// path was served; 404/409 is the account/container denial contract.
+    /// <c>allowBlobPublicAccess</c> stays on (#2211). Probe names do not need to exist.
+    /// A public container also 404s a missing name with <c>BlobNotFound</c>; denial is
+    /// 404 <c>ResourceNotFound</c> or 409 <c>PublicAccessNotPermitted</c>.
     /// </summary>
     private static readonly string[] PrivateRawBlobSampleContainers =
     [
@@ -109,17 +109,22 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     private async Task AssertAnonymousRawBlobPrivateContainerDeniedAsync(string url, string container)
     {
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Range = new RangeHeaderValue(0, 1023);
+        using var response = await LiveSiteTransportRetry.RunAsync(() =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Range = new RangeHeaderValue(0, 1023);
+            return client.SendAsync(request);
+        });
 
-        using var response = await LiveSiteTransportRetry.RunAsync(() => client.SendAsync(request));
-
+        var errorCode = LiveSiteRawBlobDenial.ReadErrorCode(response.Headers);
         Assert.That(
-            new[] { HttpStatusCode.NotFound, HttpStatusCode.Conflict },
-            Does.Contain(response.StatusCode),
+            LiveSiteRawBlobDenial.IsPrivateContainerRefusal(response),
+            Is.True,
             FailurePrefix() +
-            $"anonymous GET {url} must return 404/409 for private {container} on the raw blob origin; " +
-            $"got {(int)response.StatusCode} {response.StatusCode}.");
+            $"anonymous GET {url} must return 404 {LiveSiteRawBlobDenial.ResourceNotFound} or " +
+            $"409 {LiveSiteRawBlobDenial.PublicAccessNotPermitted} for private {container} " +
+            $"on the raw blob origin; got {(int)response.StatusCode} {response.StatusCode} " +
+            $"{LiveSiteRawBlobDenial.ErrorCodeHeaderName}={errorCode ?? "(none)"}.");
     }
 
     private async Task AssertAnonymousPrivateMediaDeniedAsync(string url, string container)
