@@ -22,6 +22,19 @@ Set-StrictMode -Version Latest
 
 . (Join-Path $PSScriptRoot "Resolve-GitHubOidcRepositorySegment.ps1")
 . (Join-Path $PSScriptRoot "Ensure-WorkloadIdentity.ps1")
+. (Join-Path $PSScriptRoot "Ensure-ConstrainedRbacAdminAssignment.ps1")
+function Invoke-ApplyRbacAdminStep {
+    [CmdletBinding(SupportsShouldProcess)]
+    param([Parameter(Mandatory)][string]$ApplyPrincipalObjectId)
+
+    Write-Output "OpenTofu Apply principal object ID: $ApplyPrincipalObjectId"
+    Assert-ApplyPrincipalMatchesOpenTofu -PrincipalObjectId $ApplyPrincipalObjectId -RepositoryRoot (Join-Path $PSScriptRoot "../..")
+    $condition = New-ConstrainedRbacAdminCondition -RoleDefinitionId $ResourcePolicyContributorRoleId -PrincipalObjectId $ApplyPrincipalObjectId
+    foreach ($rg in @($WorkloadResourceGroup, $DevWorkloadResourceGroup)) {
+        Ensure-ConstrainedRbacAdminAssignment -PrincipalObjectId $ApplyPrincipalObjectId -Scope "/subscriptions/$SubscriptionId/resourceGroups/$rg" -Condition $condition
+    }
+}
+
 $OidcRepositorySegment = Resolve-GitHubOidcRepositorySegment -GitHubRepository $GitHubRepository -OidcOwnerId $OidcOwnerId -OidcRepositoryId $OidcRepositoryId
 
 function Invoke-Native {
@@ -207,6 +220,17 @@ if ($WhatIfPreference) {
     Write-Output "Would create or verify state storage, data protection, OIDC identities, scoped role assignments, and GitHub environments."
     Write-Output "OIDC subject repository segment: $OidcRepositorySegment"
     Write-Output "Would not import or change any QueenZone application resource."
+
+    # Real preview of the #2211 RBAC Administrator step. Everything below is
+    # read-only under -WhatIf: Ensure-WorkloadIdentity and
+    # Ensure-ConstrainedRbacAdminAssignment gate every write with ShouldProcess.
+    $whatIfApplyIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone OpenTofu Apply" -FederatedCredentialName $ApplyFederatedCredentialName -EnvironmentName "opentofu-apply"
+    if ($null -eq $whatIfApplyIdentity) {
+        Write-Output "QueenZone OpenTofu Apply does not exist yet; the RBAC Administrator grant would follow its creation."
+    }
+    else {
+        Invoke-ApplyRbacAdminStep -ApplyPrincipalObjectId $whatIfApplyIdentity.PrincipalObjectId
+    }
     return
 }
 
@@ -314,105 +338,9 @@ Ensure-RoleAssignment -PrincipalObjectId $planIdentity.PrincipalObjectId -Princi
 
 # Contributor cannot write Microsoft.Authorization/*, so OpenTofu cannot create
 # its own Resource Policy Contributor assignments. Grant RBAC Administrator on
-# each workload RG with an ABAC condition that limits BOTH the role (Resource
-# Policy Contributor only) AND the principal (the Apply identity only), on
-# write and on delete.
-# Template ("Constrain roles and principals"): Microsoft Learn, "Examples to delegate Azure role assignment
-# management with conditions", "Example: Constrain roles and specific groups"
-# https://learn.microsoft.com/azure/role-based-access-control/delegate-role-assignments-examples#example-constrain-roles-and-specific-groups
-function New-ConstrainedRbacAdminCondition {
-    param(
-        [Parameter(Mandatory)][guid]$RoleDefinitionId,
-        [Parameter(Mandatory)][guid]$PrincipalObjectId
-    )
-
-    $role = $RoleDefinitionId.ToString()
-    $principal = $PrincipalObjectId.ToString()
-    return @"
-(
- (
-  !(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})
- )
- OR
- (
-  @Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$role}
-  AND
-  @Request[Microsoft.Authorization/roleAssignments:PrincipalId] ForAnyOfAnyValues:GuidEquals {$principal}
- )
-)
-AND
-(
- (
-  !(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})
- )
- OR
- (
-  @Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$role}
-  AND
-  @Resource[Microsoft.Authorization/roleAssignments:PrincipalId] ForAnyOfAnyValues:GuidEquals {$principal}
- )
-)
-"@
-}
-
-function ConvertTo-NormalizedCondition {
-    param([AllowNull()][string]$Condition)
-    if ($null -eq $Condition) { return "" }
-    return ($Condition -replace '\s+', '').ToLowerInvariant()
-}
-
-# Creates the constrained assignment, or reconciles an existing one. An
-# existing assignment whose condition differs is deleted and recreated (shown
-# by -WhatIf); it is never silently skipped.
-function Ensure-ConstrainedRbacAdminAssignment {
-    param(
-        [Parameter(Mandatory)][string]$PrincipalObjectId,
-        [Parameter(Mandatory)][string]$Scope,
-        [Parameter(Mandatory)][string]$Condition
-    )
-
-    $role = "Role Based Access Control Administrator"
-    $existing = @(Invoke-AzJson @("role", "assignment", "list", "--assignee", $PrincipalObjectId, "--role", $role, "--scope", $Scope) |
-        Where-Object { $_.scope -eq $Scope })
-    $wanted = ConvertTo-NormalizedCondition $Condition
-
-    foreach ($assignment in $existing) {
-        if ((ConvertTo-NormalizedCondition $assignment.condition) -eq $wanted) {
-            Write-Output "Constrained RBAC Administrator for $PrincipalObjectId at $Scope is already correct."
-            return
-        }
-
-        Write-Warning "RBAC Administrator assignment $($assignment.id) at $Scope has a different or missing condition. Current: '$($assignment.condition)'."
-        if (-not $PSCmdlet.ShouldProcess($assignment.id, "Delete RBAC Administrator assignment whose condition differs (it will be recreated with the constrained condition)")) {
-            continue
-        }
-        $null = Invoke-Native -FilePath "az" -Arguments @("role", "assignment", "delete", "--ids", $assignment.id)
-    }
-
-    if ($PSCmdlet.ShouldProcess("$PrincipalObjectId at $Scope", "Assign RBAC Administrator constrained to Resource Policy Contributor for this principal only")) {
-        $null = Invoke-AzJson @(
-            "role", "assignment", "create",
-            "--assignee-object-id", $PrincipalObjectId,
-            "--assignee-principal-type", "ServicePrincipal",
-            "--role", $role,
-            "--scope", $Scope,
-            "--condition", $Condition,
-            "--condition-version", "2.0"
-        )
-
-        $created = @(Invoke-AzJson @("role", "assignment", "list", "--assignee", $PrincipalObjectId, "--role", $role, "--scope", $Scope) |
-            Where-Object { $_.scope -eq $Scope -and (ConvertTo-NormalizedCondition $_.condition) -eq $wanted })
-        if ($created.Count -ne 1) {
-            throw "Constrained RBAC Administrator assignment at $Scope did not read back with the expected condition."
-        }
-    }
-}
-
-$resourcePolicyContributorId = "36243c78-bf99-498c-9df9-86d9f8d28608"
-$rbacCondition = New-ConstrainedRbacAdminCondition -RoleDefinitionId $resourcePolicyContributorId -PrincipalObjectId $applyIdentity.PrincipalObjectId
-foreach ($rg in @($WorkloadResourceGroup, $DevWorkloadResourceGroup)) {
-    Ensure-ConstrainedRbacAdminAssignment -PrincipalObjectId $applyIdentity.PrincipalObjectId -Scope "/subscriptions/$SubscriptionId/resourceGroups/$rg" -Condition $rbacCondition
-}
+# each workload RG, constrained to that role AND the Apply principal
+# (see Ensure-ConstrainedRbacAdminAssignment.ps1).
+Invoke-ApplyRbacAdminStep -ApplyPrincipalObjectId $applyIdentity.PrincipalObjectId
 
 if ($PSCmdlet.ShouldProcess($StateStorageAccount, "Apply CanNotDelete lock")) {
     $existingLock = Invoke-AzJson @(
