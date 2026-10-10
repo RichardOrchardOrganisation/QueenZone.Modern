@@ -102,7 +102,7 @@ public static class SampleForumData
                 "",
                 10,
                 new DateTime(2004, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                AuthorLegacyUserId: 5002)).ToList();
+                AuthorLegacyUserId: 5010)).ToList();
         }
 
         if (topicId == 1030)
