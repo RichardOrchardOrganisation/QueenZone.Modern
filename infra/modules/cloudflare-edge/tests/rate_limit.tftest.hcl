@@ -30,8 +30,9 @@ run "forum_rate_limit_fits_free_plan" {
   assert {
     condition = alltrue([
       for r in cloudflare_ruleset.archive_author_rate_limit.rules :
-      strcontains(r.expression, "starts_with(http.request.uri.path, \"/forum/\")") &&
-      strcontains(r.expression, "not starts_with(http.request.uri.path, \"/forum/attachment/\")") &&
+      strcontains(r.expression, "lower(http.request.uri.path) eq \"/forum\"") &&
+      strcontains(r.expression, "starts_with(lower(http.request.uri.path), \"/forum/\")") &&
+      strcontains(r.expression, "not starts_with(lower(http.request.uri.path), \"/forum/attachment/\")") &&
       !strcontains(r.expression, "http.request.method") &&
       !strcontains(r.expression, "http.cookie") &&
       r.ratelimit.requests_per_period == 20
@@ -60,7 +61,8 @@ run "shapbot_is_blocked" {
   assert {
     condition = anytrue([
       for r in cloudflare_ruleset.bot_blocking.rules :
-      r.ref == "block_expensive_archive_crawlers" && strcontains(r.expression, "http.user_agent contains \"ShapBot\"")
+      r.ref == "block_expensive_archive_crawlers" && strcontains(r.expression, "lower(http.user_agent) contains \"shapbot\"") &&
+      !strcontains(r.expression, " http.user_agent contains")
     ])
     error_message = "ShapBot must be in the archive crawler block list."
   }

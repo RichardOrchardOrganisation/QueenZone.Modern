@@ -107,7 +107,8 @@ resource "cloudflare_zone_setting" "development_mode" {
 # Keep high-volume archive crawlers at the edge. These user agents were the
 # sustained source of expensive forum-author/topic reads in Application Insights
 # on 6-9 September 2026. Search-engine crawlers such as Googlebot and bingbot are
-# deliberately unaffected.
+# deliberately unaffected. Matching is case-insensitive via lower(), which is a
+# strict superset of the previous case-sensitive matches.
 resource "cloudflare_ruleset" "bot_blocking" {
   zone_id     = var.zone_id
   name        = "QueenZone custom firewall rules"
@@ -135,14 +136,14 @@ resource "cloudflare_ruleset" "bot_blocking" {
       description = "Block crawlers proven to overload the forum archive"
       expression  = <<-EOT
         (http.host in {"queenzone.org" "www.queenzone.org"}) and (
-          http.user_agent contains "ClaudeBot" or
-          http.user_agent contains "Claude-SearchBot" or
-          http.user_agent contains "AionBot" or
-          http.user_agent contains "Amazonbot" or
-          http.user_agent contains "SemrushBot" or
-          http.user_agent contains "MJ12bot" or
-          http.user_agent contains "serpstatbot" or
-          http.user_agent contains "ShapBot"
+          lower(http.user_agent) contains "claudebot" or
+          lower(http.user_agent) contains "claude-searchbot" or
+          lower(http.user_agent) contains "aionbot" or
+          lower(http.user_agent) contains "amazonbot" or
+          lower(http.user_agent) contains "semrushbot" or
+          lower(http.user_agent) contains "mj12bot" or
+          lower(http.user_agent) contains "serpstatbot" or
+          lower(http.user_agent) contains "shapbot"
         )
       EOT
       action      = "block"
@@ -159,7 +160,10 @@ resource "cloudflare_ruleset" "bot_blocking" {
 # fields. So one rule counts every /forum/ page view (GET, HEAD and POST alike)
 # per IP, with archive-author pages sharing that counter rather than keeping a
 # separate tighter one, and signed-in members cannot be exempted by cookie.
-# Attachment downloads are excluded so a topic with many images cannot trip it.
+# ASP.NET routing is case-insensitive, so the path is lowered before matching
+# (lower() has no plan restriction in the Rules language function reference),
+# and the bare /forum index counts too. Attachment downloads are excluded so a
+# topic with many images cannot trip it.
 # 20 per 10 seconds is ~3x the busiest non-crawler client seen in Application
 # Insights over 14 days (6 sampled forum requests in a 10s window; p99.9 is 4).
 resource "cloudflare_ruleset" "archive_author_rate_limit" {
@@ -174,8 +178,9 @@ resource "cloudflare_ruleset" "archive_author_rate_limit" {
     description = "Block forum clients exceeding 20 page requests in 10 seconds"
     expression  = <<-EOT
       (http.host in {"queenzone.org" "www.queenzone.org"}) and
-      starts_with(http.request.uri.path, "/forum/") and
-      not starts_with(http.request.uri.path, "/forum/attachment/")
+      (lower(http.request.uri.path) eq "/forum" or
+      starts_with(lower(http.request.uri.path), "/forum/")) and
+      not starts_with(lower(http.request.uri.path), "/forum/attachment/")
     EOT
     action      = "block"
     enabled     = true
