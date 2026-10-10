@@ -92,6 +92,19 @@ public static class SampleForumData
     public static IReadOnlyList<ForumPostItem> CreateSeedPosts(int topicId)
     {
         // Deterministic archive-shaped browser fixture; never writes legacy rows.
+        if (topicId == 1029)
+        {
+            return Enumerable.Range(1, 15).Select(index => new ForumPostItem(
+                102900 + index,
+                $"<p>Long thread post {index}.</p><p><a href=\"https://youtu.be/QZ{index:000000000}\">First video</a></p><p><a href=\"https://youtu.be/QZ{index + 15:000000000}\">Second video</a></p>",
+                new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(index),
+                "archive_video_fan",
+                "",
+                10,
+                new DateTime(2004, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                AuthorLegacyUserId: 5002)).ToList();
+        }
+
         if (topicId == 1030)
         {
             return Enumerable.Range(1, 16).Select(index => new ForumPostItem(
