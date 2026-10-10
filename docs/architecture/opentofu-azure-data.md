@@ -68,10 +68,14 @@ absent. The first import deliberately avoids new storage cost or retention.
 The imported ACLs match live product behaviour:
 
 - `databasebackup`, `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos`, `songfiles`, and legacy `attachments` are private;
-- archive/media containers retain public blob access;
-- `css` retains public container access (published site CSS, not member uploads);
-- `test` retains public blob access and is preserved through the production
-  region migration.
+- archive/media containers retain public blob access when named in
+  `public_blob_containers`;
+- `css` is public blob access (published site CSS, not member uploads; no
+  anonymous listing);
+- `test` stays in inventory at `None` and is not deleted.
+
+See [blob-public-access.md](blob-public-access.md) for the public-container
+table and why `allowBlobPublicAccess` stays on.
 
 Live `songfiles` is already private (ARM apply 2026-08-16 after the #702
 app proxy shipped). The module desired state is `None`. The next reviewed

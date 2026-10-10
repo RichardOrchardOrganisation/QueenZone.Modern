@@ -50,6 +50,22 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     private const string AnonymousAttachmentBlobUrl =
         "https://queenzoneprod.blob.core.windows.net/attachments/probe-object-does-not-need-to-exist";
 
+    private const string ProdRawBlobOrigin = "https://queenzoneprod.blob.core.windows.net";
+
+    /// <summary>
+    /// Sample private containers that must refuse anonymous origin reads even while
+    /// <c>allowBlobPublicAccess</c> stays on (#2211). Probe names do not need to exist:
+    /// a public container would still 404 this particular name, but 200 would mean the
+    /// path was served; 404/409 is the account/container denial contract.
+    /// </summary>
+    private static readonly string[] PrivateRawBlobSampleContainers =
+    [
+        "ugc-photos",
+        "databasebackup",
+        "attachments",
+        "songfiles",
+    ];
+
     protected override bool AllowsWrites => false;
 
     [Test]
@@ -76,8 +92,35 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
     public async Task AnonymousRawBlobAttachmentUrl_IsDeniedAsync() =>
         await AssertAnonymousPrivateMediaDeniedAsync(AnonymousAttachmentBlobUrl, "attachments");
 
+    [TestCase("ugc-photos")]
+    [TestCase("databasebackup")]
+    [TestCase("attachments")]
+    [TestCase("songfiles")]
+    public async Task AnonymousRawBlobPrivateContainer_IsDeniedAsync(string container)
+    {
+        Assert.That(PrivateRawBlobSampleContainers, Does.Contain(container));
+        var url = $"{ProdRawBlobOrigin}/{container}/probe-object-does-not-need-to-exist";
+        await AssertAnonymousRawBlobPrivateContainerDeniedAsync(url, container);
+    }
+
     private async Task AssertAnonymousSongfileDeniedAsync(string url) =>
         await AssertAnonymousPrivateMediaDeniedAsync(url, "songfiles");
+
+    private async Task AssertAnonymousRawBlobPrivateContainerDeniedAsync(string url, string container)
+    {
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Range = new RangeHeaderValue(0, 1023);
+
+        using var response = await LiveSiteTransportRetry.RunAsync(() => client.SendAsync(request));
+
+        Assert.That(
+            new[] { HttpStatusCode.NotFound, HttpStatusCode.Conflict },
+            Does.Contain(response.StatusCode),
+            FailurePrefix() +
+            $"anonymous GET {url} must return 404/409 for private {container} on the raw blob origin; " +
+            $"got {(int)response.StatusCode} {response.StatusCode}.");
+    }
 
     private async Task AssertAnonymousPrivateMediaDeniedAsync(string url, string container)
     {

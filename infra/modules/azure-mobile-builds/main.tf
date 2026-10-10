@@ -88,7 +88,7 @@ resource "azapi_resource" "builds_container" {
       defaultEncryptionScope      = "$account-encryption-key"
       denyEncryptionScopeOverride = false
       # Blob permits anonymous object reads but does not expose container listing.
-      publicAccess = "Blob"
+      publicAccess = var.containers["builds"]
     }
   }
 

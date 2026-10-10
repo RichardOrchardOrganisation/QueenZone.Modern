@@ -55,8 +55,8 @@ run "existing_production_shape_remains_managed" {
   }
 
   assert {
-    condition     = length(var.containers) == 29 && var.containers["test"] == "Blob"
-    error_message = "The complete 29-container source inventory, including the public test container, must remain managed."
+    condition     = length(var.containers) == 29 && var.containers["test"] == "None"
+    error_message = "The complete 29-container source inventory must remain managed, and the leftover test container must stay private."
   }
 
   assert {
@@ -65,8 +65,21 @@ run "existing_production_shape_remains_managed" {
   }
 
   assert {
-    condition     = var.containers["attachments"] == "None" && var.containers["songfiles"] == "None" && var.containers["freddie-mercury"] == "Blob" && var.containers["album-or-single-covers"] == "Blob" && var.containers["css"] == "Container"
-    error_message = "Legacy attachments and songfiles must stay private. Published gallery containers stay public blob, and css stays listable."
+    condition     = var.containers["attachments"] == "None" && var.containers["songfiles"] == "None" && var.containers["freddie-mercury"] == "Blob" && var.containers["album-or-single-covers"] == "Blob" && var.containers["css"] == "Blob"
+    error_message = "Legacy attachments and songfiles must stay private. Published gallery containers stay public blob, and css must not allow anonymous listing."
+  }
+
+  assert {
+    condition     = var.containers["forum"] == "Blob" && var.containers["mp3"] == "Blob" && contains(var.public_blob_containers, "forum") && contains(var.public_blob_containers, "mp3")
+    error_message = "forum and mp3 stay public blob on the allow-list until Gilfoyle's anonymous-read metrics land."
+  }
+
+  assert {
+    condition = alltrue([
+      for name, access in var.containers :
+      access == "None" || contains(var.public_blob_containers, name)
+    ])
+    error_message = "Every public container in the default inventory must be named in public_blob_containers."
   }
 }
 
@@ -286,5 +299,123 @@ run "rejects_allow_all_azure_firewall_rule" {
 
   expect_failures = [
     var.sql_firewall_rules,
+  ]
+}
+
+run "rejects_public_container_off_allow_list" {
+  command = plan
+
+  override_resource {
+    target = azapi_resource.sql_server
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/test"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.storage_account
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/test"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.blob_service
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/test/blobServices/default"
+    }
+  }
+
+  override_resource {
+    target = azurerm_mssql_database.production
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/test/databases/queenzone-db"
+    }
+  }
+
+  variables {
+    containers = {
+      "album-or-single-covers"  = "Blob"
+      "attachments"             = "None"
+      "avatars"                 = "Blob"
+      "brian-may"               = "Blob"
+      "css"                     = "Blob"
+      "databasebackup"          = "None"
+      "fan-art"                 = "Blob"
+      "fan-pics"                = "Blob"
+      "forum"                   = "Blob"
+      "freddie-mercury"         = "Blob"
+      "freddie-tribute-concert" = "Blob"
+      "images"                  = "Blob"
+      "john-deacon"             = "Blob"
+      "miscellaneous"           = "Blob"
+      "mp3"                     = "Blob"
+      "pre-queen"               = "Blob"
+      "queen"                   = "Blob"
+      "queen-and-adam-lambert"  = "Blob"
+      "queen-and-paul-rodgers"  = "Blob"
+      "queen-memorabillia"      = "Blob"
+      "roger-taylor"            = "Blob"
+      "songfiles"               = "None"
+      "special-events"          = "Blob"
+      "test"                    = "None"
+      "ugc-articles"            = "None"
+      "ugc-avatars"             = "None"
+      "ugc-forum"               = "None"
+      "ugc-photos"              = "None"
+      "us-convention-2001"      = "Blob"
+      "not-allow-listed"        = "Blob"
+    }
+  }
+
+  expect_failures = [
+    var.containers,
+  ]
+}
+
+run "rejects_required_private_container_made_public" {
+  command = plan
+
+  override_resource {
+    target = azapi_resource.sql_server
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/test"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.storage_account
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/test"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.blob_service
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/test/blobServices/default"
+    }
+  }
+
+  override_resource {
+    target = azurerm_mssql_database.production
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/test/databases/queenzone-db"
+    }
+  }
+
+  variables {
+    public_blob_containers = ["attachments"]
+    containers = {
+      "attachments"    = "Blob"
+      "databasebackup" = "None"
+      "songfiles"      = "None"
+      "ugc-avatars"    = "None"
+      "ugc-forum"      = "None"
+    }
+  }
+
+  expect_failures = [
+    var.containers,
   ]
 }

@@ -203,13 +203,15 @@ site; no empty or speculative RBAC resources are declared.
 
 | Container | publicAccess | Product role | OpenTofu note |
 | --- | --- | --- | --- |
-| Photo/archive galleries (`queen`, `freddie-mercury`, …) | `blob` | Public photos via `cdn` | Keep public blob read |
-| `images`, `css`, `mp3`, `forum`, `avatars`, `album-or-single-covers`, … | `blob` or `container` (`css`) | Legacy public assets | Keep; `css` is listable |
+| Photo/archive galleries (`queen`, `freddie-mercury`, …) | `blob` | Public photos via `cdn` | Keep public blob read; must be on `public_blob_containers` |
+| `images`, `css`, `mp3`, `forum`, `avatars`, `album-or-single-covers`, … | `blob` | Legacy public assets | Keep on the allow-list. `css` desired access is Blob (no listing). `forum`/`mp3` wait on metrics. |
 | `songfiles` | **`None` (private)** | Fan audio streamed by `/fan-performances/{id}/audio` | Live since 2026-08-16 (ARM). Module desired state already `None`. |
 | `attachments` | **live `blob`; desired `None`** | Legacy forum files streamed by `/forum/attachment/legacy/{id}` | Module default is `None` (#1656). Live ACL stays public until the reviewed apply. |
 | `databasebackup` | private | Backups | Keep private; **never** public |
 | `ugc-articles`, `ugc-avatars`, `ugc-forum`, `ugc-photos` | private | Modern UGC | Keep private; app proxy. All four were live at the 2026-09-09 refresh. Relates to [#583](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/583), [#584](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/584) |
-| `test` | `blob` | Legacy/scratch content | **2,320 blobs / 4,110,472,406 bytes** at the 2026-09-09 refresh. Preserve during migration; review any later deletion separately. |
+| `test` | **desired `None`** (live still `blob` until apply) | Legacy/scratch content | **2,320 blobs / 4,110,472,406 bytes** at the 2026-09-09 refresh. Keep the container; do not delete it in #2211. |
+
+The public-container table and why `allowBlobPublicAccess` stays on are in [blob-public-access.md](blob-public-access.md).
 
 No storage lifecycle policy exists. Soft delete is 7 days for blobs and containers; versioning is off.
 

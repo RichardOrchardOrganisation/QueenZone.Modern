@@ -59,6 +59,7 @@ jobs:
           pwsh -File ./scripts/Test-SqlPackageRetry.ps1
           pwsh -File ./scripts/Test-CoverageGate.ps1 -SelfTest
           pwsh -File ./scripts/Test-OpenTofuPlanSafety.ps1 -SelfTest
+          pwsh -File ./scripts/Test-OpenTofuContainerPublicAccessDrift.ps1 -SelfTest
           pwsh -File ./scripts/Get-DevAttachmentEvidence.ps1 -SelfTest
 
   bitwarden-contract:

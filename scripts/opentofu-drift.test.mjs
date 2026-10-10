@@ -41,3 +41,12 @@ test('drift and detector failures each open or update a labelled issue without s
   assert.ok(failureStep);
   assert.doesNotMatch(failureStep.slice(0, 400), /continue-on-error:\s*true/);
 });
+
+test('container publicAccess drift fails the job instead of only opening a plan-diff issue', () => {
+  assert.match(workflow, /Fail on container publicAccess drift/);
+  assert.match(workflow, /Test-OpenTofuContainerPublicAccessDrift\.ps1/);
+  const accessStep = workflow.split('Fail on container publicAccess drift')[1].split('- name:')[0];
+  assert.match(accessStep, /if: steps\.plan\.outputs\.exit_code == '2'/);
+  assert.doesNotMatch(accessStep, /continue-on-error:\s*true/);
+  assert.match(workflow, /Open or update the drift-check failure issue[\s\S]*if: failure\(\)/);
+});
