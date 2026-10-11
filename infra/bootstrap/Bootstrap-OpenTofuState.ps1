@@ -226,7 +226,7 @@ if ($WhatIfPreference) {
     # Ensure-ConstrainedRbacAdminAssignment gate every write with ShouldProcess.
     $whatIfApplyIdentity = Ensure-WorkloadIdentity -DisplayName "QueenZone OpenTofu Apply" -FederatedCredentialName $ApplyFederatedCredentialName -EnvironmentName "opentofu-apply"
     if ($null -eq $whatIfApplyIdentity) {
-        Write-Output "QueenZone OpenTofu Apply does not exist yet; the RBAC Administrator grant would follow its creation."
+        Write-Output "QueenZone OpenTofu Apply (application or service principal) does not exist yet; the RBAC Administrator grant cannot be previewed and would follow its creation."
     }
     else {
         Invoke-ApplyRbacAdminStep -ApplyPrincipalObjectId $whatIfApplyIdentity.PrincipalObjectId

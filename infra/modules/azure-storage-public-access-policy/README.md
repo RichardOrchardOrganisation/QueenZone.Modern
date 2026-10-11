@@ -73,6 +73,8 @@ fails if it differs from `opentofu_apply_principal_object_id` in the dev or
 production root. The read-back after create retries with backoff (2/4/8/15 s).
 Fake-az self-test (not yet in CI; to wire it, add it to the pwsh step in `.github/workflows/scripts-tests.yml`):
 `pwsh -File infra/bootstrap/tests/Test-ConstrainedRbacAdmin.ps1`.
+Whole-script check that `-WhatIf` makes no writes (fake `az`/`gh` that fail on any write verb; covers existing identity, missing service principal and missing application):
+`pwsh -File infra/bootstrap/tests/Test-BootstrapWhatIfNoWrites.ps1`.
 
 Run the bootstrap once as an Owner (Richard) before the first apply:
 `pwsh infra/bootstrap/Bootstrap-OpenTofuState.ps1 -WhatIf`, then without `-WhatIf`.
