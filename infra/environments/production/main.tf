@@ -142,3 +142,16 @@ module "cloudflare_edge" {
 
 # All modules use declarative imports in imports.tf; an apply must never
 # precede plan review.
+
+# #2211 / #2241: the #2223 Azure Policy guard was reverted (Azure Policy has no
+# alias for container publicAccess). Forget the Resource Policy Contributor
+# assignment instead of destroying it, because Test-OpenTofuPlanSafety blocks
+# any production destroy. Richard removes the live assignment by hand (step 0
+# of the #2211 cleanup). Delete this block once that is done.
+removed {
+  from = azurerm_role_assignment.opentofu_apply_resource_policy_contributor
+
+  lifecycle {
+    destroy = false
+  }
+}
