@@ -1,7 +1,5 @@
-using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 
@@ -14,7 +12,7 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
     private readonly SqliteConnection connection;
     private readonly QueenZoneDbContext dbContext;
     private readonly EfForumArchiveAuthorRepository repository;
-    private readonly CommandCounter commandCounter = new();
+    private readonly QueryCounter commandCounter = new();
 
     public EfForumArchiveAuthorRepositoryTests()
     {
@@ -160,12 +158,18 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
         Assert.Equal(["First"], page2.Items.Select(item => item.Summary));
     }
 
-    [Fact]
-    public async Task ArchiveAuthorPageData_PagesIdsBeforeLoadingPostBodies()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(15)]
+    [InlineData(50)]
+    public async Task ArchiveAuthorPageData_PagesIdsBeforeLoadingPostBodies(int pageSize)
     {
         SeedThread(1, "Thread one");
-        SeedPost(1, 1, LegacyUserId, "John S Stuart", "First post", DateTime.Parse("2020-01-01T00:00:00Z"));
-        SeedPost(2, 1, LegacyUserId, "John S Stuart", "Second post", DateTime.Parse("2021-01-01T00:00:00Z"));
+        for (var id = 1; id <= 60; id++)
+        {
+            SeedPost(id, 1, LegacyUserId, "John S Stuart", $"Post {id}",
+                new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(id));
+        }
         await dbContext.SaveChangesAsync();
         commandCounter.Reset();
 
@@ -174,13 +178,14 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
         var page = await repository.GetPostsPageAsync(
             LegacyUserId,
             page: 1,
-            pageSize: 20,
+            pageSize: pageSize,
             totalCount: summary!.PostCount);
 
         Assert.Equal(3, commandCounter.ReaderCount);
         Assert.DoesNotContain("BodyHtml", commandCounter.ReaderCommands[1], StringComparison.Ordinal);
         Assert.Contains("BodyHtml", commandCounter.ReaderCommands[2], StringComparison.Ordinal);
-        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(60, page.TotalCount);
+        Assert.Equal(pageSize, page.Items.Count);
     }
 
     [Fact]
@@ -229,26 +234,5 @@ public sealed class EfForumArchiveAuthorRepositoryTests : IAsyncDisposable
     {
         await dbContext.DisposeAsync();
         await connection.DisposeAsync();
-    }
-
-    private sealed class CommandCounter : DbCommandInterceptor
-    {
-        private readonly List<string> readerCommands = [];
-
-        public int ReaderCount => readerCommands.Count;
-
-        public IReadOnlyList<string> ReaderCommands => readerCommands;
-
-        public void Reset() => readerCommands.Clear();
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            readerCommands.Add(command.CommandText);
-            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
-        }
     }
 }

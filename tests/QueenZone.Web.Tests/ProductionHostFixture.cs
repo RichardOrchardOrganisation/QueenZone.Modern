@@ -29,6 +29,12 @@ public sealed class ProductionHostFixture : IAsyncLifetime, IResettableHostFixtu
 
     public CountingArticlesRepository Articles => factory.Articles;
 
+    public OutputCacheCountingForumRepository Forum => factory.Forum;
+
+    public OutputCacheExpirationObserver CacheExpirations => factory.CacheExpirations;
+
+    public OutputCacheCountingArchiveAuthorRepository ArchiveAuthors => factory.ArchiveAuthors;
+
     public VariantWebApplicationFactory WithoutMobileAuthSigningKey =>
         variants.Get(WebHostVariants.ProductionWithoutMobileAuthSigningKey);
 
@@ -40,6 +46,9 @@ public sealed class ProductionHostFixture : IAsyncLifetime, IResettableHostFixtu
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, CancellationToken.None);
         await outputCache.EvictByTagAsync(PublicOutputCachePolicies.PublicSitemapTag, CancellationToken.None);
         Articles.Reset();
+        Forum.Reset();
+        ArchiveAuthors.Reset();
+        CacheExpirations.Durations.Clear();
     }
 
     public Task InitializeAsync() => Task.CompletedTask;
@@ -55,11 +64,23 @@ internal sealed class ProductionCountingWebApplicationFactory : ProductionWebApp
 {
     public CountingArticlesRepository Articles { get; } = new();
 
+    public OutputCacheCountingForumRepository Forum { get; } = new();
+
+    public OutputCacheExpirationObserver CacheExpirations { get; } = new();
+
+    public OutputCacheCountingArchiveAuthorRepository ArchiveAuthors { get; } = new(
+        new InMemoryForumRepository(SampleForumData.CreateSeedCategories(), SampleForumData.CreateSeedStats()));
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
         builder.ConfigureTestServices(services =>
         {
+            services.Configure<OutputCacheOptions>(options => options.AddBasePolicy(CacheExpirations));
+            services.RemoveAll<IForumRepository>();
+            services.AddSingleton<IForumRepository>(Forum);
+            services.RemoveAll<IForumArchiveAuthorRepository>();
+            services.AddSingleton<IForumArchiveAuthorRepository>(ArchiveAuthors);
             services.RemoveAll<IArticlesRepository>();
             services.AddSingleton<IArticlesRepository>(Articles);
             services.RemoveAll<IArticleRepository>();

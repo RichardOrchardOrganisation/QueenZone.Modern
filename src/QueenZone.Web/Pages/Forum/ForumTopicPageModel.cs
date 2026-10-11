@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Web;
@@ -16,6 +17,7 @@ public abstract class ForumTopicPageModel : PageModel
     private readonly TimeProvider timeProvider;
     private readonly IForumPostReportRepository forumPostReportRepository;
     private readonly PrivateMessageService privateMessageService;
+    private readonly CookieTempDataProviderOptions tempDataCookieOptions;
 
     protected ForumTopicPageModel(
         IForumRepository forumRepository,
@@ -24,7 +26,8 @@ public abstract class ForumTopicPageModel : PageModel
         IOptions<AdminOptions> adminOptions,
         TimeProvider timeProvider,
         IForumPostReportRepository forumPostReportRepository,
-        PrivateMessageService privateMessageService)
+        PrivateMessageService privateMessageService,
+        IOptions<CookieTempDataProviderOptions> tempDataCookieOptions)
     {
         this.forumRepository = forumRepository;
         this.topicWatchRepository = topicWatchRepository;
@@ -33,6 +36,7 @@ public abstract class ForumTopicPageModel : PageModel
         this.timeProvider = timeProvider;
         this.forumPostReportRepository = forumPostReportRepository;
         this.privateMessageService = privateMessageService;
+        this.tempDataCookieOptions = tempDataCookieOptions.Value;
     }
 
     public ForumThreadHeader? Header { get; private set; }
@@ -52,6 +56,8 @@ public abstract class ForumTopicPageModel : PageModel
     public bool IsWatching { get; private set; }
 
     public bool IsAdmin { get; private set; }
+
+    public string? ReportStatusMessage { get; private set; }
 
     protected AuthenticateResult? MemberAuth { get; set; }
 
@@ -143,6 +149,7 @@ public abstract class ForumTopicPageModel : PageModel
 
         ViewData["Title"] = ForumRoutes.GetTopicPageTitle(header, page);
         ViewData["IsAdmin"] = IsAdmin;
+        ViewData["IsSignedIn"] = memberId is not null;
         ViewData["CanonicalPath"] = ForumRoutes.GetTopicCanonicalPath(header, page);
         ViewData["Description"] = PageMetaDescription.ForForumTopic(
             Posts.Count > 0 ? Posts[0].Body : null,
@@ -160,7 +167,21 @@ public abstract class ForumTopicPageModel : PageModel
             ViewData["NextPath"] = ForumRoutes.GetTopicCanonicalPath(header, page + 1);
         }
 
+        ReportStatusMessage = ReadReportStatusMessage();
         return Page();
+    }
+
+    /// <summary>
+    /// Reads the report/block flash only when the TempData cookie is present. Touching TempData
+    /// on a plain visit makes the cookie provider emit a clearing Set-Cookie, and output caching
+    /// skips any response that sets a cookie (same pattern as the homepage poll error).
+    /// </summary>
+    private string? ReadReportStatusMessage()
+    {
+        var cookieName = tempDataCookieOptions.Cookie.Name ?? CookieTempDataProvider.CookieName;
+        return Request.Cookies.ContainsKey(cookieName)
+            ? TempData[ReportModel.StatusMessageKey] as string
+            : null;
     }
 
     public async Task<IActionResult> OnPostWatchAsync(

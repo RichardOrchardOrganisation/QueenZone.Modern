@@ -10,7 +10,7 @@
               {
                 <a class="qz-forum-post__report-link" href="/forum/post/@post.Id/report?returnUrl=@Model.ReportReturnUrl" rel="nofollow">Report post</a>
               }
-              @if (post.AuthorMemberId is not null)
+              @if (Model.CanBlock)
               {
                 @if (post.IsBlocked)
                 {

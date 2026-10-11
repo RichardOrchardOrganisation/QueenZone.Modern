@@ -93,6 +93,142 @@ public sealed class PublicOutputCacheTests : IClassFixture<WebHostVariantCache>
         Assert.Equal(feedKeysAfterFirst, repository.FeedKeysCallCount);
     }
 
+    [Theory]
+    [InlineData("/forum/topic/1002/ranking-every-studio-album", "GET", "HEAD", "Ranking every studio album")]
+    [InlineData("/forum/topic/1002/ranking-every-studio-album", "HEAD", "GET", "Ranking every studio album")]
+    [InlineData("/forum/archive-authors/5001", "GET", "HEAD", "brightonrock")]
+    [InlineData("/forum/archive-authors/5001", "HEAD", "GET", "brightonrock")]
+    public async Task Production_forum_get_and_head_share_the_complete_cache_entry(
+        string path, string firstMethod, string secondMethod, string expectedContent)
+    {
+        await production.ResetAsync();
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+        using var firstRequest = new HttpRequestMessage(new HttpMethod(firstMethod), path);
+        using var first = await client.SendAsync(firstRequest);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var calls = production.Forum.Calls + production.ArchiveAuthors.Calls;
+        Assert.True(calls > 0);
+        Assert.Equal(path.StartsWith("/forum/archive-authors", StringComparison.Ordinal)
+            ? TimeSpan.FromMinutes(10) : TimeSpan.FromSeconds(90), production.CacheExpirations.Durations[path]);
+        using var secondRequest = new HttpRequestMessage(new HttpMethod(secondMethod), path);
+        using var second = await client.SendAsync(secondRequest);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(calls, production.Forum.Calls + production.ArchiveAuthors.Calls);
+
+        var get = firstMethod == "GET" ? first : second;
+        var head = firstMethod == "HEAD" ? first : second;
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Contains(expectedContent, html);
+        Assert.Empty(await head.Content.ReadAsByteArrayAsync());
+        Assert.Equal(get.Content.Headers.ContentType, head.Content.Headers.ContentType);
+        Assert.Equal(get.Content.Headers.ContentLength, head.Content.Headers.ContentLength);
+        Assert.True(
+            get.Content.Headers.ContentLength is null or > 0,
+            "A successful GET must not advertise an empty representation.");
+        // A HEAD-first fill must retain the full representation, including its CSP nonce.
+        Assert.Equal(html, await client.GetStringAsync(path));
+        Assert.Equal(calls, production.Forum.Calls + production.ArchiveAuthors.Calls);
+    }
+
+    [Theory]
+    [InlineData("/forum/topic/1002/ranking-every-studio-album")]
+    [InlineData("/forum/archive-authors/5001")]
+    public async Task Production_anonymous_forum_html_sets_no_cookie(string path)
+    {
+        await production.ResetAsync();
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+        using var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(
+            response.Headers.Contains("Set-Cookie"),
+            "A plain visit must not set cookies; output caching skips responses that do.");
+    }
+
+    [Theory]
+    [InlineData("/forum/topic/1002/ranking-every-studio-album")]
+    [InlineData("/forum/archive-authors/5001")]
+    public async Task Production_anonymous_forum_html_contains_no_antiforgery_token_with_existing_cookie(
+        string path)
+    {
+        await production.ResetAsync();
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true,
+        });
+
+        using var trivia = await client.GetAsync("/trivia");
+        Assert.Equal(HttpStatusCode.OK, trivia.StatusCode);
+        var triviaHtml = await trivia.Content.ReadAsStringAsync();
+        Assert.Contains("__RequestVerificationToken", triviaHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            trivia.Headers.GetValues("Set-Cookie"),
+            cookie => cookie.Contains("Antiforgery", StringComparison.OrdinalIgnoreCase));
+
+        using var response = await client.GetAsync(path);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain("__RequestVerificationToken", html, StringComparison.Ordinal);
+        Assert.False(
+            response.Headers.Contains("Set-Cookie"),
+            "A cached anonymous visit must not mint a new antiforgery cookie.");
+    }
+
+    [Fact]
+    public async Task Production_articles_head_does_not_fill_the_get_cache_entry()
+    {
+        await production.ResetAsync();
+        var repository = production.Articles;
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+
+        using var headRequest = new HttpRequestMessage(HttpMethod.Head, "/articles");
+        using var head = await client.SendAsync(headRequest);
+        var callsAfterHead = repository.FeedKeysCallCount + repository.ByIdsCallCount;
+        using var get = await client.GetAsync("/articles");
+        var callsAfterGet = repository.FeedKeysCallCount + repository.ByIdsCallCount;
+
+        Assert.Equal(HttpStatusCode.OK, head.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        Assert.True(callsAfterHead > 0);
+        Assert.True(
+            callsAfterGet > callsAfterHead,
+            "HEAD normalization is forum-only; other public HTML must keep separate HEAD/GET cache keys.");
+    }
+
+    [Theory]
+    [InlineData("/forum/topic/999999/missing", HttpStatusCode.NotFound, null)]
+    [InlineData("/forum/topic/1002/wrong-slug", HttpStatusCode.MovedPermanently, "/forum/topic/1002/ranking-every-studio-album")]
+    [InlineData("/forum/archive-authors/999999", HttpStatusCode.NotFound, null)]
+    public async Task Production_cold_head_keeps_lookup_status_and_canonical_redirect(
+        string path, HttpStatusCode status, string? location)
+    {
+        await production.ResetAsync();
+        using var client = production.Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Head, path);
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal(location, response.Headers.Location?.OriginalString);
+        Assert.True(production.Forum.Calls + production.ArchiveAuthors.Calls > 0);
+    }
+
     [Fact]
     public async Task Production_tracking_query_reuses_the_canonical_public_html_cache_entry()
     {

@@ -245,6 +245,7 @@ app.UseWhen(
             await next();
         });
         branch.UseRateLimiter();
+        branch.Use(PublicOutputCachePolicies.ShareForumHeadCacheAsync);
         branch.UseOutputCache();
         branch.UseAntiforgery();
     });
@@ -281,9 +282,9 @@ app.MapSubmissionsApiEndpoints();
 app.MapMemberApiEndpoints();
 app.MapDevicesApiEndpoints();
 app.MapNotificationPreferencesApiEndpoints();
-// Anonymous public HTML is output-cached (short TTL); policy no-ops for authenticated users
+// Anonymous public HTML is output-cached (90s, archive authors 10m); policy no-ops for authenticated users
 // and for the Testing environment so integration suites stay deterministic.
-app.MapRazorPages().CacheOutput(PublicOutputCachePolicies.PublicHtml);
+app.MapRazorPages().CachePublicHtml();
 app.MapFallbackToPage("/NotFound");
 
 await app.RunAsync();

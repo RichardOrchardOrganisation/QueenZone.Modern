@@ -296,12 +296,19 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .SetVaryByRouteValue("*")
                 .Tag(PublicOutputCachePolicies.PublicSitemapTag));
 
-            options.AddPolicy(PublicOutputCachePolicies.PublicHtml, policy => policy
-                .With(context => PublicOutputCachePolicies.IsCacheablePublicHtmlRequest(context.HttpContext))
-                .Expire(PublicOutputCachePolicies.HtmlDuration)
-                .SetVaryByRouteValue("*")
-                .SetVaryByQuery(PublicOutputCachePolicies.PublicHtmlQueryKeys)
-                .Tag(PublicOutputCachePolicies.PublicHtmlTag));
+            foreach (var (name, duration) in new[]
+            {
+                (PublicOutputCachePolicies.PublicHtml, PublicOutputCachePolicies.HtmlDuration),
+                (PublicOutputCachePolicies.PublicArchiveAuthors, PublicOutputCachePolicies.ArchiveAuthorsDuration),
+            })
+            {
+                options.AddPolicy(name, policy => policy
+                    .With(context => PublicOutputCachePolicies.IsCacheablePublicHtmlRequest(context.HttpContext))
+                    .Expire(duration)
+                    .SetVaryByRouteValue("*")
+                    .SetVaryByQuery(PublicOutputCachePolicies.PublicHtmlQueryKeys)
+                    .Tag(PublicOutputCachePolicies.PublicHtmlTag));
+            }
         });
         services.AddScoped<PublicQueryCacheStore>();
         services.AddScoped<PublicEditorialQueryCache>();
