@@ -65,7 +65,7 @@ public sealed class NewsDraftPromptTests
 
         Assert.Equal(2, messages.Count);
         Assert.Contains("Queen announce 2026 tour", messages[1].Content, StringComparison.Ordinal);
-        Assert.Equal("draft-v4", NewsDraftPrompt.Version);
+        Assert.Equal("draft-v5", NewsDraftPrompt.Version);
         Assert.Contains("preserved_quotes", messages[1].Content, StringComparison.Ordinal);
         Assert.Contains("Quote policy", messages[0].Content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("knowledgeable Queen fan", messages[0].Content, StringComparison.OrdinalIgnoreCase);
@@ -89,7 +89,7 @@ public sealed class NewsDraftPromptTests
         Assert.Equal(withoutArgument[0].Content, withEmpty[0].Content);
         Assert.Equal(NewsDraftPrompt.BuildCompiledSystemPrompt(), withoutArgument[0].Content);
         Assert.DoesNotContain(NewsAgentEditorialGuidance.BeginMarker, withoutArgument[0].Content, StringComparison.Ordinal);
-        Assert.Equal("draft-v4", NewsDraftPrompt.Version);
+        Assert.Equal("draft-v5", NewsDraftPrompt.Version);
     }
 
     [Fact]

@@ -33,16 +33,7 @@ public sealed class NewsAgentGuidanceProvider(
                 return CacheSnapshot(cacheKey, NewsAgentGuidanceSnapshot.Empty);
             }
 
-            if (!NewsAgentGuidanceText.TryValidate(published.Content, out var sanitized, out _))
-            {
-                logger.LogWarning(
-                    "News agent guidance fallback for {GuidanceType}: {FallbackReason}. Revision {RevisionNumber} hash {ContentHash}.",
-                    NewsAgentGuidanceText.ToStorageType(type),
-                    "invalid",
-                    published.RevisionNumber,
-                    published.ContentHash);
-                return CacheSnapshot(cacheKey, NewsAgentGuidanceSnapshot.Empty);
-            }
+            var sanitized = NewsAgentGuidanceText.Sanitize(published.Content);
 
             var snapshot = new NewsAgentGuidanceSnapshot(
                 published.Id,

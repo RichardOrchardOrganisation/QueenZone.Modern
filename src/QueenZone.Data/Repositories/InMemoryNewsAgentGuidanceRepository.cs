@@ -31,10 +31,7 @@ public sealed class InMemoryNewsAgentGuidanceRepository(SharedNewsAgentGuidanceS
         byte[]? expectedRowVersion,
         CancellationToken cancellationToken = default)
     {
-        if (!NewsAgentGuidanceText.TryValidate(content, out var sanitized, out var error))
-        {
-            throw new NewsAgentGuidanceValidationException(error!);
-        }
+        var sanitized = NewsAgentGuidanceText.Sanitize(content);
 
         var existing = store.GetDraft(type);
         var rowVersion = existing is null ? null : expectedRowVersion ?? existing.RowVersion;

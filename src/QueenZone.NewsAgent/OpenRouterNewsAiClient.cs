@@ -35,9 +35,9 @@ public sealed class OpenRouterNewsAiClient(
 
         var modelId = settings.ResolveModel(request.ModelRole);
         var maxOutputTokens = request.MaxOutputTokens ?? settings.MaxOutputTokens;
-        var messages = NewsAiPromptBudgeter.TrimToApproximateTokenBudget(
-            request.Messages,
-            settings.MaxInputTokens);
+        var messages = request.ModelRole == NewsAiModelRole.Drafting
+            ? NewsAiPromptBudgeter.RequireCompletePrompt(request.Messages, settings.MaxInputTokens)
+            : NewsAiPromptBudgeter.TrimToApproximateTokenBudget(request.Messages, settings.MaxInputTokens);
         var payload = new OpenRouterChatCompletionRequest(
             modelId,
             messages

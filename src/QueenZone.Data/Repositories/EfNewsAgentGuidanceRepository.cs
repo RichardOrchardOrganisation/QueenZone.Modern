@@ -59,10 +59,7 @@ public sealed class EfNewsAgentGuidanceRepository(QueenZoneDbContext dbContext) 
         byte[]? expectedRowVersion,
         CancellationToken cancellationToken = default)
     {
-        if (!NewsAgentGuidanceText.TryValidate(content, out var sanitized, out var error))
-        {
-            throw new NewsAgentGuidanceValidationException(error!);
-        }
+        var sanitized = NewsAgentGuidanceText.Sanitize(content);
 
         var email = NormalizeEmail(editorEmail);
         var hash = NewsAgentGuidanceText.ComputeContentHash(sanitized);

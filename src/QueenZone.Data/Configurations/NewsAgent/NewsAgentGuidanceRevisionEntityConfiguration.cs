@@ -26,7 +26,7 @@ public sealed class NewsAgentGuidanceRevisionEntityConfiguration : IEntityTypeCo
             .HasMaxLength(20)
             .IsRequired();
         builder.Property(revision => revision.RevisionNumber).IsRequired();
-        builder.Property(revision => revision.Content).HasMaxLength(4000).IsRequired();
+        builder.Property(revision => revision.Content).IsRequired();
         builder.Property(revision => revision.ContentHash).HasMaxLength(64).IsRequired();
         builder.Property(revision => revision.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(revision => revision.CreatedAt).IsRequired();

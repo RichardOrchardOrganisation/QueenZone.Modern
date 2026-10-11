@@ -23,6 +23,21 @@ public sealed class EfNewsAgentGuidanceRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Long_guidance_round_trips_without_a_model_length_limit()
+    {
+        var content = new string('a', 40_001) + "Preserve band member quotes.";
+        var draft = await repository.SaveDraftAsync(NewsAgentGuidanceType.Draft, content, "admin@test.local", null);
+        await repository.PublishDraftAsync(NewsAgentGuidanceType.Draft, "admin@test.local", draft.RowVersion);
+
+        dbContext.ChangeTracker.Clear();
+        Assert.Equal(content, (await repository.GetPublishedAsync(NewsAgentGuidanceType.Draft))!.Content);
+        var guidance = dbContext.Model.FindEntityType(typeof(QueenZone.Data.Entities.NewsAgentGuidanceRevisionEntity))!;
+        var evidence = dbContext.Model.FindEntityType(typeof(QueenZone.Data.Entities.NewsCandidateEvidenceEntity))!;
+        Assert.Null(guidance.FindProperty("Content")!.GetMaxLength());
+        Assert.Null(evidence.FindProperty("Excerpt")!.GetMaxLength());
+    }
+
+    [Fact]
     public async Task Create_publish_history_and_single_published_revision()
     {
         var draft = await repository.SaveDraftAsync(

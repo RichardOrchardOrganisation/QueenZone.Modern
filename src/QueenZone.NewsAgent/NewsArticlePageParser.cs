@@ -1,5 +1,8 @@
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
 using QueenZone.Data;
 
 namespace QueenZone.NewsAgent;
@@ -8,7 +11,8 @@ public sealed record ParsedArticlePage(
     string Title,
     string? Excerpt,
     string SourceName,
-    IReadOnlyList<ParsedArticleMediaLink> MediaLinks);
+    IReadOnlyList<ParsedArticleMediaLink> MediaLinks,
+    string? ArticleText);
 
 public sealed record ParsedArticleMediaLink(
     string Label,
@@ -16,6 +20,14 @@ public sealed record ParsedArticleMediaLink(
 
 public static partial class NewsArticlePageParser
 {
+    internal const string FullArticlePrefix = "Full source article:\n";
+
+    private static readonly HashSet<string> ArticleBlockTags = new(StringComparer.Ordinal)
+    {
+        "p", "div", "section", "article", "blockquote", "li",
+        "h1", "h2", "h3", "h4", "h5", "h6", "br", "tr", "td", "th"
+    };
+
     private const int MaxExcerptLength = 1200;
     private const int MaxMediaLinks = 5;
     private const int MaxMediaUrlLength = 500;
@@ -24,7 +36,11 @@ public static partial class NewsArticlePageParser
     {
         ArgumentNullException.ThrowIfNull(html);
 
-        var title = FirstMatch(OgTitleRegex(), html)
+        using var document = new HtmlParser().ParseDocument(html);
+        var articleHeading = document.QuerySelector(
+            "[itemprop=headline], .article-detail h1, .article-detail h4, article h1, main h1")?.TextContent;
+        var title = (string.IsNullOrWhiteSpace(articleHeading) ? null : articleHeading)
+            ?? FirstMatch(OgTitleRegex(), html)
             ?? FirstMatch(TwitterTitleRegex(), html)
             ?? FirstMatch(TitleTagRegex(), html)
             ?? DeriveTitleFromUrl(pageUrl);
@@ -50,7 +66,8 @@ public static partial class NewsArticlePageParser
             NormalizeWhitespace(Decode(title)),
             string.IsNullOrWhiteSpace(excerpt) ? null : excerpt,
             sourceName,
-            ExtractMediaLinks(html, pageUrl));
+            ExtractMediaLinks(html, pageUrl),
+            ExtractArticleText(document));
     }
 
     public static string? BuildEvidenceExcerpt(ParsedArticlePage page)
@@ -58,7 +75,11 @@ public static partial class NewsArticlePageParser
         ArgumentNullException.ThrowIfNull(page);
 
         var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(page.Excerpt))
+        if (!string.IsNullOrWhiteSpace(page.ArticleText))
+        {
+            parts.Add(FullArticlePrefix + page.ArticleText);
+        }
+        else if (!string.IsNullOrWhiteSpace(page.Excerpt))
         {
             parts.Add(page.Excerpt);
         }
@@ -71,6 +92,67 @@ public static partial class NewsArticlePageParser
         }
 
         return parts.Count == 0 ? null : string.Join("\n\n", parts);
+    }
+
+    private static string? ExtractArticleText(IDocument document)
+    {
+        foreach (var noise in document.QuerySelectorAll(
+                     "script, style, noscript, template, nav, footer, aside, form, [hidden], [aria-hidden=true], .related-articles, .related-posts, .comments"))
+        {
+            noise.Remove();
+        }
+
+        // Prefer the publisher's article body over page chrome or archive sidebars.
+        string[] selectors =
+        [
+            "[itemprop=articleBody]", ".article-detail", ".article-body", ".article__body",
+            ".article-content", ".entry-content", "article", "main", "[role=main]"
+        ];
+        foreach (var selector in selectors)
+        {
+            var root = document.QuerySelector(selector);
+            if (root is not null && ReadArticleText(root) is { Length: > 0 } text)
+            {
+                return text;
+            }
+        }
+
+        // Older pages sometimes have no semantic article wrapper.
+        var paragraphs = document.Body?.QuerySelectorAll("p");
+        var fallback = paragraphs is null ? string.Empty : string.Join(
+            "\n\n", paragraphs.Select(ReadArticleText).Where(text => text.Length > 0));
+        return string.IsNullOrWhiteSpace(fallback) ? null : fallback;
+    }
+
+    private static string ReadArticleText(INode root)
+    {
+        var builder = new StringBuilder();
+        AppendArticleText(root, builder);
+        return string.Join("\n\n", builder.ToString().Split('\n')
+            .Select(NormalizeWhitespace).Where(line => line.Length > 0));
+    }
+
+    private static void AppendArticleText(INode node, StringBuilder builder)
+    {
+        if (node is IText text)
+        {
+            builder.Append(ArticleWhitespaceRegex().Replace(text.Data, " "));
+            return;
+        }
+
+        var isBlock = node is IElement element && ArticleBlockTags.Contains(element.LocalName);
+        if (isBlock)
+        {
+            builder.AppendLine();
+        }
+        foreach (var child in node.ChildNodes)
+        {
+            AppendArticleText(child, builder);
+        }
+        if (isBlock)
+        {
+            builder.AppendLine();
+        }
     }
 
     private static IReadOnlyList<ParsedArticleMediaLink> ExtractMediaLinks(string html, string pageUrl)
@@ -274,6 +356,9 @@ public static partial class NewsArticlePageParser
 
     private static string NormalizeWhitespace(string value) =>
         string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
+    private static partial Regex ArticleWhitespaceRegex();
 
     [GeneratedRegex(@"<title[^>]*>(?<value>[\s\S]*?)</title>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TitleTagRegex();
