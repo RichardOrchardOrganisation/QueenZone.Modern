@@ -143,32 +143,15 @@ module "cloudflare_edge" {
 # All modules use declarative imports in imports.tf; an apply must never
 # precede plan review.
 
-# #2211: flag (Audit) or block (Deny) any container in Queenzone-RG that is
-# public without being on its account's allow-list. Covers queenzoneprod and
-# queenzonemobilebuilds.
-# Lets the OpenTofu Apply identity manage the policy assignment on this RG
-# only. Creating this needs the one-off bootstrap grant (RBAC Administrator
-# constrained to Resource Policy Contributor); see
-# infra/modules/azure-storage-public-access-policy/README.md.
-resource "azurerm_role_assignment" "opentofu_apply_resource_policy_contributor" {
-  scope                = azurerm_resource_group.production.id
-  role_definition_name = "Resource Policy Contributor"
-  principal_id         = var.opentofu_apply_principal_object_id
-  principal_type       = "ServicePrincipal"
-  description          = "#2211: OpenTofu Apply manages the blob public-access policy assignment on this RG."
-}
+# #2211 / #2241: the #2223 Azure Policy guard was reverted (Azure Policy has no
+# alias for container publicAccess). Forget the Resource Policy Contributor
+# assignment instead of destroying it, because Test-OpenTofuPlanSafety blocks
+# any production destroy. Richard removes the live assignment by hand (step 0
+# of the #2211 cleanup). Delete this block once that is done.
+removed {
+  from = azurerm_role_assignment.opentofu_apply_resource_policy_contributor
 
-module "storage_public_access_policy" {
-  source = "../../modules/azure-storage-public-access-policy"
-
-  name_suffix        = "production"
-  resource_group_ids = { production = azurerm_resource_group.production.id }
-  # Accounts this root doesn't manage report a null account and are skipped.
-  allowed_public_containers = {
-    for entry in [module.azure_data_target.public_blob_containers, module.azure_mobile_builds.public_blob_containers] : entry.account => entry.containers if entry.account != null
+  lifecycle {
+    destroy = false
   }
-  location = azurerm_resource_group.production.location
-  effect   = var.storage_public_access_policy_effect
-
-  depends_on = [azurerm_role_assignment.opentofu_apply_resource_policy_contributor]
 }
