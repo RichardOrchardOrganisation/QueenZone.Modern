@@ -134,6 +134,17 @@ def main():
         source=BOOK+f'; Part Five B: Collaborations, {artist}: {release}'+(f'; entry near source line {line}' if line else '')
         if artist=='Tangerine Dream':source += '; verified against https://www.tangerinedreammusic.com/en/music/detail.asp?id=110&tit=Starmus+-+Sonic+Universe'
         if artist=='Soundgarden':source += '; release year corrected to 1994 from contemporary Hollywood Records advertisement: https://www.worldradiohistory.com/Archive-All-Music/Album-Network/Album-Network-1994-02-11.pdf'
+        online_checks={
+            'Tony Iommi': ('album artist, 2000 release year and Brian May participation', 'https://www.iommi.com/biography/chapter-3/'),
+            'Motörhead': ('album artist, 2015 release year and Brian May on The Devil', 'https://brianmay.com/brian-news/2015/06/brian-to-appear-on-new-motorhead-album/'),
+            'Adam Lambert': ('album artist, 2015 release year and Brian May on Lucy', 'https://brianmay.com/brian-news/2015/08/the-original-high-inc-lucy-vinyl-release/'),
+            'Steve Hackett': ('album artist, original 2000 release year, track titles and Brian May credits; Brian plays on Cassandra and Slot Machine, not every listed track', 'https://insideoutmusic.bandcamp.com/album/feedback-86'),
+            'Lady Gaga': ('album artist, album membership of Yoü and I and Brian May guitar credit; the page dates the German single, not the original album', 'https://www.universal-music.de/ladygaga/musik/youe-and-i-177651'),
+            'Steve Cropper': ('album artist and Brian May contribution on I Do, from Cropper’s own interview', 'https://jambands.com/features/2011/12/03/a-dedicated-conversation-with-steve-cropper/3/'),
+        }
+        if artist in online_checks:
+            scope,url=online_checks[artist]
+            source += f'; additional online cross-check ({scope}): {url}'
         key='guest:'+norm(artist+release)
         if artist not in ('Soundgarden','Hannah Jane Fox','Stefan Zauner') and not seen_entity(release,artist):
             add(f"Which act released '{release}', a record with a Queen member's contribution?",artist,

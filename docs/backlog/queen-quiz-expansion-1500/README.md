@@ -86,7 +86,12 @@ Book chronology is cross-referenced through `data/queen_history_events.csv`;
 Wikipedia-derived rows were excluded. Concert questions use the maintained
 `data/queen_concert_history_events.csv` and its individual QueenConcerts references.
 Primary Queen, Roger Taylor, Brian May, Tangerine Dream and label announcements
-supplement the books. Their specific URLs are recorded in the ledger.
+supplement the books. Their specific URLs are recorded in the ledger. Additional
+cross-checks cover 26 questions about Tony Iommi, Motörhead, Adam Lambert,
+Steve Hackett, Lady Gaga and Steve Cropper. Each reference states the facts it
+confirms; a single release date is not used as an album release date. Sources
+include Iommi's biography, InsideOutMusic's catalog, Universal Music's release
+page and Cropper's own interview.
 
 The 2021 Outsider tour, 2022 Another World reissue, 2023 Star Fleet reissue,
 2024 Montreal streaming/IMAX releases and 2020 lockdown recording have dated
@@ -101,7 +106,12 @@ Unclear OCR readings and conflicting details were omitted. Examples include
 the Larry Lurex producer, the Bad News chronology, and disputed credits. The
 Alternative NRG release year is corrected to 1994 with a contemporary Hollywood
 Records advertisement cited alongside the book entry. Resurrection and
-Manipulator credits were checked against the artists' own sites. No text or
+Manipulator credits were checked against the artists' own sites. The book
+conflates Steve Hackett's Don't Fall Away from Me with the Feedback '86 track
+Don't Fall; the album-membership question now uses the latter title, verified
+against InsideOutMusic's track list. Brian May's album credit applies to
+Cassandra and Slot Machine, and the question does not assert that he played on
+Don't Fall. No text or
 image assets from the books are needed to import the questions.
 
 ## Existing-bank comparison
