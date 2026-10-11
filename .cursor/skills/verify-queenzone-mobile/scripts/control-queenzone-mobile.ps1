@@ -244,7 +244,7 @@ switch ($Command) {
         $adb = Get-Command adb -ErrorAction SilentlyContinue
         if ($adb) {
             $devices = & adb devices
-            if ($devices -notmatch "device$") {
+            if (-not ($devices -match "device$")) {
                 throw "Drive failed: no Android device in 'adb devices'. Boot Pixel_8_API_36 (or another API 36 emulator) and rerun. Host is still up."
             }
         }
@@ -288,7 +288,7 @@ switch ($Command) {
             }
             else {
                 $booted = & xcrun simctl list devices booted 2>$null
-                if ($booted -notmatch "Booted") {
+                if (-not ($booted -match "Booted")) {
                     $reason = "no booted iOS Simulator"
                 }
             }
@@ -300,7 +300,7 @@ switch ($Command) {
             }
             else {
                 $devices = & adb devices
-                if ($devices -notmatch "device$") {
+                if (-not ($devices -match "device$")) {
                     $reason = "no Android emulator or device in adb devices"
                 }
             }
