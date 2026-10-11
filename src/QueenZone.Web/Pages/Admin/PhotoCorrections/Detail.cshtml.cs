@@ -43,11 +43,21 @@ public sealed class DetailModel(
     public string StaleWarning =>
         $"The photo's caption is now \"{Photo?.Title}\", which is not what the member saw. Approving is blocked until you reject this or the member resubmits.";
 
-    public string PhotoSummary => Photo is null
-        ? "photo no longer exists"
-        : $"current caption: {Photo.Title} ({(Photo.IsVisible ? "visible" : "hidden")})";
+    public string PhotoSummary
+    {
+        get
+        {
+            if (Photo is null)
+            {
+                return "photo no longer exists";
+            }
 
-    public IReadOnlyList<string> AuditLines =>
+            var visibility = Photo.IsVisible ? "visible" : "hidden";
+            return $"current caption: {Photo.Title} ({visibility})";
+        }
+    }
+
+    public IReadOnlyList<string> GetAuditLines() =>
         Audit.Select(entry =>
         {
             var actor = string.IsNullOrEmpty(entry.ActorEmail) ? string.Empty : $" by {entry.ActorEmail}";
@@ -55,7 +65,7 @@ public sealed class DetailModel(
             return $"{entry.OccurredAt:u} — {entry.Action}{actor}{details}";
         }).ToList();
 
-    public string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    public static string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {

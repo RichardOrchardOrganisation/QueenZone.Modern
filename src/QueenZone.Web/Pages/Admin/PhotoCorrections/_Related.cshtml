@@ -33,7 +33,7 @@
 <section aria-labelledby="audit-heading">
   <h2 id="audit-heading">History</h2>
   <ol>
-    @foreach (var line in Model.AuditLines)
+    @foreach (var line in Model.GetAuditLines())
     {
       <li>@line</li>
     }

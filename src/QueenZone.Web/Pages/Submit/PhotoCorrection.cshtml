@@ -4,6 +4,7 @@
 
 @{
   var photo = Model.Photo!;
+  var caption = photo.Title;
 }
 
 <partial name="_PageHero" model='@(("Community", "Suggest a correction", "Know something about this photograph that the archive has wrong or missing? Tell the editors and show how you know.", ""))' />
@@ -11,7 +12,7 @@
 <section class="qz-section">
   <div class="qz-container qz-prose">
     <figure>
-      <img src="@photo.ThumbnailUrl" alt="@photo.Title" width="@photo.ThumbWidth" height="@photo.ThumbHeight" />
+      <img src="@photo.ThumbnailUrl" alt="@caption" width="@photo.ThumbWidth" height="@photo.ThumbHeight" />
       <figcaption>Current caption: <strong>@photo.Title</strong> (@photo.CategoryName)</figcaption>
     </figure>
 

@@ -6,7 +6,7 @@
   <dt>Change</dt>
   <dd>@Model.KindLabel</dd>
   <dt>Value the member saw</dt>
-  <dd>@Model.Show(Model.Proposal.CurrentValue)</dd>
+  <dd>@DetailModel.Show(Model.Proposal.CurrentValue)</dd>
   <dt>Proposed value</dt>
   <dd>@Model.Proposal.ProposedValue</dd>
   <dt>Explanation</dt>
@@ -14,9 +14,9 @@
   <dt>Confidence</dt>
   <dd>@Model.Proposal.Confidence</dd>
   <dt>Evidence type</dt>
-  <dd>@Model.Show(Model.Proposal.EvidenceType)</dd>
+  <dd>@DetailModel.Show(Model.Proposal.EvidenceType)</dd>
   <dt>Evidence link</dt>
-  <dd>@* Plain text on purpose: editors copy it rather than click a member-supplied link. *@@Model.Show(Model.Proposal.EvidenceUrl)</dd>
+  <dd>@* Plain text on purpose: editors copy it rather than click a member-supplied link. *@@DetailModel.Show(Model.Proposal.EvidenceUrl)</dd>
   <dt>Requested public credit</dt>
   <dd>@Model.CreditLabel</dd>
   <dt>Submitter</dt>
@@ -26,9 +26,9 @@
   <dt>Submitted</dt>
   <dd>@Model.Proposal.SubmittedAt.ToString("u")</dd>
   <dt>Message to member</dt>
-  <dd>@Model.Show(Model.Proposal.MessageToMember)</dd>
+  <dd>@DetailModel.Show(Model.Proposal.MessageToMember)</dd>
   <dt>Internal review notes</dt>
-  <dd>@Model.Show(Model.Proposal.ReviewNotes)</dd>
+  <dd>@DetailModel.Show(Model.Proposal.ReviewNotes)</dd>
   <dt>Previous caption (restored on revert)</dt>
-  <dd>@Model.Show(Model.Proposal.AppliedFromValue)</dd>
+  <dd>@DetailModel.Show(Model.Proposal.AppliedFromValue)</dd>
 </dl>
