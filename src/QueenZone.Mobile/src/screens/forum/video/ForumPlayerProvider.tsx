@@ -18,8 +18,10 @@ function NativeReleaseBarrier({ pool, generation }: { pool: PlayerPool; generati
     style={{ width: firstCommit ? 1 : 0, height: 0 }} onLayout={event => {
       // The first event can precede trailing native deletes in that batch.
       // A second native layout transaction fences the entire previous batch.
+      // Native pixel rounding can turn width 1 into e.g. 1.142857 logical
+      // pixels; positivity distinguishes it from a duplicate initial event.
       if (!firstCommit) setFirstCommit(true);
-      else if (event.nativeEvent.layout.width === 1) pool.confirmRelease(generation);
+      else if (event.nativeEvent.layout.width > 0) pool.confirmRelease(generation);
     }} />;
 }
 export function ForumPlayerProvider({ children, viewport, navigation }: { children: ReactNode; viewport: React.RefObject<View | null>; navigation: FocusNavigation }) {

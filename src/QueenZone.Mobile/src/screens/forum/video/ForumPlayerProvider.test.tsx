@@ -32,7 +32,7 @@ describe('forum screen player lifecycle', () => {
       // A duplicate initial-layout event cannot acknowledge the second commit.
       fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
       expect(pool.pendingReleases.length).toBeGreaterThan(0);
-      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1, height: 0 } } });
+      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1.1428572, height: 0 } } });
       expect(pool.pendingReleases).toEqual([]);
     }
     act(() => networkListener({ isConnected: true, isInternetReachable: true }));
@@ -40,7 +40,7 @@ describe('forum screen player lifecycle', () => {
     act(() => listeners.get('blur')!()); expect(pool.cards.a.generation).toBeNull();
     for (const barrier of rendered.getAllByTestId('forum-player-release-barrier', { includeHiddenElements: true })) {
       fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
-      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1, height: 0 } } });
+      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1.1428572, height: 0 } } });
     }
     act(() => listeners.get('focus')!()); act(() => pool.measure('a', owner!, geometry));
     act(() => appListener('background')); expect(pool.cards.a.generation).toBeNull();
