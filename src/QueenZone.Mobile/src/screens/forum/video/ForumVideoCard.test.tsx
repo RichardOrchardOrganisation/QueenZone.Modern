@@ -8,6 +8,10 @@ import { PlayerPool, type PoolSnapshot } from './playerPool';
 import { playerBaseUrl, playerTimeoutMs } from './playerDocument';
 import { testIds } from '../../../test/testIds';
 const mockPause = jest.fn();
+let mockFontScale = 1;
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({
+  __esModule: true, default: () => ({ width: 402, height: 874, scale: 2.343, fontScale: mockFontScale }),
+}));
 type ContextValue = NonNullable<ReturnType<typeof import('./ForumPlayerProvider').useForumPlayers>>;
 let mockChanged: (value: PoolSnapshot) => void = () => {};
 let mockPool: PlayerPool;
@@ -41,7 +45,7 @@ function send(event: string, value?: unknown, generation = mockPool.cards['post:
 }
 describe('native forum video card', () => {
   beforeEach(() => {
-    jest.useFakeTimers(); mockHandles.clear(); mockChanged = () => {};
+    jest.useFakeTimers(); mockFontScale = 1; mockHandles.clear(); mockChanged = () => {};
     mockPool = new PlayerPool(value => mockChanged(value), key => mockHandles.get(key)?.pause());
     mockPool.setEnabled(true);
     jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined); jest.spyOn(Alert, 'alert');
@@ -69,6 +73,19 @@ describe('native forum video card', () => {
     fireEvent(viewport, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
     expect(screen.getByTestId(testIds.forumYoutubePlayer)).toBeOnTheScreen();
     expect(mockPause).not.toHaveBeenCalled();
+  });
+  it('relayouts text after a live font-scale change without replacing the player or losing the fallback action', () => {
+    const { rerender } = renderWithProviders(<Harness />, { navigation: false }); mountPlayer(); send('ready');
+    const text = screen.getByText('Watch on YouTube');
+    const player = screen.getByTestId(testIds.forumYoutubePlayer);
+    const generation = mockPool.cards['post:0'].generation;
+    mockFontScale = 3.12; rerender(<Harness />);
+    expect(screen.getByText('Watch on YouTube')).not.toBe(text);
+    expect(screen.getByTestId(testIds.forumYoutubePlayer)).toBe(player);
+    expect(mockPool.cards['post:0'].generation).toBe(generation);
+    expect(mockPause).not.toHaveBeenCalled();
+    fireEvent.press(screen.getByTestId(testIds.forumYoutubeWatch));
+    expect(Linking.openURL).toHaveBeenCalledWith(video.watchUrl);
   });
   it('keeps 153 failure sticky until explicit Retry and ignores malformed/stale messages', () => {
     renderWithProviders(<Harness />, { navigation: false }); mountPlayer();

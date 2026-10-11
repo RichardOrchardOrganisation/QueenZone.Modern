@@ -129,6 +129,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // react-native-android-widget's work-runtime does not clash with a
       // transitive work-runtime-ktx 2.7.1 (duplicate OneTimeWorkRequestKt).
       './plugins/withAndroidWorkRuntimeAlignment.cjs',
+      // Expo executes stacked mods inside-out: consume the scene/native boundary output.
+      './plugins/withForumFullscreenOrientation.cjs',
       './plugins/withForumWebViewBoundary.cjs',
       // iOS expo-audio 57.0.4: currentStatus must not call currentDate() (#1234).
       './plugins/withExpoAudioIosCurrentOffsetFromLive.cjs',

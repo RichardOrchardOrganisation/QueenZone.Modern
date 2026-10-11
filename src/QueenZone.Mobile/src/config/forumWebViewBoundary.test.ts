@@ -54,3 +54,31 @@ describe('CNG forum WebView native boundary', () => {
     assert.match(config, /withForumWebViewBoundary.cjs/);
   });
 });
+
+describe('scoped iOS forum fullscreen generation', () => {
+  const { patchNative, patchScene } = require('../../plugins/withForumFullscreenOrientation.cjs');
+  it('uses public video ancestry, weak window ownership and explicit teardown instead of trusting overlay visibility', () => {
+    const original = readFileSync(new URL('../../node_modules/react-native-webview/apple/RNCWebViewImpl.m', import.meta.url), 'utf8');
+    const next = patchNative(patchIos(original));
+    assert.match(next, /isKindOfClass:\[AVPlayerViewController class\]/);
+    assert.match(next, /candidate != original && !candidate.hidden/);
+    assert.match(next, /NSHashTable weakObjectsHashTable/);
+    assert.match(next, /\[self qzReportFullscreen:NO\]/);
+    assert.doesNotMatch(next.slice(next.indexOf("static BOOL qzHasPresentedVideo"), next.indexOf("static NSTimer *keyboardTimer")), /NSClassFromString|AVFullScreenViewController|setValue:.*orientation/);
+    assert.equal(patchNative(next), next);
+    assert.throws(() => patchNative('changed upstream'));
+  });
+  it('preserves normal masks and prior orientation, scopes observation to its window and rejects scene drift', () => {
+    const fixture = 'class AppDelegate {\n  // Linking API\n}\nclass SceneDelegate: UIResponder, UIWindowSceneDelegate {\n  var window: UIWindow?\n  func connect() {\n    window = nextWindow\n  }\n}';
+    const next = patchScene(fixture);
+    assert.match(next, /qzFullscreenPlayers.allObjects.isEmpty \? qzBaselineOrientations : .allButUpsideDown/);
+    assert.match(next, /UISupportedInterfaceOrientations~ipad/);
+    assert.match(next, /object: window, queue: .main/);
+    assert.match(next, /qzPreviousOrientation = scene.interfaceOrientation/);
+    assert.match(next, /requested.formIntersection\(self.qzBaselineOrientations\)/);
+    assert.equal(patchScene(next), next);
+    const regeneratedScene = next.slice(0, next.indexOf('class SceneDelegate:')) + fixture.slice(fixture.indexOf('class SceneDelegate:'));
+    assert.equal((patchScene(regeneratedScene).match(/public override func application/g) ?? []).length, 1, 'Regenerating the scene does not duplicate the legacy AppDelegate orientation override');
+    assert.throws(() => patchScene('changed scene template'));
+  });
+});

@@ -13,6 +13,9 @@ type Props = { cardKey: string; video: YoutubeVideo; originalHtml: string };
 export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
   const { c } = useTheme();
   const { fontScale } = useWindowDimensions();
+  // Fabric can repaint scaled glyphs without invalidating an unchanged Text
+  // layout after a live Dynamic Type change. Recreate only text leaves so the
+  // label is remeasured; keep the player, fallback control and focus stable.
   const context = useForumPlayers();
   const view = useRef<View>(null);
   const player = useRef<WebView>(null);
@@ -76,7 +79,7 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
     : ready === generation ? 'Ready. Press the YouTube Play control to play.' : 'Loading YouTube player…');
   return <View style={{ marginVertical: space.md }}>
     <RichHtmlBody html={originalHtml} horizontalInset={space.xl} />
-    <Text style={[type.caption, { color: c.textSecondary }]} allowFontScaling>
+    <Text key={fontScale} style={[type.caption, { color: c.textSecondary }]} allowFontScaling>
       Videos near the screen load automatically from YouTube before Play. Loading shares your IP address and this app’s identification with YouTube.
     </Text>
     <View ref={view} collapsable={false} onLayout={onLayout} style={{ height, width: '100%', backgroundColor: c.surfacePage }}>
@@ -118,15 +121,15 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
         onRenderProcessGone={() => pool?.fail(cardKey, generation, playerError('process'))}
       /> : null}
     </View>
-    <View style={{ minHeight: statusHeight }}><Text testID={testIds.forumYoutubeStatus} style={[type.caption, { color: c.textSecondary }]} allowFontScaling>{status}</Text></View>
+    <View style={{ minHeight: statusHeight }}><Text key={fontScale} testID={testIds.forumYoutubeStatus} style={[type.caption, { color: c.textSecondary }]} allowFontScaling>{status}</Text></View>
     <Pressable accessibilityRole="button" accessibilityLabel="Retry YouTube video" disabled={!entry?.failed || !context?.online}
       accessibilityElementsHidden={!entry?.failed} importantForAccessibility={entry?.failed ? 'auto' : 'no-hide-descendants'} style={{ opacity: entry?.failed ? 1 : 0 }}
       testID={testIds.forumYoutubeRetry} onPress={() => { if (owner != null) pool?.retry(cardKey, owner); }}>
-      <Text style={[type.body, { color: c.accentPrimary }]}>Retry</Text>
+      <Text key={fontScale} style={[type.body, { color: c.accentPrimary }]}>Retry</Text>
     </Pressable>
     <Pressable ref={fallback} accessibilityRole="link" accessibilityLabel="Watch on YouTube" testID={testIds.forumYoutubeWatch}
       onPress={() => { void openExternalUrl(video.watchUrl); }}>
-      <Text style={[type.body, { color: c.accentPrimary }]}>Watch on YouTube</Text>
+      <Text key={fontScale} style={[type.body, { color: c.accentPrimary }]}>Watch on YouTube</Text>
     </Pressable>
   </View>;
 }
