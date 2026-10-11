@@ -21,8 +21,11 @@ appId: org.queenzone.mobile
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 10000
+# iOS can report the final row's full bounds beneath the persistent tab bar.
+# Tap the visible upper part of this identified row, never the tab bar overlay.
 - tapOn:
     id: forum-thread-1030
+    point: "50%,20%"
 - extendedWaitUntil:
     visible:
       id: forum-thread-screen
