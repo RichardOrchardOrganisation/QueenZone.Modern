@@ -2,7 +2,7 @@
 
 `questions.csv` contains **1,000 multiple-choice questions in 40 quizzes of 25**, ready for QueenZone's existing [bulk-import tool and CSV format](../../quiz-bulk-import.md). Each question has four distinct options and one correct answer. The file contains 4,000 option rows, not 4,000 questions.
 
-**This package has not been imported or published.** The importer creates unpublished quizzes for editorial review in Admin → Quizzes. Import once: the tool creates new quizzes rather than updating an existing import.
+**Imported into dev and live on 11 October 2026:** 40 quizzes and 1,000 questions in each database. The quizzes remain unpublished. **Do not import this package again.** See the [combined import verification](../queen-quiz-import-2026-10-11.md). The importer creates unpublished quizzes for editorial review in Admin → Quizzes.
 
 | Difficulty | Questions | Points |
 | --- | ---: | ---: |
@@ -62,7 +62,7 @@ dotnet run --project src/QueenZone.Tools --configuration Release --no-build -- \
   import-quiz-questions --csv docs/backlog/queen-quiz-expansion-1000/questions.csv --dry-run
 ```
 
-Verification performed:
+Verification performed during package preparation, before the import recorded above:
 
 - Independent validation passed: exact totals, complete source ledger, four unique options, one correct answer, field limits, points, contiguous question groups, difficulty coverage, exclusions and zero normalized baseline matches.
 - Additional validation against the freshly exported production list passed.
@@ -72,4 +72,4 @@ Verification performed:
 
 The full .NET restore/build/format/test sequence, application coverage checks and UI tests were not rerun: this change adds editorial data and its Python packaging helpers, with no application, database-schema or UI changes. Prebuilt Release tools were used for the importer and targeted tests. No legacy write probes or database imports were run. Real legacy access was limited to the read-only production question export.
 
-For an approved import, configure the database connection as documented in the bulk-import guide, run the same importer command without `--dry-run`, and review the unpublished quizzes before publishing them. That action is outside this package's completed preparation and verification.
+The approved dev and live imports are now complete. Review the existing drafts through Admin → Quizzes before publishing. The frozen baseline and generation report describe preparation-time checks; a current database export includes these imported questions and will therefore flag them as already present.
