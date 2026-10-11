@@ -1,0 +1,179 @@
+@page "/admin/photo-corrections/{id:guid}"
+@model DetailModel
+@using QueenZone.Data
+
+@{
+  var proposal = Model.Proposal!;
+  var isOpen = PhotoCorrectionStatus.IsOpen(proposal.Status);
+  var canRevert = proposal.Status == PhotoCorrectionStatus.Approved;
+}
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <h1>Review photo correction</h1>
+
+  @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+  {
+    <output class="qz-status-block qz-account-notice @(Model.StatusMessageKind == "error" ? "qz-account-notice--error" : "qz-account-notice--success")">
+      @Model.StatusMessage
+    </output>
+  }
+
+  @if (Model.CaptionIsStale)
+  {
+    <p class="qz-account-notice qz-account-notice--error" role="alert">
+      The photo's caption is now "@Model.Photo!.Title", which is not what the member saw. Approving is blocked until you reject this or the member resubmits.
+    </p>
+  }
+
+  <dl>
+    <dt>Photo</dt>
+    <dd>
+      <a href="/admin/photos/@proposal.PicId">#@proposal.PicId</a>
+      @if (Model.Photo is not null)
+      {
+        <text> — current caption: @Model.Photo.Title (@(Model.Photo.IsVisible ? "visible" : "hidden"))</text>
+      }
+      else
+      {
+        <text> — photo no longer exists</text>
+      }
+    </dd>
+    <dt>Change</dt>
+    <dd>@PhotoCorrectionKind.Label(proposal.Kind)</dd>
+    <dt>Value the member saw</dt>
+    <dd>@(proposal.CurrentValue ?? "—")</dd>
+    <dt>Proposed value</dt>
+    <dd>@proposal.ProposedValue</dd>
+    <dt>Explanation</dt>
+    <dd>@proposal.Explanation</dd>
+    <dt>Confidence</dt>
+    <dd>@proposal.Confidence</dd>
+    <dt>Evidence type</dt>
+    <dd>@(proposal.EvidenceType ?? "—")</dd>
+    <dt>Evidence link</dt>
+    <dd>
+      @* Shown as plain text on purpose: editors copy it rather than click a member-supplied link. *@
+      @(proposal.EvidenceUrl ?? "—")
+    </dd>
+    <dt>Requested public credit</dt>
+    <dd>@(string.IsNullOrWhiteSpace(proposal.PublicCreditName) ? "None" : proposal.PublicCreditName)</dd>
+    <dt>Submitter</dt>
+    <dd>@(proposal.SubmitterDisplayName ?? "Unknown")</dd>
+    <dt>Status</dt>
+    <dd>@proposal.Status</dd>
+    <dt>Submitted</dt>
+    <dd>@proposal.SubmittedAt.ToString("u")</dd>
+    <dt>Message to member</dt>
+    <dd>@(proposal.MessageToMember ?? "—")</dd>
+    <dt>Internal review notes</dt>
+    <dd>@(proposal.ReviewNotes ?? "—")</dd>
+    @if (proposal.AppliedFromValue is not null)
+    {
+      <dt>Previous caption (restored on revert)</dt>
+      <dd>@proposal.AppliedFromValue</dd>
+    }
+  </dl>
+
+  @if (Model.OtherProposals.Count > 0)
+  {
+    <section aria-labelledby="competing-heading">
+      <h2 id="competing-heading">Other proposals for this photo</h2>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th scope="col">Change</th>
+            <th scope="col">Proposed</th>
+            <th scope="col">Confidence</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="visually-hidden">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var other in Model.OtherProposals)
+          {
+            <tr>
+              <td>@PhotoCorrectionKind.Label(other.Kind)</td>
+              <td>@other.ProposedValue</td>
+              <td>@other.Confidence</td>
+              <td>@other.Status</td>
+              <td><a href="/admin/photo-corrections/@other.Id">Open</a></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  }
+
+  @if (isOpen)
+  {
+    <section aria-labelledby="approve-heading">
+      <h2 id="approve-heading">Approve</h2>
+      <form method="post" action="/admin/photo-corrections/@proposal.Id/approve" class="admin-inline-form">
+        @Html.AntiForgeryToken()
+        <label>
+          Internal review notes
+          <input name="reviewNotes" maxlength="500" />
+        </label>
+        <button type="submit" disabled="@Model.CaptionIsStale">Approve</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="info-heading">
+      <h2 id="info-heading">Ask for more information</h2>
+      <form method="post" action="/admin/photo-corrections/@proposal.Id/requestinfo" class="admin-inline-form">
+        @Html.AntiForgeryToken()
+        <label>
+          Question for the member (shown to them)
+          <input name="messageToMember" required maxlength="@PhotoCorrectionValidation.MaxMessageLength" />
+        </label>
+        <label>
+          Internal review notes
+          <input name="reviewNotes" maxlength="500" />
+        </label>
+        <button type="submit">Ask for more information</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="reject-heading">
+      <h2 id="reject-heading">Reject</h2>
+      <form method="post" action="/admin/photo-corrections/@proposal.Id/reject" class="admin-inline-form">
+        @Html.AntiForgeryToken()
+        <label>
+          Reason (shown to the member)
+          <input name="messageToMember" required maxlength="@PhotoCorrectionValidation.MaxMessageLength" />
+        </label>
+        <label>
+          Internal review notes
+          <input name="reviewNotes" maxlength="500" />
+        </label>
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Reject", "Reject this proposal?", Detail: "The reason is shown to the member."))" />
+      </form>
+    </section>
+  }
+
+  @if (canRevert)
+  {
+    <section aria-labelledby="revert-heading">
+      <h2 id="revert-heading">Revert</h2>
+      <form method="post" action="/admin/photo-corrections/@proposal.Id/revert" class="admin-inline-form">
+        @Html.AntiForgeryToken()
+        <label>
+          Internal review notes
+          <input name="reviewNotes" maxlength="500" />
+        </label>
+        <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Revert", "Revert this correction?", Detail: "The previous caption is restored on the site."))" />
+      </form>
+    </section>
+  }
+
+  <section aria-labelledby="audit-heading">
+    <h2 id="audit-heading">History</h2>
+    <ol>
+      @foreach (var entry in Model.Audit)
+      {
+        <li>@entry.OccurredAt.ToString("u") — @entry.Action @(string.IsNullOrEmpty(entry.ActorEmail) ? "" : $"by {entry.ActorEmail}")@(string.IsNullOrWhiteSpace(entry.Details) ? "" : $": {entry.Details}")</li>
+      }
+    </ol>
+  </section>
+</div>

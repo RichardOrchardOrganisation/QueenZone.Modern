@@ -1,0 +1,59 @@
+@page "/submit/photo-correction/confirmation/{id:guid}"
+@model PhotoCorrectionConfirmationModel
+@using QueenZone.Data
+
+@{
+  var proposal = Model.Submission!;
+  var isOpen = PhotoCorrectionStatus.IsOpen(proposal.Status);
+}
+
+<partial name="_PageHero" model='@(("Community", "Correction sent", "Thank you. Editors will review your proposal.", ""))' />
+
+<section class="qz-section">
+  <div class="qz-container qz-prose">
+    @if (proposal.Status == PhotoCorrectionStatus.Pending)
+    {
+      <output class="qz-status-block qz-account-notice qz-account-notice--success">Pending review. Nothing has changed on the site yet.</output>
+    }
+
+    <dl class="qz-account-settings__meta">
+      <div>
+        <dt>What</dt>
+        <dd>@PhotoCorrectionKind.Label(proposal.Kind)</dd>
+      </div>
+      <div>
+        <dt>Your proposal</dt>
+        <dd>@proposal.ProposedValue</dd>
+      </div>
+      <div>
+        <dt>Status</dt>
+        <dd>@proposal.Status</dd>
+      </div>
+      <div>
+        <dt>Public credit</dt>
+        <dd>@(string.IsNullOrWhiteSpace(proposal.PublicCreditName) ? "None" : proposal.PublicCreditName)</dd>
+      </div>
+      @if (!string.IsNullOrWhiteSpace(proposal.MessageToMember))
+      {
+        <div>
+          <dt>Message from the editors</dt>
+          <dd>@proposal.MessageToMember</dd>
+        </div>
+      }
+    </dl>
+
+    @if (proposal.Status == PhotoCorrectionStatus.NeedsInfo)
+    {
+      <p>The editors asked for more information. Send a new proposal for this photo with the extra detail.</p>
+    }
+
+    <p>
+      <a href="/photography">Back to photography</a>
+      @if (isOpen)
+      {
+        <text>·</text>
+        <a href="/submit/photo-correction/@proposal.PicId">Suggest another change</a>
+      }
+    </p>
+  </div>
+</section>

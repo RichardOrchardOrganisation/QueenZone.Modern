@@ -166,6 +166,10 @@ public sealed class QueenZoneDbContext : DbContext
     public DbSet<TriviaFactSubmissionAuditLogEntity> TriviaFactSubmissionAuditLogs =>
         Set<TriviaFactSubmissionAuditLogEntity>();
 
+    public DbSet<PhotoCorrectionProposalEntity> PhotoCorrectionProposals => Set<PhotoCorrectionProposalEntity>();
+
+    public DbSet<PhotoCorrectionAuditLogEntity> PhotoCorrectionAuditLogs => Set<PhotoCorrectionAuditLogEntity>();
+
     public DbSet<IdempotencyReceiptEntity> IdempotencyReceipts => Set<IdempotencyReceiptEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

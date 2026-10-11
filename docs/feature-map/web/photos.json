@@ -116,6 +116,42 @@
       "page": "Pages/Submit/PhotoConfirmation.cshtml",
       "url": "/submit/photo/confirmation/{id}",
       "entry": "Submit photo → confirmation"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/PhotoCorrection.cshtml"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.Tests/PhotoCorrectionRoutesTests.cs"
+      ],
+      "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.photos.suggestCorrection",
+      "name": "Suggest a photo correction",
+      "page": "Pages/Submit/PhotoCorrection.cshtml",
+      "url": "/submit/photo-correction/{picId}",
+      "entry": "Photo viewer → Suggest a correction"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Submit/PhotoCorrectionConfirmation.cshtml"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.Tests/PhotoCorrectionRoutesTests.cs"
+      ],
+      "selectors": [],
+      "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
+      "signIn": "member",
+      "recipe": "",
+      "id": "web.photos.suggestCorrectionConfirmation",
+      "name": "Photo correction confirmation",
+      "page": "Pages/Submit/PhotoCorrectionConfirmation.cshtml",
+      "url": "/submit/photo-correction/confirmation/{id}",
+      "entry": "Suggest a correction → confirmation"
     }
   ]
 }
