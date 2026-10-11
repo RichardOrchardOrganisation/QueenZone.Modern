@@ -42,26 +42,28 @@ function linkIdentity(href: string): { id: string; start: number | null } | null
   if (!short && !['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname)) return null;
   const query = new Map<string, string[]>();
   url.searchParams.forEach((v, k) => query.set(k.toLowerCase(), [...(query.get(k.toLowerCase()) ?? []), v]));
-  const vs = query.get('v') ?? [];
-  let id: string | undefined;
-  if (!short && url.pathname === '/watch' && vs.length === 1) id = vs[0];
-  else if (!vs.length) {
-    const segments = url.pathname.split('/');
-    if (short && segments.length === 2) id = segments[1];
-    else if (!short && segments.length === 3 && ['shorts', 'embed'].includes(segments[1])) id = segments[2];
-  }
+  const id = linkedVideoId(url, short, query.get('v') ?? []);
   if (!id || !idPattern.test(id)) return null;
-  const times = [...(query.get('t') ?? []), ...(query.get('start') ?? [])];
+  return { id, start: linkedStart([...(query.get('t') ?? []), ...(query.get('start') ?? [])]) };
+}
+function linkedVideoId(url: URL, short: boolean, vs: string[]): string | undefined {
+  if (!short && url.pathname === '/watch' && vs.length === 1) return vs[0];
+  if (vs.length) return undefined;
+  const segments = url.pathname.split('/');
+  if (short && segments.length === 2) return segments[1];
+  if (!short && segments.length === 3 && ['shorts', 'embed'].includes(segments[1])) return segments[2];
+  return undefined;
+}
+function linkedStart(times: string[]): number | null {
+  if (times.length !== 1 || times[0].length > 20) return null;
+  const t = times[0];
   let seconds = 0;
-  if (times.length === 1 && times[0].length <= 20) {
-    const t = times[0];
-    if (/^[0-9]+$/.test(t)) seconds = Number(t);
-    else {
-      const match = /^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+)s)?$/.exec(t);
-      if (match) seconds = Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
-    }
+  if (/^[0-9]+$/.test(t)) seconds = Number(t);
+  else {
+    const match = /^(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+)s)?$/.exec(t);
+    if (match) seconds = Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0);
   }
-  return { id, start: seconds > 0 && seconds <= 86400 ? seconds : null };
+  return seconds > 0 && seconds <= 86400 ? seconds : null;
 }
 const formatting = new Set(['span', 'strong', 'b', 'em', 'i', 'u']);
 const boundaries = new Set(['br', 'blockquote', 'pre', 'code', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);

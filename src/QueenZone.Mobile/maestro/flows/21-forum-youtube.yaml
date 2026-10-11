@@ -4,13 +4,23 @@ appId: org.queenzone.mobile
 # This proves card/load/fallback UI only; the native manual matrix remains required.
 - tapOn:
     id: tab-forum
+- extendedWaitUntil:
+    visible:
+      id: forum-screen
+    timeout: 20000
 - tapOn:
     id: forum-board-1
+- extendedWaitUntil:
+    visible:
+      id: forum-category-screen
+    timeout: 20000
 - scrollUntilVisible:
     element:
       id: forum-thread-1030
     direction: DOWN
     timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 10000
 - tapOn:
     id: forum-thread-1030
 - extendedWaitUntil:
@@ -19,7 +29,13 @@ appId: org.queenzone.mobile
     timeout: 20000
 - assertVisible: Before the shared video.
 - assertVisible: Original video
-- assertVisible: Watch on YouTube
+- scrollUntilVisible:
+    element:
+      id: forum-youtube-watch
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    id: forum-youtube-watch
 - extendedWaitUntil:
     visible: Ready. Press the YouTube Play control to play.
     timeout: 20000
