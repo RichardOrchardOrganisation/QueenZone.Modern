@@ -1,0 +1,48 @@
+{
+  "question_count": 1000,
+  "quiz_count": 40,
+  "option_rows": 4000,
+  "difficulty": {
+    "medium": 450,
+    "hard": 400,
+    "easy": 150
+  },
+  "correct_answer_positions": {
+    "4": 250,
+    "2": 250,
+    "3": 250,
+    "1": 250
+  },
+  "categories": {
+    "Artwork and Photography": 16,
+    "Beyond Music": 17,
+    "Concerts": 46,
+    "Cover Versions": 6,
+    "Early Lives": 2,
+    "Film and Television": 26,
+    "Guest Appearances": 49,
+    "Influences": 43,
+    "Instruments and Sound": 107,
+    "Music Videos": 74,
+    "Queen History": 50,
+    "Recording Details": 313,
+    "Releases": 61,
+    "Solo Projects": 61,
+    "Song Stories": 121,
+    "Stage Style": 8
+  },
+  "sources": {
+    "songs": 814,
+    "may": 92,
+    "life": 42,
+    "web": 43,
+    "edge": 5,
+    "freddie": 4
+  },
+  "baseline_unique_wordings": 3295,
+  "candidate_count": 1059,
+  "rejected_candidates": 59,
+  "production_baseline_read": "2026-10-11",
+  "production_question_count": 1700,
+  "database_writes": 0
+}
