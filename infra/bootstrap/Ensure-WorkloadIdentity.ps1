@@ -31,7 +31,13 @@ function Ensure-WorkloadIdentity {
     }
 
     if ($null -eq $servicePrincipal) {
-        throw "The service principal for '$DisplayName' was not created."
+        if ($WhatIfPreference) {
+            # Preview only: report instead of throwing. Steps that need the
+            # principal (federated credential, role assignments) are skipped.
+            Write-Warning "Entra application '$DisplayName' exists but has no service principal. It would be created; steps that need its object ID (federated credential, role assignments) cannot be previewed until it exists."
+            return $null
+        }
+        throw "The service principal for '$DisplayName' (appId $($application.appId)) does not exist and was not created. Create it with 'az ad sp create --id $($application.appId)' or rerun with rights to create service principals."
     }
 
     $subject = "repo:$OidcRepositorySegment`:environment:$EnvironmentName"

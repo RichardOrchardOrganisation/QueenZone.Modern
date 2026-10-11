@@ -91,3 +91,32 @@ moved {
   from = module.azure_data.azapi_resource.storage_account
   to   = module.azure_data.azapi_resource.storage_account[0]
 }
+
+# #2211: flag (Audit) or block (Deny) any container in Queenzone-Dev-RG that is
+# public without being on the azure-data allow-list.
+# Lets the OpenTofu Apply identity manage the policy assignment on this RG
+# only. Creating this needs the one-off bootstrap grant (RBAC Administrator
+# constrained to Resource Policy Contributor); see
+# infra/modules/azure-storage-public-access-policy/README.md.
+resource "azurerm_role_assignment" "opentofu_apply_resource_policy_contributor" {
+  scope                = azurerm_resource_group.dev.id
+  role_definition_name = "Resource Policy Contributor"
+  principal_id         = var.opentofu_apply_principal_object_id
+  principal_type       = "ServicePrincipal"
+  description          = "#2211: OpenTofu Apply manages the blob public-access policy assignment on this RG."
+}
+
+module "storage_public_access_policy" {
+  source = "../../modules/azure-storage-public-access-policy"
+
+  name_suffix        = "dev"
+  resource_group_ids = { dev = azurerm_resource_group.dev.id }
+  # Accounts this root doesn't manage report a null account and are skipped.
+  allowed_public_containers = {
+    for entry in [module.azure_data.public_blob_containers] : entry.account => entry.containers if entry.account != null
+  }
+  location = azurerm_resource_group.dev.location
+  effect   = var.storage_public_access_policy_effect
+
+  depends_on = [azurerm_role_assignment.opentofu_apply_resource_policy_contributor]
+}

@@ -60,3 +60,10 @@ anonymous-read metrics land. See
 public blob until a reviewed apply. Do not apply this stack from a local
 operator session. A later reviewed apply should set `attachments` to `None`
 and leave `songfiles` unchanged.
+
+## Public container allow-list (#2211)
+
+The `public_blob_containers` output (account name plus `var.public_blob_containers`)
+is passed by the roots to `azure-storage-public-access-policy` as that account's
+Azure Policy allow-list, so the OpenTofu validation and the ARM-plane policy use
+one list.

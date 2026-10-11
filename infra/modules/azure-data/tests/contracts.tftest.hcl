@@ -419,3 +419,44 @@ run "rejects_required_private_container_made_public" {
     var.containers,
   ]
 }
+
+run "public_blob_containers_output_feeds_policy_allow_list" {
+  command = plan
+
+  variables {
+    storage_account_name = "queenzoneprod"
+  }
+
+  override_resource {
+    target = azapi_resource.sql_server
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/test"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.storage_account
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/queenzoneprod"
+    }
+  }
+
+  override_resource {
+    target = azapi_resource.blob_service
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Storage/storageAccounts/queenzoneprod/blobServices/default"
+    }
+  }
+
+  override_resource {
+    target = azurerm_mssql_database.production
+    values = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test/providers/Microsoft.Sql/servers/test/databases/queenzone-db"
+    }
+  }
+
+  assert {
+    condition     = output.public_blob_containers.account == "queenzoneprod" && output.public_blob_containers.containers == sort(tolist(var.public_blob_containers)) && !contains(output.public_blob_containers.containers, "attachments") && !contains(output.public_blob_containers.containers, "test")
+    error_message = "The #2211 policy allow-list must be exactly public_blob_containers and never include a must-be-private or retired container."
+  }
+}
