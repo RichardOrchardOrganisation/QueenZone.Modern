@@ -41,14 +41,19 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
     });
     return () => { alive = false; detach(); pool.remove(cardKey, token); };
   }, [attach, cardKey, pool]);
+  const [bootstrap, setBootstrap] = useState<number | null>(null);
   const [ready, setReady] = useState<number | null>(null);
   useEffect(() => {
-    if (generation == null || !pool) return;
+    if (generation == null || !pool || ready === generation) return;
+    // Cold WebKit startup must not consume the provider readiness budget.
+    // The fixed document emits bootstrap once before loading YouTube. Each
+    // phase is bounded to 12s, so total loading cannot exceed 24s. Repeated
+    // same-generation bootstrap messages do not reset this effect.
     const timer = setTimeout(() => {
-      if (ready !== generation) pool.fail(cardKey, generation, playerError('timeout'));
+      pool.fail(cardKey, generation, playerError(bootstrap === generation ? 'timeout' : 'startup'));
     }, playerTimeoutMs);
     return () => clearTimeout(timer);
-  }, [cardKey, generation, pool, ready]);
+  }, [bootstrap, cardKey, generation, pool, ready]);
   const wasMounted = useRef(false);
   useEffect(() => {
     if (wasMounted.current && generation == null && accessibilityFocused.current) {
@@ -102,7 +107,8 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
         onMessage={event => {
           const message = parsePlayerMessage(event.nativeEvent.data, generation);
           if (!message || pool?.cards[cardKey]?.generation !== generation) return;
-          if (message.event === 'ready') setReady(generation);
+          if (message.event === 'bootstrap') setBootstrap(generation);
+          else if (message.event === 'ready') setReady(generation);
           else if (message.event === 'error') pool.fail(cardKey, generation, playerError(message.value));
           else pool.message(cardKey, generation, message.event, message.value);
         }}

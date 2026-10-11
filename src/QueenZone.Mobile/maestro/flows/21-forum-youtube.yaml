@@ -41,7 +41,7 @@ appId: org.queenzone.mobile
     id: forum-youtube-watch
 - extendedWaitUntil:
     visible: Ready. Press the YouTube Play control to play.
-    timeout: 20000
+    timeout: 30000
 - takeScreenshot: forum-youtube-autoload-before-play
 # Actual YouTube Play/fullscreen controls differ by OS/provider. Follow manual
 # proof matrix; never use a synthetic bridge state as native playback proof.

@@ -5,6 +5,7 @@ export const playerBaseUrl = 'https://org.queenzone.mobile/';
 export const pauseScript = 'window.qzPause && window.qzPause(); true;';
 export const playerTimeoutMs = 12000;
 export type PlayerMessage =
+  | { event: 'bootstrap' }
   | { event: 'ready' }
   | { event: 'state'; value: number }
   | { event: 'error'; value: number }
@@ -16,7 +17,7 @@ export function parsePlayerMessage(data: string, generation: number): PlayerMess
   if (!m || typeof m !== 'object') return null;
   const v = m as Record<string, unknown>;
   if (v.version !== 1 || v.generation !== generation) return null;
-  if (v.event === 'ready' && Object.keys(v).length === 3) return { event: 'ready' };
+  if ((v.event === 'bootstrap' || v.event === 'ready') && Object.keys(v).length === 3) return { event: v.event };
   if (Object.keys(v).length !== 4) return null;
   if (v.event === 'state' && [-1, 0, 1, 2, 3, 5].includes(v.value as number)) return { event: 'state', value: v.value as number };
   if (v.event === 'error' && [2, 5, 100, 101, 150, 153].includes(v.value as number)) return { event: 'error', value: v.value as number };
@@ -33,6 +34,7 @@ export function playerDocument(video: YoutubeVideo, generation: number): string 
 <style>html,body{margin:0;width:100%;height:100%;background:#111}iframe,#player{width:100%;height:100%;border:0}</style></head>
 <body><div id="player"></div><script>
 var player;function send(event,value){var m={version:1,generation:${generation},event:event};if(value!==undefined)m.value=value;window.ReactNativeWebView.postMessage(JSON.stringify(m));}
+send('bootstrap');
 window.qzNativeFullscreen=function(value){send('fullscreen',value);};
 window.qzPause=function(){if(player&&player.pauseVideo)player.pauseVideo();};
 function onYouTubeIframeAPIReady(){player=new YT.Player('player',{width:'100%',height:'100%',videoId:'${video.videoId}',playerVars:{autoplay:0,playsinline:1,controls:1,fs:1,origin:'https://org.queenzone.mobile',start:${video.startSeconds ?? 0}},events:{onReady:function(){send('ready');},onStateChange:function(e){send('state',e.data);},onError:function(e){send('error',e.data);}}});}
@@ -53,6 +55,8 @@ export function playerNavigation(url: string, isTopFrame: boolean | undefined, n
   return 'reject';
 }
 export function playerError(code: number | string): string {
+  if (code === 'startup') return 'YouTube player could not start. Try again or watch on YouTube.';
+  if (code === 'timeout') return 'YouTube player took too long to load. Try again or watch on YouTube.';
   if (code === 153) return 'YouTube could not identify this app (153). Try again or watch on YouTube.';
   if (code === 100) return 'This video is private or unavailable. You can try watching on YouTube.';
   if (code === 101 || code === 150) return 'This video cannot play inline. Watch on YouTube instead.';

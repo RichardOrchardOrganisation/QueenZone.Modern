@@ -82,6 +82,23 @@ describe('native forum video card', () => {
     expect(mockPool.cards['post:0'].generation).not.toBe(old);
     expect(mockPool.cards['post:0'].playing).toBe(false);
   });
+  it('gives a cold native document its own bounded startup budget before provider readiness', () => {
+    renderWithProviders(<Harness />, { navigation: false }); mountPlayer();
+    act(() => jest.advanceTimersByTime(9000)); send('bootstrap');
+    // Hosted cold WebKit only committed the iframe around 9s after mounting.
+    act(() => jest.advanceTimersByTime(4000));
+    expect(screen.getByTestId(testIds.forumYoutubePlayer)).toBeOnTheScreen();
+    send('ready'); act(() => jest.advanceTimersByTime(50000));
+    expect(screen.getByTestId(testIds.forumYoutubePlayer)).toBeOnTheScreen();
+  });
+  it('does not let repeated bootstrap messages postpone a stalled provider', () => {
+    renderWithProviders(<Harness />, { navigation: false }); mountPlayer();
+    act(() => jest.advanceTimersByTime(11000)); send('bootstrap');
+    act(() => jest.advanceTimersByTime(11000)); send('bootstrap');
+    act(() => jest.advanceTimersByTime(1000));
+    expect(screen.queryByTestId(testIds.forumYoutubePlayer)).toBeNull();
+    expect(screen.getByText(/took too long/)).toBeOnTheScreen();
+  });
   it('times out, releases resources on unmount and rejects dangerous navigation', () => {
     const rendered = renderWithProviders(<Harness />, { navigation: false }); mountPlayer();
     const nav = screen.getByTestId(testIds.forumYoutubePlayer).props.onShouldStartLoadWithRequest;

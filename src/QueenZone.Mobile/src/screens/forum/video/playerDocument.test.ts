@@ -24,15 +24,16 @@ describe('fixed native player document', () => {
     vm.runInContext(script, context); vm.runInContext('onYouTubeIframeAPIReady()', context);
     assert.equal(config!.playerVars.autoplay, 0); config!.events.onReady(); config!.events.onStateChange({ data: 1 }); config!.events.onError({ data: 153 });
     vm.runInContext('window.qzNativeFullscreen(true);window.qzPause()', context);
-    assert.deepEqual(sent.map(m => JSON.parse(m).event), ['ready', 'state', 'error', 'fullscreen']); assert.deepEqual(pause, ['pause']);
+    assert.deepEqual(sent.map(m => JSON.parse(m).event), ['bootstrap', 'ready', 'state', 'error', 'fullscreen']); assert.deepEqual(pause, ['pause']);
   });
   it('accepts only bounded known messages for the current incarnation', () => {
     const m = (event: string, value?: unknown, generation = 7) => JSON.stringify({ version: 1, generation, event, ...(value === undefined ? {} : { value }) });
+    assert.deepEqual(parsePlayerMessage(m('bootstrap'), 7), { event: 'bootstrap' });
     assert.deepEqual(parsePlayerMessage(m('ready'), 7), { event: 'ready' });
     for (const value of [-1, 0, 1, 2, 3, 5]) assert.deepEqual(parsePlayerMessage(m('state', value), 7), { event: 'state', value });
     for (const value of [2, 5, 100, 101, 150, 153]) assert.ok(parsePlayerMessage(m('error', value), 7));
     assert.deepEqual(parsePlayerMessage(m('fullscreen', true), 7), { event: 'fullscreen', value: true });
-    for (const data of ['bad', 'null', 'x'.repeat(257), m('state', '1'), m('state', 6), m('error', 42), m('fullscreen', 1), m('ready', undefined, 6), m('openURL', 'https://evil.test'), JSON.stringify({ version: 1, generation: 7, event: 'ready', privileged: true })]) assert.equal(parsePlayerMessage(data, 7), null);
+    for (const data of ['bad', 'null', 'x'.repeat(257), m('state', '1'), m('state', 6), m('error', 42), m('fullscreen', 1), m('ready', undefined, 6), m('bootstrap', undefined, 6), m('bootstrap', 1), m('openURL', 'https://evil.test'), JSON.stringify({ version: 1, generation: 7, event: 'ready', privileged: true })]) assert.equal(parsePlayerMessage(data, 7), null);
   });
   it('distinguishes top-level navigation, approved subframes and deliberate HTTPS links', () => {
     assert.equal(playerNavigation(playerBaseUrl, true, 'other'), 'allow');
