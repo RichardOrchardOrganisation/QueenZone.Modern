@@ -7,7 +7,7 @@ per question. It contains 6,000 option rows in the existing
 hard and very hard questions. Correct answers occupy each of the four positions
 375 times across the bank.
 
-**Imported into dev and live on 11 October 2026:** 60 quizzes and 1,500 questions in each database. The quizzes remain unpublished. **Do not import this package again.** See the [combined import verification](../queen-quiz-import-2026-10-11.md). The importer creates
+**Imported into dev and live on 11 October 2026:** 60 quizzes and 1,500 questions in each database. All quizzes are now published and available to visitors on dev and live. **Do not import this package again.** See the [combined import verification](../queen-quiz-import-2026-10-11.md) and [publication verification](../queen-quiz-publication-2026-10-11.md). The importer creates
 unpublished quizzes for review in Admin → Quizzes. Import this file only once;
 the tool creates new quizzes rather than updating previously imported ones.
 
@@ -160,8 +160,7 @@ choice uniqueness, one correct answer, points/difficulty, all four levels in
 each quiz, balanced answer positions and existing-bank wording. This is a data
 and documentation addition; application code and UI are unchanged.
 
-The approved dev and live imports are now complete. Review the existing drafts
-through Admin → Quizzes before publishing. The frozen baseline describes
+The approved dev and live imports are now complete. Publication is also complete; visitors can play through Quiz Sprint or the individual quiz pages. The frozen baseline describes
 preparation-time checks; a current database export includes these imported
 questions and will therefore flag them as already present. A dry-run does not
 query the target bank or detect duplicate imports on its own.
