@@ -2,7 +2,7 @@
 
 `questions.csv` contains **1,000 multiple-choice questions in 40 quizzes of 25**, ready for QueenZone's existing [bulk-import tool and CSV format](../../quiz-bulk-import.md). Each question has four distinct options and one correct answer. The file contains 4,000 option rows, not 4,000 questions.
 
-**Imported into dev and live on 11 October 2026:** 40 quizzes and 1,000 questions in each database. The quizzes remain unpublished. **Do not import this package again.** See the [combined import verification](../queen-quiz-import-2026-10-11.md). The importer creates unpublished quizzes for editorial review in Admin → Quizzes.
+**Imported into dev and live on 11 October 2026:** 40 quizzes and 1,000 questions in each database. All quizzes are now published and available to visitors on dev and live. **Do not import this package again.** See the [combined import verification](../queen-quiz-import-2026-10-11.md) and [publication verification](../queen-quiz-publication-2026-10-11.md). The importer creates unpublished quizzes for editorial review in Admin → Quizzes.
 
 | Difficulty | Questions | Points |
 | --- | ---: | ---: |
@@ -72,4 +72,4 @@ Verification performed during package preparation, before the import recorded ab
 
 The full .NET restore/build/format/test sequence, application coverage checks and UI tests were not rerun: this change adds editorial data and its Python packaging helpers, with no application, database-schema or UI changes. Prebuilt Release tools were used for the importer and targeted tests. No legacy write probes or database imports were run. Real legacy access was limited to the read-only production question export.
 
-The approved dev and live imports are now complete. Review the existing drafts through Admin → Quizzes before publishing. The frozen baseline and generation report describe preparation-time checks; a current database export includes these imported questions and will therefore flag them as already present.
+The approved dev and live imports are now complete. Publication is also complete; visitors can play through Quiz Sprint or the individual quiz pages. The frozen baseline and generation report describe preparation-time checks; a current database export includes these imported questions and will therefore flag them as already present.
