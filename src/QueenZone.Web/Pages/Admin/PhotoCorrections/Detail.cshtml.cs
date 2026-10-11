@@ -28,6 +28,35 @@ public sealed class DetailModel(
         && Photo is not null
         && !string.Equals(Photo.Title, proposal.CurrentValue, StringComparison.Ordinal);
 
+    public bool IsOpen => Proposal is not null && PhotoCorrectionStatus.IsOpen(Proposal.Status);
+
+    public bool CanRevert => Proposal?.Status == PhotoCorrectionStatus.Approved;
+
+    public string StatusNoticeClass =>
+        StatusMessageKind == "error" ? "qz-account-notice--error" : "qz-account-notice--success";
+
+    public string KindLabel => PhotoCorrectionKind.Label(Proposal!.Kind);
+
+    public string CreditLabel =>
+        string.IsNullOrWhiteSpace(Proposal!.PublicCreditName) ? "None" : Proposal.PublicCreditName;
+
+    public string StaleWarning =>
+        $"The photo's caption is now \"{Photo?.Title}\", which is not what the member saw. Approving is blocked until you reject this or the member resubmits.";
+
+    public string PhotoSummary => Photo is null
+        ? "photo no longer exists"
+        : $"current caption: {Photo.Title} ({(Photo.IsVisible ? "visible" : "hidden")})";
+
+    public IReadOnlyList<string> AuditLines =>
+        Audit.Select(entry =>
+        {
+            var actor = string.IsNullOrEmpty(entry.ActorEmail) ? string.Empty : $" by {entry.ActorEmail}";
+            var details = string.IsNullOrWhiteSpace(entry.Details) ? string.Empty : $": {entry.Details}";
+            return $"{entry.OccurredAt:u} — {entry.Action}{actor}{details}";
+        }).ToList();
+
+    public string Show(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         Proposal = await photoCorrectionRepository.GetByIdAsync(id, cancellationToken);

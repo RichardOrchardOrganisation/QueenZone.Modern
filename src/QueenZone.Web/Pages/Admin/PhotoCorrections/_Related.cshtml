@@ -1,0 +1,41 @@
+@model DetailModel
+
+@if (Model.OtherProposals.Count > 0)
+{
+  <section aria-labelledby="competing-heading">
+    <h2 id="competing-heading">Other proposals for this photo</h2>
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">Change</th>
+          <th scope="col">Proposed</th>
+          <th scope="col">Confidence</th>
+          <th scope="col">Status</th>
+          <th scope="col"><span class="visually-hidden">Open</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var other in Model.OtherProposals)
+        {
+          <tr>
+            <td>@QueenZone.Data.PhotoCorrectionKind.Label(other.Kind)</td>
+            <td>@other.ProposedValue</td>
+            <td>@other.Confidence</td>
+            <td>@other.Status</td>
+            <td><a href="/admin/photo-corrections/@other.Id">Open</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+}
+
+<section aria-labelledby="audit-heading">
+  <h2 id="audit-heading">History</h2>
+  <ol>
+    @foreach (var line in Model.AuditLines)
+    {
+      <li>@line</li>
+    }
+  </ol>
+</section>

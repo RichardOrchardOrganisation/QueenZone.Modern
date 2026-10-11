@@ -1,0 +1,68 @@
+@model DetailModel
+@using QueenZone.Data
+
+@{
+  var id = Model.Proposal!.Id;
+}
+
+@if (Model.IsOpen)
+{
+  <section aria-labelledby="approve-heading">
+    <h2 id="approve-heading">Approve</h2>
+    <form method="post" action="/admin/photo-corrections/@id/approve" class="admin-inline-form">
+      @Html.AntiForgeryToken()
+      <label>
+        Internal review notes
+        <input name="reviewNotes" maxlength="500" />
+      </label>
+      <button type="submit" disabled="@Model.CaptionIsStale">Approve</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="info-heading">
+    <h2 id="info-heading">Ask for more information</h2>
+    <form method="post" action="/admin/photo-corrections/@id/requestinfo" class="admin-inline-form">
+      @Html.AntiForgeryToken()
+      <label>
+        Question for the member (shown to them)
+        <input name="messageToMember" required maxlength="@PhotoCorrectionValidation.MaxMessageLength" />
+      </label>
+      <label>
+        Internal review notes
+        <input name="reviewNotes" maxlength="500" />
+      </label>
+      <button type="submit">Ask for more information</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="reject-heading">
+    <h2 id="reject-heading">Reject</h2>
+    <form method="post" action="/admin/photo-corrections/@id/reject" class="admin-inline-form">
+      @Html.AntiForgeryToken()
+      <label>
+        Reason (shown to the member)
+        <input name="messageToMember" required maxlength="@PhotoCorrectionValidation.MaxMessageLength" />
+      </label>
+      <label>
+        Internal review notes
+        <input name="reviewNotes" maxlength="500" />
+      </label>
+      <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Reject", "Reject this proposal?", Detail: "The reason is shown to the member."))" />
+    </form>
+  </section>
+}
+
+@if (Model.CanRevert)
+{
+  <section aria-labelledby="revert-heading">
+    <h2 id="revert-heading">Revert</h2>
+    <form method="post" action="/admin/photo-corrections/@id/revert" class="admin-inline-form">
+      @Html.AntiForgeryToken()
+      <label>
+        Internal review notes
+        <input name="reviewNotes" maxlength="500" />
+      </label>
+      <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Revert", "Revert this correction?", Detail: "The previous caption is restored on the site."))" />
+    </form>
+  </section>
+}
