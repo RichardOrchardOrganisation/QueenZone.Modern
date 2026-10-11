@@ -12,11 +12,16 @@ export type PoolSnapshot = Record<string, PoolCard>;
 export class PlayerPool {
   cards: PoolSnapshot = {};
   enabled = false;
+  private retiring = new Set<number>();
+  get pendingReleases(): readonly number[] { return [...this.retiring]; }
+  confirmRelease(generation: number): void {
+    if (this.retiring.delete(generation)) this.reconcile();
+  }
   private sequence = 0;
   private failures = new Map<string, string>();
-  private changed: (snapshot: PoolSnapshot) => void;
+  private changed: (snapshot: PoolSnapshot, pendingReleases: readonly number[]) => void;
   private pause: (key: string) => void;
-  constructor(changed: (snapshot: PoolSnapshot) => void, pause: (key: string) => void) {
+  constructor(changed: (snapshot: PoolSnapshot, pendingReleases: readonly number[]) => void, pause: (key: string) => void) {
     this.changed = changed; this.pause = pause;
   }
   register(key: string): number {
@@ -67,10 +72,10 @@ export class PlayerPool {
   }
   tick(now = Date.now()): void { this.reconcile(now); }
   private release(c: PoolCard): void {
-    if (c.generation != null) this.pause(c.key);
+    if (c.generation != null) { this.pause(c.key); this.retiring.add(c.generation); }
     c.generation = null; c.playing = false; c.fullscreen = false; c.evictionAt = null;
   }
-  private publish(): void { this.changed(Object.fromEntries(Object.entries(this.cards).map(([k, c]) => [k, { ...c }]))); }
+  private publish(): void { this.changed(Object.fromEntries(Object.entries(this.cards).map(([k, c]) => [k, { ...c }])), this.pendingReleases); }
   private reconcile(now = Date.now()): void {
     if (!this.enabled) { this.publish(); return; }
     const distance = (c: PoolCard) => {
@@ -95,7 +100,14 @@ export class PlayerPool {
       || a.owner - b.owner);
     const selected = new Set(candidates.slice(0, maximumPlayers).map(c => c.key));
     for (const c of Object.values(this.cards)) if (!selected.has(c.key)) this.release(c);
-    for (const c of candidates.slice(0, maximumPlayers)) if (c.generation == null) c.generation = ++this.sequence;
+    // A retiring native WebView still owns its slot until a native layout
+    // event confirms the unmount commit. React can create replacement views
+    // before deleting old ones in the same commit, so selection alone cannot
+    // enforce the native two-player cap.
+    let available = maximumPlayers - this.retiring.size - Object.values(this.cards).filter(c => c.generation != null).length;
+    for (const c of candidates.slice(0, maximumPlayers)) {
+      if (c.generation == null && available > 0) { c.generation = ++this.sequence; available--; }
+    }
     this.publish();
   }
 }

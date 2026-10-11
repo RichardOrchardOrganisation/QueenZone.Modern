@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, type View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { addNetworkStateListener, getNetworkStateAsync, type NetworkState } from 'expo-network';
 import { PlayerPool, type PoolSnapshot } from './playerPool';
 
@@ -11,16 +11,28 @@ type PlayerContext = {
 export const ForumPlayersContext = createContext<PlayerContext | null>(null);
 export function useForumPlayers(): PlayerContext | null { return useContext(ForumPlayersContext); }
 type FocusNavigation = { isFocused: () => boolean; addListener: (event: 'focus' | 'blur', callback: () => void) => () => void };
+function NativeReleaseBarrier({ pool, generation }: { pool: PlayerPool; generation: number }) {
+  const [firstCommit, setFirstCommit] = useState(false);
+  return <View testID="forum-player-release-barrier" collapsable={false}
+    pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+    style={{ width: firstCommit ? 1 : 0, height: 0 }} onLayout={event => {
+      // The first event can precede trailing native deletes in that batch.
+      // A second native layout transaction fences the entire previous batch.
+      if (!firstCommit) setFirstCommit(true);
+      else if (event.nativeEvent.layout.width === 1) pool.confirmRelease(generation);
+    }} />;
+}
 export function ForumPlayerProvider({ children, viewport, navigation }: { children: ReactNode; viewport: React.RefObject<View | null>; navigation: FocusNavigation }) {
   const [focused, setFocused] = useState(() => navigation.isFocused());
   const [online, setOnline] = useState(false);
   const [active, setActive] = useState(AppState.currentState === 'active');
   const [snapshot, setSnapshot] = useState<PoolSnapshot>({});
+  const [pendingReleases, setPendingReleases] = useState<readonly number[]>([]);
   const handles = useRef(new Map<string, Handle>());
   const lastPublished = useRef('');
-  const [pool] = useState(() => new PlayerPool(next => {
-    const signature = JSON.stringify(Object.values(next).map(c => [c.key, c.owner, c.generation, c.failed]));
-    if (signature !== lastPublished.current) { lastPublished.current = signature; setSnapshot(next); }
+  const [pool] = useState(() => new PlayerPool((next, releases) => {
+    const signature = JSON.stringify([Object.values(next).map(c => [c.key, c.owner, c.generation, c.failed]), releases]);
+    if (signature !== lastPublished.current) { lastPublished.current = signature; setSnapshot(next); setPendingReleases(releases); }
   }, key => handles.current.get(key)?.pause()));
   const pending = useRef<number | null>(null);
   const measurement = useRef({ epoch: 0, frame: 0 });
@@ -82,5 +94,9 @@ export function ForumPlayerProvider({ children, viewport, navigation }: { childr
       if (pending.current != null) cancelAnimationFrame(pending.current);
     };
   }, [pool]);
-  return <ForumPlayersContext.Provider value={{ pool, snapshot, online, attach, measure }}>{children}</ForumPlayersContext.Provider>;
+  return <ForumPlayersContext.Provider value={{ pool, snapshot, online, attach, measure }}>
+    {children}
+    {/* Native transaction fences have zero area and expose no accessible UI. */}
+    {pendingReleases.map(generation => <NativeReleaseBarrier key={generation} pool={pool} generation={generation} />)}
+  </ForumPlayersContext.Provider>;
 }

@@ -1,6 +1,6 @@
 import { createRef, useLayoutEffect } from 'react';
 import { AppState, View } from 'react-native';
-import { act, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { addNetworkStateListener, getNetworkStateAsync, type NetworkState } from 'expo-network';
 import { renderWithProviders, fakeNavigation } from '../../../test/render';
 import { ForumPlayerProvider, useForumPlayers } from './ForumPlayerProvider';
@@ -26,9 +26,22 @@ describe('forum screen player lifecycle', () => {
     expect(pool.cards.a.generation).not.toBeNull();
     act(() => appListener('inactive')); expect(pool.cards.a.generation).not.toBeNull();
     act(() => networkListener({ isConnected: false })); expect(pool.cards.a.generation).toBeNull(); expect(pause).toHaveBeenCalled();
+    for (const barrier of rendered.getAllByTestId('forum-player-release-barrier', { includeHiddenElements: true })) {
+      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
+      expect(pool.pendingReleases.length).toBeGreaterThan(0);
+      // A duplicate initial-layout event cannot acknowledge the second commit.
+      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
+      expect(pool.pendingReleases.length).toBeGreaterThan(0);
+      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1, height: 0 } } });
+      expect(pool.pendingReleases).toEqual([]);
+    }
     act(() => networkListener({ isConnected: true, isInternetReachable: true }));
     act(() => pool.measure('a', owner!, geometry)); expect(pool.cards.a.generation).not.toBeNull();
     act(() => listeners.get('blur')!()); expect(pool.cards.a.generation).toBeNull();
+    for (const barrier of rendered.getAllByTestId('forum-player-release-barrier', { includeHiddenElements: true })) {
+      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
+      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1, height: 0 } } });
+    }
     act(() => listeners.get('focus')!()); act(() => pool.measure('a', owner!, geometry));
     act(() => appListener('background')); expect(pool.cards.a.generation).toBeNull();
     act(() => appListener('active')); expect(pool.cards.a.generation).toBeNull();

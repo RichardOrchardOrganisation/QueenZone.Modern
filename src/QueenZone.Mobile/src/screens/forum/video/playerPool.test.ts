@@ -12,7 +12,8 @@ function fixture() {
   };
   const move = (key: string, top: number, now = 0, width = 320) => pool.measure(key, pool.cards[key].owner, { top, bottom: top + 200, width, viewportTop: 0, viewportBottom: 800 }, now);
   const mounted = () => Object.values(pool.cards).filter(c => c.generation != null);
-  return { pool, pauses, add, move, mounted };
+  const commit = () => { for (const generation of pool.pendingReleases) pool.confirmRelease(generation); };
+  return { pool, pauses, add, move, mounted, commit };
 }
 describe('bounded mobile YouTube pool', () => {
   it('preloads at 300px but render-ahead and unknown geometry do not load', () => {
@@ -30,13 +31,13 @@ describe('bounded mobile YouTube pool', () => {
     f.move('a', 1400, 1249); assert.equal(f.pool.cards.a.evictionAt, null);
     f.move('a', 1401, 2000); f.pool.tick(2250); assert.equal(f.pool.cards.a.generation, null);
     assert.deepEqual(f.pauses, ['a']);
-    f.move('a', 0, 2300); assert.notEqual(f.pool.cards.a.generation, generation);
+    f.move('a', 0, 2300); f.commit(); assert.notEqual(f.pool.cards.a.generation, generation);
     assert.equal(f.pool.cards.a.playing, false);
   });
   it('caps at two, prioritizes a visible playing card and pauses neighbors on user play', () => {
     const f = fixture(); f.add('a', 0); f.add('b', 400);
     f.pool.message('a', f.pool.cards.a.generation!, 'state', 1);
-    f.add('c', 300); assert.equal(f.mounted().length, 2); assert.notEqual(f.pool.cards.a.generation, null);
+    f.add('c', 300); assert.equal(f.mounted().length, 1); f.commit(); assert.equal(f.mounted().length, 2); assert.notEqual(f.pool.cards.a.generation, null);
     const other = f.mounted().find(c => c.key !== 'a')!;
     f.pool.message(other.key, other.generation!, 'state', 1);
     assert.equal(f.pool.cards.a.playing, false); assert.equal(f.pool.cards[other.key].playing, true);
@@ -50,7 +51,7 @@ describe('bounded mobile YouTube pool', () => {
     f.pool.remove('a', owner); const nextOwner = f.add('a', 0);
     assert.equal(f.pool.cards.a.failed, 'Unavailable'); assert.equal(f.pool.cards.a.generation, null);
     f.pool.retry('a', owner); assert.equal(f.pool.cards.a.failed, 'Unavailable');
-    f.pool.retry('a', nextOwner); assert.notEqual(f.pool.cards.a.generation, null);
+    f.pool.retry('a', nextOwner); f.commit(); assert.notEqual(f.pool.cards.a.generation, null);
     f.pool.message('a', generation, 'state', 1); f.pool.fail('a', generation, 'stale');
     assert.equal(f.pool.cards.a.playing, false); assert.equal(f.pool.cards.a.failed, null);
     f.pool.remove('a', owner); assert.ok(f.pool.cards.a);
@@ -69,7 +70,7 @@ describe('bounded mobile YouTube pool', () => {
     let peak = 0;
     for (let step = 0; step < 30; step++) {
       for (let i = 0; i < 30; i++) f.move(`card${i}`, i * 500 - step * 500, step * 400);
-      f.pool.tick(step * 400 + 250); peak = Math.max(peak, f.mounted().length);
+      f.pool.tick(step * 400 + 250); f.commit(); peak = Math.max(peak, f.mounted().length);
       assert.ok(f.mounted().length <= 2); assert.ok(f.mounted().every(c => !c.playing));
     }
     assert.equal(peak, 2);
@@ -85,8 +86,40 @@ describe('bounded mobile YouTube pool', () => {
     for (let i = 0; i < 30; i++) f.pool.measure(`batch${i}`, owners[i], { top: i * 500 - 10000, bottom: i * 500 - 9800, width: 320, viewportTop: 0, viewportBottom: 800 }, 1000, true);
     assert.deepEqual(f.mounted().map(c => c.generation), generations);
     f.pool.tick(1000); f.pool.tick(1250);
+    assert.equal(f.mounted().length, 0); f.commit();
     assert.deepEqual(f.mounted().map(c => c.key), ['batch20', 'batch21']);
     assert.equal(f.mounted().length, 2);
+  });
+  it('reserves retiring native slots until native commit confirmation, ignoring stale duplicate acknowledgements', () => {
+    const f = fixture(); f.add('a', 0); f.add('b', 400);
+    const generation = f.pool.cards.b.generation!;
+    f.pool.message('a', f.pool.cards.a.generation!, 'state', 1);
+    f.add('c', 300);
+    assert.equal(f.mounted().length, 1); assert.deepEqual(f.pool.pendingReleases, [generation]);
+    for (let i = 0; i < 30; i++) { f.move('c', 300); f.pool.tick(i); }
+    assert.equal(f.pool.cards.c.generation, null);
+    f.pool.confirmRelease(generation + 1000); assert.equal(f.pool.cards.c.generation, null);
+    f.pool.confirmRelease(generation); assert.equal(f.mounted().length, 2);
+    const next = f.pool.cards.c.generation;
+    f.pool.confirmRelease(generation); assert.equal(f.pool.cards.c.generation, next);
+    f.pool.setEnabled(false); f.commit(); assert.equal(f.mounted().length, 0);
+  });
+  it('does not revive retired players on late background acknowledgements and resumes only after fresh geometry', () => {
+    const f = fixture(); f.add('a', 0); f.add('b', 400);
+    const old = f.pool.cards.a.generation!;
+    f.pool.message('a', old, 'state', 1);
+    f.pool.message('a', old, 'fullscreen', true);
+    f.move('a', 5000); f.add('c', 300);
+    assert.equal(f.pool.cards.a.generation, old);
+    assert.equal(f.pool.cards.a.playing, true);
+    f.pool.setEnabled(false);
+    assert.equal(f.mounted().length, 0);
+    f.commit(); f.pool.message('a', old, 'state', 1);
+    assert.equal(f.mounted().length, 0);
+    f.pool.setEnabled(true); f.pool.tick();
+    assert.equal(f.mounted().length, 0);
+    f.move('a', 0); assert.notEqual(f.pool.cards.a.generation, old);
+    assert.equal(f.pool.cards.a.playing, false); assert.equal(f.pool.cards.a.fullscreen, false);
   });
   it('repeated measurements keep generation stable and zero-sized fullscreen measurements are ignored', () => {
     const f = fixture(); const owner = f.add('a', 0); const gen = f.pool.cards.a.generation;
