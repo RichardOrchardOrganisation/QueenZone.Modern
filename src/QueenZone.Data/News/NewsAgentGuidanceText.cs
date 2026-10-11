@@ -5,8 +5,6 @@ namespace QueenZone.Data;
 
 public static class NewsAgentGuidanceText
 {
-    public const int MaxLength = 4000;
-
     public static string Sanitize(string? content)
     {
         if (string.IsNullOrEmpty(content))
@@ -30,19 +28,6 @@ public static class NewsAgentGuidanceText
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sanitizedContent ?? string.Empty));
         return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    public static bool TryValidate(string? content, out string sanitized, out string? error)
-    {
-        sanitized = Sanitize(content);
-        if (sanitized.Length > MaxLength)
-        {
-            error = $"Guidance must be at most {MaxLength} characters.";
-            return false;
-        }
-
-        error = null;
-        return true;
     }
 
     public static string ToStorageType(NewsAgentGuidanceType type) =>

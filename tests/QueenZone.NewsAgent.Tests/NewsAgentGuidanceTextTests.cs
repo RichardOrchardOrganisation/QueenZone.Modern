@@ -13,12 +13,11 @@ public sealed class NewsAgentGuidanceTextTests
     }
 
     [Fact]
-    public void TryValidate_rejects_content_over_4000_characters()
+    public void Sanitize_preserves_guidance_beyond_the_former_character_limit()
     {
-        var tooLong = new string('a', NewsAgentGuidanceText.MaxLength + 1);
+        var content = new string('a', 40_001) + "Always preserve band member quotes.";
 
-        Assert.False(NewsAgentGuidanceText.TryValidate(tooLong, out _, out var error));
-        Assert.Contains("4000", error, StringComparison.Ordinal);
+        Assert.Equal(content, NewsAgentGuidanceText.Sanitize(content));
     }
 
     [Fact]

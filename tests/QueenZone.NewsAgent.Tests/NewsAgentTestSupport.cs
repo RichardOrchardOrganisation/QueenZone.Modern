@@ -5,7 +5,7 @@ using QueenZone.NewsAgent;
 
 namespace QueenZone.NewsAgent.Tests;
 
-internal sealed class FakeNewsDiscoveryHttpClient(IReadOnlyDictionary<string, string> responses) : INewsDiscoveryHttpClient
+internal sealed class FakeNewsDiscoveryHttpClient(IReadOnlyDictionary<string, string> responses, string? defaultResponse = null) : INewsDiscoveryHttpClient
 {
     public Task<string> GetStringAsync(string url, CancellationToken cancellationToken = default)
     {
@@ -14,7 +14,9 @@ internal sealed class FakeNewsDiscoveryHttpClient(IReadOnlyDictionary<string, st
             return Task.FromResult(body);
         }
 
-        throw new HttpRequestException($"No fixture configured for URL '{url}'.");
+        return defaultResponse is not null
+            ? Task.FromResult(defaultResponse)
+            : throw new HttpRequestException($"No fixture configured for URL '{url}'.");
     }
 
     public async Task<NewsDiscoveryHttpResponse> GetAsync(string url, CancellationToken cancellationToken = default)
@@ -119,7 +121,8 @@ internal static class NewsAgentTestSupport
         new(
             repository,
             CreateAiRunExecutor(repository, aiClient),
-            httpClient ?? new FakeNewsDiscoveryHttpClient(new Dictionary<string, string>()),
+            httpClient ?? new FakeNewsDiscoveryHttpClient(new Dictionary<string, string>(),
+                "<article><p>Queen have announced new 2026 tour dates across Europe and the UK.</p></article>"),
             guidanceProvider ?? EmptyNewsAgentGuidanceProvider.Instance,
             Options.Create(new NewsDraftGenerationOptions()),
             NullLogger<NewsDraftGenerationService>.Instance);

@@ -248,3 +248,27 @@ dotnet test QueenZone.sln --configuration Release --no-build
 ```
 
 Report in the PR whether manual smoke tests (`scripts/Smoke-NewsAgent.bat`) and real legacy database checks were run or skipped.
+
+### Full source articles and editorial guidance
+
+Draft generation fetches the full source page and extracts article text, preferring
+publisher article-body containers (including Queen Online's `.article-detail`),
+then semantic article/main content, with a paragraph fallback for older pages.
+Navigation, scripts, sidebars, forms, and footers are excluded. The full extracted
+text, including late paragraphs and quotations, is stored in
+`NewsCandidateEvidence.Excerpt` and supplied to the drafting model. The existing
+column name is retained for compatibility; it now uses `nvarchar(max)`.
+
+A draft cannot be generated from metadata alone. When fetching fails, stored full
+article evidence may be reused; candidates with only a feed excerpt or page
+description fail with a clear error. Review any extraction from unfamiliar
+publishers; inaccessible or JavaScript-only article bodies need another source.
+
+Editorial guidance has no application character cap. Both the editor and server
+retain the complete sanitized text; `NewsAgentGuidanceRevisions.Content` also uses
+`nvarchar(max)`. Draft requests that exceed the configured `OpenRouter:MaxInputTokens`
+approximate budget fail before calling the model rather than silently truncating
+the article or guidance. Raise that budget deliberately for longer sources, within
+the selected model's context capacity and existing spend limits. Triage retains
+its existing input-budget trimming. Apply the `PreserveFullNewsSourceEvidence`
+migration before running the updated web app and local news runner.

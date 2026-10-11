@@ -62,6 +62,6 @@ public sealed class NewsAgentGuidanceProvenanceServiceTests
         Assert.Equal(21, draftRun.GuidanceRevisionId);
         Assert.Equal(5, draftRun.GuidanceRevisionNumber);
         Assert.Equal("hash-draft", draftRun.GuidanceContentHash);
-        Assert.Equal("draft-v4", draftRun.PromptVersion);
+        Assert.Equal("draft-v5", draftRun.PromptVersion);
     }
 }

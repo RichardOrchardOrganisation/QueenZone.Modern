@@ -182,19 +182,33 @@ public sealed partial class AdminNewsAgentGuidanceRoutesTests : IClassFixture<We
     }
 
     [Fact]
-    public async Task SaveDraft_rejects_oversized_content()
+    public async Task SaveDraft_and_publish_preserve_long_guidance()
     {
         var client = CreateClient(AdminEmail);
 
+        var content = new string('a', 40_001) + "Always preserve band member quotes.";
         var response = await PostAsync(client, "/admin/news-discovery/prompt-settings?handler=SaveDraft", new Dictionary<string, string>
         {
             ["type"] = "Draft",
-            ["content"] = new string('a', 4001),
+            ["content"] = content,
             ["rowVersion"] = string.Empty
         });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("4000", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var repository = factory.Services.GetRequiredService<INewsAgentGuidanceRepository>();
+        var draft = (await repository.GetDraftAsync(NewsAgentGuidanceType.Draft))!;
+        Assert.Equal(content, draft.Content);
+        var publish = await PostAsync(client, "/admin/news-discovery/prompt-settings?handler=Publish", new Dictionary<string, string>
+        {
+            ["type"] = "Draft",
+            ["rowVersion"] = Convert.ToBase64String(draft.RowVersion),
+            ["confirm"] = "true"
+        });
+        Assert.Equal(HttpStatusCode.Redirect, publish.StatusCode);
+        Assert.Equal(content, (await repository.GetPublishedAsync(NewsAgentGuidanceType.Draft))!.Content);
+        var html = await client.GetStringAsync("/admin/news-discovery/prompt-settings");
+        Assert.DoesNotContain("maxlength=\"4000\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("max 4000 characters", html, StringComparison.Ordinal);
     }
 
     [Fact]

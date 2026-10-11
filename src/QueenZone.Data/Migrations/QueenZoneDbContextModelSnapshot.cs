@@ -2015,8 +2015,7 @@ namespace QueenZone.Data.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ContentHash")
                         .IsRequired()
@@ -2423,8 +2422,7 @@ namespace QueenZone.Data.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("Excerpt")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("FetchedAt")
                         .HasColumnType("datetime2");

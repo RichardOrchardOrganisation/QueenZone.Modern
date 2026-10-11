@@ -72,7 +72,7 @@ public sealed class NewsAgentUrlIngestionServiceTests
                     <html><head>
                       <title>Queen announce 2026 tour</title>
                       <meta name="description" content="Queen have announced new 2026 tour dates." />
-                    </head><body>Story body</body></html>
+                    </head><body><article><p>Story body</p></article></body></html>
                     """
             },
             triageJson: triageJson,

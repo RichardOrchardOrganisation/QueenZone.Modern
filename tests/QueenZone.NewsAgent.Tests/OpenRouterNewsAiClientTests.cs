@@ -10,6 +10,46 @@ namespace QueenZone.NewsAgent.Tests;
 public sealed class OpenRouterNewsAiClientTests
 {
     [Fact]
+    public async Task CompleteChatAsync_rejects_oversized_drafting_prompt_instead_of_truncating_evidence()
+    {
+        var sent = false;
+        var client = CreateClient((_, _) =>
+        {
+            sent = true;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }, new OpenRouterOptions { ApiKey = "test-key", MaxInputTokens = 20 });
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => client.CompleteChatAsync(
+            new NewsAiChatRequest(NewsAiModelRole.Drafting, NewsDraftPrompt.Version,
+                [new NewsAiChatMessage("user", new string('x', 300) + "Brian May's quote at the end.")])));
+
+        Assert.False(sent);
+        Assert.Contains("complete source article", error.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxInputTokens", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompleteChatAsync_sends_complete_drafting_prompt_with_late_quotes()
+    {
+        string? requestBody = null;
+        var client = CreateClient((request, _) =>
+        {
+            requestBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"ok\"}}]}", Encoding.UTF8, "application/json")
+            };
+        }, new OpenRouterOptions { ApiKey = "test-key", MaxInputTokens = 20_000 });
+        var article = new string('x', 40_001) + "Brian May said, “We made this together.”";
+
+        await client.CompleteChatAsync(new NewsAiChatRequest(NewsAiModelRole.Drafting, NewsDraftPrompt.Version,
+            [new NewsAiChatMessage("user", article)]));
+
+        using var document = JsonDocument.Parse(requestBody!);
+        Assert.Equal(article, document.RootElement.GetProperty("messages")[0].GetProperty("content").GetString());
+    }
+
+    [Fact]
     public async Task CompleteChatAsync_throws_when_api_key_missing()
     {
         var client = CreateClient(

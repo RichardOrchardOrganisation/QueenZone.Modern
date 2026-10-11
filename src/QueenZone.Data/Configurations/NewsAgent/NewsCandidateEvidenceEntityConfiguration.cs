@@ -16,7 +16,7 @@ public sealed class NewsCandidateEvidenceEntityConfiguration : IEntityTypeConfig
         builder.Property(evidence => evidence.SourceName).HasMaxLength(200).IsRequired();
         builder.Property(evidence => evidence.SourceTrustTier).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(evidence => evidence.FetchedTitle).HasMaxLength(500).IsRequired();
-        builder.Property(evidence => evidence.Excerpt).HasMaxLength(4000);
+        builder.Property(evidence => evidence.Excerpt);
         builder.Property(evidence => evidence.ContentHash).HasMaxLength(64);
         builder.Property(evidence => evidence.Etag).HasMaxLength(256);
         builder.Property(evidence => evidence.FetchedAt).IsRequired();

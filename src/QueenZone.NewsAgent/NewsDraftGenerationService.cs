@@ -227,9 +227,9 @@ public sealed class NewsDraftGenerationService(
 
             var parsed = NewsArticlePageParser.Parse(fetched.Body, finalNormalized);
             var evidenceExcerpt = NewsArticlePageParser.BuildEvidenceExcerpt(parsed);
-            if (string.IsNullOrWhiteSpace(evidenceExcerpt))
+            if (string.IsNullOrWhiteSpace(parsed.ArticleText) || string.IsNullOrWhiteSpace(evidenceExcerpt))
             {
-                return evidence;
+                throw new InvalidOperationException("The source page contains no extractable article text.");
             }
 
             var canonicalUrl = NewsCandidateDedupe.NormalizeCanonicalUrl(finalNormalized);
@@ -279,9 +279,16 @@ public sealed class NewsDraftGenerationService(
         {
             logger.LogWarning(
                 ex,
-                "Could not refresh source evidence for candidate {CandidateId}; drafting will use stored evidence.",
+                "Could not refresh full source article for candidate {CandidateId}.",
                 candidate.Id);
-            return evidence;
+            if (evidence.Any(item => item.Excerpt?.StartsWith(NewsArticlePageParser.FullArticlePrefix, StringComparison.Ordinal) == true))
+            {
+                return evidence;
+            }
+
+            throw new InvalidOperationException(
+                $"Candidate {candidate.Id}: the full source article could not be retrieved. Drafting requires article text, not only a feed excerpt or page description.",
+                ex);
         }
     }
 

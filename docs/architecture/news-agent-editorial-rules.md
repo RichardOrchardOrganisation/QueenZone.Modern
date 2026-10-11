@@ -121,7 +121,7 @@ AI triage should **reject** out-of-scope items. Editors can always override by c
 
 ## Drafting rules
 
-- Drafts must be **original QueenZone prose** grounded in fetched excerpts — never copy full source articles or long passages.
+- Drafts must be **original QueenZone prose** grounded in the full fetched source article — never copy full source articles or long passages.
 - Every draft must retain **source links and attribution** (`AttributionText`, `SourceNotes`).
 - Short, newsworthy **band-member quotations** must be exact and evidence-backed (`draft-v2` / `preserved_quotes`); never invent or alter quotes. Paraphrase without quotation marks when exact wording is unavailable.
 - Uncertainty must appear in `ConfidenceNotes` when the model is not sure.

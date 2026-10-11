@@ -7,6 +7,91 @@ namespace QueenZone.NewsAgent.Tests;
 
 public sealed class NewsDraftGenerationServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GenerateDraftAsync_requires_full_article_when_refresh_fails(bool storedFullArticle)
+    {
+        var repository = new InMemoryNewsDiscoveryRepository(new SharedNewsDiscoveryStore());
+        var candidateId = await NewsDiscoveryTestSeeder.SeedNeedsReviewCandidateAsync(repository);
+        var candidate = (await repository.GetCandidateByIdAsync(candidateId))!;
+        if (storedFullArticle)
+        {
+            await repository.AddCandidateEvidenceAsync(candidateId, new NewsCandidateEvidenceDraft(
+                candidate.SourceUrl, "Queen Online", NewsDiscoveryTrustTier.Primary,
+                "Queen announce tour", null, "Full source article:\nQueen have announced tour dates.", null, DateTime.UtcNow));
+        }
+        var aiClient = new DraftGenerationFakeAiClient(NewsAgentTestSupport.SampleDraftJson);
+        var service = NewsAgentTestSupport.CreateDraftGenerationService(repository, aiClient,
+            new FakeNewsDiscoveryHttpClient(new Dictionary<string, string>()));
+
+        if (storedFullArticle)
+        {
+            Assert.True((await service.GenerateDraftAsync(candidate, new NewsDraftRunOptions())).Succeeded);
+            Assert.Contains("Queen have announced tour dates.", aiClient.LastRequest!.Messages[1].Content, StringComparison.Ordinal);
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.GenerateDraftAsync(candidate, new NewsDraftRunOptions()));
+            Assert.Contains("full source article could not be retrieved", error.Message, StringComparison.Ordinal);
+            Assert.Null(aiClient.LastRequest);
+            Assert.Null(await repository.GetDraftByCandidateIdAsync(candidateId));
+        }
+    }
+
+    [Fact]
+    public async Task GenerateDraftAsync_rejects_metadata_only_source()
+    {
+        var repository = new InMemoryNewsDiscoveryRepository(new SharedNewsDiscoveryStore());
+        var candidateId = await NewsDiscoveryTestSeeder.SeedNeedsReviewCandidateAsync(repository);
+        var candidate = (await repository.GetCandidateByIdAsync(candidateId))!;
+        var aiClient = new DraftGenerationFakeAiClient(NewsAgentTestSupport.SampleDraftJson);
+        var service = NewsAgentTestSupport.CreateDraftGenerationService(repository, aiClient,
+            new FakeNewsDiscoveryHttpClient(new Dictionary<string, string>
+            {
+                [candidate.SourceUrl] = "<meta name='description' content='The Official Queen Website'>"
+            }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateDraftAsync(candidate, new NewsDraftRunOptions()));
+        Assert.Null(aiClient.LastRequest);
+    }
+
+    [Fact]
+    public async Task GenerateDraftAsync_supplies_full_article_and_preserves_a_quote_beyond_4000_characters()
+    {
+        const string articleUrl = "https://www.queenonline.com/news/full-article";
+        const string quote = "We made this together.";
+        var opening = string.Join(' ', Enumerable.Repeat("Reporting about the collaboration.", 150));
+        var repository = new InMemoryNewsDiscoveryRepository(new SharedNewsDiscoveryStore());
+        var candidateId = await NewsDiscoveryTestSeeder.SeedNeedsReviewCandidateAsync(repository, canonicalUrl: articleUrl);
+        var content = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            title = "Brian May collaboration",
+            excerpt = "A collaboration.",
+            body = $"<p>Brian May said, “{quote}”</p>",
+            preserved_quotes = new[] { new { speaker = "Brian May", exact_text = quote, source_url = articleUrl } }
+        });
+        var aiClient = new DraftGenerationFakeAiClient(content);
+        var httpClient = new FakeNewsDiscoveryHttpClient(new Dictionary<string, string>
+        {
+            [articleUrl] = $"<meta name='description' content='The Official Queen Website'><div class='article-detail'><p>{opening}</p><p>Brian May said, “{quote}”</p><p>The final detail.</p></div>"
+        });
+        var service = NewsAgentTestSupport.CreateDraftGenerationService(repository, aiClient, httpClient);
+
+        await service.GenerateDraftAsync((await repository.GetCandidateByIdAsync(candidateId))!, new NewsDraftRunOptions());
+
+        var prompt = aiClient.LastRequest!.Messages.Single(message => message.Role == "user").Content;
+        Assert.Contains(opening, prompt, StringComparison.Ordinal);
+        Assert.Contains(quote, prompt, StringComparison.Ordinal);
+        Assert.Contains("The final detail.", prompt, StringComparison.Ordinal);
+        var evidence = await repository.GetCandidateEvidenceAsync(candidateId);
+        Assert.Contains(evidence, item => item.Excerpt?.Length > 4000 && item.Excerpt.Contains(quote, StringComparison.Ordinal));
+        var draft = (await repository.GetDraftByCandidateIdAsync(candidateId))!;
+        Assert.Contains($"“{quote}”", draft.ProposedBody, StringComparison.Ordinal);
+        Assert.Contains(quote, draft.SourceNotes, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task GenerateDraftAsync_creates_unpublished_draft_and_marks_candidate_drafted()
     {

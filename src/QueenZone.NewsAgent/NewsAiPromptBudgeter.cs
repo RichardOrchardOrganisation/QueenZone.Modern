@@ -5,6 +5,18 @@ internal static class NewsAiPromptBudgeter
     private const int ApproximateCharactersPerToken = 4;
     private const string TruncationNotice = "\n\n[Content truncated to fit the configured input budget.]";
 
+    public static IReadOnlyList<NewsAiChatMessage> RequireCompletePrompt(
+        IReadOnlyList<NewsAiChatMessage> messages,
+        int maxInputTokens)
+    {
+        if (messages.Sum(message => (long)message.Content.Length) > (long)maxInputTokens * ApproximateCharactersPerToken)
+        {
+            throw new InvalidOperationException(
+                "The complete source article and editorial guidance exceed OpenRouter MaxInputTokens. Increase the configured input budget; drafting will not silently truncate source evidence.");
+        }
+        return messages;
+    }
+
     public static IReadOnlyList<NewsAiChatMessage> TrimToApproximateTokenBudget(
         IReadOnlyList<NewsAiChatMessage> messages,
         int maxInputTokens)
