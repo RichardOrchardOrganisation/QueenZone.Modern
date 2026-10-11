@@ -41,6 +41,24 @@ public sealed class NewsArticlePageParserTests
     }
 
     [Fact]
+    public void Parse_keeps_block_boundaries_and_inline_quote_text()
+    {
+        var html = """
+            <article><h1>Interview</h1><section><h2>Background</h2>
+            <div>Opening report.</div><blockquote>Brian said, <em>“Keep</em> going.”</blockquote>
+            <ul><li>First point.</li><li>Second point.</li></ul>
+            <table><tr><th>Date</th><td>Thursday</td></tr></table>
+            <p>Final<br>paragraph.</p></section></article>
+            """;
+
+        var parsed = NewsArticlePageParser.Parse(html, "https://example.com/interview");
+
+        Assert.Equal(
+            "Interview\n\nBackground\n\nOpening report.\n\nBrian said, “Keep going.”\n\nFirst point.\n\nSecond point.\n\nDate\n\nThursday\n\nFinal\n\nparagraph.",
+            parsed.ArticleText);
+    }
+
+    [Fact]
     public void Parse_reads_unwrapped_article_paragraphs_when_metadata_is_missing()
     {
         var parsed = NewsArticlePageParser.Parse(

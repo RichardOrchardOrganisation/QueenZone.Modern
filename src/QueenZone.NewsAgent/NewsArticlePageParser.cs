@@ -22,6 +22,12 @@ public static partial class NewsArticlePageParser
 {
     internal const string FullArticlePrefix = "Full source article:\n";
 
+    private static readonly HashSet<string> ArticleBlockTags = new(StringComparer.Ordinal)
+    {
+        "p", "div", "section", "article", "blockquote", "li",
+        "h1", "h2", "h3", "h4", "h5", "h6", "br", "tr", "td", "th"
+    };
+
     private const int MaxExcerptLength = 1200;
     private const int MaxMediaLinks = 5;
     private const int MaxMediaUrlLength = 500;
@@ -134,9 +140,7 @@ public static partial class NewsArticlePageParser
             return;
         }
 
-        var isBlock = node is IElement element && element.LocalName is
-            "p" or "div" or "section" or "article" or "blockquote" or "li" or
-            "h1" or "h2" or "h3" or "h4" or "h5" or "h6" or "br" or "tr" or "td" or "th";
+        var isBlock = node is IElement element && ArticleBlockTags.Contains(element.LocalName);
         if (isBlock)
         {
             builder.AppendLine();
