@@ -45,12 +45,13 @@ run "archive_author_cache_includes_head" {
   command = plan
 
   assert {
-    condition = alltrue([
-      for r in cloudflare_ruleset.archive_author_cache.rules :
+    condition = length([
+      for r in cloudflare_ruleset.archive_author_cache.rules : r
+      if r.ref == "cache_anonymous_archive_authors" &&
       strcontains(r.expression, "(http.request.method in {\"GET\" \"HEAD\"})") &&
       strcontains(r.expression, "starts_with(http.request.uri.path, \"/forum/archive-authors/\")") &&
       strcontains(r.expression, "(http.cookie eq \"\")")
-    ])
+    ]) == 1
     error_message = "Archive-author cache rule must cover cookie-free GET and HEAD only on /forum/archive-authors/."
   }
 }
@@ -69,5 +70,28 @@ run "shapbot_is_blocked" {
       !strcontains(r.expression, " http.user_agent contains")
     ])
     error_message = "All 8 crawler user agents (including ShapBot) must be matched case-insensitively in the block list."
+  }
+}
+
+run "forum_topic_cache_is_anonymous_get_head_only" {
+  command = plan
+
+  assert {
+    condition     = length(cloudflare_ruleset.archive_author_cache.rules) <= 10
+    error_message = "The Free plan allows at most 10 cache rules."
+  }
+
+  assert {
+    condition = anytrue([
+      for r in cloudflare_ruleset.archive_author_cache.rules :
+      r.ref == "cache_anonymous_forum_topics" &&
+      strcontains(r.expression, "(http.request.method in {\"GET\" \"HEAD\"})") &&
+      strcontains(r.expression, "starts_with(lower(http.request.uri.path), \"/forum/topic/\")") &&
+      strcontains(r.expression, "(http.cookie eq \"\")") &&
+      !strcontains(r.expression, "/forum/attachment/") &&
+      r.action_parameters.cache == true &&
+      r.action_parameters.edge_ttl.mode == "respect_origin"
+    ])
+    error_message = "Topic cache rule must cover only cookie-free GET/HEAD on /forum/topic/ (any cookie bypasses) and respect the origin TTL."
   }
 }
