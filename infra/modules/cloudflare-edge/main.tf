@@ -205,33 +205,64 @@ resource "cloudflare_ruleset" "archive_author_rate_limit" {
 resource "cloudflare_ruleset" "archive_author_cache" {
   zone_id     = var.zone_id
   name        = "QueenZone cache rules"
-  description = "Cache expensive anonymous archive-author pages at the edge"
+  description = "Cache anonymous archive-author and forum topic pages at the edge"
   kind        = "zone"
   phase       = "http_request_cache_settings"
 
-  rules = [{
-    ref         = "cache_anonymous_archive_authors"
-    description = "Cache cookie-free archive-author GET and HEAD requests for one hour"
-    expression  = <<-EOT
-      (http.host in {"queenzone.org" "www.queenzone.org"}) and
-      (http.request.method in {"GET" "HEAD"}) and
-      starts_with(http.request.uri.path, "/forum/archive-authors/") and
-      (http.cookie eq "")
-    EOT
-    action      = "set_cache_settings"
-    enabled     = true
+  rules = [
+    {
+      ref         = "cache_anonymous_archive_authors"
+      description = "Cache cookie-free archive-author GET and HEAD requests for one hour"
+      expression  = <<-EOT
+        (http.host in {"queenzone.org" "www.queenzone.org"}) and
+        (http.request.method in {"GET" "HEAD"}) and
+        starts_with(http.request.uri.path, "/forum/archive-authors/") and
+        (http.cookie eq "")
+      EOT
+      action      = "set_cache_settings"
+      enabled     = true
 
-    action_parameters = {
-      cache = true
-      edge_ttl = {
-        mode    = "override_origin"
-        default = 3600
+      action_parameters = {
+        cache = true
+        edge_ttl = {
+          mode    = "override_origin"
+          default = 3600
+        }
+        browser_ttl = {
+          mode = "respect_origin"
+        }
       }
-      browser_ttl = {
-        mode = "respect_origin"
+    },
+    {
+      # Forum topic pages (/forum/topic/{id}/{slug} and /page/{n}) send
+      # Cache-Control: public, max-age=60 and no anonymous Set-Cookie since
+      # v2026.10.11.1, but were DYNAMIC because no rule made HTML eligible.
+      # Unlike the static archive, topics gain replies, so the edge respects the
+      # origin's 60s TTL instead of overriding it. The reply form POSTs to the
+      # topic URL itself and is excluded by the GET/HEAD method match; signed-in
+      # members carry auth/antiforgery cookies and bypass via the cookie check.
+      ref         = "cache_anonymous_forum_topics"
+      description = "Cache cookie-free forum topic GET and HEAD requests for the origin max-age"
+      expression  = <<-EOT
+        (http.host in {"queenzone.org" "www.queenzone.org"}) and
+        (http.request.method in {"GET" "HEAD"}) and
+        starts_with(lower(http.request.uri.path), "/forum/topic/") and
+        (http.cookie eq "")
+      EOT
+      action      = "set_cache_settings"
+      enabled     = true
+
+      action_parameters = {
+        cache = true
+        edge_ttl = {
+          mode = "respect_origin"
+        }
+        browser_ttl = {
+          mode = "respect_origin"
+        }
       }
-    }
-  }]
+    },
+  ]
 }
 
 # --- DNS records (infra/import/cloudflare-hostnames.json, #624 audit) ---
