@@ -1,0 +1,52 @@
+{
+  "question_count": 1500,
+  "quiz_count": 60,
+  "questions_per_quiz": 25,
+  "option_rows": 6000,
+  "repository_baseline_questions": 1694,
+  "comparison_questions": 1795,
+  "live_baseline_supplied": true,
+  "production_snapshot_date": "2026-10-11",
+  "production_snapshot_questions": 1700,
+  "production_only_wordings": 101,
+  "normalized_wording_matches": 0,
+  "repeated_fact_keys": 0,
+  "difficulty": {
+    "very hard": 98,
+    "hard": 777,
+    "medium": 451,
+    "easy": 174
+  },
+  "categories": {
+    "Album Tracks": 260,
+    "Songwriting": 240,
+    "Concerts": 300,
+    "Recording Details": 41,
+    "Live Albums": 180,
+    "Guest Appearances": 322,
+    "Early Lives": 41,
+    "Solo Projects": 39,
+    "Releases": 33,
+    "Queen History": 32,
+    "Musical Theatre": 2,
+    "Later Queen": 10
+  },
+  "correct_answer_positions": {
+    "1": 375,
+    "2": 375,
+    "3": 375,
+    "4": 375
+  },
+  "source_books": [
+    "Queen: Complete Works",
+    "Queen: As It Began",
+    "Queen: A Visual Documentary",
+    "Queen: The Early Years"
+  ],
+  "candidate_questions": 1765,
+  "rejected_candidates": 280,
+  "limitations": [
+    "Lexical and explicit relationship checks do not prove universal semantic uniqueness; editorial source review remains necessary.",
+    "Questions are not imported or published by this generator."
+  ]
+}
