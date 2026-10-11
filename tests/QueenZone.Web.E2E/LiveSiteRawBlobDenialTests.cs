@@ -97,4 +97,33 @@ public class LiveSiteRawBlobDenialTests
             LiveSiteRawBlobDenial.ReadErrorCode(publicMissingBlob.Headers),
             Is.EqualTo(LiveSiteRawBlobDenial.BlobNotFound));
     }
+
+    [TestCase(HttpStatusCode.NotFound, "ResourceNotFound", "", true)]
+    [TestCase(HttpStatusCode.NotFound, null, "<Error><Code>ResourceNotFound</Code></Error>", true)]
+    [TestCase(HttpStatusCode.Conflict, null, "<Error><Code>PublicAccessNotPermitted</Code></Error>", true)]
+    [TestCase(HttpStatusCode.NotFound, null, "<Error><Code>BlobNotFound</Code></Error>", false)]
+    [TestCase(HttpStatusCode.NotFound, "BlobNotFound", "<Error><Code>ResourceNotFound</Code></Error>", false)]
+    [TestCase(HttpStatusCode.NotFound, "ResourceNotFound", "<Error><Code>BlobNotFound</Code></Error>", true)]
+    [TestCase(HttpStatusCode.NotFound, "", "<Error><Code>ResourceNotFound</Code></Error>", false)]
+    [TestCase(HttpStatusCode.NotFound, null, "", false)]
+    [TestCase(HttpStatusCode.NotFound, null, null, false)]
+    [TestCase(HttpStatusCode.NotFound, null, "   ", false)]
+    [TestCase(HttpStatusCode.NotFound, null, "not XML", false)]
+    [TestCase(HttpStatusCode.NotFound, null, "<Error><Code>ResourceNotFound</Code>", false)]
+    [TestCase(HttpStatusCode.NotFound, null, "<Other><Code>ResourceNotFound</Code></Other>", false)]
+    [TestCase(HttpStatusCode.NotFound, null, "<Error />", false)]
+    [TestCase(HttpStatusCode.NotFound, null, " \uFEFF \r\n<?xml version=\"1.0\"?><Error><Code> ResourceNotFound </Code></Error>", true)]
+    [TestCase(HttpStatusCode.Conflict, null, "<Error><Code>ResourceNotFound</Code></Error>", false)]
+    [TestCase(HttpStatusCode.NotFound, null, "<Error><Code>PublicAccessNotPermitted</Code></Error>", false)]
+    public void IsPrivateContainerRefusal_UsesHeaderBeforeBody(
+        HttpStatusCode status, string? headerCode, string? body, bool expected)
+    {
+        using var response = new HttpResponseMessage(status);
+        if (headerCode is not null)
+        {
+            response.Headers.TryAddWithoutValidation(LiveSiteRawBlobDenial.ErrorCodeHeaderName, headerCode);
+        }
+
+        Assert.That(LiveSiteRawBlobDenial.IsPrivateContainerRefusal(response, body), Is.EqualTo(expected));
+    }
 }

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace QueenZone.Web.E2E;
 
@@ -21,8 +23,9 @@ internal static class LiveSiteRawBlobDenial
     public const string PublicAccessNotPermitted = "PublicAccessNotPermitted";
     public const string BlobNotFound = "BlobNotFound";
 
-    public static bool IsPrivateContainerRefusal(HttpStatusCode status, string? errorCode)
+    public static bool IsPrivateContainerRefusal(HttpStatusCode status, string? errorCode, string? bodyCode = null)
     {
+        errorCode ??= bodyCode;
         if (status == HttpStatusCode.NotFound
             && string.Equals(errorCode, ResourceNotFound, StringComparison.OrdinalIgnoreCase))
         {
@@ -33,10 +36,34 @@ internal static class LiveSiteRawBlobDenial
             && string.Equals(errorCode, PublicAccessNotPermitted, StringComparison.OrdinalIgnoreCase);
     }
 
-    public static bool IsPrivateContainerRefusal(HttpResponseMessage response)
+    public static bool IsPrivateContainerRefusal(HttpResponseMessage response, string? body = null)
     {
         ArgumentNullException.ThrowIfNull(response);
-        return IsPrivateContainerRefusal(response.StatusCode, ReadErrorCode(response.Headers));
+        return IsPrivateContainerRefusal(response.StatusCode, ReadErrorCode(response.Headers), ReadBodyErrorCode(body));
+    }
+
+    public static string? ReadBodyErrorCode(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var text = new StringReader(body.Trim().TrimStart('\uFEFF').TrimStart());
+            using var reader = XmlReader.Create(text, new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null,
+            });
+            var root = XDocument.Load(reader).Root;
+            return root?.Name == "Error" ? root.Element("Code")?.Value.Trim() : null;
+        }
+        catch (XmlException)
+        {
+            return null;
+        }
     }
 
     public static string? ReadErrorCode(HttpHeaders headers)

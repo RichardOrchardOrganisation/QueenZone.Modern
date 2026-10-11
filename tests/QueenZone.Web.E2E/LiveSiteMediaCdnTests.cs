@@ -116,15 +116,17 @@ public class LiveSiteMediaCdnTests : RealDataPageTest
             return client.SendAsync(request);
         });
 
+        var body = await response.Content.ReadAsStringAsync();
         var errorCode = LiveSiteRawBlobDenial.ReadErrorCode(response.Headers);
+        var bodyCode = LiveSiteRawBlobDenial.ReadBodyErrorCode(body);
         Assert.That(
-            LiveSiteRawBlobDenial.IsPrivateContainerRefusal(response),
+            LiveSiteRawBlobDenial.IsPrivateContainerRefusal(response.StatusCode, errorCode, bodyCode),
             Is.True,
             FailurePrefix() +
             $"anonymous GET {url} must return 404 {LiveSiteRawBlobDenial.ResourceNotFound} or " +
             $"409 {LiveSiteRawBlobDenial.PublicAccessNotPermitted} for private {container} " +
             $"on the raw blob origin; got {(int)response.StatusCode} {response.StatusCode} " +
-            $"{LiveSiteRawBlobDenial.ErrorCodeHeaderName}={errorCode ?? "(none)"}.");
+            $"{LiveSiteRawBlobDenial.ErrorCodeHeaderName}={errorCode ?? "(none)"}, body code={bodyCode ?? "(none)"}.");
     }
 
     private async Task AssertAnonymousPrivateMediaDeniedAsync(string url, string container)
