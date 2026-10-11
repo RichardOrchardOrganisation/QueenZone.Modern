@@ -59,16 +59,23 @@
       "sources": [
         "src/QueenZone.Mobile/src/screens/forum/ThreadScreen.tsx",
         "src/QueenZone.Mobile/src/screens/forum/ThreadHeader.tsx",
-        "src/QueenZone.Mobile/src/screens/forum/threadPresentation.ts"
+        "src/QueenZone.Mobile/src/screens/forum/threadPresentation.ts",
+        "src/QueenZone.Mobile/src/screens/forum/ForumPostRow.tsx",
+        "src/QueenZone.Mobile/src/screens/forum/video/"
       ],
       "testIds": [
         "forumThreadScreen",
         "forumThreadBack",
         "forumThreadReply",
-        "forumThreadAttachment"
+        "forumThreadAttachment",
+        "forumYoutubePlayer",
+        "forumYoutubeStatus",
+        "forumYoutubeWatch",
+        "forumYoutubeRetry"
       ],
       "flows": [
-        "src/QueenZone.Mobile/maestro/flows/07-forum.yaml"
+        "src/QueenZone.Mobile/maestro/flows/07-forum.yaml",
+        "src/QueenZone.Mobile/maestro/flows/21-forum-youtube.yaml"
       ],
       "specs": [],
       "selectors": [],
@@ -77,7 +84,10 @@
       "id": "mobile.forum.thread",
       "name": "Forum thread",
       "screen": "ForumStack/Thread",
-      "entry": "Forum \u2192 board \u2192 thread"
+      "entry": "Forum \u2192 board \u2192 thread",
+      "drive": {
+        "youtube": "src/QueenZone.Mobile/maestro/flows/21-forum-youtube.yaml"
+      }
     },
     {
       "aliases": [

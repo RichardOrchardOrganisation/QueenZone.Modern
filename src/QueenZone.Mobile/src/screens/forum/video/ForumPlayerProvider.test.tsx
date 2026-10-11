@@ -1,0 +1,44 @@
+import { createRef, useLayoutEffect } from 'react';
+import { AppState, View } from 'react-native';
+import { act, waitFor } from '@testing-library/react-native';
+import { addNetworkStateListener, getNetworkStateAsync, type NetworkState } from 'expo-network';
+import { renderWithProviders, fakeNavigation } from '../../../test/render';
+import { ForumPlayerProvider, useForumPlayers } from './ForumPlayerProvider';
+let context: ReturnType<typeof useForumPlayers>;
+function Probe() { const value = useForumPlayers(); useLayoutEffect(() => { context = value; }, [value]); return null; }
+describe('forum screen player lifecycle', () => {
+  it('pauses/releases on network loss, blur and background, and invalidates pending measurements', async () => {
+    const listeners = new Map<string, () => void>();
+    const navigation = { ...fakeNavigation(), addListener: jest.fn((event: 'focus' | 'blur', callback: () => void) => { listeners.set(event, callback); return jest.fn(); }) };
+    let appListener: (state: 'active' | 'inactive' | 'background') => void = () => {};
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, callback) => { appListener = callback; return { remove: jest.fn() }; });
+    let networkListener: (state: NetworkState) => void = () => {};
+    jest.mocked(addNetworkStateListener).mockImplementation(callback => { networkListener = callback; return { remove: jest.fn() }; });
+    const viewport = createRef<View>();
+    Object.assign(viewport, { current: { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, 0, 320, 800) } });
+    const rendered = renderWithProviders(<ForumPlayerProvider viewport={viewport} navigation={navigation}><Probe /></ForumPlayerProvider>, { navigation: false });
+    act(() => appListener('active'));
+    await waitFor(() => expect(context!.online).toBe(true));
+    const pool = context!.pool; let owner: number;
+    const geometry = { top: 0, bottom: 200, width: 320, viewportTop: 0, viewportBottom: 800 };
+    const pause = jest.fn();
+    act(() => { owner = pool.register('a'); context!.attach('a', { pause, measure: () => {} }); pool.measure('a', owner, geometry); });
+    expect(pool.cards.a.generation).not.toBeNull();
+    act(() => appListener('inactive')); expect(pool.cards.a.generation).not.toBeNull();
+    act(() => networkListener({ isConnected: false })); expect(pool.cards.a.generation).toBeNull(); expect(pause).toHaveBeenCalled();
+    act(() => networkListener({ isConnected: true, isInternetReachable: true }));
+    act(() => pool.measure('a', owner!, geometry)); expect(pool.cards.a.generation).not.toBeNull();
+    act(() => listeners.get('blur')!()); expect(pool.cards.a.generation).toBeNull();
+    act(() => listeners.get('focus')!()); act(() => pool.measure('a', owner!, geometry));
+    act(() => appListener('background')); expect(pool.cards.a.generation).toBeNull();
+    act(() => appListener('active')); expect(pool.cards.a.generation).toBeNull();
+    rendered.unmount(); expect(pool.enabled).toBe(false);
+  });
+  it('unknown or failed initial network detection stays offline with no player requests', async () => {
+    jest.mocked(getNetworkStateAsync).mockRejectedValueOnce(new Error('Unknown network'));
+    const rendered = renderWithProviders(<ForumPlayerProvider viewport={createRef<View>()} navigation={fakeNavigation()}><Probe /></ForumPlayerProvider>, { navigation: false });
+    await act(async () => {});
+    expect(context!.online).toBe(false); expect(context!.pool.enabled).toBe(false);
+    rendered.unmount();
+  });
+});

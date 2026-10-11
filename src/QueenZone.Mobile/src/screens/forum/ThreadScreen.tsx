@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, StyleSheet, type ListRenderItem } from 'react-native';
+import { Alert, FlatList, StyleSheet, View, type ListRenderItem } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   fetchForumTopicPostsResult,
@@ -23,6 +23,7 @@ import { EmptyBlock, ErrorBlock, LoadingBlock } from '../../ui/ScreenStates';
 import { ThemedRefreshControl } from '../../ui/ThemedRefreshControl';
 import { testIds } from '../../test/testIds';
 import { useTheme } from '../../theme';
+import { ForumPlayerProvider, useForumPlayers } from './video/ForumPlayerProvider';
 import { ThreadHeader } from './ThreadHeader';
 import { threadHeading } from './threadPresentation';
 import { ForumPostRow, postKeyExtractor, type DisplayPost } from './ForumPostRow';
@@ -36,7 +37,16 @@ function isStaleReadFailure(err: unknown): boolean {
   return isOfflineFailure(err) || isTimeoutFailure(err);
 }
 
-export function ThreadScreen({ navigation, route }: Props) {
+export function ThreadScreen(props: Props) {
+  const viewport = useRef<View>(null);
+  return <View ref={viewport} collapsable={false} style={{ flex: 1 }}>
+    <ForumPlayerProvider key={String(props.route.params.id)} viewport={viewport} navigation={props.navigation}>
+      <ThreadContent {...props} />
+    </ForumPlayerProvider>
+  </View>;
+}
+function ThreadContent({ navigation, route }: Props) {
+  const players = useForumPlayers();
   const { c } = useTheme();
   const { isSignedIn, accessToken, profile } = useSession();
   const memberId = accessToken ? resolvePushMemberId(accessToken, profile?.memberId) : null;
@@ -266,6 +276,11 @@ export function ThreadScreen({ navigation, route }: Props) {
           onReply={openReply}
         />
       }
+      onScroll={players?.measure}
+      onLayout={players?.measure}
+      onContentSizeChange={players?.measure}
+      scrollEventThrottle={32}
+      removeClippedSubviews={false}
       alwaysBounceVertical
       refreshControl={
         <ThemedRefreshControl refreshing={paged.refreshing} onRefresh={refresh} />
