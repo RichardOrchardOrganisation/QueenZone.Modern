@@ -1,0 +1,49 @@
+appId: org.queenzone.mobile
+---
+# Real YouTube; no provider stubs. Requires a Release fixture build and network.
+# This proves card/load/fallback UI only; the native manual matrix remains required.
+- tapOn:
+    id: tab-forum
+- extendedWaitUntil:
+    visible:
+      id: forum-screen
+    timeout: 20000
+- tapOn:
+    id: forum-board-1
+- extendedWaitUntil:
+    visible:
+      id: forum-category-screen
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: forum-thread-1030
+    direction: DOWN
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 10000
+# iOS can report the final row's full bounds beneath the persistent tab bar.
+# Tap the visible upper part of this identified row, never the tab bar overlay.
+- tapOn:
+    id: forum-thread-1030
+    point: "50%,20%"
+- extendedWaitUntil:
+    visible:
+      id: forum-thread-screen
+    timeout: 20000
+- assertVisible: Before the shared video.
+- assertVisible: Original video
+- scrollUntilVisible:
+    element:
+      id: forum-youtube-watch
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    id: forum-youtube-watch
+- extendedWaitUntil:
+    visible: Ready. Press the YouTube Play control to play.
+    timeout: 30000
+- takeScreenshot: forum-youtube-autoload-before-play
+# Actual YouTube Play/fullscreen controls differ by OS/provider. Follow manual
+# proof matrix; never use a synthetic bridge state as native playback proof.
+- tapOn:
+    id: forum-thread-back
