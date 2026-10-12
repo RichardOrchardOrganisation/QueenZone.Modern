@@ -226,41 +226,14 @@ public static partial class PhotoCorrectionValidation
             errors.Add("Choose what you want to correct.");
         }
 
-        if (string.IsNullOrWhiteSpace(proposedValue))
-        {
-            errors.Add("Enter the corrected value.");
-        }
-        else if (proposedValue.Trim().Length > MaxValueLength)
-        {
-            errors.Add($"The corrected value must be {MaxValueLength} characters or fewer.");
-        }
-        else if (kind == PhotoCorrectionKind.Caption && proposedValue.Trim().Length > MaxCaptionLength)
-        {
-            errors.Add($"A caption must be {MaxCaptionLength} characters or fewer.");
-        }
-
-        if (string.IsNullOrWhiteSpace(explanation) && kind != PhotoCorrectionKind.Memory)
-        {
-            errors.Add("Explain how you know, so an editor can check it.");
-        }
-        else if (explanation.Trim().Length > MaxExplanationLength)
-        {
-            errors.Add($"The explanation must be {MaxExplanationLength} characters or fewer.");
-        }
+        AddIfPresent(errors, ValueError(kind, proposedValue));
+        AddIfPresent(errors, ExplanationError(kind, explanation));
+        AddIfPresent(errors, EvidenceTypeError(evidenceType));
+        AddIfPresent(errors, EvidenceUrlError(evidenceUrl));
 
         if (!PhotoCorrectionConfidence.IsKnown(confidence))
         {
             errors.Add("Say how sure you are.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(evidenceType) && !PhotoCorrectionEvidenceType.IsKnown(evidenceType))
-        {
-            errors.Add("Choose a valid evidence type.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(evidenceUrl) && !IsSafeEvidenceUrl(evidenceUrl))
-        {
-            errors.Add("The evidence link must be a full http:// or https:// web address without a username or password.");
         }
 
         if (!string.IsNullOrWhiteSpace(publicCreditName) && publicCreditName.Trim().Length > MaxCreditNameLength)
@@ -275,6 +248,55 @@ public static partial class PhotoCorrectionValidation
 
         return errors;
     }
+
+    private static void AddIfPresent(List<string> errors, string? error)
+    {
+        if (error is not null)
+        {
+            errors.Add(error);
+        }
+    }
+
+    private static string? ValueError(string kind, string proposedValue)
+    {
+        var length = proposedValue.Trim().Length;
+        if (length == 0)
+        {
+            return "Enter the corrected value.";
+        }
+
+        if (length > MaxValueLength)
+        {
+            return $"The corrected value must be {MaxValueLength} characters or fewer.";
+        }
+
+        return kind == PhotoCorrectionKind.Caption && length > MaxCaptionLength
+            ? $"A caption must be {MaxCaptionLength} characters or fewer."
+            : null;
+    }
+
+    private static string? ExplanationError(string kind, string explanation)
+    {
+        var length = explanation.Trim().Length;
+        if (length == 0)
+        {
+            return kind == PhotoCorrectionKind.Memory ? null : "Explain how you know, so an editor can check it.";
+        }
+
+        return length > MaxExplanationLength
+            ? $"The explanation must be {MaxExplanationLength} characters or fewer."
+            : null;
+    }
+
+    private static string? EvidenceTypeError(string? evidenceType) =>
+        !string.IsNullOrWhiteSpace(evidenceType) && !PhotoCorrectionEvidenceType.IsKnown(evidenceType)
+            ? "Choose a valid evidence type."
+            : null;
+
+    private static string? EvidenceUrlError(string? evidenceUrl) =>
+        !string.IsNullOrWhiteSpace(evidenceUrl) && !IsSafeEvidenceUrl(evidenceUrl)
+            ? "The evidence link must be a full http:// or https:// web address without a username or password."
+            : null;
 
     /// <summary>
     /// Free text is reviewed by editors and, for memories, may be published. Refuse obvious
