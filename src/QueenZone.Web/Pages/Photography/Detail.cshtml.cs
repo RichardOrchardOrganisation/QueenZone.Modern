@@ -15,6 +15,8 @@ public sealed class DetailModel(
 
     public IReadOnlyList<ArchiveNote> ArchiveNotes { get; private set; } = [];
 
+    public IReadOnlyList<ArchiveNote> Memories { get; private set; } = [];
+
     public int Index { get; private set; }
 
     public int Count { get; private set; }
@@ -71,6 +73,9 @@ public sealed class DetailModel(
 
         Category = category;
         Photo = navigation.Photo;
+        Memories = (await photoCorrectionRepository.GetApprovedMemoriesAsync(picId, cancellationToken))
+            .Select(ArchiveNote.From)
+            .ToList();
         ArchiveNotes = (await photoCorrectionRepository.GetApprovedPublicAsync(picId, cancellationToken))
             .Select(ArchiveNote.From)
             .ToList();
@@ -109,6 +114,7 @@ public sealed class DetailModel(
 public sealed record ArchiveNote(string Label, string Value, string? Credit)
 {
     public string Text => Credit is null ? $"{Label}: {Value}" : $"{Label}: {Value} (thanks to {Credit})";
+
 
     public static ArchiveNote From(PublicPhotoCorrection correction) =>
         new(PhotoCorrectionKind.Label(correction.Kind), correction.Value, correction.CreditName);

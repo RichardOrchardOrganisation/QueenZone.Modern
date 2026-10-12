@@ -370,6 +370,54 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
     }
 
     [Fact]
+    public async Task Memory_is_moderated_separately_and_shown_as_a_labelled_recollection_only_when_approved()
+    {
+        var member = await SignInAsync("pc-memory@example.com", "Memory Fan", "google-pc-memory");
+        var fields = Fields("I was in the front row and Brian waved.");
+        fields["Kind"] = PhotoCorrectionKind.Memory;
+        fields["Explanation"] = string.Empty;
+        fields["PublicCreditName"] = "Front Row Fan";
+        fields["SubmissionId"] = Guid.NewGuid().ToString("D");
+        var response = await PostProposalAsync(member, 301, fields);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var id = Guid.Parse(response.Headers.Location!.OriginalString.Split('/').Last());
+        var admin = CreateAdminClient(AdminEmail);
+        var anonymous = factory.CreateClient();
+
+        Assert.DoesNotContain("front row", await admin.GetStringAsync("/admin/photo-corrections"));
+        Assert.Contains("front row", await admin.GetStringAsync("/admin/photo-corrections?queue=memories"));
+        Assert.DoesNotContain("front row", await anonymous.GetStringAsync("/photography/freddie-mercury/301"));
+
+        await PostAdminAsync(admin, id, "approve", new(), await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
+        var page = await anonymous.GetStringAsync("/photography/freddie-mercury/301");
+        Assert.Contains("Fan memories", page);
+        Assert.Contains("not verified by QueenZone", page);
+        Assert.Contains("I was in the front row and Brian waved.", page);
+        Assert.Contains("Front Row Fan", page);
+        Assert.Contains("Freddie at the piano", page);
+        var metaLines = page.Split('\n').Where(line => line.Contains("<meta", StringComparison.Ordinal));
+        Assert.DoesNotContain(metaLines, line => line.Contains("front row", StringComparison.Ordinal));
+
+        await PostAdminAsync(admin, id, "revert", new(), await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
+        Assert.DoesNotContain("Fan memories", await anonymous.GetStringAsync("/photography/freddie-mercury/301"));
+    }
+
+    [Fact]
+    public async Task Memory_with_contact_details_is_refused()
+    {
+        var member = await SignInAsync("pc-memory-bad@example.com", "Memory Bad", "google-pc-memory-bad");
+        var fields = Fields("Contact me on fan@example.com about this");
+        fields["Kind"] = PhotoCorrectionKind.Memory;
+        fields["Explanation"] = string.Empty;
+        fields["SubmissionId"] = Guid.NewGuid().ToString("D");
+
+        var response = await PostProposalAsync(member, 301, fields);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("remove email addresses and phone numbers", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Admin_actions_return_not_found_for_unknown_ids_and_redirect_on_get()
     {
         var member = await SignInAsync("pc-404@example.com", "Missing Fan", "google-pc-404");

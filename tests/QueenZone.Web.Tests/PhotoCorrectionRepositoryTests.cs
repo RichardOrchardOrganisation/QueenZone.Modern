@@ -345,6 +345,57 @@ public sealed class PhotoCorrectionRepositoryTests : IAsyncDisposable
         await repository.CreateAsync(New(picId: 101));
     }
 
+    [Theory]
+    [MemberData(nameof(Implementations))]
+    public async Task Memories_have_their_own_queue_and_are_public_only_when_approved(string implementation)
+    {
+        var repository = Create(implementation);
+        var correction = await repository.CreateAsync(New(picId: 101));
+        var memory = await repository.CreateAsync(New(picId: 101, kind: PhotoCorrectionKind.Memory, proposed: "I queued all night.", credit: "Row Z"));
+
+        Assert.Equal([correction.Id], (await repository.GetOpenAsync(1, 10)).Select(item => item.Id));
+        Assert.Equal([memory.Id], (await repository.GetOpenAsync(1, 10, memories: true)).Select(item => item.Id));
+        Assert.Empty(await repository.GetApprovedMemoriesAsync(101));
+
+        await repository.ApproveAsync(memory.Id, "ed@example.com", null, null);
+
+        var shown = Assert.Single(await repository.GetApprovedMemoriesAsync(101));
+        Assert.Equal(new PublicPhotoCorrection(PhotoCorrectionKind.Memory, "I queued all night.", "Row Z"), shown);
+        Assert.Empty(await repository.GetApprovedPublicAsync(101));
+        Assert.Empty(await repository.GetApprovedMemoriesAsync(102));
+
+        await repository.RevertAsync(memory.Id, "ed@example.com", null);
+        Assert.Empty(await repository.GetApprovedMemoriesAsync(101));
+    }
+
+    [Theory]
+    [MemberData(nameof(Implementations))]
+    public async Task Approved_memories_are_capped_and_newest_first(string implementation)
+    {
+        var repository = Create(implementation);
+        for (var i = 0; i < PhotoCorrectionValidation.MaxPublicMemories + 2; i++)
+        {
+            var member = Guid.NewGuid();
+            dbContext.MemberAccounts.Add(new MemberAccount
+            {
+                Id = member,
+                Email = $"mem{i}@example.com",
+                NormalizedEmail = $"MEM{i}@EXAMPLE.COM",
+                DisplayName = $"Memory {i}",
+                CreatedAt = DateTime.UtcNow,
+            });
+            await dbContext.SaveChangesAsync();
+            var created = await repository.CreateAsync(New(picId: 101, kind: PhotoCorrectionKind.Memory, proposed: $"Memory {i}", member: member));
+            await repository.ApproveAsync(created.Id, "ed@example.com", null, null);
+            await Task.Delay(3);
+        }
+
+        var shown = await repository.GetApprovedMemoriesAsync(101);
+
+        Assert.Equal(PhotoCorrectionValidation.MaxPublicMemories, shown.Count);
+        Assert.Equal($"Memory {PhotoCorrectionValidation.MaxPublicMemories + 1}", shown[0].Value);
+    }
+
     [Fact]
     public async Task Ef_second_editor_deciding_the_same_proposal_loses_the_race()
     {

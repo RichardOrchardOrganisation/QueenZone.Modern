@@ -21,7 +21,7 @@ public sealed class PhotoCorrectionModel(
 
     [BindProperty]
     [Display(Name = "How do you know?")]
-    public string Explanation { get; set; } = string.Empty;
+    public string? Explanation { get; set; }
 
     [BindProperty]
     [Display(Name = "Evidence link")]
@@ -71,7 +71,7 @@ public sealed class PhotoCorrectionModel(
         var errors = PhotoCorrectionValidation.Validate(
             Kind,
             ProposedValue,
-            Explanation,
+            Explanation ?? string.Empty,
             EvidenceUrl,
             EvidenceType,
             Confidence,
@@ -95,7 +95,7 @@ public sealed class PhotoCorrectionModel(
                     Kind,
                     CurrentValueFor(Kind, Photo!),
                     ProposedValue,
-                    Explanation,
+                    Explanation ?? string.Empty,
                     EvidenceUrl,
                     EvidenceType,
                     Confidence,

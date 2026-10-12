@@ -35,6 +35,41 @@ public sealed class PhotoCorrectionValidationTests
     }
 
     [Fact]
+    public void Validate_lets_a_memory_skip_the_explanation_but_not_other_kinds()
+    {
+        Assert.Empty(PhotoCorrectionValidation.Validate(
+            PhotoCorrectionKind.Memory, "I was in the front row.", string.Empty, null, null, PhotoCorrectionConfidence.Certain, null));
+        Assert.Contains(
+            "Explain how you know, so an editor can check it.",
+            PhotoCorrectionValidation.Validate(
+                PhotoCorrectionKind.EventDate, "1985", string.Empty, null, null, PhotoCorrectionConfidence.Certain, null));
+    }
+
+    [Theory]
+    [InlineData("Email me at fan@example.com for the print", true)]
+    [InlineData("Call +44 20 7946 0958 after the show", true)]
+    [InlineData("Phone 0207 946 0958", true)]
+    [InlineData("1985-1986-1987 tour photos", true)]
+    [InlineData("Wembley, 12 July 1986, row 14 seat 22", false)]
+    [InlineData("Seen again in 1981 and 1982", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void ContainsContactDetails_flags_emails_and_long_digit_runs(string? text, bool expected) =>
+        Assert.Equal(expected, PhotoCorrectionValidation.ContainsContactDetails(text));
+
+    [Fact]
+    public void Validate_rejects_contact_details_in_value_or_explanation()
+    {
+        Assert.Contains(
+            "Please remove email addresses and phone numbers; editors never need them here.",
+            Validate(proposed: "Mail me: a@b.co"));
+        Assert.Contains(
+            "Please remove email addresses and phone numbers; editors never need them here.",
+            PhotoCorrectionValidation.Validate(
+                PhotoCorrectionKind.Memory, "Great night", "ring 07700 900123", null, null, PhotoCorrectionConfidence.Certain, null));
+    }
+
+    [Fact]
     public void Validate_rejects_captions_longer_than_the_gallery_column() =>
         Assert.Contains(
             "A caption must be 200 characters or fewer.",

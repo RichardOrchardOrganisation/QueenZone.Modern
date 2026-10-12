@@ -9,12 +9,15 @@ public sealed class IndexModel(IPhotoCorrectionRepository photoCorrectionReposit
 
     public int PageNumber { get; private set; } = 1;
 
+    public bool ShowMemories { get; private set; }
+
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
-    public async Task OnGetAsync(int pageNumber = 1, CancellationToken cancellationToken = default)
+    public async Task OnGetAsync(int pageNumber = 1, string? queue = null, CancellationToken cancellationToken = default)
     {
         PageNumber = Math.Max(1, pageNumber);
-        Proposals = await photoCorrectionRepository.GetOpenAsync(PageNumber, 50, cancellationToken);
+        ShowMemories = string.Equals(queue, "memories", StringComparison.OrdinalIgnoreCase);
+        Proposals = await photoCorrectionRepository.GetOpenAsync(PageNumber, 50, ShowMemories, cancellationToken);
         ViewData["Title"] = "Photo corrections";
         Breadcrumbs = AdminBreadcrumbs.Section("Photo corrections", "/admin/photo-corrections");
     }

@@ -161,6 +161,16 @@ internal static class PhotoCorrectionRules
             .Select(row => new PublicPhotoCorrection(row.Kind, row.ProposedValue, row.PublicCreditName))
             .ToList();
 
+    /// <summary>Newest approved memories first, capped so one photo page cannot grow without bound.</summary>
+    internal static IReadOnlyList<PublicPhotoCorrection> ToPublicMemories(IEnumerable<PhotoCorrectionProposalEntity> rows) =>
+        rows
+            .Where(row => row.Status == PhotoCorrectionStatus.Approved && row.Kind == PhotoCorrectionKind.Memory)
+            .OrderByDescending(row => row.ReviewedAt)
+            .ThenBy(row => row.Id)
+            .Take(PhotoCorrectionValidation.MaxPublicMemories)
+            .Select(row => new PublicPhotoCorrection(row.Kind, row.ProposedValue, row.PublicCreditName))
+            .ToList();
+
     /// <summary>One page of a member's own proposals, newest first (DateTimeOffset sorts client-side for SQLite).</summary>
     internal static SubmissionListPage<PhotoCorrectionProposal> ToMemberPage(
         IReadOnlyList<PhotoCorrectionProposalEntity> rows,
