@@ -66,7 +66,7 @@ type Props = {
   onSuggestCorrection: () => void;
 };
 
-export function PhotoViewerChrome({ photo, hasImage, status, saveBusy, wallpaperBusy, photosCooldown, wallpaperCooldown, onClose, onWallpaper, onSave, goTo, onSuggestCorrection }: Props) {
+export function PhotoViewerChrome({ photo, hasImage, status, saveBusy, wallpaperBusy, photosCooldown, wallpaperCooldown, onClose, onWallpaper, onSave, goTo, onSuggestCorrection }: Readonly<Props>) {
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const actions = photoViewerActions(Platform.OS, photosCooldown, wallpaperCooldown, saveBusy, wallpaperBusy);
