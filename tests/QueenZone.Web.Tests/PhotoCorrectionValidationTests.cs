@@ -100,3 +100,27 @@ public sealed class PhotoCorrectionValidationTests
             PhotoCorrectionConfidence.Certain,
             null);
 }
+
+public sealed class PhotoDescriptionTests
+{
+    [Fact]
+    public void BuildDescription_without_notes_is_the_plain_description() =>
+        Assert.Equal(
+            "Live Aid – Queen photography from the Queen collection.",
+            QueenZone.Web.Pages.Photography.DetailModel.BuildDescription("Live Aid", "Queen", []));
+
+    [Fact]
+    public void BuildDescription_adds_note_values_but_never_credit()
+    {
+        var notes = new[]
+        {
+            new QueenZone.Web.Pages.Photography.ArchiveNote("Event date", "13 July 1985", "A Fan"),
+            new QueenZone.Web.Pages.Photography.ArchiveNote("Photographer or source", "Programme p.4", null),
+        };
+
+        var description = QueenZone.Web.Pages.Photography.DetailModel.BuildDescription("Live Aid", "Queen", notes);
+
+        Assert.EndsWith("Event date: 13 July 1985. Photographer or source: Programme p.4.", description);
+        Assert.DoesNotContain("A Fan", description);
+    }
+}

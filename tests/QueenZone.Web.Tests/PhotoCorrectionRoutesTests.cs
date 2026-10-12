@@ -237,6 +237,9 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
         Assert.DoesNotContain("example.com/programme", page);
         Assert.DoesNotContain("internal-secret", page);
         Assert.DoesNotContain("pc-notes@example.com", page);
+        var metaLines = page.Split('\n').Where(line => line.Contains("<meta", StringComparison.Ordinal)).ToList();
+        Assert.Contains(metaLines, line => line.Contains("description", StringComparison.Ordinal) && line.Contains("Event date: 12 July 1986.", StringComparison.Ordinal));
+        Assert.DoesNotContain(metaLines, line => line.Contains("Notes Fan Credit", StringComparison.Ordinal));
 
         await PostAdminAsync(admin, id, "revert", new(), await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
         Assert.DoesNotContain("12 July 1986", await anonymous.GetStringAsync("/photography/brian-may/101"));
