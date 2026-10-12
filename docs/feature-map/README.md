@@ -114,6 +114,8 @@ Prefer role and text locators for clear headings and links; add identifiers only
 - `web.photos.index` — Photography (Pages/Photography/Index.cshtml — /photography)
 - `web.photos.submit` — Submit a photo (Pages/Submit/Photo.cshtml — /submit/photo)
 - `web.photos.submitConfirmation` — Photo submission confirmation (Pages/Submit/PhotoConfirmation.cshtml — /submit/photo/confirmation/{id})
+- `web.photos.suggestCorrection` — Suggest a photo correction (Pages/Submit/PhotoCorrection.cshtml — /submit/photo-correction/{picId})
+- `web.photos.suggestCorrectionConfirmation` — Photo correction confirmation (Pages/Submit/PhotoCorrectionConfirmation.cshtml — /submit/photo-correction/confirmation/{id})
 
 ### archive
 

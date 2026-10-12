@@ -1,0 +1,21 @@
+@page "/admin/photo-corrections/{id:guid}"
+@model DetailModel
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <h1>Review photo correction</h1>
+
+  @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+  {
+    <output class="qz-status-block qz-account-notice @Model.StatusNoticeClass">@Model.StatusMessage</output>
+  }
+
+  @if (Model.CaptionIsStale)
+  {
+    <p class="qz-account-notice qz-account-notice--error" role="alert">@Model.StaleWarning</p>
+  }
+
+  <partial name="_Fields" model="Model" />
+  <partial name="_Related" model="Model" />
+  <partial name="_Decisions" model="Model" />
+</div>

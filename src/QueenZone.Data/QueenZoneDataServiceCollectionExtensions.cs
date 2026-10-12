@@ -45,6 +45,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IQuoteRepository, EfQuoteRepository>();
         services.AddScoped<ITriviaRepository, EfTriviaRepository>();
         services.AddScoped<ITriviaFactSubmissionRepository, EfTriviaFactSubmissionRepository>();
+        services.AddScoped<IPhotoCorrectionRepository, EfPhotoCorrectionRepository>();
         if (forumDataOptions.UseModernForumReads)
         {
             services.AddScoped<IForumRepository, ModernForumRepository>();
@@ -146,6 +147,12 @@ public static class QueenZoneDataServiceCollectionExtensions
         var triviaStore = new SharedTriviaStore(SampleTriviaData.CreateSeedFacts());
         services.AddSingleton(triviaStore);
         services.AddSingleton<ITriviaRepository>(_ => new InMemoryTriviaRepository(triviaStore));
+        services.AddSingleton<IPhotoCorrectionRepository>(sp =>
+        {
+            var members = sp.GetRequiredService<IMemberAccountRepository>();
+            return new InMemoryPhotoCorrectionRepository(id =>
+                members.FindByIdAsync(id).GetAwaiter().GetResult());
+        });
         services.AddSingleton<ITriviaFactSubmissionRepository>(sp =>
         {
             var members = sp.GetRequiredService<IMemberAccountRepository>();

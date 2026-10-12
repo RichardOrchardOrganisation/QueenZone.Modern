@@ -1,0 +1,47 @@
+@page "/admin/photo-corrections"
+@model IndexModel
+@using QueenZone.Data
+
+<div class="admin-shell">
+  <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
+  <h1>Photo corrections</h1>
+  <p>
+    Member proposals about existing archive photographs, oldest first.
+    <a href="/admin/photos">Photos</a>
+  </p>
+
+  @if (Model.Proposals.Count == 0)
+  {
+    <p>No photo corrections awaiting review.</p>
+  }
+  else
+  {
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">Photo</th>
+          <th scope="col">Change</th>
+          <th scope="col">Proposed</th>
+          <th scope="col">Submitter</th>
+          <th scope="col">Submitted</th>
+          <th scope="col">Status</th>
+          <th scope="col"><span class="visually-hidden">Review</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach (var item in Model.Proposals)
+        {
+          <tr>
+            <td><a href="/admin/photos/@item.PicId">#@item.PicId</a></td>
+            <td>@PhotoCorrectionKind.Label(item.Kind)</td>
+            <td>@item.ProposedValue</td>
+            <td>@item.SubmitterDisplayName</td>
+            <td>@item.SubmittedAt.ToString("u")</td>
+            <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+            <td><a href="/admin/photo-corrections/@item.Id">Review</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

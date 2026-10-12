@@ -55,7 +55,7 @@ by switching clients.
 | Member account website and `/api/v1/me` | `qz-authenticated-write` | Profile, social/privacy settings, avatar, legacy link, deletion request/cancel |
 | Forum website and API | `qz-authenticated-write` | Topic/reply/edit, poll vote/close, watch, report, block |
 | Private messages website and API | `qz-authenticated-write` | Compose/reply, archive, report, block |
-| Member submissions website and API | `qz-authenticated-write` | Photo, news, article/autosave, trivia, quiz question, fan performance |
+| Member submissions website and API | `qz-authenticated-write` | Photo, photo correction proposal, news, article/autosave, trivia, quiz question, fan performance |
 | Notifications API | `qz-authenticated-write` | Device registration/removal and preference changes |
 | Fan-performance reports | `qz-authenticated-write` | Website and API reports |
 

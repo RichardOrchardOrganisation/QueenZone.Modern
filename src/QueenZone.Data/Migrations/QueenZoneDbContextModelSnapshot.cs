@@ -2746,6 +2746,139 @@ namespace QueenZone.Data.Migrations
                     b.ToTable("PhotoAdminAuditLog", (string)null);
                 });
 
+            modelBuilder.Entity("QueenZone.Data.Entities.PhotoCorrectionAuditLogEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ActorEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("PhotoCorrectionProposalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PhotoCorrectionProposalId", "OccurredAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_PhotoCorrectionAuditLog_Proposal_OccurredAt");
+
+                    b.ToTable("PhotoCorrectionAuditLog", (string)null);
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.PhotoCorrectionProposalEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("AppliedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AppliedFromValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Confidence")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CurrentValue")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EvidenceType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("EvidenceUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("MessageToMember")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("PicId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProposedValue")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("PublicCreditName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ReviewerEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Status")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("SubmitterMemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PicId", "SubmittedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_PhotoCorrectionProposals_Photo_SubmittedAt");
+
+                    b.HasIndex("Status", "SubmittedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_PhotoCorrectionProposals_Status_SubmittedAt");
+
+                    b.HasIndex("SubmitterMemberId", "SubmittedAt")
+                        .IsDescending(false, true)
+                        .HasDatabaseName("IX_PhotoCorrectionProposals_Submitter_SubmittedAt");
+
+                    b.ToTable("PhotoCorrectionProposals", (string)null);
+                });
+
             modelBuilder.Entity("QueenZone.Data.Entities.PhotoSubmissionAuditLogEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -4286,6 +4419,28 @@ namespace QueenZone.Data.Migrations
                     b.Navigation("MemberAccount");
                 });
 
+            modelBuilder.Entity("QueenZone.Data.Entities.PhotoCorrectionAuditLogEntity", b =>
+                {
+                    b.HasOne("QueenZone.Data.Entities.PhotoCorrectionProposalEntity", "Proposal")
+                        .WithMany("AuditLogs")
+                        .HasForeignKey("PhotoCorrectionProposalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Proposal");
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.PhotoCorrectionProposalEntity", b =>
+                {
+                    b.HasOne("QueenZone.Data.Entities.MemberAccount", "Submitter")
+                        .WithMany()
+                        .HasForeignKey("SubmitterMemberId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Submitter");
+                });
+
             modelBuilder.Entity("QueenZone.Data.Entities.PhotoSubmissionAuditLogEntity", b =>
                 {
                     b.HasOne("QueenZone.Data.Entities.PhotoSubmissionEntity", "Submission")
@@ -4529,6 +4684,11 @@ namespace QueenZone.Data.Migrations
                     b.Navigation("Draft");
 
                     b.Navigation("Evidence");
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.PhotoCorrectionProposalEntity", b =>
+                {
+                    b.Navigation("AuditLogs");
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.PhotoSubmissionEntity", b =>

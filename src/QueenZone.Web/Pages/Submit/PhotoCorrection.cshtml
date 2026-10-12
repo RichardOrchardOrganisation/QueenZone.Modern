@@ -1,0 +1,92 @@
+@page "/submit/photo-correction/{picId:int}"
+@model PhotoCorrectionModel
+@using QueenZone.Data
+
+@{
+  var photo = Model.Photo!;
+  var caption = photo.Title;
+}
+
+<partial name="_PageHero" model='@(("Community", "Suggest a correction", "Know something about this photograph that the archive has wrong or missing? Tell the editors and show how you know.", ""))' />
+
+<section class="qz-section">
+  <div class="qz-container qz-prose">
+    <figure>
+      <img src="@photo.ThumbnailUrl" alt="@caption" width="@photo.ThumbWidth" height="@photo.ThumbHeight" />
+      <figcaption>Current caption: <strong>@photo.Title</strong> (@photo.CategoryName)</figcaption>
+    </figure>
+
+    <p>
+      Editors review every proposal before anything changes. Nothing you send appears on the site until
+      an editor approves it.
+    </p>
+    <ul>
+      <li>Do not name private people or anyone who may be a child. Only name people who are publicly known in connection with the event.</li>
+      <li>Do not include email addresses, phone numbers or precise home locations.</li>
+      <li>Being in a photo, or owning a print, does not give anyone the copyright. If you are crediting a photographer, say where you learned it.</li>
+    </ul>
+
+    <div asp-validation-summary="ModelOnly" class="qz-account-notice qz-account-notice--error" role="alert"></div>
+
+    <form method="post" class="qz-account-form">
+      @Html.AntiForgeryToken()
+      <input type="hidden" asp-for="SubmissionId" />
+
+      <label class="qz-account-form__field">
+        <span>What needs correcting</span>
+        <select asp-for="Kind" required>
+          @foreach (var kind in PhotoCorrectionKind.All)
+          {
+            <option value="@kind">@PhotoCorrectionKind.Label(kind)</option>
+          }
+        </select>
+      </label>
+
+      <label class="qz-account-form__field">
+        <span>Corrected value</span>
+        <input asp-for="ProposedValue" maxlength="@PhotoCorrectionValidation.MaxValueLength" required />
+        <span class="qz-account-form__help">For an event date, write what you know, such as "12 June 1982" or "summer 1982".</span>
+      </label>
+
+      <label class="qz-account-form__field">
+        <span>How do you know?</span>
+        <textarea asp-for="Explanation" rows="4" maxlength="@PhotoCorrectionValidation.MaxExplanationLength" required></textarea>
+        <span class="qz-account-form__help">For example: you were there, a ticket or programme, a book, or a dated page.</span>
+      </label>
+
+      <label class="qz-account-form__field">
+        <span>Evidence link <span class="qz-account-form__optional">(optional)</span></span>
+        <input asp-for="EvidenceUrl" type="url" maxlength="@PhotoCorrectionValidation.MaxEvidenceUrlLength" />
+        <span class="qz-account-form__help">Only editors see this link.</span>
+      </label>
+
+      <label class="qz-account-form__field">
+        <span>Evidence type <span class="qz-account-form__optional">(optional)</span></span>
+        <select asp-for="EvidenceType">
+          <option value="">(none)</option>
+          <option value="@PhotoCorrectionEvidenceType.WebPage">Web page</option>
+          <option value="@PhotoCorrectionEvidenceType.Publication">Book, magazine or programme</option>
+          <option value="@PhotoCorrectionEvidenceType.PersonalRecord">My own record or memory</option>
+          <option value="@PhotoCorrectionEvidenceType.Other">Other</option>
+        </select>
+      </label>
+
+      <label class="qz-account-form__field">
+        <span>How sure are you?</span>
+        <select asp-for="Confidence" required>
+          <option value="@PhotoCorrectionConfidence.Certain">Certain</option>
+          <option value="@PhotoCorrectionConfidence.Probable">Probably right</option>
+          <option value="@PhotoCorrectionConfidence.Unsure">Not sure, but worth checking</option>
+        </select>
+      </label>
+
+      <label class="qz-account-form__field">
+        <span>Name to credit publicly <span class="qz-account-form__optional">(optional)</span></span>
+        <input asp-for="PublicCreditName" maxlength="@PhotoCorrectionValidation.MaxCreditNameLength" />
+        <span class="qz-account-form__help">Leave blank to stay uncredited. Your account email is never shown.</span>
+      </label>
+
+      <button type="submit" class="qz-button">Send for review</button>
+    </form>
+  </div>
+</section>
