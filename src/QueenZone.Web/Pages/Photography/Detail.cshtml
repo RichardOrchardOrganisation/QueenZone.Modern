@@ -62,12 +62,16 @@
         <text> &middot; Submitted by @Model.Photo.SubmittedByDisplayName</text>
       }
     </p>
-    @if (Model.ArchiveNotes.Count > 0)
+    @if (Model.ArchiveNotes.Count > 0 || Model.AddedToArchive is not null)
     {
       <ul class="qz-lightbox__meta" aria-label="Archive notes">
         @foreach (var note in Model.ArchiveNotes)
         {
           <li>@note.Text</li>
+        }
+        @if (Model.AddedToArchive is not null)
+        {
+          <li>Added to the archive: @Model.AddedToArchive</li>
         }
       </ul>
     }

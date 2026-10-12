@@ -46,6 +46,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<ITriviaRepository, EfTriviaRepository>();
         services.AddScoped<ITriviaFactSubmissionRepository, EfTriviaFactSubmissionRepository>();
         services.AddScoped<IPhotoCorrectionRepository, EfPhotoCorrectionRepository>();
+        services.AddScoped<IPhotoArchiveDatesRepository, EfPhotoArchiveDatesRepository>();
         if (forumDataOptions.UseModernForumReads)
         {
             services.AddScoped<IForumRepository, ModernForumRepository>();
@@ -192,6 +193,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddSingleton(photoStore);
         services.AddSingleton<IPhotoRepository>(_ => new InMemoryPhotoRepository(photoStore));
         services.AddSingleton<IAdminPhotoRepository>(_ => new InMemoryAdminPhotoRepository(photoStore));
+        services.AddSingleton<IPhotoArchiveDatesRepository>(_ => new InMemoryPhotoArchiveDatesRepository(photoStore));
         var fanPerformanceStore = new SharedFanPerformanceStore(SampleFanPerformanceData.CreateSeedPerformances());
         services.AddSingleton(fanPerformanceStore);
         services.AddSingleton<IFanPerformanceRepository>(_ => new InMemoryFanPerformanceRepository(fanPerformanceStore));

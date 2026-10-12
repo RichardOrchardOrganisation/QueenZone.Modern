@@ -191,7 +191,7 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
     public async Task Admin_can_accept_a_date_without_changing_the_photo_and_can_ask_and_reject()
     {
         var member = await SignInAsync("pc-flow@example.com", "Flow Fan", "google-pc-flow");
-        var dateId = await SubmitAsync(member, 304, "12 March 1980", PhotoCorrectionKind.EventDate);
+        var dateId = await SubmitAsync(member, 304, "1980-03-12", PhotoCorrectionKind.EventDate);
         var captionId = await SubmitAsync(member, 304, "Freddie, Hammersmith Odeon");
         var admin = CreateAdminClient(AdminEmail);
         var repository = factory.Services.GetRequiredService<IPhotoCorrectionRepository>();
@@ -220,7 +220,7 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
     public async Task Approved_date_appears_on_the_public_photo_with_credit_and_disappears_on_revert()
     {
         var member = await SignInAsync("pc-notes@example.com", "Notes Fan", "google-pc-notes");
-        var fields = Fields("12 July 1986");
+        var fields = Fields("1986-07-14");
         fields["Kind"] = PhotoCorrectionKind.EventDate;
         fields["PublicCreditName"] = "Notes Fan Credit";
         fields["SubmissionId"] = Guid.NewGuid().ToString("D");
@@ -229,27 +229,90 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
         var admin = CreateAdminClient(AdminEmail);
         var anonymous = factory.CreateClient();
 
-        Assert.DoesNotContain("12 July 1986", await anonymous.GetStringAsync("/photography/brian-may/101"));
+        Assert.DoesNotContain("14 July 1986", await anonymous.GetStringAsync("/photography/brian-may/101"));
 
         await PostAdminAsync(admin, id, "approve", new() { ["reviewNotes"] = "internal-secret" }, await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
         var page = await anonymous.GetStringAsync("/photography/brian-may/101");
-        Assert.Contains("Event date: 12 July 1986 (thanks to Notes Fan Credit)", page);
+        Assert.Contains("Event date: 14 July 1986 (thanks to Notes Fan Credit)", page);
         Assert.DoesNotContain("example.com/programme", page);
         Assert.DoesNotContain("internal-secret", page);
         Assert.DoesNotContain("pc-notes@example.com", page);
         var metaLines = page.Split('\n').Where(line => line.Contains("<meta", StringComparison.Ordinal)).ToList();
-        Assert.Contains(metaLines, line => line.Contains("description", StringComparison.Ordinal) && line.Contains("Event date: 12 July 1986.", StringComparison.Ordinal));
+        Assert.Contains(metaLines, line => line.Contains("description", StringComparison.Ordinal) && line.Contains("Event date: 14 July 1986.", StringComparison.Ordinal));
         Assert.DoesNotContain(metaLines, line => line.Contains("Notes Fan Credit", StringComparison.Ordinal));
 
         await PostAdminAsync(admin, id, "revert", new(), await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
-        Assert.DoesNotContain("12 July 1986", await anonymous.GetStringAsync("/photography/brian-may/101"));
+        Assert.DoesNotContain("14 July 1986", await anonymous.GetStringAsync("/photography/brian-may/101"));
+    }
+
+    [Fact]
+    public async Task Event_date_photo_date_and_added_to_archive_are_kept_apart_and_revert_restores_the_previous_value()
+    {
+        var member = await SignInAsync("pc-dates@example.com", "Dates Fan", "google-pc-dates");
+        var eventId = await SubmitAsync(member, 202, "1986-08-09", PhotoCorrectionKind.EventDate);
+        var photoId = await SubmitAsync(member, 202, "1986", PhotoCorrectionKind.PhotoDate);
+        var admin = CreateAdminClient(AdminEmail);
+        var anonymous = factory.CreateClient();
+        var dates = factory.Services.GetRequiredService<IPhotoArchiveDatesRepository>();
+
+        var before = await anonymous.GetStringAsync("/photography/queen/202");
+        Assert.DoesNotContain("Event date:", before);
+        Assert.DoesNotContain("Photographed:", before);
+        Assert.Contains("Added to the archive:", before);
+
+        await PostAdminAsync(admin, eventId, "approve", new(), await admin.GetStringAsync($"/admin/photo-corrections/{eventId:D}"));
+        await PostAdminAsync(admin, photoId, "approve", new(), await admin.GetStringAsync($"/admin/photo-corrections/{photoId:D}"));
+
+        var stored = await dates.GetAsync(202);
+        Assert.Equal(new PartialDate(1986, 8, 9), stored.EventDate);
+        Assert.Equal(new PartialDate(1986), stored.PhotoDate);
+        Assert.Equal(PhotoDateAccuracy.Approximate, stored.PhotoDateAccuracy);
+        var after = await anonymous.GetStringAsync("/photography/queen/202");
+        Assert.Contains("Event date: 9 August 1986", after);
+        Assert.Contains("Photographed: c. 1986", after);
+        Assert.Contains("Added to the archive:", after);
+        var repository = factory.Services.GetRequiredService<IPhotoCorrectionRepository>();
+        Assert.Equal("(none)", (await repository.GetByIdAsync(eventId))!.AppliedFromValue);
+
+        await PostAdminAsync(admin, eventId, "revert", new(), await admin.GetStringAsync($"/admin/photo-corrections/{eventId:D}"));
+
+        Assert.Null((await dates.GetAsync(202)).EventDate);
+        Assert.Equal(new PartialDate(1986), (await dates.GetAsync(202)).PhotoDate);
+        Assert.DoesNotContain("Event date:", await anonymous.GetStringAsync("/photography/queen/202"));
+    }
+
+    [Fact]
+    public async Task Date_approval_is_blocked_when_the_date_changed_and_bad_dates_are_refused()
+    {
+        var member = await SignInAsync("pc-datestale@example.com", "Dates Stale", "google-pc-datestale");
+        var bad = Fields("14 July 1986");
+        bad["Kind"] = PhotoCorrectionKind.EventDate;
+        bad["SubmissionId"] = Guid.NewGuid().ToString("D");
+        var refused = await PostProposalAsync(member, 204, bad);
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("YYYY-MM-DD", await refused.Content.ReadAsStringAsync());
+
+        var id = await SubmitAsync(member, 204, "1977-06-06", PhotoCorrectionKind.EventDate);
+        var dates = factory.Services.GetRequiredService<IPhotoArchiveDatesRepository>();
+        await dates.SetAsync(204, new PhotoArchiveDates(new PartialDate(1977), null), PhotoArchiveDates.Unknown);
+        var admin = CreateAdminClient(AdminEmail);
+
+        var detail = await admin.GetStringAsync($"/admin/photo-corrections/{id:D}");
+        Assert.Contains("event date is now", detail);
+        Assert.Contains("not what the member saw", detail);
+        await PostAdminAsync(admin, id, "approve", new(), detail);
+
+        Assert.Contains("event date has changed since this was proposed", await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
+        Assert.Equal(new PartialDate(1977), (await dates.GetAsync(204)).EventDate);
+        var repository = factory.Services.GetRequiredService<IPhotoCorrectionRepository>();
+        Assert.Equal(PhotoCorrectionStatus.Pending, (await repository.GetByIdAsync(id))!.Status);
     }
 
     [Fact]
     public async Task Approved_date_without_credit_shows_no_name()
     {
         var member = await SignInAsync("pc-nocredit@example.com", "Private Fan", "google-pc-nocredit");
-        var id = await SubmitAsync(member, 103, "2 March 1980", PhotoCorrectionKind.EventDate);
+        var id = await SubmitAsync(member, 103, "1980-03-02", PhotoCorrectionKind.EventDate);
         var admin = CreateAdminClient(AdminEmail);
         await PostAdminAsync(admin, id, "approve", new(), await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
 

@@ -7,20 +7,27 @@ public static class PhotoCorrectionKind
 
     public const string EventDate = "EventDate";
 
+    /// <summary>When the photograph was taken (exact or approximate), not when the event happened.</summary>
+    public const string PhotoDate = "PhotoDate";
+
     public const string PhotographerSource = "PhotographerSource";
 
     /// <summary>A first-person recollection. Never treated as fact and never changes the photo.</summary>
     public const string Memory = "Memory";
 
-    public static readonly IReadOnlyList<string> All = [Caption, EventDate, PhotographerSource, Memory];
+    public static readonly IReadOnlyList<string> All = [Caption, EventDate, PhotoDate, PhotographerSource, Memory];
 
     public static bool IsKnown(string? kind) =>
         !string.IsNullOrWhiteSpace(kind) && All.Contains(kind.Trim(), StringComparer.Ordinal);
+
+    /// <summary>Kinds whose value is a (possibly partial) date written in ISO form.</summary>
+    public static bool IsDate(string? kind) => kind is EventDate or PhotoDate;
 
     public static string Label(string kind) => kind switch
     {
         Caption => "Caption",
         EventDate => "Event date",
+        PhotoDate => "Date the photo was taken",
         PhotographerSource => "Photographer or source",
         Memory => "Memory",
         _ => kind,
@@ -208,6 +215,9 @@ public static partial class PhotoCorrectionValidation
     /// <summary>Approved fan memories shown on one photo page.</summary>
     public const int MaxPublicMemories = 5;
 
+    /// <summary>Stored in a proposal's current/applied value when a date field was empty.</summary>
+    public const string UnsetValue = "(none)";
+
     /// <summary>Open proposals one member may have at once, across all photos.</summary>
     public const int MaxOpenPerMember = 10;
 
@@ -270,8 +280,13 @@ public static partial class PhotoCorrectionValidation
             return $"The corrected value must be {MaxValueLength} characters or fewer.";
         }
 
-        return kind == PhotoCorrectionKind.Caption && length > MaxCaptionLength
-            ? $"A caption must be {MaxCaptionLength} characters or fewer."
+        if (kind == PhotoCorrectionKind.Caption && length > MaxCaptionLength)
+        {
+            return $"A caption must be {MaxCaptionLength} characters or fewer.";
+        }
+
+        return PhotoCorrectionKind.IsDate(kind) && !PartialDate.TryParse(proposedValue, out _)
+            ? $"Enter the date as YYYY, YYYY-MM or YYYY-MM-DD, between {PartialDate.MinYear} and {DateTime.UtcNow.Year}."
             : null;
     }
 

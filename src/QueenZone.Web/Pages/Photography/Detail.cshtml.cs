@@ -7,7 +7,8 @@ namespace QueenZone.Web.Pages.Photography;
 public sealed class DetailModel(
     PublicQueryCacheService publicQueryCache,
     IPhotoRepository photoRepository,
-    IPhotoCorrectionRepository photoCorrectionRepository) : PageModel
+    IPhotoCorrectionRepository photoCorrectionRepository,
+    IPhotoArchiveDatesRepository archiveDatesRepository) : PageModel
 {
     public PhotoCategory Category { get; private set; } = null!;
 
@@ -16,6 +17,9 @@ public sealed class DetailModel(
     public IReadOnlyList<ArchiveNote> ArchiveNotes { get; private set; } = [];
 
     public IReadOnlyList<ArchiveNote> Memories { get; private set; } = [];
+
+    /// <summary>When the photo was added to the archive (the upload timestamp), shown apart from any photo or event date.</summary>
+    public string? AddedToArchive { get; private set; }
 
     public int Index { get; private set; }
 
@@ -45,6 +49,38 @@ public sealed class DetailModel(
             ? description
             : $"{description} {string.Join(' ', notes.Select(note => $"{note.Label}: {note.Value}."))}";
     }
+
+    /// <summary>
+    /// Event date, photograph date and photographer/source as labelled notes. The dates come from the
+    /// archive columns; a contributor's credit is added only while it still matches the stored value.
+    /// </summary>
+    internal static IReadOnlyList<ArchiveNote> BuildArchiveNotes(
+        PhotoArchiveDates dates,
+        IReadOnlyList<PublicPhotoCorrection> approved)
+    {
+        var notes = new List<ArchiveNote>();
+        if (dates.EventDate is { } eventDate)
+        {
+            notes.Add(new ArchiveNote("Event date", eventDate.ToDisplay(), CreditFor(approved, PhotoCorrectionKind.EventDate, eventDate)));
+        }
+
+        if (dates.PhotoDate is { } photoDate)
+        {
+            var value = dates.PhotoDateAccuracy == PhotoDateAccuracy.Exact ? photoDate.ToDisplay() : $"c. {photoDate.ToDisplay()}";
+            notes.Add(new ArchiveNote("Photographed", value, CreditFor(approved, PhotoCorrectionKind.PhotoDate, photoDate)));
+        }
+
+        notes.AddRange(approved
+            .Where(correction => correction.Kind == PhotoCorrectionKind.PhotographerSource)
+            .Select(ArchiveNote.From));
+        return notes;
+    }
+
+    private static string? CreditFor(IReadOnlyList<PublicPhotoCorrection> approved, string kind, PartialDate stored) =>
+        approved.FirstOrDefault(correction =>
+            correction.Kind == kind
+            && PartialDate.TryParse(correction.Value, out var proposed)
+            && proposed == stored)?.CreditName;
 
     public async Task<IActionResult> OnGetAsync(string slug, int picId, CancellationToken cancellationToken)
     {
@@ -76,9 +112,10 @@ public sealed class DetailModel(
         Memories = (await photoCorrectionRepository.GetApprovedMemoriesAsync(picId, cancellationToken))
             .Select(ArchiveNote.From)
             .ToList();
-        ArchiveNotes = (await photoCorrectionRepository.GetApprovedPublicAsync(picId, cancellationToken))
-            .Select(ArchiveNote.From)
-            .ToList();
+        ArchiveNotes = BuildArchiveNotes(
+            await archiveDatesRepository.GetAsync(picId, cancellationToken),
+            await photoCorrectionRepository.GetApprovedPublicAsync(picId, cancellationToken));
+        AddedToArchive = PartialDate.FromDatabase(Photo.DateTime, PartialDate.PrecisionDay)?.ToDisplay();
         Index = navigation.Index;
         Count = navigation.Count;
 

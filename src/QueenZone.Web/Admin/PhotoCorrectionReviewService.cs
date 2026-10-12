@@ -9,19 +9,44 @@ namespace QueenZone.Web;
 public sealed record PhotoCorrectionReviewResult(bool Succeeded, string Message);
 
 /// <summary>
-/// Applies editor decisions on photo correction proposals. Only caption approvals change the
-/// photograph today: the caption is written with a compare-and-swap on the values the editor
-/// saw, so a stale proposal or a concurrent edit is refused instead of overwriting newer work.
-/// Event-date and photographer/source approvals are shown under the photo as archive notes
-/// (value plus the credit the member chose); revert removes them.
+/// Applies editor decisions on photo correction proposals. Captions, event dates and photograph
+/// dates change the photograph itself: each is written with a compare-and-swap on the value the
+/// editor saw, so a stale proposal or a concurrent edit is refused instead of overwriting newer
+/// work, and the replaced value is kept so the change can be reverted. Photographer/source and
+/// memory approvals are recorded only and shown as labelled notes.
 /// </summary>
 public sealed class PhotoCorrectionReviewService(
     IPhotoCorrectionRepository corrections,
     IAdminPhotoRepository photos,
+    IPhotoArchiveDatesRepository archiveDates,
     PublicQueryCacheService publicQueryCache,
     CoreSitemapService coreSitemapService,
     IOutputCacheStore outputCacheStore)
 {
+    /// <summary>
+    /// The live value of the field a proposal of this kind changes, in the form stored on the
+    /// proposal (<see cref="PhotoCorrectionValidation.UnsetValue"/> when empty). Null when the kind
+    /// does not change a photo field or the photo is gone.
+    /// </summary>
+    public async Task<string?> GetCurrentValueAsync(string kind, int picId, CancellationToken cancellationToken)
+    {
+        if (!ChangesPhoto(kind))
+        {
+            return null;
+        }
+
+        var photo = await photos.GetByIdAsync(picId, cancellationToken);
+        return photo is null ? null : await ReadAsync(kind, photo, cancellationToken);
+    }
+
+    public static string FieldLabel(string kind) => kind switch
+    {
+        PhotoCorrectionKind.Caption => "caption",
+        PhotoCorrectionKind.EventDate => "event date",
+        PhotoCorrectionKind.PhotoDate => "photo date",
+        _ => "value",
+    };
+
     public async Task<PhotoCorrectionReviewResult> ApproveAsync(
         Guid id,
         string editorEmail,
@@ -39,7 +64,7 @@ public sealed class PhotoCorrectionReviewService(
             return new PhotoCorrectionReviewResult(false, "Only open proposals can be approved.");
         }
 
-        if (proposal.Kind != PhotoCorrectionKind.Caption)
+        if (!ChangesPhoto(proposal.Kind))
         {
             return await RecordAsync(
                 () => corrections.ApproveAsync(id, editorEmail, reviewNotes, null, cancellationToken),
@@ -47,44 +72,7 @@ public sealed class PhotoCorrectionReviewService(
                 cancellationToken);
         }
 
-        var photo = await photos.GetByIdAsync(proposal.PicId, cancellationToken);
-        if (photo is null || !photo.IsVisible)
-        {
-            return new PhotoCorrectionReviewResult(false, "The photo is hidden or deleted, so the caption was not changed.");
-        }
-
-        if (!string.Equals(photo.Title, proposal.CurrentValue, StringComparison.Ordinal))
-        {
-            return new PhotoCorrectionReviewResult(
-                false,
-                "The caption has changed since this was proposed. Review the current caption, then reject this proposal or ask the member to resubmit.");
-        }
-
-        var previousTitle = photo.Title;
-        var applied = await TryUpdateTitleAsync(photo, proposal.ProposedValue, editorEmail, cancellationToken);
-        if (!applied.Succeeded)
-        {
-            return applied;
-        }
-
-        try
-        {
-            await corrections.ApproveAsync(id, editorEmail, reviewNotes, previousTitle, cancellationToken);
-        }
-        catch (InvalidOperationException ex)
-        {
-            // Someone decided the proposal first. Put the caption back so the photo and the
-            // trail agree.
-            var current = await photos.GetByIdAsync(proposal.PicId, cancellationToken);
-            if (current is not null)
-            {
-                await TryUpdateTitleAsync(current, previousTitle, editorEmail, cancellationToken);
-            }
-
-            return new PhotoCorrectionReviewResult(false, ex.Message);
-        }
-
-        return new PhotoCorrectionReviewResult(true, "Approved. The caption is updated on the site.");
+        return await ApplyAndApproveAsync(proposal, editorEmail, reviewNotes, cancellationToken);
     }
 
     public async Task<PhotoCorrectionReviewResult> RevertAsync(
@@ -108,7 +96,7 @@ public sealed class PhotoCorrectionReviewService(
         {
             return await RecordAsync(
                 () => corrections.RevertAsync(id, editorEmail, reviewNotes, cancellationToken),
-                "Reverted. The archive note is removed from the photo.",
+                "Reverted. It is removed from the photo.",
                 cancellationToken);
         }
 
@@ -118,14 +106,15 @@ public sealed class PhotoCorrectionReviewService(
             return new PhotoCorrectionReviewResult(false, "The photo no longer exists.");
         }
 
-        if (!string.Equals(photo.Title, proposal.ProposedValue, StringComparison.Ordinal))
+        var label = FieldLabel(proposal.Kind);
+        if (!string.Equals(await ReadAsync(proposal.Kind, photo, cancellationToken), Canonical(proposal.Kind, proposal.ProposedValue), StringComparison.Ordinal))
         {
             return new PhotoCorrectionReviewResult(
                 false,
-                "The caption has been edited since this was applied, so it was not reverted automatically. Edit the photo directly.");
+                $"The {label} has been edited since this was applied, so it was not reverted automatically. Edit the photo directly.");
         }
 
-        var restored = await TryUpdateTitleAsync(photo, proposal.AppliedFromValue, editorEmail, cancellationToken);
+        var restored = await TryWriteAsync(proposal.Kind, photo, proposal.AppliedFromValue, editorEmail, cancellationToken);
         if (!restored.Succeeded)
         {
             return restored;
@@ -133,30 +122,94 @@ public sealed class PhotoCorrectionReviewService(
 
         return await RecordAsync(
             () => corrections.RevertAsync(id, editorEmail, reviewNotes, cancellationToken),
-            "Reverted. The previous caption is back on the site.",
+            $"Reverted. The previous {label} is back on the site.",
             cancellationToken);
     }
 
-    private async Task<PhotoCorrectionReviewResult> TryUpdateTitleAsync(
+    private async Task<PhotoCorrectionReviewResult> ApplyAndApproveAsync(
+        PhotoCorrectionProposal proposal,
+        string editorEmail,
+        string? reviewNotes,
+        CancellationToken cancellationToken)
+    {
+        var label = FieldLabel(proposal.Kind);
+        var photo = await photos.GetByIdAsync(proposal.PicId, cancellationToken);
+        if (photo is null || !photo.IsVisible)
+        {
+            return new PhotoCorrectionReviewResult(false, $"The photo is hidden or deleted, so the {label} was not changed.");
+        }
+
+        var previous = await ReadAsync(proposal.Kind, photo, cancellationToken);
+        if (!string.Equals(previous, proposal.CurrentValue ?? PhotoCorrectionValidation.UnsetValue, StringComparison.Ordinal))
+        {
+            return new PhotoCorrectionReviewResult(
+                false,
+                $"The {label} has changed since this was proposed. Review the current {label}, then reject this proposal or ask the member to resubmit.");
+        }
+
+        var applied = await TryWriteAsync(proposal.Kind, photo, Canonical(proposal.Kind, proposal.ProposedValue), editorEmail, cancellationToken);
+        if (!applied.Succeeded)
+        {
+            return applied;
+        }
+
+        try
+        {
+            await corrections.ApproveAsync(proposal.Id, editorEmail, reviewNotes, previous, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Someone decided the proposal first. Put the value back so the photo and the trail agree.
+            var current = await photos.GetByIdAsync(proposal.PicId, cancellationToken);
+            if (current is not null)
+            {
+                await TryWriteAsync(proposal.Kind, current, previous, editorEmail, cancellationToken);
+            }
+
+            return new PhotoCorrectionReviewResult(false, ex.Message);
+        }
+
+        return new PhotoCorrectionReviewResult(true, $"Approved. The {label} is updated on the site.");
+    }
+
+    private static bool ChangesPhoto(string kind) =>
+        kind == PhotoCorrectionKind.Caption || PhotoCorrectionKind.IsDate(kind);
+
+    /// <summary>The proposed value in the same canonical form <see cref="ReadAsync"/> returns.</summary>
+    private static string Canonical(string kind, string proposedValue) =>
+        PhotoCorrectionKind.IsDate(kind) && PartialDate.TryParse(proposedValue, out var date)
+            ? date.ToIso()
+            : proposedValue;
+
+    private async Task<string> ReadAsync(string kind, AdminPhotoItem photo, CancellationToken cancellationToken)
+    {
+        if (kind == PhotoCorrectionKind.Caption)
+        {
+            return photo.Title;
+        }
+
+        var dates = await archiveDates.GetAsync(photo.PicId, cancellationToken);
+        var date = kind == PhotoCorrectionKind.EventDate ? dates.EventDate : dates.PhotoDate;
+        return date?.ToIso() ?? PhotoCorrectionValidation.UnsetValue;
+    }
+
+    private async Task<PhotoCorrectionReviewResult> TryWriteAsync(
+        string kind,
         AdminPhotoItem photo,
-        string newTitle,
+        string newValue,
         string editorEmail,
         CancellationToken cancellationToken)
     {
         try
         {
-            await photos.UpdateAsync(
-                photo.PicId,
-                new AdminPhotoUpdateRequest(newTitle, photo.Keywords, photo.Year, photo.DateTime, photo.CatId),
-                editorEmail,
-                new AdminPhotoConcurrencyToken(
-                    photo.Title,
-                    photo.Keywords,
-                    photo.Year,
-                    photo.DateTime,
-                    photo.CatId,
-                    photo.IsVisible),
-                cancellationToken);
+            if (kind == PhotoCorrectionKind.Caption)
+            {
+                await WriteCaptionAsync(photo, newValue, editorEmail, cancellationToken);
+            }
+            else
+            {
+                await WriteDateAsync(kind, photo.PicId, newValue, editorEmail, cancellationToken);
+            }
         }
         catch (InvalidOperationException ex)
         {
@@ -169,6 +222,42 @@ public sealed class PhotoCorrectionReviewService(
             outputCacheStore,
             cancellationToken);
         return new PhotoCorrectionReviewResult(true, string.Empty);
+    }
+
+    private Task WriteCaptionAsync(AdminPhotoItem photo, string newTitle, string editorEmail, CancellationToken cancellationToken) =>
+        photos.UpdateAsync(
+            photo.PicId,
+            new AdminPhotoUpdateRequest(newTitle, photo.Keywords, photo.Year, photo.DateTime, photo.CatId),
+            editorEmail,
+            new AdminPhotoConcurrencyToken(
+                photo.Title,
+                photo.Keywords,
+                photo.Year,
+                photo.DateTime,
+                photo.CatId,
+                photo.IsVisible),
+            cancellationToken);
+
+    private async Task WriteDateAsync(
+        string kind,
+        int picId,
+        string newValue,
+        string editorEmail,
+        CancellationToken cancellationToken)
+    {
+        PartialDate? replacement = PartialDate.TryParse(newValue, out var parsed) ? parsed : null;
+        var current = await archiveDates.GetAsync(picId, cancellationToken);
+        var updated = kind == PhotoCorrectionKind.EventDate
+            ? current with { EventDate = replacement }
+            : current with { PhotoDate = replacement };
+
+        await archiveDates.SetAsync(picId, updated, current, cancellationToken);
+        await photos.AppendAuditAsync(
+            picId,
+            "archive-dates",
+            editorEmail,
+            $"{FieldLabel(kind)} set to {replacement?.ToIso() ?? "(none)"}",
+            cancellationToken);
     }
 
     private async Task<PhotoCorrectionReviewResult> RecordAsync(
