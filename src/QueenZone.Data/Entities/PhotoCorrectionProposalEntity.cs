@@ -47,6 +47,9 @@ public sealed class PhotoCorrectionProposalEntity
 
     public DateTimeOffset? AppliedAt { get; set; }
 
+    /// <summary>The submitter's answer to an editor's request for more information. Editor-only.</summary>
+    public string? MemberReply { get; set; }
+
     public MemberAccount? Submitter { get; set; }
 
     public ICollection<PhotoCorrectionAuditLogEntity> AuditLogs { get; set; } =

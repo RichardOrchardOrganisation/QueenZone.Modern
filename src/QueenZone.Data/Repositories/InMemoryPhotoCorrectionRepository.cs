@@ -202,6 +202,20 @@ public sealed class InMemoryPhotoCorrectionRepository(Func<Guid, MemberAccount?>
                 PhotoCorrectionRules.RequireMessage(messageToMember, "asking for more information"),
                 "Asked the member for more information."));
 
+    public Task<PhotoCorrectionProposal?> RespondAsync(
+        Guid id,
+        Guid submitterMemberId,
+        string reply,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            return proposals.Any(row => row.Id == id && row.SubmitterMemberId == submitterMemberId)
+                ? Decide(id, entity => PhotoCorrectionRules.Respond(entity, reply))
+                : Task.FromResult<PhotoCorrectionProposal?>(null);
+        }
+    }
+
     public Task<PhotoCorrectionProposal?> RevertAsync(
         Guid id,
         string reviewerEmail,

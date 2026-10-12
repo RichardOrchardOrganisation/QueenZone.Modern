@@ -27,7 +27,13 @@
                 <td>@item.ProposedValue</td>
                 <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
                 <td>@item.SubmittedAt.ToString("u")</td>
-                <td>@item.MessageToMember</td>
+                <td>
+                  @item.MessageToMember
+                  @if (item.Status == PhotoCorrectionStatus.NeedsInfo)
+                  {
+                    <a href="/submit/photo-correction/confirmation/@item.Id">Reply</a>
+                  }
+                </td>
               </tr>
             }
           </tbody>

@@ -30,6 +30,7 @@ public sealed class PhotoCorrectionProposalEntityConfiguration : IEntityTypeConf
         builder.Property(proposal => proposal.ReviewerEmail).HasMaxLength(256);
         builder.Property(proposal => proposal.ReviewNotes).HasMaxLength(500);
         builder.Property(proposal => proposal.MessageToMember).HasMaxLength(PhotoCorrectionValidation.MaxMessageLength);
+        builder.Property(proposal => proposal.MemberReply).HasMaxLength(PhotoCorrectionValidation.MaxExplanationLength);
         builder.Property(proposal => proposal.AppliedFromValue).HasMaxLength(PhotoCorrectionValidation.MaxValueLength);
 
         builder.HasIndex(proposal => new { proposal.Status, proposal.SubmittedAt })
