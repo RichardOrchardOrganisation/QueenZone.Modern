@@ -12,8 +12,8 @@ public sealed record PhotoCorrectionReviewResult(bool Succeeded, string Message)
 /// Applies editor decisions on photo correction proposals. Only caption approvals change the
 /// photograph today: the caption is written with a compare-and-swap on the values the editor
 /// saw, so a stale proposal or a concurrent edit is refused instead of overwriting newer work.
-/// Event-date and photographer/source approvals are recorded as accepted for editorial
-/// follow-up because the archive has no field to hold them yet.
+/// Event-date and photographer/source approvals are shown under the photo as archive notes
+/// (value plus the credit the member chose); revert removes them.
 /// </summary>
 public sealed class PhotoCorrectionReviewService(
     IPhotoCorrectionRepository corrections,
@@ -43,7 +43,8 @@ public sealed class PhotoCorrectionReviewService(
         {
             return await RecordAsync(
                 () => corrections.ApproveAsync(id, editorEmail, reviewNotes, null, cancellationToken),
-                "Accepted and recorded. This field is not shown on the site yet, so no photo was changed.");
+                "Accepted. It now appears under the photo as an archive note.",
+                cancellationToken);
         }
 
         var photo = await photos.GetByIdAsync(proposal.PicId, cancellationToken);
@@ -107,7 +108,8 @@ public sealed class PhotoCorrectionReviewService(
         {
             return await RecordAsync(
                 () => corrections.RevertAsync(id, editorEmail, reviewNotes, cancellationToken),
-                "Reverted. Nothing had been applied to the photo.");
+                "Reverted. The archive note is removed from the photo.",
+                cancellationToken);
         }
 
         var photo = await photos.GetByIdAsync(proposal.PicId, cancellationToken);
@@ -131,7 +133,8 @@ public sealed class PhotoCorrectionReviewService(
 
         return await RecordAsync(
             () => corrections.RevertAsync(id, editorEmail, reviewNotes, cancellationToken),
-            "Reverted. The previous caption is back on the site.");
+            "Reverted. The previous caption is back on the site.",
+            cancellationToken);
     }
 
     private async Task<PhotoCorrectionReviewResult> TryUpdateTitleAsync(
@@ -168,19 +171,25 @@ public sealed class PhotoCorrectionReviewService(
         return new PhotoCorrectionReviewResult(true, string.Empty);
     }
 
-    private static async Task<PhotoCorrectionReviewResult> RecordAsync(
+    private async Task<PhotoCorrectionReviewResult> RecordAsync(
         Func<Task<PhotoCorrectionProposal?>> decide,
-        string successMessage)
+        string successMessage,
+        CancellationToken cancellationToken)
     {
         try
         {
-            return await decide() is null
-                ? new PhotoCorrectionReviewResult(false, "Proposal not found.")
-                : new PhotoCorrectionReviewResult(true, successMessage);
+            if (await decide() is null)
+            {
+                return new PhotoCorrectionReviewResult(false, "Proposal not found.");
+            }
         }
         catch (InvalidOperationException ex)
         {
             return new PhotoCorrectionReviewResult(false, ex.Message);
         }
+
+        // Archive notes are rendered on the cached public photo page.
+        await outputCacheStore.EvictByTagAsync(PublicOutputCachePolicies.PublicHtmlTag, cancellationToken);
+        return new PhotoCorrectionReviewResult(true, successMessage);
     }
 }

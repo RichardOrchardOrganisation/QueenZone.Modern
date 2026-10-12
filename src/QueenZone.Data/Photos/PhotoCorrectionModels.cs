@@ -272,3 +272,9 @@ public static class PhotoCorrectionValidation
             && !trimmed.Any(char.IsControl);
     }
 }
+
+/// <summary>
+/// The only part of an approved proposal that may be shown publicly: the accepted value and
+/// the credit the member chose. Evidence, notes and identity are deliberately absent.
+/// </summary>
+public sealed record PublicPhotoCorrection(string Kind, string Value, string? CreditName);

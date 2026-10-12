@@ -217,6 +217,47 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
     }
 
     [Fact]
+    public async Task Approved_date_appears_on_the_public_photo_with_credit_and_disappears_on_revert()
+    {
+        var member = await SignInAsync("pc-notes@example.com", "Notes Fan", "google-pc-notes");
+        var fields = Fields("12 July 1986");
+        fields["Kind"] = PhotoCorrectionKind.EventDate;
+        fields["PublicCreditName"] = "Notes Fan Credit";
+        fields["SubmissionId"] = Guid.NewGuid().ToString("D");
+        var response = await PostProposalAsync(member, 101, fields);
+        var id = Guid.Parse(response.Headers.Location!.OriginalString.Split('/').Last());
+        var admin = CreateAdminClient(AdminEmail);
+        var anonymous = factory.CreateClient();
+
+        Assert.DoesNotContain("12 July 1986", await anonymous.GetStringAsync("/photography/brian-may/101"));
+
+        await PostAdminAsync(admin, id, "approve", new() { ["reviewNotes"] = "internal-secret" }, await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
+        var page = await anonymous.GetStringAsync("/photography/brian-may/101");
+        Assert.Contains("Event date: 12 July 1986 (thanks to Notes Fan Credit)", page);
+        Assert.DoesNotContain("example.com/programme", page);
+        Assert.DoesNotContain("internal-secret", page);
+        Assert.DoesNotContain("pc-notes@example.com", page);
+
+        await PostAdminAsync(admin, id, "revert", new(), await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
+        Assert.DoesNotContain("12 July 1986", await anonymous.GetStringAsync("/photography/brian-may/101"));
+    }
+
+    [Fact]
+    public async Task Approved_date_without_credit_shows_no_name()
+    {
+        var member = await SignInAsync("pc-nocredit@example.com", "Private Fan", "google-pc-nocredit");
+        var id = await SubmitAsync(member, 103, "2 March 1980", PhotoCorrectionKind.EventDate);
+        var admin = CreateAdminClient(AdminEmail);
+        await PostAdminAsync(admin, id, "approve", new(), await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
+
+        var page = await factory.CreateClient().GetStringAsync("/photography/brian-may/103");
+
+        Assert.Contains("Event date: 2 March 1980", page);
+        Assert.DoesNotContain("thanks to", page);
+        Assert.DoesNotContain("Private Fan", page);
+    }
+
+    [Fact]
     public async Task Admin_actions_return_not_found_for_unknown_ids_and_redirect_on_get()
     {
         var member = await SignInAsync("pc-404@example.com", "Missing Fan", "google-pc-404");

@@ -118,6 +118,17 @@ internal static class PhotoCorrectionRules
             entity.SubmittedAt,
             entity.Status);
 
+    /// <summary>Newest approved proposal per publicly displayable field, in a stable field order.</summary>
+    internal static IReadOnlyList<PublicPhotoCorrection> ToPublic(IEnumerable<PhotoCorrectionProposalEntity> rows) =>
+        rows
+            .Where(row => row.Status == PhotoCorrectionStatus.Approved
+                && row.Kind is PhotoCorrectionKind.EventDate or PhotoCorrectionKind.PhotographerSource)
+            .GroupBy(row => row.Kind)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => group.OrderByDescending(row => row.ReviewedAt).First())
+            .Select(row => new PublicPhotoCorrection(row.Kind, row.ProposedValue, row.PublicCreditName))
+            .ToList();
+
     internal static PhotoCorrectionAuditEntry MapAudit(PhotoCorrectionAuditLogEntity log) =>
         new(log.Id, log.Action, log.ActorEmail, log.OccurredAt, log.Details);
 }
