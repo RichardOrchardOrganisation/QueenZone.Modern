@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { Image } from 'expo-image';
-import { AccessibilityInfo, Platform } from 'react-native';
+import { AccessibilityInfo, Linking, Platform } from 'react-native';
 import { fetchPhotoDetail } from '../../api';
 import { ApiError } from '../../api/client';
 import type { PhotoDetail } from '../../api/types';
@@ -830,6 +830,33 @@ describe('PhotoViewerScreen', () => {
       });
       expect(screen.queryByTestId(testIds.photoViewerStatus)).toBeNull();
     });
+  });
+
+  it('hands off to the website correction form for the current photo', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    await loadPhoto();
+    expect(screen.getByRole('link', { name: 'Suggest a correction' })).toBeOnTheScreen();
+
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId(testIds.photoViewerSuggestCorrection));
+
+    expect(openURL).toHaveBeenCalledTimes(1);
+    expect(openURL).toHaveBeenCalledWith(
+      expect.stringMatching(/^https?:\/\/[^/]+\/submit\/photo-correction\/101$/),
+    );
+    openURL.mockRestore();
+  });
+
+  it('tells the user when the website cannot be opened', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no browser'));
+    await loadPhoto();
+
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId(testIds.photoViewerSuggestCorrection));
+
+    await waitFor(() => expect(screen.getByTestId(testIds.photoViewerStatus)).toBeOnTheScreen());
+    expect(screen.getByText('Could not open the website. Try again later.')).toBeOnTheScreen();
+    openURL.mockRestore();
   });
 });
 
