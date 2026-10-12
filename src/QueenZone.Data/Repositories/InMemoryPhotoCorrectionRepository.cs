@@ -216,6 +216,19 @@ public sealed class InMemoryPhotoCorrectionRepository(Func<Guid, MemberAccount?>
         }
     }
 
+    public Task<PhotoCorrectionProposal?> WithdrawAsync(
+        Guid id,
+        Guid submitterMemberId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            return proposals.Any(row => row.Id == id && row.SubmitterMemberId == submitterMemberId)
+                ? Decide(id, PhotoCorrectionRules.Withdraw)
+                : Task.FromResult<PhotoCorrectionProposal?>(null);
+        }
+    }
+
     public Task<PhotoCorrectionProposal?> RevertAsync(
         Guid id,
         string reviewerEmail,

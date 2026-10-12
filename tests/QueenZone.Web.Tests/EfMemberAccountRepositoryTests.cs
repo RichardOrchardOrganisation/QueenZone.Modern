@@ -430,6 +430,77 @@ public sealed class EfMemberAccountRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Deletion_ScrubsPhotoCorrectionProposals_AndRemovesApprovedNotes()
+    {
+        var account = await SeedAccountAsync("pc-delete@example.com", "Correction Deleter");
+        var keeper = await SeedAccountAsync("pc-keeper@example.com", "Correction Keeper");
+        var mine = await SeedCorrectionAsync(account.Id, "Secret explanation", "Credit Name", "1985");
+        var theirs = await SeedCorrectionAsync(keeper.Id, "Keeper explanation", "Keeper Credit", "1990");
+        var corrections = new EfPhotoCorrectionRepository(dbContext);
+        Assert.Single(await corrections.GetApprovedPublicAsync(101));
+
+        var requestedAt = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
+        await repository.RequestDeletionAsync(account.Id, requestedAt);
+        await repository.PurgeDeletedAccountsAsync(requestedAt, requestedAt.AddDays(30));
+
+        dbContext.ChangeTracker.Clear();
+        var scrubbed = await dbContext.PhotoCorrectionProposals.AsNoTracking().SingleAsync(p => p.Id == mine);
+        Assert.Equal("Deleted", scrubbed.Status);
+        Assert.Equal("Deleted proposal", scrubbed.Explanation);
+        Assert.Equal("Deleted", scrubbed.ProposedValue);
+        Assert.Null(scrubbed.EvidenceUrl);
+        Assert.Null(scrubbed.PublicCreditName);
+        Assert.Null(scrubbed.MemberReply);
+        Assert.Null(scrubbed.MessageToMember);
+        Assert.Null(scrubbed.ReviewNotes);
+        Assert.All(
+            await dbContext.PhotoCorrectionAuditLogs.AsNoTracking().Where(l => l.PhotoCorrectionProposalId == mine).ToListAsync(),
+            log => Assert.Null(log.Details));
+        var untouched = await dbContext.PhotoCorrectionProposals.AsNoTracking().SingleAsync(p => p.Id == theirs);
+        Assert.Equal("Keeper explanation", untouched.Explanation);
+        Assert.Equal(PhotoCorrectionStatus.Approved, untouched.Status);
+        var notes = await corrections.GetApprovedPublicAsync(101);
+        Assert.Equal("Keeper Credit", Assert.Single(notes).CreditName);
+    }
+
+    private async Task<Guid> SeedCorrectionAsync(Guid memberId, string explanation, string credit, string value)
+    {
+        var id = Guid.NewGuid();
+        dbContext.PhotoCorrectionProposals.Add(new PhotoCorrectionProposalEntity
+        {
+            Id = id,
+            PicId = 101,
+            SubmitterMemberId = memberId,
+            Kind = PhotoCorrectionKind.EventDate,
+            CurrentValue = "Old",
+            ProposedValue = value,
+            Explanation = explanation,
+            EvidenceUrl = "https://example.com/e",
+            EvidenceType = PhotoCorrectionEvidenceType.WebPage,
+            Confidence = PhotoCorrectionConfidence.Certain,
+            PublicCreditName = credit,
+            Status = PhotoCorrectionStatus.Approved,
+            SubmittedAt = DateTimeOffset.UtcNow,
+            ReviewedAt = DateTimeOffset.UtcNow,
+            MemberReply = "Reply text",
+            MessageToMember = "Editor message",
+            ReviewNotes = "Internal note",
+            AuditLogs =
+            {
+                new PhotoCorrectionAuditLogEntity
+                {
+                    Action = "Submitted",
+                    ActorEmail = string.Empty,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    Details = "Member proposed a correction.",
+                },
+            },
+        });
+        await dbContext.SaveChangesAsync();
+        return id;
+    }
+
+    [Fact]
     public async Task PurgeDeletedAccountsAsync_AfterThirtyDays_RemovesCredentialsAndLegacyLink()
     {
         var account = await SeedAccountAsync("purge-me@example.com", "Purge Me");

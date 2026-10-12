@@ -324,6 +324,27 @@ public sealed class PhotoCorrectionRepositoryTests : IAsyncDisposable
             () => repository.RespondAsync(created.Id, memberId, "Again", CancellationToken.None));
     }
 
+    [Theory]
+    [MemberData(nameof(Implementations))]
+    public async Task Withdraw_closes_an_open_proposal_for_its_owner_only(string implementation)
+    {
+        var repository = Create(implementation);
+        var created = await repository.CreateAsync(New(picId: 101));
+
+        Assert.Null(await repository.WithdrawAsync(created.Id, otherMemberId));
+        Assert.Null(await repository.WithdrawAsync(Guid.NewGuid(), memberId));
+        var withdrawn = await repository.WithdrawAsync(created.Id, memberId);
+
+        Assert.Equal(PhotoCorrectionStatus.Withdrawn, withdrawn!.Status);
+        Assert.DoesNotContain(await repository.GetOpenAsync(1, 10), item => item.Id == created.Id);
+        Assert.Equal("Withdrawn", (await repository.GetAuditAsync(created.Id)).Last().Action);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.WithdrawAsync(created.Id, memberId));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.ApproveAsync(created.Id, "ed@example.com", null, null));
+        // The member can propose again once the earlier one is withdrawn.
+        await repository.CreateAsync(New(picId: 101));
+    }
+
     [Fact]
     public async Task Ef_second_editor_deciding_the_same_proposal_loses_the_race()
     {

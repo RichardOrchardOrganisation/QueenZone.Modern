@@ -210,6 +210,19 @@ public sealed class EfPhotoCorrectionRepository(QueenZoneDbContext dbContext) : 
             : null;
     }
 
+    public async Task<PhotoCorrectionProposal?> WithdrawAsync(
+        Guid id,
+        Guid submitterMemberId,
+        CancellationToken cancellationToken = default)
+    {
+        var owned = await dbContext.PhotoCorrectionProposals
+            .AsNoTracking()
+            .AnyAsync(row => row.Id == id && row.SubmitterMemberId == submitterMemberId, cancellationToken);
+        return owned
+            ? await DecideAsync(id, PhotoCorrectionRules.Withdraw, cancellationToken)
+            : null;
+    }
+
     public Task<PhotoCorrectionProposal?> RevertAsync(
         Guid id,
         string reviewerEmail,

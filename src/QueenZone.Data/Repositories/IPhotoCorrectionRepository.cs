@@ -82,6 +82,15 @@ public interface IPhotoCorrectionRepository
         string reply,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The submitter withdraws an open proposal. Returns null when it does not exist or belongs
+    /// to someone else; throws when it is no longer open.
+    /// </summary>
+    Task<PhotoCorrectionProposal?> WithdrawAsync(
+        Guid id,
+        Guid submitterMemberId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Marks an approved proposal as reverted after the caller restored the old value.</summary>
     Task<PhotoCorrectionProposal?> RevertAsync(
         Guid id,

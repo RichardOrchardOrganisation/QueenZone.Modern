@@ -67,7 +67,9 @@ public static class PhotoCorrectionStatus
 
     public const string Reverted = "Reverted";
 
-    public static readonly IReadOnlyList<string> All = [Pending, NeedsInfo, Approved, Rejected, Reverted];
+    public const string Withdrawn = "Withdrawn";
+
+    public static readonly IReadOnlyList<string> All = [Pending, NeedsInfo, Approved, Rejected, Reverted, Withdrawn];
 
     internal static readonly SubmissionStatusSet Statuses = new("photo correction", All);
 
@@ -91,16 +93,19 @@ public static class PhotoCorrectionWorkflow
                 PhotoCorrectionStatus.NeedsInfo,
                 PhotoCorrectionStatus.Approved,
                 PhotoCorrectionStatus.Rejected,
+                PhotoCorrectionStatus.Withdrawn,
             ],
             [PhotoCorrectionStatus.NeedsInfo] =
             [
                 PhotoCorrectionStatus.Pending,
                 PhotoCorrectionStatus.Approved,
                 PhotoCorrectionStatus.Rejected,
+                PhotoCorrectionStatus.Withdrawn,
             ],
             [PhotoCorrectionStatus.Approved] = [PhotoCorrectionStatus.Reverted],
             [PhotoCorrectionStatus.Rejected] = [],
             [PhotoCorrectionStatus.Reverted] = [],
+            [PhotoCorrectionStatus.Withdrawn] = [],
         };
 
     private static readonly SubmissionWorkflowRules Rules =

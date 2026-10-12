@@ -331,6 +331,42 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
     }
 
     [Fact]
+    public async Task Member_can_withdraw_an_open_proposal_and_it_leaves_the_editor_queue()
+    {
+        var member = await SignInAsync("pc-withdraw@example.com", "Withdraw Fan", "google-pc-withdraw");
+        var other = await SignInAsync("pc-withdraw-other@example.com", "Withdraw Other", "google-pc-withdraw-other");
+        var id = await SubmitAsync(member, 201, "Live Aid proposal to withdraw");
+        var admin = CreateAdminClient(AdminEmail);
+        var url = $"/submit/photo-correction/confirmation/{id:D}";
+        Assert.Contains("Live Aid proposal to withdraw", await admin.GetStringAsync("/admin/photo-corrections"));
+
+        var page = await member.GetStringAsync(url);
+        Assert.Contains("Withdraw this proposal", page);
+        var token = ExtractAntiforgeryToken(page);
+        var stranger = await other.PostAsync($"{url}?handler=Withdraw", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(await other.GetStringAsync("/submit/photo-correction/101")),
+        }));
+        Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+
+        var ok = await member.PostAsync($"{url}?handler=Withdraw", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, ok.StatusCode);
+
+        var after = await member.GetStringAsync(url);
+        Assert.Contains("Withdrawn", after);
+        Assert.DoesNotContain("Withdraw this proposal", after);
+        Assert.DoesNotContain("Live Aid proposal to withdraw", await admin.GetStringAsync("/admin/photo-corrections"));
+        var again = await member.PostAsync($"{url}?handler=Withdraw", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+        }));
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+    }
+
+    [Fact]
     public async Task Admin_actions_return_not_found_for_unknown_ids_and_redirect_on_get()
     {
         var member = await SignInAsync("pc-404@example.com", "Missing Fan", "google-pc-404");
