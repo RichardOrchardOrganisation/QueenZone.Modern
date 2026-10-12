@@ -1,4 +1,14 @@
 import { cleanup } from '@testing-library/react-native';
+// Native WebView is mocked only in host-free tests; native playback requires device proof (#1958).
+jest.mock('react-native-webview', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { __esModule: true, default: React.forwardRef(function MockWebView(props: Record<string, unknown>, ref) {
+    React.useImperativeHandle(ref, () => ({ injectJavaScript: jest.fn() }));
+    return React.createElement(View, props);
+  }) };
+});
+
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- Jest CJS mock factory.

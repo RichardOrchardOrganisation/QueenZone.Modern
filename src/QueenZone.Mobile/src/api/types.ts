@@ -420,6 +420,8 @@ export type ForumAttachment = {
 };
 
 export type ForumPost = {
+  /** Additive v1 metadata is untrusted until validated at the forum display boundary. */
+  youtubeVideos?: unknown;
   id: number;
   body: string;
   postedAt: string;
