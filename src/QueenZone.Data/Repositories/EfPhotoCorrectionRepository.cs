@@ -94,6 +94,17 @@ public sealed class EfPhotoCorrectionRepository(QueenZoneDbContext dbContext) : 
             .ToList();
     }
 
+    public async Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedPublicAsync(
+        int picId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.PhotoCorrectionProposals
+            .AsNoTracking()
+            .Where(row => row.PicId == picId && row.Status == PhotoCorrectionStatus.Approved)
+            .ToListAsync(cancellationToken);
+        return PhotoCorrectionRules.ToPublic(rows);
+    }
+
     public async Task<IReadOnlyList<PhotoCorrectionAuditEntry>> GetAuditAsync(
         Guid id,
         CancellationToken cancellationToken = default)

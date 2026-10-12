@@ -28,6 +28,14 @@ public interface IPhotoCorrectionRepository
         int picId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Latest approved event-date and photographer/source value for a photo (captions are applied
+    /// to the photo itself). Reverted, rejected and open proposals never appear.
+    /// </summary>
+    Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedPublicAsync(
+        int picId,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PhotoCorrectionAuditEntry>> GetAuditAsync(
         Guid id,
         CancellationToken cancellationToken = default);

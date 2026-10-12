@@ -97,6 +97,16 @@ public sealed class InMemoryPhotoCorrectionRepository(Func<Guid, MemberAccount?>
         }
     }
 
+    public Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedPublicAsync(
+        int picId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            return Task.FromResult(PhotoCorrectionRules.ToPublic(proposals.Where(row => row.PicId == picId)));
+        }
+    }
+
     public Task<IReadOnlyList<PhotoCorrectionAuditEntry>> GetAuditAsync(
         Guid id,
         CancellationToken cancellationToken = default)

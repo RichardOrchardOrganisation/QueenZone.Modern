@@ -6,11 +6,14 @@ namespace QueenZone.Web.Pages.Photography;
 
 public sealed class DetailModel(
     PublicQueryCacheService publicQueryCache,
-    IPhotoRepository photoRepository) : PageModel
+    IPhotoRepository photoRepository,
+    IPhotoCorrectionRepository photoCorrectionRepository) : PageModel
 {
     public PhotoCategory Category { get; private set; } = null!;
 
     public PhotoItem Photo { get; private set; } = null!;
+
+    public IReadOnlyList<ArchiveNote> ArchiveNotes { get; private set; } = [];
 
     public int Index { get; private set; }
 
@@ -56,6 +59,9 @@ public sealed class DetailModel(
 
         Category = category;
         Photo = navigation.Photo;
+        ArchiveNotes = (await photoCorrectionRepository.GetApprovedPublicAsync(picId, cancellationToken))
+            .Select(ArchiveNote.From)
+            .ToList();
         Index = navigation.Index;
         Count = navigation.Count;
 
@@ -85,4 +91,13 @@ public sealed class DetailModel(
 
         return Page();
     }
+}
+
+/// <summary>An editor-approved note shown under a photo, with the credit its contributor chose.</summary>
+public sealed record ArchiveNote(string Label, string Value, string? Credit)
+{
+    public string Text => Credit is null ? $"{Label}: {Value}" : $"{Label}: {Value} (thanks to {Credit})";
+
+    public static ArchiveNote From(PublicPhotoCorrection correction) =>
+        new(PhotoCorrectionKind.Label(correction.Kind), correction.Value, correction.CreditName);
 }
