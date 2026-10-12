@@ -9,7 +9,8 @@ namespace QueenZone.Web.Pages.Submit;
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
 public sealed class PhotoCorrectionModel(
     IPhotoCorrectionRepository photoCorrectionRepository,
-    IAdminPhotoRepository photoRepository) : PageModel
+    IAdminPhotoRepository photoRepository,
+    PhotoCorrectionReviewService reviewService) : PageModel
 {
     [BindProperty]
     [Display(Name = "What needs correcting")]
@@ -93,7 +94,7 @@ public sealed class PhotoCorrectionModel(
                     picId,
                     memberId.Value,
                     Kind,
-                    CurrentValueFor(Kind, Photo!),
+                    await reviewService.GetCurrentValueAsync(Kind, picId, cancellationToken),
                     ProposedValue,
                     Explanation ?? string.Empty,
                     EvidenceUrl,
@@ -110,9 +111,6 @@ public sealed class PhotoCorrectionModel(
             return Page();
         }
     }
-
-    internal static string? CurrentValueFor(string kind, AdminPhotoItem photo) =>
-        kind == PhotoCorrectionKind.Caption ? photo.Title : null;
 
     /// <summary>Only visible (published) photos can receive proposals; anything else is a 404.</summary>
     private async Task<IActionResult?> LoadPhotoAsync(int picId, CancellationToken cancellationToken)

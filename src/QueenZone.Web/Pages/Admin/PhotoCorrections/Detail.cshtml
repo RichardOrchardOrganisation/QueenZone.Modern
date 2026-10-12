@@ -10,7 +10,7 @@
     <output class="qz-status-block qz-account-notice @Model.StatusNoticeClass">@Model.StatusMessage</output>
   }
 
-  @if (Model.CaptionIsStale)
+  @if (Model.IsStale)
   {
     <p class="qz-account-notice qz-account-notice--error" role="alert">@Model.StaleWarning</p>
   }

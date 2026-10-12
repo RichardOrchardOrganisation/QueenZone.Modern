@@ -154,7 +154,7 @@ internal static class PhotoCorrectionRules
     internal static IReadOnlyList<PublicPhotoCorrection> ToPublic(IEnumerable<PhotoCorrectionProposalEntity> rows) =>
         rows
             .Where(row => row.Status == PhotoCorrectionStatus.Approved
-                && row.Kind is PhotoCorrectionKind.EventDate or PhotoCorrectionKind.PhotographerSource)
+                && row.Kind is PhotoCorrectionKind.EventDate or PhotoCorrectionKind.PhotoDate or PhotoCorrectionKind.PhotographerSource)
             .GroupBy(row => row.Kind)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group => group.OrderByDescending(row => row.ReviewedAt).First())
