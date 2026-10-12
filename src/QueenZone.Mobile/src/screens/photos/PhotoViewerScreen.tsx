@@ -1,8 +1,10 @@
+import { getAppConfig } from '../../config/appConfig';
 import { PhotoViewerChrome, type ViewerStatus, type ViewerStatusKind } from './PhotoViewerChrome';
+import { photoCorrectionCopy, photoCorrectionUrl } from './photoCorrectionLink';
 import { photoViewerDisplay } from './photoViewerDisplay';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, Text, View } from 'react-native';
+import { AccessibilityInfo, Linking, Platform, Text, View } from 'react-native';
 import { ApiError, fetchPhotoDetail, type PhotoDetail } from '../../api';
 import type { PhotosStackParamList } from '../../navigation/types';
 import { testIds } from '../../test/testIds';
@@ -139,6 +141,16 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
       statusTimerRef.current = null;
     }, kind === 'success' ? photoViewerStatusTiming.successDismissMs : photoViewerStatusTiming.errorDismissMs);
   }, []);
+
+  const handleSuggestCorrection = useCallback(() => {
+    const current = photoRef.current;
+    const url = current ? photoCorrectionUrl(getAppConfig().apiBaseUrl, current.picId) : null;
+    if (url == null) {
+      showStatus(photoCorrectionCopy.failed, 'error');
+      return;
+    }
+    Linking.openURL(url).catch(() => showStatus(photoCorrectionCopy.failed, 'error'));
+  }, [showStatus]);
 
   const startPhotosCooldown = useCallback(() => {
     clearTimeoutRef(photosCooldownTimerRef);
@@ -346,7 +358,8 @@ export function PhotoViewerScreen({ navigation, route }: Props) {
       {chromeVisible ? (
         <PhotoViewerChrome photo={photo} hasImage={image != null} status={status}
           saveBusy={saveBusy} wallpaperBusy={wallpaperBusy} photosCooldown={photosCooldown} wallpaperCooldown={wallpaperCooldown}
-          onClose={() => navigation.goBack()} onWallpaper={handleWallpaper} onSave={handleSave} goTo={goTo} />
+          onClose={() => navigation.goBack()} onWallpaper={handleWallpaper} onSave={handleSave} goTo={goTo}
+          onSuggestCorrection={handleSuggestCorrection} />
       ) : null}
       {chromeVisible && wallpaperSheetVisible && Platform.OS === 'android' ? (
         <WallpaperTargetSheet

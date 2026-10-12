@@ -1,5 +1,5 @@
 import { Check, ChevronLeft, ChevronRight, Download, Wallpaper, X } from 'lucide-react-native';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PhotoDetail } from '../../api';
 import { testIds } from '../../test/testIds';
@@ -7,6 +7,7 @@ import { fonts, radius, space, type, useTheme } from '../../theme';
 import { IconButton } from '../../ui/IconButton';
 import { MetaLine } from '../../ui/MetaLine';
 import { photoCounterLabel, photoDetailMeta } from './photoGalleryMeta';
+import { photoCorrectionCopy } from './photoCorrectionLink';
 import { photoViewerActions } from './photoViewerDisplay';
 import { wallpaperCopy } from './wallpaperMeta';
 
@@ -62,9 +63,10 @@ type Props = {
   photo: PhotoDetail; hasImage: boolean; status: ViewerStatus | null;
   saveBusy: boolean; wallpaperBusy: boolean; photosCooldown: boolean; wallpaperCooldown: boolean;
   onClose: () => void; onWallpaper: () => void; onSave: () => Promise<void>; goTo: (id: number) => void;
+  onSuggestCorrection: () => void;
 };
 
-export function PhotoViewerChrome({ photo, hasImage, status, saveBusy, wallpaperBusy, photosCooldown, wallpaperCooldown, onClose, onWallpaper, onSave, goTo }: Props) {
+export function PhotoViewerChrome({ photo, hasImage, status, saveBusy, wallpaperBusy, photosCooldown, wallpaperCooldown, onClose, onWallpaper, onSave, goTo, onSuggestCorrection }: Readonly<Props>) {
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const actions = photoViewerActions(Platform.OS, photosCooldown, wallpaperCooldown, saveBusy, wallpaperBusy);
@@ -153,6 +155,19 @@ export function PhotoViewerChrome({ photo, hasImage, status, saveBusy, wallpaper
           >
             <Text style={[type.cardTitle, { color: c.textPrimary }]}>{photo.title}</Text>
             <MetaLine parts={photoDetailMeta(photo)} />
+            <Pressable
+              testID={testIds.photoViewerSuggestCorrection}
+              accessibilityRole="link"
+              accessibilityLabel={photoCorrectionCopy.label}
+              accessibilityHint={photoCorrectionCopy.hint}
+              onPress={onSuggestCorrection}
+              hitSlop={8}
+              style={{ minHeight: 44, justifyContent: 'center' }}
+            >
+              <Text style={[type.caption, { color: c.accentPrimary, textDecorationLine: 'underline' }]}>
+                {photoCorrectionCopy.label}
+              </Text>
+            </Pressable>
           </View>
         </View>
   );
