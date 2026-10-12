@@ -3,7 +3,7 @@ import { memo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ForumPost } from '../../api';
 import { flushOfflineQueue, removeOfflineItem, updateOfflineItem, type OfflineQueueItem } from '../../offlineQueue';
-import { RichHtmlBody } from '../../ui/RichHtmlBody';
+import { ForumVideoBody } from './video/ForumVideoBody';
 import { testIds } from '../../test/testIds';
 import { space, type, useTheme } from '../../theme';
 import { formatMemberSince, formatPostTimestamp } from './forumThreadMeta';
@@ -80,7 +80,7 @@ export const ForumPostRow = memo(function ForumPostRow({
         <Pressable accessibilityRole="button" accessibilityLabel="Show post from blocked member" onPress={() => setRevealed(true)} style={styles.blocked}>
           <Text style={[type.body, { color: c.textSecondary }]}>Post from a blocked member. Show this post</Text>
         </Pressable>
-      ) : <View style={styles.body}><RichHtmlBody html={post.body} horizontalInset={space.xl} /></View>}
+      ) : <View style={styles.body}><ForumVideoBody html={post.body} descriptors={post.queueState ? undefined : post.youtubeVideos} postKey={postKeyExtractor(post)} /></View>}
       {isReported ? <Text accessibilityRole="text" style={[type.caption, { color: c.textMuted, marginTop: space.sm }]}>Report submitted</Text> : null}
       {post.queueState ? (
         <Pressable
