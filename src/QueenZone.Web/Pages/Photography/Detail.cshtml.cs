@@ -32,6 +32,18 @@ public sealed class DetailModel(
     [BindProperty(SupportsGet = true, Name = PhotoRoutes.SizeQueryParameter)]
     public string? Size { get; set; }
 
+    /// <summary>
+    /// Page and share-preview description. Approved archive notes add their value (never the
+    /// contributor's credit, which stays on the page itself).
+    /// </summary>
+    internal static string BuildDescription(string title, string categoryName, IReadOnlyList<ArchiveNote> notes)
+    {
+        var description = $"{title} – Queen photography from the {categoryName} collection.";
+        return notes.Count == 0
+            ? description
+            : $"{description} {string.Join(' ', notes.Select(note => $"{note.Label}: {note.Value}."))}";
+    }
+
     public async Task<IActionResult> OnGetAsync(string slug, int picId, CancellationToken cancellationToken)
     {
         SizeFilter = PhotoListFilter.Parse(Size);
@@ -84,7 +96,7 @@ public sealed class DetailModel(
         ];
 
         ViewData["Title"] = $"{Photo.Title} | {category.Name} | Photography | QueenZone";
-        ViewData["Description"] = $"{Photo.Title} – Queen photography from the {category.Name} collection.";
+        ViewData["Description"] = BuildDescription(Photo.Title, category.Name, ArchiveNotes);
         ViewData["CanonicalPath"] = PhotoRoutes.GetDetailPath(category.Slug, Photo.PicId);
         ViewData["OgImage"] = Photo.ImageUrl;
         ViewData["PhotoListFilter"] = SizeFilter;
