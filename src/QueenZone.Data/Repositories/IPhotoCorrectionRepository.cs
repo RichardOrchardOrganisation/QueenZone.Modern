@@ -17,10 +17,14 @@ public interface IPhotoCorrectionRepository
 
     Task<PhotoCorrectionProposal?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-    /// <summary>Open (pending or needs-info) proposals, oldest first so nothing waits forever.</summary>
+    /// <summary>
+    /// Open (pending or needs-info) proposals, oldest first so nothing waits forever. Corrections and
+    /// fan memories are moderated separately: <paramref name="memories"/> picks which queue.
+    /// </summary>
     Task<IReadOnlyList<PhotoCorrectionListItem>> GetOpenAsync(
         int page,
         int pageSize,
+        bool memories = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>Every proposal for one photo, newest first, so editors can compare competing claims.</summary>
@@ -40,6 +44,14 @@ public interface IPhotoCorrectionRepository
     /// to the photo itself). Reverted, rejected and open proposals never appear.
     /// </summary>
     Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedPublicAsync(
+        int picId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Approved fan memories for a photo, newest first (at most <see cref="PhotoCorrectionValidation.MaxPublicMemories"/>).
+    /// Shown as labelled recollections, never as established fact.
+    /// </summary>
+    Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedMemoriesAsync(
         int picId,
         CancellationToken cancellationToken = default);
 

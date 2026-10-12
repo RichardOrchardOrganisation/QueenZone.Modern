@@ -10,9 +10,15 @@
     <a href="/admin/photos">Photos</a>
   </p>
 
+  <nav aria-label="Review queue">
+    <a href="/admin/photo-corrections" aria-current="@(Model.ShowMemories ? null : "page")">Corrections</a>
+    ·
+    <a href="/admin/photo-corrections?queue=memories" aria-current="@(Model.ShowMemories ? "page" : null)">Fan memories</a>
+  </nav>
+
   @if (Model.Proposals.Count == 0)
   {
-    <p>No photo corrections awaiting review.</p>
+    <p>@(Model.ShowMemories ? "No fan memories awaiting review." : "No photo corrections awaiting review.")</p>
   }
   else
   {

@@ -71,6 +71,19 @@
         }
       </ul>
     }
+    @if (Model.Memories.Count > 0)
+    {
+      <section class="qz-lightbox__meta" aria-labelledby="fan-memories-heading">
+        <h2 id="fan-memories-heading">Fan memories</h2>
+        <p>Recollections shared by fans. They are not verified by QueenZone.</p>
+        <ul>
+          @foreach (var memory in Model.Memories)
+          {
+            <li>&ldquo;@memory.Value&rdquo; &mdash; @(memory.Credit ?? "a fan")</li>
+          }
+        </ul>
+      </section>
+    }
     <p class="qz-lightbox__meta">
       <a href="/submit/photo-correction/@Model.Photo.PicId">Suggest a correction</a>
     </p>

@@ -42,15 +42,20 @@
         </select>
       </label>
 
+      <p class="qz-account-form__help">
+        Choose "Memory" to share something you remember about this photo. Memories are reviewed
+        separately, labelled as a fan's recollection, and never replace the archive's details.
+      </p>
+
       <label class="qz-account-form__field">
-        <span>Corrected value</span>
+        <span>Corrected value, or your memory</span>
         <input asp-for="ProposedValue" maxlength="@PhotoCorrectionValidation.MaxValueLength" required />
         <span class="qz-account-form__help">For an event date, write what you know, such as "12 June 1982" or "summer 1982".</span>
       </label>
 
       <label class="qz-account-form__field">
-        <span>How do you know?</span>
-        <textarea asp-for="Explanation" rows="4" maxlength="@PhotoCorrectionValidation.MaxExplanationLength" required></textarea>
+        <span>How do you know? <span class="qz-account-form__optional">(required except for a memory)</span></span>
+        <textarea asp-for="Explanation" rows="4" maxlength="@PhotoCorrectionValidation.MaxExplanationLength"></textarea>
         <span class="qz-account-form__help">For example: you were there, a ticket or programme, a book, or a dated page.</span>
       </label>
 

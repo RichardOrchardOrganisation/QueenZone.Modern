@@ -64,13 +64,15 @@ public sealed class InMemoryPhotoCorrectionRepository(Func<Guid, MemberAccount?>
     public Task<IReadOnlyList<PhotoCorrectionListItem>> GetOpenAsync(
         int page,
         int pageSize,
+        bool memories = false,
         CancellationToken cancellationToken = default)
     {
         var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
         lock (sync)
         {
             IReadOnlyList<PhotoCorrectionListItem> result = proposals
-                .Where(row => PhotoCorrectionStatus.IsOpen(row.Status))
+                .Where(row => PhotoCorrectionStatus.IsOpen(row.Status)
+                    && (row.Kind == PhotoCorrectionKind.Memory) == memories)
                 .OrderBy(row => row.SubmittedAt)
                 .ThenBy(row => row.Id)
                 .Skip(skip)
@@ -120,6 +122,16 @@ public sealed class InMemoryPhotoCorrectionRepository(Func<Guid, MemberAccount?>
         lock (sync)
         {
             return Task.FromResult(PhotoCorrectionRules.ToPublic(proposals.Where(row => row.PicId == picId)));
+        }
+    }
+
+    public Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedMemoriesAsync(
+        int picId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            return Task.FromResult(PhotoCorrectionRules.ToPublicMemories(proposals.Where(row => row.PicId == picId)));
         }
     }
 

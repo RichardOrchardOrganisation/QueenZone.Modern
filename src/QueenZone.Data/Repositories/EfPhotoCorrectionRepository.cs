@@ -58,6 +58,7 @@ public sealed class EfPhotoCorrectionRepository(QueenZoneDbContext dbContext) : 
     public async Task<IReadOnlyList<PhotoCorrectionListItem>> GetOpenAsync(
         int page,
         int pageSize,
+        bool memories = false,
         CancellationToken cancellationToken = default)
     {
         var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
@@ -69,6 +70,7 @@ public sealed class EfPhotoCorrectionRepository(QueenZoneDbContext dbContext) : 
 
         // DateTimeOffset cannot be ordered in SQLite, so order client-side; the open queue is small.
         return rows
+            .Where(row => (row.Kind == PhotoCorrectionKind.Memory) == memories)
             .OrderBy(row => row.SubmittedAt)
             .ThenBy(row => row.Id)
             .Skip(skip)
@@ -117,6 +119,19 @@ public sealed class EfPhotoCorrectionRepository(QueenZoneDbContext dbContext) : 
             .Where(row => row.PicId == picId && row.Status == PhotoCorrectionStatus.Approved)
             .ToListAsync(cancellationToken);
         return PhotoCorrectionRules.ToPublic(rows);
+    }
+
+    public async Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedMemoriesAsync(
+        int picId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.PhotoCorrectionProposals
+            .AsNoTracking()
+            .Where(row => row.PicId == picId
+                && row.Kind == PhotoCorrectionKind.Memory
+                && row.Status == PhotoCorrectionStatus.Approved)
+            .ToListAsync(cancellationToken);
+        return PhotoCorrectionRules.ToPublicMemories(rows);
     }
 
     public async Task<IReadOnlyList<PhotoCorrectionAuditEntry>> GetAuditAsync(

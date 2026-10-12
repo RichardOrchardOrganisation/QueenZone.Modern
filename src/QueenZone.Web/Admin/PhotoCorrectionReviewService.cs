@@ -43,7 +43,7 @@ public sealed class PhotoCorrectionReviewService(
         {
             return await RecordAsync(
                 () => corrections.ApproveAsync(id, editorEmail, reviewNotes, null, cancellationToken),
-                "Accepted. It now appears under the photo as an archive note.",
+                "Accepted. It now appears on the photo.",
                 cancellationToken);
         }
 

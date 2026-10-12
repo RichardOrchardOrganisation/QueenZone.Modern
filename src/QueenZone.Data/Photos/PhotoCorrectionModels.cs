@@ -9,7 +9,10 @@ public static class PhotoCorrectionKind
 
     public const string PhotographerSource = "PhotographerSource";
 
-    public static readonly IReadOnlyList<string> All = [Caption, EventDate, PhotographerSource];
+    /// <summary>A first-person recollection. Never treated as fact and never changes the photo.</summary>
+    public const string Memory = "Memory";
+
+    public static readonly IReadOnlyList<string> All = [Caption, EventDate, PhotographerSource, Memory];
 
     public static bool IsKnown(string? kind) =>
         !string.IsNullOrWhiteSpace(kind) && All.Contains(kind.Trim(), StringComparer.Ordinal);
@@ -19,6 +22,7 @@ public static class PhotoCorrectionKind
         Caption => "Caption",
         EventDate => "Event date",
         PhotographerSource => "Photographer or source",
+        Memory => "Memory",
         _ => kind,
     };
 }
@@ -186,7 +190,7 @@ public sealed class PhotoCorrectionLimitException(int limit)
     : InvalidOperationException(
         $"You have {limit} proposals waiting for review. Wait for some to be reviewed before sending more.");
 
-public static class PhotoCorrectionValidation
+public static partial class PhotoCorrectionValidation
 {
     public const int MaxValueLength = 500;
 
@@ -200,6 +204,9 @@ public static class PhotoCorrectionValidation
     public const int MaxCreditNameLength = 100;
 
     public const int MaxMessageLength = 500;
+
+    /// <summary>Approved fan memories shown on one photo page.</summary>
+    public const int MaxPublicMemories = 5;
 
     /// <summary>Open proposals one member may have at once, across all photos.</summary>
     public const int MaxOpenPerMember = 10;
@@ -232,7 +239,7 @@ public static class PhotoCorrectionValidation
             errors.Add($"A caption must be {MaxCaptionLength} characters or fewer.");
         }
 
-        if (string.IsNullOrWhiteSpace(explanation))
+        if (string.IsNullOrWhiteSpace(explanation) && kind != PhotoCorrectionKind.Memory)
         {
             errors.Add("Explain how you know, so an editor can check it.");
         }
@@ -261,8 +268,34 @@ public static class PhotoCorrectionValidation
             errors.Add($"The credit name must be {MaxCreditNameLength} characters or fewer.");
         }
 
+        if (ContainsContactDetails(proposedValue) || ContainsContactDetails(explanation))
+        {
+            errors.Add("Please remove email addresses and phone numbers; editors never need them here.");
+        }
+
         return errors;
     }
+
+    /// <summary>
+    /// Free text is reviewed by editors and, for memories, may be published. Refuse obvious
+    /// contact details (emails, long digit runs such as phone numbers) so they never get stored.
+    /// </summary>
+    public static bool ContainsContactDetails(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return EmailPattern().IsMatch(text)
+            || PhonePattern().Matches(text).Any(match => match.Value.Count(char.IsDigit) >= 9);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"[^\s@]+@[^\s@]+\.[^\s@]+", System.Text.RegularExpressions.RegexOptions.None, 250)]
+    private static partial System.Text.RegularExpressions.Regex EmailPattern();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\+?\d[\d\s().\-]{7,}\d", System.Text.RegularExpressions.RegexOptions.None, 250)]
+    private static partial System.Text.RegularExpressions.Regex PhonePattern();
 
     /// <summary>
     /// Evidence links are shown to editors only, as plain text. Anything but a plain
