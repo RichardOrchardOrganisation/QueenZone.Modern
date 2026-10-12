@@ -1,5 +1,9 @@
 /** Stable Maestro / RTL selectors. Prefer these over visible copy. */
 export const testIds = {
+  forumYoutubePlayer: 'forum-youtube-player',
+  forumYoutubeStatus: 'forum-youtube-status',
+  forumYoutubeWatch: 'forum-youtube-watch',
+  forumYoutubeRetry: 'forum-youtube-retry',
   tabHome: 'tab-home',
   tabNews: 'tab-news',
   tabPhotos: 'tab-photos',
