@@ -85,13 +85,20 @@ run "forum_topic_cache_is_anonymous_get_head_only" {
     condition = anytrue([
       for r in cloudflare_ruleset.archive_author_cache.rules :
       r.ref == "cache_anonymous_forum_topics" &&
-      strcontains(r.expression, "(http.request.method in {\"GET\" \"HEAD\"})") &&
-      strcontains(r.expression, "starts_with(lower(http.request.uri.path), \"/forum/topic/\")") &&
-      strcontains(r.expression, "(http.cookie eq \"\")") &&
-      !strcontains(r.expression, "/forum/attachment/") &&
+      r.expression == <<-EOT
+        (http.host in {"queenzone.org" "www.queenzone.org"}) and
+        (http.request.method in {"GET" "HEAD"}) and
+        starts_with(lower(http.request.uri.path), "/forum/topic/") and
+        (http.cookie eq "")
+      EOT
+      &&
       r.action_parameters.cache == true &&
-      r.action_parameters.edge_ttl.mode == "respect_origin"
+      r.action_parameters.edge_ttl.mode == "respect_origin" &&
+      length(r.action_parameters.edge_ttl.status_code_ttl) == 1 &&
+      r.action_parameters.edge_ttl.status_code_ttl[0].status_code_range.from == 300 &&
+      r.action_parameters.edge_ttl.status_code_ttl[0].status_code_range.to == 499 &&
+      r.action_parameters.edge_ttl.status_code_ttl[0].value == 0
     ])
-    error_message = "Topic cache rule must cover only cookie-free GET/HEAD on /forum/topic/ (any cookie bypasses) and respect the origin TTL."
+    error_message = "Topic cache rule must cover only cookie-free GET/HEAD on /forum/topic/ (any cookie bypasses) respect the origin TTL, and never edge-cache 300-499."
   }
 }

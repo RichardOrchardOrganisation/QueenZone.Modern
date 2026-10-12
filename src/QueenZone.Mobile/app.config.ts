@@ -76,6 +76,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: config.name ?? 'QueenZone',
     slug: config.slug ?? 'queenzone-mobile',
     version,
+    // Native WebView addition (#1958): OTA bundles must match the native fingerprint.
+    runtimeVersion: { policy: 'fingerprint' },
     android: {
       ...(typeof config.android === 'object' && config.android !== null
         ? config.android
@@ -127,6 +129,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // react-native-android-widget's work-runtime does not clash with a
       // transitive work-runtime-ktx 2.7.1 (duplicate OneTimeWorkRequestKt).
       './plugins/withAndroidWorkRuntimeAlignment.cjs',
+      // Expo executes stacked mods inside-out: consume the scene/native boundary output.
+      './plugins/withForumFullscreenOrientation.cjs',
+      './plugins/withForumWebViewBoundary.cjs',
       // iOS expo-audio 57.0.4: currentStatus must not call currentDate() (#1234).
       './plugins/withExpoAudioIosCurrentOffsetFromLive.cjs',
       // Xcode/iOS 27 requires UIScene; Expo SDK 57 still generates the legacy

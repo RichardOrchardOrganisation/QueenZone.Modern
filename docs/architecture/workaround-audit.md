@@ -66,3 +66,7 @@ There are none of these: `NOSONAR`, `@ts-ignore` / `@ts-expect-error`, `HACK` / 
   - a file drops below its baseline. Run `node scripts/check-suppressions.mjs --write` and commit the lower baseline. The ceiling only goes down.
 - `node scripts/check-suppressions.mjs --list` prints every unlinked suppression with its line.
 - When a "remove with" issue lands, delete its row here. When you add a "keep", add a row with the reason.
+
+## Native forum player boundary (#1958)
+
+Keep `react-native-webview` at Expo SDK57's supported 13.16.1. Explicit htmlparser2 10.1.0/domhandler 5.0.3/domutils 3.2.2 match the native renderer's DOM family. No advisory exception, coverage exclusion or suppression was added. `withForumWebViewBoundary.cjs` is a guarded CNG patch for native fullscreen signaling, disabling Android downloads and preserving Android frame/gesture navigation with fail-closed timeouts. Remove it when the maintained integration exposes those guarantees; re-audit on every WebView upgrade. Details and unverified platform limits: `docs/mobile-forum-youtube.md`.
