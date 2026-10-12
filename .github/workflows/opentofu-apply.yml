@@ -137,7 +137,9 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
         # Read-only plan: no state lock (#2230). A cancelled/superseded run
         # otherwise leaves a stale blob lease that blocks the next apply.
-        # Applies still lock; a stale saved plan is rejected by tofu apply.
+        # Applies still lock. tofu apply rejects this saved plan only if state
+        # changed since (lineage/serial); a rejected plan means re-run and
+        # re-approve the workflow.
         run: tofu plan -input=false -lock=false -out=tfplan
 
       - name: Render plan as JSON
