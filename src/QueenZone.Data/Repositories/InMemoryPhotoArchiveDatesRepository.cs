@@ -3,23 +3,23 @@ namespace QueenZone.Data;
 public sealed class InMemoryPhotoArchiveDatesRepository(SharedPhotoStore store) : IPhotoArchiveDatesRepository
 {
     private readonly object sync = new();
-    private readonly Dictionary<int, PhotoArchiveDates> dates = [];
+    private readonly Dictionary<int, PhotoArchiveDates> stored = [];
 
     public Task<PhotoArchiveDates> GetAsync(int picId, CancellationToken cancellationToken = default)
     {
         lock (sync)
         {
-            return Task.FromResult(dates.GetValueOrDefault(picId, PhotoArchiveDates.Unknown));
+            return Task.FromResult(stored.GetValueOrDefault(picId, PhotoArchiveDates.Unknown));
         }
     }
 
     public Task SetAsync(
         int picId,
-        PhotoArchiveDates newDates,
+        PhotoArchiveDates dates,
         PhotoArchiveDates expected,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(newDates);
+        ArgumentNullException.ThrowIfNull(dates);
         ArgumentNullException.ThrowIfNull(expected);
 
         lock (sync)
@@ -29,12 +29,12 @@ public sealed class InMemoryPhotoArchiveDatesRepository(SharedPhotoStore store) 
                 throw new InvalidOperationException($"Photo {picId} was not found.");
             }
 
-            if (dates.GetValueOrDefault(picId, PhotoArchiveDates.Unknown) != expected)
+            if (stored.GetValueOrDefault(picId, PhotoArchiveDates.Unknown) != expected)
             {
                 throw new OptimisticConcurrencyException();
             }
 
-            dates[picId] = newDates;
+            stored[picId] = dates;
             return Task.CompletedTask;
         }
     }

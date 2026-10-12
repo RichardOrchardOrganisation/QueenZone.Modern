@@ -163,7 +163,7 @@ public sealed class PhotoCorrectionReviewService(
             var current = await photos.GetByIdAsync(proposal.PicId, cancellationToken);
             if (current is not null)
             {
-                await TryWriteAsync(proposal.Kind, current, previous!, editorEmail, cancellationToken);
+                await TryWriteAsync(proposal.Kind, current, previous, editorEmail, cancellationToken);
             }
 
             return new PhotoCorrectionReviewResult(false, ex.Message);

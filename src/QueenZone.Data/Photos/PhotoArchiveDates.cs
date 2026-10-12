@@ -18,7 +18,18 @@ public readonly partial record struct PartialDate(int Year, int? Month = null, i
 
     public const string PrecisionDay = "D";
 
-    public string Precision => Day is not null ? PrecisionDay : Month is not null ? PrecisionMonth : PrecisionYear;
+    public string Precision
+    {
+        get
+        {
+            if (Day is not null)
+            {
+                return PrecisionDay;
+            }
+
+            return Month is not null ? PrecisionMonth : PrecisionYear;
+        }
+    }
 
     public static bool TryParse(string? text, out PartialDate value)
     {
@@ -61,15 +72,32 @@ public readonly partial record struct PartialDate(int Year, int? Month = null, i
     /// <summary>The value for the <c>date</c> column; unknown parts default to the first of the period.</summary>
     public DateTime ToDatabaseDate() => new(Year, Month ?? 1, Day ?? 1, 0, 0, 0, DateTimeKind.Unspecified);
 
-    public string ToIso() => Day is not null
-        ? $"{Year:D4}-{Month:D2}-{Day:D2}"
-        : Month is not null ? $"{Year:D4}-{Month:D2}" : $"{Year:D4}";
+    public string ToIso()
+    {
+        if (Day is not null)
+        {
+            return $"{Year:D4}-{Month:D2}-{Day:D2}";
+        }
 
-    public string ToDisplay() => Day is not null
-        ? new DateTime(Year, Month!.Value, Day.Value).ToString("d MMMM yyyy", CultureInfo.InvariantCulture)
-        : Month is not null
-            ? new DateTime(Year, Month.Value, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture)
-            : Year.ToString(CultureInfo.InvariantCulture);
+        return Month is not null ? $"{Year:D4}-{Month:D2}" : $"{Year:D4}";
+    }
+
+    public string ToDisplay()
+    {
+        if (Day is not null)
+        {
+            return new DateTime(Year, Month!.Value, Day.Value, 0, 0, 0, DateTimeKind.Unspecified)
+                .ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
+        }
+
+        if (Month is not null)
+        {
+            return new DateTime(Year, Month.Value, 1, 0, 0, 0, DateTimeKind.Unspecified)
+                .ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        }
+
+        return Year.ToString(CultureInfo.InvariantCulture);
+    }
 
     private static bool IsValid(int year, int? month, int? day)
     {
