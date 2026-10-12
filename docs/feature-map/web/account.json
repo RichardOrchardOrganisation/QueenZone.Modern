@@ -27,6 +27,7 @@
       "sources": [
         "src/QueenZone.Web/Pages/Account/MySubmissions.cshtml",
         "src/QueenZone.Web/Pages/Account/_MySubmissionArticles.cshtml",
+        "src/QueenZone.Web/Pages/Account/_MySubmissionCorrections.cshtml",
         "src/QueenZone.Web/Pages/Account/_MySubmissionNews.cshtml",
         "src/QueenZone.Web/Pages/Account/_MySubmissionPerformances.cshtml",
         "src/QueenZone.Web/Pages/Account/_MySubmissionPhotos.cshtml",

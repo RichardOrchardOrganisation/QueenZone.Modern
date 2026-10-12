@@ -277,6 +277,25 @@ public sealed class PhotoCorrectionRepositoryTests : IAsyncDisposable
         Assert.NotEqual(open.Id, Guid.Empty);
     }
 
+    [Theory]
+    [MemberData(nameof(Implementations))]
+    public async Task Member_list_has_only_their_own_proposals_newest_first_and_pages(string implementation)
+    {
+        var repository = Create(implementation);
+        var first = await repository.CreateAsync(New(picId: 101));
+        await Task.Delay(5);
+        var second = await repository.CreateAsync(New(picId: 102));
+        await repository.CreateAsync(New(picId: 101, member: otherMemberId));
+
+        var page = await repository.GetBySubmitterAsync(memberId, 1, 1);
+        var next = await repository.GetBySubmitterAsync(memberId, 2, 1);
+
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(second.Id, Assert.Single(page.Items).Id);
+        Assert.Equal(first.Id, Assert.Single(next.Items).Id);
+        Assert.Empty((await repository.GetBySubmitterAsync(Guid.NewGuid())).Items);
+    }
+
     [Fact]
     public async Task Ef_second_editor_deciding_the_same_proposal_loses_the_race()
     {

@@ -28,6 +28,13 @@ public interface IPhotoCorrectionRepository
         int picId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>A member's own proposals, newest first, for the My submissions page.</summary>
+    Task<SubmissionListPage<PhotoCorrectionProposal>> GetBySubmitterAsync(
+        Guid submitterMemberId,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Latest approved event-date and photographer/source value for a photo (captions are applied
     /// to the photo itself). Reverted, rejected and open proposals never appear.

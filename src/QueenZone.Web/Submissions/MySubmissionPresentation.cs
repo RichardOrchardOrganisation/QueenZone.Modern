@@ -13,6 +13,7 @@ public static class MySubmissionPresentation
     [
         ("photos", "Photos"), ("news", "News suggestions"), ("articles", "Articles"),
         ("trivia", "Trivia"), ("quiz", "Quiz"), ("performances", "Fan performances"),
+        ("corrections", "Photo corrections"),
     ];
 
     public static IReadOnlyList<MySubmissionTab> Tabs(string activeTab) => TabLabels.Select(tab =>
@@ -25,6 +26,7 @@ public static class MySubmissionPresentation
         "trivia" => "_MySubmissionTrivia",
         "quiz" => "_MySubmissionQuiz",
         "news" => "_MySubmissionNews",
+        "corrections" => "_MySubmissionCorrections",
         _ => "_MySubmissionArticles",
     };
 

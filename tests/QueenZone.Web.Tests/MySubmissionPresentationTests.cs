@@ -11,14 +11,15 @@ public sealed class MySubmissionPresentationTests
     [InlineData("trivia", "_MySubmissionTrivia")]
     [InlineData("quiz", "_MySubmissionQuiz")]
     [InlineData("news", "_MySubmissionNews")]
+    [InlineData("corrections", "_MySubmissionCorrections")]
     [InlineData("articles", "_MySubmissionArticles")]
     [InlineData("unknown", "_MySubmissionArticles")]
     public void Tabs_PreserveLabelsLinksAndExactSelection(string tab, string partial)
     {
         Assert.Equal(partial, MySubmissionPresentation.PartialForTab(tab));
         var tabs = MySubmissionPresentation.Tabs(tab);
-        Assert.Equal(new[] { "Photos", "News suggestions", "Articles", "Trivia", "Quiz", "Fan performances" }, tabs.Select(item => item.Label));
-        Assert.Equal(new[] { "photos", "news", "articles", "trivia", "quiz", "performances" },
+        Assert.Equal(new[] { "Photos", "News suggestions", "Articles", "Trivia", "Quiz", "Fan performances", "Photo corrections" }, tabs.Select(item => item.Label));
+        Assert.Equal(new[] { "photos", "news", "articles", "trivia", "quiz", "performances", "corrections" },
             tabs.Select(item => item.Href.Split('=')[1]));
         Assert.All(tabs, item => Assert.StartsWith("/account/my-submissions?tab=", item.Href));
         Assert.Equal(tab == "unknown" ? 0 : 1, tabs.Count(item => item.IsActive));

@@ -16,6 +16,7 @@ public sealed class MySubmissionsModel(
     IQuizQuestionSubmissionRepository quizQuestionSubmissionRepository,
     IFanPerformanceSubmissionRepository fanPerformanceSubmissionRepository,
     FanPerformanceSubmissionService fanPerformanceSubmissionService,
+    IPhotoCorrectionRepository photoCorrectionRepository,
     INewsRepository newsRepository) : PageModel
 {
     public const int PageSize = 10;
@@ -26,6 +27,7 @@ public sealed class MySubmissionsModel(
     public const string TabTrivia = "trivia";
     public const string TabQuiz = "quiz";
     public const string TabPerformances = "performances";
+    public const string TabCorrections = "corrections";
 
     public string ActiveTab { get; private set; } = TabPhotos;
 
@@ -46,6 +48,8 @@ public sealed class MySubmissionsModel(
     public IReadOnlyList<QuizQuestionSubmission> QuizSubmissions { get; private set; } = [];
 
     public IReadOnlyList<FanPerformanceSubmission> FanPerformanceSubmissions { get; private set; } = [];
+
+    public IReadOnlyList<PhotoCorrectionProposal> CorrectionProposals { get; private set; } = [];
 
     public ArchivePaginationViewModel? Pagination { get; private set; }
 
@@ -198,6 +202,14 @@ public sealed class MySubmissionsModel(
                     Pagination = BuildPagination(result.TotalCount);
                     break;
                 }
+            case TabCorrections:
+                {
+                    var result = await photoCorrectionRepository.GetBySubmitterAsync(
+                        memberId, CurrentPage, PageSize, cancellationToken);
+                    CorrectionProposals = result.Items;
+                    Pagination = BuildPagination(result.TotalCount);
+                    break;
+                }
             case TabPerformances:
                 {
                     var result = await fanPerformanceSubmissionRepository.GetBySubmitterAsync(
@@ -228,6 +240,7 @@ public sealed class MySubmissionsModel(
             TabTrivia => TabTrivia,
             TabQuiz => TabQuiz,
             TabPerformances => TabPerformances,
+            TabCorrections => TabCorrections,
             _ => TabPhotos,
         };
 
