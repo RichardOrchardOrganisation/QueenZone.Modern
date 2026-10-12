@@ -88,6 +88,15 @@ internal static class PhotoCorrectionRules
         return Audit(entity.Id, "MemberReplied", string.Empty, repliedAt, "Member answered the editor's question.");
     }
 
+    /// <summary>The submitter withdraws a proposal that is still open.</summary>
+    internal static PhotoCorrectionAuditLogEntity Withdraw(PhotoCorrectionProposalEntity entity)
+    {
+        SubmissionReview.EnsureTransition(entity.Status, PhotoCorrectionStatus.Withdrawn, PhotoCorrectionWorkflow.TryValidateStatusChange);
+
+        entity.Status = PhotoCorrectionStatus.Withdrawn;
+        return Audit(entity.Id, "Withdrawn", string.Empty, DateTimeOffset.UtcNow, "Member withdrew the proposal.");
+    }
+
     internal static string RequireMessage(string? message, string whatFor) =>
         SubmissionInput.NormalizeOptional(message, PhotoCorrectionValidation.MaxMessageLength)
             ?? throw new InvalidOperationException($"A message for the member is required when {whatFor}.");

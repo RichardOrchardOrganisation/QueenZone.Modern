@@ -41,6 +41,32 @@ public sealed class PhotoCorrectionConfirmationModel(IPhotoCorrectionRepository 
         return Redirect($"/submit/photo-correction/confirmation/{id:D}");
     }
 
+    public bool CanWithdraw => Submission is not null && PhotoCorrectionStatus.IsOpen(Submission.Status);
+
+    public async Task<IActionResult> OnPostWithdrawAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var memberId = await HttpContext.AuthenticateMemberIdAsync();
+        if (memberId is null)
+        {
+            return Redirect("/account/login");
+        }
+
+        try
+        {
+            if (await photoCorrectionRepository.WithdrawAsync(id, memberId.Value, cancellationToken) is null)
+            {
+                return NotFound();
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return await LoadAsync(id, cancellationToken);
+        }
+
+        return Redirect($"/submit/photo-correction/confirmation/{id:D}");
+    }
+
     private Task<IActionResult> LoadAsync(Guid id, CancellationToken cancellationToken) =>
         LoadSubmissionAsync(
             id,

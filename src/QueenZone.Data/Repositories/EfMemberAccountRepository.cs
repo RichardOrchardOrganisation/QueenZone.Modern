@@ -964,6 +964,26 @@ public sealed class EfMemberAccountRepository : IMemberAccountRepository
             submission.PromotedTriviaId = null;
         }
 
+        // Photo correction proposals: drop everything the member wrote (and any credit) so an
+        // approved date/source note disappears with the account, as promoted trivia does. A caption
+        // already applied to a photo stays: it is archive content and carries no attribution.
+        var corrections = await dbContext.PhotoCorrectionProposals
+            .Where(proposal => proposal.SubmitterMemberId == memberId)
+            .ToListAsync(cancellationToken);
+        foreach (var proposal in corrections)
+        {
+            proposal.ProposedValue = "Deleted";
+            proposal.Explanation = "Deleted proposal";
+            proposal.CurrentValue = null;
+            proposal.EvidenceUrl = null;
+            proposal.EvidenceType = null;
+            proposal.PublicCreditName = null;
+            proposal.MemberReply = null;
+            proposal.MessageToMember = null;
+            proposal.ReviewNotes = null;
+            proposal.Status = "Deleted";
+        }
+
         var quizSubmissions = await dbContext.QuizQuestionSubmissions
             .Where(submission => submission.SubmitterMemberId == memberId)
             .ToListAsync(cancellationToken);
@@ -1029,6 +1049,10 @@ public sealed class EfMemberAccountRepository : IMemberAccountRepository
             .ExecuteUpdateAsync(setters => setters.SetProperty(log => log.Details, (string?)null), cancellationToken);
         await dbContext.TriviaFactSubmissionAuditLogs
             .Where(log => triviaIds.Contains(log.TriviaFactSubmissionId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(log => log.Details, (string?)null), cancellationToken);
+        var correctionIds = corrections.Select(proposal => proposal.Id).ToList();
+        await dbContext.PhotoCorrectionAuditLogs
+            .Where(log => correctionIds.Contains(log.PhotoCorrectionProposalId))
             .ExecuteUpdateAsync(setters => setters.SetProperty(log => log.Details, (string?)null), cancellationToken);
         await dbContext.QuizQuestionSubmissionAuditLogs
             .Where(log => submissionIds.Contains(log.QuizQuestionSubmissionId))

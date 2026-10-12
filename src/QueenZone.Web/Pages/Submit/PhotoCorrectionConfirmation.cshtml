@@ -60,6 +60,14 @@
       <p>Your reply was sent to the editors.</p>
     }
 
+    @if (Model.CanWithdraw)
+    {
+      <form method="post" asp-page-handler="Withdraw" class="qz-account-form">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="qz-button">Withdraw this proposal</button>
+      </form>
+    }
+
     <p>
       <a href="/photography">Back to photography</a>
       @if (isOpen)
