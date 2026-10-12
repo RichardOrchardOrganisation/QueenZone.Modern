@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -29,11 +30,9 @@ public sealed class TopicPageModel(
 
     public async Task<IActionResult> OnGetAsync(int topicId, string slug, CancellationToken cancellationToken)
     {
-        if (PageNumber == 1)
-        {
-            return RedirectPermanent(ForumRoutes.GetTopicCanonicalPath(topicId, slug));
-        }
-
-        return await LoadTopicPageAsync(topicId, slug, PageNumber, cancellationToken);
+        var result = await LoadTopicPageAsync(topicId, slug, PageNumber, cancellationToken);
+        return result is PageResult && PageNumber == 1
+            ? RedirectPermanent(ForumRoutes.GetTopicCanonicalPath(Header!))
+            : result;
     }
 }

@@ -63,7 +63,7 @@ public abstract class ForumTopicPageModel : PageModel
 
     protected async Task<IActionResult> LoadTopicPageAsync(
         int topicId,
-        string slug,
+        string? slug,
         int page,
         CancellationToken cancellationToken)
     {
@@ -83,7 +83,7 @@ public abstract class ForumTopicPageModel : PageModel
         }
 
         var header = PublicContentMapper.ToForumThreadHeader(topicPage.Header);
-        var canonicalSlug = NewsSlug.Slugify(topicPage.Header.Title);
+        var canonicalSlug = ForumRoutes.GetTopicSlug(header.Title);
         if (!string.Equals(canonicalSlug, slug, StringComparison.OrdinalIgnoreCase))
         {
             return RedirectPermanent(ForumRoutes.GetTopicCanonicalPath(header, page));
