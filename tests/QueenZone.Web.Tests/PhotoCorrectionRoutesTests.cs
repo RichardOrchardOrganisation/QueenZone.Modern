@@ -284,6 +284,53 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
     }
 
     [Fact]
+    public async Task Member_can_reply_to_an_editor_question_and_the_editor_sees_it()
+    {
+        var member = await SignInAsync("pc-reply@example.com", "Reply Fan", "google-pc-reply");
+        var other = await SignInAsync("pc-reply-other@example.com", "Reply Other", "google-pc-reply-other");
+        var id = await SubmitAsync(member, 202, "Knebworth, second night");
+        var admin = CreateAdminClient(AdminEmail);
+        var url = $"/submit/photo-correction/confirmation/{id:D}";
+
+        Assert.DoesNotContain("Send reply", await member.GetStringAsync(url));
+        await PostAdminAsync(admin, id, "requestinfo", new() { ["messageToMember"] = "Which night?" }, await admin.GetStringAsync($"/admin/photo-corrections/{id:D}"));
+
+        var page = await member.GetStringAsync(url);
+        Assert.Contains("Send reply", page);
+        Assert.Contains("Reply", await member.GetStringAsync("/account/my-submissions?tab=corrections"));
+
+        var blank = await member.PostAsync($"{url}?handler=Reply", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(page),
+            ["Reply"] = "   ",
+        }));
+        Assert.Equal(HttpStatusCode.OK, blank.StatusCode);
+        Assert.Contains("Write your reply first.", await blank.Content.ReadAsStringAsync());
+
+        var strangerPost = await other.PostAsync($"{url}?handler=Reply", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(await other.GetStringAsync("/submit/photo-correction/101")),
+            ["Reply"] = "Hijack",
+        }));
+        Assert.Equal(HttpStatusCode.NotFound, strangerPost.StatusCode);
+
+        var ok = await member.PostAsync($"{url}?handler=Reply", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ExtractAntiforgeryToken(page),
+            ["Reply"] = "The second night, 9 August.",
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, ok.StatusCode);
+
+        var after = await member.GetStringAsync(url);
+        Assert.Contains("Pending review", after);
+        Assert.Contains("Your reply was sent", after);
+        Assert.DoesNotContain("Send reply", after);
+        var detail = await admin.GetStringAsync($"/admin/photo-corrections/{id:D}");
+        Assert.Contains("The second night, 9 August.", detail);
+        Assert.Contains("MemberReplied", detail);
+    }
+
+    [Fact]
     public async Task Admin_actions_return_not_found_for_unknown_ids_and_redirect_on_get()
     {
         var member = await SignInAsync("pc-404@example.com", "Missing Fan", "google-pc-404");

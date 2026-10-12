@@ -25,6 +25,8 @@
   <dd>@Model.Proposal.Status</dd>
   <dt>Submitted</dt>
   <dd>@Model.Proposal.SubmittedAt.ToString("u")</dd>
+  <dt>Member's reply</dt>
+  <dd>@DetailModel.Show(Model.Proposal.MemberReply)</dd>
   <dt>Message to member</dt>
   <dd>@DetailModel.Show(Model.Proposal.MessageToMember)</dd>
   <dt>Internal review notes</dt>

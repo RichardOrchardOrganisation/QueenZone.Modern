@@ -296,6 +296,34 @@ public sealed class PhotoCorrectionRepositoryTests : IAsyncDisposable
         Assert.Empty((await repository.GetBySubmitterAsync(Guid.NewGuid())).Items);
     }
 
+    [Theory]
+    [MemberData(nameof(Implementations))]
+    public async Task Respond_returns_a_needs_info_proposal_to_pending_for_its_owner_only(string implementation)
+    {
+        var repository = Create(implementation);
+        var created = await repository.CreateAsync(New(picId: 101));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.RespondAsync(created.Id, memberId, "Too early", CancellationToken.None));
+        await repository.RequestInfoAsync(created.Id, "ed@example.com", "Which show?", null);
+
+        Assert.Null(await repository.RespondAsync(created.Id, otherMemberId, "Not mine", CancellationToken.None));
+        Assert.Null(await repository.RespondAsync(Guid.NewGuid(), memberId, "Missing", CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.RespondAsync(created.Id, memberId, "   ", CancellationToken.None));
+        Assert.Equal(PhotoCorrectionStatus.NeedsInfo, (await repository.GetByIdAsync(created.Id))!.Status);
+
+        var replied = await repository.RespondAsync(created.Id, memberId, "  Wembley, second night ", CancellationToken.None);
+
+        Assert.Equal(PhotoCorrectionStatus.Pending, replied!.Status);
+        Assert.Equal("Wembley, second night", replied.MemberReply);
+        Assert.Equal(
+            ["Submitted", "InfoRequested", "MemberReplied"],
+            (await repository.GetAuditAsync(created.Id)).Select(entry => entry.Action));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.RespondAsync(created.Id, memberId, "Again", CancellationToken.None));
+    }
+
     [Fact]
     public async Task Ef_second_editor_deciding_the_same_proposal_loses_the_race()
     {

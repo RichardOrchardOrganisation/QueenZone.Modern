@@ -196,6 +196,20 @@ public sealed class EfPhotoCorrectionRepository(QueenZoneDbContext dbContext) : 
                 "Asked the member for more information."),
             cancellationToken);
 
+    public async Task<PhotoCorrectionProposal?> RespondAsync(
+        Guid id,
+        Guid submitterMemberId,
+        string reply,
+        CancellationToken cancellationToken = default)
+    {
+        var owned = await dbContext.PhotoCorrectionProposals
+            .AsNoTracking()
+            .AnyAsync(row => row.Id == id && row.SubmitterMemberId == submitterMemberId, cancellationToken);
+        return owned
+            ? await DecideAsync(id, entity => PhotoCorrectionRules.Respond(entity, reply), cancellationToken)
+            : null;
+    }
+
     public Task<PhotoCorrectionProposal?> RevertAsync(
         Guid id,
         string reviewerEmail,

@@ -66,6 +66,28 @@ internal static class PhotoCorrectionRules
         return Audit(entity.Id, action, entity.ReviewerEmail ?? string.Empty, reviewedAt, details);
     }
 
+    /// <summary>
+    /// The submitter answers an editor's question: the proposal returns to the pending queue
+    /// with the reply attached. Only the owner of a needs-info proposal can do this.
+    /// </summary>
+    internal static PhotoCorrectionAuditLogEntity Respond(
+        PhotoCorrectionProposalEntity entity,
+        string? reply)
+    {
+        var text = SubmissionInput.NormalizeOptional(reply, PhotoCorrectionValidation.MaxExplanationLength)
+            ?? throw new InvalidOperationException("Write your reply first.");
+        if (entity.Status != PhotoCorrectionStatus.NeedsInfo)
+        {
+            throw new InvalidOperationException("This proposal is not waiting for your reply.");
+        }
+
+
+        var repliedAt = DateTimeOffset.UtcNow;
+        entity.Status = PhotoCorrectionStatus.Pending;
+        entity.MemberReply = text;
+        return Audit(entity.Id, "MemberReplied", string.Empty, repliedAt, "Member answered the editor's question.");
+    }
+
     internal static string RequireMessage(string? message, string whatFor) =>
         SubmissionInput.NormalizeOptional(message, PhotoCorrectionValidation.MaxMessageLength)
             ?? throw new InvalidOperationException($"A message for the member is required when {whatFor}.");
@@ -106,7 +128,8 @@ internal static class PhotoCorrectionRules
             entity.MessageToMember,
             entity.AppliedFromValue,
             entity.AppliedAt,
-            submitterDisplayName);
+            submitterDisplayName,
+            entity.MemberReply);
 
     internal static PhotoCorrectionListItem MapListItem(PhotoCorrectionProposalEntity entity, string? submitterDisplayName) =>
         new(

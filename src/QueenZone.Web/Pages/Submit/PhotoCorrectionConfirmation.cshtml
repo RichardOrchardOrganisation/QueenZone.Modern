@@ -42,9 +42,22 @@
       }
     </dl>
 
-    @if (proposal.Status == PhotoCorrectionStatus.NeedsInfo)
+    @if (Model.CanReply)
     {
-      <p>The editors asked for more information. Send a new proposal for this photo with the extra detail.</p>
+      <div asp-validation-summary="ModelOnly" class="qz-account-notice qz-account-notice--error" role="alert"></div>
+      <form method="post" asp-page-handler="Reply" class="qz-account-form">
+        @Html.AntiForgeryToken()
+        <label class="qz-account-form__field">
+          <span>Your reply to the editors</span>
+          <textarea asp-for="Reply" rows="4" maxlength="@PhotoCorrectionValidation.MaxExplanationLength" required></textarea>
+          <span class="qz-account-form__help">Your proposal goes back in the review queue. Do not include contact details.</span>
+        </label>
+        <button type="submit" class="qz-button">Send reply</button>
+      </form>
+    }
+    else if (!string.IsNullOrWhiteSpace(proposal.MemberReply))
+    {
+      <p>Your reply was sent to the editors.</p>
     }
 
     <p>

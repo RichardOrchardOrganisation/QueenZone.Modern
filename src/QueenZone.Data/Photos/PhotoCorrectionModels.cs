@@ -94,6 +94,7 @@ public static class PhotoCorrectionWorkflow
             ],
             [PhotoCorrectionStatus.NeedsInfo] =
             [
+                PhotoCorrectionStatus.Pending,
                 PhotoCorrectionStatus.Approved,
                 PhotoCorrectionStatus.Rejected,
             ],
@@ -131,7 +132,8 @@ public sealed record PhotoCorrectionProposal(
     string? MessageToMember,
     string? AppliedFromValue,
     DateTimeOffset? AppliedAt,
-    string? SubmitterDisplayName = null);
+    string? SubmitterDisplayName = null,
+    string? MemberReply = null);
 
 public sealed record PhotoCorrectionListItem(
     Guid Id,

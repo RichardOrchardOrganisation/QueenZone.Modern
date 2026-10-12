@@ -72,6 +72,16 @@ public interface IPhotoCorrectionRepository
         string? reviewNotes,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The submitter answers an editor's request for more information; the proposal returns to
+    /// pending. Returns null when the proposal does not exist or belongs to someone else.
+    /// </summary>
+    Task<PhotoCorrectionProposal?> RespondAsync(
+        Guid id,
+        Guid submitterMemberId,
+        string reply,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Marks an approved proposal as reverted after the caller restored the old value.</summary>
     Task<PhotoCorrectionProposal?> RevertAsync(
         Guid id,

@@ -2823,6 +2823,10 @@ namespace QueenZone.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("MemberReply")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("MessageToMember")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
