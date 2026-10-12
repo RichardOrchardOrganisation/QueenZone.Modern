@@ -7,6 +7,7 @@ import {
 import RenderHTML, {
   defaultSystemFonts,
   type MixedStyleRecord,
+  type RenderHTMLProps,
 } from '@native-html/render';
 import { toPlainText } from '../api/text';
 import { getAppConfig } from '../config';
@@ -17,6 +18,8 @@ import { openExternalUrl } from './openExternalUrl';
 
 type Props = {
   html: string;
+  renderers?: RenderHTMLProps['renderers'];
+  customHTMLElementModels?: RenderHTMLProps['customHTMLElementModels'];
   /** Horizontal inset already applied by the parent ScrollView. */
   horizontalInset?: number;
 };
@@ -52,7 +55,7 @@ class HtmlRenderErrorBoundary extends Component<BoundaryProps, BoundaryState> {
 
 const systemFonts = [...defaultSystemFonts, fonts.body, fonts.bodyMedium, fonts.bodySemi, fonts.display];
 
-export function RichHtmlBody({ html, horizontalInset = 26 }: Props) {
+export function RichHtmlBody({ html, horizontalInset = 26, renderers, customHTMLElementModels }: Props) {
   const { c } = useTheme();
   const { width } = useWindowDimensions();
   const contentWidth = Math.max(width - horizontalInset * 2, 120);
@@ -151,6 +154,8 @@ export function RichHtmlBody({ html, horizontalInset = 26 }: Props) {
     <HtmlRenderErrorBoundary fallback={fallback}>
       <RenderHTML
         contentWidth={contentWidth}
+        renderers={renderers}
+        customHTMLElementModels={customHTMLElementModels}
         source={{ html: prepared, baseUrl }}
         baseStyle={{
           color: c.textPrimary,
