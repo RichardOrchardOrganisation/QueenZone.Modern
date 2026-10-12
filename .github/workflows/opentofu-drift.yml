@@ -90,7 +90,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
         run: |
           set +e
-          tofu plan -input=false -detailed-exitcode -out=tfplan
+          # Read-only plan: no state lock (#2230) so a cancelled run can't leave a stale lease.
+          tofu plan -input=false -lock=false -detailed-exitcode -out=tfplan
           exit_code=$?
           echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
           if [ "$exit_code" -eq 1 ]; then

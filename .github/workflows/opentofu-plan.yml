@@ -150,7 +150,9 @@ jobs:
         working-directory: infra/environments/${{ matrix.root }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
-        run: tofu plan -input=false -out=tfplan
+        # Read-only plan: no state lock (#2230). A cancelled/superseded run
+        # otherwise leaves a stale blob lease that blocks the next apply.
+        run: tofu plan -input=false -lock=false -out=tfplan
 
       - name: Render plan as JSON
         working-directory: infra/environments/${{ matrix.root }}

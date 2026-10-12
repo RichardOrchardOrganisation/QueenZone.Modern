@@ -17,7 +17,7 @@ The state control plane is separate from `Queenzone-RG` and the `queenzone` medi
 | Authentication | Entra ID only; shared-key access disabled |
 | Data protection | Blob versioning; blob and container soft delete, 30 days |
 | Deletion protection | `CanNotDelete` lock on the storage account |
-| Locking | AzureRM backend blob lease; never use `-lock=false` for writes |
+| Locking | AzureRM backend blob lease; never use `-lock=false` for writes. CI read-only plans (PR, drift, apply-workflow plan job) run with `-lock=false` (#2230); applies lock with `-lock-timeout=5m` |
 
 The non-secret backend settings are committed at [`infra/backend/production.backend.hcl`](../../infra/backend/production.backend.hcl). Subscription, tenant, and workload client IDs come from the authenticated Azure CLI locally or GitHub environment variables in Actions.
 
@@ -127,6 +127,25 @@ tofu -chdir=infra/environments/production force-unlock <LOCK_ID>
 ```
 
 Force-unlock removes coordination only; it does not repair state. Never break the blob lease directly while an OpenTofu process may still be writing.
+
+#### Stale lease left by a cancelled job (#2230)
+
+Since #2230, CI plans run with `-lock=false`, so only an apply (or a local operator run) can hold the lease. If `Error acquiring the state lock` still appears:
+
+1. Check for running jobs: `gh run list --workflow opentofu-apply.yml --status in_progress` (and `opentofu-plan.yml`, `opentofu-drift.yml`). Stop if anything is running.
+2. Inspect the blob (Azure AD auth):
+   ```bash
+   az storage blob show --auth-mode login --account-name queenzonetfstate -c tfstate -n production.tfstate \
+     --query "{lease:properties.lease, meta:metadata}"
+   echo '<terraformlockid value>' | base64 -d | jq   # ID, Operation, Who, Created
+   ```
+3. Release it, preferably with `tofu -chdir=infra/environments/<root> force-unlock <ID>`. If that fails:
+   ```bash
+   az storage blob lease break --auth-mode login --account-name queenzonetfstate -c tfstate -b production.tfstate --lease-break-period 0
+   az storage blob metadata update --auth-mode login --account-name queenzonetfstate -c tfstate -n production.tfstate --metadata ""
+   ```
+   Clearing metadata removes every metadata key on the blob, so check first that `terraformlockid` is the only key.
+4. Confirm `lease.status` is `unlocked` / `state` `available`, then re-run the failed apply.
 
 ### Account or container deletion
 
