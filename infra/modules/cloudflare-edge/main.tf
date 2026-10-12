@@ -256,6 +256,17 @@ resource "cloudflare_ruleset" "archive_author_cache" {
         cache = true
         edge_ttl = {
           mode = "respect_origin"
+          # The origin sends no Cache-Control on topic 301s (slug fix-ups) and
+          # 404s, so Cloudflare would otherwise apply its defaults (301 -> 2h,
+          # 404 -> 3 min) and pin a stale redirect or a not-yet-created topic.
+          # 0 is "no-cache" per the provider schema: not served from cache.
+          status_code_ttl = [{
+            status_code_range = {
+              from = 300
+              to   = 499
+            }
+            value = 0
+          }]
         }
         browser_ttl = {
           mode = "respect_origin"

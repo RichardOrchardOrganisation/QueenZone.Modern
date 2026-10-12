@@ -31,3 +31,7 @@ Preconditions:
 - Board and thread ids are `forum-board-${id}` and `forum-thread-${id}`. 1 and 1002 are the stable samples.
 - `forum-new-thread` opens sign-in when signed out. That is covered by `08-profile-signed-out.yaml`, not this file.
 - Signed-in posting is out of scope for this map.
+
+## YouTube native proof (#1958)
+
+`drive -Flow youtube` opens Testing thread 1030 and checks a real near-view player loads before Play. See `docs/mobile-forum-youtube.md` for the remaining Android/iOS manual playback/traffic/performance matrix. Thread 1029 has 30 eligible cards across 15 posts; these are intentionally synthetic unavailable IDs, useful for bounded mounting/failure profiling, not proof of successful playback. Do not replace or uninstall an existing QueenZone session on a shared simulator. Report blocked device checks as NOT RUN.
