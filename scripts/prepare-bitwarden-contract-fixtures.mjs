@@ -14,8 +14,8 @@ for (const line of lines) {
   if (id) attempt = Number(id[1]);
   if (line === '    - id: publish') publishing = true;
   let result = line;
-  if (line.trim() === 'run: sleep 20' || line.trim() === 'run: sleep 60') {
-    result = line.replace('sleep', 'echo Fixture simulated wait seconds'); replacements++;
+  if (line.trim() === 'run: Start-Sleep -Seconds 20' || line.trim() === 'run: Start-Sleep -Seconds 60') {
+    result = line.replace('Start-Sleep -Seconds', 'Write-Output Fixture simulated wait seconds'); replacements++;
   }
   if (publishing && line === '      uses: ./.github/actions/bitwarden-retry/guard') {
     result = '      uses: ./.github/actions/bitwarden-fake-publication';

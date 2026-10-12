@@ -62,7 +62,7 @@ function simulate(replies, { cancelledAt = '', publicationFailure = false, check
     const state = { outputs: {}, outcome: 'success' };
     let payload = '';
     try {
-      if (step.run) waits.push(Number(step.run.split(' ')[1]));
+      if (step.run) { assert.equal(step.shell, 'pwsh'); waits.push(Number(/^Start-Sleep -Seconds (\d+)$/.exec(step.run)[1])); }
       else if (step.uses.startsWith('bitwarden/')) {
         const reply = replies[attempts.length] || { failed: true };
         attempts.push(step.id);
