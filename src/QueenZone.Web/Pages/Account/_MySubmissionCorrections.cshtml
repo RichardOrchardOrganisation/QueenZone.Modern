@@ -1,0 +1,35 @@
+@model MySubmissionsModel
+@using QueenZone.Data
+      <h2 class="visually-hidden">Photo corrections</h2>
+      @if (Model.CorrectionProposals.Count == 0)
+      {
+        <p>You have not suggested any photo corrections yet. Open a photo and choose "Suggest a correction".</p>
+      }
+      else
+      {
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Photo</th>
+              <th scope="col">Change</th>
+              <th scope="col">Your proposal</th>
+              <th scope="col">Status</th>
+              <th scope="col">Submitted</th>
+              <th scope="col">Message from the editors</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach (var item in Model.CorrectionProposals)
+            {
+              <tr>
+                <td>#@item.PicId</td>
+                <td>@PhotoCorrectionKind.Label(item.Kind)</td>
+                <td>@item.ProposedValue</td>
+                <td><partial name="_SubmissionStatusBadge" model="item.Status" /></td>
+                <td>@item.SubmittedAt.ToString("u")</td>
+                <td>@item.MessageToMember</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }

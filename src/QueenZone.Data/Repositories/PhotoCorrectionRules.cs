@@ -129,6 +129,21 @@ internal static class PhotoCorrectionRules
             .Select(row => new PublicPhotoCorrection(row.Kind, row.ProposedValue, row.PublicCreditName))
             .ToList();
 
+    /// <summary>One page of a member's own proposals, newest first (DateTimeOffset sorts client-side for SQLite).</summary>
+    internal static SubmissionListPage<PhotoCorrectionProposal> ToMemberPage(
+        IReadOnlyList<PhotoCorrectionProposalEntity> rows,
+        int skip,
+        int take) =>
+        new(
+            rows
+                .OrderByDescending(row => row.SubmittedAt)
+                .ThenBy(row => row.Id)
+                .Skip(skip)
+                .Take(take)
+                .Select(row => Map(row, null))
+                .ToList(),
+            rows.Count);
+
     internal static PhotoCorrectionAuditEntry MapAudit(PhotoCorrectionAuditLogEntity log) =>
         new(log.Id, log.Action, log.ActorEmail, log.OccurredAt, log.Details);
 }

@@ -258,6 +258,32 @@ public sealed partial class PhotoCorrectionRoutesTests : IClassFixture<ExternalC
     }
 
     [Fact]
+    public async Task My_submissions_corrections_tab_shows_own_status_and_editor_message_only()
+    {
+        var owner = await SignInAsync("pc-mine@example.com", "Mine Fan", "google-pc-mine");
+        var other = await SignInAsync("pc-notmine@example.com", "Not Mine Fan", "google-pc-notmine");
+        var ownerId = await SubmitAsync(owner, 202, "Owner's unique correction text");
+        await SubmitAsync(other, 202, "Someone else's correction text");
+        var admin = CreateAdminClient(AdminEmail);
+        await PostAdminAsync(
+            admin,
+            ownerId,
+            "requestinfo",
+            new() { ["messageToMember"] = "Which night was it?", ["reviewNotes"] = "editor-only-note" },
+            await admin.GetStringAsync($"/admin/photo-corrections/{ownerId:D}"));
+
+        var mine = await owner.GetStringAsync("/account/my-submissions?tab=corrections");
+
+        Assert.Contains("Owner&#x27;s unique correction text", mine);
+        Assert.Contains("Which night was it?", mine);
+        Assert.Contains("Needs", mine);
+        Assert.DoesNotContain("Someone else", mine);
+        Assert.DoesNotContain("editor-only-note", mine);
+        var empty = await SignInAsync("pc-empty@example.com", "Empty Fan", "google-pc-empty");
+        Assert.Contains("have not suggested any photo corrections", await empty.GetStringAsync("/account/my-submissions?tab=corrections"));
+    }
+
+    [Fact]
     public async Task Admin_actions_return_not_found_for_unknown_ids_and_redirect_on_get()
     {
         var member = await SignInAsync("pc-404@example.com", "Missing Fan", "google-pc-404");

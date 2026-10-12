@@ -97,6 +97,22 @@ public sealed class InMemoryPhotoCorrectionRepository(Func<Guid, MemberAccount?>
         }
     }
 
+    public Task<SubmissionListPage<PhotoCorrectionProposal>> GetBySubmitterAsync(
+        Guid submitterMemberId,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var (skip, take) = SubmissionPaging.Normalize(page, pageSize);
+        lock (sync)
+        {
+            return Task.FromResult(PhotoCorrectionRules.ToMemberPage(
+                proposals.Where(row => row.SubmitterMemberId == submitterMemberId).ToList(),
+                skip,
+                take));
+        }
+    }
+
     public Task<IReadOnlyList<PublicPhotoCorrection>> GetApprovedPublicAsync(
         int picId,
         CancellationToken cancellationToken = default)
