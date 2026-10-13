@@ -105,3 +105,9 @@ test('QueenZone proof wiring uses shared policy with project configuration', () 
     assert.ok(existsSync(path.join(root, 'scripts', file)), file);
   }
 });
+
+test('privileged proof publisher pins the installed shared action without application checkout', () => {
+  const workflow = read('.github/workflows/pr-verification-check.yml');
+  assert.ok(workflow.includes(`development-standards/actions/publish-ui-proof@${json('development-standards.lock.json').commit}`));
+  assert.doesNotMatch(workflow, /actions\/checkout@/);
+});

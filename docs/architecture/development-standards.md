@@ -7,10 +7,10 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | | |
 | --- | --- |
 | Source | `https://github.com/RichardOrchardOrganisation/development-standards` |
-| Version | 0.5.0, pinned merged commit ([changelog](https://github.com/RichardOrchardOrganisation/development-standards/blob/76d2320d7f399bb260423bca3097af6b4e1c46c1/CHANGELOG.md)); no release tag required for this reviewed adoption |
-| Commit | `76d2320d7f399bb260423bca3097af6b4e1c46c1` (merge of development-standards PR #18) |
-| Kit version | `0.5.0` |
-| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. `keptLocal` records reviewed preservation of QueenZone configuration, feature-map adapter and PR template in this update |
+| Version | 0.5.1, pinned merged commit ([changelog](https://github.com/RichardOrchardOrganisation/development-standards/blob/7452829eef908d89aa6e1515369f1c052e25bc54/CHANGELOG.md)); no release tag required for this reviewed adoption |
+| Commit | `7452829eef908d89aa6e1515369f1c052e25bc54` (merge of development-standards PR #19) |
+| Kit version | `0.5.1` |
+| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. the 0.5.0 update retained reviewed configuration, adapter and template conflicts; the subsequent 0.5.1 update was clean, so the current lock has no keptLocal entries |
 | Attribution | [`docs/development-standards-LICENSE`](../development-standards-LICENSE); QueenZone's own `LICENSE` is unchanged |
 
 | Kit version | Commit | How QueenZone took it |
@@ -22,8 +22,9 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | 0.3.0 | `16d9ff11983a93d1de95b7e713542ad5bc360dfa` | Kit cleanup of the TypeScript gate (development-standards PR #16: SonarCloud style findings, no behaviour change); applied cleanly |
 | 0.4.0 | `57d2844b722b414b025ea62d81f522239296eb93` | First tagged release (`v0.4.0`): names the TypeScript gate changes above as one version. Lock-only update |
 | 0.5.0 | `76d2320d7f399bb260423bca3097af6b4e1c46c1` | Shared uploaded-proof core adopted verbatim; configuration, capture commands and a thin feature-map adapter remain local |
+| 0.5.1 | `7452829eef908d89aa6e1515369f1c052e25bc54` | Pinned publisher action removes privileged application checkout; clean updater pass |
 
-0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. CI never loads the kit at run time; everything it uses is a committed copy.
+0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. Local quality gates use committed kit copies. The privileged proof publisher is the one exception: GitHub downloads a shared action pinned to the same reviewed kit commit; that action reads only default-branch project JSON, never application code.
 
 ## Sources of truth
 
@@ -243,6 +244,6 @@ All update-proof checks passed.
 
 ## Uploaded-proof adoption (0.5.0)
 
-The updater installed commit `76d2320d7f399bb260423bca3097af6b4e1c46c1`. Its dry run refused overlapping configuration, PR-template and adapter changes, plus the new shared modules that already existed locally. After replacing the three existing modules with their identical kit versions, the update applied with `--keep-local development-standards.json --keep-local scripts/check-pr-verification.mjs --keep-local .github/pull_request_template.md`. The generated lock records those decisions.
+The updater installed commit `76d2320d7f399bb260423bca3097af6b4e1c46c1`. Its dry run refused overlapping configuration, PR-template and adapter changes, plus the new shared modules that already existed locally. After replacing the three existing modules with their identical kit versions, the update applied with `--keep-local development-standards.json --keep-local scripts/check-pr-verification.mjs --keep-local .github/pull_request_template.md`. That intermediate lock recorded those decisions. The subsequent clean update to `7452829eef908d89aa6e1515369f1c052e25bc54` (0.5.1) installed the shared-action guidance and refreshed the lock.
 
-No workflow was installed automatically. Existing QueenZone capture/upload jobs and the required `e2e-test` context remain in place. The shared publisher reads their identities from configuration. Preserve these shared files verbatim: improve them in development-standards and bring the change back through its updater.
+No workflow was installed automatically. Existing QueenZone capture/upload jobs and the required `e2e-test` context remain in place. The pinned shared action reads their identities from default-branch configuration. Its SHA matches the installed kit commit. Preserve these shared files verbatim: improve them in development-standards and bring the change back through its updater.

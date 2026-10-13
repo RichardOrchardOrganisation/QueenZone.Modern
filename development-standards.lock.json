@@ -1,10 +1,5 @@
 {
   "repository": "https://github.com/RichardOrchardOrganisation/development-standards",
-  "commit": "76d2320d7f399bb260423bca3097af6b4e1c46c1",
-  "version": "0.5.0",
-  "keptLocal": [
-    "development-standards.json",
-    "scripts/check-pr-verification.mjs",
-    ".github/pull_request_template.md"
-  ]
+  "commit": "7452829eef908d89aa6e1515369f1c052e25bc54",
+  "version": "0.5.1"
 }
