@@ -17,6 +17,46 @@ function New-QueenZoneWebProof {
     }
 }
 
+function Resolve-QueenZoneWebProofRoute {
+    param([string] $UrlPath)
+    foreach ($pair in @(
+        @{ From = "{slug}"; To = "brian-may" },
+        @{ From = "{picId}"; To = "101" },
+        @{ From = "{id}"; To = "1003" },
+        @{ From = "{pageNumber}"; To = "1" },
+        @{ From = "{topicId}"; To = "1002" },
+        @{ From = "{statusCode?}"; To = "404" },
+        @{ From = "{*path}"; To = "index" }
+    )) { $urlPath = $urlPath.Replace($pair.From, $pair.To) }
+    if ($urlPath -match "\{") { throw "Unresolved route parameters in $urlPath; add an explicit Testing fixture before capturing proof." }
+    return $urlPath
+}
+
+function Read-QueenZoneWebProofTestResult {
+    param([string] $Trx, $Spec, $Code)
+    $status = "FAIL"
+    $total = 0
+    $passed = 0
+    if (Test-Path $trx) {
+        [xml] $report = Get-Content -Raw -LiteralPath $trx
+        $counters = $report.SelectSingleNode("//*[local-name()='Counters']")
+        if ($null -ne $counters) {
+            $total = [int] $counters.total
+            $passed = [int] $counters.passed
+            if ($code -eq 0 -and $total -gt 0 -and $passed -eq $total) { $status = "PASS" }
+        }
+    }
+    return [ordered]@{ spec = $spec; result = $status; total = $total; passed = $passed; exitCode = $code }
+}
+
+function Set-QueenZoneWebProofOutcome {
+    param($Proof, $Specs)
+    $proof.automated = if ($proof.screenshot -eq "FAIL" -or @($proof.tests | Where-Object result -ne "PASS").Count -gt 0) { "FAIL" }
+        elseif ($specs.Count -eq 0) { "NOT RUN" } else { "PASS" }
+    $proof.detail = if ($specs.Count -eq 0) { "No mapped behavioural tests. Screenshot capture alone does not verify this feature." }
+        else { "Every mapped fixture must execute at least one deterministic test, with no failures or skips." }
+}
+
 function Invoke-QueenZoneWebProof {
     param([string] $RepoRoot, $Entry, [string] $BaseUrl, [string] $ProofDir)
     $proof = New-QueenZoneWebProof -RepoRoot $RepoRoot -Entry $Entry -BaseUrl $BaseUrl
@@ -24,17 +64,7 @@ function Invoke-QueenZoneWebProof {
     $playwright = Join-Path $RepoRoot "tests/QueenZone.Web.E2E/bin/Release/net10.0/playwright.ps1"
     try {
         if (-not (Test-Path $playwright)) { throw "Build the Release E2E project and install Chromium, or run scripts/Verify-Web.ps1." }
-        $urlPath = [string] $Entry.url
-        foreach ($pair in @(
-            @{ From = "{slug}"; To = "brian-may" },
-            @{ From = "{picId}"; To = "101" },
-            @{ From = "{id}"; To = "1003" },
-            @{ From = "{pageNumber}"; To = "1" },
-            @{ From = "{topicId}"; To = "1002" },
-            @{ From = "{statusCode?}"; To = "404" },
-            @{ From = "{*path}"; To = "index" }
-        )) { $urlPath = $urlPath.Replace($pair.From, $pair.To) }
-        if ($urlPath -match "\{") { throw "Unresolved route parameters in $urlPath; add an explicit Testing fixture before capturing proof." }
+        $urlPath = Resolve-QueenZoneWebProofRoute -UrlPath ([string] $Entry.url)
         $proof.url = "$BaseUrl$urlPath"
         & $playwright screenshot --browser chromium --full-page $proof.url (Join-Path $ProofDir "screenshot.png") | Out-Host
         $proof.screenshot = if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $ProofDir "screenshot.png"))) { "PASS" } else { "FAIL" }
@@ -54,19 +84,7 @@ function Invoke-QueenZoneWebProof {
                 if (Test-Path $trx) { Remove-Item -LiteralPath $trx }
                 & dotnet test $project --no-build --no-restore --configuration Release --filter "(FullyQualifiedName~QueenZone.Web.E2E.$name.)&TestCategory=Deterministic" --logger "trx;LogFileName=$name.trx" --results-directory $ProofDir -- NUnit.NumberOfTestWorkers=1 | Out-Host
                 $code = $LASTEXITCODE
-                $status = "FAIL"
-                $total = 0
-                $passed = 0
-                if (Test-Path $trx) {
-                    [xml] $report = Get-Content -Raw -LiteralPath $trx
-                    $counters = $report.SelectSingleNode("//*[local-name()='Counters']")
-                    if ($null -ne $counters) {
-                        $total = [int] $counters.total
-                        $passed = [int] $counters.passed
-                        if ($code -eq 0 -and $total -gt 0 -and $passed -eq $total) { $status = "PASS" }
-                    }
-                }
-                $proof.tests += [ordered]@{ spec = $spec; result = $status; total = $total; passed = $passed; exitCode = $code }
+                $proof.tests += Read-QueenZoneWebProofTestResult -Trx $trx -Spec $spec -Code $code
             }
         }
         finally {
@@ -74,10 +92,7 @@ function Invoke-QueenZoneWebProof {
             $env:E2E_ARTIFACT_DIR = $savedArtifacts
             $env:E2E_READONLY = $savedReadOnly
         }
-        $proof.automated = if ($proof.screenshot -eq "FAIL" -or @($proof.tests | Where-Object result -ne "PASS").Count -gt 0) { "FAIL" }
-            elseif ($specs.Count -eq 0) { "NOT RUN" } else { "PASS" }
-        $proof.detail = if ($specs.Count -eq 0) { "No mapped behavioural tests. Screenshot capture alone does not verify this feature." }
-            else { "Every mapped fixture must execute at least one deterministic test, with no failures or skips." }
+        Set-QueenZoneWebProofOutcome -Proof $proof -Specs $specs
     }
     catch {
         $proof.automated = "FAIL"
