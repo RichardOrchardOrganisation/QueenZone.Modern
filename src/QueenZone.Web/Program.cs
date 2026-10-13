@@ -144,6 +144,7 @@ app.UseQueenZoneHostFiltering();
 // default. The origin restriction makes Cloudflare's connecting-IP header trustworthy.
 app.UseClientAddressTelemetry();
 app.UseCanonicalHostRedirect();
+app.UseForumPathCaseRedirect();
 
 if (ResponseCompressionBootstrap.IsEnabled(app.Environment))
 {
