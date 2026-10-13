@@ -23,6 +23,24 @@ Unauthenticated access to `/admin/*` must challenge **Entra OIDC**, not the publ
 
 Dual-role users may hold both member and Entra cookies. `AdminAccess` always reads the Entra admin cookie; the member cookie cannot override it. Shared editor uploads use the separate `AuthoringAccess` composite scheme so both members and authenticated admins can continue to upload rich-text images.
 
+## Optional admin principal pin
+
+`AdminAccess` requires the existing email allowlist and an additional principal-pin requirement. The rollout ships with `Admin:EnforcePrincipalPin=false` and `Admin:AllowedPrincipals=[]`, so existing sign-in continues unchanged. When enforcement is enabled, the signed-in account must also match an allowed `{tid}:{oid}` pair. Both identifiers and configured components are trimmed and compared case-insensitively. Missing claims, mismatched pairs, and an empty list deny access. Entries must contain exactly one colon with non-empty components; malformed entries fail options validation even when enforcement is off.
+
+The handler accepts `tid` / `oid` and their mapped Microsoft tenant/object claim URIs. Denials log a Warning containing only the tenant and object identifiers, never the email. Member cookies remain excluded from admin authentication even if they contain matching identifiers.
+
+Personal Microsoft accounts remain supported through `common`: pin their object ID with the MSA consumers tenant `9188040d-6c67-4c5b-b112-36a304b66dad`. Work accounts use their own tenant/object pair; email alone is insufficient once enforcement is enabled.
+
+Operators configure `Admin__AllowedPrincipals__N` (zero-based entries) and `Admin__EnforcePrincipalPin` through App Service settings, outside OpenTofu per [ADR 0008](../decisions/0008-app-service-settings-ownership.md). Record setting names, not principal values, in repository inventories. Populate and verify all intended work and personal account pairs before enabling enforcement; the email allowlist remains required.
+
+For break-glass recovery, disable only the principal pin using the operator's Azure access:
+
+```bash
+az webapp config appsettings set --resource-group Queenzone-RG --name queenzone-prod --settings Admin__EnforcePrincipalPin=false --output none
+```
+
+This restores email-allowlisted Entra access. Correct the principal settings and verify the intended accounts before re-enabling enforcement.
+
 ## Production registration (configured 2026-07-23)
 
 | Item | Value / note |
@@ -36,7 +54,7 @@ Dual-role users may hold both member and Entra cookies. `AdminAccess` always rea
 | Client secret created | **2026-07-23** (via `az ad app credential reset --years 2`) |
 | **Renew secret by** | **2028-07-01** (allow ~3 weeks before the 2-year expiry; do not wait for outage) |
 | ID token issuance | Enabled on the web platform |
-| Access control | Entra signs the user in; **admin rights** still require the signed-in email to match `Admin:AllowedEmails` |
+| Access control | Entra signs the user in; **admin rights** require the signed-in email to match `Admin:AllowedEmails`, plus the tenant/object pin when enforcement is enabled |
 
 This hobby-site configuration supports personal Microsoft accounts through the `common` endpoint. MFA is controlled on each personal Microsoft account. QueenZone does not claim to enforce tenant Conditional Access or enterprise-app assignment.
 

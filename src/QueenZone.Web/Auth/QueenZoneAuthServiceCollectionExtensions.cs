@@ -105,6 +105,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
             options.AddPolicy(AdminAuthenticationSchemes.Policy, policy =>
                 policy.AddAuthenticationSchemes(AdminAuthenticationSchemes.CompositeScheme)
                     .RequireAuthenticatedUser()
+                    .AddRequirements(new AdminPrincipalRequirement())
                     .RequireAssertion(context => AdminAllowlist.IsAllowed(
                         context.User,
                         configuration.GetSection(AdminOptions.SectionName).Get<AdminOptions>())));
@@ -144,6 +145,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
             });
         });
 
+        services.AddSingleton<IAuthorizationHandler, AdminPrincipalRequirementHandler>();
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, AdminApiAuthorizationResultHandler>();
 
         return services;

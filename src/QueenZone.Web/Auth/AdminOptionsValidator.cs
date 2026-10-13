@@ -13,6 +13,15 @@ public sealed class AdminOptionsValidator(IHostEnvironment environment) : IValid
     {
         var emails = options.AllowedEmails ?? [];
 
+        if ((options.AllowedPrincipals ?? []).Any(entry =>
+            string.IsNullOrWhiteSpace(entry) ||
+            entry.Split(':', StringSplitOptions.TrimEntries) is not [var tenant, var subject] ||
+            tenant.Length == 0 || subject.Length == 0))
+        {
+            return ValidateOptionsResult.Fail(
+                $"{AdminOptions.SectionName}:AllowedPrincipals entries must have exactly one ':' with non-empty tenant and object IDs.");
+        }
+
         if (emails.Any(string.IsNullOrWhiteSpace))
         {
             return ValidateOptionsResult.Fail(
