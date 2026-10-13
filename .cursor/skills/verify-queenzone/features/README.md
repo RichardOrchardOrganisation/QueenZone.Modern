@@ -17,7 +17,7 @@ This directory is the maintained source for verifying visitor-facing QueenZone.W
 - Start every recipe from the baseline state unless its preconditions say otherwise.
 - Prefer ARIA roles, accessible names, `#qz-search`, and the Playwright handles already used in `tests/QueenZone.Web.E2E/SmokeTests.cs`.
 - Treat every command as literal. Keep quoted names and routes unchanged.
-- Browser actions go through Cursor browser tools or Playwright MCP against the helper URL.
+- Browser actions use Chrome DevTools MCP, Playwright MCP, Codex browser tools, or Cursor browser tools against the helper URL; follow the shared guide for tool selection.
 - Supporting HTTP checks may use `Invoke-WebRequest` against that same URL only.
 - Do not remove proof artifacts during cleanup.
 - Capture PR proof with `control-queenzone.ps1 capture-proof -Feature <map-id>` after launch.

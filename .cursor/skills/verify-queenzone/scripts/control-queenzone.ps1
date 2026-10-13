@@ -41,12 +41,14 @@ if (-not $RepoRoot) {
 }
 
 . (Join-Path $RepoRoot "scripts/FeatureMap.ps1")
+. (Join-Path $RepoRoot "scripts/WebVerification.ps1")
 
 $RunDir = Join-Path $SkillRoot ".run"
 $StatePath = Join-Path $RunDir "state.json"
 $OutLogPath = Join-Path $RunDir "host.out.log"
 $ErrLogPath = Join-Path $RunDir "host.err.log"
 $ProjectPath = Join-Path $RepoRoot "src\QueenZone.Web\QueenZone.Web.csproj"
+$PublishDir = Join-Path $RunDir "app"
 $SampleArticlePath = "/news/1003/queenzone-modernisation-begins"
 $SampleArticleMarker = "QueenZone modernisation begins"
 
@@ -191,6 +193,11 @@ switch ($Command) {
             }
         }
 
+        # Testing serves published CSS bundles; dotnet run omits publish-only assets.
+        & dotnet publish $ProjectPath --configuration Release --output $PublishDir | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Verification host publish failed." }
+
+        $env:DOTNET_ENVIRONMENT = "Testing"
         $env:ASPNETCORE_ENVIRONMENT = "Testing"
         $env:ASPNETCORE_URLS = "http://127.0.0.1:$Port"
         $env:Site__PublicBaseUrl = "http://127.0.0.1:$Port"
@@ -200,18 +207,24 @@ switch ($Command) {
         $psi = @{
             FilePath               = "dotnet"
             ArgumentList           = @(
-                "run",
-                "--project", $ProjectPath,
-                "--no-launch-profile"
+                "`"$(Join-Path $PublishDir 'QueenZone.Web.dll')`""
             )
-            WorkingDirectory       = $RepoRoot
+            WorkingDirectory       = $PublishDir
             RedirectStandardOutput = $OutLogPath
             RedirectStandardError  = $ErrLogPath
             PassThru               = $true
+            WindowStyle            = "Hidden"
         }
         $proc = Start-Process @psi
 
         $baseUrl = "http://127.0.0.1:$Port"
+        Write-State ([pscustomobject]@{
+                pid         = $proc.Id
+                url         = $baseUrl
+                port        = $Port
+                environment = "Testing"
+                startedAt   = (Get-Date).ToUniversalTime().ToString("o")
+            })
         $deadline = (Get-Date).AddMinutes(3)
         $ready = $false
         while ((Get-Date) -lt $deadline) {
@@ -244,14 +257,6 @@ switch ($Command) {
 
         Invoke-SampleArticle -BaseUrl $baseUrl
 
-        Write-State ([pscustomobject]@{
-                pid         = $proc.Id
-                url         = $baseUrl
-                port        = $Port
-                environment = "Testing"
-                startedAt   = (Get-Date).ToUniversalTime().ToString("o")
-            })
-
         Write-Output "Launched $baseUrl (pid $($proc.Id))"
         return
     }
@@ -260,65 +265,23 @@ switch ($Command) {
         if ([string]::IsNullOrWhiteSpace($Feature)) {
             throw "capture-proof requires -Feature <map-id> (for example web.home.index)."
         }
-        $entries = Get-QueenZoneFeatureMap -RepoRoot $RepoRoot
-        $mapped = Resolve-QueenZoneFeature -Entries $entries -IdOrAlias $Feature
-        if (-not $mapped) {
-            throw "Unknown feature '$Feature'."
+        $mapped = Resolve-QueenZoneFeature -Entries (Get-QueenZoneFeatureMap -RepoRoot $RepoRoot) -IdOrAlias $Feature
+        if (-not $mapped -or $mapped.id -notlike "web.*") {
+            throw "Unknown web feature '$Feature'."
         }
         $proofDir = Get-QueenZoneProofDir -RepoRoot $RepoRoot -FeatureId $mapped.id -Platform "web"
-        $sha = Get-QueenZoneHeadSha -RepoRoot $RepoRoot
-        $specs = @($mapped.specs | ForEach-Object { [string] $_ } | Where-Object { $_ })
-        $playwright = @(
-            (Join-Path $RepoRoot "tests/QueenZone.Web.E2E/bin/Release/net10.0/playwright.ps1"),
-            (Join-Path $RepoRoot "tests/QueenZone.Web.E2E/bin/Debug/net10.0/playwright.ps1")
-        ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-        $state = Read-State
-        if (-not $state) {
-            $detail = "NOT RUN: Testing host is not running, needs control-queenzone.ps1 launch then capture-proof -Feature $($mapped.id)"
-            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform "web" -Flows $specs -Result "NOT RUN" -Detail $detail
-            Write-Output $detail
-            exit 1
+        try {
+            & pwsh -NoProfile -File $PSCommandPath doctor
+            if ($LASTEXITCODE -ne 0) { throw "Verification host failed doctor. Run launch then doctor." }
+            $state = Read-State
+            $result = Invoke-QueenZoneWebProof -RepoRoot $RepoRoot -Entry $mapped -BaseUrl $state.url -ProofDir $proofDir
         }
-        if (-not $playwright) {
-            $detail = "NOT RUN: E2E playwright.ps1 is not built, needs dotnet build tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj then playwright.ps1 install chromium"
-            Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform "web" -Flows $specs -Result "NOT RUN" -Detail $detail
-            Write-Output $detail
-            exit 1
+        catch {
+            $result = New-QueenZoneWebProof -RepoRoot $RepoRoot -Entry $mapped -BaseUrl "" -Detail $_.Exception.Message
         }
-
-        Invoke-Health -BaseUrl $state.url
-        $urlPath = [string] $mapped.url
-        foreach ($pair in @(
-                @{ From = "{slug}"; To = "brian-may" },
-                @{ From = "{picId}"; To = "101" },
-                @{ From = "{id}"; To = "1003" },
-                @{ From = "{pageNumber}"; To = "1" },
-                @{ From = "{topicId}"; To = "1002" },
-                @{ From = "{statusCode?}"; To = "404" },
-                @{ From = "{*path}"; To = "index" }
-            )) {
-            $urlPath = $urlPath.Replace($pair.From, $pair.To)
-        }
-        $urlPath = [regex]::Replace($urlPath, "\{[^}]+\}", "1")
-        $target = "$($state.url)$urlPath"
-        $png = Join-Path $proofDir "screenshot.png"
-        & $playwright screenshot --full-page $target $png
-        $shotCode = $LASTEXITCODE
-        $specResult = "skipped"
-        if ($specs.Count -gt 0 -and $shotCode -eq 0) {
-            $filter = ($specs | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_) }) -join "|"
-            & dotnet test (Join-Path $RepoRoot "tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj") --filter "FullyQualifiedName~$($filter.Split('|')[0])" --configuration Release
-            $specResult = if ($LASTEXITCODE -eq 0) { "PASS" } else { "FAIL" }
-        }
-        $result = if ($shotCode -eq 0 -and $specResult -ne "FAIL") { "PASS" } else { "FAIL" }
-        $detail = "Screenshot of $target exited $shotCode. Spec $specResult."
-        Write-QueenZoneProofMarkdown -Path (Join-Path $proofDir "proof.md") -FeatureId $mapped.id -Sha $sha -Platform "web" -Flows $specs -Result $result -Detail $detail
-        Write-Output "$result : $detail"
-        Write-Output "Proof: $proofDir"
-        if ($result -ne "PASS") {
-            exit 1
-        }
+        $result.command = "pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 capture-proof -Feature $($mapped.id)"
+        Write-QueenZoneWebProof -Proof $result -ProofDir $proofDir
+        if ($result.automated -ne "PASS") { exit 1 }
         return
     }
 }
