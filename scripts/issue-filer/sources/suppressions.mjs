@@ -26,12 +26,20 @@ function readDiffHeader(line, state) {
   return false;
 }
 
+// EF Core tooling emits `#pragma warning disable 612, 618` into every migration designer and
+// model snapshot; those are generated, not hand-written suppressions (#2096).
+const GENERATED_FILE_PATTERNS = [/(^|\/)Migrations\/[^/]+\.Designer\.cs$/, /(^|\/)Migrations\/[^/]+ModelSnapshot\.cs$/];
+
+export function isGeneratedSuppressionFile(file) {
+  return GENERATED_FILE_PATTERNS.some((pattern) => pattern.test(String(file || '')));
+}
+
 export function parseSuppressionDiff(patch, patterns, { config } = {}) {
   const groups = new Map();
   const state = { file: '', commit: '', date: '' };
   for (const line of String(patch || '').split(/\r?\n/)) {
     if (readDiffHeader(line, state)) continue;
-    if (!line.startsWith('+') || line.startsWith('+++')) {
+    if (!line.startsWith('+') || line.startsWith('+++') || isGeneratedSuppressionFile(state.file)) {
       continue;
     }
     const added = line.slice(1);

@@ -150,3 +150,21 @@ test('suppressions collect reads ctx.patch', async () => {
   const candidates = await collectSuppressions({ config, patch, since: new Date('2026-09-19T00:00:00Z') });
   assert.ok(candidates.some((item) => item.keys[0] === 'suppressions:pragma-warning-disable'));
 });
+
+test('suppressions ignore EF-generated migration designer files but flag hand-written ones', () => {
+  const patch = [
+    'commit 1111111',
+    'diff --git a/src/QueenZone.Data/Migrations/20261004010848_AddCrosswords.Designer.cs b/src/QueenZone.Data/Migrations/20261004010848_AddCrosswords.Designer.cs',
+    '+#pragma warning disable 612, 618',
+    'diff --git a/src/QueenZone.Data/Migrations/QueenZoneDbContextModelSnapshot.cs b/src/QueenZone.Data/Migrations/QueenZoneDbContextModelSnapshot.cs',
+    '+#pragma warning disable 612, 618',
+    'commit 2222222',
+    'diff --git a/src/QueenZone.Data/Members/HandWritten.cs b/src/QueenZone.Data/Members/HandWritten.cs',
+    '+#pragma warning disable CS0618',
+    '',
+  ].join('\n');
+  const candidates = parseSuppressionDiff(patch, config.suppressionPatterns, { config });
+  const pragma = candidates.find((item) => item.keys[0] === 'suppressions:pragma-warning-disable');
+  assert.equal(pragma.count, 1);
+  assert.deepEqual(pragma.evidence.map((row) => row.text), ['src/QueenZone.Data/Members/HandWritten.cs: #pragma warning disable CS0618']);
+});
