@@ -1,8 +1,3 @@
 {
-  "excluded": [
-    {
-      "pattern": "Pages/Admin/**",
-      "reason": "Acceptance criteria cover public and member pages only. Admin editorial screens are out of scope for this map."
-    }
-  ]
+  "excluded": []
 }

@@ -1,10 +1,14 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   checkFeatureMap,
+  PENDING_ADMIN_CEILING,
+  CONFIRM_ONLY_ADMIN_PAGES,
+  GET_WRITES_ADMIN_PAGES,
+  pageModelPostHandlers,
   generateIndexMarkdown,
   loadFeatureMap,
   main,
@@ -237,25 +241,11 @@ function fixtureRoot() {
       2,
     ),
   );
-  for (const area of ['news', 'photos', 'archive', 'forum', 'account', 'messages', 'static']) {
+  for (const area of ['news', 'photos', 'archive', 'forum', 'account', 'messages', 'static', 'admin']) {
     write(root, `docs/feature-map/web/${area}.json`, JSON.stringify({ area, surface: 'web', entries: [] }, null, 2));
   }
-  write(
-    root,
-    'docs/feature-map/excluded.json',
-    JSON.stringify(
-      {
-        excluded: [
-          {
-            pattern: 'Pages/Admin/**',
-            reason: 'Public and member pages only.',
-          },
-        ],
-      },
-      null,
-      2,
-    ),
-  );
+  write(root, 'docs/feature-map/excluded.json', JSON.stringify({ excluded: [] }));
+  write(root, 'docs/feature-map/pending-admin.json', JSON.stringify({ pendingAdminAreas: ['Pages/Admin/Index.cshtml'] }));
   return root;
 }
 
@@ -380,4 +370,165 @@ test('web-only field validation rejects present fields even when empty or null',
   const { errors } = checkFeatureMap({ root, write: true });
   assert.ok(errors.includes('web.home.index: testIds is mobile-only; web entries use selectors and specs.'));
   assert.ok(!errors.includes('web.home.index: flows is mobile-only; web entries use selectors and specs.'));
+});
+
+function pendingAreas(root, patterns) {
+  write(root, 'docs/feature-map/pending-admin.json', JSON.stringify({ pendingAdminAreas: patterns }));
+}
+
+function adminFixture(page = 'Pages/Admin/Index.cshtml', changes = {}) {
+  const root = fixtureRoot();
+  pendingAreas(root, page === 'Pages/Admin/Index.cshtml' ? [] : ['Pages/Admin/Index.cshtml']);
+  write(root, `src/QueenZone.Web/${page}`, '@page "/admin/test"\n@model TestModel\n');
+  write(root, 'tests/AdminTests.cs', '// fixture spec\n');
+  const entry = {
+    id: 'web.admin.test', name: 'Admin', aliases: [], page, url: '/admin/test',
+    entry: 'Open admin', sources: [`src/QueenZone.Web/${page}`],
+    selectors: [], selectorsReason: 'Role locators.', specs: ['tests/AdminTests.cs'],
+    signIn: 'admin', kind: 'handler',
+    admin: { actions: [], verification: 'none', externalEffects: [], getWrites: false },
+    ...changes,
+  };
+  write(root, 'docs/feature-map/web/admin.json', JSON.stringify({ area: 'admin', surface: 'web', entries: [entry] }));
+  return root;
+}
+
+function checked(root) {
+  return checkFeatureMap({ root, write: true });
+}
+
+for (const absent of [false, true]) {
+  test(`empty exclusions allowed (absent: ${absent})`, () => {
+    const root = fixtureRoot();
+    if (absent) rmSync(path.join(root, 'docs/feature-map/excluded.json'));
+    const result = checked(root);
+    assert.equal(result.ok, true, result.errors.join('\n'));
+    assert.match(result.index, /## Excluded\n\n_None\._/);
+    assert.match(result.index, /## Pending admin areas \(ceiling 27\)/);
+    assert.match(result.index, /### admin/);
+  });
+}
+
+test('non-admin exclusions still require pattern and reason, but allow multiple blocks', () => {
+  const root = fixtureRoot();
+  const excluded = [{ pattern: 'Pages/About.cshtml', reason: 'Example' }, { pattern: 'Pages/Other.cshtml', reason: 'Example' }];
+  write(root, 'docs/feature-map/excluded.json', JSON.stringify({ excluded }));
+  assert.equal(checked(root).ok, true);
+  excluded.push({ pattern: 'Pages/Missing.cshtml' });
+  write(root, 'docs/feature-map/excluded.json', JSON.stringify({ excluded }));
+  assert.ok(checked(root).errors.some((error) => error.includes('pattern and reason')));
+});
+
+test('Admin exclusions are rejected', () => {
+  const root = fixtureRoot();
+  write(root, 'docs/feature-map/excluded.json', JSON.stringify({ excluded: [{ pattern: 'Pages/Admin/**', reason: 'Legacy' }] }));
+  assert.ok(checked(root).errors.includes('Admin pages may not be excluded; map them or list the area in pendingAdminAreas'));
+});
+
+for (const [patterns, message] of [
+  [Array(PENDING_ADMIN_CEILING + 1).fill('Pages/Admin/Index.cshtml'), 'exceeds ceiling'],
+  [['Pages/Admin/Index.cshtml', 'Pages/Admin/Index.cshtml'], 'Duplicate pending'],
+  [['Pages/Admin/Missing/**'], 'matches no page files'],
+  [['Pages/Index.cshtml'], 'must be under Pages/Admin/'],
+  [['Pages/Admin/../Index.cshtml'], 'must be under Pages/Admin/'],
+  [null, 'must be an array'],
+]) {
+  test(`pending validation: ${message} (${JSON.stringify(patterns)})`, () => {
+    const root = fixtureRoot();
+    pendingAreas(root, patterns);
+    assert.ok(checked(root).errors.some((error) => error.includes(message)));
+  });
+}
+
+test('pending patterns cannot overlap mapped pages', () => {
+  const root = adminFixture();
+  pendingAreas(root, ['Pages/Admin/**']);
+  assert.ok(checked(root).errors.some((error) => error.includes('matches mapped page')));
+});
+
+test('absent pending list is empty and new admin folders fail immediately', () => {
+  const root = adminFixture();
+  rmSync(path.join(root, 'docs/feature-map/pending-admin.json'));
+  assert.equal(checked(root).ok, true);
+  write(root, 'src/QueenZone.Web/Pages/Admin/NewArea/Index.cshtml', '@page\n');
+  assert.ok(checked(root).errors.includes('Unmapped Razor page Pages/Admin/NewArea/Index.cshtml.'));
+});
+
+test('pending patterns ignore partials and views without @page', () => {
+  const root = fixtureRoot();
+  write(root, 'src/QueenZone.Web/Pages/Admin/OnlyViews/_Partial.cshtml', '@page\n');
+  write(root, 'src/QueenZone.Web/Pages/Admin/OnlyViews/View.cshtml', '<p>View</p>');
+  pendingAreas(root, ['Pages/Admin/Index.cshtml', 'Pages/Admin/OnlyViews/**']);
+  assert.ok(checked(root).errors.some((error) => error.includes('matches no page files')));
+});
+
+for (const [changes, message] of [
+  [{ admin: undefined }, 'require an admin object'],
+  [{ signIn: 'member' }, 'require signIn admin'],
+  [{ specs: [] }, 'require at least one spec'],
+  [{ admin: { actions: [1], externalEffects: 'email', verification: 'bad', getWrites: 'false', notes: 1 } }, 'admin.actions must be a string array'],
+]) {
+  test(`admin schema: ${message}`, () => {
+    assert.ok(checked(adminFixture(undefined, changes)).errors.some((error) => error.includes(message)));
+  });
+}
+
+test('admin field types are all checked and non-admin signIn admin stays lenient', () => {
+  const result = checked(adminFixture(undefined, { admin: { actions: [], externalEffects: [1], verification: false, getWrites: null, notes: [] } }));
+  for (const field of ['externalEffects', 'verification', 'getWrites', 'notes']) {
+    assert.ok(result.errors.some((error) => error.includes(`admin.${field}`)));
+  }
+  const root = fixtureRoot();
+  changeWebHome(root, { signIn: 'admin' });
+  assert.equal(checked(root).ok, true);
+});
+
+test('OnPost handlers forbid none and require normalized actions', () => {
+  const root = adminFixture();
+  write(root, 'src/QueenZone.Web/Pages/Admin/Index.cshtml.cs', 'class TestModel { void OnPost() {} void OnPostAsync() {} void OnPostSaveAsync() { if (true) {} } } class Other { void OnPostDelete() {} }');
+  assert.deepEqual(pageModelPostHandlers(root, 'Pages/Admin/Index.cshtml'), ['OnPost', 'OnPostAsync', 'OnPostSaveAsync']);
+  const result = checked(root);
+  assert.ok(result.errors.some((error) => error.includes('verification none')));
+  assert.ok(result.errors.some((error) => error.includes('missing handler Post')));
+  assert.ok(result.errors.some((error) => error.includes('missing handler Save')));
+  const file = path.join(root, 'docs/feature-map/web/admin.json');
+  const doc = JSON.parse(readFileSync(file, 'utf8'));
+  Object.assign(doc.entries[0].admin, { actions: ['Post', 'Save'], verification: 'fixture-record' });
+  writeFileSync(file, JSON.stringify(doc));
+  assert.equal(checked(root).ok, true);
+});
+
+test('model discovery supports namespace, generics, local and Admin-tree models', () => {
+  const root = adminFixture('Pages/Admin/Area/Test.cshtml');
+  write(root, 'src/QueenZone.Web/Pages/Admin/Area/Test.cshtml', '@page\n@model Example.SharedModel<string>\n');
+  write(root, 'src/QueenZone.Web/Pages/Admin/Models.cs', 'class SharedModel<T> { void OnPostSaveAsync() {} } class Other { void OnPostWrong() {} }');
+  assert.deepEqual(pageModelPostHandlers(root, 'Pages/Admin/Area/Test.cshtml'), ['OnPostSaveAsync']);
+  write(root, 'src/QueenZone.Web/Pages/Admin/Area/Models.cs', 'class SharedModel<T> { void OnPostLocal() {} }');
+  assert.deepEqual(pageModelPostHandlers(root, 'Pages/Admin/Area/Test.cshtml'), ['OnPostLocal']);
+});
+
+for (const pattern of Object.keys(CONFIRM_ONLY_ADMIN_PAGES)) {
+  test(`confirm-only enforced for ${pattern}`, () => {
+    const page = pattern.replace('/**', '/Index.cshtml');
+    assert.ok(checked(adminFixture(page)).errors.some((error) => error.includes('requires confirm-only')));
+    assert.equal(checked(adminFixture(page, { admin: { actions: [], externalEffects: [], getWrites: false, verification: 'confirm-only' } })).ok, true);
+  });
+}
+
+for (const page of GET_WRITES_ADMIN_PAGES) {
+  test(`GET audit writes enforced for ${page}`, () => {
+    assert.ok(checked(adminFixture(page)).errors.some((error) => error.includes('requires getWrites true')));
+    assert.equal(checked(adminFixture(page, { admin: { actions: [], externalEffects: [], getWrites: true, verification: 'none' } })).ok, true);
+  });
+}
+
+test('destructive fixture-record actions warn without failing and main prints to stderr', () => {
+  const root = adminFixture(undefined, { admin: { actions: ['Delete'], externalEffects: [], verification: 'fixture-record', getWrites: false } });
+  const result = checked(root);
+  assert.equal(result.ok, true, result.errors.join('\n'));
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /confirm the spec only completes on records it created/);
+  const errors = [];
+  assert.equal(main([], { root, stdout: () => {}, stderr: (line) => errors.push(line) }), 0);
+  assert.match(errors.join('\n'), /Warning:.*confirm the spec/);
 });
