@@ -30,6 +30,7 @@ public static class QueenZoneTelemetryServiceCollectionExtensions
         var tracesPerSecond = section.GetValue<double?>("TracesPerSecond") ?? 0.2;
         var enableLiveMetrics = section.GetValue<bool?>("EnableLiveMetrics") ?? false;
         var enableTraceBasedLogsSampler = section.GetValue<bool?>("EnableTraceBasedLogsSampler") ?? true;
+        var sqlSpanMinDurationMs = section.GetValue<int?>("SqlSpanMinDurationMilliseconds") ?? 100;
         var exportedLogLevel = section.GetValue<LogLevel?>("ExportedLogLevel") ?? LogLevel.Warning;
 
         logging.AddFilter<OpenTelemetryLoggerProvider>(null, exportedLogLevel);
@@ -42,6 +43,8 @@ public static class QueenZoneTelemetryServiceCollectionExtensions
         services.AddOpenTelemetry()
             // Processor order matters: this must precede UseAzureMonitor's exporters.
             .WithTracing(tracing => HttpQueryValueRedactionProcessor.AddTo(tracing))
+            .WithTracing(tracing => FastSqlSpanFilterProcessor.AddTo(
+                tracing, TimeSpan.FromMilliseconds(sqlSpanMinDurationMs)))
             .ConfigureResource(resource => resource.AddService(
                 serviceName: "QueenZone.Web",
                 serviceNamespace: "QueenZone"))
