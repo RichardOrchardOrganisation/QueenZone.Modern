@@ -523,6 +523,525 @@
         ],
         "getWrites": false
       }
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceSubmissions/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceSubmissions/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-fanperformancesubmissions-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.fanPerformanceSubmissions.index",
+      "name": "Admin fan performance submissions index",
+      "page": "Pages/Admin/FanPerformanceSubmissions/Index.cshtml",
+      "url": "/admin/fan-performance-submissions",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceSubmissions/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceSubmissions/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-fanperformancesubmissions-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.fanPerformanceSubmissions.detail",
+      "name": "Admin fan performance submissions detail",
+      "page": "Pages/Admin/FanPerformanceSubmissions/Detail.cshtml",
+      "url": "/admin/fan-performance-submissions/{id:guid}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceSubmissions/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceSubmissions/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.fanPerformanceSubmissions.action",
+      "name": "Admin fan performance submissions action",
+      "page": "Pages/Admin/FanPerformanceSubmissions/Action.cshtml",
+      "url": "/admin/fan-performance-submissions/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [
+          "Approve",
+          "Reject",
+          "NeedsInfo",
+          "UnderReview"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "blob",
+          "search-index",
+          "audit-log",
+          "public-content"
+        ],
+        "getWrites": false,
+        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/NewsSuggestions/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/NewsSuggestions/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-newssuggestions-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.newsSuggestions.index",
+      "name": "Admin news suggestions index",
+      "page": "Pages/Admin/NewsSuggestions/Index.cshtml",
+      "url": "/admin/news-suggestions",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/NewsSuggestions/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/NewsSuggestions/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-newssuggestions-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.newsSuggestions.detail",
+      "name": "Admin news suggestions detail",
+      "page": "Pages/Admin/NewsSuggestions/Detail.cshtml",
+      "url": "/admin/news-suggestions/{id:guid}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/NewsSuggestions/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/NewsSuggestions/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.newsSuggestions.action",
+      "name": "Admin news suggestions action",
+      "page": "Pages/Admin/NewsSuggestions/Action.cshtml",
+      "url": "/admin/news-suggestions/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [
+          "Reject",
+          "UnderReview",
+          "MarkDuplicate",
+          "Promote"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log"
+        ],
+        "getWrites": false,
+        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PhotoCorrections/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PhotoCorrections/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-photocorrections-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.photoCorrections.index",
+      "name": "Admin photo corrections index",
+      "page": "Pages/Admin/PhotoCorrections/Index.cshtml",
+      "url": "/admin/photo-corrections",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PhotoCorrections/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PhotoCorrections/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-photocorrections-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.photoCorrections.detail",
+      "name": "Admin photo corrections detail",
+      "page": "Pages/Admin/PhotoCorrections/Detail.cshtml",
+      "url": "/admin/photo-corrections/{id:guid}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PhotoCorrections/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PhotoCorrections/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.photoCorrections.action",
+      "name": "Admin photo corrections action",
+      "page": "Pages/Admin/PhotoCorrections/Action.cshtml",
+      "url": "/admin/photo-corrections/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [
+          "Approve",
+          "Revert",
+          "Reject",
+          "RequestInfo"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log",
+          "public-content"
+        ],
+        "getWrites": false,
+        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PhotoSubmissions/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PhotoSubmissions/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-photosubmissions-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.photoSubmissions.index",
+      "name": "Admin photo submissions index",
+      "page": "Pages/Admin/PhotoSubmissions/Index.cshtml",
+      "url": "/admin/photo-submissions",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PhotoSubmissions/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PhotoSubmissions/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-photosubmissions-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.photoSubmissions.detail",
+      "name": "Admin photo submissions detail",
+      "page": "Pages/Admin/PhotoSubmissions/Detail.cshtml",
+      "url": "/admin/photo-submissions/{id:guid}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PhotoSubmissions/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PhotoSubmissions/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.photoSubmissions.action",
+      "name": "Admin photo submissions action",
+      "page": "Pages/Admin/PhotoSubmissions/Action.cshtml",
+      "url": "/admin/photo-submissions/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [
+          "Approve",
+          "Reject",
+          "NeedsInfo",
+          "UnderReview"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "blob",
+          "audit-log",
+          "public-content"
+        ],
+        "getWrites": false,
+        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/QuizQuestionSubmissions/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/QuizQuestionSubmissions/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-quizquestionsubmissions-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.quizQuestionSubmissions.index",
+      "name": "Admin quiz question submissions index",
+      "page": "Pages/Admin/QuizQuestionSubmissions/Index.cshtml",
+      "url": "/admin/quiz-question-submissions",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/QuizQuestionSubmissions/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/QuizQuestionSubmissions/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-quizquestionsubmissions-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.quizQuestionSubmissions.detail",
+      "name": "Admin quiz question submissions detail",
+      "page": "Pages/Admin/QuizQuestionSubmissions/Detail.cshtml",
+      "url": "/admin/quiz-question-submissions/{id:guid}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/QuizQuestionSubmissions/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/QuizQuestionSubmissions/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.quizQuestionSubmissions.action",
+      "name": "Admin quiz question submissions action",
+      "page": "Pages/Admin/QuizQuestionSubmissions/Action.cshtml",
+      "url": "/admin/quiz-question-submissions/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [
+          "Approve",
+          "Reject"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log"
+        ],
+        "getWrites": false,
+        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/TriviaSubmissions/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/TriviaSubmissions/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-triviasubmissions-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.triviaSubmissions.index",
+      "name": "Admin trivia submissions index",
+      "page": "Pages/Admin/TriviaSubmissions/Index.cshtml",
+      "url": "/admin/trivia-submissions",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/TriviaSubmissions/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/TriviaSubmissions/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-triviasubmissions-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.triviaSubmissions.detail",
+      "name": "Admin trivia submissions detail",
+      "page": "Pages/Admin/TriviaSubmissions/Detail.cshtml",
+      "url": "/admin/trivia-submissions/{id:guid}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/TriviaSubmissions/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/TriviaSubmissions/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminApprovalQueueProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.triviaSubmissions.action",
+      "name": "Admin trivia submissions action",
+      "page": "Pages/Admin/TriviaSubmissions/Action.cshtml",
+      "url": "/admin/trivia-submissions/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
+      "admin": {
+        "actions": [
+          "Approve",
+          "Reject"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log",
+          "public-content"
+        ],
+        "getWrites": false,
+        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
+      "aliases": []
     }
   ]
 }
