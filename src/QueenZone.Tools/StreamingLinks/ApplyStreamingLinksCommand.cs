@@ -78,18 +78,7 @@ internal static class ApplyStreamingLinksCommand
 
         if (options.Apply)
         {
-            foreach (var item in plan.Where(item => item.Action is StreamingLinkPlanAction.Insert or StreamingLinkPlanAction.Update))
-            {
-                var write = new StreamingLinkWrite(item.Row.Link, StreamingLinkSource.Imported, UpdatedBy);
-                if (item.Row.AlbumSongId is int songId)
-                {
-                    await repository.SetSongStreamingLinkAsync(songId, item.Row.Link.Provider, write, options.CancellationToken);
-                }
-                else
-                {
-                    await repository.SetAlbumStreamingLinkAsync(item.Row.AlbumId, item.Row.Link.Provider, write, options.CancellationToken);
-                }
-            }
+            await ApplyPlanAsync(plan, repository, options.CancellationToken);
         }
 
         Console.WriteLine();
@@ -108,6 +97,25 @@ internal static class ApplyStreamingLinksCommand
         }
 
         return 0;
+    }
+
+    private static async Task ApplyPlanAsync(
+        IReadOnlyList<StreamingLinkPlanItem> plan,
+        IAdminDiscographyRepository repository,
+        CancellationToken cancellationToken)
+    {
+        foreach (var item in plan.Where(item => item.Action is StreamingLinkPlanAction.Insert or StreamingLinkPlanAction.Update))
+        {
+            var write = new StreamingLinkWrite(item.Row.Link, StreamingLinkSource.Imported, UpdatedBy);
+            if (item.Row.AlbumSongId is int songId)
+            {
+                await repository.SetSongStreamingLinkAsync(songId, item.Row.Link.Provider, write, cancellationToken);
+            }
+            else
+            {
+                await repository.SetAlbumStreamingLinkAsync(item.Row.AlbumId, item.Row.Link.Provider, write, cancellationToken);
+            }
+        }
     }
 
     /// <summary>Approved rows, the count of other rows, and validation errors (row-numbered).</summary>
@@ -161,18 +169,27 @@ internal static class ApplyStreamingLinksCommand
                 continue;
             }
 
-            var slot = (row.AlbumId, row.AlbumSongId, row.Link.Provider);
-            if (slots.TryGetValue(slot, out var firstRow))
-            {
-                errors.Add($"Row {rowNumber}: approves a second {row.Link.Provider.Key()} link for the same {(row.AlbumSongId is null ? "album" : "track")} as row {firstRow}.");
-                continue;
-            }
-
-            slots[slot] = rowNumber;
-            rows.Add(row);
+            AddApprovedRow(row, slots, rows, errors);
         }
 
         return (rows, notApproved, errors);
+    }
+
+    private static void AddApprovedRow(
+        ApprovedStreamingLink row,
+        Dictionary<(int, int?, StreamingProvider), int> slots,
+        List<ApprovedStreamingLink> rows,
+        List<string> errors)
+    {
+        var slot = (row.AlbumId, row.AlbumSongId, row.Link.Provider);
+        if (slots.TryGetValue(slot, out var firstRow))
+        {
+            errors.Add($"Row {row.RowNumber}: approves a second {row.Link.Provider.Key()} link for the same {(row.AlbumSongId is null ? "album" : "track")} as row {firstRow}.");
+            return;
+        }
+
+        slots[slot] = row.RowNumber;
+        rows.Add(row);
     }
 
     private static ApprovedStreamingLink? ValidateRow(
