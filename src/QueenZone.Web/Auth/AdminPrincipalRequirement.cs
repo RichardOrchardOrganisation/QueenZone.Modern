@@ -27,33 +27,46 @@ public sealed class AdminPrincipalRequirementHandler(
             return Task.CompletedTask;
         }
 
-        var tenantReason = ReadIdentifier(context.User, "tid",
-            "http://schemas.microsoft.com/identity/claims/tenantid", out var tenant);
-        var oidReason = ReadIdentifier(context.User, "oid",
-            "http://schemas.microsoft.com/identity/claims/objectidentifier", out var oid);
-        var reason = tenantReason ?? oidReason;
-        if (reason is null && !(settings.AllowedPrincipals ?? []).Any(entry =>
-                entry?.Split(':', StringSplitOptions.TrimEntries) is [var allowedTenant, var allowedOid] &&
-                Guid.TryParse(allowedTenant, out var tenantId) && Guid.TryParse(allowedOid, out var objectId) &&
-                tenant == tenantId && oid == objectId))
-        {
-            reason = "NotPinned";
-        }
-
+        var reason = GetDenyReason(context.User, settings.AllowedPrincipals ?? []);
         if (reason is null)
         {
             context.Succeed(requirement);
         }
         else
         {
-            var rawOid = context.User.FindFirst("oid")?.Value ??
-                context.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value ?? "";
-            var oidHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawOid)))[..8];
-            logger.LogWarning("Admin sign-in principal pin failed: {ReasonCode}, oid hash {ObjectIdHash}", reason, oidHash);
+            logger.LogWarning("Admin sign-in principal pin failed: {ReasonCode}, oid hash {ObjectIdHash}",
+                reason, HashObjectId(context.User));
             context.Fail();
         }
 
         return Task.CompletedTask;
+    }
+
+    private const string TenantClaimType = "http://schemas.microsoft.com/identity/claims/tenantid";
+    private const string ObjectIdClaimType = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+
+    private static string? GetDenyReason(ClaimsPrincipal user, string[] allowedPrincipals)
+    {
+        var tenantReason = ReadIdentifier(user, "tid", TenantClaimType, out var tenant);
+        var oidReason = ReadIdentifier(user, "oid", ObjectIdClaimType, out var oid);
+        var reason = tenantReason ?? oidReason;
+        if (reason is not null)
+        {
+            return reason;
+        }
+
+        return allowedPrincipals.Any(entry => IsPinnedEntry(entry, tenant, oid)) ? null : "NotPinned";
+    }
+
+    private static bool IsPinnedEntry(string? entry, Guid tenant, Guid oid) =>
+        entry?.Split(':', StringSplitOptions.TrimEntries) is [var allowedTenant, var allowedOid] &&
+        Guid.TryParse(allowedTenant, out var tenantId) && Guid.TryParse(allowedOid, out var objectId) &&
+        tenant == tenantId && oid == objectId;
+
+    private static string HashObjectId(ClaimsPrincipal user)
+    {
+        var rawOid = user.FindFirst("oid")?.Value ?? user.FindFirst(ObjectIdClaimType)?.Value ?? "";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rawOid)))[..8];
     }
 
     private static string? ReadIdentifier(ClaimsPrincipal user, string shortType, string longType, out Guid value)
