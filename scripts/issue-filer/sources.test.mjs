@@ -7,7 +7,7 @@ import { loadFilerFiles, repoRootFrom } from './config.mjs';
 import { collect as collectCi, groupFailedRuns } from './sources/ci.mjs';
 import { collect as collectReview, DEFAULT_INGEST_FINDINGS, ingestedCandidates } from './sources/review.mjs';
 import { collect as collectSonar, groupSonarIssues } from './sources/sonar.mjs';
-import { collect as collectSuppressions, parseSuppressionDiff } from './sources/suppressions.mjs';
+import { collect as collectSuppressions, isGeneratedSuppressionFile, parseSuppressionDiff } from './sources/suppressions.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { config } = loadFilerFiles(repoRootFrom());
@@ -149,4 +149,39 @@ test('suppressions collect reads ctx.patch', async () => {
   const patch = readFileSync(path.join(here, 'fixtures', 'suppression.diff'), 'utf8');
   const candidates = await collectSuppressions({ config, patch, since: new Date('2026-09-19T00:00:00Z') });
   assert.ok(candidates.some((item) => item.keys[0] === 'suppressions:pragma-warning-disable'));
+});
+
+// Split so the suppression ratchet does not read these fixtures as real suppressions.
+const PRAGMA = '#pragma warning ' + 'disable';
+
+test('suppressions ignore EF-generated migration designer files but flag hand-written ones', () => {
+  const diff = (file, text) => [`diff --git a/${file} b/${file}`, `+${text}`];
+  const patch = [
+    'commit 1111111',
+    ...diff('src/QueenZone.Data/Migrations/20261004010848_AddCrosswords.Designer.cs', `${PRAGMA} 612, 618`),
+    ...diff('src/QueenZone.Data/Migrations/QueenZoneDbContextModelSnapshot.cs', `${PRAGMA} 612, 618`),
+    'commit 2222222',
+    ...diff('src/QueenZone.Data/Members/HandWritten.cs', `${PRAGMA} CS0618`),
+    'commit 3333333',
+    // Near misses: a designer outside Migrations/ and a hand-written file inside Migrations/ are still flagged.
+    ...diff('src/QueenZone.Web/Properties/Resources.Designer.cs', `${PRAGMA} CS1591`),
+    'commit 4444444',
+    ...diff('src/QueenZone.Data/Migrations/Foo.cs', `${PRAGMA} CS0612`),
+    '',
+  ].join('\n');
+  const candidates = parseSuppressionDiff(patch, config.suppressionPatterns, { config });
+  const pragma = candidates.find((item) => item.keys[0] === 'suppressions:pragma-warning-disable');
+  assert.equal(pragma.count, 3);
+  assert.deepEqual(pragma.evidence.map((row) => row.text), [
+    `src/QueenZone.Data/Members/HandWritten.cs: ${PRAGMA} CS0618`,
+    `src/QueenZone.Web/Properties/Resources.Designer.cs: ${PRAGMA} CS1591`,
+    `src/QueenZone.Data/Migrations/Foo.cs: ${PRAGMA} CS0612`,
+  ]);
+});
+
+test('isGeneratedSuppressionFile only matches EF migration designers and snapshots', () => {
+  assert.equal(isGeneratedSuppressionFile('src/QueenZone.Data/Migrations/20261004010848_AddCrosswords.Designer.cs'), true);
+  assert.equal(isGeneratedSuppressionFile('src/QueenZone.Data/Migrations/QueenZoneDbContextModelSnapshot.cs'), true);
+  assert.equal(isGeneratedSuppressionFile('src/QueenZone.Web/Properties/Resources.Designer.cs'), false);
+  assert.equal(isGeneratedSuppressionFile('src/QueenZone.Data/Migrations/Foo.cs'), false);
 });
