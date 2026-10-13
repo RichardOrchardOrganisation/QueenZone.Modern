@@ -77,8 +77,8 @@ runs:
         mapping: ${{ inputs.secrets }}
     - name: Wait before attempt 2
       if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') }}
-      shell: bash
-      run: sleep 20
+      shell: pwsh
+      run: Start-Sleep -Seconds 20
     - id: fetch2
       if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') }}
       continue-on-error: true
@@ -98,8 +98,8 @@ runs:
         mapping: ${{ inputs.secrets }}
     - name: Wait before attempt 3
       if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') && (steps.check2.outcome != 'success' || steps.check2.outputs.complete != 'true') }}
-      shell: bash
-      run: sleep 60
+      shell: pwsh
+      run: Start-Sleep -Seconds 60
     - id: fetch3
       if: ${{ !cancelled() && steps.preflight.outcome == 'success' && (steps.check1.outcome != 'success' || steps.check1.outputs.complete != 'true') && (steps.check2.outcome != 'success' || steps.check2.outputs.complete != 'true') }}
       continue-on-error: true
