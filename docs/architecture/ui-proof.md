@@ -43,7 +43,7 @@ Remove the code fence when putting the line in the PR description. Hidden templa
 
 ## Trust and merge queue
 
-`pr-verification-check.yml` uses `pull_request_target` and `workflow_run` only to read uploaded data, post links and rerun the evidence job. It checks out `main` with persisted credentials disabled. Never change it to execute PR code or scripts from artifacts. The CI gate has read-only permissions.
+`pr-verification-check.yml` uses `pull_request_target` and `workflow_run` only to read uploaded data, post links and rerun the evidence job. It calls a shared action pinned to reviewed commit `7452829eef908d89aa6e1515369f1c052e25bc54`, which fetches only default-branch JSON configuration; it never checks out application code. Never change it to execute PR code or scripts from artifacts. The CI gate has read-only permissions.
 
 The merge-group gate resolves constituent PRs through squash-commit associations (or the queue ref for a single unindexed commit) and checks their current proof/waivers. An unresolved group fails closed. The combined candidate still runs its own browser tests. A gate-only rerun preserves evidence from an unchanged successful producer job; a newer failed producer attempt invalidates older proof.
 

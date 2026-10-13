@@ -26,18 +26,6 @@ jobs:
   refresh-proof:
     runs-on: ubuntu-latest
     steps:
-      # This privileged consumer runs only default-branch code. Never checkout
-      # the PR head or execute scripts from a downloaded evidence archive.
-      - name: Checkout trusted policy
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ github.repository }}
-          ref: refs/heads/main
-          persist-credentials: false
+      # Pinned shared code reads only default-branch JSON. No application checkout.
       - name: Link uploaded evidence and refresh required gate
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const { pathToFileURL } = require('node:url');
-            const { refreshUiProof } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/refresh-ui-proof.mjs`).href);
-            await refreshUiProof({ github, context, core, root: process.env.GITHUB_WORKSPACE });
+        uses: RichardOrchardOrganisation/development-standards/actions/publish-ui-proof@7452829eef908d89aa6e1515369f1c052e25bc54 # 0.5.1
