@@ -458,6 +458,8 @@ public static class QueenZoneWebServiceCollectionExtensions
                 .Get<ForumDataOptions>() ?? new ForumDataOptions();
 
             services.AddQueenZoneLegacyData(legacyConnectionString, forumDataOptions);
+            services.AddOptions<SlowQueryLoggingOptions>()
+                .Bind(configuration.GetSection(SlowQueryLoggingOptions.SectionName));
             if (environment.IsEnvironment(QueenZoneEnvironments.E2E))
             {
                 // Sync/skip_sync copies production Azure SQL, which may not yet have

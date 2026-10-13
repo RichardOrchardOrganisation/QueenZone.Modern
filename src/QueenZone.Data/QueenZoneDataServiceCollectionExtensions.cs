@@ -15,22 +15,32 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.TryAddSingleton<SearchIndexRevision>();
         forumDataOptions ??= new ForumDataOptions();
 
+        services.AddOptions<SlowQueryLoggingOptions>();
+        // The logger factory is optional so hosts that register data without logging still work.
+        services.TryAddSingleton(sp => new SlowQueryLoggingInterceptor(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SlowQueryLoggingOptions>>(),
+            new Microsoft.Extensions.Logging.Logger<SlowQueryLoggingInterceptor>(
+                sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance)));
+
         // IDbContextFactory first (singleton) for independent short-lived contexts used by
         // parallel admin/reporting reads (issue #335). Scoped QueenZoneDbContext is created
         // from the factory so request-scoped repositories still receive one context per scope.
         // Do not also call AddDbContext with the same options: that re-registers options
         // configuration as scoped and breaks singleton factory resolution.
-        services.AddDbContextFactory<QueenZoneDbContext>(options =>
-            options.UseSqlServer(
-                connectionString,
-                sql =>
-                {
-                    sql.CommandTimeout(QueenZoneSqlServerOptions.DefaultCommandTimeoutSeconds);
-                    sql.EnableRetryOnFailure(
-                        maxRetryCount: QueenZoneSqlServerOptions.MaxRetryCount,
-                        maxRetryDelay: QueenZoneSqlServerOptions.MaxRetryDelay,
-                        errorNumbersToAdd: null);
-                }));
+        services.AddDbContextFactory<QueenZoneDbContext>((sp, options) =>
+            options
+                .UseSqlServer(
+                    connectionString,
+                    sql =>
+                    {
+                        sql.CommandTimeout(QueenZoneSqlServerOptions.DefaultCommandTimeoutSeconds);
+                        sql.EnableRetryOnFailure(
+                            maxRetryCount: QueenZoneSqlServerOptions.MaxRetryCount,
+                            maxRetryDelay: QueenZoneSqlServerOptions.MaxRetryDelay,
+                            errorNumbersToAdd: null);
+                    })
+                .AddInterceptors(sp.GetRequiredService<SlowQueryLoggingInterceptor>()));
         services.AddScoped(sp =>
             sp.GetRequiredService<IDbContextFactory<QueenZoneDbContext>>().CreateDbContext());
 
