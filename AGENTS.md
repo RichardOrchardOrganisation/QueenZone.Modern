@@ -184,6 +184,16 @@ The codebase is agents' memory, so a workaround copied once becomes the pattern.
 
 Follow `docs/architecture/testing-policy.md`.
 
+### Web UI verification for every agent
+
+For web UI changes, read the [shared web verification guide](.cursor/skills/verify-queenzone/SKILL.md), regardless of agent or editor. Its location under `.cursor` is historical; this verification workflow applies to Codex, Claude, Grok, Composer, Cursor, and other agents. It does not enable the Cursor issue-queue orchestration loop.
+
+- Resolve affected `docs/feature-map/` IDs and run `pwsh -File scripts/Verify-Web.ps1 -Feature <id> -KeepRunning` for each affected feature. Finish and clean up one host before starting the next. This Windows host helper builds prerequisites, checks the isolated Testing host, runs every mapped deterministic Playwright fixture, and writes proof plus PR verification text.
+- Use an available real-browser tool to exercise the changed journey on that same host. Prefer Chrome DevTools MCP for interactive inspection when available; Playwright MCP, Codex browser tools, and Cursor browser tools also qualify. Check tool availability rather than assuming an MCP is installed. The .NET Playwright suite remains the repeatable regression runner; an MCP session does not replace it.
+- Inspect the screenshots, changed controls, relevant console/network failures, and desktop/mobile web layouts when affected. Record the tool, actions, viewport, expected/observed results, commit, environment, and evidence. HTTP/API responses and screenshot creation alone are not UI proof.
+- Use the generated `proof.md` for the PR Verification section, upload its artifacts, and replace local paths with reviewable links. Automated results, screenshot capture, and visual inspection are separate. Missing specs, unavailable browsers, skipped tests, or unperformed visual checks remain NOT RUN / Not verified.
+- Run `pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 cleanup` after interactive inspection. On other hosts, use supported CI verification and report any missing interactive check. Native mobile proof still follows the mobile verification workflow.
+
 ### Default verification before a pull request
 
 ```powershell
