@@ -1,8 +1,19 @@
+import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
+export function resolveProofPython(env = process.env) {
+  if (env.STANDARDS_PYTHON) {
+    if (!path.isAbsolute(env.STANDARDS_PYTHON) || !existsSync(env.STANDARDS_PYTHON)) throw new Error('STANDARDS_PYTHON must be an existing absolute executable path.');
+    return env.STANDARDS_PYTHON;
+  }
+  const executable = ['/usr/bin/python3', '/usr/local/bin/python3', '/opt/homebrew/bin/python3'].find(candidate => existsSync(candidate));
+  if (!executable) throw new Error('Set STANDARDS_PYTHON to an absolute Python 3 executable path.');
+  return executable;
+}
+
 export function decodeProofArchive(data, root) {
-  return JSON.parse(execFileSync('python3', [path.join(root, 'scripts/ui_proof_bundle.py'), 'validate'], {
+  return JSON.parse(execFileSync(resolveProofPython(), [path.join(root, 'scripts/ui_proof_bundle.py'), 'validate'], {
     input: Buffer.from(data), maxBuffer: 2 * 1024 * 1024, timeout: 20_000,
   }).toString());
 }

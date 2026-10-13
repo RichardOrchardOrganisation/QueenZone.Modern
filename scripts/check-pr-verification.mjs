@@ -103,8 +103,13 @@ export function visibleMarkdown(body) {
 }
 
 export function verificationSkipReason(body) {
-  const match = visibleMarkdown(body).match(/^\s*(?:-\s*)?Verification-skip-reason:[ \t]*(\S[^\r\n]*)$/im);
-  return match ? match[1].trim() : '';
+  for (const line of visibleMarkdown(body).split('\n')) {
+    let text = line.trim();
+    if (text.startsWith('-')) text = text.slice(1).trimStart();
+    const prefix = 'verification-skip-reason:';
+    if (text.toLowerCase().startsWith(prefix)) return text.slice(prefix.length).trim();
+  }
+  return '';
 }
 
 export function evaluatePrVerification({

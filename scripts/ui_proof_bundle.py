@@ -51,7 +51,9 @@ def read_xml(data):
 def passed_cases(data, fixture=None):
     root = read_xml(data)
     if fixture is not None:
-        ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
+        if not root.tag.endswith("}TestRun"):
+            return 0
+        ns = {"t": root.tag[1:].split("}")[0]}
         definitions = {test.get("id") for test in root.findall(".//t:UnitTest", ns)
                        if test.find("t:TestMethod", ns) is not None
                        and test.find("t:TestMethod", ns).get("className", "").split(",")[0].endswith("." + fixture)}
