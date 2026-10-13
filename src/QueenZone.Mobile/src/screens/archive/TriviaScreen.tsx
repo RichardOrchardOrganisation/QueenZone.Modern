@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { fetchRandomTrivia, type RandomTrivia } from '../../api';
+import { ApiError, fetchRandomTrivia, fetchTriviaById, type RandomTrivia } from '../../api';
+import type { RouteProp } from '@react-navigation/native';
+import type { ArchiveStackParamList } from '../../navigation/types';
 import { useHomeSection } from '../../hooks/useHomeSection';
 import { testIds } from '../../test/testIds';
 import { space, type, useTheme } from '../../theme';
@@ -22,21 +24,45 @@ export function triviaMetaLine(fact: RandomTrivia): string | null {
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
-export function TriviaScreen() {
+/** Every widget tap gets a fresh session, even when its id matches the previous tap. */
+export function TriviaScreen({ route }: { route?: RouteProp<ArchiveStackParamList, 'Trivia'> }) {
+  const id = route?.params?.id;
+  const requestId = route?.params?.requestId ?? 0;
+  return <TriviaSession key={`${id ?? 'random'}:${requestId}`} id={id} />;
+}
+
+function TriviaSession({ id }: { id?: number }) {
+  const [random, setRandom] = useState(false);
+  return <TriviaContent key={random ? 'random' : 'entry'} id={random ? undefined : id} onRandom={() => setRandom(true)} />;
+}
+
+function TriviaContent({ id, onRandom }: { id?: number; onRandom: () => void }) {
   const { c } = useTheme();
   const { view, reload, refresh } = useHomeSection(
-    useCallback((signal) => fetchRandomTrivia(signal), []),
+    useCallback((signal) => {
+      if (id === undefined) {
+        return fetchRandomTrivia(signal);
+      }
+      if (!Number.isSafeInteger(id) || id <= 0) {
+        return Promise.reject(new ApiError(404, 'This trivia fact is unavailable.'));
+      }
+      return fetchTriviaById(id, signal);
+    }, [id]),
   );
   const [nexting, setNexting] = useState(false);
 
   const onNext = useCallback(async () => {
+    if (id !== undefined) {
+      onRandom();
+      return;
+    }
     setNexting(true);
     try {
       await refresh();
     } finally {
       setNexting(false);
     }
-  }, [refresh]);
+  }, [id, onRandom, refresh]);
 
   if (view.kind === 'skeleton') {
     return <LoadingBlock label="Loading trivia…" />;
@@ -57,7 +83,7 @@ export function TriviaScreen() {
         <PageTitleBlock
           eyebrow="Queen Facts"
           title="Trivia"
-          subtitle="A random published fact from the Queenzone archive."
+          subtitle={id === undefined ? "A random published fact from the Queenzone archive." : "The published fact from your widget."}
         />
         <EmptyBlock message="No trivia facts have been published yet." />
       </ScrollView>
@@ -75,7 +101,7 @@ export function TriviaScreen() {
       <PageTitleBlock
         eyebrow="Queen Facts"
         title="Trivia"
-        subtitle="A random published fact from the Queenzone archive."
+        subtitle={id === undefined ? "A random published fact from the Queenzone archive." : "The published fact from your widget."}
       />
       <FeatureBlock eyebrow="Queen Trivia" body={fact.text} />
       {meta ? (

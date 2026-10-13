@@ -56,7 +56,10 @@ export function OnThisDayWidgetView(props: OnThisDayWidgetProps) {
   const eventId = Number(props.eventId);
   let tapUrl = 'queenzone://timeline';
   if (showTrivia) {
-    tapUrl = 'queenzone://trivia';
+    const triviaId = props.triviaId;
+    tapUrl = triviaId != null && Number.isSafeInteger(triviaId) && triviaId > 0
+      ? `queenzone://trivia/${triviaId}`
+      : 'queenzone://trivia';
   } else if (showQuote) {
     tapUrl = quoteId > 0 ? `queenzone://quotes/${quoteId}` : 'queenzone://home';
   } else if (eventId > 0) {

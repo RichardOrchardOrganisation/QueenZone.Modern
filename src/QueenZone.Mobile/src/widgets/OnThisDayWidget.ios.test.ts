@@ -55,7 +55,8 @@ describe('OnThisDayWidget.ios referential freedom', () => {
     assert.match(viewBody, /QUEEN FACTS/);
     assert.match(viewBody, /props\.triviaText/);
     assert.match(viewBody, /4 \* 60 \* 60 \* 1000/);
-    assert.equal(viewBody.includes('queenzone://trivia/'), false);
+    assert.match(viewBody, /queenzone:\/\/trivia\/\$\{triviaId\}/);
+    assert.match(viewBody, /props\.triviaId/);
   });
 
   it('splits primary and secondary and uses the small-ceiling scale band', () => {

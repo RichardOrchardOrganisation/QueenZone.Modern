@@ -35,6 +35,7 @@ struct OnThisDayNativeEntryView: View {
   private var quoteWhoSaid: String { stringProp("quoteWhoSaid") }
   private var quoteId: Int { intProp("quoteId") }
   private var eventId: Int { intProp("eventId") }
+  private var triviaId: Int { intProp("triviaId") }
   private var triviaText: String { stringProp("triviaText") }
   private var hasDay: Bool { !formattedDate.isEmpty && !summary.isEmpty }
   private var hasQuote: Bool { !quoteText.isEmpty && !quoteWhoSaid.isEmpty }
@@ -130,6 +131,9 @@ struct OnThisDayNativeEntryView: View {
 
   private var tapURL: URL? {
     if showTrivia {
+      if triviaId > 0 {
+        return URL(string: "queenzone://trivia/\\(triviaId)")
+      }
       return URL(string: "queenzone://trivia")
     }
     if showQuote && quoteId > 0 {

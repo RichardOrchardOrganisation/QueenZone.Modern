@@ -65,7 +65,7 @@ export type ArchiveStackParamList = {
   FanPerformanceDetail: { id: number };
   FanPerformanceDownloads: undefined;
   FanPerformanceSubmit: undefined;
-  Trivia: undefined;
+  Trivia: { id?: number; requestId?: number } | undefined;
   CrosswordList: undefined;
   CrosswordPlay: { slug: string };
   CrosswordLeaderboard: { id: string; title: string };

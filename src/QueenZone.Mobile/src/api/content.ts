@@ -223,6 +223,11 @@ export function fetchQuoteById(id: number, signal?: AbortSignal): Promise<Random
   return fetchJson(`/content/quotes/${id}`, { signal });
 }
 
+/** A single requested published fact; missing or unpublished facts return 404. */
+export function fetchTriviaById(id: number, signal?: AbortSignal): Promise<RandomTrivia> {
+  return fetchJson(`/content/trivia/${id}`, { signal });
+}
+
 /** A single random published trivia fact, or null when none are published. */
 export function fetchRandomTrivia(signal?: AbortSignal): Promise<RandomTrivia | null> {
   return fetchJson('/content/trivia/random', { signal });

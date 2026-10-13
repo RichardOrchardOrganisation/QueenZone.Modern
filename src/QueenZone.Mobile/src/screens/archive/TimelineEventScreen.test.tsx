@@ -1,4 +1,6 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { deferred } from '../../test/fixtures';
+import type { TimelineEvent } from '../../api';
+import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { fetchTimelineEventById, fetchTimelinePage } from '../../api';
 import { ApiError } from '../../api/client';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
@@ -31,6 +33,22 @@ function renderEvent(navigation = fakeNavigation(), id = 9999) {
 }
 
 describe('TimelineEventScreen', () => {
+  it('keeps the newer warm event and its date when an older detail completes later', async () => {
+    const old = deferred<TimelineEvent>();
+    const fresh = { id: 2, title: 'New event', summary: 'New event summary', eventDate: '1985-07-13', formattedDate: '13 July 1985', category: 'live', categoryLabel: 'Live', sourceUrl: null };
+    fetchEvent.mockReturnValueOnce(old.promise).mockResolvedValueOnce(fresh);
+    const navigation = fakeNavigation();
+    const view = renderEvent(navigation, 1);
+    await waitFor(() => expect(fetchEvent).toHaveBeenCalledTimes(1));
+    view.rerender(<TimelineEventScreen navigation={navigation as never} route={{ key: 'event', name: 'TimelineEvent', params: { id: 2 } }} />);
+    await waitFor(() => expect(screen.getByText('New event')).toBeOnTheScreen());
+    await act(async () => old.resolve({ ...fresh, id: 1, title: 'Old event', formattedDate: '01 July 1970' }));
+    expect(screen.queryByText('Old event')).toBeNull();
+    expect(screen.queryByText('01 July 1970')).toBeNull();
+    expect(screen.getByText('13 July 1985')).toBeOnTheScreen();
+    expect(fetchList).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     fetchEvent.mockReset();
     fetchList.mockReset();
