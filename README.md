@@ -355,24 +355,26 @@ Feature work should happen on an agent-prefixed branch such as `grok/news-pagina
 
 ## Deployment
 
-Every qualifying web merge to `main` deploys automatically to the isolated dev environment through `.github/workflows/deploy-dev.yml`; workflow/docs-only and mobile-only merges skip the web deploy. The production `Deploy` workflow (`.github/workflows/deploy.yml`) runs only for a `v*` tag or a manual dispatch from `main`. Production is the Canada East `queenzone-prod` App Service at `https://www.queenzone.org`.
+Every qualifying web merge to `main` deploys automatically to the isolated dev environment through `.github/workflows/deploy-dev.yml`; workflow/docs-only and mobile-only merges skip the web deploy. The production `Deploy` workflow (`.github/workflows/deploy.yml`) runs only for a `v*` tag or a manual dispatch of that same `v*` tag. See [`docs/release/README.md`](docs/release/README.md). Production is the Canada East `queenzone-prod` App Service at `https://www.queenzone.org`.
 
 `.github/workflows/ci.yml` runs the required build, test, coverage, migration consistency, smoke, and Playwright checks on pull requests. The dev and production deploy workflows reuse the tested `web-publish` artifact when it is still present. If resolve cannot find that zip and a website Deploy is still required, they publish from the checked-out `main`/tag SHA. Manual dispatch and `v*` tags skip when the classified range is mobile-only or otherwise non-web — they do not walk back to an older web tip or rerun CI.
 
 ### Promote a verified dev release to production
 
-1. Merge the PR and wait for `deploy-dev.yml` to complete.
-2. Verify the change at `https://dev.queenzone.org`.
+Follow [`docs/release/README.md`](docs/release/README.md). Freeze `main`, wait for the three tip gates on that exact SHA, then tag `vYYYY.MM.DD.N`. `deploy.yml` refuses an ungated tag.
+
+1. Merge the PR and wait for `deploy-dev.yml` to complete (DEV member-auth and DEV journey then start via `workflow_run`).
+2. Confirm Nightly RealData, DEV member-auth, and DEV journey are green on that SHA.
 3. Tag that exact commit on `main`, then push the tag:
 
 ```powershell
 git checkout main
 git pull --ff-only origin main
-git tag vX.Y.Z <verified-commit-sha>
-git push origin vX.Y.Z
+git tag vYYYY.MM.DD.N <gated-commit-sha>
+git push origin vYYYY.MM.DD.N
 ```
 
-The `v*` tag triggers the production workflow. That workflow classifies the previous-tag…this-tag span (skip when the entire span is non-web), resolves the tagged commit back to the PR head SHA, and deploys the matching CI `web-publish` artifact when it is still present. If that zip is gone and the span includes website changes, it publishes from the tagged SHA instead of walking back to an older web tip. You can also open **Actions → Deploy → Run workflow**, select `main`, and run the same production deployment without creating a tag (dispatch classifies tip vs previous `main` commit and skips a mobile-only tip).
+The `v*` tag triggers the production workflow. That workflow classifies the previous-tag…this-tag span (skip when the entire span is non-web), resolves the tagged commit back to the PR head SHA, and deploys the matching CI `web-publish` artifact when it is still present. If that zip is gone and the span includes website changes, it publishes from the tagged SHA instead of walking back to an older web tip. To re-run or override, dispatch **Actions → Deploy** against the `v*` tag — not `main`.
 
 Dev runs deterministic sample data until the approval-gated [curated snapshot workflow](docs/architecture/dev-curated-snapshot.md) completes. That workflow builds a production-compatible legacy schema, loads a capped sanitised public sample, copies only manifest assets into `queenzonedev`, rebuilds search, and enables the dev-only connection after size, privacy, smoke, and browser checks pass. The dev App Service setting `DevSnapshot__Ready` keeps later `deploy-dev.yml` runs in sample mode until that proof exists.
 
