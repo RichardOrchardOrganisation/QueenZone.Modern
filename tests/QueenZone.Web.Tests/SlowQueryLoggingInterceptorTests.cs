@@ -22,7 +22,7 @@ public sealed class SlowQueryLoggingInterceptorTests
         await connection.OpenAsync();
         connection.CreateFunction("slow_one", () =>
         {
-            Thread.Sleep(60);
+            SpinWait.SpinUntil(() => false, 60);
             return 1;
         });
         var options = new DbContextOptionsBuilder<DbContext>()

@@ -29,15 +29,16 @@ public sealed class FastSqlSpanFilterProcessorTests
         using (var activity = source.StartActivity("span", kind))
         {
             Assert.NotNull(activity);
+            if (delayMs > 0)
+            {
+                // Backdate the start instead of sleeping so the span has a long duration.
+                activity.SetStartTime(DateTime.UtcNow.AddMilliseconds(-delayMs));
+            }
+
             activity.SetTag(tag, value);
             if (fail)
             {
                 activity.SetStatus(ActivityStatusCode.Error);
-            }
-
-            if (delayMs > 0)
-            {
-                Thread.Sleep(delayMs);
             }
         }
 
