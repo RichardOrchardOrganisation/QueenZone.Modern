@@ -352,3 +352,17 @@ test('storm issue lists the ranked signals', () => {
   assert.match(issue.body, /Ranked signals/);
   assert.match(issue.body, /csharp\.regex-timeout/);
 });
+
+test('plan summary deduplicates ignore ceiling reasons in action order', () => {
+  const item = (reason) => ({ candidate: { title: 'Example', keys: [], ignoreCeilingReason: reason } });
+  const summary = formatPlanSummary({
+    create: [item('first ceiling')],
+    comment: [item('second ceiling'), item('first ceiling')],
+    reopen: [item('third ceiling')],
+    skipped: [item(undefined), item('second ceiling'), item('fourth ceiling')],
+    expiredIgnores: [],
+  });
+  assert.deepEqual(summary.split('\n').filter((line) => /^- .* ceiling$/.test(line)), [
+    '- first ceiling', '- second ceiling', '- third ceiling', '- fourth ceiling',
+  ]);
+});

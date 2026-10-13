@@ -151,3 +151,26 @@ test('job-scoped permissions preserve existing effective grants and default to n
     }
   }
 });
+
+test('metadata collection filters branch and workflow while accepting a workflow ref suffix', async () => {
+  const selected = { ...run, path: `${run.path}@refs/heads/main` };
+  const client = createDeploymentMetadataClient({ token: 'fake', repository, fetchImpl: async (url) => {
+    if (url.includes('/workflows/')) return response({ workflow_runs: [
+      selected, { ...run, id: 124, head_branch: 'feature' },
+      { ...run, id: 125, path: '.github/workflows/other.yml' }, { ...run, id: 126, path: undefined },
+    ] });
+    assert.ok(url.includes(`/runs/${run.id}`));
+    if (url.includes('/jobs?')) return response({ jobs });
+    if (url.endsWith('/pending_deployments')) return response([]);
+    return response(selected);
+  } });
+  assert.deepEqual(await client.collect(), [{ run: selected, jobs, approvals: [] }]);
+});
+
+test('metadata collection rejects invalid run IDs', async () => {
+  for (const id of [0, -1, '123', 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    const client = createDeploymentMetadataClient({ token: 'fake', repository,
+      fetchImpl: async () => response({ workflow_runs: [{ ...run, id }] }) });
+    await assert.rejects(client.collect(), /Invalid run metadata/);
+  }
+});

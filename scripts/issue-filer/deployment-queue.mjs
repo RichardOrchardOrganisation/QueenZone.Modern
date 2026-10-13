@@ -69,6 +69,16 @@ export function queueCandidates(records, now, repository) {
   return { observations, candidates };
 }
 
+function addRuns(runs, data) {
+  if (!Array.isArray(data.workflow_runs) || data.total_count > data.workflow_runs.length) {
+    throw new Error('Deployment run listing is malformed or truncated; inspection incomplete.');
+  }
+  for (const run of data.workflow_runs) {
+    if (!Number.isSafeInteger(run.id) || run.id <= 0) throw new Error('Invalid run metadata; inspection incomplete.');
+    if (run.head_branch === 'main' && run.path?.split('@')[0] === `.github/workflows/${WORKFLOW}`) runs.set(run.id, run);
+  }
+}
+
 export function createDeploymentMetadataClient({ token, repository, fetchImpl = fetch }) {
   const { owner, repo } = parseRepository(repository);
   async function get(path) {
@@ -83,15 +93,6 @@ export function createDeploymentMetadataClient({ token, repository, fetchImpl = 
       throw new Error('Deployment metadata exceeds the bounded first page; inspection incomplete.');
     }
     return response.json();
-  }
-  function addRuns(runs, data) {
-    if (!Array.isArray(data.workflow_runs) || data.total_count > data.workflow_runs.length) {
-      throw new Error('Deployment run listing is malformed or truncated; inspection incomplete.');
-    }
-    for (const run of data.workflow_runs) {
-      if (!Number.isSafeInteger(run.id) || run.id <= 0) throw new Error('Invalid run metadata; inspection incomplete.');
-      if (run.head_branch === 'main' && run.path?.split('@')[0] === `.github/workflows/${WORKFLOW}`) runs.set(run.id, run);
-    }
   }
   async function collectRecord(original) {
     // These reads are ordered: refresh status after jobs/approvals to avoid

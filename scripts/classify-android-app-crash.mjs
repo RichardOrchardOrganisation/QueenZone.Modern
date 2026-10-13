@@ -29,9 +29,17 @@ const DEBUGGERD_HEADER_RE = /\*\*\* \*\*\* \*\*\*/;
 const REPORT_START_LINE_RE = /^(?:Fatal signal |\*\*\* \*\*\* \*\*\*)/;
 const FRAME_RE = /^\s*#\d+\s+pc\s+\S+/;
 const THREADTIME_RE =
-  /^\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.,]\d+\s+\d+\s+\d+\s+[VDIWEF]\s+[^:]+:\s?(.*)$/;
-const CRASH_LINE_RE =
-  /^\s*$|^(?:Fatal signal\b|\*\*\* \*\*\* \*\*\*|crash_dump|Tombstone written to:|Abort message:|Cause:|Cmdline:|Build fingerprint:|Revision:|ABI:|Timestamp:|Process uptime:|pid:|tid:|uid:|signal\s+\d+|\d+ total frames|backtrace:)|tombstoned|^\s*#\d+\s+pc\b|^\s+(?:rax|rbx|rcx|rdx|r8|r9|r10|r11|r12|r13|r14|r15|rdi|rsi|rbp|rsp|rip|eax|ebx|ecx|edx|esi|edi|ebp|esp|eip|x\d+|lr|pc|sp|fp)\b/i;
+  /^\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.,]\d+\s+\d+\s+\d+\s+[VDIWEF]\s[^:]+:\s?(.*)$/;
+const CRASH_LINE_PATTERNS = [
+  /^\s*$|tombstoned/i,
+  /^(?:Fatal signal\b|\*\*\* \*\*\* \*\*\*|crash_dump|Tombstone written to:)/i,
+  /^(?:Abort message:|Cause:|Cmdline:|Build fingerprint:|Revision:|ABI:|Timestamp:)/i,
+  /^(?:Process uptime:|pid:|tid:|uid:|signal\s+\d+|\d+ total frames|backtrace:)/i,
+  /^\s*#\d+\s+pc\b/i,
+  /^\s+(?:rax|rbx|rcx|rdx|r8|r9|r10|r11|r12|r13|r14|r15)\b/i,
+  /^\s+(?:rdi|rsi|rbp|rsp|rip|eax|ebx|ecx|edx|esi|edi|ebp|esp|eip)\b/i,
+  /^\s+(?:x\d+|lr|pc|sp|fp)\b/i,
+];
 
 export function stripLogcatPrefix(line) {
   const match = String(line ?? '').match(THREADTIME_RE);
@@ -54,17 +62,11 @@ export function isOurCrashingProcess(text) {
 }
 
 export function isCrashReportLine(line) {
-  return CRASH_LINE_RE.test(String(line ?? ''));
+  const text = String(line ?? '');
+  return CRASH_LINE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function formatSignal(number, name) {
-  if (!number) {
-    return null;
-  }
-  return name ? `${number} (${name})` : String(number);
-}
-
-function formatFaultCode(number, name) {
   if (!number) {
     return null;
   }
@@ -76,14 +78,14 @@ function parseSignal(report) {
   if (fatal) {
     return {
       signal: formatSignal(fatal[1], fatal[2]),
-      faultCode: formatFaultCode(fatal[3], fatal[4]),
+      faultCode: formatSignal(fatal[3], fatal[4]),
     };
   }
   const signal = SIGNAL_RE.exec(report);
   if (signal) {
     return {
       signal: formatSignal(signal[1], signal[2]),
-      faultCode: formatFaultCode(signal[3], signal[4]),
+      faultCode: formatSignal(signal[3], signal[4]),
     };
   }
   return { signal: null, faultCode: null };
@@ -97,23 +99,13 @@ function parseFrames(report) {
       inBacktrace = true;
       continue;
     }
-    if (inBacktrace) {
-      if (FRAME_RE.test(line)) {
-        frames.push(line.trim());
-        if (frames.length >= MAX_FRAMES) {
-          break;
-        }
-        continue;
-      }
-      if (line.trim() === '') {
-        break;
-      }
-    }
-    if (!inBacktrace && FRAME_RE.test(line)) {
+    if (FRAME_RE.test(line)) {
       frames.push(line.trim());
       if (frames.length >= MAX_FRAMES) {
         break;
       }
+    } else if (inBacktrace && line.trim() === '') {
+      break;
     }
   }
   return frames;

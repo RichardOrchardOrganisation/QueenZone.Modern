@@ -421,13 +421,17 @@ function validateEntryMetadata(entry, errors) {
   }
 }
 
+function validateWebOnlyFields(entry, errors) {
+  for (const field of ['testIds', 'flows']) {
+    if (Object.hasOwn(entry, field)) {
+      errors.push(`${entry.id}: ${field} is mobile-only; web entries use selectors and specs.`);
+    }
+  }
+}
+
 function validateWebEntry(entry, errors) {
   if (entry._surface === 'web') {
-    for (const field of ['testIds', 'flows']) {
-      if (Object.hasOwn(entry, field)) {
-        errors.push(`${entry.id}: ${field} is mobile-only; web entries use selectors and specs.`);
-      }
-    }
+    validateWebOnlyFields(entry, errors);
     if (!Array.isArray(entry.selectors)) {
       errors.push(`${entry.id}: web selectors must be an array.`);
     }

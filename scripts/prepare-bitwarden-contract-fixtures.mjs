@@ -10,7 +10,7 @@ let attempt = 0; let replacements = 0; let publishing = false;
 const lines = source.replaceAll(official, './.github/actions/bitwarden-fake-fetch').split('\n');
 const fixture = [];
 for (const line of lines) {
-  const id = /^    - id: fetch([123])$/.exec(line);
+  const id = /^ {4}- id: fetch([123])$/.exec(line);
   if (id) attempt = Number(id[1]);
   if (line === '    - id: publish') publishing = true;
   let result = line;
