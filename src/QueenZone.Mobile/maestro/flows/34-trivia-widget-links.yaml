@@ -10,11 +10,19 @@ appId: org.queenzone.mobile
 - openLink: queenzone://trivia/1
 - runFlow: accept-ios-open-link.yaml
 - extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
+- extendedWaitUntil:
     visible: "Freddie Mercury was born Farrokh Bulsara in Zanzibar in 1946."
     timeout: 30000
 - takeScreenshot: trivia-cold-id-1
 - openLink: queenzone://trivia/2
 - runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
 - extendedWaitUntil:
     visible: "A Night at the Opera takes its title from the Marx Brothers film of the same name."
     timeout: 30000
@@ -27,6 +35,10 @@ appId: org.queenzone.mobile
     timeout: 30000
 - openLink: queenzone://trivia/2
 - runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
 - extendedWaitUntil:
     visible: "A Night at the Opera takes its title from the Marx Brothers film of the same name."
     timeout: 30000
@@ -52,11 +64,19 @@ appId: org.queenzone.mobile
 - openLink: queenzone://quotes/1
 - runFlow: accept-ios-open-link.yaml
 - extendedWaitUntil:
+    visible:
+      id: quote-screen
+    timeout: 30000
+- extendedWaitUntil:
     visible: ".*I won't be a rock star. I will be a legend.*"
     timeout: 30000
 - takeScreenshot: quote-cold-id-1
 - openLink: queenzone://quotes/2
 - runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: quote-screen
+    timeout: 30000
 - extendedWaitUntil:
     visible: ".*We want to be the Cecil B. DeMille of rock and roll.*"
     timeout: 30000
@@ -65,12 +85,20 @@ appId: org.queenzone.mobile
 - openLink: queenzone://timeline/5
 - runFlow: accept-ios-open-link.yaml
 - extendedWaitUntil:
+    visible:
+      id: timeline-event-screen
+    timeout: 30000
+- extendedWaitUntil:
     visible: "Queen's Live Aid performance"
     timeout: 30000
 - assertVisible: "13 Jul 1985"
 - takeScreenshot: day-cold-id-5
 - openLink: queenzone://timeline/6
 - runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: timeline-event-screen
+    timeout: 30000
 - extendedWaitUntil:
     visible: "'Bohemian Rhapsody' released"
     timeout: 30000

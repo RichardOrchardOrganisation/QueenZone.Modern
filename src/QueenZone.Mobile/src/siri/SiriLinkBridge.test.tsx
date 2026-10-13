@@ -52,13 +52,13 @@ describe('SiriLinkBridge', () => {
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
       screen: 'ArchiveTab', params: { screen: 'Album', params: { id: 12 }, initial: false },
     });
+    act(() => handler?.({ url: 'queenzone://biography/3' }));
+    expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
+      screen: 'ArchiveTab', params: { screen: 'BiographyChapter', params: { id: 3 }, initial: false },
+    });
+    const count = mockNavigate.mock.calls.length;
     act(() => handler?.({ url: 'queenzone://timeline/42' }));
-    expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
-      screen: 'ArchiveTab', params: { screen: 'Timeline', params: { focusId: 42 }, initial: false },
-    });
     act(() => handler?.({ url: 'queenzone://trivia' }));
-    expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
-      screen: 'ArchiveTab', params: { screen: 'Trivia', initial: false },
-    });
+    expect(mockNavigate).toHaveBeenCalledTimes(count);
   });
 });
