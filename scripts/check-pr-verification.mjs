@@ -7,9 +7,9 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { discoverEvidence } from './ui-proof-evidence.mjs';
-import { compareText, listUiSourcePaths, loadFeatureMap, repoRootFrom, toPosix } from './check-feature-map.mjs';
+import { evaluateProof, checkProof } from './ui-proof-policy.mjs';
+export { extractVerificationSection, findFeatureIds, visibleMarkdown, verificationSkipReason } from './ui-proof-policy.mjs';
+import { listUiSourcePaths, loadFeatureMap, repoRootFrom, toPosix } from './check-feature-map.mjs';
 
 export const NO_UI_VERIFICATION = 'no-ui-verification';
 
@@ -67,186 +67,31 @@ export function isUiChangedPath(file, mobileSources, uiPaths = loadUiPaths()) {
   return mobileSources.has(posix);
 }
 
-export function extractVerificationSection(body) {
-  const text = String(body || '');
-  const start = text.match(/^## Verification\b[^\n]*/m);
-  if (!start || start.index === undefined) {
-    return null;
-  }
-  const from = start.index;
-  const afterHeading = text.slice(from + start[0].length);
-  const nextHeading = afterHeading.search(/\n## /);
-  return nextHeading === -1 ? text.slice(from) : text.slice(from, from + start[0].length + nextHeading);
-}
-
-export function findFeatureIds(text, ids) {
-  const haystack = String(text || '');
-  return [...ids].filter((id) => haystack.includes(id)).sort(compareText);
-}
-
-function removeDelimitedText(value, opening, closing) {
-  let text = value;
-  let start = text.indexOf(opening);
-  while (start !== -1) {
-    const end = text.indexOf(closing, start + opening.length);
-    // Preserve a boundary so removing hidden text cannot assemble a new token.
-    // An unclosed comment/fence hides the rest of the description.
-    text = text.slice(0, start) + '\n' + (end === -1 ? '' : text.slice(end + closing.length));
-    start = text.indexOf(opening);
-  }
-  return text;
-}
-
-export function visibleMarkdown(body) {
-  const commentsRemoved = removeDelimitedText(String(body || ''), '<!--', '-->');
-  return removeDelimitedText(commentsRemoved, '```', '```');
-}
-
-export function verificationSkipReason(body) {
-  for (const line of visibleMarkdown(body).split('\n')) {
-    let text = line.trim();
-    if (text.startsWith('-')) text = text.slice(1).trimStart();
-    const prefix = 'verification-skip-reason:';
-    if (text.toLowerCase().startsWith(prefix)) return text.slice(prefix.length).trim();
-  }
-  return '';
-}
-
-export function evaluatePrVerification({
-  body = '',
-  files = [],
-  labels = [],
-  evidence = [],
-  headSha = '',
-  entries = [],
-  mapIds = new Set(),
-  mobileSources = new Set(),
-  uiPaths = null,
-} = {}) {
-  const configuredUiPaths = uiPaths ?? loadUiPaths();
-  const uiFiles = files.filter((file) => isUiChangedPath(file, mobileSources, configuredUiPaths));
-  const ui = uiFiles.length > 0;
-  const labelNames = labels.map((label) => (typeof label === 'string' ? label : label.name));
-  const skipLabel = labelNames.includes(NO_UI_VERIFICATION);
-  const skipReason = verificationSkipReason(body);
-
-  if (skipLabel) {
-    if (!skipReason) {
-      return {
-        ok: false,
-        ui,
-        uiFiles,
-        error:
-          'no-ui-verification is set but the PR body has no Verification-skip-reason: line.',
-      };
-    }
-    return { ok: true, ui, uiFiles, skipped: true, skipReason };
-  }
-
-  if (!ui) {
-    return { ok: true, ui: false, uiFiles };
-  }
-
-  const section = extractVerificationSection(visibleMarkdown(body));
-  if (!section) {
-    return {
-      ok: false,
-      ui,
-      uiFiles,
-      error: 'UI PR is missing a ## Verification section.',
-    };
-  }
-
-  const ids = findFeatureIds(section, mapIds);
-  if (ids.length === 0) {
-    return {
-      ok: false,
-      ui,
-      uiFiles,
-      error: '## Verification must name at least one feature-map id.',
-    };
-  }
-
-  for (const file of uiFiles) {
+function proofPolicy({ files = [], entries = [], mapIds = new Set(entries.map(entry => entry.id)), mobileSources = new Set(), uiPaths = null, root = repoRootFrom() } = {}) {
+  const uiFiles = files.filter(file => isUiChangedPath(file, mobileSources, uiPaths ?? loadUiPaths(root)));
+  const config = JSON.parse(readFileSync(path.join(root, 'development-standards.json'), 'utf8'));
+  const features = [...mapIds].map(id => {
+    const surface = id.startsWith('mobile.') ? 'mobile' : 'web';
+    const entry = entries.find(item => item.id === id);
+    return { id, platforms: config.uiProof.platforms[surface],
+      fixtures: surface === 'web' ? (entry?.specs || []).map(spec => path.basename(spec, '.cs')) : [] };
+  });
+  const requirements = uiFiles.map(file => {
     const surface = file.startsWith('src/QueenZone.Mobile/') ? 'mobile' : 'web';
     const source = file.endsWith('.cshtml.cs') ? file.slice(0, -3) : file;
     const mapped = entries.filter(entry => entry.sources?.includes(source)).map(entry => entry.id);
-    if (!ids.some(id => id.startsWith(surface + '.') && (!mapped.length || mapped.includes(id)))) {
-      return { ok: false, ui, uiFiles, ids, error: `No affected feature declared for ${file}.` };
-    }
-  }
-  const missing = [];
-  for (const id of ids) {
-    const platforms = id.startsWith('mobile.') ? ['android', 'ios'] : ['web'];
-    const expected = entries.find(entry => entry.id === id)?.specs?.map(spec => path.basename(spec, '.cs')) || [];
-    for (const platform of platforms) {
-      const found = evidence.some(item => item.feature === id && item.platform === platform && item.headSha === headSha
-        && item.url && (platform !== 'web' || expected.every(spec => item.fixtures?.includes(spec))));
-      if (!found) missing.push(`${id}/${platform}`);
-    }
-  }
-  if (missing.length) {
-    return { ok: false, ui, uiFiles, ids, error: `Uploaded passing proof missing for current head: ${missing.join(', ')}. Local paths, arbitrary links and Not verified do not satisfy this gate.` };
-  }
-
-  return { ok: true, ui, uiFiles, ids };
-}
-
-async function listPullFiles(github, context, pullNumber) {
-  const files = [];
-  const iterator = github.paginate.iterator(github.rest.pulls.listFiles, {
-    owner: context.repo.owner,
-    repo: context.repo.repo,
-    pull_number: pullNumber,
-    per_page: 100,
+    return { file, ids: features.filter(feature => feature.id.startsWith(surface + '.') && (!mapped.length || mapped.includes(feature.id))).map(feature => feature.id) };
   });
-  for await (const response of iterator) {
-    for (const file of response.data) {
-      files.push(file.filename);
-    }
-  }
-  return files;
+  return { features, requirements };
 }
 
-export async function checkPullRequestVerification({ github, context, core, root = repoRootFrom() }) {
-  const pullRequest = context.payload.pull_request;
-  if (!pullRequest) {
-    core.info('No pull request payload; skipping verification check.');
-    return { ok: true, skipped: true };
-  }
-
-  const map = loadFeatureMap(root);
-  const mapIds = new Set(map.entries.map((entry) => entry.id));
-  const mobileSources = listUiSourcePaths(map);
-  const files = await listPullFiles(github, context, pullRequest.number);
-  const input = {
-    body: pullRequest.body || '', files, labels: pullRequest.labels || [], mapIds, mobileSources,
-    uiPaths: loadUiPaths(root), entries: map.entries, headSha: pullRequest.head?.sha || '',
-  };
-  let result = evaluatePrVerification(input);
-  let evidence = [];
-  if (!result.ok && result.ids?.length) {
-    evidence = await discoverEvidence({ github, repo: context.repo, headSha: input.headSha, root });
-    result = evaluatePrVerification({ ...input, evidence });
-  }
-  result.evidence = evidence;
-  // Label/comment writes belong only to the trusted refresh workflow.
-
-  if (!result.ok) {
-    core.setFailed(result.error);
-    return result;
-  }
-
-  core.info(result.skipped ? `Verification waived: ${result.skipReason}` : 'Uploaded verification evidence checked.');
-  return result;
+export function evaluatePrVerification(input = {}) {
+  return evaluateProof({ ...input, ...proofPolicy(input) });
 }
 
-export function main() {
-  throw new Error('check-pr-verification.mjs is invoked from pr-verification-check.yml via github-script.');
-}
-
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
-if (invokedDirectly && process.argv.includes('--self-test')) {
-  // Tests live in check-pr-verification.test.mjs.
-  console.log('Use: node --test scripts/check-pr-verification.test.mjs');
+export async function checkPullRequestVerification({ root = repoRootFrom(), ...options }) {
+  return checkProof({ ...options, root, loadPolicy: files => {
+    const map = loadFeatureMap(root);
+    return proofPolicy({ root, files, entries: map.entries, mobileSources: listUiSourcePaths(map), uiPaths: loadUiPaths(root) });
+  } });
 }
