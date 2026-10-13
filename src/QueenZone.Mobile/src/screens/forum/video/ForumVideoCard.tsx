@@ -73,10 +73,14 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
     if (measuredWidth > 0) setWidth(measuredWidth);
     measure?.();
   };
-  const status = entry?.failed ?? (!context?.online ? 'Offline. Watch on YouTube when connected.'
-    : width < 200 ? 'Inline video needs more space. Watch on YouTube.'
-    : generation == null ? 'Loads from YouTube automatically near the screen.'
-    : ready === generation ? 'Ready. Press the YouTube Play control to play.' : 'Loading YouTube player…');
+  let status = entry?.failed;
+  if (status == null) {
+    if (!context?.online) status = 'Offline. Watch on YouTube when connected.';
+    else if (width < 200) status = 'Inline video needs more space. Watch on YouTube.';
+    else if (generation == null) status = 'Loads from YouTube automatically near the screen.';
+    else if (ready === generation) status = 'Ready. Press the YouTube Play control to play.';
+    else status = 'Loading YouTube player…';
+  }
   return <View style={{ marginVertical: space.md }}>
     <RichHtmlBody html={originalHtml} horizontalInset={space.xl} />
     <Text key={fontScale} style={[type.caption, { color: c.textSecondary }]} allowFontScaling>

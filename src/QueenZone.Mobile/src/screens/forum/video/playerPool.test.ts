@@ -34,6 +34,25 @@ describe('bounded mobile YouTube pool', () => {
     f.move('a', 0, 2300); f.commit(); assert.notEqual(f.pool.cards.a.generation, generation);
     assert.equal(f.pool.cards.a.playing, false);
   });
+  it('keeps the original eviction deadline across distant measurements and releases exactly at it', () => {
+    const f = fixture(); f.add('a', 0); const generation = f.pool.cards.a.generation;
+    f.move('a', 1401, 1000); f.move('a', 2000, 1100);
+    assert.equal(f.pool.cards.a.evictionAt, 1000 + evictionDelayMs);
+    f.pool.tick(1000 + evictionDelayMs - 1);
+    assert.equal(f.pool.cards.a.generation, generation);
+    f.pool.tick(1000 + evictionDelayMs);
+    assert.equal(f.pool.cards.a.generation, null); assert.equal(f.pool.cards.a.evictionAt, null);
+    assert.deepEqual(f.pauses, ['a']);
+  });
+  it('does not schedule eviction for unmounted or fullscreen cards', () => {
+    const f = fixture(); f.add('far', 2000); f.add('fullscreen', 0);
+    const generation = f.pool.cards.fullscreen.generation!;
+    f.pool.message('fullscreen', generation, 'fullscreen', true);
+    f.move('fullscreen', 2000, 1000); f.pool.tick(2000);
+    assert.equal(f.pool.cards.far.evictionAt, null);
+    assert.equal(f.pool.cards.fullscreen.evictionAt, null);
+    assert.equal(f.pool.cards.fullscreen.generation, generation);
+  });
   it('caps at two, prioritizes a visible playing card and pauses neighbors on user play', () => {
     const f = fixture(); f.add('a', 0); f.add('b', 400);
     f.pool.message('a', f.pool.cards.a.generation!, 'state', 1);

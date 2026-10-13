@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, View } from 'react-native';
 import { addNetworkStateListener, getNetworkStateAsync, type NetworkState } from 'expo-network';
 import { PlayerPool, type PoolSnapshot } from './playerPool';
@@ -96,7 +96,8 @@ export function ForumPlayerProvider({ children, viewport, navigation }: { childr
       if (pending.current != null) cancelAnimationFrame(pending.current);
     };
   }, [pool]);
-  return <ForumPlayersContext.Provider value={{ pool, snapshot, online, attach, measure }}>
+  const value = useMemo(() => ({ pool, snapshot, online, attach, measure }), [pool, snapshot, online, attach, measure]);
+  return <ForumPlayersContext.Provider value={value}>
     {children}
     {/* Native transaction fences have zero area and expose no accessible UI. */}
     {pendingReleases.map(generation => <NativeReleaseBarrier key={generation} pool={pool} generation={generation} />)}
