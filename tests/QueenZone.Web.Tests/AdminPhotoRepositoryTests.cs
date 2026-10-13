@@ -11,6 +11,35 @@ namespace QueenZone.Web.Tests;
 
 public sealed class InMemoryAdminPhotoRepositoryTests
 {
+    [Theory]
+    [InlineData(0, 0, false)]
+    [InlineData(0, 600, false)]
+    [InlineData(800, 0, false)]
+    [InlineData(384, 288, false)]
+    [InlineData(399, 600, false)]
+    [InlineData(800, 266, false)]
+    [InlineData(400, 267, true)]
+    [InlineData(400, 900, true)]
+    [InlineData(1200, 267, true)]
+    public async Task Card_crop_filter_requires_both_minimum_dimensions_and_is_opt_in(int width, int height, bool usable)
+    {
+        var repository = new InMemoryAdminPhotoRepository(new SharedPhotoStore(
+        [
+            new PhotoCategorySeed(9, "Brian May",
+            [
+                new PhotoItemSeed(1, "Photo", "/Brian_May/photo.jpg", "", new DateTime(2026, 1, 1), width, height),
+            ]),
+        ]));
+
+        var filtered = await repository.GetPageAsync(new AdminPhotoListFilter(UsableForCardCrop: true), 1, 8);
+        Assert.Equal(usable ? 1 : 0, filtered.TotalCount);
+        Assert.Equal(usable ? 1 : 0, filtered.Items.Count);
+
+        var unfiltered = await repository.GetPageAsync(new AdminPhotoListFilter(), 1, 8);
+        Assert.Equal(1, unfiltered.TotalCount);
+        Assert.Equal(1, Assert.Single(unfiltered.Items).PicId);
+    }
+
     [Fact]
     public async Task Create_Update_Hide_Move_And_Delete_WorkAgainstSharedStore()
     {

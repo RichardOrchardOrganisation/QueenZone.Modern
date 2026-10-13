@@ -20,7 +20,7 @@ public static class NewsArticleGalleryPicker
     public sealed record GalleryOriginalStream(Stream Stream, string ContentType, string FileName);
 
     public static AdminPhotoListFilter BuildFilter(int? catId, string? search) =>
-        new(CatId: catId, Search: string.IsNullOrWhiteSpace(search) ? null : search.Trim());
+        new(CatId: catId, Search: string.IsNullOrWhiteSpace(search) ? null : search.Trim(), UsableForCardCrop: true);
 
     public static string GetFileName(AdminPhotoItem item)
     {

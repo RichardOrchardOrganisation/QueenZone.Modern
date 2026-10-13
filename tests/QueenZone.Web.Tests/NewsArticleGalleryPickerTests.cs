@@ -19,6 +19,58 @@ public sealed class NewsArticleGalleryPickerTests
         Assert.Equal("Wembley", filter.Search);
         Assert.Null(filter.IsVisible);
         Assert.Null(filter.Year);
+        Assert.True(filter.UsableForCardCrop);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Card_crop_filter_fills_pages_and_counts_only_usable_photos_in_category(bool usePageModel)
+    {
+        var date = new DateTime(2026, 1, 1);
+        var usable = Enumerable.Range(1, 10)
+            .Select(id => new PhotoItemSeed(id, "Usable", "/Brian_May/photo.jpg", "/Brian_May/thumb.jpg", date, 400, 267))
+            .ToArray();
+        var store = new SharedPhotoStore(
+        [
+            new PhotoCategorySeed(9, "Brian May",
+            [
+                .. usable,
+                new PhotoItemSeed(11, "Unknown", "/Brian_May/unknown.jpg", "", date.AddDays(1), 0, 0),
+                new PhotoItemSeed(12, "Small", "/Brian_May/small.jpg", "", date.AddDays(1), 384, 288),
+            ]),
+            new PhotoCategorySeed(12, "Queen",
+            [
+                new PhotoItemSeed(13, "Other category", "/Queen/photo.jpg", "", date.AddDays(2), 800, 600),
+            ]),
+        ]);
+        var repository = new InMemoryAdminPhotoRepository(store);
+        var model = new GalleryPickerModel(repository) { CatId = 9 };
+
+        async Task<AdminPhotoPage> GetPageAsync(int pageNumber)
+        {
+            if (!usePageModel)
+            {
+                return await repository.GetPageAsync(
+                    new AdminPhotoListFilter(CatId: 9, UsableForCardCrop: true), pageNumber, NewsArticleGalleryPicker.PageSize);
+            }
+
+            model.PageNumber = pageNumber;
+            await model.OnGetAsync(CancellationToken.None);
+            return Assert.IsType<AdminPhotoPage>(model.Photos);
+        }
+
+        var first = await GetPageAsync(1);
+        Assert.Equal(10, first.TotalCount);
+        Assert.Equal(8, first.PageSize);
+        Assert.Equal(first.PageSize, first.Items.Count);
+        Assert.Equal(Enumerable.Range(3, 8).Reverse(), first.Items.Select(photo => photo.PicId));
+        Assert.All(first.Items, photo => Assert.Equal(9, photo.CatId));
+
+        var second = await GetPageAsync(2);
+        Assert.Equal(10, second.TotalCount);
+        Assert.Equal([2, 1], second.Items.Select(photo => photo.PicId));
+        Assert.All(second.Items, photo => Assert.Equal(9, photo.CatId));
     }
 
     [Fact]

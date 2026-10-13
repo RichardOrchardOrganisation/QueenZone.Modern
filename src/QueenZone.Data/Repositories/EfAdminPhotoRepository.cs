@@ -45,6 +45,11 @@ public sealed class EfAdminPhotoRepository(QueenZoneDbContext dbContext) : IAdmi
             AppendFilter("AND (p.Name LIKE @Search OR p.KEYWORDS LIKE @Search)");
         }
 
+        if (filter.UsableForCardCrop)
+        {
+            AppendFilter("AND ISNULL(p.PIC_WIDTH,0) >= @MinW AND ISNULL(p.PIC_HEIGHT,0) >= @MinH");
+        }
+
         var countSql = $"""
             SELECT COUNT(1)
             FROM dbo.PIC_FILES_T p
@@ -455,6 +460,12 @@ public sealed class EfAdminPhotoRepository(QueenZoneDbContext dbContext) : IAdmi
 
     private static void AddFilterParameters(SqlCommand command, AdminPhotoListFilter filter)
     {
+        if (filter.UsableForCardCrop)
+        {
+            command.Parameters.Add(EfSql.Input("@MinW", AdminPhotoListFilter.CardCropMinWidth));
+            command.Parameters.Add(EfSql.Input("@MinH", AdminPhotoListFilter.CardCropMinHeight));
+        }
+
         if (filter.CatId is int catId)
         {
             command.Parameters.Add(EfSql.Input("@CatId", catId));

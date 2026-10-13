@@ -113,7 +113,7 @@
             minCropWidth +
             "\u00d7" +
             minCropHeight +
-            " pixels.");
+            " pixels. Zoom out or choose a larger photo.");
         return;
       }
 

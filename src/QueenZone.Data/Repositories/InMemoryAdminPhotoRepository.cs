@@ -9,6 +9,12 @@ public sealed class InMemoryAdminPhotoRepository(SharedPhotoStore store) : IAdmi
         CancellationToken cancellationToken = default)
     {
         var all = store.GetPhotos(filter);
+        if (filter.UsableForCardCrop)
+        {
+            all = all.Where(photo => photo.PictureWidth >= AdminPhotoListFilter.CardCropMinWidth
+                && photo.PictureHeight >= AdminPhotoListFilter.CardCropMinHeight).ToList();
+        }
+
         var safePage = Math.Max(page, 1);
         var safePageSize = Math.Clamp(pageSize, 1, 200);
         var items = all

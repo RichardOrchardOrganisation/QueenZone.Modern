@@ -32,7 +32,13 @@ public sealed record AdminPhotoListFilter(
     int? CatId = null,
     bool? IsVisible = null,
     int? Year = null,
-    string? Search = null);
+    string? Search = null,
+    bool UsableForCardCrop = false)
+{
+    public const int CardCropMinWidth = 400;
+
+    public const int CardCropMinHeight = 267;
+}
 
 public sealed record AdminPhotoCreateRequest(
     int CatId,
