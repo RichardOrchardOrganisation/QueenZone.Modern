@@ -56,7 +56,7 @@ public static partial class NewsArticleContent
     private static bool LooksLikeHtml(string value) =>
         HtmlTags.Pattern().IsMatch(value);
 
-    private static string AutoLinkUrls(string plainText)
+    internal static string AutoLinkUrls(string plainText, bool preserveLineBreaks = true)
     {
         // Split on URLs, encode non-URL parts, wrap URLs in anchor tags.
         var parts = UrlRegex().Split(plainText);
@@ -74,7 +74,10 @@ public static partial class NewsArticleContent
             }
             else
             {
-                sb.Append(WebUtility.HtmlEncode(part).Replace("\n", "<br>", StringComparison.Ordinal));
+                var encoded = WebUtility.HtmlEncode(part);
+                sb.Append(preserveLineBreaks
+                    ? encoded.Replace("\n", "<br>", StringComparison.Ordinal)
+                    : encoded);
             }
         }
         return sb.ToString();

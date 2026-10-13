@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
 using Ganss.Xss;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -76,7 +77,7 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
     /// Sanitizes UGC HTML for public rendering. Images use the stored thumbnail proxy path
     /// (or <c>?size=thumb</c>) and wrap a link to the full-size image. Links to the retired
     /// QueenZone site point at modern routes (<see cref="LegacyQueenZoneLinks"/>).
-    /// Plain-text legacy bodies keep auto-linked URLs via <see cref="NewsArticleContent.FormatBody"/>.
+    /// Bare URLs in plain text and HTML text nodes share the news auto-linker.
     /// </summary>
     public string FormatForDisplay(string? body)
     {
@@ -85,12 +86,46 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
             return string.Empty;
         }
 
-        if (!LooksLikeHtml(body))
+        var linked = LooksLikeHtml(body)
+            ? AutoLinkHtmlText(body)
+            : NewsArticleContent.AutoLinkUrls(body);
+        return CreateSanitizer(forDisplay: true).Sanitize(linked);
+    }
+
+    private static string AutoLinkHtmlText(string html)
+    {
+        var parser = new HtmlParser();
+        using var document = parser.ParseDocument(string.Empty);
+        var container = document.CreateElement("div");
+        container.InnerHtml = html;
+        AutoLinkTextNodes(container, parser);
+        return container.InnerHtml;
+    }
+
+    private static void AutoLinkTextNodes(IElement element, HtmlParser parser)
+    {
+        // Skip whole subtrees so nested formatting inside anchors/code is also untouched.
+        if (element.LocalName is "a" or "code" or "pre" or "script" or "style")
         {
-            return NewsArticleContent.FormatBody(body);
+            return;
         }
 
-        return CreateSanitizer(forDisplay: true).Sanitize(body);
+        foreach (var child in element.ChildNodes.ToArray())
+        {
+            if (child is IText text)
+            {
+                var linked = NewsArticleContent.AutoLinkUrls(text.Data, preserveLineBreaks: false);
+                foreach (var replacement in parser.ParseFragment(linked, element).ToArray())
+                {
+                    element.InsertBefore(replacement, child);
+                }
+                element.RemoveChild(child);
+            }
+            else if (child is IElement nested)
+            {
+                AutoLinkTextNodes(nested, parser);
+            }
+        }
     }
 
     public bool IsAllowedImageSrc(string? src)
@@ -162,7 +197,7 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
         foreach (var tag in new[]
                  {
                      "p", "br", "div", "span", "strong", "b", "em", "i", "u",
-                     "ul", "ol", "li", "a", "h2", "h3", "h4", "blockquote", "img",
+                     "ul", "ol", "li", "a", "h2", "h3", "h4", "blockquote", "img", "code", "pre",
                  })
         {
             sanitizer.AllowedTags.Add(tag);
@@ -193,9 +228,11 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
 
             if (string.Equals(element.TagName, "A", StringComparison.OrdinalIgnoreCase)
                 && element.HasAttribute("href")
-                && !(forDisplay && LegacyQueenZoneLinks.TryRewriteAnchor(element)))
+                && !(forDisplay && LegacyQueenZoneLinks.TryRewriteAnchor(element))
+                && element.GetAttribute("href") is { } href
+                && !(href.StartsWith('/') && !href.StartsWith("//", StringComparison.Ordinal) && !href.Contains('\\')))
             {
-                element.SetAttribute("rel", "noopener noreferrer");
+                element.SetAttribute("rel", forDisplay ? "noopener noreferrer nofollow ugc" : "noopener noreferrer");
                 element.SetAttribute("target", "_blank");
             }
 
