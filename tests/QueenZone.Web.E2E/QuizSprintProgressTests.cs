@@ -32,12 +32,16 @@ public sealed class QuizSprintProgressTests : E2EPageTest
             await question.GetByLabel("Option 2", new() { Exact = true }).FillAsync("Brian May");
             await question.GetByRole(AriaRole.Radio).First.CheckAsync();
         }
+        // Save and Publish are plain form posts; wait for each to commit before the next navigation
+        // or the sprint can load before the quiz is published and render no countdown (#2095).
         await admin.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true }).ClickAsync();
+        await admin.WaitForURLAsync(url => !url.Contains("/admin/quizzes/new", StringComparison.OrdinalIgnoreCase));
         await admin.GotoAsync("/admin/quizzes");
         var quiz = admin.GetByRole(AriaRole.Row).Filter(new() { HasText = title });
         try
         {
             await quiz.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true }).ClickAsync();
+            await Expect(quiz.GetByRole(AriaRole.Button, new() { Name = "Publish", Exact = true })).ToHaveCountAsync(0);
             await Page.GotoAsync("/quizzes/sprint");
             await Page.GetByRole(AriaRole.Button, new() { Name = "Begin the sprint", Exact = true }).ClickAsync();
             var progress = Page.GetByRole(AriaRole.Progressbar, new() { Name = "Time remaining" });
