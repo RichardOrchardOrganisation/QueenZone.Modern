@@ -96,8 +96,8 @@ public sealed class HomePageRoutesTests :
 
         Assert.Contains("href=\"https://apps.apple.com/au/app/queenzone-org/id6803889011\"", html);
         Assert.Contains("href=\"https://play.google.com/store/apps/details?id=org.queenzone.mobile\"", html);
-        Assert.Contains("Download QueenZone for iPhone on the App Store", html);
-        Assert.Contains("Download QueenZone for Android on Google Play", html);
+        Assert.Contains("Get it on the App Store: QueenZone for iPhone", html);
+        Assert.Contains("Get it on Google Play: QueenZone for Android", html);
         Assert.Contains("href=\"/mobile-apps\"", html);
         Assert.DoesNotContain("Android testing", html);
         Assert.DoesNotContain("play.google.com/apps/testing", html);

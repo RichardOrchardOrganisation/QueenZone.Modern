@@ -23,8 +23,8 @@ public class ParticipationClarityTests : E2EPageTest
     {
         await Page.SetViewportSizeAsync(width, height);
         await Page.GotoAsync("/");
-        await Expect(Page.GetByRole(AriaRole.Link, new() { Name = "Download QueenZone for iPhone on the App Store" })).ToHaveAttributeAsync("href", "https://apps.apple.com/au/app/queenzone-org/id6803889011");
-        await Expect(Page.GetByRole(AriaRole.Link, new() { Name = "Download QueenZone for Android on Google Play" })).ToHaveAttributeAsync("href", "https://play.google.com/store/apps/details?id=org.queenzone.mobile");
+        await Expect(Page.GetByRole(AriaRole.Link, new() { Name = "Get it on the App Store: QueenZone for iPhone" })).ToHaveAttributeAsync("href", "https://apps.apple.com/au/app/queenzone-org/id6803889011");
+        await Expect(Page.GetByRole(AriaRole.Link, new() { Name = "Get it on Google Play: QueenZone for Android" })).ToHaveAttributeAsync("href", "https://play.google.com/store/apps/details?id=org.queenzone.mobile");
         await PageShapeAssertions.AssertNoHorizontalOverflowAsync(Page, "homepage");
         await Page.GetByRole(AriaRole.Link, new() { Name = "Explore the mobile apps" }).ClickAsync();
         await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "QueenZone on your phone", Level = 1 })).ToBeVisibleAsync();

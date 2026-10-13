@@ -24,7 +24,15 @@ internal sealed class HttpQueryValueRedactionProcessor : BaseProcessor<Activity>
             return;
         }
 
-        var start = queryOnly ? (value.StartsWith('?') ? 1 : 0) : value.IndexOf('?') + 1;
+        int start;
+        if (queryOnly)
+        {
+            start = value.StartsWith('?') ? 1 : 0;
+        }
+        else
+        {
+            start = value.IndexOf('?') + 1;
+        }
         if (!queryOnly && start == 0)
         {
             return;
