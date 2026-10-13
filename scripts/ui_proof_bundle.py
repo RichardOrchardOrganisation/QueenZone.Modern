@@ -97,7 +97,7 @@ def package_web(root, output):
             folder = feature["id"]
             entries.append({"feature": folder, "platform": "web", "tests": sum(counts), "fixtures": specs,
                             "report": "results.trx",
-                            "screenshots": [copy_file(shot, output, folder + "/" + shot.name) for shot in shots]})
+                            "screenshots": [copy_file(shot, output, folder + "/" + shot.name) for shot in shots[:1]]})
     return entries
 
 

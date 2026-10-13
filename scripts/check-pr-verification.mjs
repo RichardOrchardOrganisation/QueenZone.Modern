@@ -98,7 +98,7 @@ export function evaluatePrVerification({
   files = [],
   labels = [],
   evidence = [],
-  headSha = "",
+  headSha = '',
   entries = [],
   mapIds = new Set(),
   mobileSources = new Set(),
@@ -150,7 +150,8 @@ export function evaluatePrVerification({
 
   for (const file of uiFiles) {
     const surface = file.startsWith('src/QueenZone.Mobile/') ? 'mobile' : 'web';
-    const mapped = entries.filter(entry => entry.sources?.includes(file)).map(entry => entry.id);
+    const source = file.endsWith('.cshtml.cs') ? file.slice(0, -3) : file;
+    const mapped = entries.filter(entry => entry.sources?.includes(source)).map(entry => entry.id);
     if (!ids.some(id => id.startsWith(surface + '.') && (!mapped.length || mapped.includes(id)))) {
       return { ok: false, ui, uiFiles, ids, error: `No affected feature declared for ${file}.` };
     }

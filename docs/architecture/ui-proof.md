@@ -6,7 +6,7 @@ UI PRs must provide reviewable screenshots and passing behavioural tests for the
 
 Declare affected feature-map IDs in the PR's `## Verification` section. Each changed mapped file needs a relevant declared feature; shared UI files need a representative feature on the affected surface. Web features need all mapped deterministic fixtures to pass and a screenshot of their mapped route. Native mobile features need Android and iOS evidence.
 
-The gate discovers uploaded GitHub Actions artifacts through the API. It accepts only `ui-proof-*` bundles from the CI web-browser job or the existing Mobile device smoke proof jobs. It checks the current PR head, workflow identity, producer-job success, run attempt, artifact expiry, and size. It reads ZIP contents without extracting or executing them, validates screenshot signatures, and rechecks TRX/JUnit results. Zero tests, skipped tests, failures and missing screenshots fail closed.
+The gate discovers uploaded GitHub Actions artifacts through the API. It accepts only `ui-proof-*` bundles from the CI web-browser job or the existing Mobile device smoke proof jobs. It checks the current PR head, workflow identity, producer-job success, run attempt, artifact expiry, and size. It reads ZIP contents without extracting or executing them, validates PNG structure and checksums, and rechecks TRX/JUnit results. Zero tests, skipped tests, failures and missing screenshots fail closed.
 
 The PR body cannot self-certify evidence. An arbitrary URL, a local `artifacts/proof/` path, an old workflow run, or `Not verified:` does not satisfy the gate. Dependabot UI changes follow the same rule; non-UI changes need no screenshot evidence.
 
@@ -45,6 +45,6 @@ Remove the code fence when putting the line in the PR description. Hidden templa
 
 `pr-verification-check.yml` uses `pull_request_target` and `workflow_run` only to read uploaded data, post links and rerun the evidence job. It checks out `main` with persisted credentials disabled. Never change it to execute PR code or scripts from artifacts. The CI gate has read-only permissions.
 
-The merge-group gate resolves constituent open PR heads from the group's commit range and checks their current proof/waivers. An unresolved group fails closed. The combined candidate still runs its own browser tests. A gate-only rerun preserves evidence from an unchanged successful producer job; a newer failed producer attempt invalidates older proof.
+The merge-group gate resolves constituent PRs through squash-commit associations (or the queue ref for a single unindexed commit) and checks their current proof/waivers. An unresolved group fails closed. The combined candidate still runs its own browser tests. A gate-only rerun preserves evidence from an unchanged successful producer job; a newer failed producer attempt invalidates older proof.
 
 The trusted publisher becomes active when this workflow change reaches `main`; a PR cannot activate its own privileged publisher. Before that, CI can test packaging and the required gate on the PR, while publisher behaviour is covered by deterministic API fixtures.

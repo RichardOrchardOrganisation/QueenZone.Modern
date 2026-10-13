@@ -65,7 +65,7 @@ test('an empty or unsafe uiPaths list fails closed', () => {
   }
 });
 
-test('Verification section requires an id and proof or Not verified', () => {
+test('Verification section extracts declared feature IDs', () => {
   const section = extractVerificationSection(`## Summary\n\nHi\n\n## Verification\n\n- Feature ids: mobile.photos.viewer\n- Not verified: no emulator\n\n## Issues\n\nCloses #1\n`);
   assert.match(section, /mobile\.photos\.viewer/);
   assert.deepEqual(findFeatureIds(section, ids), ['mobile.photos.viewer']);
