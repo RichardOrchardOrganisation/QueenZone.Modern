@@ -239,6 +239,25 @@ function Wait-ForAppReady {
     throw "App failed to become ready at $HealthUrl"
 }
 
+function Invoke-AppWarmup {
+    param(
+        [string] $BaseUrl,
+        [int] $TimeoutSeconds = 120
+    )
+
+    # /health answers before the first homepage render has built its caches and compiled views.
+    # On the Windows e2e runner that cold render took >30s and the three parallel tests that hit
+    # "/" first timed out on navigation (#2095). Pay that cost once here, outside any test timeout.
+    $started = Get-Date
+    try {
+        $null = Invoke-WebRequest -Uri "$BaseUrl/" -UseBasicParsing -TimeoutSec $TimeoutSeconds
+        Write-Information -InformationAction Continue "Homepage warm-up took $([int]((Get-Date) - $started).TotalSeconds)s"
+    }
+    catch {
+        Write-Information -InformationAction Continue "Homepage warm-up failed after $([int]((Get-Date) - $started).TotalSeconds)s: $($_.Exception.Message)"
+    }
+}
+
 function Start-AppWindows {
     param(
         [string] $AppDir,
@@ -588,6 +607,7 @@ try {
         }
 
         Wait-ForAppReady -HealthUrl "$BaseUrl/health" -ProcessId $script:AppPid
+        Invoke-AppWarmup -BaseUrl $BaseUrl
     }
     elseif ($Mode -ne "LiveSite" -and $Mode -ne "DevJourney") {
         Write-Information -InformationAction Continue "SkipAppStart: expecting an already-running app at $BaseUrl"
