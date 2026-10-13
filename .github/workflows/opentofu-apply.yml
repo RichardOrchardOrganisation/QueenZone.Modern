@@ -135,7 +135,12 @@ jobs:
         working-directory: infra/environments/${{ matrix.root }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
-        run: tofu plan -input=false -out=tfplan
+        # Read-only plan: no state lock (#2230). A cancelled/superseded run
+        # otherwise leaves a stale blob lease that blocks the next apply.
+        # Applies still lock. tofu apply rejects this saved plan only if state
+        # changed since (lineage/serial); a rejected plan means re-run and
+        # re-approve the workflow.
+        run: tofu plan -input=false -lock=false -out=tfplan
 
       - name: Render plan as JSON
         working-directory: infra/environments/${{ matrix.root }}
@@ -253,7 +258,7 @@ jobs:
         working-directory: infra/environments/production
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
-        run: tofu apply -input=false tfplan
+        run: tofu apply -input=false -lock-timeout=5m tfplan
 
   wait-for-dev-dns:
     name: Wait for dev CNAME propagation
@@ -322,7 +327,7 @@ jobs:
 
       - name: OpenTofu apply
         working-directory: infra/environments/dev
-        run: tofu apply -input=false tfplan
+        run: tofu apply -input=false -lock-timeout=5m tfplan
 
   post-apply-smoke:
     name: Post-apply smoke
