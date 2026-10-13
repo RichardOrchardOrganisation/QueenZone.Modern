@@ -34,9 +34,15 @@ public static class ForumRoutes
     public static string GetTopicCanonicalPath(ForumThreadHeader header, int page = 1) =>
         GetTopicCanonicalPath(header.TopicId, header.Title, page);
 
-    public static string GetTopicCanonicalPath(int topicId, string title, int page = 1)
+    public static string GetTopicSlug(string title)
     {
         var slug = NewsSlug.Slugify(title);
+        return string.IsNullOrEmpty(slug) ? "topic" : slug;
+    }
+
+    public static string GetTopicCanonicalPath(int topicId, string title, int page = 1)
+    {
+        var slug = GetTopicSlug(title);
         return page <= 1 ? $"/forum/topic/{topicId}/{slug}" : $"/forum/topic/{topicId}/{slug}/page/{page}";
     }
 

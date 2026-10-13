@@ -52,6 +52,23 @@ public sealed class ForumRoutesTests
     }
 
     [Theory]
+    [InlineData("كيف تختار شركة جرافيك في السعودية؟", "topic")]
+    [InlineData("中文", "topic")]
+    [InlineData("!!!", "topic")]
+    [InlineData("", "topic")]
+    [InlineData("   ", "topic")]
+    [InlineData("Queen العربية 2026", "queen-2026")]
+    [InlineData("Ranking every studio album", "ranking-every-studio-album")]
+    public void Topic_paths_use_a_nonempty_slug_without_changing_existing_slugs(string title, string slug)
+    {
+        Assert.Equal(slug, ForumRoutes.GetTopicSlug(title));
+        Assert.Equal($"/forum/topic/1002/{slug}", ForumRoutes.GetTopicCanonicalPath(1002, title));
+        Assert.Equal($"/forum/topic/1002/{slug}/page/2", ForumRoutes.GetTopicCanonicalPath(1002, title, 2));
+        Assert.Equal($"/forum/topic/1002/{slug}#post-1101",
+            ForumRoutes.GetLegacyPostTargetPath(new ForumLegacyPostLocation(1002, title, 1101, 1)));
+    }
+
+    [Theory]
     [InlineData(15, 1)]
     [InlineData(16, 2)]
     [InlineData(31, 3)]

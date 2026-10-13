@@ -65,6 +65,20 @@ public sealed class ForumApiMapperTests
         Assert.Equal(ForumApiMapper.ToRecentThreads([item])[0], dto);
     }
 
+    [Theory]
+    [InlineData("中文")]
+    [InlineData("!!!")]
+    [InlineData("")]
+    public void Topic_link_builders_share_the_fallback_slug(string title)
+    {
+        var topic = new ForumTopicItem(1002, title, DateTime.UtcNow, "fan", 0, null, false);
+        var recent = new ForumRecentThreadItem(1002, title, 1, "The Music", 0, DateTime.UtcNow);
+        var header = new ForumTopicHeader(1002, title, 1, "The Music");
+        Assert.Equal("/forum/topic/1002/topic", ForumApiMapper.ToTopicListItem(topic).DetailPath);
+        Assert.Equal("/forum/topic/1002/topic", ForumApiMapper.ToRecentThread(recent).DetailPath);
+        Assert.Equal("/forum/topic/1002/topic", ForumApiMapper.ToTopicDetail(header, 1).DetailPath);
+    }
+
     [Fact]
     public void ToCategoryListItem_TreatsBlankDescriptionAsNull()
     {

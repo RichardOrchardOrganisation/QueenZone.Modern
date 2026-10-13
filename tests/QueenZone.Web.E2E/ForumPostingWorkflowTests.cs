@@ -55,6 +55,38 @@ public class ForumPostingWorkflowTests : E2EPageTest
     }
 
     [Test]
+    public async Task NonLatinTopicLinksRenderAndOldIdOnlyLinksRedirect()
+    {
+        const string subject = "كيف تختار شركة جرافيك في السعودية؟";
+        const string body = "Non-Latin topic routing regression";
+        await Page.GotoAsync("/forum/c/the-music/new-thread");
+        await Page.GetByLabel("Subject").FillAsync(subject);
+        await FillRichTextEditorAsync(body);
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Create thread" }).ClickAsync();
+        await Expect(Page).ToHaveURLAsync(new Regex(".*/forum/topic/\\d+/topic$"));
+        var canonicalPath = new Uri(Page.Url).AbsolutePath;
+        var idOnlyPath = canonicalPath[..canonicalPath.LastIndexOf('/')];
+
+        var anonymous = await CreateExtraContextAsync();
+        var visitor = await anonymous.NewPageAsync();
+        await visitor.GotoAsync("/forum/1/the-music");
+        await visitor.Locator($"a[href='{canonicalPath}']").First.ClickAsync();
+        await Expect(visitor.GetByRole(AriaRole.Heading, new() { Name = subject, Level = 1 })).ToBeVisibleAsync();
+        await Expect(visitor.Locator(".qz-forum-post").Filter(new() { HasText = body })).ToBeVisibleAsync();
+        foreach (var path in new[] { idOnlyPath, idOnlyPath + "/", idOnlyPath + "/wrong", canonicalPath + "/page/1" })
+        {
+            var response = await visitor.GotoAsync(path);
+            Assert.That(response!.Status, Is.EqualTo(200));
+            Assert.That(new Uri(visitor.Url).AbsolutePath, Is.EqualTo(canonicalPath));
+            await Expect(visitor.GetByRole(AriaRole.Heading, new() { Name = subject, Level = 1 })).ToBeVisibleAsync();
+        }
+
+        var proof = E2EArtifactPaths.EnsureDirectory();
+        await visitor.ScreenshotAsync(new() { Path = Path.Combine(proof, "non-latin-topic.png"), FullPage = true });
+        await File.WriteAllTextAsync(Path.Combine(proof, "non-latin-topic.aria.txt"), await visitor.Locator("body").AriaSnapshotAsync());
+    }
+
+    [Test]
     public async Task MemberCanCreateTopicWithPoll()
     {
         var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");

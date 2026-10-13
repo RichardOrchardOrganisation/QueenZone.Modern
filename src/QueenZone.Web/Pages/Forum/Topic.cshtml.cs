@@ -45,7 +45,7 @@ public sealed class TopicModel : ForumTopicPageModel
 
     public ForumPollResults? Poll { get; private set; }
 
-    public async Task<IActionResult> OnGetAsync(int topicId, string slug, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(int topicId, string? slug, CancellationToken cancellationToken)
     {
         var result = await LoadTopicPageAsync(topicId, slug, 1, cancellationToken);
         CanReply = await GetCurrentMemberIdAsync() is not null;
