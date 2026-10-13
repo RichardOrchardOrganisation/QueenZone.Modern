@@ -3,7 +3,7 @@
 @using QueenZone.Data
 
 @{ var report = Model.Report!; }
-<div class="admin-shell">
+<div class="admin-shell" data-testid="admin-forum-reports-detail">
   <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
   <h1>Reported forum post</h1>
   @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))

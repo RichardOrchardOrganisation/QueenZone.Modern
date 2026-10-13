@@ -3,6 +3,254 @@
   "surface": "web",
   "entries": [
     {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceReports/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceReports/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.fanPerformanceReports.action",
+      "name": "Admin fan performance reports action",
+      "page": "Pages/Admin/FanPerformanceReports/Action.cshtml",
+      "url": "/admin/fan-performance-reports/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [
+          "Hide",
+          "Dismiss"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "public-content",
+          "search-index"
+        ],
+        "getWrites": false
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceReports/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceReports/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-fan-performance-reports-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.fanPerformanceReports.detail",
+      "name": "Admin fan performance reports detail",
+      "page": "Pages/Admin/FanPerformanceReports/Detail.cshtml",
+      "url": "/admin/fan-performance-reports/{id:guid}",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceReports/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/FanPerformanceReports/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-fan-performance-reports-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.fanPerformanceReports.index",
+      "name": "Admin fan performance reports index",
+      "page": "Pages/Admin/FanPerformanceReports/Index.cshtml",
+      "url": "/admin/fan-performance-reports",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/ForumReports/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/ForumReports/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.forumReports.action",
+      "name": "Admin forum reports action",
+      "page": "Pages/Admin/ForumReports/Action.cshtml",
+      "url": "/admin/forum-reports/{id:guid}/status",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [
+          "Post"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log"
+        ],
+        "getWrites": false
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/ForumReports/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/ForumReports/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-forum-reports-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.forumReports.detail",
+      "name": "Admin forum reports detail",
+      "page": "Pages/Admin/ForumReports/Detail.cshtml",
+      "url": "/admin/forum-reports/{id:guid}",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log"
+        ],
+        "getWrites": true
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/ForumReports/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/ForumReports/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-forum-reports-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.forumReports.index",
+      "name": "Admin forum reports index",
+      "page": "Pages/Admin/ForumReports/Index.cshtml",
+      "url": "/admin/forum-reports",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/HelpRequests/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/HelpRequests/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.helpRequests.action",
+      "name": "Admin help requests action",
+      "page": "Pages/Admin/HelpRequests/Action.cshtml",
+      "url": "/admin/help/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [
+          "Status"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/HelpRequests/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/HelpRequests/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-help-requests-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.helpRequests.detail",
+      "name": "Admin help requests detail",
+      "page": "Pages/Admin/HelpRequests/Detail.cshtml",
+      "url": "/admin/help/{id:guid}",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/HelpRequests/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/HelpRequests/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-help-requests-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.helpRequests.index",
+      "name": "Admin help requests index",
+      "page": "Pages/Admin/HelpRequests/Index.cshtml",
+      "url": "/admin/help",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
       "aliases": [
         "admin dashboard"
       ],
@@ -29,93 +277,6 @@
         "externalEffects": [],
         "getWrites": false
       }
-    },
-    {
-      "aliases": [
-        "admin search index"
-      ],
-      "sources": [
-        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml",
-        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml.cs"
-      ],
-      "specs": [
-        "tests/QueenZone.Web.E2E/AdminRootProofTests.cs"
-      ],
-      "selectors": [
-        "#search-index-admin",
-        "#job-status",
-        "#counts-table",
-        "#reindex-form",
-        "#reindex-button"
-      ],
-      "signIn": "admin",
-      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
-      "id": "web.admin.search",
-      "name": "Admin search index",
-      "page": "Pages/Admin/Search/Index.cshtml",
-      "url": "/admin/search",
-      "entry": "Open /admin/search on the local Testing host as admin@test.local.",
-      "admin": {
-        "actions": [
-          "Reindex"
-        ],
-        "verification": "confirm-only",
-        "externalEffects": [
-          "search-index"
-        ],
-        "getWrites": false
-      }
-    },
-    {
-      "aliases": [],
-      "sources": [
-        "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml",
-        "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml.cs"
-      ],
-      "specs": [
-        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
-      ],
-      "selectors": [
-        "#member-search"
-      ],
-      "signIn": "admin",
-      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
-      "id": "web.admin.members.index",
-      "name": "Admin members",
-      "page": "Pages/Admin/Members/Index.cshtml",
-      "url": "/admin/members",
-      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
-      "admin": {
-        "verification": "none",
-        "actions": [],
-        "externalEffects": [],
-        "getWrites": false
-      }
-    },
-    {
-      "aliases": [],
-      "sources": [
-        "src/QueenZone.Web/Pages/Admin/Members/Detail.cshtml",
-        "src/QueenZone.Web/Pages/Admin/Members/Detail.cshtml.cs"
-      ],
-      "specs": [
-        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
-      ],
-      "selectors": [],
-      "signIn": "admin",
-      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
-      "id": "web.admin.members.detail",
-      "name": "Admin member review",
-      "page": "Pages/Admin/Members/Detail.cshtml",
-      "url": "/admin/members/{id:guid}",
-      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
-      "admin": {
-        "verification": "none",
-        "actions": [],
-        "externalEffects": [],
-        "getWrites": false
-      },
-      "selectorsReason": "Use the member heading and labelled forms, with assertions for the fixture record."
     },
     {
       "aliases": [],
@@ -154,6 +315,31 @@
     {
       "aliases": [],
       "sources": [
+        "src/QueenZone.Web/Pages/Admin/Members/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Members/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.members.detail",
+      "name": "Admin member review",
+      "page": "Pages/Admin/Members/Detail.cshtml",
+      "url": "/admin/members/{id:guid}",
+      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
+      "admin": {
+        "verification": "none",
+        "actions": [],
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "selectorsReason": "Use the member heading and labelled forms, with assertions for the fixture record."
+    },
+    {
+      "aliases": [],
+      "sources": [
         "src/QueenZone.Web/Pages/Admin/Members/ForumAuthorAction.cshtml",
         "src/QueenZone.Web/Pages/Admin/Members/ForumAuthorAction.cshtml.cs",
         "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml"
@@ -183,6 +369,152 @@
       },
       "kind": "handler",
       "handlerUrl": "/admin/members/forum-author/{handler}"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
+      ],
+      "selectors": [
+        "#member-search"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.members.index",
+      "name": "Admin members",
+      "page": "Pages/Admin/Members/Index.cshtml",
+      "url": "/admin/members",
+      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
+      "admin": {
+        "verification": "none",
+        "actions": [],
+        "externalEffects": [],
+        "getWrites": false
+      }
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PrivateMessages/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PrivateMessages/Action.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.privateMessages.action",
+      "name": "Admin private messages action",
+      "page": "Pages/Admin/PrivateMessages/Action.cshtml",
+      "url": "/admin/private-messages/{id:guid}/{handler}",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [
+          "Status"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log"
+        ],
+        "getWrites": false
+      },
+      "kind": "handler",
+      "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PrivateMessages/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PrivateMessages/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-private-messages-detail\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.privateMessages.detail",
+      "name": "Admin private messages detail",
+      "page": "Pages/Admin/PrivateMessages/Detail.cshtml",
+      "url": "/admin/private-messages/{id:guid}",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [
+          "audit-log"
+        ],
+        "getWrites": true
+      },
+      "aliases": []
+    },
+    {
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/PrivateMessages/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/PrivateMessages/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminTriageProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-private-messages-index\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.privateMessages.index",
+      "name": "Admin private messages index",
+      "page": "Pages/Admin/PrivateMessages/Index.cshtml",
+      "url": "/admin/private-messages",
+      "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "aliases": []
+    },
+    {
+      "aliases": [
+        "admin search index"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminRootProofTests.cs"
+      ],
+      "selectors": [
+        "#search-index-admin",
+        "#job-status",
+        "#counts-table",
+        "#reindex-form",
+        "#reindex-button"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.search",
+      "name": "Admin search index",
+      "page": "Pages/Admin/Search/Index.cshtml",
+      "url": "/admin/search",
+      "entry": "Open /admin/search on the local Testing host as admin@test.local.",
+      "admin": {
+        "actions": [
+          "Reindex"
+        ],
+        "verification": "confirm-only",
+        "externalEffects": [
+          "search-index"
+        ],
+        "getWrites": false
+      }
     }
   ]
 }

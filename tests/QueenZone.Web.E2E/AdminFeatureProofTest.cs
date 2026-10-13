@@ -40,22 +40,7 @@ public abstract class AdminFeatureProofTest : E2EPageTest
         var target = new Uri(new Uri(BaseUrl), path ?? entry.GetProperty("url").GetString()!);
         Assert.That(target.Host, Is.EqualTo("127.0.0.1"));
 
-        await using var anonymous = await Playwright.APIRequest.NewContextAsync();
-        var challenge = await anonymous.GetAsync(target.ToString(), new() { MaxRedirects = 0 });
-        if (challenge.Status != 401)
-        {
-            Assert.That(challenge.Status, Is.EqualTo(302), "Anonymous requests must be challenged.");
-            Assert.That(challenge.Headers.TryGetValue("location", out var location), Is.True);
-            var signInPath = new Uri(target, location!).AbsolutePath;
-            Assert.That(signInPath, Does.Match("(?i)(signin|sign-in|login|log-in)"));
-        }
-
-        await using var member = await Playwright.APIRequest.NewContextAsync(new()
-        {
-            ExtraHTTPHeaders = new Dictionary<string, string> { [TestAuthHeaderName] = "member@test.local" }
-        });
-        var forbidden = await member.GetAsync(target.ToString(), new() { MaxRedirects = 0 });
-        Assert.That(forbidden.Status, Is.EqualTo(403), "A member outside Admin:AllowedEmails must be forbidden.");
+        await AssertDeniedAccessAsync(target, post: false);
 
         var response = await Page.GotoAsync(target.ToString());
         Assert.That(response, Is.Not.Null);
@@ -71,6 +56,52 @@ public abstract class AdminFeatureProofTest : E2EPageTest
             Directory.CreateDirectory(artifacts);
             await Page.ScreenshotAsync(new() { Path = Path.Combine(artifacts, "screenshot.png"), FullPage = true });
         }
+    }
+
+    protected async Task AssertAdminHandlerAccessAsync(string featureId, string path)
+    {
+        using var map = LoadAdminMap();
+        var entry = map.RootElement.GetProperty("entries").EnumerateArray()
+            .Single(item => item.GetProperty("id").GetString() == featureId);
+        Assert.That(entry.GetProperty("kind").GetString(), Is.EqualTo("handler"));
+        var target = new Uri(new Uri(BaseUrl), path);
+        Assert.That(target.Host, Is.EqualTo("127.0.0.1"));
+        await AssertDeniedAccessAsync(target, post: true);
+    }
+
+    protected async Task AssertAllAdminHandlerAccessAsync(string featureId, string detailPath)
+    {
+        using var map = LoadAdminMap();
+        var entry = map.RootElement.GetProperty("entries").EnumerateArray()
+            .Single(item => item.GetProperty("id").GetString() == featureId);
+        foreach (var action in entry.GetProperty("admin").GetProperty("actions").EnumerateArray())
+        {
+            await AssertAdminHandlerAccessAsync(featureId, $"{detailPath}/{action.GetString()!.ToLowerInvariant()}");
+        }
+    }
+
+    private async Task AssertDeniedAccessAsync(Uri target, bool post)
+    {
+        await using var anonymous = await Playwright.APIRequest.NewContextAsync();
+        var challenge = post
+            ? await anonymous.PostAsync(target.ToString(), new() { MaxRedirects = 0 })
+            : await anonymous.GetAsync(target.ToString(), new() { MaxRedirects = 0 });
+        if (challenge.Status != 401)
+        {
+            Assert.That(challenge.Status, Is.EqualTo(302), "Anonymous requests must be challenged.");
+            Assert.That(challenge.Headers.TryGetValue("location", out var location), Is.True);
+            var signInPath = new Uri(target, location!).AbsolutePath;
+            Assert.That(signInPath, Does.Match("(?i)(signin|sign-in|login|log-in)"));
+        }
+
+        await using var member = await Playwright.APIRequest.NewContextAsync(new()
+        {
+            ExtraHTTPHeaders = new Dictionary<string, string> { [TestAuthHeaderName] = "member@test.local" }
+        });
+        var forbidden = post
+            ? await member.PostAsync(target.ToString(), new() { MaxRedirects = 0 })
+            : await member.GetAsync(target.ToString(), new() { MaxRedirects = 0 });
+        Assert.That(forbidden.Status, Is.EqualTo(403), "A member outside Admin:AllowedEmails must be forbidden.");
     }
 
     private static JsonDocument LoadAdminMap()

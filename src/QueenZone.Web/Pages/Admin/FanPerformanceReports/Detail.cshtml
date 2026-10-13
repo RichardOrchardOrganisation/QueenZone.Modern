@@ -8,7 +8,7 @@
   var token = Antiforgery.GetAndStoreTokens(ViewContext.HttpContext).RequestToken;
 }
 
-<div class="admin-shell">
+<div class="admin-shell" data-testid="admin-fan-performance-reports-detail">
   <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
   <h1>Fan performance report</h1>
 

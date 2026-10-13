@@ -227,28 +227,37 @@ The following pages require confirm-only verification:
 
 ### admin
 
+- `web.admin.fanPerformanceReports.action` — Admin fan performance reports action (Pages/Admin/FanPerformanceReports/Action.cshtml — /admin/fan-performance-reports/{id:guid}/{handler})
+- `web.admin.fanPerformanceReports.detail` — Admin fan performance reports detail (Pages/Admin/FanPerformanceReports/Detail.cshtml — /admin/fan-performance-reports/{id:guid})
+- `web.admin.fanPerformanceReports.index` — Admin fan performance reports index (Pages/Admin/FanPerformanceReports/Index.cshtml — /admin/fan-performance-reports)
+- `web.admin.forumReports.action` — Admin forum reports action (Pages/Admin/ForumReports/Action.cshtml — /admin/forum-reports/{id:guid}/status)
+- `web.admin.forumReports.detail` — Admin forum reports detail (Pages/Admin/ForumReports/Detail.cshtml — /admin/forum-reports/{id:guid})
+- `web.admin.forumReports.index` — Admin forum reports index (Pages/Admin/ForumReports/Index.cshtml — /admin/forum-reports)
+- `web.admin.helpRequests.action` — Admin help requests action (Pages/Admin/HelpRequests/Action.cshtml — /admin/help/{id:guid}/{handler})
+- `web.admin.helpRequests.detail` — Admin help requests detail (Pages/Admin/HelpRequests/Detail.cshtml — /admin/help/{id:guid})
+- `web.admin.helpRequests.index` — Admin help requests index (Pages/Admin/HelpRequests/Index.cshtml — /admin/help)
 - `web.admin.index` — Admin dashboard (Pages/Admin/Index.cshtml — /admin)
 - `web.admin.members.action` — Admin member actions (confirmation surface) (Pages/Admin/Members/Action.cshtml — /admin/members/{id:guid})
 - `web.admin.members.detail` — Admin member review (Pages/Admin/Members/Detail.cshtml — /admin/members/{id:guid})
 - `web.admin.members.forumAuthorAction` — Admin legacy author actions (confirmation surface) (Pages/Admin/Members/ForumAuthorAction.cshtml — /admin/members)
 - `web.admin.members.index` — Admin members (Pages/Admin/Members/Index.cshtml — /admin/members)
+- `web.admin.privateMessages.action` — Admin private messages action (Pages/Admin/PrivateMessages/Action.cshtml — /admin/private-messages/{id:guid}/{handler})
+- `web.admin.privateMessages.detail` — Admin private messages detail (Pages/Admin/PrivateMessages/Detail.cshtml — /admin/private-messages/{id:guid})
+- `web.admin.privateMessages.index` — Admin private messages index (Pages/Admin/PrivateMessages/Index.cshtml — /admin/private-messages)
 - `web.admin.search` — Admin search index (Pages/Admin/Search/Index.cshtml — /admin/search)
 
 ## Excluded
 
 _None._
 
-## Pending admin areas (ceiling 24)
+## Pending admin areas (ceiling 20)
 
 - `Pages/Admin/Articles/**`
 - `Pages/Admin/Biography/**`
 - `Pages/Admin/Crosswords/**`
 - `Pages/Admin/Discography/**`
-- `Pages/Admin/FanPerformanceReports/**`
 - `Pages/Admin/FanPerformanceSubmissions/**`
-- `Pages/Admin/ForumReports/**`
 - `Pages/Admin/FreddieTributes/**`
-- `Pages/Admin/HelpRequests/**`
 - `Pages/Admin/News/**`
 - `Pages/Admin/NewsDiscovery/**`
 - `Pages/Admin/NewsSuggestions/**`
@@ -256,7 +265,6 @@ _None._
 - `Pages/Admin/PhotoSubmissions/**`
 - `Pages/Admin/Photos/**`
 - `Pages/Admin/Polls/**`
-- `Pages/Admin/PrivateMessages/**`
 - `Pages/Admin/QuizQuestionSubmissions/**`
 - `Pages/Admin/Quizzes/**`
 - `Pages/Admin/Quotes/**`
