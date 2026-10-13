@@ -26,8 +26,8 @@ function readDiffHeader(line, state) {
   return false;
 }
 
-// EF Core tooling emits `#pragma warning disable 612, 618` into every migration designer and
-// model snapshot; those are generated, not hand-written suppressions (#2096).
+// EF Core tooling emits a 612/618 pragma suppression into every migration designer and model snapshot (#2096).
+// Those are generated, not hand-written suppressions.
 const GENERATED_FILE_PATTERNS = [/(^|\/)Migrations\/[^/]+\.Designer\.cs$/, /(^|\/)Migrations\/[^/]+ModelSnapshot\.cs$/];
 
 export function isGeneratedSuppressionFile(file) {
