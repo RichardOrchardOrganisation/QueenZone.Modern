@@ -87,7 +87,7 @@ Seeded Testing titles that must stay stable:
 | Photography | `/photography` | heading `Photography` |
 | Photo | `/photography/brian-may/101` | `Brian in action with his guitar` |
 
-Admin on this host uses test header `X-Test-User-Email: admin@test.local` (see `appsettings.Testing.json`). That is not a visitor path; do not use it for public-feature proof.
+Admin entries are verified only on the local `Testing` host at exactly `127.0.0.1`, using test header `X-Test-User-Email: admin@test.local` (see `appsettings.Testing.json`); never against dev/prod. That is not a visitor path; do not use it for public-feature proof.
 
 ## Uploaded evidence gate
 
