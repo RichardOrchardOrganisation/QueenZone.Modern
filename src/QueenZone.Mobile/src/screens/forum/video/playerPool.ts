@@ -10,17 +10,17 @@ export type PoolCard = {
 export type PoolSnapshot = Record<string, PoolCard>;
 /** Screen-local resource coordinator, unrelated to API/cache invalidation. */
 export class PlayerPool {
-  cards: PoolSnapshot = {};
+  readonly cards: PoolSnapshot = {};
   enabled = false;
-  private retiring = new Set<number>();
+  private readonly retiring = new Set<number>();
   get pendingReleases(): readonly number[] { return [...this.retiring]; }
   confirmRelease(generation: number): void {
     if (this.retiring.delete(generation)) this.reconcile();
   }
   private sequence = 0;
-  private failures = new Map<string, string>();
-  private changed: (snapshot: PoolSnapshot, pendingReleases: readonly number[]) => void;
-  private pause: (key: string) => void;
+  private readonly failures = new Map<string, string>();
+  private readonly changed: (snapshot: PoolSnapshot, pendingReleases: readonly number[]) => void;
+  private readonly pause: (key: string) => void;
   constructor(changed: (snapshot: PoolSnapshot, pendingReleases: readonly number[]) => void, pause: (key: string) => void) {
     this.changed = changed; this.pause = pause;
   }
@@ -76,6 +76,14 @@ export class PlayerPool {
     c.generation = null; c.playing = false; c.fullscreen = false; c.evictionAt = null;
   }
   private publish(): void { this.changed(Object.fromEntries(Object.entries(this.cards).map(([k, c]) => [k, { ...c }])), this.pendingReleases); }
+  private updateEviction(c: PoolCard, distance: number, now: number): void {
+    if (c.generation == null || c.fullscreen) return;
+    if (distance <= retentionMargin) c.evictionAt = null;
+    else {
+      c.evictionAt ??= now + evictionDelayMs;
+      if (now >= c.evictionAt) this.release(c);
+    }
+  }
   private reconcile(now = Date.now()): void {
     if (!this.enabled) { this.publish(); return; }
     const distance = (c: PoolCard) => {
@@ -83,15 +91,11 @@ export class PlayerPool {
       return g ? Math.max(g.viewportTop - g.bottom, g.top - g.viewportBottom, 0) : Infinity;
     };
     const visible = (c: PoolCard) => distance(c) === 0;
-    for (const c of Object.values(this.cards)) {
-      if (c.generation == null || c.fullscreen) continue;
-      if (distance(c) <= retentionMargin) c.evictionAt = null;
-      else {
-        c.evictionAt ??= now + evictionDelayMs;
-        if (now >= c.evictionAt) this.release(c);
-      }
-    }
-    const priority = (c: PoolCard) => c.fullscreen || (c.playing && visible(c)) ? 0 : c.evictionAt != null ? 1 : 2;
+    for (const c of Object.values(this.cards)) this.updateEviction(c, distance(c), now);
+    const priority = (c: PoolCard) => {
+      if (c.fullscreen || (c.playing && visible(c))) return 0;
+      return c.evictionAt != null ? 1 : 2;
+    };
     const candidates = Object.values(this.cards).filter(c => !c.failed && c.geometry && c.geometry.width >= 200
       && (c.fullscreen || c.evictionAt != null || distance(c) <= (c.generation == null ? preloadMargin : retentionMargin)));
     candidates.sort((a, b) => priority(a) - priority(b) || distance(a) - distance(b)

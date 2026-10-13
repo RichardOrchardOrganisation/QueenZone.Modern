@@ -9,7 +9,8 @@ export type YoutubeVideo = {
 export type VideoProjection = { html: string; cards: { video: YoutubeVideo; originalHtml: string }[] };
 const idPattern = /^[A-Za-z0-9_-]{11}$/;
 export function watchUrl(videoId: string, startSeconds: number | null): string {
-  return `https://www.youtube.com/watch?v=${videoId}${startSeconds ? `&t=${startSeconds}s` : ''}`;
+  const start = startSeconds ? `&t=${startSeconds}s` : '';
+  return `https://www.youtube.com/watch?v=${videoId}${start}`;
 }
 export function validateDescriptors(payload: unknown): YoutubeVideo[] {
   if (!Array.isArray(payload)) return [];
@@ -34,7 +35,7 @@ export function validateDescriptors(payload: unknown): YoutubeVideo[] {
 // This checks the mapped body's identity, not independent link discovery. Only
 // additive server descriptors can produce cards. Keep in sync with #1956 policy.
 function linkIdentity(href: string): { id: string; start: number | null } | null {
-  if (!href || /[\\%\s\u0000-\u001f\u007f]/.test(href) || /\/\.\.?\//.test(href)) return null;
+  if (!href || /[\\%\s\u0000-\u0008\u000e-\u001f\u007f]/.test(href) || /\/\.\.?\//.test(href)) return null;
   let url: URL;
   try { url = new URL(href); } catch { return null; }
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.port) return null;
