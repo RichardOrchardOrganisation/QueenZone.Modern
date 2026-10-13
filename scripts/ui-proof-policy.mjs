@@ -14,7 +14,7 @@ export function extractVerificationSection(body) {
 
 export function findFeatureIds(text, ids) {
   const tokens = new Set(String(text || '').match(/[A-Za-z0-9][A-Za-z0-9._-]*/g) || []);
-  return [...ids].filter(id => tokens.has(id)).sort();
+  return [...ids].filter(id => tokens.has(id)).sort((left, right) => left.localeCompare(right, "en"));
 }
 
 function removeDelimitedText(value, opening, closing) {
