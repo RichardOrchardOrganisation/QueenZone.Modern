@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using QueenZone.Data;
 using QueenZone.Storage;
 using QueenZone.Web.Pages.Admin.News;
@@ -45,7 +48,14 @@ public sealed class NewsArticleGalleryPickerTests
             ]),
         ]);
         var repository = new InMemoryAdminPhotoRepository(store);
-        var model = new GalleryPickerModel(repository) { CatId = 9 };
+        var model = new GalleryPickerModel(repository)
+        {
+            CatId = 9,
+            PageContext = new PageContext
+            {
+                ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()),
+            },
+        };
 
         async Task<AdminPhotoPage> GetPageAsync(int pageNumber)
         {
