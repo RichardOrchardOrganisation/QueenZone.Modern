@@ -884,7 +884,7 @@ public sealed partial class ArticleSubmitRoutesTests :
         Assert.False(string.IsNullOrWhiteSpace(withCover.CoverImageBlobPath));
 
         var reviewed = await admin.GetStringAsync($"/admin/articles/{id:D}");
-        Assert.Contains("Article cover image", reviewed);
+        Assert.Contains("alt=\"Article cover\"", reviewed);
         Assert.Contains("RemoveCoverImage", reviewed);
 
         await PostAdminActionWithCoverAsync(admin, id, "publish", null, remove: true);
@@ -936,7 +936,7 @@ public sealed partial class ArticleSubmitRoutesTests :
         var response = await client.PostAsync("/submit/article", content);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Current cover image", html);
+        Assert.Contains("alt=\"Current cover\"", html);
         var draftId = Guid.Parse(ExtractDraftId(html));
 
         var repository = factory.Services.GetRequiredService<IArticleSubmissionRepository>();

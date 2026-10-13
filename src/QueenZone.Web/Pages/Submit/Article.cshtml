@@ -56,7 +56,7 @@
       @if (!string.IsNullOrWhiteSpace(Model.CoverImageBlobPath))
       {
         <figure class="qz-account-form__field">
-          <img src="@NewsArticleImage.ResolveDisplayUrl(Model.CoverImageBlobPath, null)" alt="Current cover image" width="300" height="200" />
+          <img src="@NewsArticleImage.ResolveDisplayUrl(Model.CoverImageBlobPath, null)" alt="Current cover" width="300" height="200" />
           <label><input type="checkbox" asp-for="RemoveCoverImage" /> Remove cover image</label>
         </figure>
       }

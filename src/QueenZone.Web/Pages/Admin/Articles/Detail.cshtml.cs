@@ -21,8 +21,18 @@ public sealed class DetailModel(
 
     public string FormattedBody { get; private set; } = string.Empty;
 
-    public string AuthorLine => Submission is null ? string.Empty
-        : $"{Submission.AuthorDisplayName ?? "Unknown"} {(string.IsNullOrWhiteSpace(Submission.AuthorEmail) ? "" : $"({Submission.AuthorEmail})")}";
+    public string AuthorLine
+    {
+        get
+        {
+            if (Submission is null)
+            {
+                return string.Empty;
+            }
+
+            return $"{Submission.AuthorDisplayName ?? "Unknown"} {(string.IsNullOrWhiteSpace(Submission.AuthorEmail) ? "" : $"({Submission.AuthorEmail})")}";
+        }
+    }
 
     public string SubmittedText => Submission?.SubmittedAt?.ToString("u") ?? "—";
 
