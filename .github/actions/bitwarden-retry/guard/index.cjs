@@ -13,7 +13,7 @@ function parseMapping(text) {
   const ids = new Set(); const names = new Set();
   if (!entries.length) throw new FetchValidationError('Secret mapping is empty.');
   for (const line of entries) {
-    const match = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*>\s*([A-Za-z_][A-Za-z0-9_]*)$/i.exec(line);
+    const match = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\s*>\s*([A-Za-z_]\w*)$/.exec(line);
     if (!match || !isAllowedSecretName(match[2])) {
       throw new FetchValidationError('Secret mapping must contain UUID > env-var name entries.');
     }
