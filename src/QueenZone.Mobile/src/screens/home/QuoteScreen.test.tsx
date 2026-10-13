@@ -31,6 +31,10 @@ function renderQuote(navigation = fakeNavigation(), id = 9) {
 }
 
 describe('QuoteScreen', () => {
+  beforeEach(() => {
+    fetchQuote.mockReset();
+  });
+
   it('keeps the newer warm quote when an older detail request finishes later', async () => {
     const old = deferred<RandomQuote>();
     fetchQuote.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ id: 10, text: 'New quote', whoSaid: 'Brian' });
@@ -44,9 +48,6 @@ describe('QuoteScreen', () => {
     expect(screen.getByText('“New quote”')).toBeOnTheScreen();
   });
 
-  beforeEach(() => {
-    fetchQuote.mockReset();
-  });
 
   it('shows the published quote and Context when present', async () => {
     fetchQuote.mockResolvedValue({

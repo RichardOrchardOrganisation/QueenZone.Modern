@@ -25,18 +25,18 @@ export function triviaMetaLine(fact: RandomTrivia): string | null {
 }
 
 /** Every widget tap gets a fresh session, even when its id matches the previous tap. */
-export function TriviaScreen({ route }: { route?: RouteProp<ArchiveStackParamList, 'Trivia'> }) {
+export function TriviaScreen({ route }: Readonly<{ route?: RouteProp<ArchiveStackParamList, 'Trivia'> }>) {
   const id = route?.params?.id;
   const requestId = route?.params?.requestId ?? 0;
   return <TriviaSession key={`${id ?? 'random'}:${requestId}`} id={id} />;
 }
 
-function TriviaSession({ id }: { id?: number }) {
+function TriviaSession({ id }: Readonly<{ id?: number }>) {
   const [random, setRandom] = useState(false);
   return <TriviaContent key={random ? 'random' : 'entry'} id={random ? undefined : id} onRandom={() => setRandom(true)} />;
 }
 
-function TriviaContent({ id, onRandom }: { id?: number; onRandom: () => void }) {
+function TriviaContent({ id, onRandom }: Readonly<{ id?: number; onRandom: () => void }>) {
   const { c } = useTheme();
   const { view, reload, refresh } = useHomeSection(
     useCallback((signal) => {

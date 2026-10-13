@@ -33,6 +33,11 @@ function renderEvent(navigation = fakeNavigation(), id = 9999) {
 }
 
 describe('TimelineEventScreen', () => {
+  beforeEach(() => {
+    fetchEvent.mockReset();
+    fetchList.mockReset();
+  });
+
   it('keeps the newer warm event and its date when an older detail completes later', async () => {
     const old = deferred<TimelineEvent>();
     const fresh = { id: 2, title: 'New event', summary: 'New event summary', eventDate: '1985-07-13', formattedDate: '13 July 1985', category: 'live', categoryLabel: 'Live', sourceUrl: null };
@@ -49,10 +54,6 @@ describe('TimelineEventScreen', () => {
     expect(fetchList).not.toHaveBeenCalled();
   });
 
-  beforeEach(() => {
-    fetchEvent.mockReset();
-    fetchList.mockReset();
-  });
 
   it('shows a deep off-page event from the by-id path, not the timeline list', async () => {
     fetchEvent.mockResolvedValue({
