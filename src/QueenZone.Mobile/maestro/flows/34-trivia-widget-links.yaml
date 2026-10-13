@@ -67,12 +67,12 @@ appId: org.queenzone.mobile
 - extendedWaitUntil:
     visible: "Queen's Live Aid performance"
     timeout: 30000
-- assertVisible: "13 July 1985"
+- assertVisible: "13 Jul 1985"
 - takeScreenshot: day-cold-id-5
 - openLink: queenzone://timeline/6
 - runFlow: accept-ios-open-link.yaml
 - extendedWaitUntil:
     visible: "'Bohemian Rhapsody' released"
     timeout: 30000
-- assertVisible: "31 October 1975"
+- assertVisible: "31 Oct 1975"
 - takeScreenshot: day-warm-id-6
