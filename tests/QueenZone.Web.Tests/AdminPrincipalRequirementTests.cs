@@ -47,14 +47,9 @@ public sealed class AdminPrincipalRequirementTests : IClassFixture<PrincipalPinn
             var entry = Assert.Single(logger.Entries);
             Assert.Equal(LogLevel.Warning, entry.Level);
             Assert.DoesNotContain(AdminHttpTestHelpers.AdminEmail, entry.Message);
-            if (tenant is not null)
-            {
-                Assert.Contains(tenant.Trim(), entry.Message);
-            }
-            if (oid is not null)
-            {
-                Assert.Contains(oid.Trim(), entry.Message);
-            }
+            Assert.Contains(tenant is null || oid is null ? "MissingClaims" : "InvalidClaim", entry.Message);
+            if (!string.IsNullOrWhiteSpace(tenant)) Assert.DoesNotContain(tenant.Trim(), entry.Message);
+            if (!string.IsNullOrWhiteSpace(oid)) Assert.DoesNotContain(oid.Trim(), entry.Message);
         }
     }
 
@@ -73,7 +68,7 @@ public sealed class AdminPrincipalRequirementTests : IClassFixture<PrincipalPinn
     public async Task Enforcement_off_passes_without_claims_or_pins()
     {
         var logger = new PinLogger();
-        Assert.True((await EvaluateAsync(new ClaimsPrincipal(), false, [], logger)).HasSucceeded);
+        Assert.True((await EvaluateAsync(Principal(null, null), false, [], logger)).HasSucceeded);
         Assert.Empty(logger.Entries);
     }
 
@@ -125,6 +120,9 @@ public sealed class AdminPrincipalRequirementTests : IClassFixture<PrincipalPinn
     [InlineData("tenant: ")]
     [InlineData(" :object")]
     [InlineData("tenant:object:extra")]
+    [InlineData("tenant:object")]
+    [InlineData(WorkTenant + ":invalid")]
+    [InlineData("invalid:" + ObjectId)]
     public void Validator_rejects_malformed_principals(string? entry)
     {
         var validator = new AdminOptionsValidator(new FakeHostEnvironment("Production"));
@@ -141,14 +139,86 @@ public sealed class AdminPrincipalRequirementTests : IClassFixture<PrincipalPinn
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Validator_allows_empty_principal_list_in_production(bool enforce)
+    public void Validator_requires_principal_list_when_enforced(bool enforce)
     {
         var validator = new AdminOptionsValidator(new FakeHostEnvironment("Production"));
-        Assert.True(validator.Validate(null, new AdminOptions
+        var result = validator.Validate(null, new AdminOptions
         {
             AllowedEmails = [AdminHttpTestHelpers.AdminEmail],
             EnforcePrincipalPin = enforce
-        }).Succeeded);
+        });
+        Assert.Equal(!enforce, result.Succeeded);
+        if (enforce) Assert.Contains("Admin__AllowedPrincipals__N", result.FailureMessage);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Anonymous_does_not_succeed_or_log(bool enforce)
+    {
+        var logger = new PinLogger();
+        var result = await EvaluateAsync(new ClaimsPrincipal(new ClaimsIdentity(Principal(WorkTenant, ObjectId).Claims)), enforce, Pins, logger);
+        Assert.False(result.HasSucceeded);
+        Assert.False(result.HasFailed);
+        Assert.Empty(logger.Entries);
+    }
+
+    [Theory]
+    [InlineData("tid", "http://schemas.microsoft.com/identity/claims/tenantid", WorkTenant)]
+    [InlineData("oid", "http://schemas.microsoft.com/identity/claims/objectidentifier", ObjectId)]
+    public async Task Conflicting_claim_aliases_deny_and_equivalent_guids_pass(string shortType, string longType, string value)
+    {
+        var principal = Principal(WorkTenant, ObjectId);
+        var identity = (ClaimsIdentity)principal.Identity!;
+        identity.AddClaim(new Claim(longType, Guid.Parse(value).ToString("B")));
+        Assert.True((await EvaluateAsync(principal, true, Pins, new PinLogger())).HasSucceeded);
+        Assert.NotNull(identity.FindFirst(shortType));
+        identity.RemoveClaim(identity.FindFirst(longType)!);
+        identity.AddClaim(new Claim(longType, Guid.Empty.ToString()));
+        var logger = new PinLogger();
+        Assert.True((await EvaluateAsync(principal, true, Pins, logger)).HasFailed);
+        Assert.Contains("ClaimConflict", Assert.Single(logger.Entries).Message);
+    }
+
+    [Fact]
+    public async Task Unpinned_guid_logs_reason_and_only_hashed_oid()
+    {
+        var logger = new PinLogger();
+        var oid = Guid.Empty.ToString();
+        Assert.True((await EvaluateAsync(Principal(WorkTenant, oid), true, Pins, logger)).HasFailed);
+        var message = Assert.Single(logger.Entries).Message;
+        Assert.Contains("NotPinned", message);
+        Assert.Contains(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(oid)))[..8], message);
+        Assert.DoesNotContain(oid, message);
+        Assert.DoesNotContain(WorkTenant, message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Environment_binding_requires_indexed_principal_keys(bool indexed)
+    {
+        var prefix = $"QZ_PIN_TEST_{Guid.NewGuid():N}_";
+        var key = prefix + "Admin__AllowedPrincipals" + (indexed ? "__0" : "");
+        try
+        {
+            Environment.SetEnvironmentVariable(key, indexed ? Pins[0] : string.Join(',', Pins));
+            var config = new ConfigurationBuilder().AddEnvironmentVariables(prefix).Build();
+            var options = new AdminOptions { AllowedEmails = [AdminHttpTestHelpers.AdminEmail], EnforcePrincipalPin = true };
+            config.GetSection("Admin").Bind(options);
+            var result = new AdminOptionsValidator(new FakeHostEnvironment("Production")).Validate(null, options);
+            Assert.Equal(indexed, result.Succeeded);
+            if (indexed) Assert.Equal(Pins[0], Assert.Single(options.AllowedPrincipals));
+            else
+            {
+                Assert.Empty(options.AllowedPrincipals);
+                Assert.Contains("comma-separated", result.FailureMessage);
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(key, null);
+        }
     }
 
     internal static string[] Pins => [$" {WorkTenant.ToUpperInvariant()} : {ObjectId} ", $"{ConsumerTenant}:{ObjectId}"];
