@@ -111,6 +111,39 @@ public sealed class ContentApiTriviaTests :
     }
 
     [Fact]
+    public async Task Detail_returns_only_the_requested_published_fact_without_auth()
+    {
+        var trivia = isolatedTrivia.Services.GetRequiredService<ITriviaRepository>();
+        await trivia.CreateAsync(new AdminTriviaDraft("Other fact", true, null, null, null));
+        var id = await trivia.CreateAsync(new AdminTriviaDraft("Widget fact", true, "Live", TriviaDifficulty.Easy, "Archive"));
+        using var client = isolatedTrivia.CreateAnonymousClient();
+        using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/trivia/{id}");
+        var payload = await ReadRandomTriviaJsonAsync<TriviaDto>(response);
+        Assert.NotNull(payload);
+        Assert.Equal(id, payload.Id);
+        Assert.Equal("Widget fact", payload.Text);
+        Assert.Equal("Live", payload.Category);
+        Assert.Equal(TriviaDifficulty.Easy, payload.Difficulty);
+        Assert.Equal("Archive", payload.Source);
+    }
+
+    [Fact]
+    public async Task Detail_returns_404_for_missing_unpublished_and_removed_facts()
+    {
+        var trivia = isolatedTrivia.Services.GetRequiredService<ITriviaRepository>();
+        var draft = await trivia.CreateAsync(new AdminTriviaDraft("Secret draft", false, null, null, null));
+        var removed = await trivia.CreateAsync(new AdminTriviaDraft("Removed fact", true, null, null, null));
+        await trivia.DeleteAsync(removed);
+        using var client = isolatedTrivia.CreateAnonymousClient();
+        foreach (var id in new[] { 0, -1, int.MaxValue, draft, removed })
+        {
+            using var response = await client.GetAsync($"{ContentApiEndpoints.RootPath}/trivia/{id}");
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.DoesNotContain("Secret draft", await response.Content.ReadAsStringAsync());
+        }
+    }
+
+    [Fact]
     public void Mapper_omits_blank_optional_fields()
     {
         var dto = ContentApiMapper.ToTriviaDto(

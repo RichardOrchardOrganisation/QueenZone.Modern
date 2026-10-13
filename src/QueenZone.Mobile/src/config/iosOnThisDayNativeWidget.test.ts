@@ -77,7 +77,8 @@ describe('applyOnThisDayNativeWidget', () => {
     assert.equal(first.includes('Text("“\\(quoteText)”")'), true);
     assert.equal(first.includes('Text("— \\(quoteWhoSaid)")'), true);
     assert.match(first, /Text\(triviaText\)/);
-    assert.equal(first.includes('queenzone://trivia/'), false);
+    assert.equal(first.includes('queenzone://trivia/\\(triviaId)'), true);
+    assert.match(first, /intProp\("triviaId"\)/);
     assert.equal(first.includes('.lineLimit(3)'), false);
     assert.equal(first.includes('formattedDate): \\(summary)'), false);
     assert.equal(first.includes('” — \\(quoteWhoSaid)'), false);

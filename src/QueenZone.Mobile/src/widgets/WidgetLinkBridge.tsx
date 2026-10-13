@@ -17,6 +17,7 @@ export function WidgetLinkBridge() {
   navigationRef.current = navigation;
 
   useEffect(() => {
+    let receivedWidgetEvent = false;
     function handleUrl(url: string) {
       if (isWidgetDeepLinkUrl(url)) {
         openWidgetDestination(navigationRef.current, url);
@@ -26,7 +27,7 @@ export function WidgetLinkBridge() {
     Linking.getInitialURL()
       .then((url) => {
         const widgetUrl = consumeInitialWidgetUrl(url);
-        if (widgetUrl) {
+        if (widgetUrl && !receivedWidgetEvent) {
           handleUrl(widgetUrl);
         }
       })
@@ -34,7 +35,12 @@ export function WidgetLinkBridge() {
         /* no initial URL to recover */
       });
 
-    const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (isWidgetDeepLinkUrl(url)) {
+        receivedWidgetEvent = true;
+      }
+      handleUrl(url);
+    });
     return () => subscription.remove();
   }, []);
 

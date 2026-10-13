@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import { isWidgetDeepLinkUrl } from '../widgets/widgetDeepLink';
 import { parseSiriDeepLink } from './siriDeepLink';
 
 type SiriNavigation = {
@@ -11,9 +12,7 @@ type SiriNavigation = {
       | { screen: 'NewsTab'; params: { screen: 'NewsIndex'; initial: false } }
       | { screen: 'ArchiveTab'; params: { screen: 'Album'; params: { id: number }; initial: false } }
       | { screen: 'ArchiveTab'; params: { screen: 'BiographyChapter'; params: { id: number }; initial: false } }
-      | { screen: 'ArchiveTab'; params: { screen: 'Search'; params: { query: string }; initial: false } }
-      | { screen: 'ArchiveTab'; params: { screen: 'Timeline'; params: { focusId?: number }; initial: false } }
-      | { screen: 'ArchiveTab'; params: { screen: 'Trivia'; initial: false } },
+      | { screen: 'ArchiveTab'; params: { screen: 'Search'; params: { query: string }; initial: false } },
   ) => void;
 };
 
@@ -27,6 +26,8 @@ export function SiriLinkBridge() {
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
     function handleUrl(url: string) {
+      // Shared widget/Siri URLs have one owner: WidgetLinkBridge.
+      if (isWidgetDeepLinkUrl(url)) return;
       const destination = parseSiriDeepLink(url);
       if (destination?.kind === 'news') {
         navigationRef.current.navigate('Tabs', {
@@ -47,15 +48,6 @@ export function SiriLinkBridge() {
         navigationRef.current.navigate('Tabs', {
           screen: 'ArchiveTab',
           params: { screen: 'BiographyChapter', params: { id: destination.id }, initial: false },
-        });
-      } else if (destination?.kind === 'timeline') {
-        navigationRef.current.navigate('Tabs', {
-          screen: 'ArchiveTab',
-          params: { screen: 'Timeline', params: { focusId: destination.id }, initial: false },
-        });
-      } else if (destination?.kind === 'trivia') {
-        navigationRef.current.navigate('Tabs', {
-          screen: 'ArchiveTab', params: { screen: 'Trivia', initial: false },
         });
       }
     }

@@ -1,5 +1,5 @@
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
-import { fetchRandomTrivia } from '../../api';
+import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fetchRandomTrivia, fetchTriviaById, type RandomTrivia } from '../../api';
 import { ApiError } from '../../api/client';
 import { deferred } from '../../test/fixtures';
 import { renderWithProviders } from '../../test/render';
@@ -11,18 +11,87 @@ jest.mock('../../api', () => {
   return {
     ...actual,
     fetchRandomTrivia: jest.fn(),
+    fetchTriviaById: jest.fn(),
   };
 });
 
 const fetchTrivia = fetchRandomTrivia as jest.MockedFunction<typeof fetchRandomTrivia>;
 
+const fetchById = fetchTriviaById as jest.MockedFunction<typeof fetchTriviaById>;
+
+function triviaRoute(id?: number, requestId = 1) {
+  return { key: "trivia", name: "Trivia" as const, params: { id, requestId } };
+}
+
 function renderTrivia() {
   return renderWithProviders(<TriviaScreen />, { navigation: false });
 }
 
+describe('widget fact selection', () => {
+  beforeEach(() => { fetchTrivia.mockReset(); fetchById.mockReset(); });
+
+  it('opens only the requested fact and lets Next fact resume random trivia', async () => {
+    fetchById.mockResolvedValue({ id: 12, text: 'Widget fact.' });
+    fetchTrivia.mockResolvedValue({ id: 99, text: 'Next random fact.' });
+    const view = renderWithProviders(<TriviaScreen route={triviaRoute(12)} />, { navigation: false });
+    await waitFor(() => expect(screen.getByText('Widget fact.')).toBeOnTheScreen());
+    expect(fetchById).toHaveBeenCalledWith(12, expect.any(AbortSignal));
+    expect(fetchTrivia).not.toHaveBeenCalled();
+    await userEvent.setup().press(screen.getByTestId(testIds.triviaNext));
+    await waitFor(() => expect(screen.getByText('Next random fact.')).toBeOnTheScreen());
+    view.rerender(<TriviaScreen route={triviaRoute(12, 2)} />);
+    await waitFor(() => expect(screen.getByText('Widget fact.')).toBeOnTheScreen());
+    expect(fetchById).toHaveBeenCalledTimes(2);
+  });
+
+  it('changes a warm target and ignores an older request finishing later', async () => {
+    const old = deferred<RandomTrivia>();
+    fetchById.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ id: 2, text: 'New widget fact.' });
+    const view = renderWithProviders(<TriviaScreen route={triviaRoute(1)} />, { navigation: false });
+    await waitFor(() => expect(fetchById).toHaveBeenCalledTimes(1));
+    const signal = fetchById.mock.calls[0][1];
+    view.rerender(<TriviaScreen route={triviaRoute(2, 2)} />);
+    await waitFor(() => expect(screen.getByText('New widget fact.')).toBeOnTheScreen());
+    expect(signal?.aborted).toBe(true);
+    await act(async () => old.resolve({ id: 1, text: 'Old widget fact.' }));
+    expect(screen.queryByText('Old widget fact.')).toBeNull();
+    expect(screen.getByText('New widget fact.')).toBeOnTheScreen();
+    expect(fetchTrivia).not.toHaveBeenCalled();
+  });
+
+  it('clears an existing warm fact immediately while the next target loads', async () => {
+    const next = deferred<RandomTrivia>();
+    fetchById.mockResolvedValueOnce({ id: 1, text: 'First widget fact.' }).mockReturnValueOnce(next.promise);
+    const view = renderWithProviders(<TriviaScreen route={triviaRoute(1)} />, { navigation: false });
+    await waitFor(() => expect(screen.getByText('First widget fact.')).toBeOnTheScreen());
+    view.rerender(<TriviaScreen route={triviaRoute(2, 2)} />);
+    expect(screen.queryByText('First widget fact.')).toBeNull();
+    await act(async () => next.resolve({ id: 2, text: 'Second widget fact.' }));
+    await waitFor(() => expect(screen.getByText('Second widget fact.')).toBeOnTheScreen());
+  });
+
+  it('does not substitute random trivia for missing or unpublished targets', async () => {
+    fetchById.mockRejectedValue(new ApiError(404, 'This trivia fact is unavailable.'));
+    renderWithProviders(<TriviaScreen route={triviaRoute(12)} />, { navigation: false });
+    await waitFor(() => expect(screen.getByText('This trivia fact is unavailable.')).toBeOnTheScreen());
+    expect(fetchTrivia).not.toHaveBeenCalled();
+    expect(screen.queryByTestId(testIds.triviaNext)).toBeNull();
+  });
+
+  it('rejects invalid route ids locally and preserves legacy random links', async () => {
+    fetchTrivia.mockResolvedValue({ id: 3, text: 'Legacy random fact.' });
+    const view = renderWithProviders(<TriviaScreen route={triviaRoute(-1)} />, { navigation: false });
+    await waitFor(() => expect(screen.getByText('This trivia fact is unavailable.')).toBeOnTheScreen());
+    expect(fetchById).not.toHaveBeenCalled();
+    view.rerender(<TriviaScreen route={triviaRoute(undefined, 2)} />);
+    await waitFor(() => expect(screen.getByText('Legacy random fact.')).toBeOnTheScreen());
+  });
+});
+
 describe('TriviaScreen', () => {
   beforeEach(() => {
     fetchTrivia.mockReset();
+    fetchById.mockReset();
   });
 
   it('shows a published fact, meta, and Next fact', async () => {

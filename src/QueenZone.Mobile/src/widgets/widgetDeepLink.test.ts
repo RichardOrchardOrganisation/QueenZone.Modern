@@ -13,6 +13,7 @@ import {
   widgetTimelineDeepLinkUrl,
   widgetTimelineListDeepLinkUrl,
   widgetTriviaDeepLinkUrl,
+  parseWidgetTriviaId,
 } from './widgetDeepLink.ts';
 
 describe('widgetDeepLink', () => {
@@ -136,7 +137,7 @@ describe('widgetDeepLink', () => {
       assert.equal(name, 'Tabs');
       assert.deepEqual(params, {
         screen: 'ArchiveTab',
-        params: { screen: 'Trivia', initial: false },
+        params: { screen: 'Trivia', params: { id: undefined, requestId: 1 }, initial: false },
       });
     };
     openWidgetDestination({ navigate: navigate as never }, 'queenzone://trivia');
@@ -179,5 +180,25 @@ describe('widgetDeepLink', () => {
     resetInitialWidgetUrlConsumption();
     assert.equal(consumeInitialWidgetUrl('queenzone://trivia'), 'queenzone://trivia');
     assert.equal(consumeInitialWidgetUrl('queenzone://trivia'), null);
+  });
+});
+
+describe('trivia fact links', () => {
+  it('retains valid shown ids and falls back only for unusable widget ids', () => {
+    assert.equal(widgetFaceDeepLinkUrl('trivia', 9, 12, 24), 'queenzone://trivia/24');
+    for (const id of [undefined, 0, -1, 1.5, NaN, Infinity]) {
+      assert.equal(widgetFaceDeepLinkUrl('trivia', undefined, undefined, id), 'queenzone://trivia');
+    }
+    assert.equal(parseWidgetTriviaId('queenzone://trivia/24'), 24);
+    for (const url of ['queenzone://trivia', 'queenzone://trivia/0', 'queenzone://trivia/abc', 'queenzone://trivia/1/2', 'queenzone://trivia/9007199254740992', 'https://trivia/24', 'broken']) {
+      assert.equal(parseWidgetTriviaId(url), null);
+    }
+  });
+  it('passes different and repeated facts with a new request identity on every tap', () => {
+    const destinations: { params: { params: { id?: number; requestId: number } } }[] = [];
+    const navigation = { navigate: (_name: string, params: unknown) => destinations.push(params as (typeof destinations)[number]) };
+    for (const url of ['queenzone://trivia/24', 'queenzone://trivia/25', 'queenzone://trivia/24']) openWidgetDestination(navigation, url);
+    assert.deepEqual(destinations.map(d => d.params.params.id), [24, 25, 24]);
+    assert.equal(new Set(destinations.map(d => d.params.params.requestId)).size, 3);
   });
 });

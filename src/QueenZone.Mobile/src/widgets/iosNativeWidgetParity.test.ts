@@ -30,6 +30,8 @@ describe('native Swift widget parity guards', () => {
     assert.ok(tapUrl.includes(`URL(string: "${widgetFaceDeepLinkUrl(null)}")`));
     assert.ok(tapUrl.includes(String.raw`queenzone://quotes/\\(quoteId)`));
     assert.ok(tapUrl.includes(String.raw`queenzone://timeline/\\(eventId)`));
+    assert.match(tapUrl, /if triviaId > 0/);
+    assert.ok(tapUrl.includes(String.raw`queenzone://trivia/\\(triviaId)`));
     assert.match(tapUrl, /if showQuote && quoteId > 0/);
     assert.match(tapUrl, /if eventId > 0/);
     assert.doesNotMatch(tapUrl, /if showDay && eventId/);

@@ -1,0 +1,106 @@
+appId: org.queenzone.mobile
+---
+# Testing fixture only. This injects the widget URL; it is not a SpringBoard/launcher widget tap.
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: home-screen
+    timeout: 30000
+- stopApp
+- openLink: queenzone://trivia/1
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Freddie Mercury was born Farrokh Bulsara in Zanzibar in 1946."
+    timeout: 30000
+- takeScreenshot: trivia-cold-id-1
+- openLink: queenzone://trivia/2
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "A Night at the Opera takes its title from the Marx Brothers film of the same name."
+    timeout: 30000
+- takeScreenshot: trivia-warm-id-2
+- tapOn:
+    id: trivia-next
+- extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
+- openLink: queenzone://trivia/2
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "A Night at the Opera takes its title from the Marx Brothers film of the same name."
+    timeout: 30000
+- takeScreenshot: trivia-repeated-id-2
+- openLink: queenzone://trivia/3
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible: "This trivia fact is unavailable."
+    timeout: 30000
+- assertNotVisible: "Brian May's Red Special was built with his father using wood from a fireplace mantel."
+- takeScreenshot: trivia-unpublished
+- openLink: queenzone://trivia
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: trivia-screen
+    timeout: 30000
+- assertVisible:
+    id: trivia-next
+- takeScreenshot: trivia-legacy-random
+# Existing quote and event routes: cold and warm identity/date checks.
+- stopApp
+- openLink: queenzone://quotes/1
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: quote-screen
+    timeout: 30000
+- extendedWaitUntil:
+    visible: ".*I won't be a rock star. I will be a legend.*"
+    timeout: 30000
+- takeScreenshot: quote-cold-id-1
+- openLink: queenzone://quotes/2
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: quote-screen
+    timeout: 30000
+- extendedWaitUntil:
+    visible: ".*We want to be the Cecil B. DeMille of rock and roll.*"
+    timeout: 30000
+- takeScreenshot: quote-warm-id-2
+- stopApp
+- openLink: queenzone://timeline/5
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: timeline-event-screen
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Queen's Live Aid performance"
+    timeout: 30000
+- assertVisible: "13 Jul 1985"
+- takeScreenshot: day-cold-id-5
+- openLink: queenzone://timeline/6
+- runFlow: accept-ios-open-link.yaml
+- extendedWaitUntil:
+    visible:
+      id: timeline-event-screen
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "'Bohemian Rhapsody' released"
+    timeout: 30000
+- assertVisible: "31 Oct 1975"
+- takeScreenshot: day-warm-id-6

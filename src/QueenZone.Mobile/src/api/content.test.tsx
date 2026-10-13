@@ -31,6 +31,7 @@ import {
   claimQuizSprintRun,
   fetchRandomQuote,
   fetchRandomTrivia,
+  fetchTriviaById,
   voteHomePoll,
   fetchTimelinePage,
 } from './content';
@@ -492,5 +493,21 @@ describe('photo content endpoints', () => {
     });
 
     expect(page).toEqual(cached);
+  });
+});
+
+describe('fetchTriviaById', () => {
+  it('requests only the specified detail and propagates the abort signal', async () => {
+    const signal = new AbortController().signal;
+    fetchMock.mockResolvedValue(jsonResponse({ id: 12, text: 'Widget fact.' }));
+    expect(await fetchTriviaById(12, signal)).toEqual({ id: 12, text: 'Widget fact.' });
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/trivia/12');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a missing fact without requesting random trivia', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ title: 'Not Found', detail: 'This trivia fact is unavailable.' }, 404));
+    await expect(fetchTriviaById(12)).rejects.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lastUrl()).toBe('http://qz.test/api/v1/content/trivia/12');
   });
 });
