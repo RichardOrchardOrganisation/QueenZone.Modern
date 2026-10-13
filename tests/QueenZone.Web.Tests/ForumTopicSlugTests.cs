@@ -64,6 +64,29 @@ public sealed class ForumTopicSlugTests(QueenZoneWebApplicationFactory factory)
     }
 
     [Theory]
+    [InlineData("/FORUM/TOPIC/1002/ranking-every-studio-album", "/forum/topic/1002/ranking-every-studio-album")]
+    [InlineData("/Forum/Topic/1002/Ranking-Every-Studio-Album/", "/forum/topic/1002/ranking-every-studio-album/")]
+    [InlineData("/forum/topic/1002/RANKING-EVERY-STUDIO-ALBUM/page/2?x=Y", "/forum/topic/1002/ranking-every-studio-album/page/2?x=Y")]
+    [InlineData("/FORUM/1/General", "/forum/1/general")]
+    public async Task Mixed_case_forum_paths_301_to_lowercase_without_edge_caching(string requested, string expected)
+    {
+        using var client = Client();
+        var response = await client.GetAsync(requested);
+        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
+        Assert.Equal(expected, response.Headers.Location?.OriginalString);
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
+        Assert.DoesNotContain("public", response.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
+    public async Task Lowercase_forum_paths_are_not_redirected_by_the_case_rule()
+    {
+        using var client = Client();
+        var response = await client.GetAsync("/forum/topic/1002/ranking-every-studio-album");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("/")]
     public async Task Existing_ascii_topics_keep_their_canonical_url(string suffix)
