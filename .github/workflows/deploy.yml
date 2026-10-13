@@ -107,6 +107,8 @@ jobs:
   # Required when `changes` says migrate or deploy will run. Docs/mobile/
   # workflow-only ranges skip the three workflow lookups. Missing `changes`
   # outputs fail closed.
+  # Do not use "Re-run failed jobs": that reuses a possibly stale
+  # check-gates result. Re-run the entire workflow so this job runs again.
   check-gates:
     name: check-gates
     runs-on: ubuntu-latest

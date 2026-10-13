@@ -14,6 +14,7 @@ import {
   runOverrideComment,
   createStoredZip,
   evaluateChanges,
+  evaluateGate,
   evaluateRun,
   extractGateProofFromZip,
   extractZipFiles,
@@ -33,6 +34,7 @@ import {
   buildGateProof,
   extractBuildStamp,
   parseWriteProofArgs,
+  requireMatchingStamps,
   resolveDevTestedSha,
   writeGateProofFromArgs,
 } from './write-gate-proof.mjs';
@@ -266,6 +268,41 @@ test('checkGates requires exact SHA runs with a successful latest gate-proof job
   assert.equal(result.sha, sha);
 });
 
+test('evaluateGate judges only the newest run for the SHA', async () => {
+  const now = () => Date.parse('2026-10-13T12:00:00Z');
+  const olderGreen = {
+    id: 10,
+    head_sha: sha,
+    head_branch: 'main',
+    created_at: '2026-10-13T10:00:00Z',
+  };
+  const newerRed = {
+    id: 11,
+    head_sha: sha,
+    head_branch: 'main',
+    created_at: '2026-10-13T11:00:00Z',
+  };
+  const github = fakeGithub({
+    resolved: sha,
+    runs: {
+      'nightly-legacy-checks.yml': [olderGreen, newerRed],
+    },
+    jobs: {
+      10: [{ name: GATE_JOB_NAME, status: 'completed', conclusion: 'success', completed_at: '2026-10-13T10:30:00Z' }],
+      11: [{ name: GATE_JOB_NAME, status: 'completed', conclusion: 'failure', completed_at: '2026-10-13T11:30:00Z' }],
+    },
+    proofs: {
+      10: proof,
+      11: proof,
+    },
+  });
+  const verdict = await evaluateGate(GATES[0], sha, { maxAgeHours: 72, now }, github);
+  assert.equal(verdict.ok, false);
+  assert.match(verdict.error, /11/);
+  assert.match(verdict.error, /failure/);
+  assert.doesNotMatch(verdict.error, /run 10 /);
+});
+
 test('a conclusion=success run whose jobs were all skipped does not count', async () => {
   const now = () => Date.parse('2026-10-13T12:00:00Z');
   const run = {
@@ -373,15 +410,16 @@ test('DEV tested_sha comes from the live build stamp', async () => {
   assert.equal(extractBuildStamp('<div data-build-version="abcdef1"></div>'), 'abcdef1');
   assert.equal(resolveDevTestedSha(sha.slice(0, 7), sha), sha);
   assert.equal(resolveDevTestedSha(other, sha), other);
-  assert.equal(resolveDevTestedSha('ccccccc', sha), sha);
+  assert.throws(() => resolveDevTestedSha('ccccccc', sha), /Unknown DEV build stamp/);
   assert.throws(() => resolveDevTestedSha('', sha), /missing data-build-version/);
+  assert.equal(requireMatchingStamps('abc', 'abc'), 'abc');
+  assert.throws(() => requireMatchingStamps('abc', 'def'), /changed during the tests/);
   const directory = mkdtempSync(path.join(tmpdir(), 'qz-gate-proof-'));
   try {
     const out = path.join(directory, 'gate-proof.json');
     const written = await writeGateProofFromArgs(
-      ['--dev', '--out', out, '--sha', sha],
+      ['--stamp', sha.slice(0, 7), '--out', out, '--sha', sha],
       { DEV_PUBLIC_URL },
-      async () => ({ ok: true, text: async () => `<div data-build-version="${sha.slice(0, 7)}"></div>` }),
     );
     assert.deepEqual(written, proof);
     assert.deepEqual(JSON.parse(readFileSync(out, 'utf8')), proof);
@@ -390,6 +428,20 @@ test('DEV tested_sha comes from the live build stamp', async () => {
   }
   assert.equal(parseWriteProofArgs(['--full-suite', 'false']).fullSuite, false);
   assert.throws(() => buildGateProof({ testedSha: 'short', fullSuite: true }), /40-character/);
+  const printed = await writeGateProofFromArgs(
+    ['--print-stamp', '--require-match', sha.slice(0, 7)],
+    { DEV_PUBLIC_URL },
+    async () => ({ ok: true, text: async () => `<div data-build-version="${sha.slice(0, 7)}"></div>` }),
+  );
+  assert.equal(printed.stamp, sha.slice(0, 7));
+  await assert.rejects(
+    () => writeGateProofFromArgs(
+      ['--dev', '--out', 'unused.json', '--sha', sha],
+      { DEV_PUBLIC_URL },
+      async () => ({ ok: true, text: async () => '<div data-build-version="ccccccc"></div>' }),
+    ),
+    /Unknown DEV build stamp/,
+  );
 });
 
 test('deploy.yml gate job sits after changes, fail-closed, with no polling', () => {
@@ -408,6 +460,7 @@ test('deploy.yml gate job sits after changes, fail-closed, with no polling', () 
   assert.match(deploy, /inputs\.gate_only != true/);
   assert.match(deploy, /needs\.check-gates\.result == 'success'/);
   assert.match(deploy, /#2222|#2291|RELEASE_LOG_ISSUE|issues\/2222/);
+  assert.match(deploy, /Re-run failed jobs/);
 });
 
 test('DEV e2e workflows keep their crons and trigger after a successful deploy-dev', () => {
@@ -418,9 +471,14 @@ test('DEV e2e workflows keep their crons and trigger after a successful deploy-d
     assert.match(workflow, /Deploy dev/);
     assert.match(workflow, /types:\r?\n\s+- completed/);
     assert.match(workflow, /workflow_run\.conclusion == 'success'/);
+    assert.match(workflow, /workflow_run\.head_branch == 'main'/);
+    assert.match(workflow, /workflow_run\.event == 'push'/);
     assert.match(workflow, / {2}gate-proof:/);
-    assert.match(workflow, /write-gate-proof\.mjs --dev/);
+    assert.match(workflow, /write-gate-proof\.mjs --stamp/);
+    assert.match(workflow, /--print-stamp/);
+    assert.match(workflow, /--require-match/);
     assert.match(workflow, /name: gate-proof/);
+    assert.match(workflow, /outputs\.stamp != ''/);
     assert.doesNotMatch(workflow.split('jobs:')[0], /id-token:\s*write/);
     assert.match(workflow, /permissions:\r?\n\s+contents: read\r?\n\s+id-token: write/);
   }
@@ -456,6 +514,10 @@ test('runbook and environment docs exist and are linked', () => {
   assert.doesNotMatch(runbook, /#2173/);
   assert.match(runbook, /gate_override_reason/);
   assert.match(runbook, /prod-gate-override/);
+  assert.match(runbook, /richardorchard/);
+  assert.match(runbook, /Prevent self-review/);
+  assert.match(runbook, /Do not dispatch an old tag/);
+  assert.doesNotMatch(runbook, /gh workflow run deploy\.yml --ref vPREVIOUS/);
   const agents = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
   const readme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
   const testing = readFileSync(path.join(repoRoot, 'docs/architecture/testing-policy.md'), 'utf8');

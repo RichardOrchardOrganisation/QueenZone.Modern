@@ -3,8 +3,9 @@
  * Production tip-gate check for deploy.yml (#2291).
  *
  * Finds each gate run with actions/workflows/{file}/runs?head_sha=SHA&branch=main
- * (exact SHA, no ancestor rule), then requires the named `gate-proof` job to
- * have succeeded on the latest attempt and a matching `gate-proof` artifact.
+ * (exact SHA, no ancestor rule), judges only the newest run for that SHA, then
+ * requires the named `gate-proof` job to have succeeded on the latest attempt
+ * and a matching `gate-proof` artifact.
  */
 import { appendFileSync } from 'node:fs';
 import path from 'node:path';
@@ -357,31 +358,30 @@ export async function evaluateRun(gate, run, sha, { maxAgeHours, now }) {
   return { ok: true };
 }
 
+export function selectNewestRun(runs, sha) {
+  return [...(runs || [])]
+    .filter((run) => run?.head_sha === sha && run.head_branch === 'main')
+    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0] || null;
+}
+
 export async function evaluateGate(gate, sha, context, github) {
   const runs = await github.listWorkflowRuns(gate.workflowFile, sha);
-  const matches = (runs || [])
-    .filter((run) => run.head_sha === sha && run.head_branch === 'main')
-    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
-  if (!matches.length) {
+  const run = selectNewestRun(runs, sha);
+  if (!run) {
     return { ok: false, error: `${gate.id}: no workflow run on ${sha} (main).` };
   }
-  const reasons = [];
-  for (const run of matches) {
-    const jobs = await github.listJobs(run.id);
-    let proof = null;
-    try {
-      proof = await github.readGateProof(run.id);
-    } catch (error) {
-      reasons.push(`${gate.id}: run ${run.id} artifact: ${error.message}`);
-      continue;
-    }
-    const verdict = await evaluateRun(gate, { ...run, jobs, proof }, sha, context);
-    if (verdict.ok) {
-      return { ok: true, runId: run.id };
-    }
-    reasons.push(`${gate.id}: ${verdict.error}`);
+  const jobs = await github.listJobs(run.id);
+  let proof = null;
+  try {
+    proof = await github.readGateProof(run.id);
+  } catch (error) {
+    return { ok: false, error: `${gate.id}: newest run ${run.id} artifact: ${error.message}` };
   }
-  return { ok: false, error: reasons.join(' ') };
+  const verdict = await evaluateRun(gate, { ...run, jobs, proof }, sha, context);
+  if (verdict.ok) {
+    return { ok: true, runId: run.id };
+  }
+  return { ok: false, error: `${gate.id}: ${verdict.error}` };
 }
 
 export async function checkGates(input, github) {

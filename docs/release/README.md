@@ -36,9 +36,9 @@ gh workflow run dev-member-auth-e2e.yml --ref main
 gh workflow run dev-journey-e2e.yml --ref main
 ```
 
-Each gate uploads a `gate-proof` artifact `{ tested_sha, full_suite }`. For the DEV gates, `tested_sha` comes from the live DEV `data-build-version` stamp. `deploy.yml` requires `tested_sha` to equal the deploy SHA. Freshness is at most 72 hours, set by the repo variable `PROD_GATE_MAX_AGE_HOURS`.
+Each gate uploads a `gate-proof` artifact `{ tested_sha, full_suite }`. For the DEV gates, `tested_sha` is the live DEV `data-build-version` stamp read in the test job before and after the suite; those two reads must match, and an unknown stamp fails closed. `deploy.yml` requires `tested_sha` to equal the deploy SHA. Freshness is at most 72 hours, set by the repo variable `PROD_GATE_MAX_AGE_HOURS`.
 
-`check-gates.mjs` finds the run with `actions/workflows/{file}/runs?head_sha=SHA&branch=main`, then fetches `runs/{id}/jobs` and requires the `gate-proof` job itself to have succeeded on the latest attempt. A run whose jobs were all skipped still reports workflow success and does not count.
+`check-gates.mjs` finds runs with `actions/workflows/{file}/runs?head_sha=SHA&branch=main` and judges **only the newest** run for that SHA. An older green run cannot hide a newer red, missing, or unreadable one. Then it fetches `runs/{id}/jobs` and requires the `gate-proof` job itself to have succeeded on the latest attempt. A run whose jobs were all skipped still reports workflow success and does not count.
 
 An older or cherry-picked SHA cannot be gated through `workflow_run`. Shipping one needs the override.
 
@@ -69,6 +69,8 @@ The `v*` tag starts `.github/workflows/deploy.yml`. Watch that run to completion
 
 `workflow_dispatch` must use a `v*` tag ref. Dispatching `main` no longer deploys. Tag pushes cannot be overridden; re-dispatch the tag with a reason instead.
 
+Never use **Re-run failed jobs** on a Deploy run. That reuses a possibly stale `check-gates` result. Re-run the entire workflow so the tip-gate job runs again.
+
 `gate_only` is a dry run: it runs `check-gates` and skips migrate, configure, deploy, and smoke.
 
 ## OpenTofu
@@ -93,30 +95,45 @@ A gate override posts its own comment on #2222 **before** migrate. That job need
 
 ## Rollback
 
-Redeploy the previous tag. Do not push the same tag again.
+Do not dispatch an old tag. GitHub runs the `deploy.yml` from that ref, and tags from before the tip-gate merge have no `check-gates` job. That path is ungated.
 
-1. Find the previous `v*` tag and its SHA.
-2. If that SHA still has three fresh full-suite gates, create a new `vYYYY.MM.DD.N` on it and push.
-3. If the gates have expired or the SHA was never gated, re-dispatch the previous tag with `gate_override_reason` (at least 20 characters). That runs the `prod-gate-override` approval and comments on #2222 before migrate.
+Preferred path — the previous SHA still has three fresh full-suite gates **and** that commit contains this gated `deploy.yml`:
 
-```bash
-gh workflow run deploy.yml --ref vPREVIOUS.TAG
-```
+1. Create a new `vYYYY.MM.DD.N` on that SHA and push. Do not reuse the old tag name.
+2. Watch the new tag's Deploy run.
 
-Use the Actions UI to pass `gate_override_reason` when needed. The reason is passed via `env`, never interpolated into a script, and is written to the job summary.
+If that SHA has the gated workflow but the gates have expired, dispatch the **new** tag with `gate_override_reason` (at least 20 characters). Richard approves `prod-gate-override`. The reason is passed via `env`, written to the job summary, and commented on #2222 before migrate.
+
+If the previous SHA is from before the tip-gate merge, tagging it again still runs the ungated historical workflow. That is not a rollback; it is an ungated production deploy. Do not do it. Ask Richard. If he still chooses that path, comment on #2222 first with the reason and the tag, then he dispatches. Environment-level reviewers on `prod-release` are the follow-up so this cannot happen quietly.
 
 ## Roles
 
 Anyone following this runbook may tag. Workflow-file pull requests are merged by Richard.
 
-Create and protect `prod-gate-override` in GitHub Settings **before** merging a workflow that first references it. Use the same reviewers as `prod-release`. GitHub auto-creates an unprotected environment on first use; do not let that happen for an override that skips prod gates.
+Richard is the required reviewer for a gate override. He approves the `prod-gate-override` environment. Prevent self-review so the dispatcher cannot approve their own skip.
+
+Create `prod-gate-override` in GitHub Settings **before merging** a workflow that first references it. Do not let GitHub auto-create it unprotected. Agents cannot create it.
+
+Required settings (Richard applies these):
+
+| Setting | Value |
+| --- | --- |
+| Name | `prod-gate-override` |
+| Required reviewers | `richardorchard` (also add this reviewer to `prod-release`, which currently has none) |
+| Prevent self-review | Enabled |
+| Wait timer | None |
+| Deployment branches | Custom; tags `v*` only (not `main`) |
+| Environment secrets | None |
+| Environment variables | None |
+
+Environment-level enforcement so old pre-gate tags cannot deploy through `prod-release` without reviewers is a follow-up for Bob.
 
 ## Override path
 
 `gate_override_reason` is an optional `workflow_dispatch` input, allowed on `v*` tag refs only. When it is set:
 
 1. `gate-override-guard` checks the ref and that the reason is at least 20 characters.
-2. `gate-override` runs on `prod-gate-override` (same reviewers as `prod-release`).
+2. `gate-override` runs on `prod-gate-override`. Richard is the required reviewer.
 3. The reason is written to the job summary and commented on #2222.
 4. Migrate starts only after that comment succeeds.
 
