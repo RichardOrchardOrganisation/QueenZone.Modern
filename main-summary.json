@@ -1,0 +1,67 @@
+{
+  "tag": "main",
+  "page1": [
+    "520",
+    "519",
+    "518",
+    "517",
+    "516",
+    "515",
+    "514",
+    "513"
+  ],
+  "page2": [
+    "512",
+    "511",
+    "510",
+    "509",
+    "508",
+    "507",
+    "506",
+    "505"
+  ],
+  "allPages": [
+    "520",
+    "519",
+    "518",
+    "517",
+    "516",
+    "515",
+    "514",
+    "513",
+    "512",
+    "511",
+    "510",
+    "509",
+    "508",
+    "507",
+    "506",
+    "505",
+    "504",
+    "503",
+    "502",
+    "501",
+    "101",
+    "102",
+    "103",
+    "531"
+  ],
+  "contains_103": true,
+  "contains_530": false,
+  "contains_531": true,
+  "cropFields": {
+    "cropX": "0",
+    "cropY": "0",
+    "cropWidth": "1600",
+    "cropHeight": "1067",
+    "imageGalleryPicId": "504"
+  },
+  "errors": [
+    "Applying inline style violates the following Content Security Policy directive 'style-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-sHWBVxrleOiO/CvNi8MbDTn7amOI6xeHmn6lM24vcxU='), or a nonce ('nonce-...') is required to enable inline execution. Note that hashes do not apply to event handlers, style attributes and javascript: navigations unless the 'unsafe-hashes' keyword is present. The action has been blocked.",
+    "404 http://127.0.0.1:5198/ugc/news/sample-crest.jpg",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}
