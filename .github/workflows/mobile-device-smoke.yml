@@ -288,6 +288,20 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Package Android evidence for PR gate
+        if: success() && github.event.inputs.suite == 'proof'
+        working-directory: .
+        run: python3 scripts/ui_proof_bundle.py android
+
+      - name: Upload validated Android evidence
+        if: success() && github.event.inputs.suite == 'proof'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-proof-android-${{ github.run_id }}
+          path: artifacts/ui-proof/android/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload Android proof
         if: always() && github.event.inputs.suite == 'proof'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -468,6 +482,20 @@ jobs:
             --app "$APP" \
             $PROVE \
             $EXTRA
+
+      - name: Package iOS evidence for PR gate
+        if: success() && github.event.inputs.suite == 'proof'
+        working-directory: .
+        run: python3 scripts/ui_proof_bundle.py ios
+
+      - name: Upload validated iOS evidence
+        if: success() && github.event.inputs.suite == 'proof'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-proof-ios-${{ github.run_id }}
+          path: artifacts/ui-proof/ios/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload iOS proof
         if: always() && github.event.inputs.suite == 'proof'
@@ -710,6 +738,20 @@ jobs:
             src/QueenZone.Mobile/maestro-results-transport-first/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Package hosted Android evidence for PR gate
+        if: success() && github.event.inputs.suite == 'proof'
+        working-directory: .
+        run: python3 scripts/ui_proof_bundle.py android
+
+      - name: Upload validated hosted Android evidence
+        if: success() && github.event.inputs.suite == 'proof'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-proof-android-hosted-${{ github.run_id }}
+          path: artifacts/ui-proof/android/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload hosted Android proof
         if: always() && github.event.inputs.suite == 'proof'

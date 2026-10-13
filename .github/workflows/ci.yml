@@ -1055,7 +1055,8 @@ jobs:
           path: smoke-app.log
           retention-days: 1
 
-  e2e-test:
+  web-browser-tests:
+    name: Web browser tests
     # Runs on whichever self-hosted runner with the `e2e` label is online and
     # idle (currently a Windows box and a Mac — see repo Settings > Actions >
     # Runners), instead of a GitHub-hosted runner, so it does not consume
@@ -1080,6 +1081,9 @@ jobs:
     needs: [changes, build]
     if: needs.changes.outputs.code == 'true'
     timeout-minutes: 15
+    env:
+      E2E_CAPTURE_PROOF: 'true'
+      UI_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       # If a previous run's stop logic failed to terminate the real
@@ -1127,6 +1131,22 @@ jobs:
         shell: pwsh
         run: ./scripts/Run-E2E.ps1 -Mode Deterministic
 
+      - name: Package passing web proof (Windows)
+        if: runner.os == 'Windows'
+        run: python scripts/ui_proof_bundle.py web
+
+      - name: Package passing web proof (macOS)
+        if: runner.os == 'macOS'
+        run: python3 scripts/ui_proof_bundle.py web
+
+      - name: Upload passing web proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-proof-web-${{ github.run_id }}
+          path: artifacts/ui-proof/web/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1138,3 +1158,26 @@ jobs:
             e2e-app.err.log
           if-no-files-found: ignore
           retention-days: 1
+
+  # Keep the existing required context. Missing UI evidence now blocks the same
+  # e2e-test check on PRs and merge groups; no branch-protection migration needed.
+  e2e-test:
+    needs: [web-browser-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require uploaded UI proof
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PRODUCER_RESULT: ${{ needs.web-browser-tests.result }}
+        with:
+          script: |
+            const { pathToFileURL } = require('node:url');
+            const { checkEvidenceGate } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/ui-proof-gate.mjs`).href);
+            await checkEvidenceGate({ github, context, core, root: process.env.GITHUB_WORKSPACE, producerResult: process.env.PRODUCER_RESULT });

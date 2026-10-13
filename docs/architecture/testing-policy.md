@@ -286,6 +286,8 @@ These checks may live as test projects, import-tool reports, or validation scrip
 
 ### End-To-End Tests
 
+UI PR evidence is enforced by the existing required `e2e-test` job after browser tests. Uploaded screenshots and passing reports must match the current PR head and declared features; only an explicit label-plus-reason waiver permits missing proof. See [the UI proof contract](ui-proof.md) for automatic uploads, PR links, native evidence and merge-queue checks.
+
 Use Playwright for a small browser-level smoke suite once the UI has stable pages.
 
 The suite lives in `tests/QueenZone.Web.E2E` (not part of `QueenZone.sln`, so default `dotnet test QueenZone.sln` stays DB-free and server-free).

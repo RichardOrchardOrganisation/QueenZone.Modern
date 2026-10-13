@@ -1,26 +1,42 @@
 name: PR verification check
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+  workflow_run:
+    workflows: [CI, Mobile device smoke]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number whose evidence should be refreshed
+        required: true
+        type: number
 
 permissions:
-  pull-requests: write
   contents: read
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: ui-proof-refresh-${{ github.event.pull_request.number || github.event.workflow_run.head_sha || inputs.pr }}
+  cancel-in-progress: false
 
 jobs:
-  check-verification:
+  refresh-proof:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      # This privileged consumer runs only default-branch code. Never checkout
+      # the PR head or execute scripts from a downloaded evidence archive.
+      - name: Checkout trusted policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check Verification section
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Link uploaded evidence and refresh required gate
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const { pathToFileURL } = require('node:url');
-            const path = require('node:path');
-            const href = pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, 'scripts/check-pr-verification.mjs')).href;
-            const { checkPullRequestVerification } = await import(href);
-            await checkPullRequestVerification({ github, context, core });
+            const { refreshUiProof } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/refresh-ui-proof.mjs`).href);
+            await refreshUiProof({ github, context, core, root: process.env.GITHUB_WORKSPACE });

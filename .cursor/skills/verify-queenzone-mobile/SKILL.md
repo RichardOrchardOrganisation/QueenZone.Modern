@@ -147,3 +147,7 @@ pwsh -File .cursor/skills/verify-queenzone-mobile/scripts/control-queenzone-mobi
 `launch` imports the Six Labors licence via `scripts/Import-SixLaborsLicense.ps1` when `SIXLABORS_LICENSE_KEY` is unset.
 
 The repo's existing device-smoke entry point remains `scripts/run-mobile-device-smoke.sh`. Use it when you need a rebuild and reinstall. Use this helper when the host should stay up across a single mapped flow.
+
+## Uploaded PR proof
+
+Local files do not satisfy the required evidence gate. For each changed feature, dispatch `mobile-device-smoke.yml` at the current PR branch with `suite: proof`, its feature ID, and `platform: both`. Android and iOS jobs upload validated screenshots and test reports; a trusted workflow posts PR links and refreshes the gate. New commits need new proof. Missing proof requires an explicit maintainer waiver, not a `Not verified:` line. See [the UI proof contract](../../../../docs/architecture/ui-proof.md).

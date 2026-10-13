@@ -95,10 +95,19 @@ Before merging to `main`, open a pull request and fill in `.github/pull_request_
 - Tests run.
 - Whether real legacy database checks were run.
 - Any skipped checks or known follow-up work.
-- A `## Verification` section when the PR changes mobile screens/navigation/UI or web Pages/Views/wwwroot: feature-map ids, the `capture-proof` command, platform, result, and proof links (or `Not verified:` naming the remaining check). Cloud agents cannot run the Android emulator; write `NOT RUN` and dispatch `mobile-device-smoke.yml` with `suite: proof`. Opt out only with the `no-ui-verification` label plus `Verification-skip-reason:`. Expo web is not mobile proof.
+- A `## Verification` section when the PR changes mobile screens/navigation/UI or web Pages/Views/wwwroot: feature-map ids, the `capture-proof` command, platform, result, and uploaded proof links. `Not verified:` discloses a gap but does not satisfy the gate. Cloud agents cannot run the Android emulator; write `NOT RUN` and dispatch `mobile-device-smoke.yml` with `suite: proof`. Opt out only with the `no-ui-verification` label plus `Verification-skip-reason:`. Expo web is not mobile proof.
 - An Issue line as plain text (never inside backticks or a code block): Closes #N, Fixes #N, Resolves #N, Part of #N, or Relates to #N. Always include it. N must be an issue, not a pull request.
 
 For multi-session work, use `docs/agent-handoff-cheatsheet.md`.
+
+### Uploaded UI proof is required
+
+The required `e2e-test` check validates uploaded proof for UI PRs and checks it again in the merge queue. See [UI proof contract](docs/architecture/ui-proof.md).
+
+- Declare affected feature-map IDs in `## Verification`. Web CI captures passing browser states and uploads screenshot/test bundles automatically. Native mobile changes need Android and iOS proof from `mobile-device-smoke.yml`, dispatched at the current PR branch with `suite: proof`, the feature ID, and `platform: both`.
+- A trusted workflow posts artifact links to the PR and refreshes the evidence check after device runs or description/waiver edits. New commits require new evidence. Expired, failed, skipped, empty, wrong-feature, and old-commit evidence does not count. Local paths, arbitrary URLs, and `Not verified:` do not satisfy the gate.
+- If proof cannot be supplied, obtain an explicit maintainer waiver: apply `no-ui-verification` and add a visible, non-empty `Verification-skip-reason:` line. Do not add a waiver merely to make CI green. Waivers do not bypass failing browser tests or other required checks.
+- Inspect the uploaded screenshots and record relevant actions and observed results. Passing tests and screenshot capture do not establish visual correctness. Documentation and backend-only changes do not need screenshots.
 
 ### Merge queue on `main`
 
