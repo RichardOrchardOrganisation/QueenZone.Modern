@@ -91,6 +91,7 @@ public sealed class ApplyStreamingLinksCommandTests
         Assert.Equal(0, exit);
         Assert.Contains("Inserted: 0", output, StringComparison.Ordinal);
         Assert.Contains("Unchanged: 2", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Public discography pages", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -104,6 +105,7 @@ public sealed class ApplyStreamingLinksCommandTests
 
         var (_, output) = await RunAsync(admin, csv, "--apply");
         Assert.Contains("Skipped (manual link kept): 1", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Public discography pages", output, StringComparison.Ordinal);
         Assert.Contains("pass --overwrite-manual to replace", output, StringComparison.Ordinal);
         Assert.Equal("https://open.spotify.com/album/0SampleNightAtTheOpera", Spotify(await admin.GetAlbumAsync(4)).Url);
 
@@ -229,6 +231,109 @@ public sealed class ApplyStreamingLinksCommandTests
 
         Assert.Empty(errors);
         Assert.Equal(6001, Assert.Single(rows).AlbumSongId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Album_and_song_imports_preserve_output_order_and_write_metadata(bool apply)
+    {
+        var (admin, _) = Repository();
+        var csv = Csv(
+            $"6,6001,We Will Rock You,spotify,{SpotifyTrack},x,100,,,yes",
+            $"6,,News of the World,spotify,{SpotifyAlbum},x,100,,,yes");
+
+        var (exit, output) = await RunAsync(admin, csv, apply ? ["--apply"] : []);
+
+        Assert.Equal(0, exit);
+        Assert.Equal(string.Join(Environment.NewLine,
+        [
+            $"insert  album 6 song 6001 spotify: {SpotifyTrack}",
+            $"insert  album 6 spotify: {SpotifyAlbum}",
+            "",
+            "Approved rows: 2 (not approved: 0)",
+            $"{(apply ? "Inserted" : "Would insert")}: 2",
+            $"{(apply ? "Updated" : "Would update")}: 0",
+            "Unchanged: 0",
+            "Skipped (manual link kept): 0",
+            apply
+                ? "Public discography pages pick these up when their cache expires (up to 30 minutes)."
+                : "Dry run only. Re-run with --apply to write these changes.",
+            "",
+        ]), output);
+
+        var album = (await admin.GetAlbumAsync(6))!;
+        var song = album.Songs.Single(item => item.SongId == 6001);
+        if (apply)
+        {
+            var albumLink = Assert.Single(album.StreamingLinks);
+            var songLink = Assert.Single(song.StreamingLinks);
+            Assert.Equal(SpotifyAlbum, albumLink.Url);
+            Assert.Equal(SpotifyTrack, songLink.Url);
+            Assert.All(new[] { albumLink, songLink }, link =>
+            {
+                Assert.Equal(StreamingLinkSource.Imported, link.Source);
+                Assert.Equal(ApplyStreamingLinksCommand.UpdatedBy, link.UpdatedBy);
+            });
+        }
+        else
+        {
+            Assert.Empty(album.StreamingLinks);
+            Assert.Empty(song.StreamingLinks);
+        }
+    }
+
+    [Theory]
+    [InlineData("", "album", SpotifyAlbum)]
+    [InlineData("6001", "track", SpotifyTrack)]
+    public void Duplicate_approved_links_keep_the_first_row_and_report_every_later_row(string songId, string target, string url)
+    {
+        using var reader = new StringReader(Csv(
+            $"6,{songId},First,spotify,{url},x,100,,,yes",
+            $"6,{songId},Second,spotify,{url}?si=second,x,100,,,yes",
+            $"6,{songId},Third,spotify,{url}?si=third,x,100,,,yes"));
+
+        var (rows, notApproved, errors) = ApplyStreamingLinksCommand.ReadApproved(reader);
+
+        var row = Assert.Single(rows);
+        Assert.Equal(2, row.RowNumber);
+        Assert.Equal(url, row.Link.Url);
+        Assert.Equal(0, notApproved);
+        Assert.Equal(
+        [
+            $"Row 3: approves a second spotify link for the same {target} as row 2.",
+            $"Row 4: approves a second spotify link for the same {target} as row 2.",
+        ], errors);
+    }
+
+    [Fact]
+    public void Blank_short_unapproved_and_invalid_rows_do_not_reserve_a_slot()
+    {
+        using var reader = new StringReader(Csv(
+            ",, ,,,,,,,",
+            "6",
+            $"6,,Unapproved,spotify,{SpotifyAlbum},x,100,,,no",
+            "6,,Invalid,spotify,,,,,,yes",
+            $"6,,Approved,spotify,{SpotifyAlbum},x,100,,, yes ",
+            $"6,6001,Track,spotify,{SpotifyTrack},x,100,,,yes"));
+
+        var (rows, notApproved, errors) = ApplyStreamingLinksCommand.ReadApproved(reader);
+
+        Assert.Equal(2, notApproved);
+        Assert.Equal("Row 5: approved but has no candidateUrl.", Assert.Single(errors));
+        Assert.Collection(rows,
+            row =>
+            {
+                Assert.Equal(6, row.RowNumber);
+                Assert.Null(row.AlbumSongId);
+                Assert.Equal(SpotifyAlbum, row.Link.Url);
+            },
+            row =>
+            {
+                Assert.Equal(7, row.RowNumber);
+                Assert.Equal(6001, row.AlbumSongId);
+                Assert.Equal(SpotifyTrack, row.Link.Url);
+            });
     }
 
     private static AdminStreamingLink Spotify(AdminAlbum? album) =>
