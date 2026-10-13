@@ -13,6 +13,7 @@ import { pathToFileURL } from 'node:url';
 export const DEV_PUBLIC_URL = 'https://dev.queenzone.org';
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
+const BUILD_STAMP = /data-build-version="([^"]+)"/i;
 
 export function buildGateProof({ testedSha, fullSuite }) {
   const sha = String(testedSha || '').trim().toLowerCase();
@@ -26,7 +27,7 @@ export function buildGateProof({ testedSha, fullSuite }) {
 }
 
 export function extractBuildStamp(html) {
-  const match = String(html || '').match(/data-build-version="([^"]+)"/i);
+  const match = BUILD_STAMP.exec(String(html || ''));
   return match ? match[1].trim() : '';
 }
 
@@ -108,8 +109,10 @@ export async function writeGateProofFromArgs(argv, env = process.env, fetchImpl 
 
 const invokedDirectly = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
 if (invokedDirectly) {
-  writeGateProofFromArgs(process.argv.slice(2)).catch((error) => {
+  try {
+    await writeGateProofFromArgs(process.argv.slice(2));
+  } catch (error) {
     console.error(error.message || error);
     process.exitCode = 1;
-  });
+  }
 }

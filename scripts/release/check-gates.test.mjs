@@ -421,6 +421,8 @@ test('DEV e2e workflows keep their crons and trigger after a successful deploy-d
     assert.match(workflow, / {2}gate-proof:/);
     assert.match(workflow, /write-gate-proof\.mjs --dev/);
     assert.match(workflow, /name: gate-proof/);
+    assert.doesNotMatch(workflow.split('jobs:')[0], /id-token:\s*write/);
+    assert.match(workflow, /permissions:\r?\n\s+contents: read\r?\n\s+id-token: write/);
   }
 });
 

@@ -39,7 +39,7 @@ const FULL_SHA = /^[0-9a-f]{40}$/;
 const SHA_PREFIX = /^[0-9a-f]{7,40}$/;
 
 export function isVersionTagRef(ref) {
-  return /^refs\/tags\/v/.test(String(ref || ''));
+  return String(ref || '').startsWith('refs/tags/v');
 }
 
 export function normalizeSha(sha) {
@@ -90,13 +90,13 @@ export function parseGateProof(text) {
     throw new Error('gate-proof.tested_sha must be a 40-character commit SHA.');
   }
   if (typeof proof.full_suite !== 'boolean') {
-    throw new Error('gate-proof.full_suite must be a boolean.');
+    throw new TypeError('gate-proof.full_suite must be a boolean.');
   }
   return { tested_sha: testedSha, full_suite: proof.full_suite };
 }
 
 export function findNamedJob(jobs, jobName = GATE_JOB_NAME) {
-  return (jobs || []).find((job) => job && job.name === jobName) || null;
+  return jobs?.find((job) => job?.name === jobName) ?? null;
 }
 
 export function formatDispatchCommands(gates = GATES) {
@@ -402,13 +402,10 @@ export async function checkGates(input, github) {
     maxAgeHours: parseMaxAgeHours(input.maxAgeHours),
     now: input.now || (() => Date.now()),
   };
-  const errors = [];
-  for (const gate of GATES) {
-    const verdict = await evaluateGate(gate, sha, context, github);
-    if (!verdict.ok) {
-      errors.push(verdict.error);
-    }
-  }
+  const verdicts = await Promise.all(
+    GATES.map((gate) => evaluateGate(gate, sha, context, github)),
+  );
+  const errors = verdicts.filter((verdict) => !verdict.ok).map((verdict) => verdict.error);
   if (errors.length) {
     throw new Error(formatFailure(errors));
   }
@@ -487,8 +484,10 @@ export async function main(argv = process.argv.slice(2), env = process.env, fetc
 
 const invokedDirectly = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
 if (invokedDirectly) {
-  main().catch((error) => {
+  try {
+    await main();
+  } catch (error) {
     console.error(error.message || error);
     process.exitCode = 1;
-  });
+  }
 }

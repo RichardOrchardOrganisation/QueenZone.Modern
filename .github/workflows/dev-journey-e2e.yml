@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: dev-journey-e2e
@@ -31,6 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: dev-deploy
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       ready: ${{ steps.snapshot.outputs.ready }}
     steps:
