@@ -286,6 +286,8 @@ These checks may live as test projects, import-tool reports, or validation scrip
 
 ### End-To-End Tests
 
+UI PR evidence is enforced by the existing required `e2e-test` job after browser tests. Uploaded screenshots and passing reports must match the current PR head and declared features; only an explicit label-plus-reason waiver permits missing proof. See [the UI proof contract](ui-proof.md) for automatic uploads, PR links, native evidence and merge-queue checks.
+
 Use Playwright for a small browser-level smoke suite once the UI has stable pages.
 
 For agent-driven feature verification, use `pwsh -File scripts/Verify-Web.ps1 -Feature <web-feature-id>` on Windows. Add `-KeepRunning` for subsequent interactive inspection. This runs all mapped deterministic fixtures against an isolated Testing host and produces separate screenshot, behavioural-test, and visual-inspection statuses; zero tests or skips cannot pass. The [shared guide](../../.cursor/skills/verify-queenzone/SKILL.md) applies to all agents and describes browser-tool selection and evidence. `scripts/Run-E2E.ps1` remains the entry point for the full suite and its Deterministic, RealData, LiveSite and DevJourney modes.

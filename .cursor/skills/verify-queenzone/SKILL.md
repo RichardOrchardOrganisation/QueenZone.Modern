@@ -89,6 +89,10 @@ Seeded Testing titles that must stay stable:
 
 Admin on this host uses test header `X-Test-User-Email: admin@test.local` (see `appsettings.Testing.json`). That is not a visitor path; do not use it for public-feature proof.
 
+## Uploaded evidence gate
+
+Local captures support diagnosis, but do not satisfy the PR gate. Declare feature IDs; CI uploads passing web screenshots/test reports and posts artifact links automatically. Inspect the uploaded evidence. Missing proof blocks `e2e-test` unless explicitly waived with the label and visible reason in the [UI proof contract](../../../../docs/architecture/ui-proof.md). `Not verified:` alone does not pass.
+
 ## Capture proof
 
 UI PRs need a `## Verification` section. After `launch`, capture proof from the map id:

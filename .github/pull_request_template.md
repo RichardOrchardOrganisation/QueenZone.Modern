@@ -31,17 +31,19 @@
 ## Verification
 
 <!-- Required for PRs that change mobile screens/navigation/UI or web Pages/Views/wwwroot.
-Use a docs/feature-map id. Attach or link proof under artifacts/proof/<id>/<platform>/<timestamp>/
-or a mobile-device-smoke suite=proof run. If a device is missing, write NOT RUN and name the check. -->
+Declare affected docs/feature-map IDs. CI uploads web proof and a bot posts artifact links.
+For mobile, dispatch mobile-device-smoke suite=proof at this branch for each feature, platform=both.
+Evidence must match the current commit. Local paths and Not verified do not pass the gate.
+Missing evidence requires an explicit maintainer waiver: label plus visible reason below. -->
 
 - Feature ids:
 - Command:
 - Platform(s):
 - Result:
-- Proof:
+- Proof: <!-- See the bot's Uploaded UI verification comment or paste its artifact links. -->
 - Not verified:
 
-<!-- Opt out of the UI check with the `no-ui-verification` label AND a reason: -->
+<!-- Explicit maintainer waiver only: no-ui-verification label AND a visible, non-empty reason. -->
 <!-- Verification-skip-reason: -->
 
 ## Review findings

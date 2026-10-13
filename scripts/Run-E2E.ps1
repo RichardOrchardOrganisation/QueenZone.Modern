@@ -583,6 +583,19 @@ if ($startsApp) {
     Invoke-DotNet -Arguments $publishArgs
 }
 
+if ($env:E2E_CAPTURE_PROOF -eq "true") {
+    $proofRoot = Join-Path $repoRoot "test-results/e2e/passed-proof"
+    if (Test-Path $proofRoot) {
+        # Fixed repository-local target; never use an ambient artifact directory for deletion.
+        $resolvedProofRoot = (Resolve-Path $proofRoot).Path
+        if (-not $resolvedProofRoot.StartsWith($repoRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Proof cleanup escaped the checkout."
+        }
+        Remove-Item -LiteralPath $resolvedProofRoot -Recurse -Force
+    }
+    Get-ChildItem (Join-Path $repoRoot "test-results/local-trx/e2e") -Filter *.trx -ErrorAction SilentlyContinue | Remove-Item -Force
+}
+
 # --- Start / wait / test / stop ------------------------------------------------
 
 $testExitCode = 0

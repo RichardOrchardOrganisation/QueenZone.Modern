@@ -65,3 +65,7 @@ crash.*.log
 # Agent verification proof (#1799). Capture-proof writes here; do not commit.
 artifacts/proof/
 .standards-test-tmp/
+
+# Generated uploaded UI evidence and Python test caches
+artifacts/ui-proof/
+scripts/__pycache__/
