@@ -120,7 +120,8 @@ wait_until_quiet() {
 }
 
 iso_from_unix() {
-  jq -nr --argjson t "$1" '$t | strftime("%Y-%m-%dT%H:%M:%SZ")'
+  local timestamp="$1"
+  jq -nr --argjson t "${timestamp}" '$t | strftime("%Y-%m-%dT%H:%M:%SZ")'
 }
 
 assert_eq() {

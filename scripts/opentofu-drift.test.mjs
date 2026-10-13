@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -49,4 +51,35 @@ test('container publicAccess drift fails the job instead of only opening a plan-
   assert.match(accessStep, /if: steps\.plan\.outputs\.exit_code == '2'/);
   assert.doesNotMatch(accessStep, /continue-on-error:\s*true/);
   assert.match(workflow, /Open or update the drift-check failure issue[\s\S]*if: failure\(\)/);
+});
+
+test('container access reads body before output and falls back only when the field is absent', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'container-drift-'));
+  const planPath = path.join(directory, 'plan.json');
+  const access = (value) => ({ properties: { publicAccess: value } });
+  const cases = [
+    [{ body: access('Blob'), output: access('None') }, 'Blob'],
+    [{ body: JSON.stringify(access('Blob')) }, 'Blob'],
+    [{ output: JSON.stringify(access('Blob')) }, 'Blob'],
+    ...[null, '', '  ', { other: true }, { properties: null }, { properties: { other: true } }]
+      .map((body) => [{ body, output: access('Blob') }, 'Blob']),
+    [{ body: access(null), output: access('Blob') }, ''],
+    [{ body: access(''), output: access('Blob') }, ''],
+    [null, null], [{ output: null }, null],
+  ];
+  try {
+    for (const [before, expected] of cases) {
+      writeFileSync(planPath, JSON.stringify({ resource_changes: [{
+        address: 'azapi_resource.builds_container', type: 'azapi_resource',
+        change: { actions: ['update'], before, after: expected === null ? null : { body: access(expected) } },
+      }] }));
+      const result = spawnSync('pwsh', ['-NoProfile', '-File',
+        path.join(repoRoot, 'scripts/Test-OpenTofuContainerPublicAccessDrift.ps1'), '-PlanJsonPath', planPath],
+      { encoding: 'utf8' });
+      assert.equal(result.status, 0, `${JSON.stringify(before)}: ${result.error || result.stderr}`);
+      assert.match(result.stdout, /No blob container publicAccess drift/);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

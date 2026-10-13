@@ -14,6 +14,8 @@ import {
   formatAppCrashReport,
   formatAppCrashSummary,
   isOurCrashingProcess,
+  isCrashReportLine,
+  MAX_FRAMES,
   mentionsOurPackage,
   parsePackageCrash,
   readOptional,
@@ -166,5 +168,53 @@ test('journeys and smoke jobs report APP_CRASH separately and never retry it', (
     const crashMarker = block.indexOf('android-app-crash');
     assert.ok(crashMarker !== -1, 'classify step must inspect the crash marker');
     assert.ok(crashMarker < retryTrue, 'APP_CRASH must be checked before enabling a transport retry');
+  }
+});
+
+test('threadtime parsing preserves whitespace-only tags and rejects missing delimiters', () => {
+  const prefix = '10-05 23:10:02.407  5154  5154 F';
+  for (const tag of [' libc', '  ', '\t\t', ' '.repeat(20000)]) {
+    assert.equal(stripLogcatPrefix(`${prefix}${tag}: message`), 'message');
+  }
+  for (const suffix of [' : message', ' tag without colon', ` ${' '.repeat(20000)}`]) {
+    const line = prefix + suffix;
+    assert.equal(stripLogcatPrefix(line), line);
+  }
+});
+
+test('crash line alternatives preserve prefixes, case and register boundaries', () => {
+  for (const line of [
+    '', ' \t', 'Fatal signal 11', '*** *** ***', 'crash_dump64', 'Tombstone written to: /tmp/a',
+    'Abort message:', 'Cause:', 'Cmdline:', 'Build fingerprint:', 'Revision:', 'ABI:', 'Timestamp:',
+    'Process uptime:', 'pid:', 'tid:', 'uid:', 'signal 11', '12 total frames', 'backtrace:',
+    'arbitrary tombstoned suffix', '  #00 pc 1234',
+  ]) {
+    assert.equal(isCrashReportLine(line.toUpperCase()), true, line);
+  }
+  for (const register of [
+    'rax', 'rbx', 'rcx', 'rdx', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15',
+    'rdi', 'rsi', 'rbp', 'rsp', 'rip', 'eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp', 'eip',
+    'x0', 'x123', 'lr', 'pc', 'sp', 'fp',
+  ]) {
+    assert.equal(isCrashReportLine(`  ${register} 1234`), true, register);
+    assert.equal(isCrashReportLine(`  ${register}_extra 1234`), false, register);
+    assert.equal(isCrashReportLine(`${register} 1234`), false, register);
+  }
+  for (const line of [' Fatal signal 11', 'Fatal signals', 'signal nope', ' #00 pcs', 'ordinary log']) {
+    assert.equal(isCrashReportLine(line), false, line);
+  }
+});
+
+test('frames keep their order across the backtrace header and stop at blanks only inside it', () => {
+  const report = [
+    'Fatal signal 11 (SIGSEGV), pid 1 (ueenzone.mobile)',
+    ' #00 pc 111 before', '', 'backtrace:', 'Cause: detail', ' #01 pc 222 after', '', ' #02 pc 333 ignored',
+  ].join('\n');
+  assert.deepEqual(parsePackageCrash(report).frames, ['#00 pc 111 before', '#01 pc 222 after']);
+  for (const header of ['', 'backtrace:\n']) {
+    const frames = Array.from({ length: MAX_FRAMES + 1 }, (_, i) => ` #${i} pc 123 frame`);
+    const parsed = parsePackageCrash(`Fatal signal 11 (SIGSEGV), pid 1 (ueenzone.mobile)\n${header}${frames.join('\n')}`);
+    assert.deepEqual(parsed.frames, frames.slice(0, MAX_FRAMES).map((line) => line.trim()));
+    assert.equal(parsed.faultCode, null);
   }
 });

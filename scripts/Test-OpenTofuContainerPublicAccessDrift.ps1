@@ -47,6 +47,25 @@ function ConvertTo-AzApiBodyObject {
     return $Body
 }
 
+function Get-AzApiBodyPublicAccess {
+    param($Body)
+
+    $bodyObject = ConvertTo-AzApiBodyObject -Body $Body
+    if ($null -eq $bodyObject) {
+        return $null
+    }
+
+    $bodyProperties = $bodyObject.PSObject.Properties.Name
+    if ($bodyProperties -contains "properties" -and $null -ne $bodyObject.properties) {
+        $accessProperties = $bodyObject.properties.PSObject.Properties.Name
+        if ($accessProperties -contains "publicAccess") {
+            return [string]$bodyObject.properties.publicAccess
+        }
+    }
+
+    return $null
+}
+
 function Get-AzApiPublicAccess {
     param($ChangeSide)
 
@@ -55,28 +74,11 @@ function Get-AzApiPublicAccess {
     }
 
     $properties = $ChangeSide.PSObject.Properties.Name
-    if ($properties -contains "body") {
-        $body = ConvertTo-AzApiBodyObject -Body $ChangeSide.body
-        if ($null -ne $body) {
-            $bodyProperties = $body.PSObject.Properties.Name
-            if ($bodyProperties -contains "properties" -and $null -ne $body.properties) {
-                $accessProperties = $body.properties.PSObject.Properties.Name
-                if ($accessProperties -contains "publicAccess") {
-                    return [string]$body.properties.publicAccess
-                }
-            }
-        }
-    }
-
-    if ($properties -contains "output" -and $null -ne $ChangeSide.output) {
-        $output = ConvertTo-AzApiBodyObject -Body $ChangeSide.output
-        if ($null -ne $output) {
-            $outputProperties = $output.PSObject.Properties.Name
-            if ($outputProperties -contains "properties" -and $null -ne $output.properties) {
-                $accessProperties = $output.properties.PSObject.Properties.Name
-                if ($accessProperties -contains "publicAccess") {
-                    return [string]$output.properties.publicAccess
-                }
+    foreach ($field in @("body", "output")) {
+        if ($properties -contains $field) {
+            $access = Get-AzApiBodyPublicAccess -Body $ChangeSide.$field
+            if ($null -ne $access) {
+                return $access
             }
         }
     }

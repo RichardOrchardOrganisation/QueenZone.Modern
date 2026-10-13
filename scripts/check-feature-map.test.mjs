@@ -373,3 +373,11 @@ test('main --resolve prints a real repo entry', () => {
   assert.match(lines.join('\n'), /ZoomableArchiveImage\.tsx/);
   assert.match(lines.join('\n'), /05-photography\.yaml/);
 });
+
+test('web-only field validation rejects present fields even when empty or null', () => {
+  const root = fixtureRoot();
+  changeWebHome(root, { testIds: null, flows: undefined });
+  const { errors } = checkFeatureMap({ root, write: true });
+  assert.ok(errors.includes('web.home.index: testIds is mobile-only; web entries use selectors and specs.'));
+  assert.ok(!errors.includes('web.home.index: flows is mobile-only; web entries use selectors and specs.'));
+});
