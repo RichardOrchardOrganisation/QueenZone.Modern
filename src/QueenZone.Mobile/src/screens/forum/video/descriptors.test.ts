@@ -36,6 +36,13 @@ describe('additive forum video descriptors', () => {
     for (const url of [`https://youtube.com/watch?v=${id}`, `http://www.youtube.com/shorts/${id}`, `https://m.youtube.com/embed/${id}`, `https://www.youtu.be/${id}`]) assert.equal(projectVideos(`<p>Prose<br>${link(url)}<br>After</p>`, [video()]).cards.length, 1);
     for (const url of [`https://youtube.com.evil/watch?v=${id}`, `https://a@youtube.com/watch?v=${id}`, `https://youtube.com:444/watch?v=${id}`, `https://youtube.com/watch?v=${id}&v=${id}`, `https://youtu.be/${id}?v=${id}`, `//youtu.be/${id}`, `https://youtu.be/%4D7lc1UVf-VE`, `https://youtube.com/a/../watch?v=${id}`, `javascript:${id}`]) assert.equal(projectVideos(`<p>${link(url)}</p>`, [video()]).cards.length, 0);
   });
+  it('treats whitespace-only text as invisible but visible text as prose (Sonar S2681, #2260)', () => {
+    assert.equal(projectVideos(`<p>  ${link()}\n  </p>`, [video()]).cards.length, 1);
+    assert.equal(projectVideos(`<p> <strong> ${link()} </strong> </p>`, [video()]).cards.length, 1);
+    assert.equal(projectVideos(`<p>x ${link()}</p>`, [video()]).cards.length, 0);
+    assert.equal(projectVideos(`<p>${link()} y</p>`, [video()]).cards.length, 0);
+    assert.equal(projectVideos(`<p>${link()}<br> after</p>`, [video()]).cards.length, 1);
+  });
   it('ignores malformed and excessive starts just like the server', () => {
     for (const t of ['bad', '86401', '1m2h', '']) assert.equal(projectVideos(`<p>${link(`https://youtu.be/${id}?t=${t}`)}</p>`, [video()]).cards.length, 1);
     assert.equal(projectVideos(`<p>${link(`https://youtu.be/${id}?START=1h2m3s`)}</p>`, [video(0, 3723)]).cards.length, 1);

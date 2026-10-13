@@ -76,7 +76,14 @@ function eligibleAnchors(nodes: AnyNode[], eligible: Set<Element>): void {
     line = [];
   }
   function visit(node: AnyNode) {
-    if (isText(node)) { if (node.data.trim()) line.push(node); return; }
+    if (isText(node)) {
+      // Whitespace-only text never breaks a plain line; any visible text does.
+      // Text nodes always stop here (they have no children to visit).
+      if (node.data.trim()) {
+        line.push(node);
+      }
+      return;
+    }
     if (!isTag(node)) return;
     const quote = (node.attribs.class ?? '').split(/\s+/).includes('qz-bbcode-quote');
     if (['p', 'div'].includes(node.name)) {
