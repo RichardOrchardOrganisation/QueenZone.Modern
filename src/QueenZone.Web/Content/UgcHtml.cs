@@ -186,6 +186,14 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
         return false;
     }
 
+    private static bool IsInternalHref(string href)
+    {
+        var normalized = string.Concat(href.Where(character => character > '\u001f' && character != '\u007f')).Trim();
+        return normalized.StartsWith('/')
+            && (normalized.Length == 1 || normalized[1] is not ('/' or '\\'))
+            && !normalized.Contains('\\');
+    }
+
     private static bool LooksLikeHtml(string value) => HtmlTags.Pattern().IsMatch(value);
 
     [ExcludeFromCodeCoverage(Justification = "HtmlSanitizer wiring; covered via Sanitize tests.")]
@@ -224,13 +232,22 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
                 return;
             }
 
+            if (element.LocalName is "code" or "pre")
+            {
+                foreach (var attribute in element.Attributes.ToArray())
+                {
+                    element.RemoveAttribute(attribute.Name);
+                }
+                return;
+            }
+
             RestrictClasses(element);
 
             if (string.Equals(element.TagName, "A", StringComparison.OrdinalIgnoreCase)
                 && element.HasAttribute("href")
                 && !(forDisplay && LegacyQueenZoneLinks.TryRewriteAnchor(element))
                 && element.GetAttribute("href") is { } href
-                && !(href.StartsWith('/') && !href.StartsWith("//", StringComparison.Ordinal) && !href.Contains('\\')))
+                && !IsInternalHref(href))
             {
                 element.SetAttribute("rel", forDisplay ? "noopener noreferrer nofollow ugc" : "noopener noreferrer");
                 element.SetAttribute("target", "_blank");
@@ -349,7 +366,7 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
         var anchor = owner.CreateElement("a");
         anchor.SetAttribute("href", fullHref);
         anchor.SetAttribute("target", "_blank");
-        anchor.SetAttribute("rel", "noopener noreferrer");
+        anchor.SetAttribute("rel", "noopener noreferrer nofollow ugc");
         anchor.SetAttribute("class", "qz-ugc-img-link");
 
         img.ReplaceWith(anchor);
