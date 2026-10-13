@@ -288,6 +288,8 @@ These checks may live as test projects, import-tool reports, or validation scrip
 
 Use Playwright for a small browser-level smoke suite once the UI has stable pages.
 
+For agent-driven feature verification, use `pwsh -File scripts/Verify-Web.ps1 -Feature <web-feature-id>` on Windows. Add `-KeepRunning` for subsequent interactive inspection. This runs all mapped deterministic fixtures against an isolated Testing host and produces separate screenshot, behavioural-test, and visual-inspection statuses; zero tests or skips cannot pass. The [shared guide](../../.cursor/skills/verify-queenzone/SKILL.md) applies to all agents and describes browser-tool selection and evidence. `scripts/Run-E2E.ps1` remains the entry point for the full suite and its Deterministic, RealData, LiveSite and DevJourney modes.
+
 The suite lives in `tests/QueenZone.Web.E2E` (not part of `QueenZone.sln`, so default `dotnet test QueenZone.sln` stays DB-free and server-free).
 
 Good targets (covered or expanding):
