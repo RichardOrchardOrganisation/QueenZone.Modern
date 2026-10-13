@@ -84,8 +84,22 @@ export function findFeatureIds(text, ids) {
   return [...ids].filter((id) => haystack.includes(id)).sort(compareText);
 }
 
+function removeDelimitedText(value, opening, closing) {
+  let text = value;
+  let start = text.indexOf(opening);
+  while (start !== -1) {
+    const end = text.indexOf(closing, start + opening.length);
+    // Preserve a boundary so removing hidden text cannot assemble a new token.
+    // An unclosed comment/fence hides the rest of the description.
+    text = text.slice(0, start) + '\n' + (end === -1 ? '' : text.slice(end + closing.length));
+    start = text.indexOf(opening);
+  }
+  return text;
+}
+
 export function visibleMarkdown(body) {
-  return String(body || '').replace(/<!--[\s\S]*?-->/g, '').replace(/```[\s\S]*?```/g, '');
+  const commentsRemoved = removeDelimitedText(String(body || ''), '<!--', '-->');
+  return removeDelimitedText(commentsRemoved, '```', '```');
 }
 
 export function verificationSkipReason(body) {

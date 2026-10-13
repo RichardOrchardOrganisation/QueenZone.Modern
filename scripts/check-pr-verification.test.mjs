@@ -1,3 +1,4 @@
+import { visibleMarkdown } from './check-pr-verification.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -223,4 +224,19 @@ test('native mobile evidence requires both platforms', () => {
   const android = { ...webEvidence, feature: 'mobile.photos.viewer', platform: 'android' };
   assert.equal(evaluatePrVerification({ ...input, evidence: [android] }).ok, false);
   assert.equal(evaluatePrVerification({ ...input, evidence: [android, { ...android, platform: 'ios' }] }).ok, true);
+});
+
+test('malformed comments and fences cannot supply an explicit waiver', () => {
+  for (const body of [
+    '<!--\nVerification-skip-reason: hidden unclosed comment',
+    '```text\nVerification-skip-reason: hidden unclosed fence',
+    '<!-- outer <!-- inner -->\n<!--\nVerification-skip-reason: hidden nested comment\n-->',
+  ]) {
+    assert.equal(evaluatePrVerification({ ...uiInput, labels: ['no-ui-verification'], body }).ok, false);
+  }
+});
+
+test('hidden-text removal cannot reconstruct a comment delimiter', () => {
+  assert.equal(visibleMarkdown('<!<!-- removed -->--'), '<!\n--');
+  assert.equal(visibleMarkdown('before<!-- hidden -->after'), 'before\nafter');
 });
