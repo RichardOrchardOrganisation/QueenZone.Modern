@@ -176,11 +176,11 @@ public class AdminTriageProofTests : AdminFeatureProofTest
 
     private async Task SaveStatusAsync(string status)
     {
-        await Page.GetByLabel("Status", new() { Exact = true }).SelectOptionAsync(status);
+        await Page.Locator("select[name='status']").SelectOptionAsync(status);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true }).ClickAsync();
         await Expect(Page.GetByRole(AriaRole.Status)).ToContainTextAsync("Marked as " + status);
         await Page.ReloadAsync();
-        await Expect(Page.GetByLabel("Status", new() { Exact = true })).ToHaveValueAsync(status);
+        await Expect(Page.Locator("select[name='status']")).ToHaveValueAsync(status);
     }
 
     private async Task<(Guid Id, string Name)> CreateAccountAsync()
