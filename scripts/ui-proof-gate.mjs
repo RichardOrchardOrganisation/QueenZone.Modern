@@ -43,6 +43,6 @@ export async function checkEvidenceGate({ github, context, core, root, producerR
     return;
   }
   for (const pull of pulls) {
-    await checkPullRequestVerification({ github, context: { ...context, payload: { pull_request: pull } }, core, root });
+    await checkPullRequestVerification({ github, context: { repo: context.repo, payload: { pull_request: pull } }, core, root });
   }
 }

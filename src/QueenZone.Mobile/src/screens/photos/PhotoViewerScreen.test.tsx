@@ -320,18 +320,24 @@ describe('PhotoViewerScreen', () => {
   });
 
   it('swipes to neighbors and toggles chrome from a tap', async () => {
-    const { navigation } = await loadPhoto();
-    panEnd(80, 0);
-    expect(navigation.setParams).not.toHaveBeenCalled();
-    await flushGallerySwipe();
-    expect(navigation.setParams).toHaveBeenCalledWith({ slug: 'brian-may', picId: 100 });
-    panEnd(-80, 0);
-    await flushGallerySwipe();
-    expect(navigation.setParams).toHaveBeenCalledWith({ slug: 'brian-may', picId: 102 });
-    act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
-    expect(screen.queryByText('Live Aid')).toBeNull();
-    act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
-    expect(screen.getByText('Live Aid')).toBeOnTheScreen();
+    await withFakeTimers(async () => {
+      const { navigation } = await loadPhoto();
+      panEnd(80, 0);
+      expect(navigation.setParams).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(0);
+      });
+      expect(navigation.setParams).toHaveBeenCalledWith({ slug: 'brian-may', picId: 100 });
+      panEnd(-80, 0);
+      await act(async () => {
+        jest.advanceTimersByTime(0);
+      });
+      expect(navigation.setParams).toHaveBeenCalledWith({ slug: 'brian-may', picId: 102 });
+      act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
+      expect(screen.queryByText('Live Aid')).toBeNull();
+      act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
+      expect(screen.getByText('Live Aid')).toBeOnTheScreen();
+    });
   });
 
   it('does not swipe from the iOS back edge or when a neighbor is missing', async () => {
