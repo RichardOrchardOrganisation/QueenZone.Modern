@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 
 namespace QueenZone.Web;
 
@@ -11,7 +12,12 @@ public static class ForumAdminAccess
     public static async Task<bool> IsAdminAsync(HttpContext httpContext, AdminOptions adminOptions)
     {
         var adminAuth = await httpContext.AuthenticateAsync(AdminAuthenticationSchemes.CompositeScheme);
-        return adminAuth.Succeeded
-            && ForumPollEndpoints.IsAdmin(adminAuth.Principal, adminOptions);
+        if (!adminAuth.Succeeded)
+        {
+            return false;
+        }
+
+        var authz = httpContext.RequestServices.GetRequiredService<IAuthorizationService>();
+        return (await authz.AuthorizeAsync(adminAuth.Principal!, AdminAuthenticationSchemes.Policy)).Succeeded;
     }
 }

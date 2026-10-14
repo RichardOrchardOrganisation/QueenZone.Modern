@@ -12,6 +12,8 @@ public sealed class TestAuthHandler(
 {
     public const string SchemeName = "Test";
     public const string UserEmailHeader = "X-Test-User-Email";
+    public const string UserTenantHeader = "X-Test-User-Tenant";
+    public const string UserOidHeader = "X-Test-User-Oid";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -26,12 +28,22 @@ public sealed class TestAuthHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(ClaimTypes.Name, email),
             new Claim(ClaimTypes.Email, email),
             new Claim("preferred_username", email)
         };
+
+        if (Request.Headers[UserTenantHeader].FirstOrDefault() is { } tenant)
+        {
+            claims.Add(new Claim("tid", tenant));
+        }
+
+        if (Request.Headers[UserOidHeader].FirstOrDefault() is { } oid)
+        {
+            claims.Add(new Claim("oid", oid));
+        }
 
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);
