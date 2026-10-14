@@ -155,7 +155,7 @@ public static class NewsArticleImageProcessor
         if (crop.Width < MinCropWidth || crop.Height < MinCropHeight)
         {
             throw new InvalidOperationException(
-                $"The selected crop is too small. Use at least {MinCropWidth}×{MinCropHeight} pixels.");
+                $"The selected crop is too small. Use at least {MinCropWidth}×{MinCropHeight} pixels. Zoom out or choose a larger photo.");
         }
 
         return new Rectangle(crop.X, crop.Y, crop.Width, crop.Height);

@@ -825,7 +825,7 @@ public sealed class AdminNewsRoutesTests :
     }
 
     [Fact]
-    public async Task GalleryPicker_includes_photos_with_unbackfilled_legacy_dimensions()
+    public async Task GalleryPicker_excludes_photos_with_unbackfilled_legacy_dimensions()
     {
         var client = CreateClient(AdminEmail);
 
@@ -833,7 +833,7 @@ public sealed class AdminNewsRoutesTests :
 
         Assert.Contains("img-101.jpg", category);
         Assert.Contains("img-102.jpg", category);
-        Assert.Contains("img-103.jpg", category);
+        Assert.DoesNotContain("img-103.jpg", category);
         Assert.DoesNotContain("No photos matched", category);
     }
 
@@ -1088,6 +1088,7 @@ public sealed class AdminNewsRoutesTests :
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("selected crop is too small", body);
+        Assert.Contains("Zoom out or choose a larger photo.", body);
         Assert.Empty(IsolatedNews.GetAllArticles());
     }
 
@@ -1302,6 +1303,7 @@ public sealed class AdminNewsRoutesTests :
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("selected crop is too small", body);
+        Assert.Contains("Zoom out or choose a larger photo.", body);
         Assert.Empty(IsolatedNews.GetAllArticles());
     }
 

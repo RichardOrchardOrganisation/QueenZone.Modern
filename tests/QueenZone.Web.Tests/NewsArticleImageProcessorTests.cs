@@ -1,3 +1,4 @@
+using QueenZone.Data;
 using QueenZone.Web;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Gif;
@@ -8,6 +9,32 @@ namespace QueenZone.Web.Tests;
 
 public sealed class NewsArticleImageProcessorTests
 {
+    [Fact]
+    public void Data_card_crop_thresholds_match_image_processor_minimums()
+    {
+        Assert.Equal(NewsArticleImageProcessor.MinCropWidth, AdminPhotoListFilter.CardCropMinWidth);
+        Assert.Equal(NewsArticleImageProcessor.MinCropHeight, AdminPhotoListFilter.CardCropMinHeight);
+    }
+
+    [Fact]
+    public void Stored_dimension_rule_matches_center_crop_minimums()
+    {
+        int[] widths = [0, 1, 266, 267, 384, 398, 399, 400, 401, 402, 600, 1200, 32000];
+        int[] heights = [0, 1, 265, 266, 267, 268, 288, 400, 600, 900, 32000];
+        foreach (var width in widths)
+        {
+            foreach (var height in heights)
+            {
+                var crop = NewsArticleImageProcessor.CenterCardCrop(width, height);
+                var usableStoredDimensions = width >= AdminPhotoListFilter.CardCropMinWidth
+                    && height >= AdminPhotoListFilter.CardCropMinHeight;
+                var usableCrop = crop.Width >= NewsArticleImageProcessor.MinCropWidth
+                    && crop.Height >= NewsArticleImageProcessor.MinCropHeight;
+                Assert.Equal(usableCrop, usableStoredDimensions);
+            }
+        }
+    }
+
     [Fact]
     public async Task ProcessAsync_center_crops_to_card_aspect_and_makes_webp_derivatives()
     {
@@ -84,7 +111,8 @@ public sealed class NewsArticleImageProcessorTests
                 600,
                 new NewsArticleImageCrop(0, 0, 300, 200)));
 
-        Assert.Contains("too small", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("selected crop is too small", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Zoom out or choose a larger photo.", ex.Message, StringComparison.Ordinal);
         Assert.Contains("400", ex.Message, StringComparison.Ordinal);
     }
 
@@ -114,6 +142,7 @@ public sealed class NewsArticleImageProcessorTests
                 new NewsArticleImageCrop(0, 0, 300, 200)));
 
         Assert.Contains("selected crop is too small", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Zoom out or choose a larger photo.", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
