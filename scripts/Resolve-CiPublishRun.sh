@@ -7,10 +7,13 @@
 # Tree-equality guard: when RELEASE_SHA is set, reuse that PR-head zip
 # only if `git rev-parse $HEAD_SHA^{tree}` equals
 # `git rev-parse $RELEASE_SHA^{tree}`. Same tree means the squash/merge
-# commit is byte-identical to the PR build (commit SHAs may differ).
+# commit has identical tracked source (embedded build stamps may differ).
 # A stale PR head (e.g. #1826's 537abc8, 10 commits behind main) has a
 # different tree than the release commit and must not be reused.
 # Fetch any missing commit from origin before rev-parse.
+# REQUIRE_EXACT_SHA=true additionally requires HEAD_SHA == RELEASE_SHA.
+# DEV uses this policy because its release proof must identify the served
+# commit, not just an equivalent source tree. A mismatch uses fresh publish.
 #
 # Why not `conclusion == success` alone?
 # Mixed web + mobile PRs keep `ci.yml` in_progress for ~10+ minutes after
@@ -192,6 +195,15 @@ resolve() {
   local head_sha="$2"
   local release_sha="${3:-}"
   local attempt runs_json run_id
+
+  if [[ "${REQUIRE_EXACT_SHA:-false}" = "true" ]] &&
+    [[ -z "${release_sha}" || "${head_sha}" != "${release_sha}" ]]; then
+    echo "Exact-commit reuse required; PR head ${head_sha} is not release ${release_sha:-missing}. Publish from checkout." >&2
+    echo "found=false"
+    echo "run_id="
+    echo "run_head_sha="
+    return 0
+  fi
 
   if [[ -n "${release_sha}" ]] && ! compare_reuse_trees "${head_sha}" "${release_sha}"; then
     echo "found=false"
@@ -416,6 +428,38 @@ EOF
       resolve owner/name "${same_prhead}" "${other_release}" | grep -E '^(found|run_id|trees_match)='
   )"
   assert_eq different-tree-resolve-skips $'trees_match=false\nfound=false\nrun_id=' "${got}" || fail=1
+
+  # DEV must reject a same-tree squash commit's differently stamped artifact.
+  got="$(
+    cd "${tree_repo}"
+    REQUIRE_EXACT_SHA=true MAX_ATTEMPTS=1 SLEEP_SECONDS=0 \
+      resolve owner/name "${same_prhead}" "${same_release}" | grep -E '^(found|run_id|run_head_sha)='
+  )"
+  assert_eq exact-commit-rejects-same-tree-other-sha $'found=false\nrun_id=\nrun_head_sha=' "${got}" || fail=1
+
+  got="$(
+    cd "${tree_repo}"
+    REQUIRE_EXACT_SHA=true MAX_ATTEMPTS=1 SLEEP_SECONDS=0 \
+      resolve owner/name "${same_prhead}" "" | grep -E '^(found|run_id|run_head_sha)='
+  )"
+  assert_eq exact-commit-requires-release-sha $'found=false\nrun_id=\nrun_head_sha=' "${got}" || fail=1
+
+  got="$(
+    cd "${tree_repo}"
+    REQUIRE_EXACT_SHA=true MAX_ATTEMPTS=1 SLEEP_SECONDS=0 \
+      resolve owner/name "${same_prhead}" "${same_prhead}" | grep -E '^(found|run_id|run_head_sha)='
+  )"
+  assert_eq exact-commit-reuses-matching-artifact "$(printf 'found=true\nrun_id=777\nrun_head_sha=%s' "${same_prhead}")" "${got}" || fail=1
+
+  cat >"${tmp}/fixtures/repos_owner_name_actions_runs_777_artifacts.json" <<'EOF'
+{"artifacts":[{"name":"web-publish-777","expired":true}]}
+EOF
+  got="$(
+    cd "${tree_repo}"
+    REQUIRE_EXACT_SHA=true MAX_ATTEMPTS=1 SLEEP_SECONDS=0 \
+      resolve owner/name "${same_prhead}" "${same_prhead}" | grep -E '^(found|run_id|run_head_sha)='
+  )"
+  assert_eq exact-commit-rejects-expired-artifact $'found=false\nrun_id=\nrun_head_sha=' "${got}" || fail=1
 
   # --- rank helper ---
   assert_eq rank-success 0 "$(rank_run success completed)" || fail=1
