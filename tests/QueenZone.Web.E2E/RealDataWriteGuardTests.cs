@@ -9,6 +9,36 @@ namespace QueenZone.Web.E2E;
 public class RealDataWriteGuardTests
 {
     [Test]
+    public void AdminFixture_ThrowsWhenE2EReadonlyIsTrue()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            RealDataWriteGuard.EnsureNotWriteCapableInReadOnlyMode(
+                allowsWrites: true,
+                fixtureName: "AdminRootProofTests",
+                getEnv: name => name == "E2E_READONLY" ? "true" : null));
+
+        Assert.That(ex!.Message, Does.Contain("AdminRootProofTests"));
+        Assert.That(ex.Message, Does.Contain("E2E_READONLY=true"));
+    }
+
+    [Test]
+    public void AdminProofFixtures_AreNeverRealDataOrReadOnly()
+    {
+        var fixtures = typeof(AdminFeatureProofTest).Assembly.GetTypes()
+            .Where(type => !type.IsAbstract && typeof(AdminFeatureProofTest).IsAssignableFrom(type))
+            .ToArray();
+        Assert.That(fixtures, Is.Not.Empty);
+        foreach (var fixture in fixtures)
+        {
+            var categories = fixture.GetCustomAttributes(typeof(CategoryAttribute), inherit: true)
+                .Concat(fixture.GetMethods().SelectMany(method => method.GetCustomAttributes(typeof(CategoryAttribute), inherit: true)))
+                .Cast<CategoryAttribute>().Select(attribute => attribute.Name).ToArray();
+            Assert.That(categories, Does.Not.Contain(E2ECategories.RealData), fixture.Name);
+            Assert.That(categories, Does.Not.Contain(E2ECategories.ReadOnly), fixture.Name);
+        }
+    }
+
+    [Test]
     public void WriteCapableFixture_ThrowsWhenE2EReadonlyIsTrue()
     {
         var ex = Assert.Throws<InvalidOperationException>(() =>

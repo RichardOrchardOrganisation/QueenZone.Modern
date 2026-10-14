@@ -1,6 +1,5 @@
 {
   "pendingAdminAreas": [
-    "Pages/Admin/Index.cshtml",
     "Pages/Admin/Articles/**",
     "Pages/Admin/Biography/**",
     "Pages/Admin/Crosswords/**",
@@ -23,7 +22,6 @@
     "Pages/Admin/Quizzes/**",
     "Pages/Admin/Quotes/**",
     "Pages/Admin/ReviewerAccounts/**",
-    "Pages/Admin/Search/**",
     "Pages/Admin/Timeline/**",
     "Pages/Admin/Trivia/**",
     "Pages/Admin/TriviaSubmissions/**"

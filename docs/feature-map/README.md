@@ -227,15 +227,15 @@ The following pages require confirm-only verification:
 
 ### admin
 
-_No entries._
+- `web.admin.index` — Admin dashboard (Pages/Admin/Index.cshtml — /admin)
+- `web.admin.search` — Admin search index (Pages/Admin/Search/Index.cshtml — /admin/search)
 
 ## Excluded
 
 _None._
 
-## Pending admin areas (ceiling 27)
+## Pending admin areas (ceiling 25)
 
-- `Pages/Admin/Index.cshtml`
 - `Pages/Admin/Articles/**`
 - `Pages/Admin/Biography/**`
 - `Pages/Admin/Crosswords/**`
@@ -258,7 +258,6 @@ _None._
 - `Pages/Admin/Quizzes/**`
 - `Pages/Admin/Quotes/**`
 - `Pages/Admin/ReviewerAccounts/**`
-- `Pages/Admin/Search/**`
 - `Pages/Admin/Timeline/**`
 - `Pages/Admin/Trivia/**`
 - `Pages/Admin/TriviaSubmissions/**`

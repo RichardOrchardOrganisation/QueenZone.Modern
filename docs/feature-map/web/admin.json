@@ -1,5 +1,70 @@
 {
   "area": "admin",
   "surface": "web",
-  "entries": []
+  "entries": [
+    {
+      "aliases": [
+        "admin dashboard"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminRootProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-dashboard\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.index",
+      "name": "Admin dashboard",
+      "page": "Pages/Admin/Index.cshtml",
+      "url": "/admin",
+      "entry": "Open /admin on the local Testing host as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "none",
+        "externalEffects": [],
+        "getWrites": false
+      }
+    },
+    {
+      "aliases": [
+        "admin search index"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminRootProofTests.cs"
+      ],
+      "selectors": [
+        "#search-index-admin",
+        "#job-status",
+        "#counts-table",
+        "#reindex-form",
+        "#reindex-button"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.search",
+      "name": "Admin search index",
+      "page": "Pages/Admin/Search/Index.cshtml",
+      "url": "/admin/search",
+      "entry": "Open /admin/search on the local Testing host as admin@test.local.",
+      "admin": {
+        "actions": [
+          "Reindex"
+        ],
+        "verification": "confirm-only",
+        "externalEffects": [
+          "search-index"
+        ],
+        "getWrites": false
+      }
+    }
+  ]
 }

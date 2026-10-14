@@ -62,20 +62,34 @@ function Invoke-QueenZoneWebProof {
     $proof = New-QueenZoneWebProof -RepoRoot $RepoRoot -Entry $Entry -BaseUrl $BaseUrl
     $project = Join-Path $RepoRoot "tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj"
     $playwright = Join-Path $RepoRoot "tests/QueenZone.Web.E2E/bin/Release/net10.0/playwright.ps1"
+    $isAdmin = $Entry.PSObject.Properties.Name -contains 'signIn' -and $Entry.signIn -eq 'admin'
     try {
+        if ($isAdmin -and (([uri] $BaseUrl).Host -cne '127.0.0.1' -or $proof.environment -cne 'Testing' -or
+            ($null -ne $env:ASPNETCORE_ENVIRONMENT -and $env:ASPNETCORE_ENVIRONMENT -cne 'Testing'))) {
+            throw "Admin proof requires the local Testing host at exactly 127.0.0.1."
+        }
         if (-not (Test-Path $playwright)) { throw "Build the Release E2E project and install Chromium, or run scripts/Verify-Web.ps1." }
         $urlPath = Resolve-QueenZoneWebProofRoute -UrlPath ([string] $Entry.url)
         $proof.url = "$BaseUrl$urlPath"
-        & $playwright screenshot --browser chromium --full-page $proof.url (Join-Path $ProofDir "screenshot.png") | Out-Host
-        $proof.screenshot = if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $ProofDir "screenshot.png"))) { "PASS" } else { "FAIL" }
+        $screenshot = Join-Path $ProofDir "screenshot.png"
+        if ($isAdmin) {
+            # Only accept a screenshot produced by this spec run with the admin header.
+            if (Test-Path $screenshot) { Remove-Item -LiteralPath $screenshot }
+        }
+        else {
+            & $playwright screenshot --browser chromium --full-page $proof.url (Join-Path $ProofDir "screenshot.png") | Out-Host
+            $proof.screenshot = if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $ProofDir "screenshot.png"))) { "PASS" } else { "FAIL" }
+        }
         $specs = @($Entry.specs | Select-Object -Unique)
         $savedUrl = $env:E2E_BASE_URL
         $savedArtifacts = $env:E2E_ARTIFACT_DIR
         $savedReadOnly = $env:E2E_READONLY
+        $savedAdminEmail = $env:E2E_ADMIN_EMAIL
         try {
             $env:E2E_BASE_URL = $BaseUrl
             $env:E2E_ARTIFACT_DIR = $ProofDir
             $env:E2E_READONLY = "false"
+            if ($isAdmin) { $env:E2E_ADMIN_EMAIL = "admin@test.local" }
             foreach ($spec in $specs) {
                 $name = [IO.Path]::GetFileNameWithoutExtension($spec)
                 if ($name -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { throw "Invalid mapped specification: $spec" }
@@ -91,6 +105,8 @@ function Invoke-QueenZoneWebProof {
             $env:E2E_BASE_URL = $savedUrl
             $env:E2E_ARTIFACT_DIR = $savedArtifacts
             $env:E2E_READONLY = $savedReadOnly
+            $env:E2E_ADMIN_EMAIL = $savedAdminEmail
+            if ($isAdmin) { $proof.screenshot = if (Test-Path $screenshot) { "PASS" } else { "FAIL" } }
         }
         Set-QueenZoneWebProofOutcome -Proof $proof -Specs $specs
     }
