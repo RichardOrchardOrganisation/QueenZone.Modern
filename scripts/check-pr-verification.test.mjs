@@ -153,13 +153,9 @@ test('real feature map exposes the photo viewer source as UI', () => {
 function fakeGitHub({ files, labels = [] }) {
   const calls = [];
   const github = {
-    paginate: {
-      iterator(method, params) {
-        calls.push(['listFiles', params.pull_number]);
-        return (async function* pages() {
-          yield { data: files.map((filename) => ({ filename })) };
-        })();
-      },
+    paginate: async (method, params) => {
+      calls.push(['listFiles', params.pull_number]);
+      return files.map(filename => ({ filename }));
     },
     rest: {
       pulls: { listFiles: () => {} },

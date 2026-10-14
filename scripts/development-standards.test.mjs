@@ -93,3 +93,21 @@ test('verify.mjs only invokes scripts that exist', () => {
     assert.ok(existsSync(path.join(root, relative)), relative);
   }
 });
+
+test('QueenZone proof wiring uses shared policy with project configuration', () => {
+  const { uiProof } = json('development-standards.json');
+  assert.equal(uiProof.gateJob, 'e2e-test');
+  assert.deepEqual(uiProof.platforms.mobile, ['android', 'ios']);
+  assert.equal(uiProof.producers['.github/workflows/ci.yml'].web['web-browser-tests'], 'Web browser tests');
+  assert.match(read('scripts/check-pr-verification.mjs'), /from '\.\/ui-proof-policy\.mjs'/);
+  assert.match(read('scripts/ui_proof_bundle.py'), /from ui_proof_archive import/);
+  for (const file of ['ui-proof-policy.mjs', 'ui-proof-config.mjs', 'ui-proof-evidence.mjs', 'ui-proof-gate.mjs', 'refresh-ui-proof.mjs', 'ui_proof_archive.py']) {
+    assert.ok(existsSync(path.join(root, 'scripts', file)), file);
+  }
+});
+
+test('privileged proof publisher pins the installed shared action without application checkout', () => {
+  const workflow = read('.github/workflows/pr-verification-check.yml');
+  assert.ok(workflow.includes(`development-standards/actions/publish-ui-proof@${json('development-standards.lock.json').commit}`));
+  assert.doesNotMatch(workflow, /actions\/checkout@/);
+});
