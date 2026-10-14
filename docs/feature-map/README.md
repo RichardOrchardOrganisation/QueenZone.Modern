@@ -230,6 +230,9 @@ The following pages require confirm-only verification:
 - `web.admin.fanPerformanceReports.action` — Admin fan performance reports action (Pages/Admin/FanPerformanceReports/Action.cshtml — /admin/fan-performance-reports/{id:guid})
 - `web.admin.fanPerformanceReports.detail` — Admin fan performance reports detail (Pages/Admin/FanPerformanceReports/Detail.cshtml — /admin/fan-performance-reports/{id:guid})
 - `web.admin.fanPerformanceReports.index` — Admin fan performance reports index (Pages/Admin/FanPerformanceReports/Index.cshtml — /admin/fan-performance-reports)
+- `web.admin.fanPerformanceSubmissions.action` — Admin fan performance submissions action (Pages/Admin/FanPerformanceSubmissions/Action.cshtml — /admin/fan-performance-submissions/{id:guid})
+- `web.admin.fanPerformanceSubmissions.detail` — Admin fan performance submissions detail (Pages/Admin/FanPerformanceSubmissions/Detail.cshtml — /admin/fan-performance-submissions/{id:guid})
+- `web.admin.fanPerformanceSubmissions.index` — Admin fan performance submissions index (Pages/Admin/FanPerformanceSubmissions/Index.cshtml — /admin/fan-performance-submissions)
 - `web.admin.forumReports.action` — Admin forum reports action (Pages/Admin/ForumReports/Action.cshtml — /admin/forum-reports/{id:guid})
 - `web.admin.forumReports.detail` — Admin forum reports detail (Pages/Admin/ForumReports/Detail.cshtml — /admin/forum-reports/{id:guid})
 - `web.admin.forumReports.index` — Admin forum reports index (Pages/Admin/ForumReports/Index.cshtml — /admin/forum-reports)
@@ -241,34 +244,43 @@ The following pages require confirm-only verification:
 - `web.admin.members.detail` — Admin member review (Pages/Admin/Members/Detail.cshtml — /admin/members/{id:guid})
 - `web.admin.members.forumAuthorAction` — Admin legacy author actions (confirmation surface) (Pages/Admin/Members/ForumAuthorAction.cshtml — /admin/members)
 - `web.admin.members.index` — Admin members (Pages/Admin/Members/Index.cshtml — /admin/members)
+- `web.admin.newsSuggestions.action` — Admin news suggestions action (Pages/Admin/NewsSuggestions/Action.cshtml — /admin/news-suggestions/{id:guid})
+- `web.admin.newsSuggestions.detail` — Admin news suggestions detail (Pages/Admin/NewsSuggestions/Detail.cshtml — /admin/news-suggestions/{id:guid})
+- `web.admin.newsSuggestions.index` — Admin news suggestions index (Pages/Admin/NewsSuggestions/Index.cshtml — /admin/news-suggestions)
+- `web.admin.photoCorrections.action` — Admin photo corrections action (Pages/Admin/PhotoCorrections/Action.cshtml — /admin/photo-corrections/{id:guid})
+- `web.admin.photoCorrections.detail` — Admin photo corrections detail (Pages/Admin/PhotoCorrections/Detail.cshtml — /admin/photo-corrections/{id:guid})
+- `web.admin.photoCorrections.index` — Admin photo corrections index (Pages/Admin/PhotoCorrections/Index.cshtml — /admin/photo-corrections)
+- `web.admin.photoSubmissions.action` — Admin photo submissions action (Pages/Admin/PhotoSubmissions/Action.cshtml — /admin/photo-submissions/{id:guid})
+- `web.admin.photoSubmissions.detail` — Admin photo submissions detail (Pages/Admin/PhotoSubmissions/Detail.cshtml — /admin/photo-submissions/{id:guid})
+- `web.admin.photoSubmissions.index` — Admin photo submissions index (Pages/Admin/PhotoSubmissions/Index.cshtml — /admin/photo-submissions)
 - `web.admin.privateMessages.action` — Admin private messages action (Pages/Admin/PrivateMessages/Action.cshtml — /admin/private-messages/{id:guid})
 - `web.admin.privateMessages.detail` — Admin private messages detail (Pages/Admin/PrivateMessages/Detail.cshtml — /admin/private-messages/{id:guid})
 - `web.admin.privateMessages.index` — Admin private messages index (Pages/Admin/PrivateMessages/Index.cshtml — /admin/private-messages)
+- `web.admin.quizQuestionSubmissions.action` — Admin quiz question submissions action (Pages/Admin/QuizQuestionSubmissions/Action.cshtml — /admin/quiz-question-submissions/{id:guid})
+- `web.admin.quizQuestionSubmissions.detail` — Admin quiz question submissions detail (Pages/Admin/QuizQuestionSubmissions/Detail.cshtml — /admin/quiz-question-submissions/{id:guid})
+- `web.admin.quizQuestionSubmissions.index` — Admin quiz question submissions index (Pages/Admin/QuizQuestionSubmissions/Index.cshtml — /admin/quiz-question-submissions)
 - `web.admin.search` — Admin search index (Pages/Admin/Search/Index.cshtml — /admin/search)
+- `web.admin.triviaSubmissions.action` — Admin trivia submissions action (Pages/Admin/TriviaSubmissions/Action.cshtml — /admin/trivia-submissions/{id:guid})
+- `web.admin.triviaSubmissions.detail` — Admin trivia submissions detail (Pages/Admin/TriviaSubmissions/Detail.cshtml — /admin/trivia-submissions/{id:guid})
+- `web.admin.triviaSubmissions.index` — Admin trivia submissions index (Pages/Admin/TriviaSubmissions/Index.cshtml — /admin/trivia-submissions)
 
 ## Excluded
 
 _None._
 
-## Pending admin areas (ceiling 20)
+## Pending admin areas (ceiling 14)
 
 - `Pages/Admin/Articles/**`
 - `Pages/Admin/Biography/**`
 - `Pages/Admin/Crosswords/**`
 - `Pages/Admin/Discography/**`
-- `Pages/Admin/FanPerformanceSubmissions/**`
 - `Pages/Admin/FreddieTributes/**`
 - `Pages/Admin/News/**`
 - `Pages/Admin/NewsDiscovery/**`
-- `Pages/Admin/NewsSuggestions/**`
-- `Pages/Admin/PhotoCorrections/**`
-- `Pages/Admin/PhotoSubmissions/**`
 - `Pages/Admin/Photos/**`
 - `Pages/Admin/Polls/**`
-- `Pages/Admin/QuizQuestionSubmissions/**`
 - `Pages/Admin/Quizzes/**`
 - `Pages/Admin/Quotes/**`
 - `Pages/Admin/ReviewerAccounts/**`
 - `Pages/Admin/Timeline/**`
 - `Pages/Admin/Trivia/**`
-- `Pages/Admin/TriviaSubmissions/**`

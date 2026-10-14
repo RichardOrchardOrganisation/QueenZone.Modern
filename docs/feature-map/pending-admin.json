@@ -4,21 +4,15 @@
     "Pages/Admin/Biography/**",
     "Pages/Admin/Crosswords/**",
     "Pages/Admin/Discography/**",
-    "Pages/Admin/FanPerformanceSubmissions/**",
     "Pages/Admin/FreddieTributes/**",
     "Pages/Admin/News/**",
     "Pages/Admin/NewsDiscovery/**",
-    "Pages/Admin/NewsSuggestions/**",
-    "Pages/Admin/PhotoCorrections/**",
-    "Pages/Admin/PhotoSubmissions/**",
     "Pages/Admin/Photos/**",
     "Pages/Admin/Polls/**",
-    "Pages/Admin/QuizQuestionSubmissions/**",
     "Pages/Admin/Quizzes/**",
     "Pages/Admin/Quotes/**",
     "Pages/Admin/ReviewerAccounts/**",
     "Pages/Admin/Timeline/**",
-    "Pages/Admin/Trivia/**",
-    "Pages/Admin/TriviaSubmissions/**"
+    "Pages/Admin/Trivia/**"
   ]
 }

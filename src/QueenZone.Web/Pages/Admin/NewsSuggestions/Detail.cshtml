@@ -9,7 +9,7 @@
   var canAct = suggestion.Status is NewsSuggestionStatus.Pending or NewsSuggestionStatus.UnderReview;
 }
 
-<div class="admin-shell">
+<div class="admin-shell" data-testid="admin-newssuggestions-detail">
   <partial name="_Breadcrumbs" model="Model.Breadcrumbs" />
   <h1>Review news suggestion</h1>
 
