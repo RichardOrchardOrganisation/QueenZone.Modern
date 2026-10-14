@@ -99,7 +99,7 @@ public sealed class MemberDetailFailureTelemetryTests
     }
 
     [Fact]
-    public async Task Actual_Review_route_exports_summary_stage_and_displayed_reference()
+    public async Task Actual_Review_route_degrades_on_summary_failure_and_exports_displayed_reference()
     {
         using var wire = new CaptureTransport();
         using var client = new HttpClient(wire);
@@ -128,14 +128,19 @@ public sealed class MemberDetailFailureTelemetryTests
         Assert.Contains($"href=\"/admin/members/{memberId}\">Review</a>", list);
         using var response = await web.GetAsync($"/admin/members/{memberId}?query={Secret}");
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.DoesNotContain(Secret, body);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.DoesNotContain(Secret, body.Replace(WebUtility.HtmlEncode(Secret), string.Empty));
+        Assert.Contains("Forum content could not be loaded", body);
+        Assert.Contains($"action=\"/admin/members/{memberId}/Suspend\"", body);
+        Assert.DoesNotContain("/HideForumContent", body);
+        Assert.DoesNotContain("/UnhideForumContent", body);
         var reference = WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Match(body, @"Error reference:\s*([^<]+)").Groups[1].Value).Trim();
         Assert.NotEmpty(reference);
         reporter.Dispose();
         var payload = Assert.Single(wire.Payloads);
         AssertPropertyAllowlist(payload);
         Assert.Contains("forum-summary", payload);
+        Assert.Contains("SqlException", payload);
         Assert.Contains(reference, payload);
         Assert.DoesNotContain(Secret, payload);
         Assert.DoesNotContain(memberId.ToString(), payload);

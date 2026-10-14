@@ -48,7 +48,7 @@ public sealed class MemberDetailFailureReporter : IDisposable
             });
         }));
 
-    internal void Report(HttpContext context, Exception exception)
+    internal void Report(HttpContext context, Exception exception, int status = StatusCodes.Status500InternalServerError)
     {
         var stage = context.Items[MemberDetailFailureMiddleware.StageKey] as string;
         stage = stage is "member-lookup" or "forum-summary" or "render" ? stage : "pipeline";
@@ -56,7 +56,7 @@ public sealed class MemberDetailFailureReporter : IDisposable
         logger.LogError(new EventId(50062, "MemberDetailFailure"),
             "MemberDetailFailure Route={Route} Stage={Stage} RequestId={RequestId} TraceId={TraceId} Status={Status} ExceptionType={ExceptionType} SqlNumber={SqlNumber}",
             "/admin/members/{id}", stage, context.TraceIdentifier, Activity.Current?.TraceId.ToString(),
-            StatusCodes.Status500InternalServerError, exception.GetType().Name, (exception as SqlException)?.Number);
+            status, exception.GetType().Name, (exception as SqlException)?.Number);
     }
 
     public void Dispose() => factory?.Dispose();

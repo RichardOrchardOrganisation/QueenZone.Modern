@@ -6,7 +6,8 @@ namespace QueenZone.Web.Pages.Admin.Members;
 
 public sealed class DetailModel(
     IMemberAccountRepository memberAccountRepository,
-    IForumWriteRepository forumWriteRepository) : AdminMembersPageModel
+    IForumWriteRepository forumWriteRepository,
+    MemberDetailFailureReporter failureReporter) : AdminMembersPageModel
 {
     public MemberAccount? Member { get; private set; }
 
@@ -15,6 +16,8 @@ public sealed class DetailModel(
     public string? StatusMessageKind { get; private set; }
 
     public ForumAuthorContentSummary? ForumContent { get; private set; }
+
+    public string? ErrorReference { get; private set; }
 
     public IReadOnlyList<BreadcrumbItem> Breadcrumbs { get; private set; } = [];
 
@@ -28,8 +31,19 @@ public sealed class DetailModel(
         }
 
         HttpContext.Items[MemberDetailFailureMiddleware.StageKey] = "forum-summary";
-        ForumContent = await forumWriteRepository.GetAuthorForumContentSummaryAsync(
-            Member.Id, Member.DisplayName, cancellationToken);
+        try
+        {
+            ForumContent = await forumWriteRepository.GetAuthorForumContentSummaryAsync(
+                Member.Id, Member.DisplayName, cancellationToken);
+        }
+        catch (Exception exception) when (!(exception is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        {
+            // The summary scans the forum archive and can time out for prolific authors. Suspend and
+            // reinstate must stay reachable, so render the member without it and keep the diagnostic.
+            ErrorReference = HttpContext.TraceIdentifier;
+            try { failureReporter.Report(HttpContext, exception, StatusCodes.Status200OK); }
+            catch { /* A telemetry outage must not turn a degraded page back into a 500. */ }
+        }
 
         HttpContext.Items[MemberDetailFailureMiddleware.StageKey] = "render";
         StatusMessage = TempData["MemberMessage"] as string;
