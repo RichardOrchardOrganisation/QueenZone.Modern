@@ -159,7 +159,7 @@
         "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml"
       ],
       "specs": [
-        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
+        "tests/QueenZone.Web.E2E/AdminLegacyAuthorProofTests.cs"
       ],
       "selectors": [
         "#member-search"
