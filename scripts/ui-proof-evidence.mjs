@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { loadProofConfig } from './ui-proof-config.mjs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
@@ -13,20 +14,13 @@ export function resolveProofPython(env = process.env) {
 }
 
 export function decodeProofArchive(data, root) {
-  return JSON.parse(execFileSync(resolveProofPython(), [path.join(root, 'scripts/ui_proof_bundle.py'), 'validate'], {
+  return JSON.parse(execFileSync(resolveProofPython(), [path.join(root, 'scripts/ui_proof_archive.py'), 'validate'], {
     input: Buffer.from(data), maxBuffer: 2 * 1024 * 1024, timeout: 20_000,
   }).toString());
 }
 
-const producers = {
-  '.github/workflows/ci.yml': { web: { 'web-browser-tests': 'Web browser tests' } },
-  '.github/workflows/mobile-device-smoke.yml': {
-    android: { 'mobile-android-smoke': 'Mobile Android device smoke', 'mobile-android-journeys': 'Mobile Android extended device suite' },
-    ios: { 'mobile-ios-smoke': 'Mobile iOS device smoke' },
-  },
-};
-
-export async function discoverEvidence({ github, repo, headSha, root, decode = decodeProofArchive }) {
+export async function discoverEvidence({ github, repo, headSha, root, decode = decodeProofArchive, policy = loadProofConfig(root) }) {
+  const { producers } = policy;
   const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, { ...repo, head_sha: headSha, per_page: 100 });
   const evidence = [];
   for (const run of runs) {

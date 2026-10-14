@@ -1,0 +1,188 @@
+{
+  "area": "admin",
+  "surface": "web",
+  "entries": [
+    {
+      "aliases": [
+        "admin dashboard"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminRootProofTests.cs"
+      ],
+      "selectors": [
+        "[data-testid=\"admin-dashboard\"]"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.index",
+      "name": "Admin dashboard",
+      "page": "Pages/Admin/Index.cshtml",
+      "url": "/admin",
+      "entry": "Open /admin on the local Testing host as admin@test.local.",
+      "admin": {
+        "actions": [],
+        "verification": "none",
+        "externalEffects": [],
+        "getWrites": false
+      }
+    },
+    {
+      "aliases": [
+        "admin search index"
+      ],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Search/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminRootProofTests.cs"
+      ],
+      "selectors": [
+        "#search-index-admin",
+        "#job-status",
+        "#counts-table",
+        "#reindex-form",
+        "#reindex-button"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.search",
+      "name": "Admin search index",
+      "page": "Pages/Admin/Search/Index.cshtml",
+      "url": "/admin/search",
+      "entry": "Open /admin/search on the local Testing host as admin@test.local.",
+      "admin": {
+        "actions": [
+          "Reindex"
+        ],
+        "verification": "confirm-only",
+        "externalEffects": [
+          "search-index"
+        ],
+        "getWrites": false
+      }
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
+      ],
+      "selectors": [
+        "#member-search"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.members.index",
+      "name": "Admin members",
+      "page": "Pages/Admin/Members/Index.cshtml",
+      "url": "/admin/members",
+      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
+      "admin": {
+        "verification": "none",
+        "actions": [],
+        "externalEffects": [],
+        "getWrites": false
+      }
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Members/Detail.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Members/Detail.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.members.detail",
+      "name": "Admin member review",
+      "page": "Pages/Admin/Members/Detail.cshtml",
+      "url": "/admin/members/{id:guid}",
+      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
+      "admin": {
+        "verification": "none",
+        "actions": [],
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "selectorsReason": "Use the member heading and labelled forms, with assertions for the fixture record."
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Members/Action.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Members/Action.cshtml.cs",
+        "src/QueenZone.Web/Pages/Admin/Members/Detail.cshtml"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminMembersProofTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.members.action",
+      "name": "Admin member actions (confirmation surface)",
+      "page": "Pages/Admin/Members/Action.cshtml",
+      "url": "/admin/members/{id:guid}",
+      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
+      "admin": {
+        "verification": "confirm-only",
+        "notes": "POST-only handlers at /admin/members/{id:guid}/{handler}. The url is the real confirmation/form surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are never submitted.",
+        "actions": [
+          "Suspend",
+          "Reinstate",
+          "HideForumContent",
+          "UnhideForumContent"
+        ],
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "selectorsReason": "Use the member heading and labelled forms, with assertions for the fixture record.",
+      "kind": "handler",
+      "handlerUrl": "/admin/members/{id:guid}/{handler}"
+    },
+    {
+      "aliases": [],
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Members/ForumAuthorAction.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Members/ForumAuthorAction.cshtml.cs",
+        "src/QueenZone.Web/Pages/Admin/Members/Index.cshtml"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminLegacyAuthorProofTests.cs"
+      ],
+      "selectors": [
+        "#member-search"
+      ],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "id": "web.admin.members.forumAuthorAction",
+      "name": "Admin legacy author actions (confirmation surface)",
+      "page": "Pages/Admin/Members/ForumAuthorAction.cshtml",
+      "url": "/admin/members",
+      "entry": "Use spec-created e2e-fixture- data on the local Testing host. Verify anonymous challenge, member denial and admin controls. Never submit a member action.",
+      "admin": {
+        "verification": "confirm-only",
+        "notes": "POST-only handlers at /admin/members/forum-author/{handler}. The url is the real confirmation/form surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are never submitted.",
+        "actions": [
+          "Hide",
+          "Unhide"
+        ],
+        "externalEffects": [],
+        "getWrites": false
+      },
+      "kind": "handler",
+      "handlerUrl": "/admin/members/forum-author/{handler}"
+    }
+  ]
+}

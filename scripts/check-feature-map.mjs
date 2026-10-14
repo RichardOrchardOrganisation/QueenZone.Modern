@@ -2,7 +2,7 @@
 /**
  * Feature-map coverage and freshness check (#1800).
  *
- * Node 24, no npm dependencies. Fails when a mobile screen or public/member
+ * Node 24, no npm dependencies. Fails when a mobile screen or public/member/admin
  * Razor page is missing from docs/feature-map/, or when an entry points at a
  * file, flow, spec, mobile testId, or web identifier selector that no longer exists.
  *
@@ -16,7 +16,24 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const MOBILE_AREAS = ['home', 'news', 'photos', 'archive', 'forum', 'account', 'messages', 'auth'];
-const WEB_AREAS = [...MOBILE_AREAS, 'static'];
+const WEB_AREAS = [...MOBILE_AREAS, 'static', 'admin'];
+
+// Frozen rollout ceiling: each rollout PR lowers it; it must equal-or-exceed the
+// pending list length. Never fetch a baseline ref to determine this constant.
+export const PENDING_ADMIN_CEILING = 24;
+export const CONFIRM_ONLY_ADMIN_PAGES = Object.freeze({
+  'Pages/Admin/NewsDiscovery/**': 'AI and editorial side effects',
+  'Pages/Admin/Search/Index.cshtml': 'Search index rebuild',
+  'Pages/Admin/Photos/Action.cshtml': 'Thumbnail regeneration',
+  'Pages/Admin/Crosswords/Index.cshtml': 'Bulk publish',
+  'Pages/Admin/Members/Action.cshtml': 'Suspend or bulk hide',
+  'Pages/Admin/Members/ForumAuthorAction.cshtml': 'Suspend or bulk hide',
+  'Pages/Admin/ReviewerAccounts/**': 'Password changes',
+});
+export const GET_WRITES_ADMIN_PAGES = Object.freeze([
+  'Pages/Admin/ForumReports/Detail.cshtml',
+  'Pages/Admin/PrivateMessages/Detail.cshtml',
+]);
 const SIGN_IN = new Set(['none', 'member', 'admin']);
 const STACK_ALIAS = {
   Home: 'HomeStack',
@@ -230,17 +247,9 @@ function loadJsonFile(filePath) {
 export function loadFeatureMap(root) {
   const mapRoot = path.join(root, 'docs', 'feature-map');
   const excludedPath = path.join(mapRoot, 'excluded.json');
-  if (!existsSync(excludedPath)) {
-    throw new Error('docs/feature-map/excluded.json is missing the single Admin exclusion block.');
-  }
-  const excludedDoc = loadJsonFile(excludedPath);
-  const excluded = asList(excludedDoc.excluded);
-  if (excluded.length !== 1) {
-    throw new Error('docs/feature-map/excluded.json must contain exactly one excluded block.');
-  }
-  if (!excluded[0]?.pattern || !excluded[0]?.reason) {
-    throw new Error('The excluded block needs pattern and reason.');
-  }
+  const excluded = existsSync(excludedPath) ? asList(loadJsonFile(excludedPath).excluded) : [];
+  const pendingPath = path.join(mapRoot, 'pending-admin.json');
+  const pendingAdminAreas = existsSync(pendingPath) ? loadJsonFile(pendingPath).pendingAdminAreas : [];
 
   const entries = [];
   const files = [];
@@ -268,7 +277,7 @@ export function loadFeatureMap(root) {
     web[area] = loadArea('web', area);
   }
 
-  return { root: mapRoot, excluded, entries, files, mobile, web };
+  return { root: mapRoot, excluded, pendingAdminAreas, entries, files, mobile, web };
 }
 
 export function entryScreens(entry) {
@@ -279,7 +288,7 @@ export function generateIndexMarkdown(map) {
   const lines = [
     '# Feature map',
     '',
-    'Machine-readable map of every mobile screen and public or member web page.',
+    'Machine-readable map of every mobile screen and web page (public, member and admin).',
     'Agents and the verify skills read these JSON files; do not hand-edit this index.',
     'Regenerate with `node scripts/check-feature-map.mjs --write`.',
     '',
@@ -289,6 +298,13 @@ export function generateIndexMarkdown(map) {
     'a mapping gap, or handler/redirect behaviour. Empty selectors do not imply missing tests.',
     'Prefer role and text locators for clear headings and links; add identifiers only for fragile locators.',
     '`specs` links test files; it does not certify coverage. `--write` only regenerates this index.',
+    '',
+    'Admin entries require `signIn: "admin"`, at least one spec, and an `admin` block with',
+    '`actions` (handler names without OnPost/Async; plain OnPost is Post), `verification`',
+    '(none, confirm-only or fixture-record), `externalEffects`, `getWrites`, and optional `notes`.',
+    'Proof uses a local Testing host with `X-Test-User-Email: admin@test.local` on `127.0.0.1` only.',
+    'The following pages require confirm-only verification:',
+    ...Object.entries(CONFIRM_ONLY_ADMIN_PAGES).map(([pattern, reason]) => `- \`${pattern}\` — ${reason}`),
     '',
   ];
 
@@ -316,10 +332,16 @@ export function generateIndexMarkdown(map) {
   renderSurface('Mobile', MOBILE_AREAS, 'mobile');
   renderSurface('Web', WEB_AREAS, 'web');
   lines.push('## Excluded', '');
+  if (map.excluded.length === 0) {
+    lines.push('_None._');
+  }
   for (const item of map.excluded) {
     lines.push(`- \`${item.pattern}\` — ${item.reason}`);
   }
   lines.push('');
+  lines.push(`## Pending admin areas (ceiling ${PENDING_ADMIN_CEILING})`, '');
+  const pending = Array.isArray(map.pendingAdminAreas) ? map.pendingAdminAreas : [];
+  lines.push(...(pending.length ? pending.map((pattern) => `- \`${pattern}\``) : ['_None._']), '');
   return `${lines.join('\n')}`;
 }
 
@@ -383,7 +405,157 @@ function isLeafScreenComponent(name) {
   return name.endsWith('Screen') || name === 'SearchRouteScreen';
 }
 
-function validateEntries(root, map, errors) {
+function isAdminPattern(pattern) {
+  return typeof pattern === 'string' && pattern.startsWith('Pages/Admin/') &&
+    !pattern.includes('\\') && !pattern.split('/').some((part) => part === '..' || part === '.');
+}
+
+function validateExclusions(root, map, errors) {
+  for (const item of map.excluded) {
+    if (typeof item?.pattern !== 'string' || !item.pattern.trim() ||
+        typeof item?.reason !== 'string' || !item.reason.trim()) {
+      errors.push('Each excluded block needs pattern and reason.');
+    }
+    if (toPosix(item?.pattern).startsWith('Pages/Admin')) {
+      errors.push('Admin pages may not be excluded; map them or list the area in pendingAdminAreas');
+    }
+  }
+  const pending = map.pendingAdminAreas;
+  if (!Array.isArray(pending)) {
+    errors.push('pendingAdminAreas must be an array.');
+    return;
+  }
+  if (pending.length > PENDING_ADMIN_CEILING) {
+    errors.push(`pendingAdminAreas exceeds ceiling ${PENDING_ADMIN_CEILING}.`);
+  }
+  const webRoot = path.join(root, 'src/QueenZone.Web');
+  const pages = listPageFiles(path.join(webRoot, 'Pages'))
+    .filter((file) => pageDirective(readText(file)))
+    .map((file) => toPosix(path.relative(webRoot, file)));
+  const mapped = new Set(map.entries.map((entry) => toPosix(entry.page)));
+  const seen = new Set();
+  for (const pattern of pending) {
+    if (seen.has(pattern)) {
+      errors.push(`Duplicate pending admin pattern ${pattern}.`);
+    }
+    seen.add(pattern);
+    if (!isAdminPattern(pattern)) {
+      errors.push(`Pending admin pattern ${pattern} must be under Pages/Admin/.`);
+      continue;
+    }
+    const matches = pages.filter((page) => minimatchPrefix(page, pattern));
+    if (matches.length === 0) {
+      errors.push(`Pending admin pattern ${pattern} matches no page files.`);
+    }
+    for (const page of matches.filter((page) => mapped.has(page))) {
+      errors.push(`Pending admin pattern ${pattern} matches mapped page ${page}.`);
+    }
+  }
+}
+
+function classBodies(source, modelName) {
+  const bodies = [];
+  for (const match of source.matchAll(/\bclass\s+(\w+)\b/g)) {
+    if (modelName && match[1] !== modelName) {
+      continue;
+    }
+    const start = source.indexOf('{', match.index + match[0].length);
+    if (start < 0) {
+      continue;
+    }
+    let depth = 1;
+    let end = start + 1;
+    while (end < source.length && depth > 0) {
+      if (source[end] === '{') {
+        depth += 1;
+      }
+      if (source[end] === '}') {
+        depth -= 1;
+      }
+      end += 1;
+    }
+    bodies.push(source.slice(start + 1, end - 1));
+  }
+  return bodies;
+}
+
+/** Return declared OnPost handler names, preferring the page's own model directory. */
+export function pageModelPostHandlers(root, pageRel) {
+  const page = path.join(root, 'src/QueenZone.Web', pageRel);
+  if (!existsSync(page)) {
+    return [];
+  }
+  const model = readText(page).match(/^\s*@model\s+([^\s<]+)/m)?.[1];
+  const modelName = model?.split('.').at(-1);
+  const sibling = `${page}.cs`;
+  const localFiles = readdirSync(path.dirname(page)).filter((name) => name.endsWith('.cs'))
+    .map((name) => path.join(path.dirname(page), name));
+  const siblingBodies = existsSync(sibling) ? classBodies(readText(sibling), modelName) : [];
+  const localBodies = modelName ? localFiles.flatMap((file) => classBodies(readText(file), modelName)) : [];
+  const bodies = localBodies.length ? localBodies : siblingBodies;
+  if (!bodies.length && modelName) {
+    const files = walkFiles(path.join(root, 'src/QueenZone.Web/Pages/Admin'), (full, name) => name.endsWith('.cs'));
+    bodies.push(...files.flatMap((file) => classBodies(readText(file), modelName)));
+  }
+  return [...new Set(bodies.flatMap((body) => [...body.matchAll(/\b(OnPost\w*)\s*\(/g)]
+    .map((match) => match[1])))].sort(compareText);
+}
+
+function validateAdminEntry(root, entry, errors, warnings) {
+  const page = toPosix(entry.page);
+  if (entry._surface !== 'web' || !page.startsWith('Pages/Admin/')) {
+    return;
+  }
+  if (entry.signIn !== 'admin') {
+    errors.push(`${entry.id}: Admin pages require signIn admin.`);
+  }
+  if (!Array.isArray(entry.specs) || !entry.specs.length || entry.specs.some((spec) => typeof spec !== 'string' || !spec.trim())) {
+    errors.push(`${entry.id}: Admin pages require at least one spec.`);
+  }
+  const admin = entry.admin;
+  if (!admin || typeof admin !== 'object' || Array.isArray(admin)) {
+    errors.push(`${entry.id}: Admin pages require an admin object.`);
+    return;
+  }
+  for (const field of ['actions', 'externalEffects']) {
+    if (!Array.isArray(admin[field]) || admin[field].some((value) => typeof value !== 'string')) {
+      errors.push(`${entry.id}: admin.${field} must be a string array.`);
+    }
+  }
+  if (!['none', 'confirm-only', 'fixture-record'].includes(admin.verification)) {
+    errors.push(`${entry.id}: admin.verification must be none|confirm-only|fixture-record.`);
+  }
+  if (typeof admin.getWrites !== 'boolean') {
+    errors.push(`${entry.id}: admin.getWrites must be a boolean.`);
+  }
+  if (Object.hasOwn(admin, 'notes') && typeof admin.notes !== 'string') {
+    errors.push(`${entry.id}: admin.notes must be a string.`);
+  }
+  const handlers = pageModelPostHandlers(root, page);
+  if (handlers.length && admin.verification === 'none') {
+    errors.push(`${entry.id}: verification none is not allowed with OnPost handlers.`);
+  }
+  for (const handler of handlers) {
+    const action = handler.replace(/^OnPost/, '').replace(/Async$/, '') || 'Post';
+    if (!Array.isArray(admin.actions) || !admin.actions.includes(action)) {
+      errors.push(`${entry.id}: admin.actions is missing handler ${action} (${handler}).`);
+    }
+  }
+  for (const [pattern, reason] of Object.entries(CONFIRM_ONLY_ADMIN_PAGES)) {
+    if (minimatchPrefix(page, pattern) && admin.verification !== 'confirm-only') {
+      errors.push(`${entry.id}: ${entry.page} requires confirm-only verification: ${reason}.`);
+    }
+  }
+  if (GET_WRITES_ADMIN_PAGES.includes(page) && admin.getWrites !== true) {
+    errors.push(`${entry.id}: ${entry.page} requires getWrites true (GET writes an audit row).`);
+  }
+  if (admin.verification === 'fixture-record' && asList(admin.actions)
+    .some((action) => typeof action === 'string' && /delete|ban|suspend|publish|hide|reject|purge/i.test(action))) {
+    warnings.push(`${entry.id}: confirm the spec only completes on records it created.`);
+  }
+}
+
+function validateEntries(root, map, errors, warnings) {
   const ids = new Set();
   for (const entry of map.entries) {
     if (!entry.id || typeof entry.id !== 'string') {
@@ -396,6 +568,7 @@ function validateEntries(root, map, errors) {
     ids.add(entry.id);
     validateEntryMetadata(entry, errors);
     validateWebEntry(entry, errors);
+    validateAdminEntry(root, entry, errors, warnings);
     validateEntryFiles(root, entry, errors);
   }
 }
@@ -536,8 +709,10 @@ function validateWebPages(root, map, errors) {
     if (!pageDirective(readText(file))) {
       continue;
     }
-    const excluded = map.excluded.some((item) => minimatchPrefix(relFromWeb, item.pattern));
-    if (excluded) {
+    const excluded = map.excluded.some((item) => minimatchPrefix(relFromWeb, item?.pattern));
+    const pending = Array.isArray(map.pendingAdminAreas) && map.pendingAdminAreas.some((pattern) =>
+      isAdminPattern(pattern) && minimatchPrefix(relFromWeb, pattern));
+    if (excluded || pending) {
       continue;
     }
     if (!mappedPages.has(relFromWeb)) {
@@ -624,13 +799,15 @@ function updateFeatureIndex(root, map, write, errors) {
 export function checkFeatureMap({ root, write = false } = {}) {
   const errors = [];
   const map = loadFeatureMap(root);
-  validateEntries(root, map, errors);
+  const warnings = [];
+  validateExclusions(root, map, errors);
+  validateEntries(root, map, errors, warnings);
   validateMobileScreens(root, map, errors);
   validateTestIds(root, map, errors);
   validateWebPages(root, map, errors);
   validateSelectors(root, map, errors);
   const index = updateFeatureIndex(root, map, write, errors);
-  return { ok: errors.length === 0, errors, map, index };
+  return { ok: errors.length === 0, errors, warnings, map, index };
 }
 
 function printFlows(entry) {
@@ -680,6 +857,9 @@ export function main(argv = process.argv.slice(2), { root = repoRootFrom(), stdo
     return 0;
   }
   const result = checkFeatureMap({ root, write: args.write });
+  for (const warning of result.warnings) {
+    stderr(`Warning: ${warning}`);
+  }
   if (!result.ok) {
     stderr(result.errors.join('\n'));
     return 1;

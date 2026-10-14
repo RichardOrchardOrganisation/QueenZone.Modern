@@ -1,28 +1,48 @@
-# Copy to .github/workflows/pr-verification.yml after configuring the feature map.
-name: PR verification
+# Merge these jobs into your existing CI; configure capture and uiProof first.
+# Preserve your existing required context, or add ui-proof to branch protection.
+name: CI
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+  merge_group:
 permissions:
   contents: read
-  pull-requests: read
 jobs:
-  proof:
+  browser-tests:
+    name: Browser tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
-      - name: Feature map
-        run: node scripts/check-feature-map.mjs
-      - name: Check PR evidence
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      - name: Project capture command
+        # Replace with your test runner. It must write the manifest and evidence.
+        run: npm ci && npm run test:ui-proof
+        env:
+          UI_PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Validate evidence
+        run: python3 scripts/ui_proof_archive.py pack --source artifacts/ui-proof --output artifacts/ui-proof.zip
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ui-proof/
+          if-no-files-found: error
+          retention-days: 30
+  ui-proof:
+    needs: [browser-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PRODUCER_RESULT: ${{ needs.browser-tests.result }}
         with:
           script: |
             const { pathToFileURL } = require('node:url');
-            const path = require('node:path');
-            const href = pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, 'scripts/check-pr-verification.mjs')).href;
-            const { checkPullRequestVerification } = await import(href);
-            // label: true also manages a needs-verification label; grant issues: write and pull-requests: write first.
-            await checkPullRequestVerification({ github, context, core });
+            const { checkEvidenceGate } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/ui-proof-gate.mjs`).href);
+            await checkEvidenceGate({ github, context, core, root: process.env.GITHUB_WORKSPACE, producerResult: process.env.PRODUCER_RESULT });

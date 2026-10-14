@@ -67,7 +67,7 @@ test('merge queue evaluates constituent PRs and fails when identity is unavailab
 test('a waiver never masks browser failures; stale PR jobs cannot pass', async () => {
   const f = fixture({ pull_request: { number: 7, head: { sha: 'b'.repeat(40) } } });
   await checkEvidenceGate({ ...f, producerResult: 'failure' });
-  assert.match(f.calls[0][1], /browser tests did not pass/);
+  assert.match(f.calls[0][1], /producer tests did not pass/);
   f.calls.length = 0;
   await checkEvidenceGate({ ...f, producerResult: 'success' });
   assert.match(f.calls[0][1], /head changed/);

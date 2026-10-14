@@ -195,3 +195,88 @@ $output = @(Set-QueenZoneWebProofOutcome -Proof $proof -Specs $results)
       : 'Every mapped fixture must execute at least one deterministic test, with no failures or skips.');
   });
 }
+
+for (const scenario of [
+  'pass', 'testing-env', 'missing-screenshot', 'stale-screenshot', 'throws',
+  'dev-host', 'prod-host', 'localhost', 'ipv6', 'lookalike-host', 'production-env', 'e2e-env', 'wrong-proof-env',
+]) {
+  test(`admin web proof: ${scenario}`, () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qz-admin-proof-'));
+    try {
+      const bin = join(dir, 'tests/QueenZone.Web.E2E/bin/Release/net10.0');
+      const proofDir = join(dir, 'proof');
+      mkdirSync(bin, { recursive: true });
+      mkdirSync(proofDir);
+      writeFileSync(join(bin, 'playwright.ps1'), "throw 'Admin proof must never invoke CLI screenshot'");
+      if (scenario === 'stale-screenshot') writeFileSync(join(proofDir, 'screenshot.png'), 'stale');
+      const harness = join(dir, 'harness.ps1');
+      writeFileSync(harness, `
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+. (Join-Path $env:QZ_SOURCE 'scripts/FeatureMap.ps1')
+. (Join-Path $env:QZ_SOURCE 'scripts/WebVerification.ps1')
+function git { $global:LASTEXITCODE = 0; if ($args -contains 'rev-parse') { 'fixture-sha' } }
+$script:newProof = (Get-Command New-QueenZoneWebProof).ScriptBlock
+function New-QueenZoneWebProof {
+    param($RepoRoot, $Entry, $BaseUrl)
+    $proof = & $script:newProof -RepoRoot $RepoRoot -Entry $Entry -BaseUrl $BaseUrl
+    if ($env:QZ_PROOF_SCENARIO -eq 'wrong-proof-env') { $proof.environment = 'Production' }
+    return $proof
+}
+$script:calls = @()
+function dotnet {
+    $script:calls += @{ email = $env:E2E_ADMIN_EMAIL; url = $env:E2E_BASE_URL; artifacts = $env:E2E_ARTIFACT_DIR; readOnly = $env:E2E_READONLY }
+    if ($env:QZ_PROOF_SCENARIO -eq 'throws') { throw 'fixture runner unavailable' }
+    Set-Content -LiteralPath (Join-Path $env:E2E_ARTIFACT_DIR 'AdminRootProofTests.trx') -Value '<TestRun><Counters total="3" passed="3" /></TestRun>'
+    if ($env:QZ_PROOF_SCENARIO -notin @('missing-screenshot', 'stale-screenshot')) {
+        Set-Content -LiteralPath (Join-Path $env:E2E_ARTIFACT_DIR 'screenshot.png') -Value 'admin spec screenshot'
+    }
+    $global:LASTEXITCODE = 0
+}
+$env:E2E_ADMIN_EMAIL = 'original@test.local'
+$env:E2E_BASE_URL = 'original-url'
+$env:E2E_ARTIFACT_DIR = 'original-artifacts'
+$env:E2E_READONLY = 'true'
+$env:ASPNETCORE_ENVIRONMENT = $null
+$url = 'http://127.0.0.1:5201'
+switch ($env:QZ_PROOF_SCENARIO) {
+    'testing-env' { $env:ASPNETCORE_ENVIRONMENT = 'Testing' }
+    'production-env' { $env:ASPNETCORE_ENVIRONMENT = 'Production' }
+    'e2e-env' { $env:ASPNETCORE_ENVIRONMENT = 'E2E' }
+    'dev-host' { $url = 'https://dev.queenzone.org' }
+    'prod-host' { $url = 'https://www.queenzone.org' }
+    'localhost' { $url = 'http://localhost:5201' }
+    'ipv6' { $url = 'http://[::1]:5201' }
+    'lookalike-host' { $url = 'http://127.0.0.1.example:5201' }
+}
+$entry = [pscustomobject]@{ id = 'web.admin.index'; url = '/admin'; signIn = 'admin'; specs = @('tests/QueenZone.Web.E2E/AdminRootProofTests.cs') }
+$proof = Invoke-QueenZoneWebProof -RepoRoot $env:QZ_FIXTURE -Entry $entry -BaseUrl $url -ProofDir (Join-Path $env:QZ_FIXTURE 'proof')
+Write-QueenZoneWebProof -Proof $proof -ProofDir (Join-Path $env:QZ_FIXTURE 'proof')
+@{ calls = $script:calls; email = $env:E2E_ADMIN_EMAIL; url = $env:E2E_BASE_URL; artifacts = $env:E2E_ARTIFACT_DIR; readOnly = $env:E2E_READONLY } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $env:QZ_FIXTURE 'calls.json')
+`);
+      const run = spawnPwsh(['-File', harness], { encoding: 'utf8', env: { ...process.env, QZ_SOURCE: repo, QZ_FIXTURE: dir, QZ_PROOF_SCENARIO: scenario } });
+      assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
+      const proof = JSON.parse(readFileSync(join(proofDir, 'proof.json'), 'utf8').replace(/^\uFEFF/, ''));
+      const calls = JSON.parse(readFileSync(join(dir, 'calls.json'), 'utf8').replace(/^\uFEFF/, ''));
+      const passed = ['pass', 'testing-env'].includes(scenario);
+      const ranSpecs = ['pass', 'testing-env', 'missing-screenshot', 'stale-screenshot', 'throws'].includes(scenario);
+      assert.equal(proof.automated, passed ? 'PASS' : 'FAIL');
+      assert.equal(proof.screenshot, passed ? 'PASS' : ranSpecs ? 'FAIL' : 'NOT RUN');
+      assert.equal(calls.email, 'original@test.local');
+      assert.equal(calls.url, 'original-url');
+      assert.equal(calls.artifacts, 'original-artifacts');
+      assert.equal(calls.readOnly, 'true');
+      assert.equal(calls.calls.length, ranSpecs ? 1 : 0);
+      if (!ranSpecs) assert.match(proof.detail, /local Testing host at exactly 127\.0\.0\.1/);
+      for (const call of calls.calls) {
+        assert.equal(call.email, 'admin@test.local');
+        assert.equal(call.url, 'http://127.0.0.1:5201');
+        assert.equal(call.artifacts, proofDir);
+        assert.equal(call.readOnly, 'false');
+      }
+      if (passed) assert.equal(readFileSync(join(proofDir, 'screenshot.png'), 'utf8').trim(), 'admin spec screenshot');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}

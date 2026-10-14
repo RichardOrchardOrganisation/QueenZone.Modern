@@ -54,7 +54,7 @@ public sealed class LegacyQueenZoneLinksTests
             """<p>See <a href="http://www.queenzone.com/queenzone/forumnew/forum_topic_view.aspx?Q=413200">this thread</a> and <a href="https://example.com/">elsewhere</a>.</p>""");
 
         Assert.Contains("""<a href="/forum/goto/413200">this thread</a>""", html);
-        Assert.Contains("""<a href="https://example.com/" rel="noopener noreferrer" target="_blank">elsewhere</a>""", html);
+        Assert.Contains("""<a href="https://example.com/" rel="noopener noreferrer nofollow ugc" target="_blank">elsewhere</a>""", html);
     }
 
     [Fact]

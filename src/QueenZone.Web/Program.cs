@@ -11,6 +11,7 @@ using QueenZone.Web.Sitemap;
 // Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
 RegexDefaults.ApplyProcessDefault();
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<MemberDetailFailureReporter>();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
@@ -162,6 +163,7 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/error");
 }
 
+app.UseMiddleware<MemberDetailFailureMiddleware>();
 app.UseApiV1ExceptionHandler();
 
 // PhysicalFileProvider excludes dot-prefixed files/folders by default, so the generic

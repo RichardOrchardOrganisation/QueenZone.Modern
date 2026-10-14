@@ -199,7 +199,7 @@ Replace that descriptive command with the project’s actual test/capture comman
 
 For native mobile work, specify the actual Android/iOS device, emulator, or simulator journey. Expo web does not establish native behavior. Configure proof storage and safe test accounts in the receiving project.
 
-UI PRs need a `## Verification` section with affected feature IDs, `Command:`, `Platform:`, `Result:`, and a proof URL or `artifacts/proof/` path. If a required check cannot run, use `Not verified: <check and reason>`. An opt-out needs both the `no-ui-verification` label and `Verification-skip-reason:`. The checker validates documentation shape; reviewers assess the evidence and whether skipped verification is acceptable.
+UI PRs need affected feature IDs in `## Verification` and uploaded passing evidence for the current commit. Configure capture producers and the required gate using [verification.md](verification.md). Local paths and `Not verified:` do not pass; missing evidence needs both `no-ui-verification` and a visible `Verification-skip-reason:`.
 
 For a non-UI project, set `uiPaths` to an empty array explicitly. The starter feature map can then remain empty.
 
@@ -254,7 +254,7 @@ node scripts/verify.mjs --profile typescript --base-ref "$BASE_SHA"
 
 That example command is for a POSIX CI shell; in PowerShell use `$env:BASE_SHA`. Set the base from the workflow event, retain a full checkout (`fetch-depth: 0`), and ensure the base object is available. Add the profile for each application you intend to verify. The supplied configuration has one TypeScript profile; multiple independently configured applications need their own explicit orchestration.
 
-The PR verification example checks the feature map and PR evidence when the PR changes or its description/labels are edited. It calls `checkPullRequestVerification({ github, context, core })` from `scripts/check-pr-verification.mjs`, which exempts Dependabot and uses read-only GitHub permissions. Pass `label: true` to also add or remove a `needs-verification` label; that needs `issues: write` and `pull-requests: write`.
+The PR verification example integrates capture and a read-only evidence gate into CI. The separate trusted publisher posts artifact links and refreshes the gate after policy edits or device completion. Dependabot follows the same policy. See [verification.md](verification.md) for workflow wiring and permissions.
 
 Configure repository rules so the relevant quality/proof jobs are required before merging. Workflow files alone do not create branch protection or a merge queue. Add project-specific browser/device jobs, safe provider probes, dependency/security checks, smoke checks, and deployment protections where needed. Do not import QueenZone’s database connections or runner labels.
 

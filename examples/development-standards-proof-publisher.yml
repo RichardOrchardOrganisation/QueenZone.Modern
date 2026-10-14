@@ -1,0 +1,30 @@
+name: Publish UI proof
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+  workflow_run:
+    workflows: [CI, Device proof]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number whose evidence should be refreshed
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: ui-proof-refresh-${{ github.event.pull_request.number || github.event.workflow_run.head_sha || inputs.pr }}
+  cancel-in-progress: false
+
+jobs:
+  refresh-proof:
+    runs-on: ubuntu-latest
+    steps:
+      # Pin the reviewed shared action commit. No application checkout occurs.
+      - uses: RichardOrchardOrganisation/development-standards/actions/publish-ui-proof@REPLACE_WITH_REVIEWED_COMMIT_SHA

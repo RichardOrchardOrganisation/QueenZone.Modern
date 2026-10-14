@@ -13,6 +13,22 @@ public sealed class AdminOptionsValidator(IHostEnvironment environment) : IValid
     {
         var emails = options.AllowedEmails ?? [];
 
+        if ((options.AllowedPrincipals ?? []).Any(entry =>
+            string.IsNullOrWhiteSpace(entry) ||
+            entry.Split(':', StringSplitOptions.TrimEntries) is not [var tenant, var subject] ||
+            !Guid.TryParse(tenant, out _) || !Guid.TryParse(subject, out _)))
+        {
+            return ValidateOptionsResult.Fail(
+                $"{AdminOptions.SectionName}:AllowedPrincipals entries must have exactly one ':' with GUID tenant and object IDs. Use indexed Admin__AllowedPrincipals__N keys; comma-separated values do not bind to the array.");
+        }
+
+        if (options.EnforcePrincipalPin && (options.AllowedPrincipals ?? []).Length == 0)
+        {
+            return ValidateOptionsResult.Fail(
+                "Admin:AllowedPrincipals must not be empty when EnforcePrincipalPin is true. " +
+                "Use indexed Admin__AllowedPrincipals__N keys; comma-separated values do not bind to the array.");
+        }
+
         if (emails.Any(string.IsNullOrWhiteSpace))
         {
             return ValidateOptionsResult.Fail(
