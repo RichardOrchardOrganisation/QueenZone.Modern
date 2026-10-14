@@ -182,25 +182,53 @@ export function createStoredZip(filename, content) {
   return Buffer.concat([local, name, data, central, name, eocd]);
 }
 
+function findEndOfCentralDirectory(bytes) {
+  const minOffset = Math.max(0, bytes.length - (22 + 0xffff));
+  for (let offset = bytes.length - 22; offset >= minOffset; offset -= 1) {
+    if (bytes.readUInt32LE(offset) === 0x06054b50) {
+      return offset;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Reads entries via the central directory, so archives that set general-purpose
+ * flag bit 3 (data descriptor, as GitHub artifact zips do) work: their local
+ * headers carry zero sizes/CRC, while the central directory has the real values.
+ */
 export function extractZipFiles(buffer) {
   const bytes = Buffer.from(buffer);
   const files = new Map();
-  let offset = 0;
-  while (offset + 30 <= bytes.length) {
-    const signature = bytes.readUInt32LE(offset);
-    if (signature !== 0x04034b50) {
-      break;
+  const eocd = findEndOfCentralDirectory(bytes);
+  if (eocd < 0) {
+    throw new Error('Zip end of central directory not found.');
+  }
+  const entryCount = bytes.readUInt16LE(eocd + 10);
+  let offset = bytes.readUInt32LE(eocd + 16);
+  for (let index = 0; index < entryCount; index += 1) {
+    if (offset + 46 > bytes.length || bytes.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error('Zip central directory entry is malformed.');
     }
-    const flags = bytes.readUInt16LE(offset + 6);
-    const method = bytes.readUInt16LE(offset + 8);
-    const compressedSize = bytes.readUInt32LE(offset + 18);
-    const nameLength = bytes.readUInt16LE(offset + 26);
-    const extraLength = bytes.readUInt16LE(offset + 28);
-    const nameStart = offset + 30;
-    const name = bytes.subarray(nameStart, nameStart + nameLength).toString();
-    const dataStart = nameStart + nameLength + extraLength;
-    if (flags & 0x8) {
-      throw new Error(`Zip entry ${name} uses a data descriptor; not supported.`);
+    const method = bytes.readUInt16LE(offset + 10);
+    const checksum = bytes.readUInt32LE(offset + 16);
+    const compressedSize = bytes.readUInt32LE(offset + 20);
+    const uncompressedSize = bytes.readUInt32LE(offset + 24);
+    const nameLength = bytes.readUInt16LE(offset + 28);
+    const extraLength = bytes.readUInt16LE(offset + 30);
+    const commentLength = bytes.readUInt16LE(offset + 32);
+    const localOffset = bytes.readUInt32LE(offset + 42);
+    const name = bytes.subarray(offset + 46, offset + 46 + nameLength).toString();
+    offset += 46 + nameLength + extraLength + commentLength;
+
+    if (localOffset + 30 > bytes.length || bytes.readUInt32LE(localOffset) !== 0x04034b50) {
+      throw new Error(`Zip local header for ${name} is malformed.`);
+    }
+    const localNameLength = bytes.readUInt16LE(localOffset + 26);
+    const localExtraLength = bytes.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    if (dataStart + compressedSize > bytes.length) {
+      throw new Error(`Zip entry ${name} is truncated.`);
     }
     const compressed = bytes.subarray(dataStart, dataStart + compressedSize);
     let data;
@@ -211,8 +239,13 @@ export function extractZipFiles(buffer) {
     } else {
       throw new Error(`Unsupported zip compression ${method} for ${name}`);
     }
+    if (data.length !== uncompressedSize) {
+      throw new Error(`Zip entry ${name} size mismatch.`);
+    }
+    if (crc32(data) !== checksum) {
+      throw new Error(`Zip entry ${name} CRC mismatch.`);
+    }
     files.set(name, data);
-    offset = dataStart + compressedSize;
   }
   return files;
 }

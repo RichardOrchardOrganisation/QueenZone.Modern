@@ -540,3 +540,39 @@ test('runbook and environment docs exist and are linked', () => {
   }
   assert.match(environments, /prod-gate-override/);
 });
+
+const githubArtifactZip = readFileSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'github-artifact-gate-proof.zip'),
+);
+
+test('real GitHub artifact zip (data descriptor, deflate) extracts gate-proof.json', () => {
+  assert.equal(githubArtifactZip.readUInt16LE(6) & 0x8, 0x8, 'fixture should set data-descriptor flag');
+  assert.equal(githubArtifactZip.readUInt32LE(18), 0, 'fixture local header size should be zero');
+  assert.deepEqual(extractGateProofFromZip(githubArtifactZip), {
+    tested_sha: 'e0f6ad4648c44fc080d5d12b6fb99091ae2a2483',
+    full_suite: true,
+  });
+});
+
+test('stored zip without data descriptor still extracts', () => {
+  const zip = createStoredZip('gate-proof.json', '{"a":1}');
+  assert.equal(zip.readUInt16LE(6) & 0x8, 0);
+  assert.equal(extractZipFiles(zip).get('gate-proof.json').toString(), '{"a":1}');
+});
+
+test('zip with corrupted data fails CRC check', () => {
+  const zip = Buffer.from(createStoredZip('gate-proof.json', '{"a":1}'));
+  zip[30 + 'gate-proof.json'.length] ^= 0xff;
+  assert.throws(() => extractZipFiles(zip), /CRC mismatch/);
+});
+
+test('unsupported compression is rejected', () => {
+  const zip = Buffer.from(createStoredZip('gate-proof.json', '{"a":1}'));
+  const central = zip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  zip.writeUInt16LE(12, central + 10);
+  assert.throws(() => extractZipFiles(zip), /Unsupported zip compression 12/);
+});
+
+test('non-zip input is rejected', () => {
+  assert.throws(() => extractZipFiles(Buffer.from('not a zip')), /end of central directory/);
+});
