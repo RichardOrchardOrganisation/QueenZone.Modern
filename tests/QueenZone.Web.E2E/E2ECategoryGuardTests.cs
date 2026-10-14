@@ -69,6 +69,7 @@ public class E2ECategoryGuardTests
             nameof(AdminRootProofTests),
             nameof(AdminSearchGotoDiagnosticsTests),
             nameof(AdminSmokeTests),
+            nameof(AdminTriageProofTests),
             nameof(AxeSeriousExceptionTests),
             nameof(CrosswordPlayTests),
             nameof(CrosswordReplayTests),
