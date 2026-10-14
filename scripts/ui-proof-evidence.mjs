@@ -42,7 +42,13 @@ export async function discoverEvidence({ github, repo, headSha, root, decode = d
       for (const entry of manifest.entries) {
         const expectedJob = producers[run.path][entry.platform]?.[manifest.job];
         const producer = jobs.filter(job => job.name === expectedJob).sort((a, b) => b.run_attempt - a.run_attempt || b.id - a.id)[0];
-        if (!producer || producer.conclusion !== 'success' || String(producer.run_attempt) !== String(manifest.attempt)) continue;
+        if (!producer || producer.conclusion !== 'success') continue;
+        if (String(producer.run_attempt) !== String(manifest.attempt)) {
+          // A gate-only rerun carries the untouched producer into the new attempt with the
+          // same started_at; only that carried copy may vouch for the older manifest.
+          const original = jobs.find(job => job.name === expectedJob && String(job.run_attempt) === String(manifest.attempt));
+          if (!original || original.conclusion !== 'success' || !original.started_at || original.started_at !== producer.started_at) continue;
+        }
         evidence.push({ ...entry, headSha, url: `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${run.id}/artifacts/${artifact.id}` });
       }
     }
