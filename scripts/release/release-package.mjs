@@ -11,13 +11,13 @@ const requireMatch = (value, pattern, name) => {
 export function identity(env) {
   return {
     release_sha: requireMatch(env.RELEASE_SHA, /^[a-f0-9]{40}$/, 'release SHA'),
-    run_id: requireMatch(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/, 'run ID'),
-    run_attempt: requireMatch(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/, 'run attempt'),
+    run_id: requireMatch(env.GITHUB_RUN_ID, /^[1-9]\d*$/, 'run ID'),
+    run_attempt: requireMatch(env.GITHUB_RUN_ATTEMPT, /^[1-9]\d*$/, 'run attempt'),
   };
 }
 export function validateInputs(env) {
   identity(env);
-  requireMatch(env.ARTIFACT_ID, /^[1-9][0-9]*$/, 'artifact ID');
+  requireMatch(env.ARTIFACT_ID, /^[1-9]\d*$/, 'artifact ID');
   requireMatch(env.PACKAGE_SHA256, /^[a-f0-9]{64}$/, 'package SHA-256');
 }
 export function seal(bytes, env) {
@@ -27,7 +27,8 @@ export function seal(bytes, env) {
 export function verify(bytes, manifest, env) {
   validateInputs(env);
   const expected = seal(bytes, env);
-  if (!manifest || Object.keys(manifest).sort().join(',') !== Object.keys(expected).sort().join(',')) {
+  if (!manifest || Object.keys(manifest).length !== Object.keys(expected).length ||
+      Object.keys(manifest).some(key => !Object.hasOwn(expected, key))) {
     throw new Error('Invalid release manifest fields');
   }
   for (const [key, value] of Object.entries(expected)) {
