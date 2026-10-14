@@ -9,6 +9,15 @@ namespace QueenZone.Web.E2E;
 [Category(E2ECategories.Deterministic)]
 public class AdminApprovalQueueProofTests : AdminFeatureProofTest
 {
+    [TestCase("web.admin.fanPerformanceSubmissions.index")]
+    [TestCase("web.admin.newsSuggestions.index")]
+    [TestCase("web.admin.photoCorrections.index")]
+    [TestCase("web.admin.photoSubmissions.index")]
+    [TestCase("web.admin.quizQuestionSubmissions.index")]
+    [TestCase("web.admin.triviaSubmissions.index")]
+    public Task Index_ProvesAnonymousMemberAndAdminAccess(string featureId) =>
+        AssertAdminFeatureAsync(featureId);
+
     [TestCase("fanPerformanceSubmissions", "fan-performance-submissions", "fan-performance")]
     [TestCase("newsSuggestions", "news-suggestions", "news")]
     [TestCase("photoCorrections", "photo-corrections", "photo-correction/101")]
@@ -59,6 +68,10 @@ public class AdminApprovalQueueProofTests : AdminFeatureProofTest
         await Expect(rejection).ToHaveCountAsync(0);
         await Page.GotoAsync(queuePath);
         await Expect(row).ToHaveCountAsync(0);
+
+        // End on the detail surface so the uploaded proof screenshot covers the detail and action entries.
+        await Page.GotoAsync(detailPath!);
+        await Expect(Status()).ToHaveTextAsync("Rejected");
     }
 
     private ILocator Status() => Page.Locator("dl").First.Locator("dt").Filter(new() { HasTextRegex = new Regex("^Status$") }).Locator("+ dd");

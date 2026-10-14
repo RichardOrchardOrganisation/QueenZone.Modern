@@ -590,7 +590,7 @@
       "id": "web.admin.fanPerformanceSubmissions.action",
       "name": "Admin fan performance submissions action",
       "page": "Pages/Admin/FanPerformanceSubmissions/Action.cshtml",
-      "url": "/admin/fan-performance-submissions/{id:guid}/{handler}",
+      "url": "/admin/fan-performance-submissions/{id:guid}",
       "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
       "admin": {
         "actions": [
@@ -607,11 +607,12 @@
           "public-content"
         ],
         "getWrites": false,
-        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+        "notes": "POST-only handlers at /admin/fan-performance-submissions/{id:guid}/{handler}; the url is the detail/confirmation surface captured by the spec. The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/fan-performance-submissions/{id:guid}/{handler}"
     },
     {
       "sources": [
@@ -679,7 +680,7 @@
       "id": "web.admin.newsSuggestions.action",
       "name": "Admin news suggestions action",
       "page": "Pages/Admin/NewsSuggestions/Action.cshtml",
-      "url": "/admin/news-suggestions/{id:guid}/{handler}",
+      "url": "/admin/news-suggestions/{id:guid}",
       "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
       "admin": {
         "actions": [
@@ -693,11 +694,12 @@
           "audit-log"
         ],
         "getWrites": false,
-        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+        "notes": "POST-only handlers at /admin/news-suggestions/{id:guid}/{handler}; the url is the detail/confirmation surface captured by the spec. The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/news-suggestions/{id:guid}/{handler}"
     },
     {
       "sources": [
@@ -765,7 +767,7 @@
       "id": "web.admin.photoCorrections.action",
       "name": "Admin photo corrections action",
       "page": "Pages/Admin/PhotoCorrections/Action.cshtml",
-      "url": "/admin/photo-corrections/{id:guid}/{handler}",
+      "url": "/admin/photo-corrections/{id:guid}",
       "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
       "admin": {
         "actions": [
@@ -780,11 +782,12 @@
           "public-content"
         ],
         "getWrites": false,
-        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+        "notes": "POST-only handlers at /admin/photo-corrections/{id:guid}/{handler}; the url is the detail/confirmation surface captured by the spec. The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/photo-corrections/{id:guid}/{handler}"
     },
     {
       "sources": [
@@ -852,7 +855,7 @@
       "id": "web.admin.photoSubmissions.action",
       "name": "Admin photo submissions action",
       "page": "Pages/Admin/PhotoSubmissions/Action.cshtml",
-      "url": "/admin/photo-submissions/{id:guid}/{handler}",
+      "url": "/admin/photo-submissions/{id:guid}",
       "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
       "admin": {
         "actions": [
@@ -868,11 +871,12 @@
           "public-content"
         ],
         "getWrites": false,
-        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+        "notes": "POST-only handlers at /admin/photo-submissions/{id:guid}/{handler}; the url is the detail/confirmation surface captured by the spec. The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/photo-submissions/{id:guid}/{handler}"
     },
     {
       "sources": [
@@ -940,7 +944,7 @@
       "id": "web.admin.quizQuestionSubmissions.action",
       "name": "Admin quiz question submissions action",
       "page": "Pages/Admin/QuizQuestionSubmissions/Action.cshtml",
-      "url": "/admin/quiz-question-submissions/{id:guid}/{handler}",
+      "url": "/admin/quiz-question-submissions/{id:guid}",
       "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
       "admin": {
         "actions": [
@@ -952,11 +956,12 @@
           "audit-log"
         ],
         "getWrites": false,
-        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+        "notes": "POST-only handlers at /admin/quiz-question-submissions/{id:guid}/{handler}; the url is the detail/confirmation surface captured by the spec. The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/quiz-question-submissions/{id:guid}/{handler}"
     },
     {
       "sources": [
@@ -1024,7 +1029,7 @@
       "id": "web.admin.triviaSubmissions.action",
       "name": "Admin trivia submissions action",
       "page": "Pages/Admin/TriviaSubmissions/Action.cshtml",
-      "url": "/admin/trivia-submissions/{id:guid}/{handler}",
+      "url": "/admin/trivia-submissions/{id:guid}",
       "entry": "Create a uniquely prefixed member submission on the local Testing host, find it in this admin queue, and prove access and selectors. Review only that fixture record.",
       "admin": {
         "actions": [
@@ -1037,11 +1042,12 @@
           "public-content"
         ],
         "getWrites": false,
-        "notes": "The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
+        "notes": "POST-only handlers at /admin/trivia-submissions/{id:guid}/{handler}; the url is the detail/confirmation surface captured by the spec. The proof rejects only a submission created through the member UI in the same run; it cancels confirmation first and checks persisted state after completion. All named handlers receive denied-access checks. External effects inventory covers all handlers, including promotion."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/trivia-submissions/{id:guid}/{handler}"
     }
   ]
 }
