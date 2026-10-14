@@ -56,28 +56,57 @@ public static partial class NewsArticleContent
     private static bool LooksLikeHtml(string value) =>
         HtmlTags.Pattern().IsMatch(value);
 
-    private static string AutoLinkUrls(string plainText)
+    internal static string AutoLinkUrls(string plainText, bool preserveLineBreaks = true)
     {
         // Split on URLs, encode non-URL parts, wrap URLs in anchor tags.
         var parts = UrlRegex().Split(plainText);
         var sb = new System.Text.StringBuilder();
         foreach (var part in parts)
         {
-            if (Uri.TryCreate(part, UriKind.Absolute, out var uri)
+            var url = TrimUrlPunctuation(part);
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri)
                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
-                var encoded = WebUtility.HtmlEncode(part);
-                var modern = LegacyQueenZoneLinks.TryGetModernPath(part);
+                var encoded = WebUtility.HtmlEncode(url);
+                var modern = LegacyQueenZoneLinks.TryGetModernPath(url);
                 sb.Append(modern is null
                     ? $"<a href=\"{encoded}\" rel=\"noopener noreferrer\" target=\"_blank\">{encoded}</a>"
                     : $"<a href=\"{WebUtility.HtmlEncode(modern)}\">{encoded}</a>");
+                sb.Append(WebUtility.HtmlEncode(part[url.Length..]));
             }
             else
             {
-                sb.Append(WebUtility.HtmlEncode(part).Replace("\n", "<br>", StringComparison.Ordinal));
+                var encoded = WebUtility.HtmlEncode(part);
+                sb.Append(preserveLineBreaks
+                    ? encoded.Replace("\n", "<br>", StringComparison.Ordinal)
+                    : encoded);
             }
         }
         return sb.ToString();
+    }
+
+    private static string TrimUrlPunctuation(string value)
+    {
+        var end = value.Length;
+        var excessClosingParentheses = value.Count(character => character == ')')
+            - value.Count(character => character == '(');
+        while (end > 0)
+        {
+            if (value[end - 1] is '.' or ',' or ';' or ':' or '!' or '?')
+            {
+                end--;
+            }
+            else if (value[end - 1] == ')' && excessClosingParentheses > 0)
+            {
+                end--;
+                excessClosingParentheses--;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return value[..end];
     }
 
     internal static bool IsAllowedNewsImageSrc(string? src)

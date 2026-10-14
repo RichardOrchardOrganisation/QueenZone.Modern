@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
@@ -58,7 +59,7 @@ public sealed class NewsForumTopicService(
         var linkParagraph = BuildPublicArticleLinkParagraph(article);
         return string.IsNullOrWhiteSpace(excerpt)
             ? linkParagraph
-            : excerpt + "\n\n" + linkParagraph;
+            : UgcHtml.WrapPlainText(excerpt) + linkParagraph;
     }
 
     internal static string BuildPublicArticleLinkParagraph(AdminNewsArticle article)
@@ -67,7 +68,7 @@ public sealed class NewsForumTopicService(
             article.Id,
             article.Title,
             string.IsNullOrWhiteSpace(article.Slug) ? null : article.Slug);
-        return NewsForumDiscussion.PublicArticleOrigin + path;
+        return $"<p><a href=\"{WebUtility.HtmlEncode(path)}\">{WebUtility.HtmlEncode(NewsForumDiscussion.PublicArticleOrigin + path)}</a></p>";
     }
 
     internal static string ClampTitle(string title, int articleId)
