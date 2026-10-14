@@ -20,7 +20,7 @@ const WEB_AREAS = [...MOBILE_AREAS, 'static', 'admin'];
 
 // Frozen rollout ceiling: each rollout PR lowers it; it must equal-or-exceed the
 // pending list length. Never fetch a baseline ref to determine this constant.
-export const PENDING_ADMIN_CEILING = 25;
+export const PENDING_ADMIN_CEILING = 24;
 export const CONFIRM_ONLY_ADMIN_PAGES = Object.freeze({
   'Pages/Admin/NewsDiscovery/**': 'AI and editorial side effects',
   'Pages/Admin/Search/Index.cshtml': 'Search index rebuild',

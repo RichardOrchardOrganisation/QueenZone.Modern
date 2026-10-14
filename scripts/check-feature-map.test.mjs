@@ -404,7 +404,7 @@ for (const absent of [false, true]) {
     const result = checked(root);
     assert.equal(result.ok, true, result.errors.join('\n'));
     assert.match(result.index, /## Excluded\n\n_None\._/);
-    assert.match(result.index, /## Pending admin areas \(ceiling 25\)/);
+    assert.match(result.index, /## Pending admin areas \(ceiling 24\)/);
     assert.match(result.index, /### admin/);
   });
 }

@@ -228,13 +228,17 @@ The following pages require confirm-only verification:
 ### admin
 
 - `web.admin.index` — Admin dashboard (Pages/Admin/Index.cshtml — /admin)
+- `web.admin.members.action` — Admin member actions (confirmation surface) (Pages/Admin/Members/Action.cshtml — /admin/members/{id:guid})
+- `web.admin.members.detail` — Admin member review (Pages/Admin/Members/Detail.cshtml — /admin/members/{id:guid})
+- `web.admin.members.forumAuthorAction` — Admin legacy author actions (confirmation surface) (Pages/Admin/Members/ForumAuthorAction.cshtml — /admin/members)
+- `web.admin.members.index` — Admin members (Pages/Admin/Members/Index.cshtml — /admin/members)
 - `web.admin.search` — Admin search index (Pages/Admin/Search/Index.cshtml — /admin/search)
 
 ## Excluded
 
 _None._
 
-## Pending admin areas (ceiling 25)
+## Pending admin areas (ceiling 24)
 
 - `Pages/Admin/Articles/**`
 - `Pages/Admin/Biography/**`
@@ -245,7 +249,6 @@ _None._
 - `Pages/Admin/ForumReports/**`
 - `Pages/Admin/FreddieTributes/**`
 - `Pages/Admin/HelpRequests/**`
-- `Pages/Admin/Members/**`
 - `Pages/Admin/News/**`
 - `Pages/Admin/NewsDiscovery/**`
 - `Pages/Admin/NewsSuggestions/**`
