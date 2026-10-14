@@ -12,7 +12,7 @@ Dev and migration apps that allow direct access omit that list and keep the
 main-site default at Allow.
 
 Production SCM has a separate restriction list with default Deny. The release
-workflow signs in through the existing `prod-release` OIDC federation, grants
+workflow signs in through the `prod-release-gated` OIDC federation, grants
 its current runner IPv4 `/32` during zip deploy and Kudu restart, and removes
 the rule even when deployment fails. A cancelled runner can leave its rule
 behind; check for and remove stale `github-deploy-*` SCM rules before applying

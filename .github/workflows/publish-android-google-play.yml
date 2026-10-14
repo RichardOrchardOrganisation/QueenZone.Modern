@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     # Play signing / store upload only (issue #1377 Option B). Custom policy:
-    # branch main. Distinct from prod-deploy (ARM/OIDC).
+    # branch main. Distinct from prod-deploy-gated (ARM/OIDC).
     environment: prod-google-play
     defaults:
       run:

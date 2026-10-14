@@ -74,8 +74,8 @@ needed by that trust boundary.
 
 ### `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS`
 
-Used by `.github/workflows/deploy.yml` (`migrate` and `deploy` on `prod-release`;
-`configure-app-settings` on `prod-deploy`), `.github/workflows/nightly-legacy-checks.yml`
+Used by `.github/workflows/deploy.yml` (`migrate` and `deploy` on `prod-release-gated`;
+`configure-app-settings` on `prod-deploy-gated`), `.github/workflows/nightly-legacy-checks.yml`
 (`sync-legacy-db` on `prod-data-read`; `legacy-read-probes` and macOS `ui-e2e-realdata`
 via repository-level token/mapping for the SQL Express probe password only), and
 `.github/workflows/test-migrations-against-mirror.yml` (`resync-mirror` on `prod-data-read`).
@@ -92,7 +92,7 @@ a4e79219-d353-4730-ab3b-b4c10048fd97 > AZURE_WEBAPP_PUBLISH_PROFILE
 b6a94e02-3243-411f-8e32-b4af00ce2522 > MOBILE_AUTH_SIGNING_KEY
 ```
 
-`prod-release` mapping:
+`prod-release-gated` mapping:
 
 ```yaml
 a4e79219-d353-4730-ab3b-b4c10048fd97 > AZURE_WEBAPP_PUBLISH_PROFILE_CANADA_EAST
@@ -100,7 +100,7 @@ a4e79219-d353-4730-ab3b-b4c10048fd97 > AZURE_WEBAPP_PUBLISH_PROFILE_CANADA_EAST
 b6a94e02-3243-411f-8e32-b4af00ce2522 > MOBILE_AUTH_SIGNING_KEY
 ```
 
-`prod-deploy` mapping:
+`prod-deploy-gated` mapping:
 
 ```yaml
 b6a94e02-3243-411f-8e32-b4af00ce2522 > MOBILE_AUTH_SIGNING_KEY
@@ -132,7 +132,7 @@ to the same-named App Service setting before every web deployment, including rot
 deployment if the mapped value is missing or shorter than 32 characters.
 
 Outbound contact notifications and immediate account deletion confirmations use Gmail SMTP. Both
-`dev-deploy` and `prod-deploy` map the existing Bitwarden entries below through
+`dev-deploy` and `prod-deploy-gated` map the existing Bitwarden entries below through
 `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS`. The deploy workflows reconcile them to the App Service
 settings `SmtpEmail__Username` and `SmtpEmail__AppPassword`; `SmtpEmail__FromAddress` is set
 to `support@queenzone.org`. The contact recipient is `HelpRequests__NotificationAddress`

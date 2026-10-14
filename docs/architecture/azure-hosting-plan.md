@@ -190,7 +190,7 @@ the setting if it reappears live, so it must stay absent.
 
 `WEBSITE_WARMUP_PATH` and `WEBSITE_WARMUP_STATUSES` are owned by ARM (#666):
 `deploy.yml`'s `configure-app-settings` job logs in via `azure/login` with a
-dedicated OIDC identity (GitHub environment `prod-deploy`, Website Contributor
+dedicated OIDC identity (GitHub environment `prod-deploy-gated`, Website Contributor
 scoped to the `queenzone-prod` site only — not the resource group, and
 separate from the `dev` environment's Bitwarden publish-profile identity),
 then runs `az webapp config appsettings set` before the zip deploy runs. Do

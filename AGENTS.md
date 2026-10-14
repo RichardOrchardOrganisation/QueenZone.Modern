@@ -12,7 +12,7 @@ This repository is the modern QueenZone rebuild. The project is archive-first: i
 - `docs/architecture/blob-storage-ugc.md` is the UGC blob upload foundation (`QueenZone.Storage` / `IBlobUploadService`).
 - `docs/architecture/opentofu-inventory.md` is the live Azure/Cloudflare ownership inventory for OpenTofu adoption (`infra/import/` holds sanitised IDs).
 - `docs/architecture/opentofu-contributor-runbook.md` is the OpenTofu operating contract, including `prevent_destroy` on SQL, Storage, and other irreplaceable resources. OpenTofu does not manage blob objects or SQL rows, and it will not automatically refuse to destroy a data store unless that lifecycle flag is set.
-- `docs/architecture/github-environments.md` is the GitHub Environment map (purpose, secrets/vars, protection, workflows). Production Actions use `prod-release`, `prod-deploy`, `prod-google-play`, and `prod-data-read` — not legacy `dev` / `deploy`.
+- `docs/architecture/github-environments.md` is the GitHub Environment map (purpose, secrets/vars, protection, workflows). Production Actions use `prod-release-gated`, `prod-deploy-gated`, `prod-google-play`, and `prod-data-read` — not ungated `prod-release` / `prod-deploy` or legacy `dev` / `deploy`.
 - `docs/architecture/codeql.md` is the default CodeQL scan contract: Expo Android modules are path-ignored and `java-kotlin` is skipped because no first-party Java/Kotlin remains (#1418 Option A). Do not add an Android SDK CodeQL build.
 - `docs/decisions/0007-rich-text-editor-quill.md` is the shared Quill rich-text editor decision (partial + `/api/uploads/editor-image`).
 - `docs/architecture/json-api-v1.md` is the versioned `/api/v1` JSON API contract (pagination, Problem Details, OpenAPI).
@@ -471,7 +471,7 @@ App Service setting names are the canonical secret keys in Bitwarden, including 
 
 The deployed App Service runtime database setting is `ConnectionStrings__QueenZoneLegacy`. The current production route uses SQL authentication, stored in Azure App Service configuration, not in the repository.
 
-`QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING` is fetched by repository and `prod-data-read` workflows from the Canada East Bitwarden secret `ConnectionStrings__QueenZoneLegacyCanadaEast`; `prod-release` exposes the same secret through the `_CANADA_EAST` output alias used by `deploy.yml`. Updating that Bitwarden secret does not update the live `ConnectionStrings__QueenZoneLegacy` App Service runtime setting, which is configured separately. When database credentials rotate, update both places as needed and restart `queenzone-prod` before verifying production.
+`QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING` is fetched by repository and `prod-data-read` workflows from the Canada East Bitwarden secret `ConnectionStrings__QueenZoneLegacyCanadaEast`; `prod-release-gated` exposes the same secret through the `_CANADA_EAST` output alias used by `deploy.yml`. Updating that Bitwarden secret does not update the live `ConnectionStrings__QueenZoneLegacy` App Service runtime setting, which is configured separately. When database credentials rotate, update both places as needed and restart `queenzone-prod` before verifying production.
 
 For production debugging (log stream, Azure CLI, Azure MCP tenant setup, and forum smoke checks), see `docs/agent-handoff-cheatsheet.md`.
 

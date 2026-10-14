@@ -18,7 +18,28 @@
         "status": "deleted",
         "protectionRules": [],
         "opentofuTreatment": "outside",
-        "notes": "Deleted in Settings 2026-09-07 (#1394). Entra FIC subject environment:deploy removed. Do not recreate. ARM/OIDC moved to prod-deploy; Play moved to prod-google-play."
+        "notes": "Deleted in Settings 2026-09-07 (#1394). Entra FIC subject environment:deploy removed. Do not recreate. ARM/OIDC moved to prod-deploy-gated; Play moved to prod-google-play."
+      },
+      {
+        "name": "prod-release-gated",
+        "protectionRules": ["custom_branch_policy", "required_reviewers"],
+        "variableNames": [
+          "BITWARDEN_APP_SERVICE_DEPLOY_SECRETS"
+        ],
+        "opentofuTreatment": "outside",
+        "notes": "Gated production migrate + zip deploy (deploy.yml) after check-gates / gate-override (#2294). Custom policy: tags v* only; reviewer richardorchard. Entra FIC subject environment:prod-release-gated. Secret values not recorded."
+      },
+      {
+        "name": "prod-deploy-gated",
+        "protectionRules": ["custom_branch_policy", "required_reviewers"],
+        "variableNames": [
+          "ARM_CLIENT_ID",
+          "ARM_SUBSCRIPTION_ID",
+          "ARM_TENANT_ID",
+          "BITWARDEN_APP_SERVICE_DEPLOY_SECRETS"
+        ],
+        "opentofuTreatment": "outside",
+        "notes": "OIDC identity QueenZone Deploy; Website Contributor on site queenzone-prod only. FIC subject environment:prod-deploy-gated. Custom policy: tags v* only; reviewer richardorchard. Bitwarden mapping exposes MOBILE_AUTH_SIGNING_KEY only. Writes WEBSITE_WARMUP_PATH via ARM (also deletes WEBSITE_WARMUP_STATUSES/WEBSITE_RUN_FROM_PACKAGE if either reappears live). Sibling of OpenTofu plan/apply, not an OpenTofu principal."
       },
       {
         "name": "prod-release",
@@ -27,7 +48,7 @@
           "BITWARDEN_APP_SERVICE_DEPLOY_SECRETS"
         ],
         "opentofuTreatment": "outside",
-        "notes": "Production migrate + zip deploy (deploy.yml). Custom policy: branch main + tags v*. Secret values not recorded."
+        "notes": "Ungated name kept for old tags until Gilfoyle deletes it after #2294. New deploy.yml uses prod-release-gated. Secret values not recorded."
       },
       {
         "name": "prod-deploy",
@@ -39,7 +60,7 @@
           "BITWARDEN_APP_SERVICE_DEPLOY_SECRETS"
         ],
         "opentofuTreatment": "outside",
-        "notes": "OIDC identity QueenZone Deploy; Website Contributor on site queenzone-prod only. Bitwarden mapping exposes MOBILE_AUTH_SIGNING_KEY only. Writes WEBSITE_WARMUP_PATH via ARM (also deletes WEBSITE_WARMUP_STATUSES/WEBSITE_RUN_FROM_PACKAGE if either reappears live). Sibling of OpenTofu plan/apply, not an OpenTofu principal."
+        "notes": "Ungated name kept for old tags until Gilfoyle deletes it after #2294. New deploy.yml uses prod-deploy-gated. Do not add new jobs."
       },
       {
         "name": "prod-google-play",

@@ -382,12 +382,12 @@ The planned public canonical domain for the site is `https://www.queenzone.org`.
 
 Set `Site:PublicBaseUrl` in App Service configuration (or `appsettings.Local.json` for local overrides) when the public host differs from the default in `appsettings.json`.
 
-Production GitHub Environment configuration (`prod-release` for migrate + zip deploy) required:
+Production GitHub Environment configuration (`prod-release-gated` for migrate + zip deploy) required:
 
 - Secret `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN`: authorizes the workflow to read the QueenZone Bitwarden Secrets Manager project.
 - Variable `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS`: maps the Bitwarden secret IDs to `AZURE_WEBAPP_PUBLISH_PROFILE` and `QUEENZONE_LEGACY_MIGRATION_CONNECTION_STRING`. See `docs/bitwarden-secrets.md` for the mapping and rotation procedure. The migration connection is separate from the App Service runtime connection and should use a principal with permission to create or alter tables.
 
-See [`docs/architecture/github-environments.md`](docs/architecture/github-environments.md) for the full environment map (`prod-release`, `prod-deploy`, `prod-google-play`, `prod-data-read`). Do not put production secrets on legacy `dev` / `deploy`.
+See [`docs/architecture/github-environments.md`](docs/architecture/github-environments.md) for the full environment map (`prod-release-gated`, `prod-deploy-gated`, `prod-google-play`, `prod-data-read`). Do not put production secrets on ungated `prod-release` / `prod-deploy` or legacy `dev` / `deploy`.
 
 App Service configuration required:
 
@@ -410,7 +410,7 @@ ALTER ROLE db_datawriter ADD MEMBER [app_login_name];
 
 Keep read-only environments on `db_datareader` only.
 
-The production `Deploy` workflow applies pending EF Core migrations when required, then deploys the existing CI artifact; it does not rebuild. Pull-request tests have already passed in the separate `CI` workflow and are not rerun here. Pre-merge CI applies migrations to the SQL Express mirror only; production Azure SQL `database update` is this workflow's `migrate` job. Configure the Bitwarden access secret and deploy-secret mapping in the GitHub `prod-release` environment as described above.
+The production `Deploy` workflow applies pending EF Core migrations when required, then deploys the existing CI artifact; it does not rebuild. Pull-request tests have already passed in the separate `CI` workflow and are not rerun here. Pre-merge CI applies migrations to the SQL Express mirror only; production Azure SQL `database update` is this workflow's `migrate` job. Configure the Bitwarden access secret and deploy-secret mapping in the GitHub `prod-release-gated` environment as described above.
 
 For manual bootstrap or recovery, you can still run:
 
