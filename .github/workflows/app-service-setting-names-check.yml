@@ -26,9 +26,12 @@ jobs:
   check-setting-names:
     name: Verify required setting names are present
     runs-on: ubuntu-latest
-    # Production ARM/OIDC identity (issue #1377 Option B). Custom policy:
-    # branch main + tags v*. Scheduled runs use the default branch (main).
-    environment: prod-deploy
+    # Production ARM/OIDC identity lives on prod-deploy-gated (#2294).
+    # That environment is v*-tag-only so old ungated tags cannot reuse it.
+    # Scheduled default-branch runs cannot satisfy the tag rule; skip them
+    # rather than fail the environment or auto-create ungated prod-deploy.
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: prod-deploy-gated
     permissions:
       id-token: write
       contents: read

@@ -168,9 +168,9 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: node scripts/release/check-gates.mjs --validate-override
 
-  # Approval is specifically for skipping the tip gates. Same reviewers as
-  # prod-release. The reason is passed via env and posted to #2222 before
-  # migrate; if the comment fails, the deploy fails.
+  # Approval is specifically for skipping the tip gates. Same reviewer as
+  # prod-release-gated. The reason is passed via env and posted to #2222
+  # before migrate; if the comment fails, the deploy fails.
   gate-override:
     name: gate-override
     runs-on: ubuntu-latest
@@ -328,9 +328,11 @@ jobs:
       needs.changes.outputs.code == 'true' &&
       needs.changes.outputs.migrations == 'true' &&
       (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
-    # Production migrate + zip deploy share prod-release (issue #1377 Option B).
-    # Custom policy: branch main + tags v*. Do not use legacy environment "dev".
-    environment: prod-release
+    # Production migrate + zip deploy share prod-release-gated (#2291/#2294).
+    # Custom policy: tags v* only. Old tags keep prod-release and fail at
+    # Azure login after Gilfoyle deletes that name. Behind check-gates /
+    # gate-override. Do not use ungated prod-release or legacy "dev".
+    environment: prod-release-gated
     permissions:
       contents: read
 
@@ -412,11 +414,12 @@ jobs:
       needs.changes.outputs.code == 'true' &&
       needs.resolve-ci-run.result == 'success' &&
       (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
-    # Production ARM/OIDC identity for App Service settings (issue #1377
-    # Option B). Custom policy: branch main + tags v*. Distinct from
-    # prod-release (Bitwarden zip deploy) and from deploy-dev.yml's
-    # "dev-deploy". Do not use legacy environment "deploy".
-    environment: prod-deploy
+    # Production ARM/OIDC identity for App Service settings (#2291/#2294).
+    # Custom policy: tags v* only. Distinct from prod-release-gated
+    # (Bitwarden zip deploy) and from deploy-dev.yml's "dev-deploy".
+    # Behind check-gates / gate-override. Do not use ungated prod-deploy
+    # or legacy environment "deploy".
+    environment: prod-deploy-gated
     permissions:
       id-token: write
       contents: read
@@ -578,10 +581,11 @@ jobs:
       needs.configure-app-settings.result == 'success' &&
       (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') &&
       (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
-    # Same prod-release environment as migrate (Bitwarden publish profile).
-    # url below is the public production site, not a GitHub Environment name.
+    # Same prod-release-gated environment as migrate (Bitwarden publish
+    # profile). Behind check-gates / gate-override. url below is the public
+    # production site, not a GitHub Environment name.
     environment:
-      name: prod-release
+      name: prod-release-gated
       url: https://www.queenzone.org
     # A stuck azure/webapps-deploy poll (e.g. hitting the SCM-restart race
     # this job now waits out) had no bound and hung for ~20 minutes before a

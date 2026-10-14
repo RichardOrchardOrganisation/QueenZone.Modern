@@ -43,7 +43,7 @@ hanging or failing unpredictably later.
 | [`deploy-dev.yml`](../../.github/workflows/deploy-dev.yml) migrate | Push to `main`/`master`, or manual dispatch | `dev-migrate`; Bitwarden mapping targets `queenzone-dev-db` | Skipped until App Service `DevSnapshot__Ready=true`; dev schema only and never production |
 | [`refresh-dev-snapshot.yml`](../../.github/workflows/refresh-dev-snapshot.yml) | Manual confirmation plus `dev-data-refresh` approval | Separate production-read-only and dev-write SQL/Blob credentials | Reads production; resets and populates dev only |
 | [`deploy-dev.yml`](../../.github/workflows/deploy-dev.yml) configure/deploy | Push to `main`/`master`, or manual dispatch | `dev-deploy`; OIDC Website Contributor scope is limited to `queenzone-devbox` | Dev App Service only; never production |
-| [`deploy.yml`](../../.github/workflows/deploy.yml) | Push of a `v*` promotion tag, or manual dispatch from `main` | `prod-release` for migration/deployment; `prod-deploy` for ARM settings | Yes — Canada East production migration, `queenzone-prod` deployment, and smoke checks |
+| [`deploy.yml`](../../.github/workflows/deploy.yml) | Push of a `v*` promotion tag, or manual dispatch of that same `v*` tag | `prod-release-gated` for migration/deployment; `prod-deploy-gated` for ARM settings (after `check-gates` / `gate-override`) | Yes — Canada East production migration, `queenzone-prod` deployment, and smoke checks |
 
 The dev application runs with deterministic sample data while
 App Service `DevSnapshot__Ready` is absent or false. The curated refresh sets it only after

@@ -10,13 +10,15 @@ permissions:
 jobs:
   login:
     name: OIDC login (${{ matrix.identity }})
-    if: github.ref == 'refs/heads/main'
+    if: |
+      (matrix.identity != 'prod-deploy-gated' && github.ref == 'refs/heads/main') ||
+      (matrix.identity == 'prod-deploy-gated' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        identity: [dev-deploy, dev-data-refresh, prod-deploy, opentofu-plan, opentofu-apply]
+        identity: [dev-deploy, dev-data-refresh, prod-deploy-gated, opentofu-plan, opentofu-apply]
     environment: ${{ matrix.identity }}
     steps:
       - name: Report OIDC subject without logging the token

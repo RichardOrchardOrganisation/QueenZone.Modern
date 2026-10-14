@@ -95,38 +95,34 @@ A gate override posts its own comment on #2222 **before** migrate. That job need
 
 ## Rollback
 
-Do not dispatch an old tag. GitHub runs the `deploy.yml` from that ref, and tags from before the tip-gate merge have no `check-gates` job. That path is ungated.
+Do not dispatch an old tag. GitHub runs the `deploy.yml` from that ref, and tags from before the tip-gate merge have no `check-gates` job.
 
-Preferred path — the previous SHA still has three fresh full-suite gates **and** that commit contains this gated `deploy.yml`:
+Preferred path — the previous SHA still has three fresh full-suite gates **and** that commit contains the gated `deploy.yml` that targets `prod-release-gated` / `prod-deploy-gated`:
 
 1. Create a new `vYYYY.MM.DD.N` on that SHA and push. Do not reuse the old tag name.
 2. Watch the new tag's Deploy run.
 
 If that SHA has the gated workflow but the gates have expired, dispatch the **new** tag with `gate_override_reason` (at least 20 characters). Richard approves `prod-gate-override`. The reason is passed via `env`, written to the job summary, and commented on #2222 before migrate.
 
-If the previous SHA is from before the tip-gate merge, tagging it again still runs the ungated historical workflow. That is not a rollback; it is an ungated production deploy. Do not do it. Ask Richard. If he still chooses that path, comment on #2222 first with the reason and the tag, then he dispatches. Environment-level reviewers on `prod-release` are the follow-up so this cannot happen quietly.
+If the previous SHA is from before the tip-gate merge (#2292) or before the gated environment rename (#2294), tagging it again still runs the historical workflow against `prod-release` / `prod-deploy`. After Gilfoyle deletes those environments, that path fails at Azure login (proof target: dispatch `v2026.10.13.3`). That is the intended block. Do not recreate the old names. Ask Richard if a pre-gate SHA must be rebuilt onto a new tag that uses this workflow.
 
 ## Roles
 
 Anyone following this runbook may tag. Workflow-file pull requests are merged by Richard.
 
-Richard is the required reviewer for a gate override. He approves the `prod-gate-override` environment. **Prevent self-review** is off: he is the only reviewer and must be able to approve his own production releases. The same reviewer and Prevent self-review off apply only to `prod-release-gated` and `prod-deploy-gated`. `prod-data-read` has no required reviewer — only a custom deployment branch policy allowing `main`, so scheduled sync jobs do not wait for approval.
+Richard is the required reviewer for a gate override and for the gated production environments. He approves `prod-gate-override`, `prod-release-gated`, and `prod-deploy-gated`. **Prevent self-review** is off: he is the only reviewer and must be able to approve his own production releases. The same reviewer and Prevent self-review off apply only to `prod-release-gated`, `prod-deploy-gated`, and `prod-gate-override`. `prod-data-read` has no required reviewer — only a custom deployment branch policy allowing `main`, so scheduled sync jobs do not wait for approval.
 
-Create `prod-gate-override` in GitHub Settings **before merging** a workflow that first references it. Do not let GitHub auto-create it unprotected. Agents cannot create it.
+Those three environments already exist in Settings (Gilfoyle). Agents cannot create them. Do not add a GitHub App protection rule.
 
-Required settings (Richard applies these):
-
-| Setting | Value |
-| --- | --- |
-| Name | `prod-gate-override` |
-| Required reviewers | `richardorchard` (same on `prod-release-gated` and `prod-deploy-gated` only) |
+| Setting | `prod-gate-override` | `prod-release-gated` / `prod-deploy-gated` |
+| --- | --- | --- |
+| Required reviewers | `richardorchard` | `richardorchard` |
 | Prevent self-review | Off |
-| Wait timer | None |
-| Deployment branches | Custom; tags `v*` only (not `main`) |
-| Environment secrets | None |
-| Environment variables | None |
+| Wait timer | None | None |
+| Deployment branches | Custom; tags `v*` only (not `main`) | Custom; tags `v*` only (not `main`) |
+| Environment secrets | None | None (variables only; OIDC on the gated pair) |
 
-Environment-level enforcement so old pre-gate tags cannot deploy through `prod-release` without reviewers is a follow-up for Bob.
+Ungated `prod-release` and `prod-deploy` stay in Settings only until Gilfoyle deletes them after #2294 merges. Old tags keep those names and then fail at Azure login. This rename **blocks the next production release** until that cutover is done.
 
 ## Override path
 

@@ -17,7 +17,7 @@ param(
     [string]$OidcOwnerId = "333232587",
     [string]$OidcRepositoryId = "1265145026",
     [string]$FederatedCredentialName = "github-org-prod-deploy",
-    [string]$EnvironmentName = "prod-deploy"
+    [string]$EnvironmentName = "prod-deploy-gated"
 )
 
 $ErrorActionPreference = "Stop"
@@ -105,32 +105,16 @@ function Set-DeployGitHubEnvironment {
         [Parameter(Mandatory)][string]$SubscriptionId
     )
 
-    # No required reviewer here (unlike opentofu-apply) — routine deploys
-    # should not need manual approval for an idempotent settings write.
-    $environmentBody = @{
-        wait_timer               = 0
-        prevent_self_review      = $false
-        reviewers                = @()
-        deployment_branch_policy = @{
-            protected_branches     = $true
-            custom_branch_policies = $false
-        }
+    # Settings protection for prod-deploy-gated is owned by Gilfoyle
+    # (reviewer richardorchard, custom tags v* only — #2294). Never PUT
+    # environment policy from this script: a create/update would wipe the
+    # gated tag rule. Only write ARM variables onto an existing environment.
+    $existing = & gh api "repos/$GitHubRepository/environments/$EnvironmentName" 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($existing)) {
+        throw "GitHub environment '$EnvironmentName' is missing. Create and protect it in Settings first (reviewer richardorchard, custom tags v* only). Do not let this script auto-create it."
     }
 
-    if ($PSCmdlet.ShouldProcess("GitHub environment $EnvironmentName", "Configure protection and variables")) {
-        $environmentFile = Join-Path ([System.IO.Path]::GetTempPath()) "$EnvironmentName-environment.json"
-        try {
-            $environmentBody | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $environmentFile -Encoding utf8NoBOM
-            $null = Invoke-Native -FilePath "gh" -Arguments @(
-                "api", "--method", "PUT",
-                "repos/$GitHubRepository/environments/$EnvironmentName",
-                "--input", $environmentFile
-            )
-        }
-        finally {
-            Remove-Item -LiteralPath $environmentFile -Force -ErrorAction SilentlyContinue
-        }
-
+    if ($PSCmdlet.ShouldProcess("GitHub environment $EnvironmentName", "Set ARM variables")) {
         $variables = @{
             ARM_CLIENT_ID       = $ClientId
             ARM_SUBSCRIPTION_ID = $SubscriptionId
@@ -154,7 +138,7 @@ if ($account.id -ne $SubscriptionId) {
 }
 
 if ($WhatIfPreference) {
-    Write-Output "Would create or verify the deploy OIDC identity, Website Contributor role assignment on $WebAppName, and the $EnvironmentName GitHub environment."
+    Write-Output "Would create or verify the deploy OIDC identity and Website Contributor role assignment on $WebAppName. Would set ARM variables on the existing $EnvironmentName GitHub environment (subject environment:$EnvironmentName). Would not create or rewrite environment protection."
     Write-Output "OIDC subject repository segment: $OidcRepositorySegment"
     Write-Output "Would not import or change any QueenZone application resource setting."
     return

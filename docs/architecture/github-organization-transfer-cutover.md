@@ -33,9 +33,9 @@ Every environment has **zero environment secrets**. `protected` below means only
 | `opentofu-plan` | protected; no reviewer | `ARM_CLIENT_ID`, `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `TF_STATE_CONTAINER`, `TF_STATE_KEY`, `TF_STATE_RESOURCE_GROUP`, `TF_STATE_STORAGE_ACCOUNT` | `opentofu-plan.yml`, `opentofu-apply.yml` plan, `opentofu-drift.yml`, backend smoke plan | Names, policies, and reviewers verified before and after transfer. |
 | `opentofu-apply` | protected; reviewer `richardorchard` | Same ARM and `TF_STATE_*` names as `opentofu-plan` | `opentofu-apply.yml` apply/verify, backend smoke apply | Names, policies, and reviewers verified before and after transfer. |
 | `prod-data-read` | custom `main`; no reviewer | `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` | `nightly-legacy-checks.yml` sync, mirror resync | Names, policies, and reviewers verified before and after transfer. |
-| `prod-deploy` | custom `main`, `v*`; no reviewer | `ARM_CLIENT_ID`, `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` | `deploy.yml` configure, `app-service-setting-names-check.yml` | Names, policies, and reviewers verified before and after transfer. |
+| `prod-deploy` | custom `main`, `v*`; no reviewer | `ARM_CLIENT_ID`, `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` | Transfer-day name. Live ARM/OIDC after #2294 is `prod-deploy-gated`. | Names, policies, and reviewers verified before and after transfer. |
 | `prod-google-play` | custom `main`; no reviewer | `BITWARDEN_MOBILE_BUILD_SECRETS`, `SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT` | `publish-android-google-play.yml` publish | Names, policies, and reviewers verified before and after transfer. |
-| `prod-release` | custom `main`, `v*`; no reviewer | `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` | `deploy.yml` migrate/deploy | Names, policies, and reviewers verified before and after transfer. |
+| `prod-release` | custom `main`, `v*`; no reviewer | `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` | Transfer-day name. Live migrate/zip deploy after #2294 is `prod-release-gated`. | Names, policies, and reviewers verified before and after transfer. |
 
 ## Repository integrations
 

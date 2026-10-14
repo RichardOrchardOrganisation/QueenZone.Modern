@@ -4,7 +4,7 @@ Issue: [#1377](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/is
 
 This is the durable map of GitHub Environments used by QueenZone Actions. Environments live only in GitHub Settings today; workflows reference them by exact name. Create and protect an environment **before** merging a workflow that first references it — GitHub auto-creates an unprotected environment on first use.
 
-The four production environments from #1377 exist (Gilfoyle / Delivery). Each of those uses **custom** deployment policies (`custom_branch_policies=true`, `protected_branches=false`). `telemetry-read` (#1805) is a fifth production-adjacent environment; it uses **protected branches** rather than custom policies. Environment **secret counts are 0 by design**: `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stays a repository secret. Only environment **variables** (Bitwarden UUID→name maps, ARM IDs, Sentry) live on the environments.
+The four production environments from #1377 still exist in Settings until Gilfoyle deletes the ungated pair after #2294. Gated `deploy.yml` uses `prod-release-gated` and `prod-deploy-gated` (custom tags `v*` only, reviewer `richardorchard`). `prod-google-play` and `prod-data-read` keep their #1377 policies. `telemetry-read` (#1805) uses **protected branches**. Environment **secret counts are 0 by design**: `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stays a repository secret. Only environment **variables** (Bitwarden UUID→name maps, ARM IDs, Sentry) live on the environments.
 
 ## Why not rename `dev` / `deploy` in place
 
@@ -13,7 +13,7 @@ GitHub can rename an environment and keep its secrets and variables. That was th
 - Legacy `dev` was **split**. It previously gated production migrate + zip deploy (`deploy.yml`), PR-time production Azure SQL writes (`ci.yml`), production reads that refresh the SQL Express mirror, and vestigial mirror-only probe jobs. One rename cannot express those four trust boundaries.
 - Legacy `deploy` was **split**. It previously gated the production ARM/OIDC identity **and** Google Play signing/upload. Those credentials must not share an environment.
 
-Those names are **deleted in Settings** (verified 2026-09-07). Workflows use `prod-release`, `prod-deploy`, `prod-google-play`, and `prod-data-read`. Do not recreate `dev` or `deploy`. See [Legacy environment retirement](#legacy-environment-retirement).
+Those names are **deleted in Settings** (verified 2026-09-07). Gated production deploys use `prod-release-gated` and `prod-deploy-gated` (#2291/#2294). `prod-google-play` and `prod-data-read` are unchanged. Do not recreate `dev` or `deploy`. See [Legacy environment retirement](#legacy-environment-retirement) and [Ungated prod-release / prod-deploy](#ungated-prod-release--prod-deploy).
 
 ## Option B: PR-time Azure SQL writes stop
 
@@ -27,11 +27,11 @@ Production `dotnet ef database update` stays on `deploy.yml` `migrate` (tag `v*`
 
 | Environment | Purpose | Environment variables (confirmed) | Protection | Workflows / jobs |
 | --- | --- | --- | --- | --- |
-| `prod-release` | Production migrate + zip deploy | `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` maps only the Canada East publish profile, Canada East migration connection string, and `MOBILE_AUTH_SIGNING_KEY`. Repo-level Bitwarden token. | **Custom** branch `main` + tags `v*` | `deploy.yml` `migrate`; `deploy.yml` `deploy` |
-| `prod-release-gated` | Reviewer-gated sibling of `prod-release`. Required reviewer `richardorchard`, Prevent self-review off, custom tags `v*` only. Workflows still use `prod-release`. | None. Reviewer gate only. | **Custom** tags `v*` only; required reviewer `richardorchard`; Prevent self-review off | None yet |
-| `prod-gate-override` | Approve skipping the three production tip gates (#2291). Richard creates this in Settings before merge — do not let GitHub auto-create it. Exact settings: required reviewer `richardorchard`, Prevent self-review off, custom tags `v*` only, no secrets or variables. The same reviewer and Prevent self-review off apply only to `prod-release-gated` and `prod-deploy-gated`. | None. Repo-level token posts the reason to #2222. | **Custom** tags `v*` only; required reviewer `richardorchard`; Prevent self-review off | `deploy.yml` `gate-override` only |
-| `prod-deploy` | ARM/OIDC App Service settings | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`, plus a narrow `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` mapping for `MOBILE_AUTH_SIGNING_KEY` only. ARM vars also live on `telemetry-read` (read-only Monitor identity). | **Custom** branch `main` + tags `v*` | `deploy.yml` `configure-app-settings`; `app-service-setting-names-check.yml` |
-| `prod-deploy-gated` | Reviewer-gated sibling of `prod-deploy`. Required reviewer `richardorchard`, Prevent self-review off, custom tags `v*` only. Workflows still use `prod-deploy`. | None. Reviewer gate only. | **Custom** tags `v*` only; required reviewer `richardorchard`; Prevent self-review off | None yet |
+| `prod-release-gated` | Production migrate + zip deploy | `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` maps only the Canada East publish profile, Canada East migration connection string, and `MOBILE_AUTH_SIGNING_KEY`. Repo-level Bitwarden token. OIDC ARM vars for the zip-deploy `azure/login` (SCM allow-list). | **Custom** tags `v*` only; required reviewer `richardorchard`; Prevent self-review off | `deploy.yml` `migrate`; `deploy.yml` `deploy` (after `check-gates` or `gate-override`) |
+| `prod-deploy-gated` | ARM/OIDC App Service settings | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`, plus a narrow `BITWARDEN_APP_SERVICE_DEPLOY_SECRETS` mapping for `MOBILE_AUTH_SIGNING_KEY` only. Entra FIC subject `environment:prod-deploy-gated`. ARM vars also live on `telemetry-read` (read-only Monitor identity). | **Custom** tags `v*` only; required reviewer `richardorchard`; Prevent self-review off | `deploy.yml` `configure-app-settings` (after `check-gates` or `gate-override`); `app-service-setting-names-check.yml` (v* refs only); `oidc-identity-smoke.yml` |
+| `prod-gate-override` | Approve skipping the three production tip gates (#2291). Required reviewer `richardorchard`, Prevent self-review off. The same reviewer and Prevent self-review off apply only to `prod-release-gated` and `prod-deploy-gated`. | None. Repo-level token posts the reason to #2222. | **Custom** tags `v*` only; required reviewer `richardorchard`; Prevent self-review off | `deploy.yml` `gate-override` only |
+| `prod-release` | Ungated historical migrate + zip deploy | Same Bitwarden map as the gated replacement until Gilfoyle deletes this name after #2294. | **Custom** branch `main` + tags `v*` | Old `deploy.yml` on pre-gate tags only. Do not add new jobs. |
+| `prod-deploy` | Ungated historical ARM/OIDC | Same ARM/Bitwarden vars as the gated replacement until Gilfoyle deletes this name after #2294. | **Custom** branch `main` + tags `v*` | Old `deploy.yml` on pre-gate tags only. Do not add new jobs. |
 | `prod-google-play` | Play signing / store upload | `BITWARDEN_MOBILE_BUILD_SECRETS` plus Sentry vars (`SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`). Mapping yields Android keystore outputs, `SENTRY_AUTH_TOKEN`, and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. **No ARM.** | **Custom** branch `main` | `publish-android-google-play.yml` `publish-android` only |
 | `prod-data-read` | Read production to refresh/resync the SQL Express mirror | Narrow Bitwarden map: Canada East publish profile + migration connection string **only** (not the probe-password / mobile-auth entries). The generic output aliases are retained for these workflows. Repo-level Bitwarden token. | **Custom** branch `main` (scheduled runs use the default branch); no required reviewer | `nightly-legacy-checks.yml` `sync-legacy-db`; `test-migrations-against-mirror.yml` `resync-mirror` only |
 | `telemetry-read` | Read-only Azure Monitor / Log Analytics for App Insights triage (#1805) | `ARM_CLIENT_ID`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` after Richard runs `infra/bootstrap/Bootstrap-TelemetryReadIdentity.ps1`. No environment secrets. Sentry mapping for the triage workflow is a separate app-side Bitwarden variable. | **Protected branches** (bootstrap default; no required reviewer) | `telemetry-read-probe.yml` (#1805 step one). `telemetry-triage.yml` (scheduled poller; dry-run unless `TELEMETRY_TRIAGE_FILE_ISSUES=true`). Do not create the Entra app from CI. |
@@ -70,15 +70,29 @@ Issue [#1394](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/iss
 
 `gh api repos/RichardOrchardOrganisation/QueenZone.Modern/environments` on 2026-09-07: **`dev` and `deploy` are absent**. Live names: `dev-data-refresh`, `dev-deploy`, `dev-migrate`, `opentofu-apply`, `opentofu-plan`, `prod-data-read`, `prod-deploy`, `prod-google-play`, `prod-release`.
 
-Add `prod-gate-override` in Settings **before merging** a workflow that first references it (#2291). Required reviewer `richardorchard`, Prevent self-review off (he is the only reviewer and must approve his own releases), custom tags `v*` only, no secrets or variables. The same reviewer and Prevent self-review off apply only to `prod-release-gated` and `prod-deploy-gated`. `prod-data-read` has no required reviewer — only a custom deployment branch policy allowing `main`. See [`docs/release/README.md`](../release/README.md).
+Gilfoyle later added `prod-gate-override`, `prod-release-gated`, and `prod-deploy-gated` (#2291/#2294).
+
+`prod-gate-override`, `prod-release-gated`, and `prod-deploy-gated` already exist in Settings (reviewer `richardorchard`, Prevent self-review off, custom tags `v*` only). `prod-data-read` has no required reviewer — only a custom deployment branch policy allowing `main`. Do not add a GitHub App protection rule. See [`docs/release/README.md`](../release/README.md).
 
 `telemetry-read` is created by `Bootstrap-TelemetryReadIdentity.ps1` (#1805) and is not present until Richard runs that script.
 
 1. Done. Exact workflow search on `main` is clean: no `environment: dev`, `environment: deploy`, `name: dev`, or `name: deploy` under `.github/workflows/` (kept `dev-migrate` / `dev-deploy` / `dev-data-refresh` and `deploy-dev.yml`).
-2. Done. Tag `v2026.09.07.1` succeeded using `prod-release` + `prod-deploy`.
+2. Done. Tag `v2026.09.07.1` succeeded using `prod-release` + `prod-deploy` (ungated names; retired after #2294).
 3. Done. `publish-android-google-play.yml` succeeded on `main` using `prod-google-play` (Play run `34095308960`).
 4. Done. Nightly `sync-legacy-db` succeeded using `prod-data-read` (Nightly Sync `34096958201`).
 5. Done. Gilfoyle deleted `dev` and `deploy` in Settings (API list above) and removed the Entra FIC subject `environment:deploy`. If either environment name reappears, a stale workflow auto-created it — delete it again in Settings; flip this sentence only.
+
+## Ungated prod-release / prod-deploy
+
+Issue #2294 (Bob's follow-up on #2291 after #2292). **This blocks the next production release.**
+
+Required reviewers and tag rules cannot tell an old tag's ungated `deploy.yml` from the gated one: both are `v*` tags. The fix is new environment names that only the gated workflow references.
+
+- Gilfoyle created `prod-release-gated` and `prod-deploy-gated` with OIDC credentials, a `v*`-tag-only rule, reviewer `richardorchard`, and Prevent self-review off. Federated-credential subjects are `environment:prod-release-gated` and `environment:prod-deploy-gated`.
+- `check-gates` or `gate-override` must succeed before any job that targets those environments.
+- Old tags keep `prod-release` / `prod-deploy`. After merge, Gilfoyle deletes those names (and the old FIC subjects). Dispatching `v2026.10.13.3` then fails at Azure login. Nothing is migrated or deployed.
+- Do not add a GitHub App custom deployment protection rule.
+- Do not let a leftover workflow auto-create unprotected `prod-release` or `prod-deploy` after the delete. Current workflows must not reference those names.
 
 ## Required status check rename
 
