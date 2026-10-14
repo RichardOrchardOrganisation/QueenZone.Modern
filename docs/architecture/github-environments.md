@@ -4,7 +4,7 @@ Issue: [#1377](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/is
 
 This is the durable map of GitHub Environments used by QueenZone Actions. Environments live only in GitHub Settings today; workflows reference them by exact name. Create and protect an environment **before** merging a workflow that first references it — GitHub auto-creates an unprotected environment on first use.
 
-The four production environments from #1377 still exist in Settings until Gilfoyle deletes the ungated pair after #2294. Gated `deploy.yml` uses `prod-release-gated` and `prod-deploy-gated` (custom tags `v*` only, reviewer `richardorchard`). `prod-google-play` and `prod-data-read` keep their #1377 policies. `telemetry-read` (#1805) uses **protected branches**. Environment **secret counts are 0 by design**: `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stays a repository secret. Only environment **variables** (Bitwarden UUID→name maps, ARM IDs, Sentry) live on the environments.
+The four production environments from #1377 still exist in Settings until Gilfoyle deletes the ungated pair after #2294. Gated `deploy.yml` uses `prod-release-gated` and `prod-deploy-gated` (custom tags `v*` only, reviewer `richardorchard`, Prevent self-review off). `prod-google-play` and `prod-data-read` keep their #1377 policies (`prod-data-read` has no required reviewer). `telemetry-read` (#1805) uses **protected branches**. Environment **secret counts are 0 by design**: `BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN` stays a repository secret. Only environment **variables** (Bitwarden UUID→name maps, ARM IDs, Sentry) live on the environments.
 
 ## Why not rename `dev` / `deploy` in place
 

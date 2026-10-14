@@ -117,7 +117,7 @@ Those three environments already exist in Settings (Gilfoyle). Agents cannot cre
 | Setting | `prod-gate-override` | `prod-release-gated` / `prod-deploy-gated` |
 | --- | --- | --- |
 | Required reviewers | `richardorchard` | `richardorchard` |
-| Prevent self-review | Off |
+| Prevent self-review | Off | Off |
 | Wait timer | None | None |
 | Deployment branches | Custom; tags `v*` only (not `main`) | Custom; tags `v*` only (not `main`) |
 | Environment secrets | None | None (variables only; OIDC on the gated pair) |
