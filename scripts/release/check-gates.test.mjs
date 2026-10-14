@@ -444,6 +444,19 @@ test('DEV tested_sha comes from the live build stamp', async () => {
   );
 });
 
+test('DEV publish requires the exact commit and retains the freshly built fallback stamp', () => {
+  const deploy = readWorkflow('deploy-dev.yml');
+  const find = deploy.split('      - name: Find matching CI run')[1].split('      - name: Choose build stamp')[0];
+  assert.match(find, /REQUIRE_EXACT_SHA: 'true'/);
+  assert.match(find, /RELEASE_SHA: \$\{\{ steps\.sha\.outputs\.release_sha \}\}/);
+  assert.match(find, /bash \.\/scripts\/Resolve-CiPublishRun\.sh/);
+  const publish = deploy.split('      - name: Publish website from checkout')[1].split('      - name: Fetch Bitwarden')[0];
+  assert.match(publish, /needs\.resolve-ci-run\.outputs\.found != 'true'/);
+  assert.match(publish, /CHECKOUT_SHA=\$\(git rev-parse HEAD\)/);
+  assert.match(publish, /SHORT="\$\{CHECKOUT_SHA:0:7\}"/);
+  assert.match(publish, /dotnet publish[\s\S]*OverrideGitCommitShort="\$SHORT"/);
+});
+
 test('deploy.yml gate job sits after changes, fail-closed, with no polling', () => {
   const deploy = readWorkflow('deploy.yml');
   assert.match(deploy, /gate_override_reason:/);

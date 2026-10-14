@@ -36,6 +36,8 @@ gh workflow run dev-member-auth-e2e.yml --ref main
 gh workflow run dev-journey-e2e.yml --ref main
 ```
 
+DEV artifact reuse requires the artifact's commit SHA to equal the deployed main SHA. A PR and squash merge can have the same source tree but different embedded build stamps. In that case DEV publishes a fresh package from the checked-out main commit; it does not relabel a PR package or reinterpret an old proof. The proof writer and exact-SHA release gate stay unchanged. After this policy changes, promotion still needs a fresh DEV deployment and new full gate runs; failed historical evidence cannot be reused.
+
 Each gate uploads a `gate-proof` artifact `{ tested_sha, full_suite }`. For the DEV gates, `tested_sha` is the live DEV `data-build-version` stamp read in the test job before and after the suite; those two reads must match, and an unknown stamp fails closed. `deploy.yml` requires `tested_sha` to equal the deploy SHA. Freshness is at most 72 hours, set by the repo variable `PROD_GATE_MAX_AGE_HOURS`.
 
 `check-gates.mjs` finds runs with `actions/workflows/{file}/runs?head_sha=SHA&branch=main` and judges **only the newest** run for that SHA. An older green run cannot hide a newer red, missing, or unreadable one. Then it fetches `runs/{id}/jobs` and requires the `gate-proof` job itself to have succeeded on the latest attempt. A run whose jobs were all skipped still reports workflow success and does not count.

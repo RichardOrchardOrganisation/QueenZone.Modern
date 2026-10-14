@@ -25,15 +25,13 @@ concurrency:
 # merge was allowed (see branch protection on main), so none of that re-runs
 # here.
 #
-# Same reuse + fallback + skip model as deploy.yml (do not split):
-# Reuse-first: when the matching PR ci.yml run still has a non-expired
-# web-publish-{run_id} artifact AND that PR head's git tree equals the
-# main tip's tree, download and ship that zip. Same tree means the
-# squash/merge is byte-identical to the PR build. A stale PR head
-# (different tree) is never reused.
-# Fallback: if resolve cannot find a tree-matching web-publish *and* a
-# website Deploy is still required, publish from the checked-out main
-# SHA, stamp that SHA, and deploy.
+# Reuse + fallback + skip model, with exact-commit reuse for DEV:
+# A PR publish artifact is reusable only when its head SHA equals the
+# deployed main SHA and its artifact is still available. Equal Git trees
+# alone are insufficient: the package embeds the PR SHA, while release
+# gate proof must report the commit DEV actually serves.
+# Fallback: if no exact-commit web-publish exists and Deploy is required,
+# publish from the checked-out main SHA and stamp that actual build SHA.
 # Skip (do not walk back): workflow_dispatch classifies tip vs previous
 # main commit. Mobile-only / docs-only / workflow-only → code=false →
 # skip resolve/migrate/deploy/smoke. Push to main uses the push span.
@@ -129,8 +127,8 @@ jobs:
   #   - merge commits (2 parents): second parent is the PR head
   #   - squash/rebase merges (1 parent): look up the associated PR head via API
   #   - direct pushes with no PR: fall back to github.sha itself
-  # Reuse that PR-head zip only when its git tree equals the release
-  # commit's tree. Otherwise found=false (fresh publish).
+  # DEV requires the PR head SHA itself to equal the release SHA.
+  # A same-tree squash merge uses found=false (fresh publish).
   resolve-ci-run:
     runs-on: ubuntu-latest
     needs: changes
@@ -200,6 +198,7 @@ jobs:
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ steps.sha.outputs.head_sha }}
           RELEASE_SHA: ${{ steps.sha.outputs.release_sha }}
+          REQUIRE_EXACT_SHA: 'true'
         run: |
           echo "Looking up ci.yml web-publish for PR head ${HEAD_SHA} vs release ${RELEASE_SHA}."
           bash ./scripts/Resolve-CiPublishRun.sh >> "$GITHUB_OUTPUT"
@@ -216,10 +215,10 @@ jobs:
           CHECKOUT_SHA=$(git rev-parse HEAD)
           echo "Tree compare: PR-head ${HEAD_TREE:-unknown} vs release ${RELEASE_TREE:-unknown} (found=${FOUND})."
           if [ "$FOUND" = "true" ]; then
-            echo "Reuse CI web-publish run ${RUN_ID} at PR-head SHA ${RUN_HEAD_SHA:-$HEAD_SHA} (trees match)."
+            echo "Reuse CI web-publish run ${RUN_ID} at PR-head SHA ${RUN_HEAD_SHA:-$HEAD_SHA} (exact commit matches)."
             echo "expect_build_version=$HEAD_SHA" >> "$GITHUB_OUTPUT"
           else
-            echo "No tree-matching web-publish; fallback publish will stamp checkout ${CHECKOUT_SHA}."
+            echo "No exact-commit web-publish; fallback publish will stamp checkout ${CHECKOUT_SHA}."
             echo "expect_build_version=$CHECKOUT_SHA" >> "$GITHUB_OUTPUT"
           fi
 
@@ -536,7 +535,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Reuse-first: PR-head zip whose git tree matches the release commit.
+      # Reuse-first: artifact built from the exact deployed commit.
       - name: Download publish artifact from CI run
         if: needs.resolve-ci-run.outputs.found == 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
