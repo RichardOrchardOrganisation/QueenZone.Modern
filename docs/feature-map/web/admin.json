@@ -16,7 +16,7 @@
       "id": "web.admin.fanPerformanceReports.action",
       "name": "Admin fan performance reports action",
       "page": "Pages/Admin/FanPerformanceReports/Action.cshtml",
-      "url": "/admin/fan-performance-reports/{id:guid}/{handler}",
+      "url": "/admin/fan-performance-reports/{id:guid}",
       "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
       "admin": {
         "actions": [
@@ -28,11 +28,13 @@
           "public-content",
           "search-index"
         ],
-        "getWrites": false
+        "getWrites": false,
+        "notes": "POST-only handlers at /admin/fan-performance-reports/{id:guid}/{handler}. The url is the real detail/confirmation surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are submitted only for spec-created fixture records on the local Testing host."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/fan-performance-reports/{id:guid}/{handler}"
     },
     {
       "sources": [
@@ -100,7 +102,7 @@
       "id": "web.admin.forumReports.action",
       "name": "Admin forum reports action",
       "page": "Pages/Admin/ForumReports/Action.cshtml",
-      "url": "/admin/forum-reports/{id:guid}/status",
+      "url": "/admin/forum-reports/{id:guid}",
       "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
       "admin": {
         "actions": [
@@ -110,11 +112,13 @@
         "externalEffects": [
           "audit-log"
         ],
-        "getWrites": false
+        "getWrites": false,
+        "notes": "POST-only handlers at /admin/forum-reports/{id:guid}/status. The url is the real detail/confirmation surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are submitted only for spec-created fixture records on the local Testing host."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/forum-reports/{id:guid}/status"
     },
     {
       "sources": [
@@ -184,7 +188,7 @@
       "id": "web.admin.helpRequests.action",
       "name": "Admin help requests action",
       "page": "Pages/Admin/HelpRequests/Action.cshtml",
-      "url": "/admin/help/{id:guid}/{handler}",
+      "url": "/admin/help/{id:guid}",
       "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
       "admin": {
         "actions": [
@@ -192,11 +196,13 @@
         ],
         "verification": "fixture-record",
         "externalEffects": [],
-        "getWrites": false
+        "getWrites": false,
+        "notes": "POST-only handlers at /admin/help/{id:guid}/{handler}. The url is the real detail/confirmation surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are submitted only for spec-created fixture records on the local Testing host."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/help/{id:guid}/{handler}"
     },
     {
       "sources": [
@@ -410,7 +416,7 @@
       "id": "web.admin.privateMessages.action",
       "name": "Admin private messages action",
       "page": "Pages/Admin/PrivateMessages/Action.cshtml",
-      "url": "/admin/private-messages/{id:guid}/{handler}",
+      "url": "/admin/private-messages/{id:guid}",
       "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
       "admin": {
         "actions": [
@@ -420,11 +426,13 @@
         "externalEffects": [
           "audit-log"
         ],
-        "getWrites": false
+        "getWrites": false,
+        "notes": "POST-only handlers at /admin/private-messages/{id:guid}/{handler}. The url is the real detail/confirmation surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are submitted only for spec-created fixture records on the local Testing host."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
-      "aliases": []
+      "aliases": [],
+      "handlerUrl": "/admin/private-messages/{id:guid}/{handler}"
     },
     {
       "sources": [

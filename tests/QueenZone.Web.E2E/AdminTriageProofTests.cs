@@ -7,6 +7,13 @@ namespace QueenZone.Web.E2E;
 [Category(E2ECategories.Deterministic)]
 public class AdminTriageProofTests : AdminFeatureProofTest
 {
+    [TestCase("web.admin.fanPerformanceReports.index")]
+    [TestCase("web.admin.forumReports.index")]
+    [TestCase("web.admin.helpRequests.index")]
+    [TestCase("web.admin.privateMessages.index")]
+    public Task Index_ProvesAnonymousMemberAndAdminAccess(string featureId) =>
+        AssertAdminFeatureAsync(featureId);
+
     [Test]
     public async Task ForumReports_FixtureStatusChange()
     {
