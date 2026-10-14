@@ -42,3 +42,15 @@ test('gate-only rerun retains producer evidence but a newer failed producer inva
   ] };
   assert.deepEqual(await discoverEvidence(fixture(options)), []);
 });
+test('gate-only rerun keeps evidence when GitHub carries the producer into the new attempt', async () => {
+  const carried = { run: { run_attempt: 2 }, jobs: [
+    { id: 1, name: 'Web browser tests', conclusion: 'success', run_attempt: 1, started_at: '2026-10-14T07:15:43Z' },
+    { id: 2, name: 'Web browser tests', conclusion: 'success', run_attempt: 2, started_at: '2026-10-14T07:15:43Z' },
+  ] };
+  assert.equal((await discoverEvidence(fixture(carried))).length, 1);
+  const rerun = { run: { run_attempt: 2 }, jobs: [
+    { id: 1, name: 'Web browser tests', conclusion: 'success', run_attempt: 1, started_at: '2026-10-14T07:15:43Z' },
+    { id: 2, name: 'Web browser tests', conclusion: 'success', run_attempt: 2, started_at: '2026-10-14T07:40:00Z' },
+  ] };
+  assert.deepEqual(await discoverEvidence(fixture(rerun)), []);
+});
