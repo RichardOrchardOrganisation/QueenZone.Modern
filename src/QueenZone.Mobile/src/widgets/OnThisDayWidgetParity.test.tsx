@@ -22,7 +22,7 @@ jest.mock('expo-widgets', () => ({ createWidget: jest.fn(() => ({})) }));
 
 const day = { formattedDate: '01 July 2026', summary: 'Queen announce a tour.', eventId: 12 };
 const quote = { quoteText: 'We are ready.', quoteWhoSaid: 'Brian May', quoteId: 34 };
-const trivia = { triviaText: 'Queen recorded at Mountain Studios.' };
+const trivia = { triviaText: 'Queen recorded at Mountain Studios.', triviaId: 56 };
 const cases: [string, WidgetProps][] = [
   ['day', day], ['day without id', { ...day, eventId: 0 }], ['day negative id', { ...day, eventId: -1 }],
   ['quote', quote], ['quote without id', { ...quote, quoteId: undefined }],
@@ -42,7 +42,7 @@ describe('iOS widget parity with canonical Android decisions', () => {
       jest.setSystemTime(now);
       const face = widgetActiveFace(props, now);
       const screen = render(<OnThisDayWidgetView {...props} />);
-      expect(screen.getByLabelText(widgetFaceDeepLinkUrl(face, props.quoteId, props.eventId))).toBeTruthy();
+      expect(screen.getByLabelText(widgetFaceDeepLinkUrl(face, props.quoteId, props.eventId, props.triviaId))).toBeTruthy();
       expect(screen.getByText(face ? widgetEyebrow(face) : 'ON THIS DAY')).toBeTruthy();
       const lines = face === 'day' ? [widgetDayPrimary(props), widgetDaySecondary(props)]
         : face === 'quote' ? [widgetQuotePrimary(props), widgetQuoteSecondary(props)]

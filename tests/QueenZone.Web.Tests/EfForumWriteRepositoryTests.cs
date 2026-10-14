@@ -310,6 +310,70 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
         Assert.True(summary.IsHidden);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetAuthorForumContentSummaryAsync_CountsLinkedAndUnlinkedPostsWithoutOtherMembers(bool hidden)
+    {
+        var member = await SeedMemberAsync();
+        var other = await SeedMemberAsync("other@example.com", member.DisplayName);
+        await SeedCategoryAsync();
+        await repository.CreateThreadAsync(new NewForumThread(
+            1, member.Id, "Former Name", "Linked starter", "Body", DateTimeOffset.UtcNow));
+        var legacy = await repository.CreateThreadAsync(new NewForumThread(
+            1, member.Id, member.DisplayName, "Legacy starter", "Body", DateTimeOffset.UtcNow));
+        var foreign = await repository.CreateThreadAsync(new NewForumThread(
+            1, other.Id, member.DisplayName, "Other member", "Body", DateTimeOffset.UtcNow));
+        await dbContext.ModernForumPosts.Where(post => post.LegacyPostId == legacy.StarterPostId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(post => post.AuthorMemberId, (Guid?)null));
+        await dbContext.ModernForumPosts.Where(post => post.LegacyPostId != foreign.StarterPostId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(post => post.IsHidden, hidden));
+        await dbContext.ModernForumThreads.Where(thread => thread.LegacyTopicId != foreign.TopicId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(thread => thread.IsHidden, hidden));
+
+        var summary = await repository.GetAuthorForumContentSummaryAsync(member.Id, "  forum fan  ");
+        Assert.Equal(2, summary.PostCount);
+        Assert.Equal(2, summary.ThreadCount);
+        Assert.Equal(hidden, summary.IsHidden);
+
+        var unlinked = await repository.GetAuthorForumContentSummaryAsync(null, "forum fan");
+        Assert.Equal(1, unlinked.PostCount);
+        Assert.Equal(1, unlinked.ThreadCount);
+        Assert.Equal(hidden, unlinked.IsHidden);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetAuthorForumContentSummaryAsync_NoMatchingPostsIsNotHidden(bool hasMember)
+    {
+        var summary = await repository.GetAuthorForumContentSummaryAsync(
+            hasMember ? Guid.NewGuid() : null, "Missing Author");
+        Assert.Equal(0, summary.PostCount);
+        Assert.Equal(0, summary.ThreadCount);
+        Assert.False(summary.IsHidden);
+    }
+
+    [Fact]
+    public void SummaryAuthorPosts_SqlServerUsesDisjointIndexableBranches()
+    {
+        using var sqlContext = new QueenZoneDbContext(new DbContextOptionsBuilder<QueenZoneDbContext>()
+            .UseSqlServer("Server=localhost;Database=QueryShapeOnly;Integrated Security=True;TrustServerCertificate=True")
+            .Options);
+        var sqlRepository = new EfForumWriteRepository(sqlContext);
+        var sql = sqlRepository.SummaryAuthorPosts(Guid.NewGuid(), "Forum Fan")
+            .Select(post => new { post.ThreadId, post.IsHidden }).ToQueryString();
+        Assert.Contains("UNION ALL", sql, StringComparison.Ordinal);
+        Assert.Contains("[AuthorMemberId] IS NULL", sql, StringComparison.Ordinal);
+        Assert.Contains("[AuthorDisplayName] =", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(" OR ", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("UPPER(", sql, StringComparison.Ordinal);
+
+        var unlinkedSql = sqlRepository.SummaryAuthorPosts(null, "Forum Fan").ToQueryString();
+        Assert.DoesNotContain("UNION", unlinkedSql, StringComparison.Ordinal);
+        Assert.Contains("[AuthorMemberId] IS NULL", unlinkedSql, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task CreateThreadAsync_TruncatesBodyToLegacyColumnLimit()
     {

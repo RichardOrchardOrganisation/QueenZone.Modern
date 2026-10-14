@@ -12,7 +12,10 @@
     "floors": "scripts/mobile-coverage-floors.json"
   },
   "suppressions": {
-    "skippedPaths": ["src/QueenZone.Mobile/ios", "src/QueenZone.Mobile/android"],
+    "skippedPaths": [
+      "src/QueenZone.Mobile/ios",
+      "src/QueenZone.Mobile/android"
+    ],
     "minIssueDigits": 2
   },
   "uiPaths": [
@@ -22,5 +25,35 @@
     "src/QueenZone.Web/Pages/",
     "src/QueenZone.Web/Views/",
     "src/QueenZone.Web/wwwroot/"
-  ]
+  ],
+  "uiProof": {
+    "baseBranch": "main",
+    "ciWorkflow": ".github/workflows/ci.yml",
+    "gateJob": "e2e-test",
+    "platforms": {
+      "web": [
+        "web"
+      ],
+      "mobile": [
+        "android",
+        "ios"
+      ]
+    },
+    "producers": {
+      ".github/workflows/ci.yml": {
+        "web": {
+          "web-browser-tests": "Web browser tests"
+        }
+      },
+      ".github/workflows/mobile-device-smoke.yml": {
+        "android": {
+          "mobile-android-smoke": "Mobile Android device smoke",
+          "mobile-android-journeys": "Mobile Android extended device suite"
+        },
+        "ios": {
+          "mobile-ios-smoke": "Mobile iOS device smoke"
+        }
+      }
+    }
+  }
 }

@@ -1,3 +1,4 @@
+import { visibleMarkdown } from './check-pr-verification.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -65,7 +66,7 @@ test('an empty or unsafe uiPaths list fails closed', () => {
   }
 });
 
-test('Verification section requires an id and proof or Not verified', () => {
+test('Verification section extracts declared feature IDs', () => {
   const section = extractVerificationSection(`## Summary\n\nHi\n\n## Verification\n\n- Feature ids: mobile.photos.viewer\n- Not verified: no emulator\n\n## Issues\n\nCloses #1\n`);
   assert.match(section, /mobile\.photos\.viewer/);
   assert.deepEqual(findFeatureIds(section, ids), ['mobile.photos.viewer']);
@@ -86,14 +87,14 @@ test('UI PR without Verification fails', () => {
   assert.match(result.error, /## Verification/);
 });
 
-test('UI PR with id and Not verified passes', () => {
+test('UI PR with id and Not verified fails', () => {
   const result = evaluatePrVerification({
     body: '## Verification\n\nFeature ids: mobile.photos.viewer\nNot verified: dispatch proof for mobile.photos.viewer\n',
     files: ['src/QueenZone.Mobile/src/screens/photos/PhotoViewerScreen.tsx'],
     mapIds: ids,
     mobileSources: sources,
   });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, false);
   assert.deepEqual(result.ids, ['mobile.photos.viewer']);
 });
 
@@ -119,7 +120,7 @@ test('opt-out needs the label and a skip reason', () => {
   assert.match(verificationSkipReason(skipped.skipReason ? `Verification-skip-reason: ${skipped.skipReason}` : ''), /token-only/);
 });
 
-test('Dependabot is exempt and non-UI docs PRs pass', () => {
+test('Dependabot UI changes need evidence; non-UI docs PRs pass', () => {
   assert.equal(
     evaluatePrVerification({
       body: '',
@@ -128,7 +129,7 @@ test('Dependabot is exempt and non-UI docs PRs pass', () => {
       mapIds: ids,
       mobileSources: sources,
     }).ok,
-    true,
+    false,
   );
   assert.equal(
     evaluatePrVerification({
@@ -148,7 +149,7 @@ test('real feature map exposes the photo viewer source as UI', () => {
 });
 
 // pr-verification-check.yml imports this export through github-script; keep its
-// ({ github, context, core }) contract and label side effects under test.
+// ({ github, context, core }) read-only contract under test.
 function fakeGitHub({ files, labels = [] }) {
   const calls = [];
   const github = {
@@ -179,18 +180,63 @@ function fakeGitHub({ files, labels = [] }) {
   return { github, context, core, calls, failures };
 }
 
-test('workflow export fails a UI PR without proof and labels it', async () => {
+test('read-only workflow export fails a UI PR without proof', async () => {
   const fake = fakeGitHub({ files: ['src/QueenZone.Web/Pages/Index.cshtml'] });
   const result = await checkPullRequestVerification(fake);
   assert.equal(result.ok, false);
   assert.deepEqual(fake.failures, ['UI PR is missing a ## Verification section.']);
-  assert.deepEqual(fake.calls, [['listFiles', 7], ['addLabels', 'needs-verification']]);
+  assert.deepEqual(fake.calls, [['listFiles', 7]]);
 });
 
-test('workflow export passes a non-UI PR and clears a stale label', async () => {
+test('read-only workflow export passes a non-UI PR', async () => {
   const fake = fakeGitHub({ files: ['development-standards.json', 'docs/testing.md'], labels: ['needs-verification'] });
   const result = await checkPullRequestVerification(fake);
   assert.equal(result.ok, true);
   assert.deepEqual(fake.failures, []);
-  assert.deepEqual(fake.calls, [['listFiles', 7], ['removeLabel', 'needs-verification']]);
+  assert.deepEqual(fake.calls, [['listFiles', 7]]);
+});
+
+const uiInput = { body: '## Verification\nFeature ids: web.home.index', files: ['src/QueenZone.Web/Pages/Index.cshtml'], mapIds: ids, headSha: 'a'.repeat(40) };
+const webEvidence = { feature: 'web.home.index', platform: 'web', headSha: 'a'.repeat(40), url: 'https://github.com/o/r/actions/runs/1/artifacts/2' };
+test('only validated evidence for the current head satisfies the gate', () => {
+  assert.equal(evaluatePrVerification({ ...uiInput, evidence: [webEvidence] }).ok, true);
+  for (const text of ['Not verified:', 'Not verified: no browser', 'https://example.com/screenshot.png', 'artifacts/proof/local.png']) {
+    assert.equal(evaluatePrVerification({ ...uiInput, body: uiInput.body + '\n' + text }).ok, false);
+  }
+  for (const mutation of [{ headSha: 'b'.repeat(40) }, { feature: 'web.news.detail' }, { platform: 'android' }]) {
+    assert.equal(evaluatePrVerification({ ...uiInput, evidence: [{ ...webEvidence, ...mutation }] }).ok, false);
+  }
+});
+test('hidden or empty waiver reasons do not bypass evidence', () => {
+  for (const reason of ['Verification-skip-reason:', '<!-- Verification-skip-reason: placeholder -->', '```\nVerification-skip-reason: hidden\n```']) {
+    assert.equal(evaluatePrVerification({ ...uiInput, labels: ['no-ui-verification'], body: reason }).ok, false);
+  }
+  assert.equal(evaluatePrVerification({ ...uiInput, body: 'Verification-skip-reason: no browser' }).ok, false);
+});
+test('declared features must cover changed files and every mapped fixture', () => {
+  const entries = [{ id: 'web.home.index', sources: ['src/QueenZone.Web/Pages/Index.cshtml'], specs: ['tests/SmokeTests.cs', 'tests/LayoutTests.cs'] }];
+  assert.equal(evaluatePrVerification({ ...uiInput, entries, evidence: [{ ...webEvidence, fixtures: ['SmokeTests'] }] }).ok, false);
+  assert.equal(evaluatePrVerification({ ...uiInput, entries, evidence: [{ ...webEvidence, fixtures: ['SmokeTests', 'LayoutTests'] }] }).ok, true);
+  assert.equal(evaluatePrVerification({ ...uiInput, entries, body: '## Verification\nmobile.photos.viewer', evidence: [webEvidence] }).ok, false);
+});
+test('native mobile evidence requires both platforms', () => {
+  const input = { ...uiInput, files: [...sources], body: '## Verification\nmobile.photos.viewer' };
+  const android = { ...webEvidence, feature: 'mobile.photos.viewer', platform: 'android' };
+  assert.equal(evaluatePrVerification({ ...input, evidence: [android] }).ok, false);
+  assert.equal(evaluatePrVerification({ ...input, evidence: [android, { ...android, platform: 'ios' }] }).ok, true);
+});
+
+test('malformed comments and fences cannot supply an explicit waiver', () => {
+  for (const body of [
+    '<!--\nVerification-skip-reason: hidden unclosed comment',
+    '```text\nVerification-skip-reason: hidden unclosed fence',
+    '<!-- outer <!-- inner -->\n<!--\nVerification-skip-reason: hidden nested comment\n-->',
+  ]) {
+    assert.equal(evaluatePrVerification({ ...uiInput, labels: ['no-ui-verification'], body }).ok, false);
+  }
+});
+
+test('hidden-text removal cannot reconstruct a comment delimiter', () => {
+  assert.equal(visibleMarkdown('<!<!-- removed -->--'), '<!\n--');
+  assert.equal(visibleMarkdown('before<!-- hidden -->after'), 'before\nafter');
 });

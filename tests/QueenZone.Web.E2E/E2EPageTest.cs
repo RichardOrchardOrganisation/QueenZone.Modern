@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Playwright;
 using Microsoft.Playwright.NUnit;
 using NUnit.Framework.Interfaces;
@@ -60,6 +61,11 @@ public abstract class E2EPageTest : PageTest
         var outcome = TestContext.CurrentContext.Result.Outcome.Status;
         var failed = outcome is TestStatus.Failed or TestStatus.Warning;
 
+        if (outcome == TestStatus.Passed && Environment.GetEnvironmentVariable("E2E_CAPTURE_PROOF") == "true")
+        {
+            await CapturePassedProofAsync();
+        }
+
         var dir = failed ? E2EArtifactPaths.EnsureDirectory() : null;
         var name = E2EArtifactPaths.SanitizeFileName(TestContext.CurrentContext.Test.Name);
         var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
@@ -112,6 +118,25 @@ public abstract class E2EPageTest : PageTest
         }
 
         _extraContexts.Clear();
+    }
+
+    private async Task CapturePassedProofAsync()
+    {
+        var pages = new[] { Page }.Concat(_extraContexts.SelectMany(context => context.Pages));
+        foreach (var page in pages.Where(page => !page.IsClosed && page.Url.StartsWith(BaseUrl, StringComparison.Ordinal)))
+        {
+            var dir = Path.Combine(E2EArtifactPaths.EnsureDirectory(), "passed-proof");
+            Directory.CreateDirectory(dir);
+            var name = Guid.NewGuid().ToString("N");
+            await page.ScreenshotAsync(new PageScreenshotOptions { Path = Path.Combine(dir, name + ".png"), FullPage = true });
+            await File.WriteAllTextAsync(Path.Combine(dir, name + ".json"), JsonSerializer.Serialize(new
+            {
+                fixture = GetType().Name,
+                test = TestContext.CurrentContext.Test.FullName,
+                url = page.Url,
+                screenshot = name + ".png"
+            }));
+        }
     }
 
     private static async Task CaptureContextArtifactsAsync(

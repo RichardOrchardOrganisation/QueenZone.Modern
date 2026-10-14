@@ -39,8 +39,10 @@ concurrency:
 # database-free. This workflow runs read probes, self-cleaning write probes,
 # and the real-data Playwright UI suite nightly, without putting the real
 # legacy/deploy database on the PR merge path. It is continuous signal, like
-# the probes it extends — it is not a required check on any PR, and
-# deploy.yml does not depend on it.
+# the probes it extends — it is not a required check on any PR. A full-suite
+# `gate-proof` artifact on the exact tip SHA is one of the three production
+# tip gates enforced by deploy.yml (#2291). A dispatch narrowed with
+# skip_sync or category_filter does not count.
 #
 # Everything runs against a same-day mirror on the Windows runner's local SQL
 # Express (synced from the live Azure SQL DB via sqlpackage each run), not
@@ -509,3 +511,59 @@ jobs:
           path: test-results/safe-reports/results.json
           if-no-files-found: ignore
           retention-days: 14
+
+  gate-proof:
+    name: gate-proof
+    needs: [sync-legacy-db, apply-ef-migrations-mirror, legacy-read-probes, legacy-write-probes, ui-e2e-realdata, residue-check]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Decide whether this is a full suite
+        id: suite
+        env:
+          SYNC: ${{ needs.sync-legacy-db.result }}
+          MIGRATE: ${{ needs.apply-ef-migrations-mirror.result }}
+          READS: ${{ needs.legacy-read-probes.result }}
+          WRITES: ${{ needs.legacy-write-probes.result }}
+          UI: ${{ needs.ui-e2e-realdata.result }}
+          RESIDUE: ${{ needs.residue-check.result }}
+          SKIP_SYNC: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_sync }}
+          CATEGORY_FILTER: ${{ github.event.inputs.category_filter || '' }}
+        run: |
+          narrowed=false
+          if [ "$SKIP_SYNC" = "true" ] || [ -n "$CATEGORY_FILTER" ]; then
+            narrowed=true
+          fi
+          all_green=false
+          if [ "$SYNC" = "success" ] && [ "$MIGRATE" = "success" ] && [ "$READS" = "success" ] && [ "$WRITES" = "success" ] && [ "$UI" = "success" ] && [ "$RESIDUE" = "success" ]; then
+            all_green=true
+          fi
+          if [ "$narrowed" = "false" ] && [ "$all_green" = "true" ]; then
+            echo "full_suite=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_suite=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "all_green=$all_green" >> "$GITHUB_OUTPUT"
+          echo "narrowed=$narrowed" >> "$GITHUB_OUTPUT"
+      - name: Write gate-proof
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GATE_FULL_SUITE: ${{ steps.suite.outputs.full_suite }}
+        run: node scripts/release/write-gate-proof.mjs --out gate-proof/gate-proof.json --full-suite "$GATE_FULL_SUITE"
+      - name: Upload gate-proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gate-proof
+          path: gate-proof/gate-proof.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Fail when a full nightly did not succeed
+        if: steps.suite.outputs.all_green != 'true' && steps.suite.outputs.narrowed != 'true'
+        run: exit 1

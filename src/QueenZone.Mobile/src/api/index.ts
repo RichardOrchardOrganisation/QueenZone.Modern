@@ -42,6 +42,7 @@ export {
   fetchQuoteById,
   fetchRandomQuote,
   fetchRandomTrivia,
+  fetchTriviaById,
   fetchHomePoll,
   voteHomePoll,
   fetchTimelinePage,

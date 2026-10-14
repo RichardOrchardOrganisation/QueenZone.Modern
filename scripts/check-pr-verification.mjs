@@ -2,16 +2,15 @@
 /**
  * PR Verification section check (#1799).
  *
- * A UI PR must have ## Verification with a feature-map id and either a proof
- * link or a Not verified: line. Opt out with the no-ui-verification label plus
- * Verification-skip-reason:. Dependabot is exempt.
+ * UI PRs require uploaded, validated CI evidence for their current head.
+ * The no-ui-verification label plus a visible reason is the only waiver.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { discoverEvidence } from './ui-proof-evidence.mjs';
 import { compareText, listUiSourcePaths, loadFeatureMap, repoRootFrom, toPosix } from './check-feature-map.mjs';
 
-export const NEEDS_VERIFICATION = 'needs-verification';
 export const NO_UI_VERIFICATION = 'no-ui-verification';
 
 /**
@@ -85,38 +84,45 @@ export function findFeatureIds(text, ids) {
   return [...ids].filter((id) => haystack.includes(id)).sort(compareText);
 }
 
-export function hasProofLink(text) {
-  return /https?:\/\//.test(text) || /artifacts\/proof\//.test(text);
+function removeDelimitedText(value, opening, closing) {
+  let text = value;
+  let start = text.indexOf(opening);
+  while (start !== -1) {
+    const end = text.indexOf(closing, start + opening.length);
+    // Preserve a boundary so removing hidden text cannot assemble a new token.
+    // An unclosed comment/fence hides the rest of the description.
+    text = text.slice(0, start) + '\n' + (end === -1 ? '' : text.slice(end + closing.length));
+    start = text.indexOf(opening);
+  }
+  return text;
 }
 
-export function hasNotVerified(text) {
-  return /Not verified:/i.test(text);
+export function visibleMarkdown(body) {
+  const commentsRemoved = removeDelimitedText(String(body || ''), '<!--', '-->');
+  return removeDelimitedText(commentsRemoved, '```', '```');
 }
 
 export function verificationSkipReason(body) {
-  const match = String(body || '').match(/Verification-skip-reason:\s*(\S.*)$/im);
-  return match ? match[1].trim() : '';
-}
-
-export function isDependabot(pullRequest) {
-  const login = pullRequest?.user?.login || '';
-  const ref = pullRequest?.head?.ref || '';
-  return login === 'dependabot[bot]' || ref.startsWith('dependabot/');
+  for (const line of visibleMarkdown(body).split('\n')) {
+    let text = line.trim();
+    if (text.startsWith('-')) text = text.slice(1).trimStart();
+    const prefix = 'verification-skip-reason:';
+    if (text.toLowerCase().startsWith(prefix)) return text.slice(prefix.length).trim();
+  }
+  return '';
 }
 
 export function evaluatePrVerification({
   body = '',
   files = [],
   labels = [],
-  dependabot = false,
+  evidence = [],
+  headSha = '',
+  entries = [],
   mapIds = new Set(),
   mobileSources = new Set(),
   uiPaths = null,
 } = {}) {
-  if (dependabot) {
-    return { ok: true, ui: false, reason: 'Dependabot is exempt.' };
-  }
-
   const configuredUiPaths = uiPaths ?? loadUiPaths();
   const uiFiles = files.filter((file) => isUiChangedPath(file, mobileSources, configuredUiPaths));
   const ui = uiFiles.length > 0;
@@ -141,7 +147,7 @@ export function evaluatePrVerification({
     return { ok: true, ui: false, uiFiles };
   }
 
-  const section = extractVerificationSection(body);
+  const section = extractVerificationSection(visibleMarkdown(body));
   if (!section) {
     return {
       ok: false,
@@ -161,14 +167,26 @@ export function evaluatePrVerification({
     };
   }
 
-  if (!hasProofLink(section) && !hasNotVerified(section)) {
-    return {
-      ok: false,
-      ui,
-      uiFiles,
-      ids,
-      error: '## Verification needs a proof link or a Not verified: line.',
-    };
+  for (const file of uiFiles) {
+    const surface = file.startsWith('src/QueenZone.Mobile/') ? 'mobile' : 'web';
+    const source = file.endsWith('.cshtml.cs') ? file.slice(0, -3) : file;
+    const mapped = entries.filter(entry => entry.sources?.includes(source)).map(entry => entry.id);
+    if (!ids.some(id => id.startsWith(surface + '.') && (!mapped.length || mapped.includes(id)))) {
+      return { ok: false, ui, uiFiles, ids, error: `No affected feature declared for ${file}.` };
+    }
+  }
+  const missing = [];
+  for (const id of ids) {
+    const platforms = id.startsWith('mobile.') ? ['android', 'ios'] : ['web'];
+    const expected = entries.find(entry => entry.id === id)?.specs?.map(spec => path.basename(spec, '.cs')) || [];
+    for (const platform of platforms) {
+      const found = evidence.some(item => item.feature === id && item.platform === platform && item.headSha === headSha
+        && item.url && (platform !== 'web' || expected.every(spec => item.fixtures?.includes(spec))));
+      if (!found) missing.push(`${id}/${platform}`);
+    }
+  }
+  if (missing.length) {
+    return { ok: false, ui, uiFiles, ids, error: `Uploaded passing proof missing for current head: ${missing.join(', ')}. Local paths, arbitrary links and Not verified do not satisfy this gate.` };
   }
 
   return { ok: true, ui, uiFiles, ids };
@@ -190,54 +208,6 @@ async function listPullFiles(github, context, pullNumber) {
   return files;
 }
 
-async function ensureLabel(github, context, name, color, description) {
-  try {
-    await github.rest.issues.getLabel({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      name,
-    });
-  } catch (error) {
-    if (error.status !== 404) {
-      throw error;
-    }
-    await github.rest.issues.createLabel({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      name,
-      color,
-      description,
-    });
-  }
-}
-
-async function setNeedsVerification(github, context, pullNumber, currentLabels, needed) {
-  await ensureLabel(
-    github,
-    context,
-    NEEDS_VERIFICATION,
-    'd93f0b',
-    'UI PR is missing required verification proof.',
-  );
-  const has = currentLabels.includes(NEEDS_VERIFICATION);
-  if (needed && !has) {
-    await github.rest.issues.addLabels({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: pullNumber,
-      labels: [NEEDS_VERIFICATION],
-    });
-  }
-  if (!needed && has) {
-    await github.rest.issues.removeLabel({
-      owner: context.repo.owner,
-      repo: context.repo.repo,
-      issue_number: pullNumber,
-      name: NEEDS_VERIFICATION,
-    });
-  }
-}
-
 export async function checkPullRequestVerification({ github, context, core, root = repoRootFrom() }) {
   const pullRequest = context.payload.pull_request;
   if (!pullRequest) {
@@ -249,30 +219,25 @@ export async function checkPullRequestVerification({ github, context, core, root
   const mapIds = new Set(map.entries.map((entry) => entry.id));
   const mobileSources = listUiSourcePaths(map);
   const files = await listPullFiles(github, context, pullRequest.number);
-  const result = evaluatePrVerification({
-    body: pullRequest.body || '',
-    files,
-    labels: pullRequest.labels || [],
-    dependabot: isDependabot(pullRequest),
-    mapIds,
-    mobileSources,
-    uiPaths: loadUiPaths(root),
-  });
-
-  await setNeedsVerification(
-    github,
-    context,
-    pullRequest.number,
-    (pullRequest.labels || []).map((label) => label.name),
-    !result.ok,
-  );
+  const input = {
+    body: pullRequest.body || '', files, labels: pullRequest.labels || [], mapIds, mobileSources,
+    uiPaths: loadUiPaths(root), entries: map.entries, headSha: pullRequest.head?.sha || '',
+  };
+  let result = evaluatePrVerification(input);
+  let evidence = [];
+  if (!result.ok && result.ids?.length) {
+    evidence = await discoverEvidence({ github, repo: context.repo, headSha: input.headSha, root });
+    result = evaluatePrVerification({ ...input, evidence });
+  }
+  result.evidence = evidence;
+  // Label/comment writes belong only to the trusted refresh workflow.
 
   if (!result.ok) {
     core.setFailed(result.error);
     return result;
   }
 
-  core.info(result.skipped ? `Verification skipped: ${result.skipReason}` : 'Verification section ok.');
+  core.info(result.skipped ? `Verification waived: ${result.skipReason}` : 'Uploaded verification evidence checked.');
   return result;
 }
 

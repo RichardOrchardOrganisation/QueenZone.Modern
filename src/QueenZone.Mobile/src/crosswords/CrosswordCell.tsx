@@ -20,6 +20,8 @@ export function CrosswordCellView({
   cell, letter, number, size, selected, inWord, incorrect, revealed, disabled, label, onPress,
 }: CrosswordCellProps) {
   const { c } = useTheme();
+  let marker = incorrect ? '×' : '';
+  if (revealed) marker = '▲';
   return <Pressable testID={`crossword-cell-${cell}`} accessibilityRole="button"
     accessibilityLabel={label} accessibilityState={{ selected, disabled }} disabled={disabled}
     onPress={() => onPress(cell)} style={[styles.cell, { width: size, height: size,
@@ -29,7 +31,7 @@ export function CrosswordCellView({
     <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={{ alignSelf: 'stretch', textAlign: 'center',
       fontFamily: fonts.bodyMedium, fontSize: size * 0.5, color: c.textPrimary,
       textDecorationLine: incorrect ? 'line-through' : 'none' }}>{letter === '.' ? '' : letter}</Text>
-    <Text accessibilityElementsHidden style={[styles.marker, { fontSize: Math.max(9, size * 0.22), color: incorrect ? c.danger : c.accentPrimary }]}>{revealed ? '▲' : incorrect ? '×' : ''}</Text>
+    <Text accessibilityElementsHidden style={[styles.marker, { fontSize: Math.max(9, size * 0.22), color: incorrect ? c.danger : c.accentPrimary }]}>{marker}</Text>
   </Pressable>;
 }
 

@@ -44,7 +44,7 @@ const timelineListDestination = {
 
 const triviaDestination = {
   screen: 'ArchiveTab',
-  params: { screen: 'Trivia', initial: false },
+  params: { screen: 'Trivia', params: { id: undefined, requestId: expect.any(Number) }, initial: false },
 };
 
 describe('WidgetLinkBridge', () => {
@@ -192,5 +192,30 @@ describe('WidgetLinkBridge', () => {
     renderWithProviders(<WidgetLinkBridge />);
     await waitFor(() => expect(getInitialURL).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('trivia cold/warm link ordering', () => {
+  beforeEach(() => { resetInitialWidgetUrlConsumption(); mockNavigate.mockClear(); getInitialURL.mockReset(); addEventListener.mockReset(); });
+  it('routes a cold-start id and repeated/different warm taps', async () => {
+    let handler: ((event: { url: string }) => void) | undefined;
+    getInitialURL.mockResolvedValue('queenzone://trivia/12');
+    addEventListener.mockImplementation((_type, next) => { handler = next as typeof handler; return { remove: jest.fn() } as never; });
+    renderWithProviders(<WidgetLinkBridge />);
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
+    await act(async () => { handler?.({ url: 'queenzone://trivia/13' }); handler?.({ url: 'queenzone://trivia/12' }); });
+    const params = mockNavigate.mock.calls.map(call => call[1].params.params);
+    expect(params.map(p => p.id)).toEqual([12, 13, 12]);
+    expect(new Set(params.map(p => p.requestId)).size).toBe(3);
+  });
+  it('does not let a late initial URL replace a newer warm widget tap', async () => {
+    let resolveInitial: (url: string) => void = () => {};
+    let handler: ((event: { url: string }) => void) | undefined;
+    getInitialURL.mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
+    addEventListener.mockImplementation((_type, next) => { handler = next as typeof handler; return { remove: jest.fn() } as never; });
+    renderWithProviders(<WidgetLinkBridge />);
+    await act(async () => { handler?.({ url: 'queenzone://trivia/13' }); resolveInitial('queenzone://trivia/12'); });
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    expect(mockNavigate.mock.calls[0][1].params.params.id).toBe(13);
   });
 });

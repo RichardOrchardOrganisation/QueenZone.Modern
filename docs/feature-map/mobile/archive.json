@@ -332,7 +332,9 @@
         "triviaNext",
         "triviaMeta"
       ],
-      "flows": [],
+      "flows": [
+        "src/QueenZone.Mobile/maestro/flows/34-trivia-widget-links.yaml"
+      ],
       "specs": [],
       "selectors": [],
       "signIn": "none",
@@ -340,7 +342,7 @@
       "id": "mobile.archive.trivia",
       "name": "Trivia",
       "screen": "ArchiveStack/Trivia",
-      "entry": "Archive tab \u2192 Trivia"
+      "entry": "Archive tab \u2192 Trivia, or widget fact deep link"
     },
     {
       "aliases": [

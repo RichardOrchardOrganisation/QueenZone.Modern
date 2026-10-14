@@ -123,7 +123,7 @@ const sceneMethods = `  // ${tag}
 `;
 function patchScene(source) {
   if (source.includes(tag)) return source;
-  source = source.replace(/\n  \/\/ @generated begin qz-forum-app-orientation[\s\S]*?\/\/ @generated end qz-forum-app-orientation\n/, '\n');
+  source = source.replace(/\n {2}\/\/ @generated begin qz-forum-app-orientation[\s\S]*?\/\/ @generated end qz-forum-app-orientation\n/, '\n');
   source = once(source, '\n  // Linking API', `
   // @generated begin qz-forum-app-orientation
   public override func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {

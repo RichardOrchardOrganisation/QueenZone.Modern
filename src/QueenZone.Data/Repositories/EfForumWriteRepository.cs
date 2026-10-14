@@ -333,7 +333,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
         CancellationToken cancellationToken = default)
     {
         var name = displayName.Trim();
-        var posts = AuthorPosts(memberId, name);
+        var posts = SummaryAuthorPosts(memberId, name);
         var postCount = await posts.CountAsync(cancellationToken);
         var visiblePosts = await posts.AnyAsync(post => !post.IsHidden, cancellationToken);
 
@@ -415,6 +415,22 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             : post.AuthorMemberId == null && post.AuthorDisplayName.ToUpper() == normalizedName);
     }
 
+    // Keep the linked-member and unlinked-name reads separate so SQL Server can seek
+    // each author index instead of choosing an archive scan for the OR predicate.
+    // The branches are disjoint; Concat translates to UNION ALL without deduplication.
+    // Mutation queries retain AuthorPosts because ExecuteUpdate cannot target a union.
+    internal IQueryable<ModernForumPostEntity> SummaryAuthorPosts(Guid? memberId, string displayName)
+    {
+        var unlinkedPosts = AuthorPosts(null, displayName);
+        if (memberId is not { } id)
+        {
+            return unlinkedPosts;
+        }
+
+        return dbContext.ModernForumPosts.Where(post => post.AuthorMemberId == id)
+            .Concat(unlinkedPosts);
+    }
+
     // Threads this author started: their AuthorMemberId (or unlinked exact-name) post is
     // the starter. Composed as IQueryable so hide/unhide stay one set-based UPDATE.
     private IQueryable<ModernForumThreadEntity> StartedAuthorThreads(Guid? memberId, string displayName) =>
@@ -436,7 +452,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
         var name = displayName.Trim();
 
         // Thread ids where the author's own post is that thread's starter post.
-        var matchingStarterThreadIds = await AuthorPosts(memberId, displayName)
+        var matchingStarterThreadIds = await SummaryAuthorPosts(memberId, displayName)
             .Where(post => !dbContext.ModernForumPosts.Any(earlier =>
                 earlier.ThreadId == post.ThreadId && earlier.LegacyPostId < post.LegacyPostId))
             .Select(post => post.ThreadId)

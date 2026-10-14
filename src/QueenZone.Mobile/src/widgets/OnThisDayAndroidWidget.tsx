@@ -42,7 +42,7 @@ export function OnThisDayAndroidWidget(props: OnThisDayAndroidWidgetProps) {
   return (
     <OverlapWidget
       clickAction="OPEN_URI"
-      clickActionData={{ uri: widgetFaceDeepLinkUrl(face, props.quoteId, props.eventId) }}
+      clickActionData={{ uri: widgetFaceDeepLinkUrl(face, props.quoteId, props.eventId, props.triviaId) }}
       accessibilityLabel="QueenZone on this day widget"
       style={{
         height: 'match_parent',

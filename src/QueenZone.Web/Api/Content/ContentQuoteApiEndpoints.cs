@@ -21,6 +21,12 @@ public static class ContentQuoteApiEndpoints
             .WithSummary("A single random published trivia fact, matching the /trivia page. JSON null when none is published.")
             .Produces<TriviaDto?>();
 
+        group.MapGet("/trivia/{id:int}", GetTriviaDetailAsync)
+            .WithName("GetContentTriviaDetail")
+            .WithSummary("A single published trivia fact by id. Unpublished or missing facts return 404.")
+            .Produces<TriviaDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
         group.MapGet("/quotes/{id:int}", GetQuoteDetailAsync)
             .WithName("GetContentQuoteDetail")
             .WithSummary("A single published quote by id. Unpublished or missing quotes return 404.")
@@ -52,6 +58,23 @@ public static class ContentQuoteApiEndpoints
         return payload is null
             ? Results.Content("null", "application/json")
             : Results.Ok(payload);
+    }
+
+    internal static async Task<IResult> GetTriviaDetailAsync(
+        ITriviaRepository triviaRepository,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var fact = await triviaRepository.GetByIdAsync(id, cancellationToken);
+        if (fact is null || !fact.IsPublished)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Not Found",
+                detail: "This trivia fact is unavailable.");
+        }
+
+        return Results.Ok(ContentApiMapper.ToTriviaDto(fact));
     }
 
     internal static async Task<IResult> GetQuoteDetailAsync(

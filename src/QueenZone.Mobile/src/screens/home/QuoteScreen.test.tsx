@@ -1,4 +1,6 @@
-import { screen, waitFor } from '@testing-library/react-native';
+import { deferred } from '../../test/fixtures';
+import type { RandomQuote } from '../../api';
+import { act, screen, waitFor } from '@testing-library/react-native';
 import { fetchQuoteById } from '../../api';
 import { ApiError } from '../../api/client';
 import { fakeNavigation, renderWithProviders } from '../../test/render';
@@ -32,6 +34,20 @@ describe('QuoteScreen', () => {
   beforeEach(() => {
     fetchQuote.mockReset();
   });
+
+  it('keeps the newer warm quote when an older detail request finishes later', async () => {
+    const old = deferred<RandomQuote>();
+    fetchQuote.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ id: 10, text: 'New quote', whoSaid: 'Brian' });
+    const navigation = fakeNavigation();
+    const view = renderQuote(navigation, 9);
+    await waitFor(() => expect(fetchQuote).toHaveBeenCalledTimes(1));
+    view.rerender(<QuoteScreen navigation={navigation as never} route={{ key: 'quote', name: 'Quote', params: { id: 10 } }} />);
+    await waitFor(() => expect(screen.getByText('“New quote”')).toBeOnTheScreen());
+    await act(async () => old.resolve({ id: 9, text: 'Old quote', whoSaid: 'Freddie' }));
+    expect(screen.queryByText('“Old quote”')).toBeNull();
+    expect(screen.getByText('“New quote”')).toBeOnTheScreen();
+  });
+
 
   it('shows the published quote and Context when present', async () => {
     fetchQuote.mockResolvedValue({
