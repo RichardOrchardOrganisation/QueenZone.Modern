@@ -9,6 +9,11 @@ public abstract class AdminFeatureProofTest : E2EPageTest
     public const string FixturePrefix = "e2e-fixture-";
     private const string TestAuthHeaderName = "X-Test-User-Email";
 
+    protected static string NewFixtureMarker() =>
+        FixturePrefix + new string(Guid.NewGuid().ToString("N")
+            .Select(character => character is >= '0' and <= '9' ? (char)('g' + character - '0') : character)
+            .ToArray());
+
     [SetUp]
     public void GuardAdminProof()
     {

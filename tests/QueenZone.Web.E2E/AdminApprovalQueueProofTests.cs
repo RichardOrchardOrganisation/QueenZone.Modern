@@ -17,7 +17,7 @@ public class AdminApprovalQueueProofTests : AdminFeatureProofTest
     [TestCase("triviaSubmissions", "trivia-submissions", "trivia")]
     public async Task Queue_ProvesAccessAndRejectsOnlyItsOwnSubmission(string area, string route, string submissionRoute)
     {
-        var marker = $"{FixturePrefix}{Guid.NewGuid():N}";
+        var marker = NewFixtureMarker();
         var member = await CreateMemberPageAsync(marker);
         await SubmitAsync(member, submissionRoute, marker);
 
@@ -138,9 +138,23 @@ public class AdminApprovalQueueProofTests : AdminFeatureProofTest
                 throw new ArgumentOutOfRangeException(nameof(route));
         }
 
-        var button = route == "news" ? "Submit suggestion" : route.StartsWith("photo-correction/", StringComparison.Ordinal) ? "Send for review" : "Submit for review";
+        var button = route switch
+        {
+            "news" => "Submit suggestion",
+            _ when route.StartsWith("photo-correction/", StringComparison.Ordinal) => "Send for review",
+            _ => "Submit for review"
+        };
         await member.GetByRole(AriaRole.Button, new() { Name = button, Exact = true }).ClickAsync();
         var confirmationRoute = route.Split('/')[0];
-        await Expect(member).ToHaveURLAsync(new Regex($"/submit/{confirmationRoute}/confirmation(?:/|$)"));
+        try
+        {
+            await Expect(member).ToHaveURLAsync(new Regex($"/submit/{confirmationRoute}/confirmation(?:/|$)"));
+        }
+        catch (PlaywrightException)
+        {
+            var validationMessages = await member.Locator("[data-valmsg-summary], .validation-summary-errors, .text-danger").AllInnerTextsAsync();
+            TestContext.WriteLine($"Submission confirmation was not reached. Current URL: {member.Url}. Validation: {string.Join(" | ", validationMessages)}");
+            throw;
+        }
     }
 }
