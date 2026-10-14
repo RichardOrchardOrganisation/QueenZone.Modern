@@ -5,6 +5,16 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      gate_override_reason:
+        description: "Skip tip gates (v* tag ref only). At least 20 characters. Requires prod-gate-override approval and is logged on #2222."
+        required: false
+        type: string
+      gate_only:
+        description: "Dry-run the tip-gate check and stop (no migrate or deploy)."
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -17,11 +27,12 @@ concurrency:
   # leave the DB or App Service half-updated.
   cancel-in-progress: false
 
-# Runs when a verified commit on main is promoted with a v* tag, or through
-# a manual dispatch from main. ci.yml already ran the full test/coverage/
-# e2e suite against this exact tree as a required status check before the
-# merge was allowed (see branch protection on main), so none of that re-runs
-# here.
+# Runs when a verified commit is promoted with a v* tag, or through a
+# manual dispatch of that same v* tag. Tag pushes cannot override the
+# three tip gates; re-dispatch the tag with gate_override_reason instead.
+# ci.yml already ran the full test/coverage/e2e suite against this exact
+# tree as a required status check before the merge was allowed (see
+# branch protection on main), so none of that re-runs here.
 #
 # Reuse-first: when the matching PR ci.yml run still has a non-expired
 # web-publish-{run_id} artifact AND that PR head's git tree equals the
@@ -92,6 +103,105 @@ jobs:
             | bash ./scripts/classify-pipeline-changes.sh \
             >> "$GITHUB_OUTPUT"
 
+  # Exact-SHA tip gates (#2291). Not a PR check. Fail closed, no polling.
+  # Required when `changes` says migrate or deploy will run. Docs/mobile/
+  # workflow-only ranges skip the three workflow lookups. Missing `changes`
+  # outputs fail closed.
+  # Do not use "Re-run failed jobs": that reuses a possibly stale
+  # check-gates result. Re-run the entire workflow so this job runs again.
+  check-gates:
+    name: check-gates
+    runs-on: ubuntu-latest
+    needs: changes
+    if: |
+      (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') &&
+      (
+        github.event_name != 'workflow_dispatch' ||
+        inputs.gate_only == true ||
+        inputs.gate_override_reason == ''
+      )
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Verify production tip gates
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          CHANGES_CODE: ${{ needs.changes.outputs.code }}
+          CHANGES_MIGRATIONS: ${{ needs.changes.outputs.migrations }}
+          PROD_GATE_MAX_AGE_HOURS: ${{ vars.PROD_GATE_MAX_AGE_HOURS }}
+          GATE_ONLY: ${{ inputs.gate_only }}
+        run: |
+          # Peel annotated tags so the exact-SHA lookup uses the commit, not the tag object.
+          export GITHUB_SHA
+          GITHUB_SHA="$(git rev-parse 'HEAD^{commit}')"
+          node scripts/release/check-gates.mjs
+
+  gate-override-guard:
+    name: gate-override-guard
+    runs-on: ubuntu-latest
+    needs: changes
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      inputs.gate_only != true &&
+      inputs.gate_override_reason != ''
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Validate override reason and ref
+        env:
+          GATE_OVERRIDE_REASON: ${{ inputs.gate_override_reason }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: node scripts/release/check-gates.mjs --validate-override
+
+  # Approval is specifically for skipping the tip gates. Same reviewers as
+  # prod-release. The reason is passed via env and posted to #2222 before
+  # migrate; if the comment fails, the deploy fails.
+  gate-override:
+    name: gate-override
+    runs-on: ubuntu-latest
+    needs: [changes, gate-override-guard]
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      inputs.gate_only != true &&
+      inputs.gate_override_reason != ''
+    environment: prod-gate-override
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Log override on #2222
+        env:
+          GATE_OVERRIDE_REASON: ${{ inputs.gate_override_reason }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/release/check-gates.mjs --comment-override
+
   # Finds the ci.yml run that built+tested this exact tree, so `deploy`
   # can download its publish artifact instead of rebuilding. Soft-miss
   # (found=false) is not a hard fail: deploy then publishes from the
@@ -104,8 +214,13 @@ jobs:
   # commit's tree. Otherwise found=false (fresh publish).
   resolve-ci-run:
     runs-on: ubuntu-latest
-    needs: changes
-    if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && needs.changes.outputs.code == 'true'
+    needs: [changes, check-gates, gate-override]
+    if: |
+      always() &&
+      (github.event_name != 'workflow_dispatch' || inputs.gate_only != true) &&
+      (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') &&
+      needs.changes.outputs.code == 'true' &&
+      (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
     permissions:
       contents: read
       actions: read
@@ -199,15 +314,20 @@ jobs:
   migrate:
     name: Apply database migrations
     runs-on: ubuntu-latest
-    needs: [changes]
+    needs: [changes, check-gates, gate-override]
     # Does not wait on resolve-ci-run — that output is only for the zip deploy.
     # Skip the restore/`database update` when the classified range did not
     # touch EF paths (issue #659). Dispatch and tags use the same classifier
     # (tip vs parent, or previous-tag…this-tag) — do not force migrations=true.
+    # always() is required so a skipped gate-override does not cascade-skip
+    # migrate; the gate-result clause still fails closed.
     if: |
+      always() &&
+      (github.event_name != 'workflow_dispatch' || inputs.gate_only != true) &&
       (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') &&
       needs.changes.outputs.code == 'true' &&
-      needs.changes.outputs.migrations == 'true'
+      needs.changes.outputs.migrations == 'true' &&
+      (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
     # Production migrate + zip deploy share prod-release (issue #1377 Option B).
     # Custom policy: branch main + tags v*. Do not use legacy environment "dev".
     environment: prod-release
@@ -284,12 +404,14 @@ jobs:
   configure-app-settings:
     name: Configure ARM Application Settings
     runs-on: ubuntu-latest
-    needs: [changes, resolve-ci-run]
+    needs: [changes, resolve-ci-run, check-gates, gate-override]
     if: |
       always() &&
+      (github.event_name != 'workflow_dispatch' || inputs.gate_only != true) &&
       (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') &&
       needs.changes.outputs.code == 'true' &&
-      needs.resolve-ci-run.result == 'success'
+      needs.resolve-ci-run.result == 'success' &&
+      (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
     # Production ARM/OIDC identity for App Service settings (issue #1377
     # Option B). Custom policy: branch main + tags v*. Distinct from
     # prod-release (Bitwarden zip deploy) and from deploy-dev.yml's
@@ -444,16 +566,18 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    needs: [changes, resolve-ci-run, migrate, configure-app-settings]
+    needs: [changes, resolve-ci-run, migrate, configure-app-settings, check-gates, gate-override]
     # migrate is skipped on non-EF pushes; treat skipped as success so the
     # zip deploy still runs (issue #659).
     if: |
       always() &&
+      (github.event_name != 'workflow_dispatch' || inputs.gate_only != true) &&
       (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') &&
       needs.changes.outputs.code == 'true' &&
       needs.resolve-ci-run.result == 'success' &&
       needs.configure-app-settings.result == 'success' &&
-      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') &&
+      (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
     # Same prod-release environment as migrate (Bitwarden publish profile).
     # url below is the public production site, not a GitHub Environment name.
     environment:
@@ -588,16 +712,18 @@ jobs:
   post-deploy-smoke:
     name: Post-deploy smoke
     runs-on: ubuntu-latest
-    needs: [changes, resolve-ci-run, deploy]
+    needs: [changes, resolve-ci-run, deploy, check-gates, gate-override]
     # always() is required: migrate is skipped on non-EF pushes, and GitHub
     # then skips every descendant that does not opt out of that cascade —
     # even when `deploy` itself ran (run 31702420754 after #660).
     if: |
       always() &&
+      (github.event_name != 'workflow_dispatch' || inputs.gate_only != true) &&
       (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') &&
       needs.changes.outputs.code == 'true' &&
       needs.resolve-ci-run.result == 'success' &&
-      needs.deploy.result == 'success'
+      needs.deploy.result == 'success' &&
+      (needs.check-gates.result == 'success' || (needs.check-gates.result == 'skipped' && needs.gate-override.result == 'success'))
     # Allow retry loop (~8 min) plus request time; avoid false fails during App Service recycle.
     timeout-minutes: 12
     permissions:

@@ -337,6 +337,8 @@ PRs that only change `src/QueenZone.Mobile/` (or docs/infra/design) skip the .NE
 
 There are two separate deploy workflows, not one: `deploy-dev.yml` auto-deploys every merge to `main` against the `dev` environment (Australia East App Service `queenzone-devbox`, `dev.queenzone.org`); `deploy.yml` deploys **production** to the Canada East App Service `queenzone-prod` and only triggers on a `v*` tag push (or manual dispatch from `main`) — see [epic #1264](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/1264) Phase 4/5. Promote a change to production by tagging the already-merged, already-dev-verified commit: `git tag vX.Y.Z <sha> && git push --tags`. The previous Australia East production app `queenzone-dev` was retired on **14 September 2026**; do not target it for deployment or rollback. See `docs/architecture/azure-hosting-plan.md` ("Environments") for the full picture.
 
+Production tip gates, tagging, override, and rollback: [`docs/release/README.md`](docs/release/README.md). `deploy.yml` accepts a `v*` tag push or a `workflow_dispatch` of that same tag, not a dispatch from `main`.
+
 Coverage exclusions are configured in `coverlet.runsettings`. EF Core files under `**/Migrations/**/*.cs` are excluded from coverage metrics.
 
 The changed-line gate compares `git diff origin/main...HEAD` for `*.cs` files. Large new modules (services, repositories, workers) usually need targeted unit or integration tests, often with fakes or SQLite/in-memory EF, or the gate will fail.

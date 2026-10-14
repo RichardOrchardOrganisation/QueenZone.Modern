@@ -9,10 +9,13 @@ on:
   schedule:
     - cron: "0 7 * * *"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy dev"]
+    types:
+      - completed
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: dev-journey-e2e
@@ -21,10 +24,25 @@ concurrency:
 jobs:
   dev-journey:
     name: Home search forum articles discography on dev
-    if: github.ref == 'refs/heads/main'
+    if: |
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name != 'workflow_run' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.event == 'push'
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: dev-deploy
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      ready: ${{ steps.snapshot.outputs.ready }}
+      stamp: ${{ steps.stamp.outputs.stamp }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -58,6 +76,19 @@ jobs:
             exit 1
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: steps.snapshot.outputs.ready == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Read DEV build stamp
+        if: steps.snapshot.outputs.ready == 'true'
+        id: stamp-before
+        run: |
+          stamp="$(node scripts/release/write-gate-proof.mjs --print-stamp)"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
 
       - name: Set up .NET
         if: steps.snapshot.outputs.ready == 'true'
@@ -101,6 +132,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           'Deployed DEV journey passed. No password-bearing trace or video was recorded.' >> $env:GITHUB_STEP_SUMMARY
 
+      - name: Confirm DEV build stamp is unchanged
+        if: steps.snapshot.outputs.ready == 'true'
+        id: stamp
+        env:
+          STAMP_BEFORE: ${{ steps.stamp-before.outputs.stamp }}
+        run: |
+          stamp="$(node scripts/release/write-gate-proof.mjs --print-stamp --require-match "$STAMP_BEFORE")"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
       - name: Upload post-sign-in journey failure screenshots
         if: failure() && steps.snapshot.outputs.ready == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -109,3 +149,33 @@ jobs:
           path: test-results/e2e/*.png
           if-no-files-found: ignore
           retention-days: 1
+
+  gate-proof:
+    name: gate-proof
+    needs: dev-journey
+    if: |
+      github.ref == 'refs/heads/main' &&
+      needs.dev-journey.result == 'success' &&
+      needs.dev-journey.outputs.ready == 'true' &&
+      needs.dev-journey.outputs.stamp != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Write gate-proof
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          DEV_BUILD_STAMP: ${{ needs.dev-journey.outputs.stamp }}
+        run: node scripts/release/write-gate-proof.mjs --stamp "$DEV_BUILD_STAMP" --out gate-proof/gate-proof.json
+      - name: Upload gate-proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gate-proof
+          path: gate-proof/gate-proof.json
+          if-no-files-found: error
+          retention-days: 14
