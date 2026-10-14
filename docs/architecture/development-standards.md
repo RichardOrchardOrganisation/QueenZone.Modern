@@ -7,10 +7,10 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | | |
 | --- | --- |
 | Source | `https://github.com/RichardOrchardOrganisation/development-standards` |
-| Release | [`v0.4.0`](https://github.com/RichardOrchardOrganisation/development-standards/releases/tag/v0.4.0) ([changelog](https://github.com/RichardOrchardOrganisation/development-standards/blob/v0.4.0/CHANGELOG.md)) |
-| Commit | `57d2844b722b414b025ea62d81f522239296eb93` (merge of development-standards PR #17) |
-| Kit version | `0.4.0` |
-| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. `keptLocal` appears only when the latest update kept a conflicting local file; no update since `e4939cc` has needed one |
+| Version | 0.5.2, pinned merged commit ([changelog](https://github.com/RichardOrchardOrganisation/development-standards/blob/5177138cc46168b5cea669b1ae77231e53e23ed0/CHANGELOG.md)); no release tag required for this reviewed adoption |
+| Commit | `5177138cc46168b5cea669b1ae77231e53e23ed0` (merge of development-standards PR #20) |
+| Kit version | `0.5.2` |
+| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. the 0.5.0 update retained reviewed configuration, adapter and template conflicts; the subsequent 0.5.2 update was clean, so the current lock has no keptLocal entries |
 | Attribution | [`docs/development-standards-LICENSE`](../development-standards-LICENSE); QueenZone's own `LICENSE` is unchanged |
 
 | Kit version | Commit | How QueenZone took it |
@@ -21,8 +21,11 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | 0.3.0 | `7fbff8b1a9e1af62cd95d46140b36ab1b5d5f091` | Lock-only update: QueenZone already carried the identical change from development-standards PR #15 (absolute-path `git`) |
 | 0.3.0 | `16d9ff11983a93d1de95b7e713542ad5bc360dfa` | Kit cleanup of the TypeScript gate (development-standards PR #16: SonarCloud style findings, no behaviour change); applied cleanly |
 | 0.4.0 | `57d2844b722b414b025ea62d81f522239296eb93` | First tagged release (`v0.4.0`): names the TypeScript gate changes above as one version. Lock-only update |
+| 0.5.0 | `76d2320d7f399bb260423bca3097af6b4e1c46c1` | Shared uploaded-proof core adopted verbatim; configuration, capture commands and a thin feature-map adapter remain local |
+| 0.5.1 | `7452829eef908d89aa6e1515369f1c052e25bc54` | Pinned publisher action removes privileged application checkout; clean updater pass |
+| 0.5.2 | `5177138cc46168b5cea669b1ae77231e53e23ed0` | Preserve GitHub Context repository metadata in evidence gates and make feature-ID ordering explicit; clean updater pass |
 
-0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. CI never loads the kit at run time; everything it uses is a committed copy.
+0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. Local quality gates use committed kit copies. The privileged proof publisher is the one exception: GitHub downloads a shared action pinned to the same reviewed kit commit; that action reads only default-branch project JSON, never application code.
 
 ## Sources of truth
 
@@ -32,6 +35,7 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | Mobile floors | [`scripts/mobile-coverage-floors.json`](../../scripts/mobile-coverage-floors.json), named by `typescript.floors` | `scripts/Test-TypeScriptCoverageGate.mjs` (`configuredFloorsPath`), `scripts/verify.mjs` |
 | Mobile project root | `typescript.projectRoot` in `development-standards.json` (`src/QueenZone.Mobile`) | `scripts/Test-TypeScriptCoverageGate.mjs` (`resolveProjectRoot`), `scripts/verify.mjs` |
 | UI paths for PR proof | `uiPaths` in `development-standards.json` | `scripts/check-pr-verification.mjs` (`loadUiPaths`) |
+| UI proof producers, required platforms and gate identity | `uiProof` in `development-standards.json` | Shared proof modules and QueenZone adapter |
 | Feature map and IDs | [`docs/feature-map/`](../feature-map/README.md) | `scripts/check-feature-map.mjs`, `check-pr-verification.mjs`, mobile device proof, issue filer, verify skills |
 | Suppression baseline | [`config/suppression-baseline.json`](../../config/suppression-baseline.json) with [workaround-audit.md](workaround-audit.md) | `scripts/check-suppressions.mjs` |
 | Suppression scan policy | `suppressions` in `development-standards.json`: skip the generated `src/QueenZone.Mobile/ios` / `android` projects; `(#NN)` links need two digits | `scripts/check-suppressions.mjs` (`loadPolicy`) |
@@ -49,7 +53,7 @@ Every path in the kit's `installation-manifest.json` is a managed path. The upda
 | `docs/development-standards-LICENSE` | Adopted as installed | Kit attribution |
 | `docs/testing.md`, `docs/coverage.md`, `docs/verification.md`, `docs/suppressions.md` | Adopted as installed | Shared policy. QueenZone specifics stay in [testing-policy.md](testing-policy.md) and `AGENTS.md`, which link here |
 | `docs/adoption.md`, `docs/updating.md`, `docs/provenance.md` | Adopted as installed | Kit installation, update, and provenance reference |
-| `examples/development-standards-quality.yml`, `examples/development-standards-pr-verification.yml` | Adopted as installed, **not enabled** | Reference only. `ci.yml` and `pr-verification-check.yml` already cover these jobs; copying them would duplicate the full suite. `examples/` is skip-only in `classify-pipeline-changes.sh` |
+| `examples/development-standards-quality.yml`, `examples/development-standards-pr-verification.yml`, `examples/development-standards-proof-publisher.yml` | Adopted as installed, **not enabled** | Reference only. `ci.yml` and `pr-verification-check.yml` already cover these jobs; copying them would duplicate the full suite. `examples/` is skip-only in `classify-pipeline-changes.sh` |
 | `AGENTS.md` | Managed section appended once | Shared rules between `<!-- development-standards:begin/end -->`. All QueenZone guidance stays outside the markers |
 | `development-standards.json` | QueenZone configuration | `QueenZone.sln`, current accepted floors (91 / 70), `src/QueenZone.Mobile` profile, mobile floors file, and the web/mobile `uiPaths` that were previously hard-coded regexes |
 | `coverlet.runsettings` | Kept (identical to the kit) | Same generated-code exclusions |
@@ -58,7 +62,8 @@ Every path in the kit's `installation-manifest.json` is a managed path. The upda
 | `scripts/Get-CrapReport.ps1` | Kit version (since 0.3.0) | The kit took QueenZone's `-Baseline` / `-Enforce` / `-WriteBaseline` / `-FromCsv` ratchet, which the CI `coverage` job uses |
 | `scripts/check-suppressions.mjs` | Kit version (since 0.3.0) | QueenZone's native-project skips and two-digit issue-link rule are now the `suppressions` settings in `development-standards.json`. Counts are unchanged. `scripts/check-suppressions.test.mjs` is the kit's test file; `development-standards.test.mjs` pins QueenZone's policy |
 | `scripts/check-feature-map.mjs` | QueenZone version kept | Validates the domain maps, exclusions, generated index (`--write`), and `--resolve` / `--flows` used by mobile preflight, device proof, and the issue filer. The kit's version reads `config/feature-map.json` |
-| `scripts/check-pr-verification.mjs` | QueenZone version kept (`--keep-local` in 0.3.0), reads `uiPaths` | The kit now has the same `checkPullRequestVerification({ github, context, core })` entry point, but evaluates against `config/feature-map.json`. QueenZone's checker uses the domain maps and always manages the `needs-verification` label. Tests cover the workflow export |
+| `scripts/check-pr-verification.mjs` | Thin QueenZone adapter kept | Translates domain maps and source paths into shared `checkProof` / `evaluateProof` inputs. Platform requirements come from `uiProof.platforms`; no duplicate waiver or evidence enforcement |
+| `scripts/ui-proof-policy.mjs`, `ui-proof-config.mjs`, `ui-proof-evidence.mjs`, `ui-proof-gate.mjs`, `refresh-ui-proof.mjs`, `ui_proof_archive.py` | Kit versions, adopted verbatim | Shared policy, artifact validation, publishing and queue handling. Producer paths/job names and base branch come from `uiProof` |
 | `scripts/verify.mjs` | Kit version | Since the kit gate adoption the TypeScript profile runs the kit gate; the earlier QueenZone adapter line is gone |
 | `.github/pull_request_template.md` | QueenZone template kept, kit wording merged | Keeps issue-link, legacy-probe, UI proof, review-finding, migration, and follow-up sections the QueenZone checks parse |
 | `config/feature-map.json` | **Deliberately absent** | Would be a second, hand-maintained feature map beside `docs/feature-map/` |
@@ -78,7 +83,8 @@ The updater keeps a deletion while the kit leaves that file unchanged. If a futu
 | `Test-TypeScriptCoverageGate.mjs` (was `Test-MobileCoverageGate.mjs`) | `ci.yml` `mobile-js`, `src/QueenZone.Mobile` `coverage:gate`, `Get-MobileCrapReport.mjs` imports, `classify-pipeline-changes.sh`, `verify.mjs`, mobile README, testing-policy |
 | `check-suppressions.mjs` | `suppression-check.yml`, `verify.mjs`, workaround-audit.md |
 | `check-feature-map.mjs` | `feature-map-check.yml`, mobile `preflight`, `run-mobile-device-smoke.sh --flows`, `check-pr-verification.mjs`, issue-filer telemetry, verify skills |
-| `check-pr-verification.mjs` | `pr-verification-check.yml` via `actions/github-script` |
+| `check-pr-verification.mjs` | `ci.yml` required `e2e-test` gate via the shared queue checker |
+| `refresh-ui-proof.mjs` | Trusted `pr-verification-check.yml` publisher |
 
 Command names, flags, outputs, and artifacts are unchanged. Behaviour changes: `Test-CoverageGate.ps1` without threshold arguments now uses the configured floors (previously hard-coded 91 / 70 defaults, the same values), and the mobile gate without `--floors` resolves the file through `development-standards.json` (the same file as before).
 
@@ -234,5 +240,14 @@ All update-proof checks passed.
 
 ## Known gaps and follow-ups
 
-- QueenZone keeps its domain feature map and PR checker; the kit records that boundary in `docs/verification.md`. `scripts/Get-MobileCrapReport.mjs` (ESLint complexity) is QueenZone-only; it could move to the kit if another project needs a TypeScript CRAP report.
+- QueenZone keeps its domain feature map and a thin PR adapter; the shared kit owns enforcement and publishing. `scripts/ui_proof_bundle.py` maps real Playwright/Maestro output to the shared archive contract and imports its validator. Capture fixtures, runners and active workflow wiring remain local. `scripts/Get-MobileCrapReport.mjs` (ESLint complexity) is QueenZone-only; it could move to the kit if another project needs a TypeScript CRAP report.
 - The kit's shared docs and managed `AGENTS.md` section name `config/feature-map.json` and `config/typescript-coverage.json`. The QueenZone mapping section after the markers in `AGENTS.md` gives the QueenZone equivalents.
+
+## Uploaded-proof adoption (0.5.0)
+
+The updater installed commit `76d2320d7f399bb260423bca3097af6b4e1c46c1`. Its dry run refused overlapping configuration, PR-template and adapter changes, plus the new shared modules that already existed locally. After replacing the three existing modules with their identical kit versions, the update applied with `--keep-local development-standards.json --keep-local scripts/check-pr-verification.mjs --keep-local .github/pull_request_template.md`. That intermediate lock recorded those decisions. The subsequent clean update to `7452829eef908d89aa6e1515369f1c052e25bc54` (0.5.1) installed the shared-action guidance and refreshed the lock.
+
+No workflow was installed automatically. Existing QueenZone capture/upload jobs and the required `e2e-test` context remain in place. The pinned shared action reads their identities from default-branch configuration. Its SHA matches the installed kit commit. Preserve these shared files verbatim: improve them in development-standards and bring the change back through its updater.
+`node scripts/development-standards-update-proof.mjs --standards C:\workspace\development-standards` passed all five update scenarios against the 0.5.1 adoption: compatible update, repeat, conflict refusal, reviewed keep-local, and floor protection. The six installed proof core modules were also compared with the pinned kit and match exactly after line-ending normalization.
+
+The clean 0.5.2 update fixes the inherited GitHub Context repository getter and the Sonar feature-ID comparison finding. The privileged action pin advances with the lock.
