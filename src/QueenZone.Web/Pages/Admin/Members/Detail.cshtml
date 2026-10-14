@@ -38,7 +38,13 @@
 
   <section class="admin-form">
     <h2>Forum content</h2>
-    <p><strong>@Model.ForumContent!.PostCount</strong> posts and <strong>@Model.ForumContent.ThreadCount</strong> started threads match this author.</p>
+    @if (Model.ForumContent is null)
+    {
+      <div class="admin-status admin-status--error">Forum content could not be loaded for this member, so hide and unhide are unavailable. Reload to retry. Error reference: @Model.ErrorReference</div>
+    }
+    else
+    {
+    <p><strong>@Model.ForumContent.PostCount</strong> posts and <strong>@Model.ForumContent.ThreadCount</strong> started threads match this author.</p>
     @if (Model.ForumContent.IsHidden)
     {
       <form method="post" action="/admin/members/@Model.Member.Id/UnhideForumContent">
@@ -52,6 +58,7 @@
         @Html.AntiForgeryToken()
         <partial name="_ConfirmDialog" model="@(new ConfirmDialogViewModel("Hide all posts and threads", hideConfirmMessage, TriggerClass: "qz-button qz-button--danger"))" />
       </form>
+    }
     }
   </section>
 
