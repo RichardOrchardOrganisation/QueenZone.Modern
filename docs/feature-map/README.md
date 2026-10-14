@@ -1,6 +1,6 @@
 # Feature map
 
-Machine-readable map of every mobile screen and public or member web page.
+Machine-readable map of every mobile screen and web page (public, member and admin).
 Agents and the verify skills read these JSON files; do not hand-edit this index.
 Regenerate with `node scripts/check-feature-map.mjs --write`.
 
@@ -10,6 +10,19 @@ Web entries with no mapped identifiers require `selectorsReason`: explain role/t
 a mapping gap, or handler/redirect behaviour. Empty selectors do not imply missing tests.
 Prefer role and text locators for clear headings and links; add identifiers only for fragile locators.
 `specs` links test files; it does not certify coverage. `--write` only regenerates this index.
+
+Admin entries require `signIn: "admin"`, at least one spec, and an `admin` block with
+`actions` (handler names without OnPost/Async; plain OnPost is Post), `verification`
+(none, confirm-only or fixture-record), `externalEffects`, `getWrites`, and optional `notes`.
+Proof uses a local Testing host with `X-Test-User-Email: admin@test.local` on `127.0.0.1` only.
+The following pages require confirm-only verification:
+- `Pages/Admin/NewsDiscovery/**` — AI and editorial side effects
+- `Pages/Admin/Search/Index.cshtml` — Search index rebuild
+- `Pages/Admin/Photos/Action.cshtml` — Thumbnail regeneration
+- `Pages/Admin/Crosswords/Index.cshtml` — Bulk publish
+- `Pages/Admin/Members/Action.cshtml` — Suspend or bulk hide
+- `Pages/Admin/Members/ForumAuthorAction.cshtml` — Suspend or bulk hide
+- `Pages/Admin/ReviewerAccounts/**` — Password changes
 
 ## Mobile
 
@@ -212,6 +225,40 @@ Prefer role and text locators for clear headings and links; add identifiers only
 - `web.static.privacy` — Privacy (Pages/Privacy.cshtml — /privacy)
 - `web.static.terms` — Terms (Pages/Terms.cshtml — /terms)
 
+### admin
+
+_No entries._
+
 ## Excluded
 
-- `Pages/Admin/**` — Acceptance criteria cover public and member pages only. Admin editorial screens are out of scope for this map.
+_None._
+
+## Pending admin areas (ceiling 27)
+
+- `Pages/Admin/Index.cshtml`
+- `Pages/Admin/Articles/**`
+- `Pages/Admin/Biography/**`
+- `Pages/Admin/Crosswords/**`
+- `Pages/Admin/Discography/**`
+- `Pages/Admin/FanPerformanceReports/**`
+- `Pages/Admin/FanPerformanceSubmissions/**`
+- `Pages/Admin/ForumReports/**`
+- `Pages/Admin/FreddieTributes/**`
+- `Pages/Admin/HelpRequests/**`
+- `Pages/Admin/Members/**`
+- `Pages/Admin/News/**`
+- `Pages/Admin/NewsDiscovery/**`
+- `Pages/Admin/NewsSuggestions/**`
+- `Pages/Admin/PhotoCorrections/**`
+- `Pages/Admin/PhotoSubmissions/**`
+- `Pages/Admin/Photos/**`
+- `Pages/Admin/Polls/**`
+- `Pages/Admin/PrivateMessages/**`
+- `Pages/Admin/QuizQuestionSubmissions/**`
+- `Pages/Admin/Quizzes/**`
+- `Pages/Admin/Quotes/**`
+- `Pages/Admin/ReviewerAccounts/**`
+- `Pages/Admin/Search/**`
+- `Pages/Admin/Timeline/**`
+- `Pages/Admin/Trivia/**`
+- `Pages/Admin/TriviaSubmissions/**`
