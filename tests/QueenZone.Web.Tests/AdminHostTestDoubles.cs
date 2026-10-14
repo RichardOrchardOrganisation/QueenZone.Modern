@@ -96,7 +96,7 @@ internal sealed class ThrowingPublishHomePollRepository(
 
 internal sealed class TimeoutHideForumWriteRepository(
     IForumWriteRepository inner,
-    Exception timeout) : IForumWriteRepository
+    Exception timeout, bool summaryTimeout = false) : IForumWriteRepository
 {
     public Task<ForumThreadCreateResult> CreateThreadAsync(
         NewForumThread thread, CancellationToken cancellationToken = default) =>
@@ -132,7 +132,8 @@ internal sealed class TimeoutHideForumWriteRepository(
 
     public Task<ForumAuthorContentSummary> GetAuthorForumContentSummaryAsync(
         Guid? memberId, string displayName, CancellationToken cancellationToken = default) =>
-        inner.GetAuthorForumContentSummaryAsync(memberId, displayName, cancellationToken);
+        summaryTimeout ? Task.FromException<ForumAuthorContentSummary>(timeout)
+            : inner.GetAuthorForumContentSummaryAsync(memberId, displayName, cancellationToken);
 
     public Task<ForumAuthorContentSummary?> FindNoAccountForumAuthorAsync(
         string displayName, CancellationToken cancellationToken = default) =>
