@@ -136,3 +136,13 @@ Ungated `prod-release` and `prod-deploy` stay in Settings only until Gilfoyle de
 4. Migrate starts only after that comment succeeds.
 
 Tag pushes never take this path.
+
+## Prepared production packages
+
+Production prepares a fresh package from the exact tagged commit after the initial proof gates. It does not reuse PR web-publish artifacts. Preparation has no production environment or OIDC permissions. The archive and manifest are retained as release-package-RUN-ATTEMPT for seven days, outside the web-publish cleanup policy. Every production job must acquire the immutable artifact ID, verify its SHA-256 and release/run/attempt manifest, and recheck normal-path proofs before fetching production credentials. A missing or corrupt package fails closed; never fall back to another commit. Emergency overrides retain their existing separate owner-reviewed path.
+
+The production concurrency group is shared across tags with cancellation disabled for running releases. A newer pending run can supersede another pending run under GitHub concurrency semantics; this is not FIFO scheduling. Re-run the whole workflow after a failure, never only failed jobs, so preparation and gates run on the new attempt.
+
+Repository cleanup cannot delete release-package artifacts through the scheduled web-publish prefix filter, superseded-PR cleanup, or CI ephemeral cleanup. GitHub's seven-day retention and administrator deletion remain possible: package acquisition fails before that job's own mutation. Settings, migrations and application deployment remain separate operations, not one atomic transaction; earlier successful operations are not automatically undone on a later failure.
+
+This workflow change does not remove required environment reviewers or change identity permissions. Removing routine approval prompts requires a separately reviewed security configuration change. Workflow YAML by itself is not a tamper-resistant boundary against an actor who can replace that YAML or change repository protections.
