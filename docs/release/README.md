@@ -110,7 +110,7 @@ If the previous SHA is from before the tip-gate merge, tagging it again still ru
 
 Anyone following this runbook may tag. Workflow-file pull requests are merged by Richard.
 
-Richard is the required reviewer for a gate override. He approves the `prod-gate-override` environment. Prevent self-review so the dispatcher cannot approve their own skip.
+Richard is the required reviewer for a gate override. He approves the `prod-gate-override` environment. **Prevent self-review** is off: he is the only reviewer and must be able to approve his own production releases. The same reviewer and Prevent self-review off apply only to `prod-release-gated` and `prod-deploy-gated`. `prod-data-read` has no required reviewer — only a custom deployment branch policy allowing `main`, so scheduled sync jobs do not wait for approval.
 
 Create `prod-gate-override` in GitHub Settings **before merging** a workflow that first references it. Do not let GitHub auto-create it unprotected. Agents cannot create it.
 
@@ -119,8 +119,8 @@ Required settings (Richard applies these):
 | Setting | Value |
 | --- | --- |
 | Name | `prod-gate-override` |
-| Required reviewers | `richardorchard` (also add this reviewer to `prod-release`, which currently has none) |
-| Prevent self-review | Enabled |
+| Required reviewers | `richardorchard` (same on `prod-release-gated` and `prod-deploy-gated` only) |
+| Prevent self-review | Off |
 | Wait timer | None |
 | Deployment branches | Custom; tags `v*` only (not `main`) |
 | Environment secrets | None |
