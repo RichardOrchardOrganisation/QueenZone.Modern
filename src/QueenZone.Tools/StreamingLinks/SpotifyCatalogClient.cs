@@ -33,7 +33,10 @@ internal sealed class SpotifyCatalogClient(
 
     public async Task<IReadOnlyList<CatalogAlbum>> SearchAlbumsAsync(string albumName, CancellationToken cancellationToken)
     {
-        var query = Uri.EscapeDataString($"album:{albumName} artist:{Artist}");
+        // The broad "Queen" search can fill Spotify's ten-result window with later mixes and
+        // deluxe releases. Restrict the debut to its original year so the standard edition is seen.
+        var releaseFilter = StreamingLinkMatcher.Normalize(albumName) is "queen" or "queen i" ? " year:1973" : string.Empty;
+        var query = Uri.EscapeDataString($"album:{StreamingLinkMatcher.AlbumSearchTitle(albumName)} artist:{Artist}{releaseFilter}");
         using var document = await GetJsonAsync(
             $"https://api.spotify.com/v1/search?type=album&limit=10&market={Uri.EscapeDataString(market)}&q={query}",
             cancellationToken);
