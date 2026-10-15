@@ -38,6 +38,18 @@ gh workflow run dev-journey-e2e.yml --ref main
 
 DEV artifact reuse requires the artifact's commit SHA to equal the deployed main SHA. A PR and squash merge can have the same source tree but different embedded build stamps. In that case DEV publishes a fresh package from the checked-out main commit; it does not relabel a PR package or reinterpret an old proof. The proof writer and exact-SHA release gate stay unchanged. After this policy changes, promotion still needs a fresh DEV deployment and new full gate runs; failed historical evidence cannot be reused.
 
+### Explicit DEV redeploy for a non-application tip
+
+An ordinary manual DEV dispatch still skips docs-, mobile-, and workflow-only tips. To obtain real exact-commit DEV evidence for such a release candidate, freeze main and deliberately dispatch:
+
+```bash
+gh workflow run deploy-dev.yml --ref main -f force_redeploy=true -f expected_main_sha=<full-lowercase-main-sha>
+```
+
+The guard runs before Azure login and requires the supplied SHA to match the workflow run, checkout, and current remote main. A missing, malformed, or stale SHA fails closed. The explicit option overrides only the web deployment flag; migration and mobile classification remain unchanged. The existing exact-commit artifact requirement and fresh-publish fallback stamp remain in force. It never relabels an old package or old proof. Main can move after validation: keep it frozen through deployment and proof generation, and recheck the served stamp and run SHA before promotion.
+
+After a successful manual DEV deployment and its stamp/health checks, explicitly dispatch all three full tip gates using the commands above. The existing browser workflow_run triggers accept push-triggered DEV runs only; manual DEV deployment does not automatically run those suites. Do not narrow Nightly with skip_sync or category_filter. All proof runs must target the same main SHA. This DEV option does not authorize a production release or bypass any production proof check.
+
 Each gate uploads a `gate-proof` artifact `{ tested_sha, full_suite }`. For the DEV gates, `tested_sha` is the live DEV `data-build-version` stamp read in the test job before and after the suite; those two reads must match, and an unknown stamp fails closed. `deploy.yml` requires `tested_sha` to equal the deploy SHA. Freshness is at most 72 hours, set by the repo variable `PROD_GATE_MAX_AGE_HOURS`.
 
 `check-gates.mjs` finds runs with `actions/workflows/{file}/runs?head_sha=SHA&branch=main` and judges **only the newest** run for that SHA. An older green run cannot hide a newer red, missing, or unreadable one. Then it fetches `runs/{id}/jobs` and requires the `gate-proof` job itself to have succeeded on the latest attempt. A run whose jobs were all skipped still reports workflow success and does not count.
