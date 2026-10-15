@@ -329,28 +329,90 @@ public sealed class EfMemberPublicActivityRepositoryTests : IAsyncDisposable
         Assert.Equal(["Modern topic"], result.Items.Select(item => item.Title).ToArray());
     }
 
-    private EfMemberPublicActivityRepository CreateRepository() =>
-        new(
-            dbContext,
-            new EfForumArchiveAuthorRepository(
-                dbContext,
-                legacyUserId => $"""
-                    SELECT
-                        AuthorLegacyUserId AS LegacyUserId,
-                        AuthorDisplayName AS DisplayName,
-                        AuthorJoinedAt AS MemberSince,
-                        (
-                            SELECT COUNT(*)
-                            FROM ModernForumPost counted
-                            WHERE counted.AuthorLegacyUserId = {legacyUserId}
-                              AND counted.IsHidden = 0
-                        ) AS PostCount
-                    FROM ModernForumPost
-                    WHERE AuthorLegacyUserId = {legacyUserId}
-                      AND IsHidden = 0
-                    ORDER BY PostedAt DESC, Id DESC
-                    LIMIT 1
-                    """));
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task GetPageAsync_VisibilityControlsCountsAndPages(
+        bool legacy, bool hiddenThread, bool hiddenPost)
+    {
+        SeedMember(memberId, "Synthetic");
+        var time = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        for (var id = 1; id <= 3; id++)
+        {
+            if (legacy)
+            {
+                SeedLegacyForumPost(LegacyUserId, id, 100 + id, 200 + id,
+                    $"Synthetic topic {id}", $"Synthetic body {id}", time.AddDays(id));
+            }
+            else
+            {
+                SeedForumPost(memberId, "Synthetic", id, 100 + id, 200 + id,
+                    $"Synthetic topic {id}", time.AddDays(id), $"Synthetic body {id}");
+            }
+        }
+
+        await dbContext.SaveChangesAsync();
+        dbContext.ModernForumThreads.Single(thread => thread.Id == 3).IsHidden = hiddenThread;
+        dbContext.ModernForumPosts.Single(post => post.Id == 3).IsHidden = hiddenPost;
+        await dbContext.SaveChangesAsync();
+        var repository = CreateRepository();
+        var count = hiddenThread || hiddenPost ? 2 : 3;
+        var items = new List<MemberPublicActivityItem>();
+        for (var page = 1; page <= count + 1; page++)
+        {
+            var result = await repository.GetPageAsync(memberId, legacy ? LegacyUserId : null, page, 1);
+            Assert.Equal(count, result.TotalCount);
+            Assert.Equal(page <= count ? 1 : 0, result.Items.Count);
+            items.AddRange(result.Items);
+        }
+
+        Assert.Equal(Enumerable.Range(1, count).Reverse().Select(id => (int?)(200 + id)),
+            items.Select(item => item.ContentId));
+        var views = items.Select(MemberPublicActivityPresentation.ToViewModel).ToList();
+        Assert.All(views, view => Assert.Contains("Synthetic body", view.Summary, StringComparison.Ordinal));
+        if (hiddenThread || hiddenPost)
+        {
+            Assert.DoesNotContain(views, view => view.Title == "Synthetic topic 3"
+                || view.Summary == "Synthetic body 3" || view.Href.Contains("#post-203", StringComparison.Ordinal));
+        }
+
+        if (!legacy)
+        {
+            var feed = await repository.GetFeedPageAsync([memberId], 1, 20);
+            Assert.Equal(count, feed.TotalCount);
+            Assert.Equal(items.Select(item => item.ContentId), feed.Items.Select(item => item.ContentId));
+        }
+    }
+
+    [Fact]
+    public async Task GetPageAsync_DualIdentityPostIsCountedAndReturnedOnce()
+    {
+        SeedMember(memberId, "Synthetic");
+        var time = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        SeedForumPost(memberId, "Synthetic", 1, 101, 201, "Dual identity", time);
+        SeedLegacyForumPost(LegacyUserId, 2, 102, 202, "Legacy only", "Legacy body", time.AddDays(-1));
+        await dbContext.SaveChangesAsync();
+        dbContext.ModernForumPosts.Single(post => post.Id == 1).AuthorLegacyUserId = LegacyUserId;
+        await dbContext.SaveChangesAsync();
+        var repository = CreateRepository();
+        var first = await repository.GetPageAsync(memberId, LegacyUserId, 1, 1);
+        var second = await repository.GetPageAsync(memberId, LegacyUserId, 2, 1);
+        var beyond = await repository.GetPageAsync(memberId, LegacyUserId, 3, 1);
+        Assert.Equal(2, first.TotalCount);
+        Assert.Equal(2, second.TotalCount);
+        Assert.Equal(2, beyond.TotalCount);
+        Assert.Equal(201, Assert.Single(first.Items).ContentId);
+        Assert.Equal(202, Assert.Single(second.Items).ContentId);
+        Assert.Empty(beyond.Items);
+    }
+
+    private EfMemberPublicActivityRepository CreateRepository() => new(dbContext);
 
     private void SeedLegacyForumPost(
         int legacyUserId,
