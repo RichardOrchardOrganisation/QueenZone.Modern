@@ -17,6 +17,63 @@ public sealed class StreamingLinkMatcherTests
     public void Normalize_strips_version_noise(string title, string expected) =>
         Assert.Equal(expected, StreamingLinkMatcher.Normalize(title));
 
+    [Theory]
+    [InlineData("Doin Alright", "Doing All Right")]
+    [InlineData("Looser in the End", "The Loser In The End")]
+    [InlineData("The Fairy Fellers Master Stroke", "The Fairy Feller's Master-Stroke")]
+    [InlineData("March Of The Black Queen", "The March of the Black Queen")]
+    [InlineData("Prophets Song", "The Prophet's Song")]
+    [InlineData("Teo Toriatte (let us cling together)", "Teo Torriatte (Let Us Cling Together)")]
+    [InlineData("Mustahpa", "Mustapha")]
+    [InlineData("Dreamers Ball", "Dreamer's Ball")]
+    [InlineData("Leaving home aint easy", "Leaving Home Ain't Easy")]
+    [InlineData("It's a kind of magic", "A Kind Of Magic")]
+    [InlineData("Just one year of love", "One Year Of Love")]
+    [InlineData("Modern Times Rock'n'Roll", "Modern Times Rock 'n’ Roll")]
+    public void Best_track_matches_known_legacy_spellings(string local, string remote)
+    {
+        var match = StreamingLinkMatcher.BestTrack(local, 1, "Queen", [new("correct", remote, 1, 1, "https://x")]);
+
+        Assert.Equal("correct", match!.Candidate.ExternalId);
+    }
+
+    [Theory]
+    [InlineData("Queen I", "Queen")]
+    [InlineData("Greatest Hits 1", "Greatest Hits")]
+    [InlineData("Greatest Hits 2", "Greatest Hits II")]
+    [InlineData("Greatest Hits 3", "Greatest Hits III")]
+    [InlineData("Live At Wembley '86", "Live at Wembley Stadium")]
+    [InlineData("Rock Montreal", "Queen Rock Montreal")]
+    public void Legacy_album_names_search_and_score_the_catalogue_title(string local, string remote)
+    {
+        Assert.Equal(remote, StreamingLinkMatcher.AlbumSearchTitle(local));
+        Assert.Equal(100, StreamingLinkMatcher.ScoreAlbum(local, 1981, 10, new("correct", remote, 1981, 10, "https://x")).Score);
+    }
+
+    [Fact]
+    public void Queen_debut_prefers_original_release_over_the_2024_mix()
+    {
+        var mix = new CatalogAlbum("mix", "Queen I (2024 Mix)", 2024, 11, "https://x/mix");
+        var original = new CatalogAlbum("original", "Queen", 1973, 10, "https://x/original");
+
+        Assert.Equal("original", StreamingLinkMatcher.BestAlbum("Queen I", 1973, 10, [mix, original])!.Candidate.ExternalId);
+        Assert.Contains(StreamingLinkMatcher.MixFlag, StreamingLinkMatcher.ScoreAlbum("Queen I", 1973, 10, mix).Flags);
+    }
+
+    [Fact]
+    public void Live_in_a_song_title_is_not_a_live_recording_marker()
+    {
+        var studio = StreamingLinkMatcher.BestTrack("Who Wants to Live Forever?", 6, "A Kind of Magic",
+            [new("studio", "Who Wants To Live Forever", 6, 1, "https://x")]);
+
+        Assert.Empty(studio!.Flags);
+        Assert.Equal(100, studio.Score);
+        Assert.Null(StreamingLinkMatcher.BestTrack("In the Lap of the Gods", 7, "Sheer Heart Attack",
+            [new("revisited", "In the Lap of the Gods... Revisited", 13, 1, "https://x")]));
+        Assert.Null(StreamingLinkMatcher.BestTrack("One Vision", 1, "Live Magic",
+            [new("wrong", "One Year Of Love", 1, 1, "https://x")]));
+    }
+
     [Fact]
     public void Best_album_prefers_exact_title_year_and_track_count_over_deluxe_and_live()
     {

@@ -124,6 +124,30 @@ public sealed class StreamingCatalogClientTests
         Assert.Contains("q=album%3AA%20Night%20at%20the%20Opera%20artist%3AQueen", search.RequestUri.Query, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("Queen I", "Queen")]
+    [InlineData("Greatest Hits 2", "Greatest Hits II")]
+    [InlineData("Live At Wembley '86", "Live at Wembley Stadium")]
+    public async Task Providers_search_catalogue_names_for_legacy_album_labels(string local, string catalogue)
+    {
+        var spotifyHandler = new FakeHandler(request => request.RequestUri!.Host == "accounts.spotify.com"
+            ? Json(SpotifyToken) : Json(SpotifyAlbumSearch));
+        var spotify = new SpotifyCatalogClient(new HttpClient(spotifyHandler), "id", "secret", "GB", TimeSpan.Zero);
+        await spotify.SearchAlbumsAsync(local, CancellationToken.None);
+        Assert.Contains($"q={Uri.EscapeDataString($"album:{catalogue} artist:Queen")}",
+            spotifyHandler.Requests[1].RequestUri!.Query, StringComparison.Ordinal);
+        if (local == "Queen I")
+        {
+            Assert.Contains("year%3A1973", spotifyHandler.Requests[1].RequestUri!.Query, StringComparison.Ordinal);
+        }
+
+        var appleHandler = new FakeHandler(_ => Json(ITunesAlbumSearch));
+        var apple = new AppleMusicCatalogClient(new HttpClient(appleHandler), "gb", TimeSpan.Zero);
+        await apple.SearchAlbumsAsync(local, CancellationToken.None);
+        Assert.Contains($"term={Uri.EscapeDataString($"Queen {catalogue}")}",
+            appleHandler.Requests[0].RequestUri!.Query, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Spotify_tracks_follow_paging_and_retry_after_429()
     {
