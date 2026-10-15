@@ -57,6 +57,36 @@ function Set-QueenZoneWebProofOutcome {
         else { "Every mapped fixture must execute at least one deterministic test, with no failures or skips." }
 }
 
+function Assert-QueenZoneAdminProofHost {
+    param([string] $BaseUrl, [string] $Environment)
+    if (([uri] $BaseUrl).Host -cne '127.0.0.1' -or $Environment -cne 'Testing' -or
+        ($null -ne $env:ASPNETCORE_ENVIRONMENT -and $env:ASPNETCORE_ENVIRONMENT -cne 'Testing')) {
+        throw "Admin proof requires the local Testing host at exactly 127.0.0.1."
+    }
+}
+
+function Invoke-QueenZoneWebProofSpec {
+    param([string] $Project, [string] $ProofDir, [string] $Spec)
+    $name = [IO.Path]::GetFileNameWithoutExtension($Spec)
+    if ($name -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { throw "Invalid mapped specification: $Spec" }
+    $trx = Join-Path $ProofDir "$name.trx"
+    # Never accept a stale report from a previous invocation.
+    if (Test-Path $trx) { Remove-Item -LiteralPath $trx }
+    & dotnet test $Project --no-build --no-restore --configuration Release --filter "(FullyQualifiedName~QueenZone.Web.E2E.$name.)&TestCategory=Deterministic" --logger "trx;LogFileName=$name.trx" --results-directory $ProofDir -- NUnit.NumberOfTestWorkers=1 | Out-Host
+    return Read-QueenZoneWebProofTestResult -Trx $trx -Spec $Spec -Code $LASTEXITCODE
+}
+
+function Initialize-QueenZoneWebProofScreenshot {
+    param($Proof, [string] $Playwright, [string] $Screenshot, [bool] $IsAdmin)
+    if ($IsAdmin) {
+        # Only accept a screenshot produced by this spec run with the admin header.
+        if (Test-Path $Screenshot) { Remove-Item -LiteralPath $Screenshot }
+        return;
+    }
+    & $Playwright screenshot --browser chromium --full-page $Proof.url $Screenshot | Out-Host
+    $Proof.screenshot = if ($LASTEXITCODE -eq 0 -and (Test-Path $Screenshot)) { "PASS" } else { "FAIL" }
+}
+
 function Invoke-QueenZoneWebProof {
     param([string] $RepoRoot, $Entry, [string] $BaseUrl, [string] $ProofDir)
     $proof = New-QueenZoneWebProof -RepoRoot $RepoRoot -Entry $Entry -BaseUrl $BaseUrl
@@ -64,22 +94,12 @@ function Invoke-QueenZoneWebProof {
     $playwright = Join-Path $RepoRoot "tests/QueenZone.Web.E2E/bin/Release/net10.0/playwright.ps1"
     $isAdmin = $Entry.PSObject.Properties.Name -contains 'signIn' -and $Entry.signIn -eq 'admin'
     try {
-        if ($isAdmin -and (([uri] $BaseUrl).Host -cne '127.0.0.1' -or $proof.environment -cne 'Testing' -or
-            ($null -ne $env:ASPNETCORE_ENVIRONMENT -and $env:ASPNETCORE_ENVIRONMENT -cne 'Testing'))) {
-            throw "Admin proof requires the local Testing host at exactly 127.0.0.1."
-        }
+        if ($isAdmin) { Assert-QueenZoneAdminProofHost -BaseUrl $BaseUrl -Environment $proof.environment }
         if (-not (Test-Path $playwright)) { throw "Build the Release E2E project and install Chromium, or run scripts/Verify-Web.ps1." }
         $urlPath = Resolve-QueenZoneWebProofRoute -UrlPath ([string] $Entry.url)
         $proof.url = "$BaseUrl$urlPath"
         $screenshot = Join-Path $ProofDir "screenshot.png"
-        if ($isAdmin) {
-            # Only accept a screenshot produced by this spec run with the admin header.
-            if (Test-Path $screenshot) { Remove-Item -LiteralPath $screenshot }
-        }
-        else {
-            & $playwright screenshot --browser chromium --full-page $proof.url (Join-Path $ProofDir "screenshot.png") | Out-Host
-            $proof.screenshot = if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $ProofDir "screenshot.png"))) { "PASS" } else { "FAIL" }
-        }
+        Initialize-QueenZoneWebProofScreenshot -Proof $proof -Playwright $playwright -Screenshot $screenshot -IsAdmin $isAdmin
         $specs = @($Entry.specs | Select-Object -Unique)
         $savedUrl = $env:E2E_BASE_URL
         $savedArtifacts = $env:E2E_ARTIFACT_DIR
@@ -91,14 +111,7 @@ function Invoke-QueenZoneWebProof {
             $env:E2E_READONLY = "false"
             if ($isAdmin) { $env:E2E_ADMIN_EMAIL = "admin@test.local" }
             foreach ($spec in $specs) {
-                $name = [IO.Path]::GetFileNameWithoutExtension($spec)
-                if ($name -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { throw "Invalid mapped specification: $spec" }
-                $trx = Join-Path $ProofDir "$name.trx"
-                # Never accept a stale report from a previous invocation.
-                if (Test-Path $trx) { Remove-Item -LiteralPath $trx }
-                & dotnet test $project --no-build --no-restore --configuration Release --filter "(FullyQualifiedName~QueenZone.Web.E2E.$name.)&TestCategory=Deterministic" --logger "trx;LogFileName=$name.trx" --results-directory $ProofDir -- NUnit.NumberOfTestWorkers=1 | Out-Host
-                $code = $LASTEXITCODE
-                $proof.tests += Read-QueenZoneWebProofTestResult -Trx $trx -Spec $spec -Code $code
+                $proof.tests += Invoke-QueenZoneWebProofSpec -Project $project -ProofDir $ProofDir -Spec $spec
             }
         }
         finally {

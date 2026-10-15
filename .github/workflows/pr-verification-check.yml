@@ -28,4 +28,4 @@ jobs:
     steps:
       # Pinned shared code reads only default-branch JSON. No application checkout.
       - name: Link uploaded evidence and refresh required gate
-        uses: RichardOrchardOrganisation/development-standards/actions/publish-ui-proof@5177138cc46168b5cea669b1ae77231e53e23ed0 # 0.5.2
+        uses: RichardOrchardOrganisation/development-standards/actions/publish-ui-proof@b039e00e721f38ab9801272e821015b21bc78335 # 0.5.2, UI-proof complexity refactor
