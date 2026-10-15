@@ -52,8 +52,9 @@ test('live-site sweep uses a deploy-quiet gate instead of sharing deploy.yml con
   assert.match(workflow, /Do not share a concurrency group with deploy\.yml/);
 });
 
-test('deploy.yml concurrency is unchanged by the live-site sweep lock', () => {
-  assert.match(deploy, /group: deploy-\$\{\{ github\.ref \}\}/);
+test('production releases serialize across tags without sharing the live-site sweep lock', () => {
+  assert.match(deploy, /group: production-release/);
+  assert.match(deploy, /cancel-in-progress: false/);
   assert.doesNotMatch(deploy, /livesite-readonly-sweep/);
   assert.doesNotMatch(deploy, /deploy-quiet-gate/);
 });
