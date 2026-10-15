@@ -71,7 +71,7 @@ public sealed class AdminPrincipalRequirementHandler(
 
     private static string? ReadIdentifier(ClaimsPrincipal user, string shortType, string longType, out Guid value)
     {
-        value = default;
+        value = Guid.Empty;
         var claims = user.FindAll(shortType).Concat(user.FindAll(longType)).ToArray();
         if (claims.Length == 0)
         {

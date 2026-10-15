@@ -507,6 +507,16 @@ test('model discovery supports namespace, generics, local and Admin-tree models'
   assert.deepEqual(pageModelPostHandlers(root, 'Pages/Admin/Area/Test.cshtml'), ['OnPostLocal']);
 });
 
+test('model discovery handles long blank prefixes without cross-line backtracking', () => {
+  const root = adminFixture('Pages/Admin/Area/Test.cshtml');
+  const prefix = (' '.repeat(2000) + '\r\n').repeat(1000);
+  write(root, 'src/QueenZone.Web/Pages/Admin/Area/Test.cshtml', prefix + '@page\r\n\t @model\t Example.SharedModel<string>\r\n');
+  write(root, 'src/QueenZone.Web/Pages/Admin/Area/Models.cs', 'class SharedModel<T> { void OnPostSaveAsync() {} } class Other { void OnPostWrong() {} }');
+  const started = performance.now();
+  assert.deepEqual(pageModelPostHandlers(root, 'Pages/Admin/Area/Test.cshtml'), ['OnPostSaveAsync']);
+  assert.ok(performance.now() - started < 500);
+});
+
 for (const pattern of Object.keys(CONFIRM_ONLY_ADMIN_PAGES)) {
   test(`confirm-only enforced for ${pattern}`, () => {
     const page = pattern.replace('/**', '/Index.cshtml');

@@ -485,7 +485,7 @@ export function pageModelPostHandlers(root, pageRel) {
   if (!existsSync(page)) {
     return [];
   }
-  const model = readText(page).match(/^\s*@model\s+([^\s<]+)/m)?.[1];
+  const model = readText(page).match(/^[^\S\r\n]*@model[^\S\r\n]+([^\s<]+)/m)?.[1];
   const modelName = model?.split('.').at(-1);
   const sibling = `${page}.cs`;
   const localFiles = readdirSync(path.dirname(page)).filter((name) => name.endsWith('.cs'))
