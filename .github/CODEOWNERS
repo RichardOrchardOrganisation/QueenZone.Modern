@@ -1,0 +1,19 @@
+# Release machinery and the policy that verifies it require owner review.
+# Keep ordinary application source unowned; do not add a catch-all pattern.
+# /.github/ also protects this CODEOWNERS file and all local actions.
+/.github/ @richardorchard
+/scripts/ @richardorchard
+/infra/ @richardorchard
+/.config/ @richardorchard
+/config/ @richardorchard
+/development-standards.json @richardorchard
+/development-standards.lock.json @richardorchard
+/coverlet.runsettings @richardorchard
+/global.json @richardorchard
+NuGet.config @richardorchard
+nuget.config @richardorchard
+*.csproj @richardorchard
+*.props @richardorchard
+*.targets @richardorchard
+*.sln @richardorchard
+*.slnx @richardorchard
