@@ -17,3 +17,4 @@ nuget.config @richardorchard
 *.targets @richardorchard
 *.sln @richardorchard
 *.slnx @richardorchard
+# Temporary review-enforcement probe; do not merge.
