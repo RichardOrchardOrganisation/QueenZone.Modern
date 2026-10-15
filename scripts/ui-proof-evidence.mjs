@@ -27,31 +27,37 @@ export async function discoverEvidence({ github, repo, headSha, root, decode = d
     if (run.head_sha !== headSha || !producers[run.path] || !['pull_request', 'workflow_dispatch'].includes(run.event)) continue;
     const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { ...repo, run_id: run.id, filter: 'all', per_page: 100 });
     const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, { ...repo, run_id: run.id, per_page: 100 });
-    for (const artifact of artifacts) {
-      if (!artifact.name.startsWith('ui-proof-') || artifact.expired || artifact.size_in_bytes <= 0 || artifact.size_in_bytes > 50 * 1024 * 1024) continue;
-      let manifest;
-      try {
-        const response = await github.rest.actions.downloadArtifact({ ...repo, artifact_id: artifact.id, archive_format: 'zip' });
-        manifest = decode(response.data, root);
-      } catch (error) {
-        // Missing, expired, corrupt and invalid archives cannot count as evidence.
-        if (error.status && ![404, 410].includes(error.status)) throw error;
-        continue;
-      }
-      if (manifest.headSha !== headSha || String(manifest.runId) !== String(run.id) || Number(manifest.attempt) > run.run_attempt) continue;
-      for (const entry of manifest.entries) {
-        const expectedJob = producers[run.path][entry.platform]?.[manifest.job];
-        const producer = jobs.filter(job => job.name === expectedJob).sort((a, b) => b.run_attempt - a.run_attempt || b.id - a.id)[0];
-        if (!producer || producer.conclusion !== 'success') continue;
-        if (String(producer.run_attempt) !== String(manifest.attempt)) {
-          // A gate-only rerun carries the untouched producer into the new attempt with the
-          // same started_at; only that carried copy may vouch for the older manifest.
-          const original = jobs.find(job => job.name === expectedJob && String(job.run_attempt) === String(manifest.attempt));
-          if (!original || original.conclusion !== 'success' || !original.started_at || original.started_at !== producer.started_at) continue;
-        }
-        evidence.push({ ...entry, headSha, url: `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${run.id}/artifacts/${artifact.id}` });
-      }
-    }
+    evidence.push(...await evidenceFromArtifacts({ github, repo, headSha, root, decode, producers, run, jobs, artifacts }));
   }
   return evidence;
+}
+
+async function evidenceFromArtifacts({ github, repo, headSha, root, decode, producers, run, jobs, artifacts }) {
+  const evidence = [];
+  for (const artifact of artifacts) {
+    if (!artifact.name.startsWith('ui-proof-') || artifact.expired || artifact.size_in_bytes <= 0 || artifact.size_in_bytes > 50 * 1024 * 1024) continue;
+    let manifest;
+    try {
+      const response = await github.rest.actions.downloadArtifact({ ...repo, artifact_id: artifact.id, archive_format: 'zip' });
+      manifest = decode(response.data, root);
+    } catch (error) {
+      // Missing, expired, corrupt and invalid archives cannot count as evidence.
+      if (error.status && ![404, 410].includes(error.status)) throw error;
+      continue;
+    }
+    if (manifest.headSha !== headSha || String(manifest.runId) !== String(run.id) || Number(manifest.attempt) > run.run_attempt) continue;
+    evidence.push(...manifest.entries
+      .filter(entry => successfulProducer(jobs, producers[run.path][entry.platform]?.[manifest.job], manifest.attempt))
+      .map(entry => ({ ...entry, headSha, url: `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${run.id}/artifacts/${artifact.id}` })));
+  }
+  return evidence;
+}
+
+function successfulProducer(jobs, expectedJob, attempt) {
+  const producer = jobs.filter(job => job.name === expectedJob).sort((a, b) => b.run_attempt - a.run_attempt || b.id - a.id)[0];
+  if (!producer || producer.conclusion !== 'success') return false;
+  if (String(producer.run_attempt) === String(attempt)) return true;
+  // A gate-only rerun may carry the untouched producer into the new attempt.
+  const original = jobs.find(job => job.name === expectedJob && String(job.run_attempt) === String(attempt));
+  return Boolean(original && original.conclusion === 'success' && original.started_at && original.started_at === producer.started_at);
 }

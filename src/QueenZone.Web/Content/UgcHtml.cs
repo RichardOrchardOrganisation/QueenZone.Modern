@@ -227,49 +227,62 @@ public sealed partial class UgcHtml(IOptions<BlobUploadOptions> blobUploadOption
 
         sanitizer.PostProcessNode += (_, args) =>
         {
-            if (args.Node is not IElement element)
+            if (args.Node is IElement element)
             {
-                return;
-            }
-
-            if (element.LocalName is "code" or "pre")
-            {
-                foreach (var attribute in element.Attributes.ToArray())
-                {
-                    element.RemoveAttribute(attribute.Name);
-                }
-                return;
-            }
-
-            RestrictClasses(element);
-
-            if (string.Equals(element.TagName, "A", StringComparison.OrdinalIgnoreCase)
-                && element.HasAttribute("href")
-                && !(forDisplay && LegacyQueenZoneLinks.TryRewriteAnchor(element))
-                && element.GetAttribute("href") is { } href
-                && !IsInternalHref(href))
-            {
-                element.SetAttribute("rel", forDisplay ? "noopener noreferrer nofollow ugc" : "noopener noreferrer");
-                element.SetAttribute("target", "_blank");
-            }
-
-            if (string.Equals(element.TagName, "IMG", StringComparison.OrdinalIgnoreCase))
-            {
-                var src = element.GetAttribute("src");
-                if (!IsAllowedImageSrc(src))
-                {
-                    element.Remove();
-                    return;
-                }
-
-                if (forDisplay)
-                {
-                    RewriteImageForDisplay(element, src!);
-                }
+                SanitizeElement(element, forDisplay);
             }
         };
 
         return sanitizer;
+    }
+
+    private void SanitizeElement(IElement element, bool forDisplay)
+    {
+        if (element.LocalName is "code" or "pre")
+        {
+            foreach (var attribute in element.Attributes.ToArray())
+            {
+                element.RemoveAttribute(attribute.Name);
+            }
+            return;
+        }
+
+        RestrictClasses(element);
+
+        SanitizeAnchor(element, forDisplay);
+
+        if (string.Equals(element.TagName, "IMG", StringComparison.OrdinalIgnoreCase))
+        {
+            SanitizeImage(element, forDisplay);
+        }
+    }
+
+    private static void SanitizeAnchor(IElement element, bool forDisplay)
+    {
+        if (string.Equals(element.TagName, "A", StringComparison.OrdinalIgnoreCase)
+            && element.HasAttribute("href")
+            && !(forDisplay && LegacyQueenZoneLinks.TryRewriteAnchor(element))
+            && element.GetAttribute("href") is { } href
+            && !IsInternalHref(href))
+        {
+            element.SetAttribute("rel", forDisplay ? "noopener noreferrer nofollow ugc" : "noopener noreferrer");
+            element.SetAttribute("target", "_blank");
+        }
+    }
+
+    private void SanitizeImage(IElement element, bool forDisplay)
+    {
+        var src = element.GetAttribute("src");
+        if (!IsAllowedImageSrc(src))
+        {
+            element.Remove();
+            return;
+        }
+
+        if (forDisplay)
+        {
+            RewriteImageForDisplay(element, src!);
+        }
     }
 
     /// <summary>
