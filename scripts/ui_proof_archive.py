@@ -14,6 +14,10 @@ PNG = b"\x89PNG\r\n\x1a\n"
 LIMIT = 50 * 1024 * 1024
 
 
+def valid_png_header(kind, chunk):
+    return kind == b"IHDR" and len(chunk) == 13 and all(struct.unpack(">II", chunk[:8]))
+
+
 def valid_png(data):
     if not data.startswith(PNG):
         return False
@@ -29,10 +33,9 @@ def valid_png(data):
         chunk = data[offset + 8:offset + 8 + length]
         if zlib.crc32(kind + chunk) != int.from_bytes(data[end - 4:end], "big"):
             return False
-        if not header:
-            if kind != b"IHDR" or length != 13 or not all(struct.unpack(">II", chunk[:8])):
-                return False
-            header = True
+        if not header and not valid_png_header(kind, chunk):
+            return False
+        header = True
         image_data = image_data or kind == b"IDAT" and length > 0
         if kind == b"IEND":
             return header and image_data and length == 0 and end == len(data)
@@ -74,27 +77,36 @@ def validate_archive(data):
         if any(PurePosixPath(name).is_absolute() or ".." in PurePosixPath(name).parts or "\\" in name for name in names):
             raise ValueError("Unsafe archive path")
         manifest = json.loads(archive.read("manifest.json"))
-        if manifest.get("version") != 1 or not re.fullmatch(r"[a-f0-9]{40}", manifest.get("headSha", "")):
-            raise ValueError("Invalid manifest identity")
-        if not re.fullmatch(r"[a-f0-9]{40}", manifest.get("testedSha", "")) or not str(manifest.get("runId", "")).isdigit() or not str(manifest.get("attempt", "")).isdigit():
-            raise ValueError("Invalid run provenance")
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", manifest.get("job", "")):
-            raise ValueError("Missing producer job")
+        validate_manifest_identity(manifest)
         entries = manifest.get("entries", [])
         if not isinstance(entries, list) or not entries:
             raise ValueError("No verified features")
         for entry in entries:
-            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", entry.get("platform", "")) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", entry.get("feature", "")):
-                raise ValueError("Invalid feature/platform")
-            report = archive.read(entry["report"])
-            counts = ([passed_cases(report, fixture) for fixture in entry.get("fixtures", [])]
-                      if entry.get("fixtures") else [passed_cases(report)])
-            if not counts or not all(counts) or sum(counts) != entry.get("tests"):
-                raise ValueError("Missing, skipped or failed behavioural tests")
-            shots = entry.get("screenshots", [])
-            if not shots or any(not valid_png(archive.read(shot)) for shot in shots):
-                raise ValueError("Missing screenshot evidence")
+            validate_entry(archive, entry)
         return manifest
+
+
+def validate_manifest_identity(manifest):
+    if manifest.get("version") != 1 or not re.fullmatch(r"[a-f0-9]{40}", manifest.get("headSha", "")):
+        raise ValueError("Invalid manifest identity")
+    if not re.fullmatch(r"[a-f0-9]{40}", manifest.get("testedSha", "")) or not str(manifest.get("runId", "")).isdigit() or not str(manifest.get("attempt", "")).isdigit():
+        raise ValueError("Invalid run provenance")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", manifest.get("job", "")):
+        raise ValueError("Missing producer job")
+
+
+def validate_entry(archive, entry):
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", entry.get("platform", "")) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", entry.get("feature", "")):
+        raise ValueError("Invalid feature/platform")
+    report = archive.read(entry["report"])
+    counts = ([passed_cases(report, fixture) for fixture in entry.get("fixtures", [])]
+              if entry.get("fixtures") else [passed_cases(report)])
+    if not counts or not all(counts) or sum(counts) != entry.get("tests"):
+        raise ValueError("Missing, skipped or failed behavioural tests")
+    shots = entry.get("screenshots", [])
+    if not shots or any(not valid_png(archive.read(shot)) for shot in shots):
+        raise ValueError("Missing screenshot evidence")
+
 
 
 def main():

@@ -64,6 +64,13 @@ export function evaluateProof({ body = '', labels = [], requirements = [], featu
       return { ok: false, ui, uiFiles, ids, error: `No affected feature declared for ${requirement.file}.` };
     }
   }
+  const missing = missingProof(ids, features, evidence, headSha);
+  return missing.length ? { ok: false, ui, uiFiles, ids,
+    error: `Uploaded passing proof missing for current head: ${missing.join(', ')}. Local paths, arbitrary links and Not verified do not satisfy this gate.` }
+    : { ok: true, ui, uiFiles, ids };
+}
+
+function missingProof(ids, features, evidence, headSha) {
   const missing = [];
   for (const id of ids) {
     const feature = features.find(item => item.id === id);
@@ -73,9 +80,7 @@ export function evaluateProof({ body = '', labels = [], requirements = [], featu
         && item.url && (feature.fixtures || []).every(fixture => item.fixtures?.includes(fixture)))) missing.push(`${id}/${platform}`);
     }
   }
-  return missing.length ? { ok: false, ui, uiFiles, ids,
-    error: `Uploaded passing proof missing for current head: ${missing.join(', ')}. Local paths, arbitrary links and Not verified do not satisfy this gate.` }
-    : { ok: true, ui, uiFiles, ids };
+  return missing;
 }
 
 export async function checkProof({ github, context, core, root, loadPolicy, discover = discoverEvidence }) {
