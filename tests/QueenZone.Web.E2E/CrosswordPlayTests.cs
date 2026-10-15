@@ -236,6 +236,28 @@ public sealed class CrosswordPlayTests : E2EPageTest
     }
 
     [Test]
+    public async Task Printing_an_active_grid_removes_selection_styles_and_site_chrome()
+    {
+        await Page.GotoAsync("/crosswords/meet-the-band");
+        var cell = Page.Locator(".qz-crossword-cell").First;
+        await cell.ClickAsync();
+        await Expect(Page.Locator(".qz-crossword-cell.is-selected")).ToBeVisibleAsync();
+        await Expect(Page.Locator("[data-completion]")).ToBeHiddenAsync();
+        await Expect(Page.Locator("[data-review]")).ToBeHiddenAsync();
+        await Page.EmulateMediaAsync(new() { Media = Media.Print, ColorScheme = ColorScheme.Dark });
+        var selected = Page.Locator(".qz-crossword-cell.is-selected");
+        await Expect(selected).ToHaveCSSAsync("color", "rgb(17, 17, 17)");
+        await Expect(selected).ToHaveCSSAsync("background-color", "rgb(255, 255, 255)");
+        await Expect(selected).ToHaveCSSAsync("box-shadow", "none");
+        await Expect(Page.Locator(".qz-crossword-clue-list button.is-active")).ToHaveCSSAsync("outline-style", "none");
+        await Expect(Page.Locator(".qz-crossword-clue-list button.is-active")).ToHaveCSSAsync("background-color", "rgba(0, 0, 0, 0)");
+        await Expect(Page.Locator("[data-toolbar]")).ToBeHiddenAsync();
+        await Expect(Page.Locator("body > header")).ToBeHiddenAsync();
+        await Expect(Page.Locator("body > footer")).ToBeHiddenAsync();
+        await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Across", Exact = true })).ToBeVisibleAsync();
+    }
+
+    [Test]
     public async Task Installed_shell_reloads_offline_with_local_letters_and_connection_only_actions()
     {
         if (BrowserType.Name == "webkit")

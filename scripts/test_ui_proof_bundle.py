@@ -38,13 +38,15 @@ class ProofTests(unittest.TestCase):
 
     def test_missing_screenshot_or_bad_identity(self):
         for args in [{"shot": b""}, {"shot": PNG}, {"headSha": "old"}, {"entries": []}, {"testedSha": "unknown"}]:
+            archive = bundle(**args)
             with self.assertRaises(ValueError):
-                validate_archive(bundle(**args))
+                validate_archive(archive)
 
     def test_zero_skipped_failed_and_wrong_fixture(self):
         for report in [TRX.replace(b'Passed', b'Failed'), TRX.replace(b'Passed', b'NotExecuted'), TRX.replace(b'SmokeTests', b'OtherTests')]:
+            archive = bundle(report=report)
             with self.assertRaises(ValueError):
-                validate_archive(bundle(report=report))
+                validate_archive(archive)
         for content in [b'<testsuites/>', b'<testsuites><testcase><skipped/></testcase></testsuites>', b'<testsuites><testcase><failure/></testcase></testsuites>']:
             self.assertEqual(passed_cases(content), 0)
 
@@ -53,8 +55,9 @@ class ProofTests(unittest.TestCase):
             data = io.BytesIO(bundle())
             with zipfile.ZipFile(data, 'a') as archive:
                 archive.writestr(name, 'bad')
+            invalid_archive = data.getvalue()
             with self.assertRaises(ValueError):
-                validate_archive(data.getvalue())
+                validate_archive(invalid_archive)
 
     def test_xml_entities_rejected(self):
         with self.assertRaises(ValueError):
