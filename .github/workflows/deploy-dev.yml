@@ -6,6 +6,15 @@ on:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      force_redeploy:
+        description: "Redeploy current main even when the normal range has no web changes. Requires expected_main_sha."
+        type: boolean
+        default: false
+      expected_main_sha:
+        description: "Full lowercase main commit SHA approved for this forced DEV redeploy."
+        type: string
+        required: false
 
 permissions: {}
 
@@ -34,7 +43,9 @@ concurrency:
 # publish from the checked-out main SHA and stamp that actual build SHA.
 # Skip (do not walk back): workflow_dispatch classifies tip vs previous
 # main commit. Mobile-only / docs-only / workflow-only → code=false →
-# skip resolve/migrate/deploy/smoke. Push to main uses the push span.
+# skip resolve/migrate/deploy/smoke unless force_redeploy is explicitly validated.
+# Forced redeploy changes only code=true, never the migration classification.
+# Push to main uses the push span.
 # Mixed web+mobile still deploys: resolve-ci-run keys off the web-publish
 # artifact (not overall ci.yml success), because long Mobile iOS/Android
 # jobs can leave the workflow in_progress after required web checks — and
@@ -44,8 +55,8 @@ jobs:
   # Mirrors ci.yml's non-web bypass (scripts/classify-pipeline-changes.sh).
   # Skip when the classified range is mobile-only / docs / workflow-only —
   # nothing to redeploy, and walking back to an older web tip is forbidden.
-  # workflow_dispatch classifies tip vs previous main commit (do not force
-  # code=true). Push to main classifies github.event.before…sha.
+  # Ordinary workflow_dispatch classifies tip vs previous main commit.
+  # A validated explicit redeploy may override code only; push uses its span.
   changes:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
@@ -62,6 +73,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Validate explicit DEV redeploy
+        id: redeploy
+        env:
+          FORCE_REDEPLOY: ${{ inputs.force_redeploy || false }}
+          EXPECTED_MAIN_SHA: ${{ inputs.expected_main_sha }}
+        run: |
+          CHECKOUT_SHA=$(git rev-parse HEAD)
+          export CHECKOUT_SHA
+          if [ "$FORCE_REDEPLOY" = "true" ]; then
+            CURRENT_MAIN_SHA=$(git ls-remote --exit-code origin refs/heads/main | cut -f1)
+            export CURRENT_MAIN_SHA
+          fi
+          node scripts/release/validate-dev-redeploy.mjs
 
       - name: Azure login (OIDC)
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
@@ -103,6 +128,7 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
+          FORCE_REDEPLOY: ${{ steps.redeploy.outputs.force_redeploy }}
         run: |
           range="$(bash ./scripts/Resolve-DeployChangeRange.sh)"
           echo "$range"
@@ -118,6 +144,10 @@ jobs:
           git diff --name-only "${base_sha}...${head_sha}" \
             | bash ./scripts/classify-pipeline-changes.sh \
             >> "$GITHUB_OUTPUT"
+          if [ "$FORCE_REDEPLOY" = "true" ]; then
+            echo "Explicit DEV redeploy validated; preserving classified migration and mobile flags."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
 
   # Finds the ci.yml run that built+tested this exact tree, so `deploy`
   # can download its publish artifact instead of rebuilding. Soft-miss
