@@ -374,22 +374,67 @@ jobs:
           SENTRY_USE_XCFRAMEWORK: "1"
         run: npx expo prebuild --platform ios --clean
 
-      - name: Confirm iOS deployment target is 16.4 or higher
+      - name: Confirm iOS deployment target is 15.1 or higher
         run: |
           set -euo pipefail
-          target="$(sed -n "s/.*platform :ios, ['\"]\\([0-9.]*\\)['\"].*/\\1/p" ios/Podfile | head -n 1)"
-          if [ -z "$target" ]; then
-            echo "::error::ios/Podfile has no platform :ios version after prebuild."
-            exit 1
-          fi
-          major="${target%%.*}"
-          rest="${target#*.}"
-          minor="${rest%%.*}"
-          if [ "$major" -lt 16 ] || { [ "$major" -eq 16 ] && [ "${minor:-0}" -lt 4 ]; }; then
-            echo "::error::iOS deployment target ${target} is below 16.4 (Expo 57 / Sentry 8, #1782)."
-            exit 1
-          fi
-          echo "Podfile platform :ios ${target} meets the Expo 57 / Sentry 8 floor 16.4."
+          # Expo 57 writes `platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`
+          # (RN min_ios_version_supported), not a literal version. Sentry 8 needs 15.0+;
+          # the lock is 15.1+. Expo module pods (Expo.podspec) still raise themselves
+          # to 16.4; that is not the app target.
+          echo "Podfile platform line:"
+          grep -n "platform :ios" ios/Podfile || true
+          node <<'NODE'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          function parse(version) {
+            const parts = String(version).split('.').map((part) => Number(part));
+            return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+          }
+          function belowFloor(version) {
+            const [major, minor, patch] = parse(version);
+            return [major, minor, patch] < [15, 1, 0];
+          }
+
+          let propsTarget = '';
+          if (fs.existsSync('ios/Podfile.properties.json')) {
+            const props = JSON.parse(fs.readFileSync('ios/Podfile.properties.json', 'utf8'));
+            propsTarget = props['ios.deploymentTarget'] || '';
+            console.log(`Podfile.properties.json ios.deploymentTarget=${propsTarget || 'unset'}`);
+          }
+
+          const pbxFiles = execSync(
+            "find ios -name project.pbxproj -not -path '*/Pods/*' -print",
+            { encoding: 'utf8' },
+          )
+            .trim()
+            .split('\n')
+            .filter(Boolean);
+          const pbxTargets = new Set();
+          for (const file of pbxFiles) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const match of text.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+)/g)) {
+              pbxTargets.add(match[1]);
+            }
+          }
+          console.log(
+            `pbxproj IPHONEOS_DEPLOYMENT_TARGET=${[...pbxTargets].join(',') || 'unset'}`,
+          );
+
+          const found = [...(propsTarget ? [propsTarget] : []), ...pbxTargets];
+          if (found.length === 0) {
+            console.error('::error::Could not resolve an iOS deployment target after prebuild.');
+            process.exit(1);
+          }
+          const tooLow = found.filter(belowFloor);
+          if (tooLow.length > 0) {
+            console.error(
+              `::error::iOS deployment target ${tooLow.join(', ')} is below 15.1 (Sentry 8 / #1782).`,
+            );
+            process.exit(1);
+          }
+          console.log('iOS deployment target meets the Sentry 8 floor 15.1.');
+          NODE
 
       # Unsigned CI builds must not call sentry-cli 3 upload (no org/token here).
       # Without this, Bundle RN / Upload Debug Symbols fails with
