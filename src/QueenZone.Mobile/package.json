@@ -90,7 +90,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@testing-library/react-native": "^13.3.3",
+    "@testing-library/react-native": "^14.1.0",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.2",
     "@types/text-encoding": "^0.0.40",
