@@ -75,7 +75,7 @@
     "expo-web-browser": "~57.0.3",
     "expo-widgets": "~57.0.24",
     "htmlparser2": "10.1.0",
-    "lucide-react-native": "^1.52.0",
+    "lucide-react-native": "^1.56.0",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-android-widget": "^0.22.1",
