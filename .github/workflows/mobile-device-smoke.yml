@@ -413,6 +413,7 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:5098
           EXPO_PUBLIC_SMOKE_EMBED: "1"
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
+          SENTRY_USE_XCFRAMEWORK: "1"
           QUEENZONE_MOBILE_SMOKE_EMBED: "1"
           FORCE_BUNDLING: "1"
         run: |
@@ -979,6 +980,7 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:5098
           EXPO_PUBLIC_SMOKE_EMBED: "1"
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
+          SENTRY_USE_XCFRAMEWORK: "1"
           QUEENZONE_MOBILE_SMOKE_EMBED: "1"
           FORCE_BUNDLING: "1"
         run: |

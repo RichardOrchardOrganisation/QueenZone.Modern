@@ -199,7 +199,7 @@ jobs:
       - name: Setup Gradle caching and diagnostics
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      # Unsigned CI builds must not call sentry-cli upload (no org/token here).
+      # Unsigned CI builds must not call sentry-cli 3 upload (no org/token here).
       # Publish workflows set SENTRY_ORG/PROJECT/AUTH_TOKEN and upload for real.
       - name: Assemble debug APK
         working-directory: src/QueenZone.Mobile/android
@@ -321,6 +321,19 @@ jobs:
             sudo xcode-select -s "$EXPECTED"
           fi
           xcodebuild -version
+          xcode_ver="$(xcodebuild -version | awk '/^Xcode / { print $2 }')"
+          if [ -z "$xcode_ver" ]; then
+            echo "::error::Could not read Xcode version (Sentry 8 requires 16.4+)."
+            exit 1
+          fi
+          xcode_major="${xcode_ver%%.*}"
+          xcode_rest="${xcode_ver#*.}"
+          xcode_minor="${xcode_rest%%.*}"
+          if [ "$xcode_major" -lt 16 ] || { [ "$xcode_major" -eq 16 ] && [ "${xcode_minor:-0}" -lt 4 ]; }; then
+            echo "::error::Xcode ${xcode_ver} is below 16.4 required by Sentry 8 (#1782)."
+            exit 1
+          fi
+          echo "Xcode ${xcode_ver} meets the Sentry 8 floor 16.4."
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -347,15 +360,38 @@ jobs:
       - name: Cache CocoaPods
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/Library/Caches/CocoaPods
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/sentry-react-native
           key: cocoapods-${{ runner.os }}-${{ hashFiles('src/QueenZone.Mobile/package-lock.json') }}
           restore-keys: |
             cocoapods-${{ runner.os }}-
 
       - name: Prebuild iOS project
+        env:
+          # Sentry 8 default: download sentry-cocoa as a prebuilt xcframework
+          # from GitHub during pod install. Do not set this to 0 (#1782).
+          SENTRY_USE_XCFRAMEWORK: "1"
         run: npx expo prebuild --platform ios --clean
 
-      # Unsigned CI builds must not call sentry-cli upload (no org/token here).
+      - name: Confirm iOS deployment target is 16.4 or higher
+        run: |
+          set -euo pipefail
+          target="$(sed -n "s/.*platform :ios, ['\"]\\([0-9.]*\\)['\"].*/\\1/p" ios/Podfile | head -n 1)"
+          if [ -z "$target" ]; then
+            echo "::error::ios/Podfile has no platform :ios version after prebuild."
+            exit 1
+          fi
+          major="${target%%.*}"
+          rest="${target#*.}"
+          minor="${rest%%.*}"
+          if [ "$major" -lt 16 ] || { [ "$major" -eq 16 ] && [ "${minor:-0}" -lt 4 ]; }; then
+            echo "::error::iOS deployment target ${target} is below 16.4 (Expo 57 / Sentry 8, #1782)."
+            exit 1
+          fi
+          echo "Podfile platform :ios ${target} meets the Expo 57 / Sentry 8 floor 16.4."
+
+      # Unsigned CI builds must not call sentry-cli 3 upload (no org/token here).
       # Without this, Bundle RN / Upload Debug Symbols fails with
       # "An organization ID or slug is required" once the Sentry Expo plugin
       # is registered (#855 / #857). Publish workflows set credentials and upload.

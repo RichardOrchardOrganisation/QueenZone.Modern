@@ -153,12 +153,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // SwiftUI so the gallery/home snapshot is never a Release EmptyView.
       './plugins/withIosOnThisDayNativeWidget.cjs',
       [
-        // Auth token is deliberately NOT passed here — sentry-cli picks up
+        // Auth token is deliberately NOT passed here — sentry-cli 3 picks up
         // SENTRY_AUTH_TOKEN from the build environment directly (Gradle /
         // Xcode build phase), so it never lands in the generated,
         // gitignored sentry.properties file. See publish-*.yml workflows.
         // CI unsigned builds set SENTRY_DISABLE_AUTO_UPLOAD=true so missing
         // org/token does not fail the Bundle RN script (#857).
+        // Temporary: package.json expo.install.exclude keeps @sentry/react-native
+        // on ~8.28.0 while Expo SDK 57 still bundles ~7.11.0. Remove with the
+        // SDK 58 PR (#1782).
         '@sentry/react-native/expo',
         {
           ...(process.env.SENTRY_ORG ? { organization: process.env.SENTRY_ORG } : {}),
