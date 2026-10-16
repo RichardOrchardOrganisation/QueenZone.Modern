@@ -1,6 +1,8 @@
 import { screen } from '@testing-library/react-native';
 import type { ComponentProps, ElementType } from 'react';
 
+// TODO(#2333): unstable_fiber is a private React/test-renderer internal and may break on
+// React, test-renderer or RNTL upgrades. Replace with a stable public API.
 type Fiber = NonNullable<NonNullable<typeof screen.root>['unstable_fiber']>;
 
 /** Inspect composite configuration that is intentionally absent from host queries.
