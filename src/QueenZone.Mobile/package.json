@@ -46,7 +46,7 @@
     "@sentry/react-native": "~7.11.0",
     "@typedigital/telemetrydeck-react": "^0.5.0",
     "domhandler": "5.0.3",
-    "domutils": "3.2.2",
+    "domutils": "4.0.2",
     "expo": "~57.0.30",
     "expo-asset": "~57.0.19",
     "expo-audio": "~57.0.5",
