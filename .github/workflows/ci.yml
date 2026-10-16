@@ -199,7 +199,7 @@ jobs:
       - name: Setup Gradle caching and diagnostics
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      # Unsigned CI builds must not call sentry-cli upload (no org/token here).
+      # Unsigned CI builds must not call sentry-cli 3 upload (no org/token here).
       # Publish workflows set SENTRY_ORG/PROJECT/AUTH_TOKEN and upload for real.
       - name: Assemble debug APK
         working-directory: src/QueenZone.Mobile/android
@@ -321,6 +321,19 @@ jobs:
             sudo xcode-select -s "$EXPECTED"
           fi
           xcodebuild -version
+          xcode_ver="$(xcodebuild -version | awk '/^Xcode / { print $2 }')"
+          if [ -z "$xcode_ver" ]; then
+            echo "::error::Could not read Xcode version (Sentry 8 requires 16.4+)."
+            exit 1
+          fi
+          xcode_major="${xcode_ver%%.*}"
+          xcode_rest="${xcode_ver#*.}"
+          xcode_minor="${xcode_rest%%.*}"
+          if [ "$xcode_major" -lt 16 ] || { [ "$xcode_major" -eq 16 ] && [ "${xcode_minor:-0}" -lt 4 ]; }; then
+            echo "::error::Xcode ${xcode_ver} is below 16.4 required by Sentry 8 (#1782)."
+            exit 1
+          fi
+          echo "Xcode ${xcode_ver} meets the Sentry 8 floor 16.4."
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -347,15 +360,83 @@ jobs:
       - name: Cache CocoaPods
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/Library/Caches/CocoaPods
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/sentry-react-native
           key: cocoapods-${{ runner.os }}-${{ hashFiles('src/QueenZone.Mobile/package-lock.json') }}
           restore-keys: |
             cocoapods-${{ runner.os }}-
 
       - name: Prebuild iOS project
+        env:
+          # Sentry 8 default: download sentry-cocoa as a prebuilt xcframework
+          # from GitHub during pod install. Do not set this to 0 (#1782).
+          SENTRY_USE_XCFRAMEWORK: "1"
         run: npx expo prebuild --platform ios --clean
 
-      # Unsigned CI builds must not call sentry-cli upload (no org/token here).
+      - name: Confirm iOS deployment target is 15.1 or higher
+        run: |
+          set -euo pipefail
+          # Expo 57 writes `platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`
+          # rather than a literal version. Sentry 8 allows 15.0+; the lock is 15.1+.
+          # Expo 57's Expo.podspec (`:ios => '16.4'`) is a hard floor: pod install
+          # rejects a 15.1 app platform. The app pin is therefore 16.4.
+          echo "Podfile platform line:"
+          grep -n "platform :ios" ios/Podfile || true
+          node <<'NODE'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          function parse(version) {
+            const parts = String(version).split('.').map((part) => Number(part));
+            return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+          }
+          function belowFloor(version) {
+            const [major, minor, patch] = parse(version);
+            return [major, minor, patch] < [15, 1, 0];
+          }
+
+          let propsTarget = '';
+          if (fs.existsSync('ios/Podfile.properties.json')) {
+            const props = JSON.parse(fs.readFileSync('ios/Podfile.properties.json', 'utf8'));
+            propsTarget = props['ios.deploymentTarget'] || '';
+            console.log(`Podfile.properties.json ios.deploymentTarget=${propsTarget || 'unset'}`);
+          }
+
+          const pbxFiles = execSync(
+            "find ios -name project.pbxproj -not -path '*/Pods/*' -print",
+            { encoding: 'utf8' },
+          )
+            .trim()
+            .split('\n')
+            .filter(Boolean);
+          const pbxTargets = new Set();
+          for (const file of pbxFiles) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const match of text.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+)/g)) {
+              pbxTargets.add(match[1]);
+            }
+          }
+          console.log(
+            `pbxproj IPHONEOS_DEPLOYMENT_TARGET=${[...pbxTargets].join(',') || 'unset'}`,
+          );
+
+          const found = [...(propsTarget ? [propsTarget] : []), ...pbxTargets];
+          if (found.length === 0) {
+            console.error('::error::Could not resolve an iOS deployment target after prebuild.');
+            process.exit(1);
+          }
+          const tooLow = found.filter(belowFloor);
+          if (tooLow.length > 0) {
+            console.error(
+              `::error::iOS deployment target ${tooLow.join(', ')} is below 15.1 (Sentry 8 / #1782).`,
+            );
+            process.exit(1);
+          }
+          console.log('iOS deployment target meets the Sentry 8 floor 15.1.');
+          NODE
+
+      # Unsigned CI builds must not call sentry-cli 3 upload (no org/token here).
       # Without this, Bundle RN / Upload Debug Symbols fails with
       # "An organization ID or slug is required" once the Sentry Expo plugin
       # is registered (#855 / #857). Publish workflows set credentials and upload.

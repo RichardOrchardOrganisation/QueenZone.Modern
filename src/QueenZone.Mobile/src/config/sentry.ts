@@ -12,6 +12,13 @@
  * ever reports errors/crashes — the Performance/Traces views stay empty
  * even with a valid DSN. `navigationIntegration` is exported so App.tsx can
  * register the NavigationContainer ref and get route-change spans.
+ *
+ * Sentry React Native 8 (#1782 PR 1) keeps the v7 JS surface we use
+ * (`init`, `wrap`, `reactNavigationIntegration`, `addBreadcrumb`,
+ * `captureException`). Sentry 8 allows iOS 15.0+ / Xcode 16.4+. The app
+ * target is 16.4 because Expo 57's `Expo.podspec` declares
+ * `:ios => '16.4'`; `pod install` rejects a 15.1 app platform. Symbol
+ * upload uses sentry-cli 3.
  */
 import * as Sentry from '@sentry/react-native';
 import { isExpoFetchCanceled, isLostConnectionMessage } from '../api/errors';

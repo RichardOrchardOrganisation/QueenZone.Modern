@@ -103,6 +103,22 @@ jobs:
       - name: Install
         run: npm ci
 
+      # @sentry/react-native 8 ships sentry-cli 3; Gradle bundleRelease uploads
+      # native symbols and source maps through that CLI (#1782).
+      - name: Confirm sentry-cli 3
+        run: |
+          set -euo pipefail
+          version="$(npx --no-install sentry-cli --version)"
+          echo "sentry-cli version: ${version}"
+          case "${version}" in
+            sentry-cli\ 3.*|3.*)
+              ;;
+            *)
+              echo "::error::Expected sentry-cli 3.x from @sentry/react-native 8 (got: ${version})."
+              exit 1
+              ;;
+          esac
+
       - name: Generate Android project
         env:
           # Expo writes `version` / versionName at prebuild. Pass the run

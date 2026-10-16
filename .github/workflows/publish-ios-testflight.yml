@@ -147,6 +147,22 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      # @sentry/react-native 8 ships sentry-cli 3; the Xcode archive phase
+      # uploads dSYMs and source maps through that CLI (#1782).
+      - name: Confirm sentry-cli 3
+        run: |
+          set -euo pipefail
+          version="$(npx --no-install sentry-cli --version)"
+          echo "sentry-cli version: ${version}"
+          case "${version}" in
+            sentry-cli\ 3.*|3.*)
+              ;;
+            *)
+              echo "::error::Expected sentry-cli 3.x from @sentry/react-native 8 (got: ${version})."
+              exit 1
+              ;;
+          esac
+
       - name: Ensure CocoaPods CLI
         run: |
           set -euo pipefail
@@ -270,6 +286,7 @@ jobs:
         with:
           path: |
             ~/Library/Caches/CocoaPods
+            ~/Library/Caches/sentry-react-native
             src/QueenZone.Mobile/ios/Pods
           key: pods-testflight-${{ runner.os }}-${{ hashFiles('src/QueenZone.Mobile/ios/Podfile', 'src/QueenZone.Mobile/package-lock.json') }}
           restore-keys: |
@@ -277,6 +294,10 @@ jobs:
 
       - name: Install CocoaPods dependencies
         working-directory: src/QueenZone.Mobile/ios
+        env:
+          # Sentry 8 default: download sentry-cocoa as a prebuilt xcframework
+          # from GitHub during pod install. Do not set this to 0 (#1782).
+          SENTRY_USE_XCFRAMEWORK: "1"
         run: |
           set -euo pipefail
           export LANG=en_US.UTF-8
@@ -466,7 +487,7 @@ jobs:
           # EXPO_PUBLIC_SENTRY_DSN must be set here too or it inlines as
           # undefined and Sentry.init() silently no-ops in the shipped bundle.
           EXPO_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
-          # Also set org/project here (not only at prebuild) so sentry-cli does
+          # Also set org/project here (not only at prebuild) so sentry-cli 3 does
           # not depend solely on the generated sentry.properties file.
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
