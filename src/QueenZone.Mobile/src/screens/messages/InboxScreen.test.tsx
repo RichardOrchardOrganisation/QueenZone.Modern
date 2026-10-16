@@ -49,8 +49,8 @@ jest.mock('@react-navigation/native', () => {
 const fetchInboxMock = fetchInbox as jest.MockedFunction<typeof fetchInbox>;
 const archiveConversationMock = archiveConversation as jest.MockedFunction<typeof archiveConversation>;
 const getContentCacheMock = getContentCache as jest.MockedFunction<typeof getContentCache>;
-function renderInbox() {
-  return renderWithProviders(
+async function renderInbox() {
+  return await renderWithProviders(
     <InboxScreen navigation={fakeNavigation() as never} route={{ key: 'inbox', name: 'Inbox' } as never} />,
   );
 }
@@ -67,8 +67,8 @@ describe('InboxScreen', () => {
     } as unknown as ReturnType<typeof getContentCache>);
   });
 
-  it('gates unsigned visitors', () => {
-    renderInbox();
+  it('gates unsigned visitors', async () => {
+    await renderInbox();
     expect(screen.getByText('Messages')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
   });
@@ -77,7 +77,7 @@ describe('InboxScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchInboxMock.mockResolvedValueOnce(pagedResponse([], 1, 0));
-    renderInbox();
+    await renderInbox();
     await waitFor(() => expect(screen.getByText('You have no private messages yet.')).toBeOnTheScreen());
   });
 
@@ -97,7 +97,7 @@ describe('InboxScreen', () => {
         1,
       ),
     );
-    renderWithProviders(
+    await renderWithProviders(
       <InboxScreen navigation={navigation as never} route={{ key: 'inbox', name: 'Inbox' } as never} />,
     );
     await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
@@ -111,7 +111,7 @@ describe('InboxScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchInboxMock.mockResolvedValueOnce(pagedResponse([], 1, 0));
-    renderWithProviders(
+    await renderWithProviders(
       <InboxScreen navigation={navigation as never} route={{ key: 'inbox', name: 'Inbox' } as never} />,
     );
     await waitFor(() => expect(screen.getByText('You have no private messages yet.')).toBeOnTheScreen());
@@ -125,7 +125,7 @@ describe('InboxScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchInboxMock.mockResolvedValueOnce(pagedResponse([], 1, 0));
-    renderWithProviders(
+    await renderWithProviders(
       <InboxScreen navigation={navigation as never} route={{ key: 'inbox', name: 'Inbox' } as never} />,
     );
     await waitFor(() => expect(screen.getByText('You have no private messages yet.')).toBeOnTheScreen());
@@ -143,7 +143,7 @@ describe('InboxScreen', () => {
       pagedResponse([inboxConversationFixture()], 1, 1),
     );
     archiveConversationMock.mockResolvedValueOnce(undefined);
-    renderInbox();
+    await renderInbox();
     await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -157,11 +157,11 @@ describe('InboxScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchInboxMock.mockResolvedValue(pagedResponse([inboxConversationFixture()], 1, 1));
-    renderInbox();
+    await renderInbox();
     await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
     expect(fetchInboxMock).toHaveBeenCalledTimes(1);
 
-    act(() => {
+    await act(() => {
       mockLastFocusEffect?.();
     });
 
@@ -187,7 +187,7 @@ describe('InboxScreen', () => {
         1,
       ),
     );
-    renderInbox();
+    await renderInbox();
     await waitFor(() =>
       expect(screen.getByText('<script>alert(1)</script> https://example.com')).toBeOnTheScreen(),
     );
@@ -198,7 +198,7 @@ describe('InboxScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchInboxMock.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
-    renderInbox();
+    await renderInbox();
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
   });
@@ -218,7 +218,7 @@ describe('InboxScreen', () => {
     let rejectFetch: (error: Error) => void = () => {};
     fetchInboxMock.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectFetch = reject; }));
 
-    renderInbox();
+    await renderInbox();
     await waitFor(() => expect(screen.getByText('Cached Carol')).toBeOnTheScreen());
     expect(cacheGet).toHaveBeenCalledWith('messages:member:member-1:inbox:v2');
 

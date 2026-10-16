@@ -85,13 +85,13 @@ function photoDetail(overrides: Partial<PhotoDetail> = {}): PhotoDetail {
   };
 }
 
-function renderViewer(
+async function renderViewer(
   navigation = fakeNavigation(),
   params: { slug?: string; picId?: number; size?: string } = {},
 ) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -103,19 +103,19 @@ function renderViewer(
         }
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
 async function loadPhoto(detail: PhotoDetail = photoDetail()) {
   fetchPhoto.mockResolvedValueOnce(detail);
-  const result = renderViewer();
+  const result = await renderViewer();
   await waitFor(() => expect(screen.getByTestId(testIds.photoViewerScreen)).toBeOnTheScreen());
   return result;
 }
 
-function panEnd(dx: number, dy: number, startPageX = 80) {
-  act(() => {
+async function panEnd(dx: number, dy: number, startPageX = 80) {
+  await act(() => {
     recordedGestures().pan.handlers.onEnd?.({
       translationX: dx,
       translationY: dy,
@@ -158,7 +158,7 @@ describe('PhotoViewerScreen', () => {
   it('shows loading then the photograph chrome', async () => {
     const pending = deferred<PhotoDetail>();
     fetchPhoto.mockReturnValueOnce(pending.promise);
-    renderViewer();
+    await renderViewer();
     expect(screen.getByLabelText('Loading photograph…')).toBeOnTheScreen();
     pending.resolve(photoDetail());
     await waitFor(() => expect(screen.getByText('Live Aid')).toBeOnTheScreen());
@@ -181,11 +181,11 @@ describe('PhotoViewerScreen', () => {
           query.signal?.addEventListener('abort', abort);
         }),
     );
-    const { unmount } = renderViewer();
+    const { unmount } = await renderViewer();
     expect(fetchPhoto).toHaveBeenCalledTimes(1);
     const signal = fetchPhoto.mock.calls[0][2]?.signal;
     expect(signal?.aborted).toBe(false);
-    unmount();
+    await unmount();
     await Promise.resolve();
     await Promise.resolve();
     expect(signal?.aborted).toBe(true);
@@ -195,7 +195,7 @@ describe('PhotoViewerScreen', () => {
     fetchPhoto
       .mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'))
       .mockResolvedValueOnce(photoDetail());
-    renderViewer();
+    await renderViewer();
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
     expect(screen.getByText('The server had a problem. Try again shortly.')).toBeOnTheScreen();
     const user = userEvent.setup();
@@ -205,14 +205,14 @@ describe('PhotoViewerScreen', () => {
 
   it('shows a generic error for unexpected failures', async () => {
     fetchPhoto.mockRejectedValueOnce(new Error('boom'));
-    renderViewer();
+    await renderViewer();
     await waitFor(() => expect(screen.getByText('Something went wrong.')).toBeOnTheScreen());
   });
 
   it('clears a size filter the API dropped', async () => {
     const navigation = fakeNavigation();
     fetchPhoto.mockResolvedValueOnce(photoDetail({ detailPath: '/photography/brian-may/101' }));
-    renderWithProviders(
+    await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -233,7 +233,7 @@ describe('PhotoViewerScreen', () => {
     fetchPhoto.mockResolvedValueOnce(
       photoDetail({ detailPath: '/photography/brian-may/101?size=desktop' }),
     );
-    renderWithProviders(
+    await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -259,7 +259,7 @@ describe('PhotoViewerScreen', () => {
         next: { picId: 102, detailPath: '/photography/brian-may/102?size=desktop' },
       }),
     );
-    renderWithProviders(
+    await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -322,36 +322,36 @@ describe('PhotoViewerScreen', () => {
   it('swipes to neighbors and toggles chrome from a tap', async () => {
     await withFakeTimers(async () => {
       const { navigation } = await loadPhoto();
-      panEnd(80, 0);
+      await panEnd(80, 0);
       expect(navigation.setParams).not.toHaveBeenCalled();
       await act(async () => {
         jest.advanceTimersByTime(0);
       });
       expect(navigation.setParams).toHaveBeenCalledWith({ slug: 'brian-may', picId: 100 });
-      panEnd(-80, 0);
+      await panEnd(-80, 0);
       await act(async () => {
         jest.advanceTimersByTime(0);
       });
       expect(navigation.setParams).toHaveBeenCalledWith({ slug: 'brian-may', picId: 102 });
-      act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
+      await act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
       expect(screen.queryByText('Live Aid')).toBeNull();
-      act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
+      await act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
       expect(screen.getByText('Live Aid')).toBeOnTheScreen();
     });
   });
 
   it('does not swipe from the iOS back edge or when a neighbor is missing', async () => {
     const { navigation } = await loadPhoto(photoDetail({ previous: null, next: null }));
-    panEnd(80, 0, 10);
-    panEnd(-80, 0);
+    await panEnd(80, 0, 10);
+    await panEnd(-80, 0);
     await flushGallerySwipe();
     expect(navigation.setParams).not.toHaveBeenCalled();
   });
 
   it('does not navigate after the viewer unmounts mid-swipe', async () => {
     const { navigation, unmount } = await loadPhoto();
-    panEnd(-80, 0);
-    unmount();
+    await panEnd(-80, 0);
+    await unmount();
     await flushGallerySwipe();
     expect(navigation.setParams).not.toHaveBeenCalled();
   });
@@ -360,7 +360,7 @@ describe('PhotoViewerScreen', () => {
     const pendingNext = deferred<PhotoDetail>();
     fetchPhoto.mockResolvedValueOnce(photoDetail()).mockReturnValueOnce(pendingNext.promise);
     const navigation = fakeNavigation();
-    const view = renderWithProviders(
+    const view = await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -374,7 +374,7 @@ describe('PhotoViewerScreen', () => {
       { navigation: false },
     );
     await waitFor(() => expect(screen.getByRole('button', { name: 'Previous image' })).toBeOnTheScreen());
-    view.rerender(
+    await view.rerender(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -413,7 +413,7 @@ describe('PhotoViewerScreen', () => {
       }),
     );
     expect(prefetchImage).not.toHaveBeenCalled();
-    act(() => {
+    await act(() => {
       screen.getByLabelText('Live Aid').props.onLoad?.();
     });
     expect(prefetchImage).toHaveBeenCalledTimes(1);
@@ -437,7 +437,7 @@ describe('PhotoViewerScreen', () => {
         },
       }),
     );
-    act(() => {
+    await act(() => {
       screen.getByLabelText('Live Aid').props.onLoad?.();
     });
     expect(prefetchImage).toHaveBeenCalledWith(
@@ -460,7 +460,7 @@ describe('PhotoViewerScreen', () => {
       }),
     ).mockReturnValueOnce(pendingNext.promise);
     const navigation = fakeNavigation();
-    const view = renderWithProviders(
+    const view = await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -474,13 +474,13 @@ describe('PhotoViewerScreen', () => {
       { navigation: false },
     );
     await waitFor(() => expect(screen.getByTestId(testIds.photoViewerScreen)).toBeOnTheScreen());
-    act(() => {
+    await act(() => {
       screen.getByLabelText('Live Aid').props.onLoad?.();
     });
 
     jest.useFakeTimers();
     try {
-      view.rerender(
+      await view.rerender(
         <PhotoViewerScreen
           navigation={navigation as never}
           route={
@@ -497,10 +497,10 @@ describe('PhotoViewerScreen', () => {
         uri: 'https://cdn.queenzone.org/brian-may/img-102.jpg',
       });
       expect(screen.getByText('Live Aid')).toBeOnTheScreen();
-      act(() => {
+      await act(() => {
         image.props.onLoad?.();
       });
-      act(() => {
+      await act(() => {
         jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
       });
       expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
@@ -513,7 +513,7 @@ describe('PhotoViewerScreen', () => {
     const pendingNext = deferred<PhotoDetail>();
     fetchPhoto.mockResolvedValueOnce(photoDetail()).mockReturnValueOnce(pendingNext.promise);
     const navigation = fakeNavigation();
-    const view = renderWithProviders(
+    const view = await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -527,14 +527,14 @@ describe('PhotoViewerScreen', () => {
       { navigation: false },
     );
     await waitFor(() => expect(screen.getByTestId(testIds.photoViewerScreen)).toBeOnTheScreen());
-    act(() => {
+    await act(() => {
       screen.getByLabelText('Live Aid').props.onLoad?.();
     });
     expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
 
     jest.useFakeTimers();
     try {
-      view.rerender(
+      await view.rerender(
         <PhotoViewerScreen
           navigation={navigation as never}
           route={
@@ -548,7 +548,7 @@ describe('PhotoViewerScreen', () => {
       );
       expect(screen.getByText('Live Aid')).toBeOnTheScreen();
       expect(screen.queryByTestId(testIds.photoViewerImageOverlay)).toBeNull();
-      act(() => {
+      await act(() => {
         jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
       });
       expect(screen.getByTestId(testIds.photoViewerImageOverlay)).toBeOnTheScreen();
@@ -590,11 +590,11 @@ describe('PhotoViewerScreen', () => {
     await waitFor(() => expect(screen.getByText(saveToPhotosCopy.denied)).toBeOnTheScreen());
     expectStatusBanner(saveToPhotosCopy.denied);
 
-    act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
+    await act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
     expect(screen.queryByTestId(testIds.photoViewerSave)).toBeNull();
     expect(screen.queryByTestId(testIds.photoViewerWallpaper)).toBeNull();
     expect(screen.queryByText('Live Aid')).toBeNull();
-    act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
+    await act(() => recordedGestures().singleTap.handlers.onEnd?.({}));
     expect(screen.getByTestId(testIds.photoViewerSave)).toBeOnTheScreen();
     expect(screen.getByTestId(testIds.photoViewerWallpaper)).toBeOnTheScreen();
     expect(screen.getByText('Live Aid')).toBeOnTheScreen();
@@ -604,7 +604,7 @@ describe('PhotoViewerScreen', () => {
     const pending = deferred<void>();
     savePhoto.mockReturnValueOnce(pending.promise);
     await loadPhoto();
-    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
     await waitFor(() =>
       expect(screen.getByTestId(testIds.photoViewerSave).props.accessibilityState).toEqual({
         disabled: true,
@@ -615,8 +615,8 @@ describe('PhotoViewerScreen', () => {
       disabled: true,
       busy: false,
     });
-    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
     expect(savePhoto).toHaveBeenCalledTimes(1);
     pending.resolve();
     await waitFor(() =>
@@ -667,7 +667,7 @@ describe('PhotoViewerScreen', () => {
     const pendingNext = deferred<PhotoDetail>();
     fetchPhoto.mockResolvedValueOnce(photoDetail()).mockReturnValueOnce(pendingNext.promise);
     const navigation = fakeNavigation();
-    const view = renderWithProviders(
+    const view = await renderWithProviders(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -686,7 +686,7 @@ describe('PhotoViewerScreen', () => {
     await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
     expectStatusBanner(saveGalleryPhotoCopy.saved);
 
-    view.rerender(
+    await view.rerender(
       <PhotoViewerScreen
         navigation={navigation as never}
         route={
@@ -797,7 +797,7 @@ describe('PhotoViewerScreen', () => {
     const pending = deferred<void>();
     savePhoto.mockReturnValueOnce(pending.promise);
     await loadPhoto();
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
     await waitFor(() =>
       expect(screen.getByTestId(testIds.photoViewerWallpaper).props.accessibilityState).toEqual({
         disabled: true,
@@ -808,8 +808,8 @@ describe('PhotoViewerScreen', () => {
       disabled: true,
       busy: false,
     });
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
     expect(savePhoto).toHaveBeenCalledTimes(1);
     pending.resolve();
     await waitFor(() =>
@@ -886,14 +886,14 @@ describe('PhotoViewerScreen Android wallpaper', () => {
 
   it('opens a Home / Lock / Both sheet and sets the chosen target', async () => {
     await loadPhoto();
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
     expect(screen.getByTestId(testIds.photoViewerWallpaperSheet)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: wallpaperCopy.home })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: wallpaperCopy.lock })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: wallpaperCopy.both })).toBeOnTheScreen();
     expect(savePhoto).not.toHaveBeenCalled();
 
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
     await waitFor(() =>
       expect(setWallpaper).toHaveBeenCalledWith(
         'https://cdn.queenzone.org/brian-may/img-101.jpg',
@@ -906,12 +906,12 @@ describe('PhotoViewerScreen Android wallpaper', () => {
 
   it('does not set wallpaper again during the Android cooldown', async () => {
     await loadPhoto();
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
     await waitFor(() => expect(setWallpaper).toHaveBeenCalledTimes(1));
     expectStatusBanner(wallpaperCopy.androidSet);
 
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
     expect(setWallpaper).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId(testIds.photoViewerWallpaperSheet)).toBeNull();
     expectStatusBanner(wallpaperCopy.androidAlreadySet);
@@ -920,11 +920,11 @@ describe('PhotoViewerScreen Android wallpaper', () => {
 
   it('does not put Save on cooldown after an Android wallpaper set', async () => {
     await loadPhoto();
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperHome));
     await waitFor(() => expect(setWallpaper).toHaveBeenCalledTimes(1));
 
-    fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerSave));
     await waitFor(() => expect(savePhoto).toHaveBeenCalledTimes(1));
     expectStatusBanner(saveGalleryPhotoCopy.saved);
   });
@@ -932,8 +932,8 @@ describe('PhotoViewerScreen Android wallpaper', () => {
   it('sets lock and both from the sheet', async () => {
     await withFakeTimers(async () => {
       await loadPhoto();
-      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperLock));
+      await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+      await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperLock));
       await waitFor(() =>
         expect(setWallpaper).toHaveBeenCalledWith(
           'https://cdn.queenzone.org/brian-may/img-101.jpg',
@@ -944,8 +944,8 @@ describe('PhotoViewerScreen Android wallpaper', () => {
       await act(async () => {
         jest.advanceTimersByTime(photoViewerStatusTiming.cooldownMs);
       });
-      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-      fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperBoth));
+      await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+      await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperBoth));
       await waitFor(() =>
         expect(setWallpaper).toHaveBeenCalledWith(
           'https://cdn.queenzone.org/brian-may/img-101.jpg',
@@ -958,8 +958,8 @@ describe('PhotoViewerScreen Android wallpaper', () => {
   it('shows a lock-target error instead of a silent no-op', async () => {
     setWallpaper.mockRejectedValueOnce(new Error(wallpaperCopy.lockFailed));
     await loadPhoto();
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperLock));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperLock));
     await waitFor(() => expect(screen.getByText(wallpaperCopy.lockFailed)).toBeOnTheScreen());
     expectStatusBanner(wallpaperCopy.lockFailed);
     expect(screen.queryByText(wallpaperCopy.androidSet)).toBeNull();
@@ -967,8 +967,8 @@ describe('PhotoViewerScreen Android wallpaper', () => {
 
   it('cancels the sheet without setting wallpaper', async () => {
     await loadPhoto();
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
-    fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperCancel));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaper));
+    await fireEvent.press(screen.getByTestId(testIds.photoViewerWallpaperCancel));
     expect(screen.queryByTestId(testIds.photoViewerWallpaperSheet)).toBeNull();
     expect(setWallpaper).not.toHaveBeenCalled();
     expect(savePhoto).not.toHaveBeenCalled();

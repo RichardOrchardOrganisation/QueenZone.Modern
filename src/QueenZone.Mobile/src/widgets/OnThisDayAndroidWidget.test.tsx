@@ -65,9 +65,9 @@ describe('OnThisDayAndroidWidget', () => {
     expect(source).not.toMatch(/uri: widgetDeepLinkUrl/);
   });
 
-  it('shows only the on-this-day face in an even 4-hour slot', () => {
+  it('shows only the on-this-day face in an even 4-hour slot', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(0);
-    renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} />, { navigation: false });
+    await renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} />, { navigation: false });
 
     expect(screen.getByText('ON THIS DAY')).toBeOnTheScreen();
     expect(screen.getByText('Queen released The Game.')).toBeOnTheScreen();
@@ -86,9 +86,9 @@ describe('OnThisDayAndroidWidget', () => {
     ).toBeOnTheScreen();
   });
 
-  it('shows only the Queen Quotes face in an odd 4-hour slot', () => {
+  it('shows only the Queen Quotes face in an odd 4-hour slot', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(WIDGET_FACE_SLOT_MS);
-    renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} />, { navigation: false });
+    await renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} />, { navigation: false });
 
     expect(screen.getByText('QUEEN QUOTES')).toBeOnTheScreen();
     expect(screen.getByText('“A kind of magic”')).toBeOnTheScreen();
@@ -104,9 +104,9 @@ describe('OnThisDayAndroidWidget', () => {
     ).toBeOnTheScreen();
   });
 
-  it('uses the medium ceiling and secondary size on a 4×2 span', () => {
+  it('uses the medium ceiling and secondary size on a 4×2 span', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(WIDGET_FACE_SLOT_MS);
-    renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} widgetWidth={300} />, { navigation: false });
+    await renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} widgetWidth={300} />, { navigation: false });
 
     expect(
       screen.getByTestId(`tw:“A kind of magic”:${WIDGET_QUOTE_MAX_LINES}:${WIDGET_QUOTE_MAX_PT_MEDIUM}`),
@@ -118,9 +118,9 @@ describe('OnThisDayAndroidWidget', () => {
     ).toBeOnTheScreen();
   });
 
-  it('shrinks a long primary below the short-quote ceiling', () => {
+  it('shrinks a long primary below the short-quote ceiling', async () => {
     const longQuote = 'x'.repeat(120);
-    renderWithProviders(
+    await renderWithProviders(
       <OnThisDayAndroidWidget quoteText={longQuote} quoteWhoSaid="Freddie Mercury" />,
       { navigation: false },
     );
@@ -134,9 +134,9 @@ describe('OnThisDayAndroidWidget', () => {
     expect(screen.getByText('— Freddie Mercury')).toBeOnTheScreen();
   });
 
-  it('shows only the Queen Facts face in the third 4-hour slot', () => {
+  it('shows only the Queen Facts face in the third 4-hour slot', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(WIDGET_FACE_SLOT_MS * 2);
-    renderWithProviders(<OnThisDayAndroidWidget {...allThree} />, { navigation: false });
+    await renderWithProviders(<OnThisDayAndroidWidget {...allThree} />, { navigation: false });
 
     expect(screen.getByText('QUEEN FACTS')).toBeOnTheScreen();
     expect(screen.getByText(allThree.triviaText)).toBeOnTheScreen();
@@ -150,16 +150,16 @@ describe('OnThisDayAndroidWidget', () => {
     ).toBeOnTheScreen();
   });
 
-  it('skips trivia and keeps day+quote rotation when triviaText is missing', () => {
+  it('skips trivia and keeps day+quote rotation when triviaText is missing', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(WIDGET_FACE_SLOT_MS * 2);
-    renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} />, { navigation: false });
+    await renderWithProviders(<OnThisDayAndroidWidget {...bothHalves} />, { navigation: false });
 
     expect(screen.getByText('ON THIS DAY')).toBeOnTheScreen();
     expect(screen.queryByText('QUEEN FACTS')).toBeNull();
   });
 
-  it('falls back to quote-only copy when there is no event', () => {
-    renderWithProviders(
+  it('falls back to quote-only copy when there is no event', async () => {
+    await renderWithProviders(
       <OnThisDayAndroidWidget quoteText="A kind of magic" quoteWhoSaid="Freddie Mercury" />,
       { navigation: false },
     );
@@ -169,8 +169,8 @@ describe('OnThisDayAndroidWidget', () => {
     expect(screen.getByText('— Freddie Mercury')).toBeOnTheScreen();
   });
 
-  it('asks the member to open the app when both halves are missing', () => {
-    renderWithProviders(<OnThisDayAndroidWidget />, { navigation: false });
+  it('asks the member to open the app when both halves are missing', async () => {
+    await renderWithProviders(<OnThisDayAndroidWidget />, { navigation: false });
     expect(screen.getByText('ON THIS DAY')).toBeOnTheScreen();
     expect(screen.getByText(widgetEmptyText)).toBeOnTheScreen();
     expect(screen.queryByText('— ')).toBeNull();

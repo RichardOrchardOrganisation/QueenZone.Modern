@@ -14,7 +14,7 @@ describe('useDetailQuery', () => {
   it('shows loading then the loaded resource', async () => {
     const pending = deferred<string>();
     const fetcher = jest.fn().mockReturnValueOnce(pending.promise);
-    const { result } = renderHook(() => useDetailQuery(fetcher));
+    const { result } = await renderHook(() => useDetailQuery(fetcher));
 
     expect(result.current).toMatchObject({ data: null, error: null, loading: true });
     pending.resolve('article');
@@ -30,7 +30,7 @@ describe('useDetailQuery', () => {
       new ApiError(0, 'Unable to reach QueenZone. Check your connection and try again.'),
     );
     fetcher.mockReturnValueOnce(retry.promise);
-    const { result } = renderHook(() => useDetailQuery(fetcher));
+    const { result } = await renderHook(() => useDetailQuery(fetcher));
 
     await waitFor(() =>
       expect(result.current).toMatchObject({
@@ -54,7 +54,7 @@ describe('useDetailQuery', () => {
     const first = deferred<string>();
     const second = deferred<string>();
     const fetcher = jest.fn().mockReturnValueOnce(first.promise);
-    const { result, rerender } = renderHook(
+    const { result, rerender } = await renderHook(
       ({ fn }: { fn: (signal: AbortSignal) => Promise<string> }) => useDetailQuery(fn),
       {
         initialProps: { fn: fetcher },
@@ -62,7 +62,7 @@ describe('useDetailQuery', () => {
     );
 
     const nextFetcher = jest.fn().mockReturnValueOnce(second.promise);
-    rerender({ fn: nextFetcher });
+    await rerender({ fn: nextFetcher });
     const firstSignal = fetcher.mock.calls[0]?.[0] as AbortSignal;
     expect(firstSignal.aborted).toBe(true);
 
@@ -80,7 +80,7 @@ describe('useDetailQuery', () => {
     const first = deferred<string>();
     const second = deferred<string>();
     const fetcher = jest.fn().mockReturnValueOnce(first.promise);
-    const { result, rerender } = renderHook(
+    const { result, rerender } = await renderHook(
       ({ fn }: { fn: (signal: AbortSignal) => Promise<string> }) => useDetailQuery(fn),
       {
         initialProps: { fn: fetcher },
@@ -88,7 +88,7 @@ describe('useDetailQuery', () => {
     );
 
     const nextFetcher = jest.fn().mockReturnValueOnce(second.promise);
-    rerender({ fn: nextFetcher });
+    await rerender({ fn: nextFetcher });
     second.resolve('fresh');
     await waitFor(() =>
       expect(result.current).toMatchObject({ data: 'fresh', error: null, loading: false }),
@@ -101,7 +101,7 @@ describe('useDetailQuery', () => {
 
   it('maps a classified timeout to a failed, not pending, query', async () => {
     const fetcher = jest.fn().mockRejectedValueOnce(ApiError.timeout());
-    const { result } = renderHook(() => useDetailQuery(fetcher));
+    const { result } = await renderHook(() => useDetailQuery(fetcher));
 
     await waitFor(() =>
       expect(result.current).toMatchObject({
@@ -114,7 +114,7 @@ describe('useDetailQuery', () => {
 
   it('maps a classified offline failure to a failed, not pending, query', async () => {
     const fetcher = jest.fn().mockRejectedValueOnce(ApiError.offline());
-    const { result } = renderHook(() => useDetailQuery(fetcher));
+    const { result } = await renderHook(() => useDetailQuery(fetcher));
 
     await waitFor(() =>
       expect(result.current).toMatchObject({
@@ -127,7 +127,7 @@ describe('useDetailQuery', () => {
 
   it('treats a stray AbortError on the initial generation as a timeout failure', async () => {
     const fetcher = jest.fn().mockRejectedValueOnce(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
-    const { result } = renderHook(() => useDetailQuery(fetcher));
+    const { result } = await renderHook(() => useDetailQuery(fetcher));
 
     await waitFor(() =>
       expect(result.current).toMatchObject({
@@ -141,7 +141,7 @@ describe('useDetailQuery', () => {
   it('does not commit an AbortError from a superseded load', async () => {
     const first = deferred<string>();
     const fetcher = jest.fn().mockReturnValueOnce(first.promise);
-    const { result, rerender } = renderHook(
+    const { result, rerender } = await renderHook(
       ({ fn }: { fn: (signal: AbortSignal) => Promise<string> }) => useDetailQuery(fn),
       {
         initialProps: { fn: fetcher },
@@ -149,7 +149,7 @@ describe('useDetailQuery', () => {
     );
 
     const next = jest.fn().mockResolvedValueOnce('fresh');
-    rerender({ fn: next });
+    await rerender({ fn: next });
     first.reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
     await waitFor(() =>
       expect(result.current).toMatchObject({ data: 'fresh', error: null, loading: false }),

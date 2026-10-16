@@ -1,3 +1,4 @@
+import { allComponentProps } from '../../test/renderer';
 import { Button } from '../../ui/Button';
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { ApiError } from '../../api/client';
@@ -35,15 +36,15 @@ jest.mock('../../offlineQueue', () => ({
 const searchRecipientsMock = searchRecipients as jest.MockedFunction<typeof searchRecipients>;
 const composeMessageMock = composeMessage as jest.MockedFunction<typeof composeMessage>;
 
-function renderCompose(navigation = fakeNavigation()) {
+async function renderCompose(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <ComposeMessageScreen
         navigation={navigation as never}
         route={{ key: 'compose', name: 'ComposeMessage' } as never}
       />,
-    ),
+    )),
   };
 }
 
@@ -73,7 +74,7 @@ describe('ComposeMessageScreen', () => {
     jest.useFakeTimers();
     try {
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-      renderCompose();
+      await renderCompose();
       await waitFor(() => expect(screen.getByLabelText('Recipient search')).toBeOnTheScreen());
       await user.type(screen.getByLabelText('Recipient search'), 'Bob');
       expect(searchRecipientsMock).not.toHaveBeenCalled();
@@ -95,7 +96,7 @@ describe('ComposeMessageScreen', () => {
   });
 
   it('picks a recipient, sends, and replaces with Conversation', async () => {
-    const { navigation } = renderCompose();
+    const { navigation } = await renderCompose();
     await waitFor(() => expect(screen.getByLabelText('Recipient search')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -116,7 +117,7 @@ describe('ComposeMessageScreen', () => {
   });
 
   it('does not send when the body is empty', async () => {
-    renderCompose();
+    await renderCompose();
     await waitFor(() => expect(screen.getByLabelText('Recipient search')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -128,7 +129,7 @@ describe('ComposeMessageScreen', () => {
   });
 
   it('does not send when no recipient is chosen', async () => {
-    renderCompose();
+    await renderCompose();
     await waitFor(() => expect(screen.getByLabelText('Message body')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -140,14 +141,14 @@ describe('ComposeMessageScreen', () => {
   });
 
   it.each(['token', 'member'])('rejects sending after the %s identity disappears', async (identity) => {
-    renderCompose();
+    await renderCompose();
     const user = userEvent.setup();
     await pickRecipient(user);
     await user.type(screen.getByLabelText('Message body'), 'Hello');
     if (identity === 'token') mockSession.accessToken = null;
     else mockSession.profile = memberProfileFixture({ memberId: '' });
-    fireEvent.changeText(screen.getByLabelText('Message body'), 'Hello again');
-    const send = screen.UNSAFE_getAllByType(Button).find((button) => button.props.label === 'Send message')!;
+    await fireEvent.changeText(screen.getByLabelText('Message body'), 'Hello again');
+    const send = allComponentProps(Button).find((button) => button.props.label === 'Send message')!;
     await act(async () => send.props.onPress());
     expect(screen.getByText('Sign in to continue.')).toBeOnTheScreen();
     expect(composeMessageMock).not.toHaveBeenCalled();
@@ -155,7 +156,7 @@ describe('ComposeMessageScreen', () => {
 
   it('returns to the inbox when a composed message is queued offline', async () => {
     composeMessageMock.mockRejectedValueOnce(new ApiError(0, 'Offline'));
-    const { navigation } = renderCompose();
+    const { navigation } = await renderCompose();
     const user = userEvent.setup();
     await pickRecipient(user);
     await user.type(screen.getByLabelText('Message body'), 'Hello offline');
@@ -166,7 +167,7 @@ describe('ComposeMessageScreen', () => {
 
   it('keeps the composer on screen when send fails', async () => {
     composeMessageMock.mockRejectedValueOnce(new ApiError(500, 'The server had a problem.'));
-    const { navigation } = renderCompose();
+    const { navigation } = await renderCompose();
     await waitFor(() => expect(screen.getByLabelText('Recipient search')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -192,20 +193,20 @@ describe('recipient search rejection and race guards', () => {
   it('ignores an older successful response and an older error after a new search', async () => {
     const pending: { resolve: (value: typeof recipient[]) => void; reject: (error: Error) => void }[] = [];
     searchRecipientsMock.mockImplementation(() => new Promise((resolve, reject) => pending.push({ resolve, reject })));
-    renderCompose();
+    await renderCompose();
     const input = screen.getByLabelText('Recipient search');
-    fireEvent.changeText(input, 'old');
+    await fireEvent.changeText(input, 'old');
     await act(async () => jest.advanceTimersByTimeAsync(250));
-    fireEvent.changeText(input, 'new');
+    await fireEvent.changeText(input, 'new');
     await act(async () => jest.advanceTimersByTimeAsync(250));
     const newer = { ...recipient, displayName: 'Newest Fan' };
     await act(async () => pending[1].resolve([newer]));
     expect(screen.getByRole('button', { name: 'Message Newest Fan' })).toBeOnTheScreen();
     await act(async () => pending[0].resolve([recipient]));
     expect(screen.queryByRole('button', { name: 'Message Bob' })).toBeNull();
-    fireEvent.changeText(input, 'third');
+    await fireEvent.changeText(input, 'third');
     await act(async () => jest.advanceTimersByTimeAsync(250));
-    fireEvent.changeText(input, 'fourth');
+    await fireEvent.changeText(input, 'fourth');
     await act(async () => jest.advanceTimersByTimeAsync(250));
     await act(async () => pending[3].resolve([newer]));
     await act(async () => pending[2].reject(new Error('Stale error')));
@@ -217,8 +218,8 @@ describe('recipient search rejection and race guards', () => {
     const error = new Error('Search unavailable');
     if (kind === 'abort') error.name = 'AbortError';
     searchRecipientsMock.mockRejectedValue(error);
-    renderCompose();
-    fireEvent.changeText(screen.getByLabelText('Recipient search'), 'Bob');
+    await renderCompose();
+    await fireEvent.changeText(screen.getByLabelText('Recipient search'), 'Bob');
     await act(async () => jest.advanceTimersByTimeAsync(250));
     expect(screen.queryByRole('button', { name: 'Message Bob' })).toBeNull();
     if (kind === 'network') expect(screen.getByText('Something went wrong.')).toBeOnTheScreen();
@@ -226,9 +227,9 @@ describe('recipient search rejection and race guards', () => {
   });
 
   it('keeps sending disabled without a recipient and validates a directly invoked send handler', async () => {
-    renderCompose();
+    await renderCompose();
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
-    const send = screen.UNSAFE_getAllByType(Button).find((button) => button.props.label === 'Send message')!;
+    const send = allComponentProps(Button).find((button) => button.props.label === 'Send message')!;
     await act(async () => send.props.onPress());
     expect(screen.getByText('Choose a recipient.')).toBeOnTheScreen();
     expect(composeMessageMock).not.toHaveBeenCalled();

@@ -1,3 +1,4 @@
+import { componentProps, getHostByType } from '../../test/renderer';
 import { act, fireEvent, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import { RefreshControl } from 'react-native';
 import {
@@ -94,13 +95,13 @@ function onThisDayFixture() {
   };
 }
 
-function renderHome(navigation = fakeNavigation()) {
+async function renderHome(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <HomeScreen navigation={navigation as never} route={{ key: 'home', name: 'Home' } as never} />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -113,11 +114,11 @@ describe('HomeScreen', () => {
     mockSession.accessToken = 'fixture-token';
     fetchInboxMock.mockRejectedValueOnce(failure);
     fetchInboxMock.mockResolvedValueOnce(pagedResponse([], 1, 0));
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByText('Your messages')).toBeOnTheScreen());
     await waitFor(() => expect(screen.getByText(TIMEOUT_MESSAGE)).toBeOnTheScreen());
     expect(fetchInboxMock).toHaveBeenCalledWith('fixture-token', expect.objectContaining({ page: 1, pageSize: 50 }));
-    fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(screen.queryByText(TIMEOUT_MESSAGE)).toBeNull());
     expect(fetchInboxMock).toHaveBeenCalledTimes(2);
   });
@@ -155,7 +156,7 @@ describe('HomeScreen', () => {
   });
 
   it('exposes home-screen and home-hero testIDs for Debug device smoke', async () => {
-    renderHome();
+    await renderHome();
     expect(screen.getByTestId(testIds.homeScreen)).toBeOnTheScreen();
     expect(screen.getByTestId(testIds.homeScreen).props.alwaysBounceVertical).toBe(true);
     await waitFor(() => expect(screen.getByTestId(testIds.homeHero)).toBeOnTheScreen());
@@ -166,7 +167,7 @@ describe('HomeScreen', () => {
       forumRecentThreadFixture(),
       forumRecentThreadFixture({ topicId: 1003, title: 'True or not true?' }),
     ]);
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     await waitFor(() =>
@@ -182,7 +183,7 @@ describe('HomeScreen', () => {
   it('shows a retryable forum error when recent-threads times out', async () => {
     fetchForum.mockRejectedValueOnce(ApiError.timeout());
     fetchForum.mockResolvedValueOnce([forumRecentThreadFixture()]);
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     await waitFor(() => expect(screen.getByText(TIMEOUT_MESSAGE)).toBeOnTheScreen());
@@ -201,7 +202,7 @@ describe('HomeScreen', () => {
   it('shows a retryable forum error when recent-threads is offline', async () => {
     fetchForum.mockRejectedValueOnce(ApiError.offline());
     fetchForum.mockResolvedValueOnce([forumRecentThreadFixture()]);
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     await waitFor(() => expect(screen.getByText(OFFLINE_MESSAGE)).toBeOnTheScreen());
@@ -218,12 +219,12 @@ describe('HomeScreen', () => {
 
   it('recovers a failed forum section on pull-to-refresh', async () => {
     fetchForum.mockRejectedValueOnce(ApiError.timeout());
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByText(TIMEOUT_MESSAGE)).toBeOnTheScreen());
 
     fetchForum.mockResolvedValueOnce([forumRecentThreadFixture()]);
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Ranking every studio album' })).toBeOnTheScreen(),
@@ -234,14 +235,14 @@ describe('HomeScreen', () => {
 
   it('recovers via pull-to-refresh after an initial-generation forum abort', async () => {
     fetchForum.mockRejectedValueOnce(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     await waitFor(() => expect(screen.getByText(TIMEOUT_MESSAGE)).toBeOnTheScreen());
     expect(screen.queryByRole('button', { name: 'Ranking every studio album' })).toBeNull();
 
     fetchForum.mockResolvedValueOnce([forumRecentThreadFixture()]);
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Ranking every studio album' })).toBeOnTheScreen(),
@@ -256,7 +257,7 @@ describe('HomeScreen', () => {
   it('recovers a first-load forum skeleton on pull-to-refresh', async () => {
     const pendingForum = deferred<ReturnType<typeof forumRecentThreadFixture>[]>();
     fetchForum.mockReturnValueOnce(pendingForum.promise);
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     expect(screen.getByText('In the forum')).toBeOnTheScreen();
@@ -264,7 +265,7 @@ describe('HomeScreen', () => {
     expect(screen.queryByText(TIMEOUT_MESSAGE)).toBeNull();
 
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
     pendingForum.reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
     await waitFor(() =>
@@ -275,7 +276,7 @@ describe('HomeScreen', () => {
   });
 
   it('opens live news and forum rows with numeric ids, not placeholders', async () => {
-    const { navigation } = renderHome();
+    const { navigation } = await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Ranking every studio album' })).toBeOnTheScreen(),
@@ -301,7 +302,7 @@ describe('HomeScreen', () => {
   });
 
   it('refreshes only the news section when a news push invalidates the list', async () => {
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     const newsCalls = fetchNews.mock.calls.length;
     const forumCalls = fetchForum.mock.calls.length;
@@ -330,10 +331,10 @@ describe('HomeScreen', () => {
   });
 
   it('does not refetch news after unmount when a news push arrives', async () => {
-    const { unmount } = renderHome();
+    const { unmount } = await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     const newsCalls = fetchNews.mock.calls.length;
-    unmount();
+    await unmount();
 
     await act(async () => {
       invalidate(NEWS_LIST_CACHE_KEY);
@@ -343,12 +344,12 @@ describe('HomeScreen', () => {
   });
 
   it('pull-to-refresh reloads live home sections', async () => {
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     const newsCalls = fetchNews.mock.calls.length;
     const forumCalls = fetchForum.mock.calls.length;
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
     await waitFor(() => expect(fetchNews.mock.calls.length).toBeGreaterThan(newsCalls));
     expect(fetchForum.mock.calls.length).toBeGreaterThan(forumCalls);
@@ -356,7 +357,7 @@ describe('HomeScreen', () => {
   });
 
   it('holds RefreshControl refreshing until the deferred news fetch settles and refetches every section', async () => {
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
 
     const newsCalls = fetchNews.mock.calls.length;
@@ -372,10 +373,10 @@ describe('HomeScreen', () => {
     fetchNews.mockReturnValueOnce(pendingNews.promise);
 
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
 
-    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
+    expect(componentProps(RefreshControl).props.refreshing).toBe(true);
     await waitFor(() => expect(fetchNews.mock.calls.length).toBe(newsCalls + 1));
     expect(fetchForum.mock.calls.length).toBe(forumCalls + 1);
     expect(fetchPhotos.mock.calls.length).toBe(photoCalls + 1);
@@ -395,22 +396,22 @@ describe('HomeScreen', () => {
         1,
       ),
     );
-    await waitFor(() => expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false));
+    await waitFor(() => expect(componentProps(RefreshControl).props.refreshing).toBe(false));
     await flushVirtualizedList();
   });
 
   it('keeps the live strip visible while a pull refreshes', async () => {
     fetchLive.mockResolvedValue({ newForumRepliesToday: 4 });
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByText('4 new forum replies today')).toBeOnTheScreen());
 
     const pendingNews = deferred<ReturnType<typeof pagedResponse<ReturnType<typeof newsItemFixture>>>>();
     fetchNews.mockReturnValueOnce(pendingNews.promise);
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
 
-    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
+    expect(componentProps(RefreshControl).props.refreshing).toBe(true);
     expect(screen.getByText('4 new forum replies today')).toBeOnTheScreen();
 
     pendingNews.resolve(
@@ -423,13 +424,13 @@ describe('HomeScreen', () => {
         1,
       ),
     );
-    await waitFor(() => expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false));
+    await waitFor(() => expect(componentProps(RefreshControl).props.refreshing).toBe(false));
     expect(screen.getByText('4 new forum replies today')).toBeOnTheScreen();
     await flushVirtualizedList();
   });
 
   it('refetches filter-hidden sections on pull', async () => {
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -441,7 +442,7 @@ describe('HomeScreen', () => {
     const forumCalls = fetchForum.mock.calls.length;
     const dayCalls = fetchDay.mock.calls.length;
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
     expect(fetchForum.mock.calls.length).toBe(forumCalls + 1);
     expect(fetchDay.mock.calls.length).toBe(dayCalls + 1);
@@ -450,16 +451,16 @@ describe('HomeScreen', () => {
 
   it('keeps On This Day visible while a pull refreshes', async () => {
     fetchDay.mockResolvedValue(onThisDayFixture());
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0));
 
     const pendingNews = deferred<ReturnType<typeof pagedResponse<ReturnType<typeof newsItemFixture>>>>();
     fetchNews.mockReturnValueOnce(pendingNews.promise);
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
 
-    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
+    expect(componentProps(RefreshControl).props.refreshing).toBe(true);
     expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0);
     expect(screen.getByText('30 JUNE 1980')).toBeOnTheScreen();
 
@@ -473,7 +474,7 @@ describe('HomeScreen', () => {
         1,
       ),
     );
-    await waitFor(() => expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false));
+    await waitFor(() => expect(componentProps(RefreshControl).props.refreshing).toBe(false));
     expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0);
     await flushVirtualizedList();
   });
@@ -481,7 +482,7 @@ describe('HomeScreen', () => {
   it('shows On this day and Queen Quotes as distinct cards', async () => {
     fetchDay.mockResolvedValue(onThisDayFixture());
     fetchQuote.mockResolvedValue({ id: 9, text: 'A kind of magic', whoSaid: 'Freddie Mercury' });
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0));
     expect(screen.getByText('On this day')).toBeOnTheScreen();
@@ -494,10 +495,10 @@ describe('HomeScreen', () => {
 
   it('opens View timeline with ArchiveHub seeded under Timeline', async () => {
     fetchDay.mockResolvedValue(onThisDayFixture());
-    const { navigation } = renderHome();
+    const { navigation } = await renderHome();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'View timeline' })).toBeOnTheScreen());
-    fireEvent.press(screen.getByRole('button', { name: 'View timeline' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'View timeline' }));
     expect(navigation.navigate).toHaveBeenCalledWith('ArchiveTab', {
       screen: 'Timeline',
       initial: false,
@@ -508,7 +509,7 @@ describe('HomeScreen', () => {
   it('keeps the On this day card when no quote is published', async () => {
     fetchDay.mockResolvedValue(onThisDayFixture());
     fetchQuote.mockResolvedValue(null);
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getAllByText('Queen released The Game.').length).toBeGreaterThan(0));
     expect(screen.getByText('On this day')).toBeOnTheScreen();
@@ -521,7 +522,7 @@ describe('HomeScreen', () => {
   it('syncs the home screen widget once on-this-day content resolves', async () => {
     fetchDay.mockResolvedValue(onThisDayFixture());
     fetchQuote.mockResolvedValue({ id: 9, text: 'A kind of magic', whoSaid: 'Freddie Mercury' });
-    renderHome();
+    await renderHome();
 
     await waitFor(() =>
       expect(mockSyncHomeWidget).toHaveBeenCalledWith({
@@ -535,7 +536,7 @@ describe('HomeScreen', () => {
   it('syncs a quote-only widget when on-this-day fails', async () => {
     fetchDay.mockRejectedValue(new Error('offline'));
     fetchQuote.mockResolvedValue({ id: 9, text: 'A kind of magic', whoSaid: 'Freddie Mercury' });
-    renderHome();
+    await renderHome();
 
     await waitFor(() =>
       expect(mockSyncHomeWidget).toHaveBeenCalledWith({
@@ -551,10 +552,10 @@ describe('HomeScreen', () => {
 
   it('opens the Quote screen from the Queen Quotes card', async () => {
     fetchQuote.mockResolvedValue({ id: 9, text: 'A kind of magic', whoSaid: 'Freddie Mercury' });
-    const { navigation } = renderHome();
+    const { navigation } = await renderHome();
 
     await waitFor(() => expect(screen.getByTestId(testIds.homeQuote)).toBeOnTheScreen());
-    fireEvent.press(screen.getByTestId(testIds.homeQuote));
+    await fireEvent.press(screen.getByTestId(testIds.homeQuote));
     expect(navigation.navigate).toHaveBeenCalledWith('Quote', { id: 9 });
     await flushVirtualizedList();
   });
@@ -562,7 +563,7 @@ describe('HomeScreen', () => {
   it('shows the Queen Quotes card when there is no on-this-day event', async () => {
     fetchDay.mockResolvedValue(null);
     fetchQuote.mockResolvedValue({ id: 9, text: 'A kind of magic', whoSaid: 'Freddie Mercury' });
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByText('“A kind of magic”')).toBeOnTheScreen());
     expect(screen.getByText('— Freddie Mercury')).toBeOnTheScreen();
@@ -574,7 +575,7 @@ describe('HomeScreen', () => {
   });
 
   it('shows the baked version after the last section, not in the masthead', async () => {
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
 
     const footer = screen.getByTestId(testIds.homeVersion);
@@ -587,7 +588,7 @@ describe('HomeScreen', () => {
   it('shows the selected API target outside production', async () => {
     mockAppConfig.appEnv = 'staging';
     mockAppConfig.apiBaseUrl = 'https://dev.queenzone.org';
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByTestId(testIds.homeEnvironment)).toBeOnTheScreen());
     expect(screen.getByTestId(testIds.homeEnvironment)).toHaveTextContent(
@@ -599,7 +600,7 @@ describe('HomeScreen', () => {
   it('does not show an environment banner for production', async () => {
     mockAppConfig.appEnv = 'production';
     mockAppConfig.apiBaseUrl = 'https://www.queenzone.org';
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.homeEnvironment)).toBeNull();
@@ -610,23 +611,23 @@ describe('HomeScreen', () => {
     mockAppConfig.version = '0.1.214';
     mockAppConfig.buildTimestampUtc = '2026-08-29T13:40:12Z';
 
-    const signedOut = renderHome();
+    const signedOut = await renderHome();
     await waitFor(() => expect(screen.getByTestId(testIds.homeVersion)).toHaveTextContent('0.1.214 · 29 Aug 2026'));
     expect(within(screen.getByTestId(testIds.tabMasthead)).queryByText('0.1.214 · 29 Aug 2026')).toBeNull();
     await flushVirtualizedList();
-    signedOut.unmount();
+    await signedOut.unmount();
 
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'token';
     fetchInboxMock.mockResolvedValue(pagedResponse([], 1, 0));
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByText('Your messages')).toBeOnTheScreen());
     expect(screen.getByTestId(testIds.homeVersion)).toHaveTextContent('0.1.214 · 29 Aug 2026');
     await flushVirtualizedList();
   });
 
   it('hides the home poll card when the API returns null', async () => {
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid remembered' })).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.homePoll)).toBeNull();
     await flushVirtualizedList();
@@ -634,7 +635,7 @@ describe('HomeScreen', () => {
 
   it('shows the current home poll with public results and a sign-in link for guests', async () => {
     fetchPoll.mockResolvedValue(openHomePoll());
-    renderHome();
+    await renderHome();
 
     await waitFor(() => expect(screen.getByTestId(testIds.homePoll)).toBeOnTheScreen());
     expect(screen.getByText('Best Queen album?')).toBeOnTheScreen();
@@ -652,11 +653,11 @@ describe('HomeScreen', () => {
     fetchPoll.mockResolvedValue(openHomePoll());
     votePoll.mockResolvedValue(votedHomePoll());
 
-    renderHome();
+    await renderHome();
     await waitFor(() => expect(screen.getByTestId(`${testIds.homePollVote}-opt-1`)).toBeOnTheScreen());
 
     fetchPoll.mockResolvedValue(votedHomePoll());
-    fireEvent.press(screen.getByTestId(`${testIds.homePollVote}-opt-1`));
+    await fireEvent.press(screen.getByTestId(`${testIds.homePollVote}-opt-1`));
 
     await waitFor(() => expect(votePoll).toHaveBeenCalledWith('opt-1', 'member-token'));
     await waitFor(() => {

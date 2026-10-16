@@ -37,9 +37,9 @@ function songDetailFixture(overrides: Partial<SongDetail> = {}): SongDetail {
   };
 }
 
-function renderSong(slug = 'bohemian-rhapsody') {
+async function renderSong(slug = 'bohemian-rhapsody') {
   const navigation = fakeNavigation();
-  renderWithProviders(
+  await renderWithProviders(
     <SongScreen
       navigation={navigation as never}
       route={{ key: 'song', name: 'Song', params: { slug } } as never}
@@ -56,13 +56,13 @@ describe('SongScreen', () => {
   });
 
   it('renders title, lyrics, and album appearances', async () => {
-    const navigation = renderSong();
+    const navigation = await renderSong();
     await waitFor(() => expect(screen.getByTestId(testIds.songScreen)).toBeOnTheScreen());
     expect(screen.getByText('Bohemian Rhapsody')).toBeOnTheScreen();
     expect(screen.getByText('A Night at the Opera')).toBeOnTheScreen();
     expect(screen.getByText('Is this the real life\nIs this just fantasy')).toBeOnTheScreen();
 
-    fireEvent.press(screen.getByText('A Night at the Opera'));
+    await fireEvent.press(screen.getByText('A Night at the Opera'));
     expect(navigation.navigate).toHaveBeenCalledWith('Album', { id: 4 });
   });
 
@@ -93,7 +93,7 @@ describe('SongScreen', () => {
       }),
     );
 
-    const navigation = renderSong();
+    const navigation = await renderSong();
     await waitFor(() => expect(screen.getByTestId(testIds.songListenOn)).toBeOnTheScreen());
 
     expect(screen.getByText('Listen on Spotify')).toBeOnTheScreen();
@@ -101,7 +101,7 @@ describe('SongScreen', () => {
     expect(screen.getByTestId(`${testIds.songAppearanceListenOn}-4-spotify`)).toBeOnTheScreen();
     expect(screen.queryByTestId(`${testIds.songAppearanceListenOn}-9`)).toBeNull();
 
-    fireEvent.press(screen.getByLabelText('Spotify: listen to Bohemian Rhapsody on A Night at the Opera'));
+    await fireEvent.press(screen.getByLabelText('Spotify: listen to Bohemian Rhapsody on A Night at the Opera'));
     await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://open.spotify.com/track/rhapsody'));
     expect(navigation.navigate).not.toHaveBeenCalled();
     openUrl.mockRestore();

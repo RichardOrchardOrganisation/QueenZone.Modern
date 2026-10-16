@@ -57,7 +57,7 @@ describe('FanPerformanceDownloadsList', () => {
   });
 
   it('plays and removes a downloaded recording', async () => {
-    renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
+    await renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
     expect(screen.getByText(track.title)).toBeOnTheScreen();
     expect(screen.getByText(/4.0 KB/)).toBeOnTheScreen();
 
@@ -69,7 +69,7 @@ describe('FanPerformanceDownloadsList', () => {
     await waitFor(() => expect(screen.getByText('No downloaded recordings yet.')).toBeOnTheScreen());
   });
 
-  it('lists in-progress and failed downloads with their status', () => {
+  it('lists in-progress and failed downloads with their status', async () => {
     setDownloadUiSnapshot(
       'member-1',
       transientSnapshot('190', 'queued', {
@@ -95,7 +95,7 @@ describe('FanPerformanceDownloadsList', () => {
       }),
     );
 
-    renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
+    await renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
     expect(screen.getByText('Now I\'m Here')).toBeOnTheScreen();
     expect(screen.getByText(/Queued/)).toBeOnTheScreen();
     expect(screen.getByText('Liar')).toBeOnTheScreen();
@@ -106,7 +106,7 @@ describe('FanPerformanceDownloadsList', () => {
     );
   });
 
-  it('keeps progress on the retried row and shows the full rate-limit error', () => {
+  it('keeps progress on the retried row and shows the full rate-limit error', async () => {
     setDownloadUiSnapshot(
       'member-1',
       transientSnapshot('191', 'downloaded', {
@@ -133,7 +133,7 @@ describe('FanPerformanceDownloadsList', () => {
       }),
     );
 
-    renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
+    await renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
     expect(screen.getByTestId(`${testIds.fanPerformanceDownloadProgressPrefix}191`)).toHaveTextContent(
       /Downloaded/,
     );
@@ -174,9 +174,9 @@ describe('FanPerformanceDownloadsList', () => {
       }),
     );
 
-    const view = renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
+    const view = await renderWithProviders(<FanPerformanceDownloadsList />, { navigation: false });
 
-    act(() => {
+    await act(() => {
       setDownloadUiSnapshot(
         'member-1',
         transientSnapshot('193', 'downloading', {
@@ -187,7 +187,7 @@ describe('FanPerformanceDownloadsList', () => {
         }),
       );
     });
-    view.rerender(<FanPerformanceDownloadsList />);
+    await view.rerender(<FanPerformanceDownloadsList />);
 
     await waitFor(() =>
       expect(screen.getByTestId(`${testIds.fanPerformanceDownloadProgressPrefix}193`)).toHaveTextContent(

@@ -35,7 +35,7 @@ describe('useHomeSection', () => {
   it('shows skeleton on first paint, then content', async () => {
     const pending = deferred<string>();
     const fetcher = jest.fn().mockReturnValueOnce(pending.promise);
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
 
     expect(result.current.view).toEqual({ kind: 'skeleton' });
     pending.resolve('hello');
@@ -47,7 +47,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockResolvedValueOnce('hello');
     fetcher.mockReturnValueOnce(refreshPending.promise);
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
     await waitFor(() => expect(result.current.view).toEqual({ kind: 'content', data: 'hello' }));
 
     await act(async () => {
@@ -63,7 +63,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockResolvedValueOnce('hello');
     fetcher.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
     await waitFor(() => expect(result.current.view).toEqual({ kind: 'content', data: 'hello' }));
 
     await act(async () => {
@@ -77,7 +77,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockReturnValueOnce(first.promise);
     fetcher.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
     expect(result.current.view).toEqual({ kind: 'skeleton' });
 
     await act(async () => {
@@ -99,7 +99,7 @@ describe('useHomeSection', () => {
     fetcher.mockResolvedValueOnce('seed');
     fetcher.mockReturnValueOnce(first.promise);
     fetcher.mockReturnValueOnce(second.promise);
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
     await waitFor(() => expect(result.current.view).toEqual({ kind: 'content', data: 'seed' }));
 
     await act(async () => {
@@ -125,7 +125,7 @@ describe('useHomeSection', () => {
     fetcher.mockResolvedValueOnce('seed');
     fetcher.mockReturnValueOnce(first.promise);
     fetcher.mockReturnValueOnce(second.promise);
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
     await waitFor(() => expect(result.current.view).toEqual({ kind: 'content', data: 'seed' }));
 
     let firstRefresh: Promise<void> = Promise.resolve();
@@ -147,7 +147,7 @@ describe('useHomeSection', () => {
   it('reloads when the fetcher identity changes', async () => {
     const first = jest.fn().mockResolvedValue('one');
     const second = jest.fn().mockResolvedValue('two');
-    const { result, rerender } = renderHook(
+    const { result, rerender } = await renderHook(
       ({ fn }: { fn: (signal: AbortSignal) => Promise<string> }) => useHomeSection(fn),
       {
         initialProps: { fn: first },
@@ -155,7 +155,7 @@ describe('useHomeSection', () => {
     );
     await waitFor(() => expect(result.current.view).toEqual({ kind: 'content', data: 'one' }));
 
-    rerender({ fn: second });
+    await rerender({ fn: second });
     await waitFor(() => expect(result.current.view).toEqual({ kind: 'content', data: 'two' }));
     expect(second).toHaveBeenCalled();
   });
@@ -164,7 +164,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockRejectedValueOnce(ApiError.timeout());
     fetcher.mockResolvedValueOnce('ok');
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
 
     await waitFor(() =>
       expect(result.current.view).toEqual({
@@ -183,7 +183,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockRejectedValueOnce(ApiError.offline());
     fetcher.mockResolvedValueOnce('ok');
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
 
     await waitFor(() =>
       expect(result.current.view).toEqual({
@@ -200,7 +200,7 @@ describe('useHomeSection', () => {
 
   it('treats a stray AbortError on the initial generation as a timeout failure', async () => {
     const fetcher = jest.fn().mockRejectedValueOnce(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
 
     await waitFor(() =>
       expect(result.current.view).toEqual({
@@ -214,7 +214,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockRejectedValueOnce(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
     fetcher.mockResolvedValueOnce('ok');
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
 
     await waitFor(() =>
       expect(result.current.view).toEqual({
@@ -237,7 +237,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockReturnValueOnce(first.promise);
     fetcher.mockReturnValueOnce(second.promise);
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
     expect(result.current.view).toEqual({ kind: 'skeleton' });
 
     await act(async () => {
@@ -260,7 +260,7 @@ describe('useHomeSection', () => {
     const fetcher = jest.fn();
     fetcher.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
     fetcher.mockReturnValueOnce(retry.promise);
-    const { result } = renderHook(() => useHomeSection(fetcher));
+    const { result } = await renderHook(() => useHomeSection(fetcher));
     await waitFor(() =>
       expect(result.current.view).toEqual({
         kind: 'error',

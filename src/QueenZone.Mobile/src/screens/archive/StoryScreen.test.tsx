@@ -26,16 +26,16 @@ function lastHeaderOptions(navigation: ReturnType<typeof fakeNavigation>) {
   return calls[calls.length - 1]?.[0] as { title?: string };
 }
 
-function renderStory(navigation = fakeNavigation(), id = 101) {
+async function renderStory(navigation = fakeNavigation(), id = 101) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <StoryScreen
         navigation={navigation as never}
         route={{ key: 'story', name: 'Story', params: { id } } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -53,7 +53,7 @@ describe('StoryScreen', () => {
   });
 
   it('loads the article by id and does not call fetchNewsDetail', async () => {
-    const { navigation } = renderStory(fakeNavigation(), 101);
+    const { navigation } = await renderStory(fakeNavigation(), 101);
     await waitFor(() => expect(screen.getByTestId(testIds.articleStoryScreen)).toBeOnTheScreen());
 
     expect(fetchDetail).toHaveBeenCalledWith(101, expect.any(AbortSignal));
@@ -71,7 +71,7 @@ describe('StoryScreen', () => {
         source: 'https://www.queenzone.org/articles/101/inside-the-making-of-bohemian-rhapsody',
       }),
     );
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByLabelText('Open source')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -87,7 +87,7 @@ describe('StoryScreen', () => {
     const youtube = 'https://www.youtube.com/watch?v=1GfZoSuG8WY';
     fetchDetail.mockResolvedValue(articleDetailFixture({ source: youtube }));
     jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error(`Unable to open URL: ${youtube}`));
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByLabelText('Open source')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -100,7 +100,7 @@ describe('StoryScreen', () => {
 
   it('uses Articles as the eyebrow when category is missing', async () => {
     fetchDetail.mockResolvedValue(articleDetailFixture({ categoryName: null, source: null }));
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByTestId(testIds.articleStoryScreen)).toBeOnTheScreen());
     expect(screen.getByText('Articles')).toBeOnTheScreen();
   });
@@ -111,7 +111,7 @@ describe('StoryScreen', () => {
         new ApiError(404, 'No published article with id \'424242\'.'),
       )
       .mockResolvedValueOnce(articleDetailFixture({ title: 'Retried archive feature' }));
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Try again' }));

@@ -38,7 +38,7 @@ describe('useUnreadConversationCount', () => {
   });
 
   it('fetches on focus and returns the API count', async () => {
-    const { result } = renderHook(() => useUnreadConversationCount());
+    const { result } = await renderHook(() => useUnreadConversationCount());
     await waitFor(() => expect(result.current).toBe(2));
     expect(fetchUnread).toHaveBeenCalledTimes(1);
   });
@@ -46,20 +46,20 @@ describe('useUnreadConversationCount', () => {
   it('fails soft to 0 when signed out without requesting', async () => {
     mockSession.isSignedIn = false;
     mockSession.accessToken = null;
-    const { result } = renderHook(() => useUnreadConversationCount());
+    const { result } = await renderHook(() => useUnreadConversationCount());
     await waitFor(() => expect(result.current).toBe(0));
     expect(fetchUnread).not.toHaveBeenCalled();
   });
 
   it('fails soft to 0 when the unread-count request fails', async () => {
     fetchUnread.mockRejectedValueOnce(new Error('offline'));
-    const { result } = renderHook(() => useUnreadConversationCount());
+    const { result } = await renderHook(() => useUnreadConversationCount());
     await waitFor(() => expect(result.current).toBe(0));
     expect(fetchUnread).toHaveBeenCalledTimes(1);
   });
 
   it('refetches when the PM unread key is invalidated while mounted', async () => {
-    const { result } = renderHook(() => useUnreadConversationCount());
+    const { result } = await renderHook(() => useUnreadConversationCount());
     await waitFor(() => expect(result.current).toBe(2));
     fetchUnread.mockResolvedValueOnce(5);
 
@@ -72,10 +72,10 @@ describe('useUnreadConversationCount', () => {
   });
 
   it('skips the network after unmount when the PM unread key is invalidated', async () => {
-    const { result, unmount } = renderHook(() => useUnreadConversationCount());
+    const { result, unmount } = await renderHook(() => useUnreadConversationCount());
     await waitFor(() => expect(result.current).toBe(2));
     const calls = fetchUnread.mock.calls.length;
-    unmount();
+    await unmount();
 
     await act(async () => {
       invalidate(PM_UNREAD_CACHE_KEY);
@@ -85,7 +85,7 @@ describe('useUnreadConversationCount', () => {
   });
 
   it('keeps the last count when a superseded fetch aborts', async () => {
-    const { result } = renderHook(() => useUnreadConversationCount());
+    const { result } = await renderHook(() => useUnreadConversationCount());
     await waitFor(() => expect(result.current).toBe(2));
     const abortErr = new Error('aborted');
     abortErr.name = 'AbortError';
@@ -99,7 +99,7 @@ describe('useUnreadConversationCount', () => {
   });
 
   it('does not refetch when the news list key is invalidated', async () => {
-    const { result } = renderHook(() => useUnreadConversationCount());
+    const { result } = await renderHook(() => useUnreadConversationCount());
     await waitFor(() => expect(result.current).toBe(2));
     const calls = fetchUnread.mock.calls.length;
 

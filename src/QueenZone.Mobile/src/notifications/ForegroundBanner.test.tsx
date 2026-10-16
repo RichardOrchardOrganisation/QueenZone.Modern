@@ -9,7 +9,7 @@ describe('ForegroundBanner', () => {
     const onPress = jest.fn();
     const onDismiss = jest.fn();
 
-    renderWithProviders(
+    await renderWithProviders(
       <ForegroundBanner
         title="Ranking every studio album"
         body="New reply"

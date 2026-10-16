@@ -77,7 +77,7 @@ describe('useConversation unblock', () => {
       .mockResolvedValueOnce({ data: openDetail(), source: 'network', cachedAt });
     unblockConversationParticipantMock.mockResolvedValue(undefined);
 
-    const { result } = renderHook(() =>
+    const { result } = await renderHook(() =>
       useConversation(conversationId, 'tok', 'member-1', { scrollToEnd, onArchived }),
     );
 
@@ -99,7 +99,7 @@ describe('useConversation unblock', () => {
   it('surfaces an unblock error without reloading', async () => {
     unblockConversationParticipantMock.mockRejectedValue(new ApiError(500, 'Could not unblock.'));
 
-    const { result } = renderHook(() =>
+    const { result } = await renderHook(() =>
       useConversation(conversationId, 'tok', 'member-1', { scrollToEnd, onArchived }),
     );
 

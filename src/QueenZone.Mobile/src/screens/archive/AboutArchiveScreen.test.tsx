@@ -3,8 +3,8 @@ import { renderWithProviders } from '../../test/render';
 import { AboutArchiveScreen } from './AboutArchiveScreen';
 
 describe('AboutArchiveScreen', () => {
-  it('shows the restored archive account and sign-off', () => {
-    renderWithProviders(<AboutArchiveScreen />, { navigation: false });
+  it('shows the restored archive account and sign-off', async () => {
+    await renderWithProviders(<AboutArchiveScreen />, { navigation: false });
 
     expect(screen.getByText(/This is a companion app for Queenzone\.org\./)).toBeOnTheScreen();
     expect(screen.getByText(/Richard's Queen Page/)).toBeOnTheScreen();

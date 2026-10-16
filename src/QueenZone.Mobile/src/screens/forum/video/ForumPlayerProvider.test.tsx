@@ -16,42 +16,42 @@ describe('forum screen player lifecycle', () => {
     jest.mocked(addNetworkStateListener).mockImplementation(callback => { networkListener = callback; return { remove: jest.fn() }; });
     const viewport = createRef<View>();
     Object.assign(viewport, { current: { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, 0, 320, 800) } });
-    const rendered = renderWithProviders(<ForumPlayerProvider viewport={viewport} navigation={navigation}><Probe /></ForumPlayerProvider>, { navigation: false });
-    act(() => appListener('active'));
+    const rendered = await renderWithProviders(<ForumPlayerProvider viewport={viewport} navigation={navigation}><Probe /></ForumPlayerProvider>, { navigation: false });
+    await act(() => appListener('active'));
     await waitFor(() => expect(context!.online).toBe(true));
     const pool = context!.pool; let owner: number;
     const geometry = { top: 0, bottom: 200, width: 320, viewportTop: 0, viewportBottom: 800 };
     const pause = jest.fn();
-    act(() => { owner = pool.register('a'); context!.attach('a', { pause, measure: () => {} }); pool.measure('a', owner, geometry); });
+    await act(() => { owner = pool.register('a'); context!.attach('a', { pause, measure: () => {} }); pool.measure('a', owner, geometry); });
     expect(pool.cards.a.generation).not.toBeNull();
-    act(() => appListener('inactive')); expect(pool.cards.a.generation).not.toBeNull();
-    act(() => networkListener({ isConnected: false })); expect(pool.cards.a.generation).toBeNull(); expect(pause).toHaveBeenCalled();
+    await act(() => appListener('inactive')); expect(pool.cards.a.generation).not.toBeNull();
+    await act(() => networkListener({ isConnected: false })); expect(pool.cards.a.generation).toBeNull(); expect(pause).toHaveBeenCalled();
     for (const barrier of rendered.getAllByTestId('forum-player-release-barrier', { includeHiddenElements: true })) {
-      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
+      await fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
       expect(pool.pendingReleases.length).toBeGreaterThan(0);
       // A duplicate initial-layout event cannot acknowledge the second commit.
-      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
+      await fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
       expect(pool.pendingReleases.length).toBeGreaterThan(0);
-      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1.1428572, height: 0 } } });
+      await fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1.1428572, height: 0 } } });
       expect(pool.pendingReleases).toEqual([]);
     }
-    act(() => networkListener({ isConnected: true, isInternetReachable: true }));
-    act(() => pool.measure('a', owner!, geometry)); expect(pool.cards.a.generation).not.toBeNull();
-    act(() => listeners.get('blur')!()); expect(pool.cards.a.generation).toBeNull();
+    await act(() => networkListener({ isConnected: true, isInternetReachable: true }));
+    await act(() => pool.measure('a', owner!, geometry)); expect(pool.cards.a.generation).not.toBeNull();
+    await act(() => listeners.get('blur')!()); expect(pool.cards.a.generation).toBeNull();
     for (const barrier of rendered.getAllByTestId('forum-player-release-barrier', { includeHiddenElements: true })) {
-      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
-      fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1.1428572, height: 0 } } });
+      await fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 0, height: 0 } } });
+      await fireEvent(barrier, 'layout', { nativeEvent: { layout: { width: 1.1428572, height: 0 } } });
     }
-    act(() => listeners.get('focus')!()); act(() => pool.measure('a', owner!, geometry));
-    act(() => appListener('background')); expect(pool.cards.a.generation).toBeNull();
-    act(() => appListener('active')); expect(pool.cards.a.generation).toBeNull();
-    rendered.unmount(); expect(pool.enabled).toBe(false);
+    await act(() => listeners.get('focus')!()); await act(() => pool.measure('a', owner!, geometry));
+    await act(() => appListener('background')); expect(pool.cards.a.generation).toBeNull();
+    await act(() => appListener('active')); expect(pool.cards.a.generation).toBeNull();
+    await rendered.unmount(); expect(pool.enabled).toBe(false);
   });
   it('unknown or failed initial network detection stays offline with no player requests', async () => {
     jest.mocked(getNetworkStateAsync).mockRejectedValueOnce(new Error('Unknown network'));
-    const rendered = renderWithProviders(<ForumPlayerProvider viewport={createRef<View>()} navigation={fakeNavigation()}><Probe /></ForumPlayerProvider>, { navigation: false });
+    const rendered = await renderWithProviders(<ForumPlayerProvider viewport={createRef<View>()} navigation={fakeNavigation()}><Probe /></ForumPlayerProvider>, { navigation: false });
     await act(async () => {});
     expect(context!.online).toBe(false); expect(context!.pool.enabled).toBe(false);
-    rendered.unmount();
+    await rendered.unmount();
   });
 });

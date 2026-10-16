@@ -19,11 +19,11 @@ type Options = RenderOptions & {
   themePreference?: ThemePreference | null;
 };
 
-export function renderWithProviders(ui: ReactElement, options: Options = {}) {
+export async function renderWithProviders(ui: ReactElement, options: Options = {}) {
   const { navigation = true, themePreference = 'dark', ...renderOptions } = options;
   const content = navigation ? <NavigationContainer>{ui}</NavigationContainer> : ui;
 
-  return render(content, {
+  return await render(content, {
     wrapper: ({ children }) => (
       <SafeAreaProvider initialMetrics={safeAreaMetrics}>
         <HeaderHeightContext.Provider value={testHeaderHeight}>

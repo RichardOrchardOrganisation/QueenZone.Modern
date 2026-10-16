@@ -33,9 +33,9 @@ function leaderboardFixture(overrides: Partial<QuizLeaderboard> = {}): QuizLeade
   };
 }
 
-function renderLeaderboard() {
+async function renderLeaderboard() {
   const navigation = fakeNavigation();
-  return renderWithProviders(
+  return await renderWithProviders(
     <QuizLeaderboardScreen
       navigation={navigation as never}
       route={{ key: 'quiz-leaderboard', name: 'QuizLeaderboard' } as never}
@@ -56,7 +56,7 @@ describe('QuizLeaderboardScreen', () => {
 
   it('shows the weekly leaderboard by default', async () => {
     fetchLeaderboard.mockResolvedValue(leaderboardFixture());
-    renderLeaderboard();
+    await renderLeaderboard();
 
     await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
     expect(fetchLeaderboard).toHaveBeenCalledWith('week', expect.anything(), null);
@@ -66,7 +66,7 @@ describe('QuizLeaderboardScreen', () => {
   it('switches to all-time when that tab is pressed', async () => {
     fetchLeaderboard.mockResolvedValue(leaderboardFixture());
     const user = userEvent.setup();
-    renderLeaderboard();
+    await renderLeaderboard();
 
     await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
     await user.press(screen.getByRole('button', { name: 'All time' }));
@@ -78,7 +78,7 @@ describe('QuizLeaderboardScreen', () => {
     fetchLeaderboard.mockResolvedValue(
       leaderboardFixture({ viewer: { rank: 9, displayName: 'brightonrock — you', score: 3, attemptCount: 1 } }),
     );
-    renderLeaderboard();
+    await renderLeaderboard();
 
     await waitFor(() =>
       expect(screen.getByText('Your rank: #9 · 3 points')).toBeOnTheScreen(),
@@ -87,7 +87,7 @@ describe('QuizLeaderboardScreen', () => {
 
   it('shows an empty state when no one has played yet', async () => {
     fetchLeaderboard.mockResolvedValue(leaderboardFixture({ top: [], totalMembers: 0 }));
-    renderLeaderboard();
+    await renderLeaderboard();
 
     await waitFor(() =>
       expect(screen.getByText('No quiz results yet this week.')).toBeOnTheScreen(),

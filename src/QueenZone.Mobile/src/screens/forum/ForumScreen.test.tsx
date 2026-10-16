@@ -1,5 +1,5 @@
+import { getHostByType } from '../../test/renderer';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
-import { RefreshControl } from 'react-native';
 import { fetchForumCategories, fetchForumStats } from '../../api';
 import type { ForumCategoryListItem } from '../../api/types';
 import { pagedResponse } from '../../test/fixtures';
@@ -40,15 +40,15 @@ function categoryFixture(overrides: Partial<ForumCategoryListItem> = {}): ForumC
   };
 }
 
-function renderForum(navigation = fakeNavigation()) {
+async function renderForum(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <ForumScreen
         navigation={navigation as never}
         route={{ key: 'forum', name: 'ForumIndex' } as never}
       />,
-    ),
+    )),
   };
 }
 
@@ -75,7 +75,7 @@ describe('ForumScreen', () => {
     });
     fetchStats.mockResolvedValue({ boardCount: 99, threadCount: 12600, postCount: 99999 });
 
-    renderForum();
+    await renderForum();
     await waitFor(() => expect(screen.getByTestId(testIds.forumScreen)).toBeOnTheScreen());
     await waitFor(() => expect(screen.getByText('Threads')).toBeOnTheScreen());
 
@@ -93,13 +93,13 @@ describe('ForumScreen', () => {
     fetchCategories.mockResolvedValue(pagedResponse([categoryFixture()], 1, 1));
     fetchStats.mockResolvedValue({ boardCount: 1, threadCount: 3, postCount: 10 });
 
-    renderForum();
+    await renderForum();
     await waitFor(() => expect(screen.getByText('General')).toBeOnTheScreen());
     expect(fetchCategories).toHaveBeenCalledTimes(1);
     expect(fetchStats).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
 
     await waitFor(() => expect(fetchCategories).toHaveBeenCalledTimes(2));

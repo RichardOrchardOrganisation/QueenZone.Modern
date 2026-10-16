@@ -26,17 +26,17 @@ function albumFixture(overrides: Partial<AlbumListItem> = {}): AlbumListItem {
   };
 }
 
-function renderDiscography() {
+async function renderDiscography() {
   const navigation = fakeNavigation();
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <DiscographyScreen
         navigation={navigation as never}
         route={{ key: 'discography', name: 'Discography' } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -62,7 +62,7 @@ describe('DiscographyScreen', () => {
   });
 
   it('renders list thumbs through ArchiveImage with low priority and album recycling keys', async () => {
-    const { navigation } = renderDiscography();
+    const { navigation } = await renderDiscography();
     await waitFor(() => expect(screen.getByText('A Night at the Opera')).toBeOnTheScreen());
     expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 20 }));
 

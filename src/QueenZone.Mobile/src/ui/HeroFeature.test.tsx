@@ -1,4 +1,3 @@
-import { View } from 'react-native';
 import { screen } from '@testing-library/react-native';
 import { renderWithProviders } from '../test/render';
 import { dark, imagery, light } from '../theme';
@@ -18,8 +17,8 @@ const item = {
   image: { uri: 'https://cdn.queenzone.org/news/hero.jpg' },
 };
 
-function renderHero(preference: 'light' | 'dark') {
-  renderWithProviders(<HeroFeature item={item} onPress={jest.fn()} />, {
+async function renderHero(preference: 'light' | 'dark') {
+  await renderWithProviders(<HeroFeature item={item} onPress={jest.fn()} />, {
     navigation: false,
     themePreference: preference,
   });
@@ -28,8 +27,8 @@ function renderHero(preference: 'light' | 'dark') {
 describe('HeroFeature', () => {
   it.each(['light', 'dark'] as const)(
     'paints on-image light text over the existing dark scrim in %s mode',
-    (preference) => {
-      renderHero(preference);
+    async (preference) => {
+      await renderHero(preference);
 
       expect(screen.getByText('Lead story')).toHaveStyle({ color: dark.textPrimary });
       expect(screen.getByText(item.title)).toHaveStyle({ color: dark.textPrimary });
@@ -40,7 +39,7 @@ describe('HeroFeature', () => {
       expect(screen.getByText(item.title)).not.toHaveStyle({ color: light.textPrimary });
       expect(screen.getByText(item.standfirst)).not.toHaveStyle({ color: light.textSecondary });
 
-      const scrim = screen.UNSAFE_getAllByType(View).find((node) => Array.isArray(node.props.colors));
+      const scrim = screen.container.queryAll((node) => node.type === 'View').find((node) => Array.isArray(node.props.colors));
       expect(scrim?.props.colors).toEqual(imagery.scrimBottom);
       expect(scrim?.props.locations).toEqual(imagery.scrimStops);
     },

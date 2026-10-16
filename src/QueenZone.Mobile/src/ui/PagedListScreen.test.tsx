@@ -1,5 +1,6 @@
+import { componentProps, getHostByType } from '../test/renderer';
 import { FlatList, RefreshControl, Text } from 'react-native';
-import { fireEvent, screen, userEvent } from '@testing-library/react-native';
+import { act, fireEvent, screen, userEvent } from '@testing-library/react-native';
 import type { PagedState } from '../hooks/usePagedContent';
 import { flushVirtualizedList, renderWithProviders } from '../test/render';
 import { dark, palette } from '../theme';
@@ -25,8 +26,8 @@ function pagedState(overrides: Partial<PagedState<Item>> = {}): PagedState<Item>
   };
 }
 
-function renderList(paged: PagedState<Item>) {
-  return renderWithProviders(
+async function renderList(paged: PagedState<Item>) {
+  return await renderWithProviders(
     <PagedListScreen
       paged={paged}
       loadingLabel="Loading items…"
@@ -43,15 +44,15 @@ describe('PagedListScreen', () => {
     await flushVirtualizedList();
   });
 
-  it('shows the loading gate before the first page arrives', () => {
-    renderList(pagedState({ loading: true }));
+  it('shows the loading gate before the first page arrives', async () => {
+    await renderList(pagedState({ loading: true }));
     expect(screen.getByLabelText('Loading items…')).toBeOnTheScreen();
     expect(screen.queryByText('No items yet.')).toBeNull();
   });
 
   it('shows the error gate and retries through paged.reload', async () => {
     const reload = jest.fn();
-    renderList(pagedState({ error: 'The server had a problem.', reload }));
+    await renderList(pagedState({ error: 'The server had a problem.', reload }));
     expect(screen.getByText('Unable to load')).toBeOnTheScreen();
     expect(screen.getByText('The server had a problem.')).toBeOnTheScreen();
 
@@ -60,15 +61,15 @@ describe('PagedListScreen', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('shows empty copy when the first page has no items', () => {
-    renderList(pagedState());
+  it('shows empty copy when the first page has no items', async () => {
+    await renderList(pagedState());
     expect(screen.getByText('No items yet.')).toBeOnTheScreen();
   });
 
-  it('renders rows and owns end-reached threshold plus themed refresh colours', () => {
+  it('renders rows and owns end-reached threshold plus themed refresh colours', async () => {
     const loadMore = jest.fn();
     const refresh = jest.fn();
-    renderList(
+    await renderList(
       pagedState({
         items: [{ id: 1, title: 'Live Aid' }],
         page: 1,
@@ -84,7 +85,7 @@ describe('PagedListScreen', () => {
     expect(screen.queryByLabelText('Loading items…')).toBeNull();
     expect(screen.queryByText('No items yet.')).toBeNull();
 
-    const list = screen.UNSAFE_getByType(FlatList);
+    const list = componentProps(FlatList);
     expect(list.props.onEndReachedThreshold).toBe(0.4);
     expect(list.props.windowSize).toBe(10);
     expect(list.props.maxToRenderPerBatch).toBe(10);
@@ -94,23 +95,23 @@ describe('PagedListScreen', () => {
     expect(list.props.alwaysBounceVertical).toBe(true);
     expect(list.props.data).toEqual([{ id: 1, title: 'Live Aid' }]);
 
-    const refreshControl = screen.UNSAFE_getByType(RefreshControl);
+    const refreshControl = componentProps(RefreshControl);
     expect(refreshControl.props.tintColor).toBe(dark.accentPrimary);
     expect(refreshControl.props.colors).toEqual([dark.accentPrimary]);
     expect(refreshControl.props.progressBackgroundColor).toBe(palette.grey800);
 
-    fireEvent(list, 'onEndReached');
+    await act(() => list.props.onEndReached!({ distanceFromEnd: 0 }));
     expect(loadMore).toHaveBeenCalledTimes(1);
-    fireEvent(refreshControl, 'refresh');
+    await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('renders a function ListHeaderComponent on the loading gate', () => {
+  it('renders a function ListHeaderComponent on the loading gate', async () => {
     function Header() {
       return <Text>Decade chips</Text>;
     }
 
-    renderWithProviders(
+    await renderWithProviders(
       <PagedListScreen
         paged={pagedState({ loading: true })}
         loadingLabel="Loading items…"
@@ -126,8 +127,8 @@ describe('PagedListScreen', () => {
     expect(screen.getByLabelText('Loading items…')).toBeOnTheScreen();
   });
 
-  it('lets callers override the text-list virtualization numbers', () => {
-    renderWithProviders(
+  it('lets callers override the text-list virtualization numbers', async () => {
+    await renderWithProviders(
       <PagedListScreen
         paged={pagedState({ items: [{ id: 1, title: 'Live Aid' }] })}
         loadingLabel="Loading items…"
@@ -142,15 +143,15 @@ describe('PagedListScreen', () => {
       { navigation: false },
     );
 
-    const list = screen.UNSAFE_getByType(FlatList);
+    const list = componentProps(FlatList);
     expect(list.props.windowSize).toBe(7);
     expect(list.props.maxToRenderPerBatch).toBe(12);
     expect(list.props.initialNumToRender).toBe(12);
     expect(list.props.removeClippedSubviews).toBe(true);
   });
 
-  it('owns getItemLayout from itemHeight', () => {
-    renderWithProviders(
+  it('owns getItemLayout from itemHeight', async () => {
+    await renderWithProviders(
       <PagedListScreen
         paged={pagedState({ items: [{ id: 1, title: 'Live Aid' }] })}
         loadingLabel="Loading items…"
@@ -162,13 +163,13 @@ describe('PagedListScreen', () => {
       { navigation: false },
     );
 
-    const list = screen.UNSAFE_getByType(FlatList);
-    expect(list.props.getItemLayout(null, 0)).toEqual({ length: 48, offset: 0, index: 0 });
-    expect(list.props.getItemLayout(null, 3)).toEqual({ length: 48, offset: 144, index: 3 });
+    const list = componentProps(FlatList);
+    expect(list.props.getItemLayout!(null, 0)).toEqual({ length: 48, offset: 0, index: 0 });
+    expect(list.props.getItemLayout!(null, 3)).toEqual({ length: 48, offset: 144, index: 3 });
   });
 
-  it('keeps the list visible when a later refresh or error happens with items', () => {
-    renderList(
+  it('keeps the list visible when a later refresh or error happens with items', async () => {
+    await renderList(
       pagedState({
         items: [{ id: 2, title: 'Wembley' }],
         loading: true,

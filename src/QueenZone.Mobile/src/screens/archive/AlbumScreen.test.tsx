@@ -38,9 +38,9 @@ function albumDetailFixture(overrides: Partial<AlbumDetail> = {}): AlbumDetail {
   };
 }
 
-function renderAlbum(id = 7) {
+async function renderAlbum(id = 7) {
   const navigation = fakeNavigation();
-  renderWithProviders(
+  await renderWithProviders(
     <AlbumScreen
       navigation={navigation as never}
       route={{ key: 'album', name: 'Album', params: { id } } as never}
@@ -57,7 +57,7 @@ describe('AlbumScreen', () => {
   });
 
   it('renders the cover through ArchiveImage at normal priority', async () => {
-    renderAlbum();
+    await renderAlbum();
     await waitFor(() => expect(screen.getByText('Bohemian Rhapsody')).toBeOnTheScreen());
 
     const cover = screen.getByLabelText('A Night at the Opera cover');
@@ -70,9 +70,9 @@ describe('AlbumScreen', () => {
   });
 
   it('opens the song screen from a track with detailPath', async () => {
-    const navigation = renderAlbum();
+    const navigation = await renderAlbum();
     await waitFor(() => expect(screen.getByText('Bohemian Rhapsody')).toBeOnTheScreen());
-    fireEvent.press(screen.getByLabelText('Bohemian Rhapsody'));
+    await fireEvent.press(screen.getByLabelText('Bohemian Rhapsody'));
     expect(navigation.navigate).toHaveBeenCalledWith('Song', { slug: 'bohemian-rhapsody' });
   });
 
@@ -99,7 +99,7 @@ describe('AlbumScreen', () => {
       }),
     );
 
-    const navigation = renderAlbum();
+    const navigation = await renderAlbum();
     await waitFor(() => expect(screen.getByText('Bohemian Rhapsody')).toBeOnTheScreen());
 
     // Spotify first regardless of server order; unknown providers are ignored.
@@ -107,19 +107,19 @@ describe('AlbumScreen', () => {
     expect(screen.getByText('Listen on Apple Music')).toBeOnTheScreen();
     expect(screen.queryByText(/YouTube/i)).toBeNull();
 
-    fireEvent.press(screen.getByLabelText('Listen on Apple Music: A Night at the Opera'));
+    await fireEvent.press(screen.getByLabelText('Listen on Apple Music: A Night at the Opera'));
     await waitFor(() =>
       expect(openUrl).toHaveBeenCalledWith('https://music.apple.com/gb/album/a-night-at-the-opera/1'),
     );
 
-    fireEvent.press(screen.getByLabelText('Spotify: listen to Bohemian Rhapsody'));
+    await fireEvent.press(screen.getByLabelText('Spotify: listen to Bohemian Rhapsody'));
     await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://open.spotify.com/track/def'));
     expect(navigation.navigate).not.toHaveBeenCalled();
     openUrl.mockRestore();
   });
 
   it('renders no Listen on links when the response has none or omits the field', async () => {
-    renderAlbum();
+    await renderAlbum();
     await waitFor(() => expect(screen.getByText('Bohemian Rhapsody')).toBeOnTheScreen());
 
     expect(screen.queryByText(/Listen on/)).toBeNull();

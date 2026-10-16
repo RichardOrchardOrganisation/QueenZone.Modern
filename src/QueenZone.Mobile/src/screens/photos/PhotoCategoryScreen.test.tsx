@@ -79,10 +79,10 @@ function querySize(call: unknown[]): string | undefined {
   return query?.size;
 }
 
-function renderPhotoCategory(navigation = fakeNavigation()) {
+async function renderPhotoCategory(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <PhotoCategoryScreen
         navigation={navigation as never}
         route={
@@ -93,7 +93,7 @@ function renderPhotoCategory(navigation = fakeNavigation()) {
           } as never
         }
       />,
-    ),
+    )),
   };
 }
 
@@ -111,7 +111,7 @@ describe('PhotoCategoryScreen', () => {
     fetchCategory.mockResolvedValue(categoryFixture());
     fetchItems.mockResolvedValue(pagedResponse([photoFixture()]));
 
-    const { navigation } = renderPhotoCategory();
+    const { navigation } = await renderPhotoCategory();
     await waitFor(() => expect(screen.getByTestId(testIds.photoCategoryScreen)).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Live Aid' })).toBeOnTheScreen();
     expect(fetchCategory).toHaveBeenCalledWith('brian-may', expect.any(AbortSignal));
@@ -135,7 +135,7 @@ describe('PhotoCategoryScreen', () => {
       .mockRejectedValueOnce(new ApiError(500, 'The server had a problem.'))
       .mockResolvedValueOnce(pagedResponse([photoFixture()]));
 
-    renderPhotoCategory();
+    await renderPhotoCategory();
     await waitFor(() => expect(screen.getByText('The server had a problem.')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -148,7 +148,7 @@ describe('PhotoCategoryScreen', () => {
     fetchCategory.mockResolvedValue(categoryFixture());
     fetchItems.mockResolvedValue(pagedResponse([], 1, 0));
 
-    renderPhotoCategory();
+    await renderPhotoCategory();
     await waitFor(() =>
       expect(screen.getByText('No images are available in this collection yet.')).toBeOnTheScreen(),
     );
@@ -166,7 +166,7 @@ describe('PhotoCategoryScreen', () => {
       return photoItemsPage(24, 1087);
     });
 
-    const { navigation } = renderPhotoCategory();
+    const { navigation } = await renderPhotoCategory();
     await waitFor(() => expect(screen.getByText('Showing 1–24 of 1087')).toBeOnTheScreen());
     expect(screen.getByText('1,087 images in the archive')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'All sizes' }).props.accessibilityState).toEqual({
@@ -211,7 +211,7 @@ describe('PhotoCategoryScreen', () => {
       return pagedResponse([photoFixture()]);
     });
 
-    renderPhotoCategory();
+    await renderPhotoCategory();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid' })).toBeOnTheScreen());
 
     const user = userEvent.setup();

@@ -21,8 +21,8 @@ jest.mock('../../ui/openExternalUrl', () => ({
   openExternalUrl: jest.fn(),
 }));
 
-function renderProfile() {
-  return renderWithProviders(
+async function renderProfile() {
+  return await renderWithProviders(
     <ProfileScreen navigation={fakeNavigation() as never} route={{ key: 'profile', name: 'Profile' } as never} />,
     { navigation: false },
   );
@@ -49,7 +49,7 @@ describe('ProfileScreen', () => {
   it('gates signed-out visitors behind Sign in', async () => {
     const navigation = fakeNavigation();
     const user = userEvent.setup();
-    renderWithProviders(
+    await renderWithProviders(
       <ProfileScreen navigation={navigation as never} route={{ key: 'profile', name: 'Profile' } as never} />,
       { navigation: false },
     );
@@ -69,20 +69,20 @@ describe('ProfileScreen', () => {
     expect(openExternalUrl).toHaveBeenCalledWith(rateAppUrl(Platform.OS));
   });
 
-  it('shows a restoring state instead of the signed-out gate', () => {
+  it('shows a restoring state instead of the signed-out gate', async () => {
     mockSession.isRestoring = true;
-    renderProfile();
+    await renderProfile();
     expect(screen.getByTestId('profile-restoring')).toBeOnTheScreen();
     expect(screen.queryByText('Join the archive')).toBeNull();
   });
 
-  it('shows last-known identity instead of the restoring gate when a session exists', () => {
+  it('shows last-known identity instead of the restoring gate when a session exists', async () => {
     mockSession.isSignedIn = true;
     mockSession.isRestoring = false;
     mockSession.displayName = 'Freddie';
     mockSession.profile = memberProfileFixture({ email: '' });
     mockSession.refreshProfile.mockResolvedValue(mockSession.profile);
-    renderProfile();
+    await renderProfile();
     expect(screen.queryByTestId('profile-restoring')).toBeNull();
     expect(screen.queryByText('Restoring your session…')).toBeNull();
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
@@ -90,13 +90,13 @@ describe('ProfileScreen', () => {
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeOnTheScreen();
   });
 
-  it('does not full-screen restore when signed in even if isRestoring is still true', () => {
+  it('does not full-screen restore when signed in even if isRestoring is still true', async () => {
     mockSession.isSignedIn = true;
     mockSession.isRestoring = true;
     mockSession.displayName = 'Freddie';
     mockSession.profile = memberProfileFixture({ email: '' });
     mockSession.refreshProfile.mockResolvedValue(mockSession.profile);
-    renderProfile();
+    await renderProfile();
     expect(screen.queryByTestId('profile-restoring')).toBeNull();
     expect(screen.queryByText('Restoring your session…')).toBeNull();
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
@@ -108,7 +108,7 @@ describe('ProfileScreen', () => {
     mockSession.displayName = 'Freddie';
     mockSession.profile = memberProfileFixture();
     mockSession.refreshProfile.mockResolvedValue(mockSession.profile);
-    renderProfile();
+    await renderProfile();
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
     expect(screen.getByTestId('profile-messages')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeOnTheScreen();
@@ -124,7 +124,7 @@ describe('ProfileScreen', () => {
     mockSession.displayName = 'Freddie';
     mockSession.profile = memberProfileFixture();
     mockSession.refreshProfile.mockResolvedValue(mockSession.profile);
-    renderWithProviders(
+    await renderWithProviders(
       <ProfileScreen navigation={navigation as never} route={{ key: 'profile', name: 'Profile' } as never} />,
       { navigation: false },
     );
@@ -140,7 +140,7 @@ describe('ProfileScreen', () => {
     mockSession.displayName = 'Freddie';
     mockSession.profile = memberProfileFixture();
     mockSession.refreshProfile.mockResolvedValue(mockSession.profile);
-    renderProfile();
+    await renderProfile();
 
     await user.press(screen.getByRole('button', { name: 'Rate this app' }));
 
@@ -154,7 +154,7 @@ describe('ProfileScreen', () => {
     mockSession.profile = memberProfileFixture();
     mockSession.refreshProfile.mockResolvedValue(mockSession.profile);
     mockSession.signOut.mockImplementation(() => new Promise(() => {}));
-    renderProfile();
+    await renderProfile();
 
     await user.press(screen.getByRole('button', { name: 'Sign out' }));
     expect(mockSession.signOut).toHaveBeenCalled();

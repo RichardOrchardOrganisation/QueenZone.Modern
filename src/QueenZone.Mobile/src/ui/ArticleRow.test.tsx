@@ -6,7 +6,7 @@ import { ArticleRow } from './ArticleRow';
 describe('ArticleRow', () => {
   it('keeps the default row press on the whole tile', async () => {
     const onPress = jest.fn();
-    renderWithProviders(
+    await renderWithProviders(
       <ArticleRow title="Queen headline" subtitle="Excerpt" meta="15 Jan 2024" onPress={onPress} />,
       { navigation: false },
     );
@@ -20,7 +20,7 @@ describe('ArticleRow', () => {
   it('leaves a leading control outside the title press target', async () => {
     const onOpen = jest.fn();
     const onPlay = jest.fn();
-    renderWithProviders(
+    await renderWithProviders(
       <ArticleRow
         title="Somebody to Love"
         subtitle="Performed by Jane"
@@ -50,7 +50,7 @@ describe('ArticleRow', () => {
 
   it('includes decorative leading in the row press target', async () => {
     const onPress = jest.fn();
-    renderWithProviders(
+    await renderWithProviders(
       <ArticleRow
         title="Queen headline"
         subtitle="Excerpt"

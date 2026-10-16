@@ -18,10 +18,10 @@ jest.mock('../../api', () => {
 
 const reportForumPostMock = reportForumPost as jest.MockedFunction<typeof reportForumPost>;
 
-function renderReport(navigation = fakeNavigation()) {
+async function renderReport(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <ForumReportScreen
         navigation={navigation as never}
         route={{
@@ -30,7 +30,7 @@ function renderReport(navigation = fakeNavigation()) {
           params: { postId: 42, authorUsername: 'abusive-user', threadId: 1002, threadTitle: 'Thread title' },
         } as never}
       />,
-    ),
+    )),
   };
 }
 
@@ -43,20 +43,20 @@ describe('ForumReportScreen', () => {
     jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   });
 
-  it('requires a reason and enforces the details limit in the native form', () => {
-    renderReport();
+  it('requires a reason and enforces the details limit in the native form', async () => {
+    await renderReport();
 
     expect(screen.getByRole('button', { name: 'Submit report' })).toBeDisabled();
     expect(screen.getByLabelText('Supporting details').props.maxLength).toBe(1000);
-    fireEvent.press(screen.getByRole('radio', { name: /Spam or scams/ }));
+    await fireEvent.press(screen.getByRole('radio', { name: /Spam or scams/ }));
     expect(screen.getByRole('button', { name: 'Submit report' })).toBeEnabled();
   });
 
-  it('links to the community rules and support contact', () => {
-    renderReport();
+  it('links to the community rules and support contact', async () => {
+    await renderReport();
 
-    fireEvent.press(screen.getByRole('button', { name: 'Community rules' }));
-    fireEvent.press(screen.getByRole('button', { name: 'Contact support' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Community rules' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Contact support' }));
 
     expect(Linking.openURL).toHaveBeenNthCalledWith(1, expect.stringMatching(/\/terms$/));
     expect(Linking.openURL).toHaveBeenNthCalledWith(2, expect.stringMatching(/\/contact$/));
@@ -64,11 +64,11 @@ describe('ForumReportScreen', () => {
 
   it('submits once, confirms success, and returns to the reported post', async () => {
     reportForumPostMock.mockResolvedValue({ reportId: 'report-1', status: 'Open', alreadyReported: false });
-    const { navigation } = renderReport();
+    const { navigation } = await renderReport();
 
-    fireEvent.press(screen.getByRole('radio', { name: /Harassment or bullying/ }));
-    fireEvent.changeText(screen.getByLabelText('Supporting details'), '  Supporting details  ');
-    fireEvent.press(screen.getByRole('button', { name: 'Submit report' }));
+    await fireEvent.press(screen.getByRole('radio', { name: /Harassment or bullying/ }));
+    await fireEvent.changeText(screen.getByLabelText('Supporting details'), '  Supporting details  ');
+    await fireEvent.press(screen.getByRole('button', { name: 'Submit report' }));
 
     await waitFor(() => expect(screen.getByText('Report submitted')).toBeOnTheScreen());
     expect(reportForumPostMock).toHaveBeenCalledTimes(1);
@@ -76,7 +76,7 @@ describe('ForumReportScreen', () => {
       'token', 42, 'Harassment or bullying', '  Supporting details  ',
     );
 
-    fireEvent.press(screen.getByRole('button', { name: 'Return to thread' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Return to thread' }));
     expect(navigation.navigate).toHaveBeenCalledWith('Thread', {
       id: 1002,
       title: 'Thread title',
@@ -87,9 +87,9 @@ describe('ForumReportScreen', () => {
 
   it('shows an API failure and allows retry', async () => {
     reportForumPostMock.mockRejectedValueOnce(new Error('offline'));
-    renderReport();
-    fireEvent.press(screen.getByRole('radio', { name: /Other/ }));
-    fireEvent.press(screen.getByRole('button', { name: 'Submit report' }));
+    await renderReport();
+    await fireEvent.press(screen.getByRole('radio', { name: /Other/ }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Submit report' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Could not submit this report.'));
     expect(screen.getByRole('button', { name: 'Submit report' })).toBeEnabled();
