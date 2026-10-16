@@ -15,10 +15,10 @@
  *
  * Sentry React Native 8 (#1782 PR 1) keeps the v7 JS surface we use
  * (`init`, `wrap`, `reactNavigationIntegration`, `addBreadcrumb`,
- * `captureException`). Native floors are iOS 15.1+ (Sentry 8 / RN 0.86
- * `min_ios_version_supported`) and Xcode 16.4+. Expo module pods still
- * declare `:ios => '16.4'` in `Expo.podspec` and raise themselves; that
- * is not the app target. Symbol upload uses sentry-cli 3.
+ * `captureException`). Sentry 8 allows iOS 15.0+ / Xcode 16.4+. The app
+ * target is 16.4 because Expo 57's `Expo.podspec` declares
+ * `:ios => '16.4'`; `pod install` rejects a 15.1 app platform. Symbol
+ * upload uses sentry-cli 3.
  */
 import * as Sentry from '@sentry/react-native';
 import { isExpoFetchCanceled, isLostConnectionMessage } from '../api/errors';

@@ -378,9 +378,9 @@ jobs:
         run: |
           set -euo pipefail
           # Expo 57 writes `platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`
-          # (RN min_ios_version_supported), not a literal version. Sentry 8 needs 15.0+;
-          # the lock is 15.1+. Expo module pods (Expo.podspec) still raise themselves
-          # to 16.4; that is not the app target.
+          # rather than a literal version. Sentry 8 allows 15.0+; the lock is 15.1+.
+          # Expo 57's Expo.podspec (`:ios => '16.4'`) is a hard floor: pod install
+          # rejects a 15.1 app platform. The app pin is therefore 16.4.
           echo "Podfile platform line:"
           grep -n "platform :ios" ios/Podfile || true
           node <<'NODE'

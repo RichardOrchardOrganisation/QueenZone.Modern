@@ -39,7 +39,7 @@ describe('Sentry 8 on Expo SDK 57 (#1782 PR 1)', () => {
     assert.match(ios, /SENTRY_DISABLE_AUTO_UPLOAD:\s*"true"/);
   });
 
-  it('uses the Sentry 8 xcframework install and requires Xcode 16.4+ / iOS 15.1+', () => {
+  it('uses the Sentry 8 xcframework install and requires Xcode 16.4+ / iOS 16.4 (Expo.podspec)', () => {
     assert.match(ci, /SENTRY_USE_XCFRAMEWORK:\s*"1"/);
     assert.doesNotMatch(ci, /SENTRY_USE_XCFRAMEWORK:\s*["']0["']/);
     assert.match(ci, /Sentry 8 floor 16\.4/);
@@ -47,7 +47,7 @@ describe('Sentry 8 on Expo SDK 57 (#1782 PR 1)', () => {
     const appJson = JSON.parse(
       readFileSync(path.join(mobileRoot, 'app.json'), 'utf8'),
     ) as { expo: { ios?: { deploymentTarget?: string } } };
-    assert.equal(appJson.expo.ios?.deploymentTarget, '15.1');
+    assert.equal(appJson.expo.ios?.deploymentTarget, '16.4');
   });
 
   it('keeps the reviewed v7 JS init APIs (no v8 rename)', () => {
