@@ -7,6 +7,10 @@
 # Shell scripts must stay LF for execution on Linux runners/containers.
 *.sh text eol=lf
 
+# GitHub Actions workflows stay LF so Linux Dependabot and other checkouts
+# cannot rewrite whole files to CRLF and hide real `uses:` edits in review.
+.github/workflows/*.yml text eol=lf
+
 # Cloudflare Worker source snapshots must match the live published script
 # byte-for-byte (a live #626 plan confirmed the exact line endings each
 # script was actually published with) so `content = file(...)` imports
