@@ -10,7 +10,7 @@ module.exports = {
   // stringify-entities/character-entities-*) that jest-expo's default
   // transformIgnorePatterns does not cover; transform them too.
   transformIgnorePatterns: [
-    '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|@native-html|@jsamr|stringify-entities|character-entities-html4|character-entities-legacy))',
+    '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation|@native-html|@jsamr|stringify-entities|character-entities-html4|character-entities-legacy|htmlparser2|domhandler|domutils|domelementtype|dom-serializer|entities))',
     '/node_modules/react-native-reanimated/plugin/',
     '/node_modules/@react-native/babel-preset/',
   ],
