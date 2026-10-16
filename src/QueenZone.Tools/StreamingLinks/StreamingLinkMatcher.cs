@@ -24,6 +24,20 @@ internal static partial class StreamingLinkMatcher
 
     public const string EditionFlag = "edition";
 
+    public const string MixFlag = "mix";
+
+    /// <summary>Known legacy album labels whose catalogue names differ.</summary>
+    public static string AlbumSearchTitle(string title) => Normalize(title) switch
+    {
+        "queen i" => "Queen",
+        "greatest hits 1" => "Greatest Hits",
+        "greatest hits 2" => "Greatest Hits II",
+        "greatest hits 3" => "Greatest Hits III",
+        "live at wembley 86" => "Live at Wembley Stadium",
+        "rock montreal" => "Queen Rock Montreal",
+        _ => title,
+    };
+
     /// <summary>
     /// Lowercase, accent-free comparison key without parentheticals, bracketed text, " - 2011 Remaster"
     /// style suffixes or punctuation. "&amp;" compares equal to "and".
@@ -34,8 +48,22 @@ internal static partial class StreamingLinkMatcher
         text = DashSuffix().Replace(text, " ");
         text = text.Replace("&", " and ", StringComparison.Ordinal);
         text = RemoveDiacritics(text).ToLowerInvariant();
+        text = text.Replace("’", "'", StringComparison.Ordinal)
+            .Replace("'n'", " n ", StringComparison.Ordinal)
+            .Replace("'", string.Empty, StringComparison.Ordinal);
         text = NonAlphanumeric().Replace(text, " ");
-        return Whitespace().Replace(text, " ").Trim();
+        return Whitespace().Replace(text, " ").Trim() switch
+        {
+            "doin alright" => "doing all right",
+            "looser in the end" => "the loser in the end",
+            "march of the black queen" => "the march of the black queen",
+            "prophets song" => "the prophets song",
+            "teo toriatte" => "teo torriatte",
+            "mustahpa" => "mustapha",
+            "its a kind of magic" => "a kind of magic",
+            "just one year of love" => "one year of love",
+            var normalized => normalized,
+        };
     }
 
     public static IReadOnlyList<string> Flags(string candidateName, bool isCompilation, string localName)
@@ -53,7 +81,7 @@ internal static partial class StreamingLinkMatcher
             flags.Add(DeluxeFlag);
         }
 
-        if (LiveWord().IsMatch(lower) && !LiveWord().IsMatch(localLower))
+        if (LiveVersion().IsMatch(lower) && !LiveWord().IsMatch(localLower))
         {
             flags.Add(LiveFlag);
         }
@@ -66,6 +94,11 @@ internal static partial class StreamingLinkMatcher
         if (lower.Contains("edition", StringComparison.Ordinal) && !lower.Contains("deluxe", StringComparison.Ordinal))
         {
             flags.Add(EditionFlag);
+        }
+
+        if (MixWord().IsMatch(lower))
+        {
+            flags.Add(MixFlag);
         }
 
         return flags;
@@ -85,7 +118,7 @@ internal static partial class StreamingLinkMatcher
 
     public static ScoredMatch<CatalogAlbum> ScoreAlbum(string albumName, int? releaseYear, int trackCount, CatalogAlbum candidate)
     {
-        var titlePoints = TitlePoints(Normalize(albumName), Normalize(candidate.Name));
+        var titlePoints = TitlePoints(Normalize(AlbumSearchTitle(albumName)), Normalize(AlbumSearchTitle(candidate.Name)));
         if (titlePoints == 0)
         {
             // Without a title match the other signals are noise.
@@ -143,7 +176,7 @@ internal static partial class StreamingLinkMatcher
     private static int FlagPenalty(IReadOnlyList<string> flags)
     {
         var penalty = 0;
-        if (flags.Contains(DeluxeFlag) || flags.Contains(EditionFlag))
+        if (flags.Contains(DeluxeFlag) || flags.Contains(EditionFlag) || flags.Contains(MixFlag))
         {
             penalty += 10;
         }
@@ -230,4 +263,10 @@ internal static partial class StreamingLinkMatcher
 
     [GeneratedRegex(@"\blive\b", RegexOptions.CultureInvariant)]
     private static partial Regex LiveWord();
+
+    [GeneratedRegex(@"(?:^|[\(\[\-–—:]\s*)live\b", RegexOptions.CultureInvariant)]
+    private static partial Regex LiveVersion();
+
+    [GeneratedRegex(@"\b(?:mix|remix)\b", RegexOptions.CultureInvariant)]
+    private static partial Regex MixWord();
 }

@@ -52,9 +52,9 @@ public sealed class MemberPublicActivitySqlServerTests : IAsyncLifetime
                 Id uniqueidentifier NOT NULL PRIMARY KEY, SubmitterMemberId uniqueidentifier NOT NULL,
                 Title nvarchar(200) NOT NULL, Description nvarchar(max) NULL, ApprovedCategory nvarchar(max) NULL,
                 Status nvarchar(50) NOT NULL, SubmittedAt datetimeoffset NOT NULL, ReviewedAt datetimeoffset NULL);
-            CREATE TABLE dbo.ModernForumThread (Id bigint NOT NULL PRIMARY KEY, Title nvarchar(max) NOT NULL);
+            CREATE TABLE dbo.ModernForumThread (Id bigint NOT NULL PRIMARY KEY, Title nvarchar(max) NOT NULL, IsHidden bit NOT NULL DEFAULT 0);
             CREATE TABLE dbo.ModernForumPost (
-                Id bigint NOT NULL PRIMARY KEY, ThreadId bigint NOT NULL, AuthorMemberId uniqueidentifier NULL,
+                Id bigint NOT NULL PRIMARY KEY, ThreadId bigint NOT NULL, AuthorMemberId uniqueidentifier NULL, AuthorLegacyUserId int NULL,
                 IsHidden bit NOT NULL, PostedAt datetime2 NULL, LegacyPostId int NOT NULL,
                 LegacyThreadTopicId int NOT NULL, AuthorDisplayName nvarchar(max) NOT NULL,
                 BodyHtml nvarchar(max) NOT NULL);
@@ -116,7 +116,7 @@ public sealed class MemberPublicActivitySqlServerTests : IAsyncLifetime
                 {ArticleSubmissionStatus.Draft}, {baseTime.AddHours(1)})
             """);
 
-        var repository = new EfMemberPublicActivityRepository(dbContext, new EfForumArchiveAuthorRepository(dbContext));
+        var repository = new EfMemberPublicActivityRepository(dbContext);
         var first = await repository.GetFeedPageAsync([memberId, otherId], page: 1, pageSize: 2);
         var second = await repository.GetFeedPageAsync([memberId, otherId], page: 2, pageSize: 2);
 
@@ -132,5 +132,43 @@ public sealed class MemberPublicActivitySqlServerTests : IAsyncLifetime
         Assert.Equal(["Other Author", "Activity Author"], second.Items.Select(item => item.AuthorDisplayName));
         Assert.Equal("Forum body", first.Items[0].Summary);
         Assert.DoesNotContain(first.Items.Concat(second.Items), item => item.Title == "Private draft");
+    }
+
+    [Fact]
+    public async Task GetPageAsync_FiltersHiddenParentsAndDeduplicatesIdentitiesBeforePaging()
+    {
+        var memberId = Guid.NewGuid();
+        const int legacyId = 7001;
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO dbo.MemberAccounts (Id, DisplayName) VALUES ({memberId}, {"Synthetic"})");
+        // Each identity branch has a visible control, a hidden parent and a hidden post.
+        // Row 7 carries both identities and must appear only once.
+        for (var id = 1; id <= 7; id++)
+        {
+            Guid? authorId = id <= 3 || id == 7 ? memberId : null;
+            int? authorLegacyId = id >= 4 ? legacyId : null;
+            var time = new DateTime(2026, 1, id, 0, 0, 0, DateTimeKind.Utc);
+            await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO dbo.ModernForumThread (Id, Title, IsHidden)
+                VALUES ({(long)id}, {$"Synthetic topic {id}"}, {id == 2 || id == 5});
+                INSERT INTO dbo.ModernForumPost
+                    (Id, ThreadId, AuthorMemberId, AuthorLegacyUserId, IsHidden, PostedAt,
+                     LegacyPostId, LegacyThreadTopicId, AuthorDisplayName, BodyHtml)
+                VALUES ({(long)id}, {(long)id}, {authorId}, {authorLegacyId}, {id == 3 || id == 6},
+                    {time}, {200 + id}, {100 + id}, {"Synthetic"}, {$"Synthetic body {id}"});
+                """);
+        }
+
+        var repository = new EfMemberPublicActivityRepository(dbContext);
+        var first = await repository.GetPageAsync(memberId, legacyId, 1, 2);
+        var second = await repository.GetPageAsync(memberId, legacyId, 2, 2);
+        var beyond = await repository.GetPageAsync(memberId, legacyId, 3, 2);
+        Assert.Equal(3, first.TotalCount);
+        Assert.Equal(3, second.TotalCount);
+        Assert.Equal(3, beyond.TotalCount);
+        Assert.Equal(new int?[] { 207, 204, 201 }, first.Items.Concat(second.Items).Select(item => item.ContentId));
+        Assert.Equal(new[] { "Synthetic body 7", "Synthetic body 4", "Synthetic body 1" },
+            first.Items.Concat(second.Items).Select(item => item.Summary));
+        Assert.Empty(beyond.Items);
     }
 }

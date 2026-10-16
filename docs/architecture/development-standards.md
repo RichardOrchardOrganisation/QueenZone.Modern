@@ -7,8 +7,8 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | | |
 | --- | --- |
 | Source | `https://github.com/RichardOrchardOrganisation/development-standards` |
-| Version | 0.5.2, pinned merged commit ([changelog](https://github.com/RichardOrchardOrganisation/development-standards/blob/5177138cc46168b5cea669b1ae77231e53e23ed0/CHANGELOG.md)); no release tag required for this reviewed adoption |
-| Commit | `5177138cc46168b5cea669b1ae77231e53e23ed0` (merge of development-standards PR #20) |
+| Version | 0.5.2 with reviewed UI-proof refactors ([upstream PR #22](https://github.com/RichardOrchardOrganisation/development-standards/pull/22)); upstream merge pending |
+| Commit | `b039e00e721f38ab9801272e821015b21bc78335` (development-standards PR #22 revision) |
 | Kit version | `0.5.2` |
 | Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. the 0.5.0 update retained reviewed configuration, adapter and template conflicts; the subsequent 0.5.2 update was clean, so the current lock has no keptLocal entries |
 | Attribution | [`docs/development-standards-LICENSE`](../development-standards-LICENSE); QueenZone's own `LICENSE` is unchanged |
@@ -24,6 +24,7 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | 0.5.0 | `76d2320d7f399bb260423bca3097af6b4e1c46c1` | Shared uploaded-proof core adopted verbatim; configuration, capture commands and a thin feature-map adapter remain local |
 | 0.5.1 | `7452829eef908d89aa6e1515369f1c052e25bc54` | Pinned publisher action removes privileged application checkout; clean updater pass |
 | 0.5.2 | `5177138cc46168b5cea669b1ae77231e53e23ed0` | Preserve GitHub Context repository metadata in evidence gates and make feature-ID ordering explicit; clean updater pass |
+| 0.5.2 revision | `b039e00e721f38ab9801272e821015b21bc78335` | Split six High-severity complexity hotspots into focused helpers; preserve carried-producer rerun evidence and publish the existing QueenZone regression upstream (#2319) |
 
 0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. Local quality gates use committed kit copies. The privileged proof publisher is the one exception: GitHub downloads a shared action pinned to the same reviewed kit commit; that action reads only default-branch project JSON, never application code.
 

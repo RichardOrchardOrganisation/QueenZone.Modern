@@ -411,7 +411,12 @@ function isAdminPattern(pattern) {
 }
 
 function validateExclusions(root, map, errors) {
-  for (const item of map.excluded) {
+  validateExcludedBlocks(map.excluded, errors);
+  validatePendingAdminAreas(root, map, errors);
+}
+
+function validateExcludedBlocks(excluded, errors) {
+  for (const item of excluded) {
     if (typeof item?.pattern !== 'string' || !item.pattern.trim() ||
         typeof item?.reason !== 'string' || !item.reason.trim()) {
       errors.push('Each excluded block needs pattern and reason.');
@@ -420,6 +425,9 @@ function validateExclusions(root, map, errors) {
       errors.push('Admin pages may not be excluded; map them or list the area in pendingAdminAreas');
     }
   }
+}
+
+function validatePendingAdminAreas(root, map, errors) {
   const pending = map.pendingAdminAreas;
   if (!Array.isArray(pending)) {
     errors.push('pendingAdminAreas must be an array.');
@@ -485,7 +493,8 @@ export function pageModelPostHandlers(root, pageRel) {
   if (!existsSync(page)) {
     return [];
   }
-  const model = readText(page).match(/^\s*@model\s+([^\s<]+)/m)?.[1];
+  const model = readText(page).split(/[\r\n\u2028\u2029]/)
+    .map(line => line.match(/^\s*@model\s+([^\s<]+)/)?.[1]).find(Boolean);
   const modelName = model?.split('.').at(-1);
   const sibling = `${page}.cs`;
   const localFiles = readdirSync(path.dirname(page)).filter((name) => name.endsWith('.cs'))
@@ -512,6 +521,11 @@ function validateAdminEntry(root, entry, errors, warnings) {
   if (!Array.isArray(entry.specs) || !entry.specs.length || entry.specs.some((spec) => typeof spec !== 'string' || !spec.trim())) {
     errors.push(`${entry.id}: Admin pages require at least one spec.`);
   }
+  validateAdminMetadata(entry, errors);
+  validateAdminHandlers(root, entry, errors, warnings);
+}
+
+function validateAdminMetadata(entry, errors) {
   const admin = entry.admin;
   if (!admin || typeof admin !== 'object' || Array.isArray(admin)) {
     errors.push(`${entry.id}: Admin pages require an admin object.`);
@@ -531,6 +545,12 @@ function validateAdminEntry(root, entry, errors, warnings) {
   if (Object.hasOwn(admin, 'notes') && typeof admin.notes !== 'string') {
     errors.push(`${entry.id}: admin.notes must be a string.`);
   }
+}
+
+function validateAdminHandlers(root, entry, errors, warnings) {
+  const admin = entry.admin;
+  if (!admin || typeof admin !== 'object' || Array.isArray(admin)) return;
+  const page = toPosix(entry.page);
   const handlers = pageModelPostHandlers(root, page);
   if (handlers.length && admin.verification === 'none') {
     errors.push(`${entry.id}: verification none is not allowed with OnPost handlers.`);

@@ -14,12 +14,10 @@ namespace QueenZone.Data;
 /// value converter on <c>PostedAt</c> — deliberately out of scope here because that column also
 /// carries the perf-critical forum read path.
 /// A profile with a linked legacy account adds a third source: archive posts keyed by
-/// <c>AuthorLegacyUserId</c>, counted from the precomputed archive-author summary rather than
-/// aggregated per request.
+/// <c>AuthorLegacyUserId</c>. Its count and page share the same visibility and identity predicates.
 /// </remarks>
 public sealed class EfMemberPublicActivityRepository(
-    QueenZoneDbContext dbContext,
-    IForumArchiveAuthorRepository archiveAuthorRepository)
+    QueenZoneDbContext dbContext)
     : IMemberPublicActivityRepository
 {
     public Task<MemberPublicActivityPage> GetPageAsync(
@@ -154,6 +152,7 @@ public sealed class EfMemberPublicActivityRepository(
             .Where(post => post.AuthorMemberId != null
                 && authorIds.Contains(post.AuthorMemberId.Value)
                 && post.Thread != null
+                && !post.Thread.IsHidden
                 && !post.IsHidden);
 
     /// <summary>
@@ -168,17 +167,23 @@ public sealed class EfMemberPublicActivityRepository(
         int take,
         CancellationToken cancellationToken)
     {
-        var summary = await archiveAuthorRepository.GetSummaryAsync(legacyUserId, cancellationToken);
-        if (summary is null || summary.PostCount <= 0)
+        // The archive summary counts hidden-parent posts and overlaps member-linked posts.
+        // Count the same narrow author query that supplies the page, rather than using that
+        // broader total or loading all bodies. The two identity branches remain disjoint.
+        var posts = dbContext.ModernForumPosts
+            .AsNoTracking()
+            .Where(post => post.AuthorLegacyUserId == legacyUserId
+                && (post.AuthorMemberId == null || post.AuthorMemberId != memberId)
+                && post.Thread != null
+                && !post.Thread.IsHidden
+                && !post.IsHidden);
+        var totalCount = await posts.CountAsync(cancellationToken);
+        if (totalCount == 0)
         {
             return null;
         }
 
-        var rows = await dbContext.ModernForumPosts
-            .AsNoTracking()
-            .Where(post => post.AuthorLegacyUserId == legacyUserId
-                && post.Thread != null
-                && !post.IsHidden)
+        var rows = await posts
             .OrderByDescending(post => post.PostedAt)
             .ThenByDescending(post => post.Id)
             .Take(take)
@@ -193,7 +198,7 @@ public sealed class EfMemberPublicActivityRepository(
             })
             .ToListAsync(cancellationToken);
 
-        return (summary.PostCount, rows
+        return (totalCount, rows
             .Select(row => new FeedRow
             {
                 Type = MemberPublicActivityType.ForumPost,

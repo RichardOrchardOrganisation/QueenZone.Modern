@@ -1,0 +1,42 @@
+name: Verify prepared release package
+description: Download immutable same-run bytes and verify release identity before production access.
+inputs:
+  artifact-id:
+    required: true
+    description: Immutable artifact ID from prepare-release.
+  package-sha256:
+    required: true
+    description: Archive SHA-256 from prepare-release.
+  release-sha:
+    required: true
+    description: Full peeled release commit.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: 24
+    - name: Validate package outputs
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ inputs.artifact-id }}
+        PACKAGE_SHA256: ${{ inputs.package-sha256 }}
+        RELEASE_SHA: ${{ inputs.release-sha }}
+      run: node scripts/release/release-package.mjs validate-inputs
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        artifact-ids: ${{ inputs.artifact-id }}
+        run-id: ${{ github.run_id }}
+        github-token: ${{ github.token }}
+        merge-multiple: true
+        path: release-input
+        digest-mismatch: error
+    - name: Verify package content and identity
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ inputs.artifact-id }}
+        PACKAGE_SHA256: ${{ inputs.package-sha256 }}
+        RELEASE_SHA: ${{ inputs.release-sha }}
+      run: |
+        test "$(git rev-parse 'HEAD^{commit}')" = "$RELEASE_SHA"
+        node scripts/release/release-package.mjs verify

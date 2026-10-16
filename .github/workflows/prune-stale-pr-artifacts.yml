@@ -72,6 +72,11 @@ jobs:
               );
 
               for (const artifact of artifacts) {
+                // Release-owned packages must survive every PR cleanup path.
+                if (artifact.name.startsWith("release-package-")) {
+                  core.info(`Keeping release-owned package ${artifact.name}.`);
+                  continue;
+                }
                 try {
                   await github.rest.actions.deleteArtifact({
                     owner: context.repo.owner,

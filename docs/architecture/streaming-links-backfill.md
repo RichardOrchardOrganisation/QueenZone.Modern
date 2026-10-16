@@ -56,6 +56,14 @@ dotnet run --project src/QueenZone.Tools -- suggest-streaming-links --out stream
 
 The command only reads the database. It writes a CSV and prints a summary.
 
+Matching recognises the legacy `Queen I`, `Greatest Hits 1/2/3`, `Live At Wembley '86`,
+and `Rock Montreal` labels using their catalogue names. Spotify's debut-album search is
+restricted to 1973 so later mixes do not crowd the standard edition out of the results.
+Known legacy track misspellings and apostrophes are normalised for comparison only; stored
+titles are unchanged. Alternate mixes are flagged and penalised, and the word "live" in a
+song title (such as "Who Wants to Live Forever") is not itself a live-recording flag.
+There is no fuzzy fallback: unavailable albums and unknown title differences stay unmatched.
+
 **Rate limits**
 - Apple documents about 20 iTunes Search calls per minute. The client spaces calls 3 seconds apart, so a full catalogue run takes a while.
 - Spotify calls are spaced 250 ms apart. `429` responses are retried after `Retry-After`.
@@ -71,7 +79,7 @@ The command only reads the database. It writes a CSV and prints a summary.
 | `provider` | `spotify` or `apple-music` |
 | `candidateUrl`, `externalId` | The suggested link, already normalised. Empty when nothing matched. |
 | `score` | 0–100. It ranks candidates for a reviewer; it is not a confidence threshold. |
-| `flags` | `;`-separated: `remaster`, `deluxe`, `edition`, `live`, `compilation`, `no-match`, `error` |
+| `flags` | `;`-separated: `remaster`, `deluxe`, `edition`, `mix`, `live`, `compilation`, `no-match`, `error` |
 | `existingUrl` | The link stored now, if any |
 | `approved` | Blank. The reviewer sets it to `yes`. |
 

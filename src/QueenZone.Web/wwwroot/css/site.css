@@ -3645,9 +3645,9 @@ a.qz-forum-post__author-link:focus-visible {
   gap: var(--space-3);
 }
 
-.qz-share__native[hidden],
-.qz-share__fallback[hidden] {
-  display: none !important;
+.qz-share .qz-share__native[hidden],
+.qz-share .qz-share__fallback[hidden] {
+  display: none;
 }
 
 .qz-share__label {
@@ -4128,8 +4128,10 @@ a.qz-forum-post__author-link:focus-visible {
 }
 
 .admin-article-crop__stage .cropper-container {
-  width: 100% !important;
-  height: 100% !important;
+  min-width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  max-height: 100%;
 }
 
 /* Fixed 3:2 card: drag must reach Cropper's move layer, not the outline. */
@@ -4425,14 +4427,14 @@ a.qz-forum-post__author-link:focus-visible {
   flex: 1;
 }
 
-.admin-quiz-form__correct {
-  flex: 0 0 auto !important;
+.admin-quiz-form__option .admin-quiz-form__correct {
+  flex: 0 0 auto;
   text-align: center;
 }
 
-.admin-quiz-form__correct input {
+.admin-form .admin-quiz-form__correct input {
   display: block;
-  width: auto !important;
+  width: auto;
   margin: 0.35rem auto 0;
 }
 

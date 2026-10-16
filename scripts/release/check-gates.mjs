@@ -231,14 +231,7 @@ export function extractZipFiles(buffer) {
       throw new Error(`Zip entry ${name} is truncated.`);
     }
     const compressed = bytes.subarray(dataStart, dataStart + compressedSize);
-    let data;
-    if (method === 0) {
-      data = compressed;
-    } else if (method === 8) {
-      data = inflateRawSync(compressed);
-    } else {
-      throw new Error(`Unsupported zip compression ${method} for ${name}`);
-    }
+    const data = decompressZipEntry(compressed, method, name);
     if (data.length !== uncompressedSize) {
       throw new Error(`Zip entry ${name} size mismatch.`);
     }
@@ -248,6 +241,12 @@ export function extractZipFiles(buffer) {
     files.set(name, data);
   }
   return files;
+}
+
+function decompressZipEntry(compressed, method, name) {
+  if (method === 0) return compressed;
+  if (method === 8) return inflateRawSync(compressed);
+  throw new Error(`Unsupported zip compression ${method} for ${name}`);
 }
 
 export function extractGateProofFromZip(buffer) {

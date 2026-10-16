@@ -22,7 +22,7 @@ internal sealed class AppleMusicCatalogClient(HttpClient http, string country, T
     public async Task<IReadOnlyList<CatalogAlbum>> SearchAlbumsAsync(string albumName, CancellationToken cancellationToken)
     {
         var url = "https://itunes.apple.com/search?entity=album&attribute=albumTerm&limit=25"
-            + $"&country={Uri.EscapeDataString(country)}&term={Uri.EscapeDataString($"{Artist} {albumName}")}";
+            + $"&country={Uri.EscapeDataString(country)}&term={Uri.EscapeDataString($"{Artist} {StreamingLinkMatcher.AlbumSearchTitle(albumName)}")}";
         using var document = await GetJsonAsync(url, cancellationToken);
         var albums = new List<CatalogAlbum>();
         foreach (var result in Results(document))
