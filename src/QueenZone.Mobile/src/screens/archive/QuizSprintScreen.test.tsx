@@ -67,9 +67,9 @@ function result(overrides: Partial<QuizSprintResult> = {}): QuizSprintResult {
   return { attempted: 1, correct: 1, points: 1, bestStreak: 1, recorded: false, rank: null, answers: [], ...overrides };
 }
 
-function renderScreen(params?: { claim?: string }) {
+async function renderScreen(params?: { claim?: string }) {
   const navigation = fakeNavigation();
-  renderWithProviders(
+  await renderWithProviders(
     <QuizSprintScreen
       navigation={navigation as never}
       route={{ key: 'sprint', name: 'QuizSprint', params } as never}
@@ -88,7 +88,7 @@ describe('QuizSprintScreen', () => {
   });
 
   it('shows the intro with best score today and a sign-in prompt for guests', async () => {
-    const navigation = renderScreen();
+    const navigation = await renderScreen();
     const user = userEvent.setup();
 
     await waitFor(() => expect(screen.getByText(/BEST TODAY · BRIGHTONROCK · 27/)).toBeOnTheScreen());
@@ -106,7 +106,7 @@ describe('QuizSprintScreen', () => {
     check.mockResolvedValue({ isCorrect: true, correctOptionId: 'q1-a' });
     finish.mockResolvedValue(result({ points: 1, recorded: false }));
     const user = userEvent.setup();
-    renderScreen();
+    await renderScreen();
 
     await user.press(screen.getByRole('button', { name: 'Begin the sprint' }));
     await waitFor(() => expect(screen.getByText('Who was the lead singer of Queen?')).toBeOnTheScreen());
@@ -127,7 +127,7 @@ describe('QuizSprintScreen', () => {
     check.mockResolvedValue({ isCorrect: true, correctOptionId: 'q1-a' });
     finish.mockResolvedValue(result({ points: 1, recorded: false, claimToken: 'claim-token' }));
     const user = userEvent.setup();
-    const navigation = renderScreen();
+    const navigation = await renderScreen();
 
     await user.press(screen.getByRole('button', { name: 'Begin the sprint' }));
     await waitFor(() => expect(screen.getByText('Who was the lead singer of Queen?')).toBeOnTheScreen());
@@ -148,7 +148,7 @@ describe('QuizSprintScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'token';
     claimRun.mockResolvedValue({ status: 'claimed', points: 12, rank: 4 });
-    const navigation = renderScreen({ claim: 'claim-token' });
+    const navigation = await renderScreen({ claim: 'claim-token' });
 
     await waitFor(() =>
       expect(screen.getByText('Your score of 12 was added to the leaderboard (rank #4 today).')).toBeOnTheScreen(),
@@ -162,7 +162,7 @@ describe('QuizSprintScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'token';
     claimRun.mockResolvedValueOnce({ status: 'already_claimed', points: 12, rank: null });
-    renderScreen({ claim: 'claim-token' });
+    await renderScreen({ claim: 'claim-token' });
     await waitFor(() => expect(screen.getByText('That score is already on the leaderboard.')).toBeOnTheScreen());
   });
 
@@ -170,12 +170,12 @@ describe('QuizSprintScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'token';
     claimRun.mockRejectedValueOnce(ApiError.http(410, 'Claim expired'));
-    renderScreen({ claim: 'old-token' });
+    await renderScreen({ claim: 'old-token' });
     await waitFor(() => expect(screen.getByText(/finished too long ago/)).toBeOnTheScreen());
   });
 
   it('does not claim while still signed out', async () => {
-    renderScreen({ claim: 'claim-token' });
+    await renderScreen({ claim: 'claim-token' });
     await waitFor(() => expect(daily).toHaveBeenCalled());
     expect(claimRun).not.toHaveBeenCalled();
   });
@@ -187,7 +187,7 @@ describe('QuizSprintScreen', () => {
     check.mockResolvedValue({ isCorrect: false, correctOptionId: 'q1-a' });
     finish.mockResolvedValue(result({ points: 0, correct: 0, recorded: true, rank: 3 }));
     const user = userEvent.setup();
-    renderScreen();
+    await renderScreen();
 
     await user.press(screen.getByRole('button', { name: 'Begin the sprint' }));
     await waitFor(() => expect(screen.getByText('Who was the lead singer of Queen?')).toBeOnTheScreen());
@@ -203,7 +203,7 @@ describe('QuizSprintScreen', () => {
   it('returns to the intro with an error when the round cannot start', async () => {
     start.mockRejectedValue(new Error('No published quiz questions are available yet.'));
     const user = userEvent.setup();
-    renderScreen();
+    await renderScreen();
 
     await user.press(screen.getByRole('button', { name: 'Begin the sprint' }));
 

@@ -8,88 +8,88 @@ describe('useExternalStore', () => {
     resetExternalStoreForTests();
   });
 
-  it('re-renders useStoreVersion when the key is invalidated', () => {
-    const { result } = renderHook(() => useStoreVersion(NEWS_LIST_CACHE_KEY));
+  it('re-renders useStoreVersion when the key is invalidated', async () => {
+    const { result } = await renderHook(() => useStoreVersion(NEWS_LIST_CACHE_KEY));
     expect(result.current).toBe(0);
 
-    act(() => {
+    await act(() => {
       invalidate(NEWS_LIST_CACHE_KEY);
     });
 
     expect(result.current).toBe(1);
   });
 
-  it('follows the current key instead of staying on the first subscribed key', () => {
-    const { result, rerender } = renderHook(({ key }: { key: string }) => useStoreVersion(key), {
+  it('follows the current key instead of staying on the first subscribed key', async () => {
+    const { result, rerender } = await renderHook(({ key }: { key: string }) => useStoreVersion(key), {
       initialProps: { key: 'downloads:member:1:performance:191' },
     });
     expect(result.current).toBe(0);
 
-    act(() => {
+    await act(() => {
       invalidate('downloads:member:1:performance:193');
     });
     expect(result.current).toBe(0);
 
-    rerender({ key: 'downloads:member:1:performance:193' });
+    await rerender({ key: 'downloads:member:1:performance:193' });
     expect(result.current).toBe(1);
 
-    act(() => {
+    await act(() => {
       invalidate('downloads:member:1:performance:191');
     });
     expect(result.current).toBe(1);
 
-    act(() => {
+    await act(() => {
       invalidate('downloads:member:1:performance:193');
     });
     expect(result.current).toBe(2);
   });
 
-  it('re-renders usePrefixVersion for matching key and prefix invalidation only', () => {
-    const { result } = renderHook(() => usePrefixVersion(NEWS_CACHE_KEY_PREFIX));
+  it('re-renders usePrefixVersion for matching key and prefix invalidation only', async () => {
+    const { result } = await renderHook(() => usePrefixVersion(NEWS_CACHE_KEY_PREFIX));
     expect(result.current).toBe(0);
 
-    act(() => {
+    await act(() => {
       invalidate(PM_UNREAD_CACHE_KEY);
     });
     expect(result.current).toBe(0);
 
-    act(() => {
+    await act(() => {
       invalidate(NEWS_LIST_CACHE_KEY);
     });
     expect(result.current).toBe(1);
 
-    act(() => {
+    await act(() => {
       invalidatePrefix(NEWS_CACHE_KEY_PREFIX);
     });
     expect(result.current).toBe(2);
   });
 
-  it('calls refresh when the key is invalidated while mounted', () => {
+  it('calls refresh when the key is invalidated while mounted', async () => {
     const refresh = jest.fn();
-    renderHook(() => useStoreRefresh(NEWS_LIST_CACHE_KEY, refresh));
+    await renderHook(() => useStoreRefresh(NEWS_LIST_CACHE_KEY, refresh));
 
-    act(() => {
+    await act(() => {
       invalidate(NEWS_LIST_CACHE_KEY);
     });
 
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('does not call refresh after unmount', () => {
+  it('does not call refresh after unmount', async () => {
     const refresh = jest.fn();
-    const { unmount } = renderHook(() => useStoreRefresh(NEWS_LIST_CACHE_KEY, refresh));
-    unmount();
+    const { unmount } = await renderHook(() => useStoreRefresh(NEWS_LIST_CACHE_KEY, refresh));
+    await unmount();
 
-    act(() => {
+    await act(() => {
       invalidate(NEWS_LIST_CACHE_KEY);
     });
 
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it('does not call refresh on the generation that was current at mount', () => {
+  it('does not call refresh on the generation that was current at mount', async () => {
     const refresh = jest.fn();
-    renderHook(() => useStoreRefresh(NEWS_LIST_CACHE_KEY, refresh));
+    await renderHook(() => useStoreRefresh(NEWS_LIST_CACHE_KEY, refresh));
     expect(refresh).not.toHaveBeenCalled();
   });
 });

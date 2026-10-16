@@ -27,8 +27,8 @@ describe('EnvBanner', () => {
     mockAppConfig.smokeEmbed = true;
   });
 
-  it('shows LOCAL on development smoke embeds without covering children', () => {
-    renderWithProviders(
+  it('shows LOCAL on development smoke embeds without covering children', async () => {
+    await renderWithProviders(
       <EnvBanner>
         <View testID="child">
           <Text>home-profile</Text>
@@ -45,10 +45,10 @@ describe('EnvBanner', () => {
     expect(screen.getByTestId(testIds.envBanner)).toHaveStyle({ height: ENV_BANNER_HEIGHT });
   });
 
-  it('shows DEV on staging', () => {
+  it('shows DEV on staging', async () => {
     mockAppConfig.appEnv = 'staging';
     mockAppConfig.smokeEmbed = false;
-    renderWithProviders(
+    await renderWithProviders(
       <EnvBanner>
         <Text>child</Text>
       </EnvBanner>,
@@ -59,10 +59,10 @@ describe('EnvBanner', () => {
     expect(screen.queryByText('LOCAL')).toBeNull();
   });
 
-  it('hides on production even when smokeEmbed is baked', () => {
+  it('hides on production even when smokeEmbed is baked', async () => {
     mockAppConfig.appEnv = 'production';
     mockAppConfig.smokeEmbed = true;
-    renderWithProviders(
+    await renderWithProviders(
       <EnvBanner>
         <InsetProbe />
       </EnvBanner>,

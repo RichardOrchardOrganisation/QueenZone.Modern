@@ -16,7 +16,7 @@ jest.mock('../screens/messages/useUnreadConversationCount', () => ({
   useUnreadConversationCount: () => mockUnread.count,
 }));
 
-function renderIdentity(
+async function renderIdentity(
   props: { onProfilePress?: () => void; onMessagesPress?: () => void } = {},
 ) {
   const onProfilePress = props.onProfilePress ?? jest.fn();
@@ -24,10 +24,10 @@ function renderIdentity(
   return {
     onProfilePress,
     onMessagesPress,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <TabIdentityHeaderRight onProfilePress={onProfilePress} onMessagesPress={onMessagesPress} />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -38,8 +38,8 @@ describe('TabIdentityHeaderRight', () => {
     mockUnread.count = 0;
   });
 
-  it('shows the signed-out affordance and no messages icon', () => {
-    renderIdentity();
+  it('shows the signed-out affordance and no messages icon', async () => {
+    await renderIdentity();
 
     expect(screen.getByTestId(testIds.tabIdentityHeader)).toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
@@ -48,11 +48,11 @@ describe('TabIdentityHeaderRight', () => {
     expect(screen.queryByTestId(testIds.homeMessages)).not.toBeOnTheScreen();
   });
 
-  it('shows the messages icon without a badge when signed in with zero unread', () => {
+  it('shows the messages icon without a badge when signed in with zero unread', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 0;
-    renderIdentity();
+    await renderIdentity();
 
     expect(screen.getByLabelText('Profile')).toBeOnTheScreen();
     expect(screen.getByLabelText('Messages')).toBeOnTheScreen();
@@ -60,11 +60,11 @@ describe('TabIdentityHeaderRight', () => {
     expect(screen.queryByTestId(testIds.homeMessagesUnread)).not.toBeOnTheScreen();
   });
 
-  it('badges the messages icon, not the avatar, when signed in with waiting PMs', () => {
+  it('badges the messages icon, not the avatar, when signed in with waiting PMs', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 3;
-    renderIdentity();
+    await renderIdentity();
 
     expect(screen.getByLabelText('Profile')).toBeOnTheScreen();
     expect(screen.getByLabelText('Messages, 3 unread conversations')).toBeOnTheScreen();
@@ -72,20 +72,20 @@ describe('TabIdentityHeaderRight', () => {
     expect(screen.getByText('3', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
-  it('caps the messages badge at 99+', () => {
+  it('caps the messages badge at 99+', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 100;
-    renderIdentity();
+    await renderIdentity();
 
     expect(screen.getByLabelText('Messages, 100 unread conversations')).toBeOnTheScreen();
     expect(screen.getByText('99+', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
-  it('hides the messages icon when signed out even if a count leaked', () => {
+  it('hides the messages icon when signed out even if a count leaked', async () => {
     mockSession.isSignedIn = false;
     mockUnread.count = 4;
-    renderIdentity();
+    await renderIdentity();
 
     expect(screen.getByLabelText('Profile')).toBeOnTheScreen();
     expect(screen.getByText('·')).toBeOnTheScreen();
@@ -96,7 +96,7 @@ describe('TabIdentityHeaderRight', () => {
   it('opens messages and profile from the cluster', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
-    const { onProfilePress, onMessagesPress } = renderIdentity();
+    const { onProfilePress, onMessagesPress } = await renderIdentity();
     const user = userEvent.setup();
 
     await user.press(screen.getByTestId(testIds.homeMessages));
@@ -110,7 +110,7 @@ describe('TabIdentityHeaderRight', () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 3;
-    const { onMessagesPress } = renderIdentity();
+    const { onMessagesPress } = await renderIdentity();
     const user = userEvent.setup();
 
     await user.press(screen.getByText('3', { includeHiddenElements: true }));

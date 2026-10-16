@@ -45,10 +45,12 @@ describe('PagedRequestCoordinator', () => {
 describe('usePagedContent', () => {
   it('loads the first page, then supports empty, error, retry, refresh, and load-more', async () => {
     const fetcher = jest.fn();
-    fetcher.mockResolvedValueOnce(pagedResponse(['a', 'b'], 1, 2));
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const firstPage = deferred<ReturnType<typeof pagedResponse<string>>>();
+    fetcher.mockReturnValueOnce(firstPage.promise);
+    const { result } = await renderHook(() => usePagedContent(fetcher));
 
     expect(result.current.loading).toBe(true);
+    await act(() => firstPage.resolve(pagedResponse(['a', 'b'], 1, 2)));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.items).toEqual(['a', 'b']);
     expect(result.current.hasMore).toBe(true);
@@ -77,7 +79,7 @@ describe('usePagedContent', () => {
     const fetcher = jest.fn();
     fetcher.mockResolvedValueOnce(pagedResponse(['a'], 1, 3));
     fetcher.mockReturnValueOnce(second.promise);
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -111,7 +113,7 @@ describe('usePagedContent', () => {
     const fetcher = jest.fn();
     fetcher.mockReturnValueOnce(initial.promise);
     fetcher.mockReturnValueOnce(refreshed.promise);
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
 
     await act(async () => {
       result.current.refresh();
@@ -138,7 +140,7 @@ describe('usePagedContent', () => {
     fetcher.mockResolvedValueOnce(pagedResponse(['a'], 1, 2));
     fetcher.mockReturnValueOnce(extra.promise);
     fetcher.mockReturnValueOnce(refreshed.promise);
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -170,7 +172,7 @@ describe('usePagedContent', () => {
     fetcher.mockResolvedValueOnce(pagedResponse(['seed'], 1, 1));
     fetcher.mockReturnValueOnce(first.promise);
     fetcher.mockReturnValueOnce(second.promise);
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
     await waitFor(() => expect(result.current.items).toEqual(['seed']));
 
     await act(async () => {
@@ -197,7 +199,7 @@ describe('usePagedContent', () => {
     const fetcher = jest.fn();
     fetcher.mockReturnValueOnce(first.promise);
     fetcher.mockResolvedValueOnce(pagedResponse(['fresh'], 1, 1));
-    const { result, rerender } = renderHook(
+    const { result, rerender } = await renderHook(
       ({ key }: { key: string }) => usePagedContent(fetcher, 20, key),
       {
         initialProps: { key: 'one' },
@@ -205,7 +207,7 @@ describe('usePagedContent', () => {
     );
     expect(result.current.loading).toBe(true);
     const firstSignal = fetcher.mock.calls[0][1] as AbortSignal;
-    rerender({ key: 'two' });
+    await rerender({ key: 'two' });
     expect(firstSignal.aborted).toBe(true);
     first.resolve(pagedResponse(['stale'], 1, 1));
     await waitFor(() => expect(result.current.items).toEqual(['fresh']));
@@ -219,7 +221,7 @@ describe('usePagedContent', () => {
     fetcher.mockResolvedValueOnce(pagedResponse(['seed'], 1, 1));
     fetcher.mockReturnValueOnce(refreshPending.promise);
     fetcher.mockResolvedValueOnce(pagedResponse(['reset'], 1, 1));
-    const { result, rerender } = renderHook(
+    const { result, rerender } = await renderHook(
       ({ key }: { key: string }) => usePagedContent(fetcher, 20, key),
       {
         initialProps: { key: 'one' },
@@ -231,7 +233,7 @@ describe('usePagedContent', () => {
       result.current.refresh();
     });
     const refreshSignal = fetcher.mock.calls[1][1] as AbortSignal;
-    rerender({ key: 'two' });
+    await rerender({ key: 'two' });
     expect(refreshSignal.aborted).toBe(true);
     refreshPending.resolve(pagedResponse(['stale-refresh'], 1, 1));
     await waitFor(() => expect(result.current.items).toEqual(['reset']));
@@ -244,9 +246,9 @@ describe('usePagedContent', () => {
   it('does not apply a response after unmount, including in-flight refresh and load-more', async () => {
     const initial = deferred<ReturnType<typeof pagedResponse<string>>>();
     const fetcher = jest.fn().mockReturnValue(initial.promise);
-    const { result, unmount } = renderHook(() => usePagedContent(fetcher));
+    const { result, unmount } = await renderHook(() => usePagedContent(fetcher));
     const initialSignal = fetcher.mock.calls[0][1] as AbortSignal;
-    unmount();
+    await unmount();
     expect(initialSignal.aborted).toBe(true);
     initial.resolve(pagedResponse(['late'], 1, 1));
     await flush();
@@ -259,14 +261,14 @@ describe('usePagedContent', () => {
     const fetcher = jest.fn();
     fetcher.mockResolvedValueOnce(pagedResponse(['a'], 1, 2));
     fetcher.mockReturnValueOnce(extra.promise);
-    const { result, unmount } = renderHook(() => usePagedContent(fetcher));
+    const { result, unmount } = await renderHook(() => usePagedContent(fetcher));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
       result.current.loadMore();
     });
     const loadMoreSignal = fetcher.mock.calls[1][1] as AbortSignal;
-    unmount();
+    await unmount();
     expect(loadMoreSignal.aborted).toBe(true);
     extra.resolve(pagedResponse(['late-page-2'], 2, 2));
     await flush();
@@ -279,7 +281,7 @@ describe('usePagedContent', () => {
     const fetcher = jest.fn();
     fetcher.mockReturnValueOnce(initial.promise);
     fetcher.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
 
     await act(async () => {
       result.current.refresh();
@@ -293,7 +295,7 @@ describe('usePagedContent', () => {
   it('settles refresh on a non-ApiError and load-more on a failed next page', async () => {
     const fetcher = jest.fn();
     fetcher.mockResolvedValueOnce(pagedResponse(['a'], 1, 2));
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     fetcher.mockRejectedValueOnce(new Error('network down'));
@@ -322,7 +324,7 @@ describe('usePagedContent', () => {
     const fetcher = jest.fn();
     fetcher.mockResolvedValueOnce(pagedResponse([{ id: 1 }, { id: 2 }], 1, 2));
     fetcher.mockResolvedValueOnce(pagedResponse([{ id: 2 }, { id: 3 }], 2, 2));
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -335,7 +337,7 @@ describe('usePagedContent', () => {
     const fetcher = jest.fn();
     fetcher.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
     fetcher.mockResolvedValueOnce(pagedResponse(['ok'], 1, 1));
-    const { result } = renderHook(() => usePagedContent(fetcher));
+    const { result } = await renderHook(() => usePagedContent(fetcher));
     await waitFor(() => expect(result.current.error).toBe('The server had a problem. Try again shortly.'));
 
     await act(async () => {

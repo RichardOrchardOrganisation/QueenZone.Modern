@@ -59,7 +59,7 @@ const enqueueForumReplyMock = enqueueForumReply as jest.MockedFunction<typeof en
 const createForumTopicMock = createForumTopic as jest.MockedFunction<typeof createForumTopic>;
 const fetchForumCategoriesMock = fetchForumCategories as jest.MockedFunction<typeof fetchForumCategories>;
 
-function renderComposer(
+async function renderComposer(
   params: {
     threadId?: number;
     threadTitle?: string;
@@ -71,12 +71,12 @@ function renderComposer(
 ) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <ComposerScreen
         navigation={navigation as never}
         route={{ key: 'composer', name: 'Composer', params } as never}
       />,
-    ),
+    )),
   };
 }
 
@@ -120,14 +120,14 @@ describe('ComposerScreen', () => {
   });
 
   it('exposes a Maestro testID on the reply body, not only placeholder copy', async () => {
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByTestId(testIds.forumComposerBody)).toBeOnTheScreen());
     expect(screen.getByLabelText('Reply body')).toBeOnTheScreen();
     expect(screen.getByPlaceholderText('Write a reply')).toBeOnTheScreen();
   });
 
   it('publishes a reply and goes back', async () => {
-    const { navigation } = renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    const { navigation } = await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
 
     await waitFor(() => expect(screen.getByLabelText('Reply body')).toBeOnTheScreen());
     const user = userEvent.setup();
@@ -159,7 +159,7 @@ describe('ComposerScreen', () => {
       title: 'Fresh forum news',
       detailPath: '/forum/topic/2001/fresh-forum-news',
     });
-    const { navigation } = renderComposer();
+    const { navigation } = await renderComposer();
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Post to The Music' })).toBeOnTheScreen());
     const user = userEvent.setup();
@@ -176,7 +176,7 @@ describe('ComposerScreen', () => {
   });
 
   it('surfaces an empty-body validation error without calling the API', async () => {
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Post reply' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -188,16 +188,16 @@ describe('ComposerScreen', () => {
   });
 
   it('does not call the API when the topic is locked', async () => {
-    renderComposer({ threadId: 1002, threadTitle: 'Locked topic', isLocked: true });
+    await renderComposer({ threadId: 1002, threadTitle: 'Locked topic', isLocked: true });
     await waitFor(() => expect(screen.getByText('This topic is locked.')).toBeOnTheScreen());
     expect(screen.queryByRole('button', { name: 'Post reply' })).toBeNull();
     expect(createForumReplyMock).not.toHaveBeenCalled();
   });
 
-  it('hides attach controls when signed out', () => {
+  it('hides attach controls when signed out', async () => {
     mockSession.isSignedIn = false;
     mockSession.accessToken = null;
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.forumComposerAttachPhotos)).toBeNull();
     expect(screen.queryByTestId(testIds.forumComposerAttachFiles)).toBeNull();
@@ -206,7 +206,7 @@ describe('ComposerScreen', () => {
   });
 
   it('hides attach controls when the topic is locked', async () => {
-    renderComposer({ threadId: 1002, threadTitle: 'Locked topic', isLocked: true });
+    await renderComposer({ threadId: 1002, threadTitle: 'Locked topic', isLocked: true });
     await waitFor(() => expect(screen.getByText('This topic is locked.')).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.forumComposerAttachPhotos)).toBeNull();
     expect(screen.queryByTestId(testIds.forumComposerAttachFiles)).toBeNull();
@@ -214,7 +214,7 @@ describe('ComposerScreen', () => {
 
   it('asks for photo permission only when Photos is tapped', async () => {
     (ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock).mockResolvedValue({ granted: false });
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Photos' })).toBeOnTheScreen());
     expect(ImagePicker.requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
 
@@ -232,14 +232,14 @@ describe('ComposerScreen', () => {
     Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
     mockAppConfig.appEnv = 'development';
     try {
-      renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+      await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
       await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
 
-      fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
+      await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
       expect(DocumentPicker.getDocumentAsync).not.toHaveBeenCalled();
       expect(ImagePicker.requestMediaLibraryPermissionsAsync).not.toHaveBeenCalled();
       expect(ImagePicker.launchImageLibraryAsync).not.toHaveBeenCalled();
-      fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
+      await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
       await waitFor(() => expect(screen.getByTestId(testIds.forumComposerAttachment)).toBeOnTheScreen());
       expect(writeAsStringAsync).toHaveBeenCalledWith(
         'file:///cache/attach.txt',
@@ -253,16 +253,16 @@ describe('ComposerScreen', () => {
 
   it('uses a pending smoke attachment when Inject is pressed', async () => {
     mockAppConfig.appEnv = 'development';
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
 
-    fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
+    await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
     stashSmokeAttachAsset({
       uri: 'file:///tmp/pending.txt',
       name: 'pending.txt',
       mimeType: 'text/plain',
     });
-    fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
+    await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
 
     await waitFor(() => expect(screen.getByText('pending.txt')).toBeOnTheScreen());
     expect(writeAsStringAsync).not.toHaveBeenCalled();
@@ -274,11 +274,11 @@ describe('ComposerScreen', () => {
     mockAppConfig.appEnv = 'development';
     (writeAsStringAsync as jest.Mock).mockRejectedValue(new Error('cache unavailable'));
     try {
-      renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+      await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
       await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
 
-      fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
-      fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
+      await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
+      await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
 
       await waitFor(() => expect(screen.getByText('Could not open the file picker.')).toBeOnTheScreen());
       expect(screen.queryByTestId(testIds.forumComposerAttachment)).toBeNull();
@@ -292,11 +292,11 @@ describe('ComposerScreen', () => {
     Object.defineProperty(Platform, 'OS', { configurable: true, value: 'ios' });
     mockAppConfig.appEnv = 'development';
     try {
-      renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+      await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
       await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
 
-      fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
-      fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
+      await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachFiles));
+      await fireEvent.press(screen.getByTestId(testIds.forumComposerAttachInject));
 
       await waitFor(() => expect(screen.getByText('attach.txt')).toBeOnTheScreen());
       expect(writeAsStringAsync).not.toHaveBeenCalled();
@@ -312,7 +312,7 @@ describe('ComposerScreen', () => {
       name: 'attach.txt',
       mimeType: 'text/plain',
     });
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -324,7 +324,7 @@ describe('ComposerScreen', () => {
 
   it('does not ask for photo permission when Files is tapped', async () => {
     (DocumentPicker.getDocumentAsync as jest.Mock).mockResolvedValue({ canceled: true, assets: null });
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -352,7 +352,7 @@ describe('ComposerScreen', () => {
       detailPath: '/forum/topic/1002',
     });
 
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByLabelText('Reply body')).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Photos' }));
@@ -393,7 +393,7 @@ describe('ComposerScreen', () => {
       title: 'Fresh forum news',
       detailPath: '/forum/topic/2001/fresh-forum-news',
     });
-    renderComposer({ categoryId: 1, categoryName: 'The Music' });
+    await renderComposer({ categoryId: 1, categoryName: 'The Music' });
     await waitFor(() => expect(screen.getByLabelText('Topic body')).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Topic title'), 'Fresh forum news');
@@ -425,7 +425,7 @@ describe('ComposerScreen', () => {
       topicId: 1002,
       detailPath: '/forum/topic/1002',
     });
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByLabelText('Reply body')).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Files' }));
@@ -455,7 +455,7 @@ describe('ComposerScreen', () => {
     (ImagePicker.launchImageLibraryAsync as jest.Mock)
       .mockResolvedValueOnce({ canceled: true, assets: [] })
       .mockRejectedValueOnce(new Error('unavailable'));
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Photos' })).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Photos' }));
@@ -469,7 +469,7 @@ describe('ComposerScreen', () => {
       canceled: false,
       assets: [{ uri: '', name: 'notes.pdf', mimeType: 'application/pdf' }],
     });
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Files' }));
@@ -480,7 +480,7 @@ describe('ComposerScreen', () => {
 
   it('reports a file picker that cannot open', async () => {
     (DocumentPicker.getDocumentAsync as jest.Mock).mockRejectedValueOnce(new Error('unavailable'));
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Files' })).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Files' }));
@@ -495,7 +495,7 @@ describe('ComposerScreen', () => {
     createForumReplyMock.mockRejectedValueOnce(
       new ApiError(400, "'notes.exe' has a type that is not allowed (application/octet-stream)."),
     );
-    renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
     await waitFor(() => expect(screen.getByLabelText('Reply body')).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Reply body'), 'A reply from mobile');
@@ -508,7 +508,7 @@ describe('ComposerScreen', () => {
   });
 
   it('queues a text reply even when later sending may fail', async () => {
-    const { navigation } = renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
+    const { navigation } = await renderComposer({ threadId: 1002, threadTitle: 'Ranking every studio album' });
 
     await waitFor(() => expect(screen.getByLabelText('Reply body')).toBeOnTheScreen());
     const user = userEvent.setup();

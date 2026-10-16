@@ -16,11 +16,11 @@ jest.mock('@react-navigation/native-stack', () => {
 });
 
 describe('stack navigators', () => {
-  it('each stack reads the active scheme for screen options', () => {
+  it('each stack reads the active scheme for screen options', async () => {
     for (const Stack of [HomeStack, NewsStack, PhotosStack, ArchiveStack, ForumStack]) {
-      const rendered = renderWithProviders(<Stack />, { navigation: false });
+      const rendered = await renderWithProviders(<Stack />, { navigation: false });
       expect(rendered.getByTestId('stack-navigator')).toBeOnTheScreen();
-      rendered.unmount();
+      await rendered.unmount();
     }
   });
 });

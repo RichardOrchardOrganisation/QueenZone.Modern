@@ -35,13 +35,13 @@ const cases: [string, WidgetProps][] = [
 
 describe('iOS widget parity with canonical Android decisions', () => {
   afterEach(() => jest.useRealTimers());
-  it.each(cases)('%s across three consecutive four-hour slots', (_label, props) => {
+  it.each(cases)('%s across three consecutive four-hour slots', async (_label, props) => {
     jest.useFakeTimers();
     for (let slot = 0; slot < 3; slot += 1) {
       const now = slot * WIDGET_FACE_SLOT_MS;
       jest.setSystemTime(now);
       const face = widgetActiveFace(props, now);
-      const screen = render(<OnThisDayWidgetView {...props} />);
+      const screen = await render(<OnThisDayWidgetView {...props} />);
       expect(screen.getByLabelText(widgetFaceDeepLinkUrl(face, props.quoteId, props.eventId, props.triviaId))).toBeTruthy();
       expect(screen.getByText(face ? widgetEyebrow(face) : 'ON THIS DAY')).toBeTruthy();
       const lines = face === 'day' ? [widgetDayPrimary(props), widgetDaySecondary(props)]
@@ -51,7 +51,7 @@ describe('iOS widget parity with canonical Android decisions', () => {
       for (const hidden of ['ON THIS DAY', 'QUEEN QUOTES', 'QUEEN FACTS'].filter((eyebrow) => eyebrow !== (face ? widgetEyebrow(face) : 'ON THIS DAY'))) {
         expect(screen.queryByText(hidden)).toBeNull();
       }
-      screen.unmount();
+      await screen.unmount();
     }
   });
 });

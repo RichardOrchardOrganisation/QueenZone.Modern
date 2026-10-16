@@ -47,7 +47,7 @@ afterEach(() => { jest.useRealTimers(); });
 it('does not re-render cells when the play timer ticks', async () => {
   jest.useFakeTimers();
   const puzzle = crosswordFixture();
-  renderWithProviders(
+  await renderWithProviders(
     <CrosswordSolver puzzle={puzzle} memberId={null} accessToken={null} onReload={jest.fn()} onNext={jest.fn()} />,
     { navigation: false },
   );
@@ -64,6 +64,6 @@ it('does not re-render cells when the play timer ticks', async () => {
 
 it('keeps the screen timer test id after the play hook drops seconds', async () => {
   const navigation = fakeNavigation();
-  renderWithProviders(<CrosswordPlayScreen navigation={navigation as never} route={{ name: 'CrosswordPlay', params: { slug: 'meet-the-band' } } as never} />, { navigation: false });
+  await renderWithProviders(<CrosswordPlayScreen navigation={navigation as never} route={{ name: 'CrosswordPlay', params: { slug: 'meet-the-band' } } as never} />, { navigation: false });
   await waitFor(() => expect(screen.getByTestId('crossword-timer')).toBeOnTheScreen());
 });

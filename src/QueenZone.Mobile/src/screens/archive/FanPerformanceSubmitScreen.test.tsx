@@ -35,8 +35,8 @@ jest.mock('expo-document-picker', () => ({
 
 const submit = createFanPerformanceSubmission as jest.MockedFunction<typeof createFanPerformanceSubmission>;
 
-function renderSubmit() {
-  return renderWithProviders(
+async function renderSubmit() {
+  return await renderWithProviders(
     <FanPerformanceSubmitScreen
       navigation={fakeNavigation() as never}
       route={{ key: 'submit', name: 'FanPerformanceSubmit' } as never}
@@ -59,8 +59,8 @@ describe('FanPerformanceSubmitScreen', () => {
     (DocumentPicker.getDocumentAsync as jest.Mock).mockReset();
   });
 
-  it('gates unsigned visitors', () => {
-    renderSubmit();
+  it('gates unsigned visitors', async () => {
+    await renderSubmit();
     expect(screen.getByText('Submit a fan performance')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
   });
@@ -74,7 +74,7 @@ describe('FanPerformanceSubmitScreen', () => {
       assets: [{ uri: 'file://cover.mp3', name: 'cover.mp3', mimeType: 'audio/mpeg', size: 2048 }],
     });
 
-    renderSubmit();
+    await renderSubmit();
     await fillRequiredFields(user);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitPick));
     await waitFor(() => expect(screen.getByText('cover.mp3')).toBeOnTheScreen());
@@ -92,7 +92,7 @@ describe('FanPerformanceSubmitScreen', () => {
     mockSession.accessToken = 'tok';
     (DocumentPicker.getDocumentAsync as jest.Mock).mockResolvedValue({ canceled: true, assets: [] });
 
-    renderSubmit();
+    await renderSubmit();
     await fillRequiredFields(user);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitPick));
     await waitFor(() => expect(DocumentPicker.getDocumentAsync).toHaveBeenCalled());
@@ -105,7 +105,7 @@ describe('FanPerformanceSubmitScreen', () => {
     mockSession.accessToken = 'tok';
     (DocumentPicker.getDocumentAsync as jest.Mock).mockRejectedValue(new Error('denied'));
 
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByTestId(testIds.fanPerformanceSubmitPick)).toBeOnTheScreen());
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitPick));
     await waitFor(() => expect(screen.getByText('Could not open the file picker.')).toBeOnTheScreen());
@@ -126,11 +126,11 @@ describe('FanPerformanceSubmitScreen', () => {
       submittedAt: '2026-09-04T00:15:00.000Z',
     });
 
-    renderSubmit();
+    await renderSubmit();
     await fillRequiredFields(user);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitPick));
     await waitFor(() => expect(screen.getByText('cover.mp3')).toBeOnTheScreen());
-    fireEvent(screen.getByLabelText('Rights declaration'), 'valueChange', true);
+    await fireEvent(screen.getByLabelText('Rights declaration'), 'valueChange', true);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitSend));
 
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
@@ -160,11 +160,11 @@ describe('FanPerformanceSubmitScreen', () => {
     });
     submit.mockRejectedValue(ApiError.http(429, 'Quota exceeded.'));
 
-    renderSubmit();
+    await renderSubmit();
     await fillRequiredFields(user);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitPick));
     await waitFor(() => expect(screen.getByText('cover.mp3')).toBeOnTheScreen());
-    fireEvent(screen.getByLabelText('Rights declaration'), 'valueChange', true);
+    await fireEvent(screen.getByLabelText('Rights declaration'), 'valueChange', true);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitSend));
 
     await waitFor(() => expect(screen.getByText('Quota exceeded.')).toBeOnTheScreen());
@@ -180,11 +180,11 @@ describe('FanPerformanceSubmitScreen', () => {
       assets: [{ uri: 'file://cover.mp3', name: 'cover.mp3', mimeType: 'audio/mpeg', size: 2048 }],
     });
 
-    renderSubmit();
+    await renderSubmit();
     await fillRequiredFields(user);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitPick));
     await waitFor(() => expect(screen.getByText('cover.mp3')).toBeOnTheScreen());
-    fireEvent(screen.getByLabelText('Rights declaration'), 'valueChange', true);
+    await fireEvent(screen.getByLabelText('Rights declaration'), 'valueChange', true);
     await user.press(screen.getByTestId(testIds.fanPerformanceSubmitSend));
 
     await waitFor(() => expect(screen.getByText('Sign in to submit a fan performance.')).toBeOnTheScreen());

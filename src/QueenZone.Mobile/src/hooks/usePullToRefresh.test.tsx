@@ -5,7 +5,7 @@ import { usePullToRefresh } from './usePullToRefresh';
 describe('usePullToRefresh', () => {
   it('sets refreshing true while a deferred task is pending and false after settle', async () => {
     const pending = deferred<void>();
-    const { result } = renderHook(() => usePullToRefresh([() => pending.promise]));
+    const { result } = await renderHook(() => usePullToRefresh([() => pending.promise]));
 
     expect(result.current.refreshing).toBe(false);
     await act(async () => {
@@ -23,7 +23,7 @@ describe('usePullToRefresh', () => {
     const task = jest.fn();
     task.mockReturnValueOnce(first.promise);
     task.mockReturnValueOnce(second.promise);
-    const { result } = renderHook(() => usePullToRefresh([task]));
+    const { result } = await renderHook(() => usePullToRefresh([task]));
 
     await act(async () => {
       result.current.onRefresh();
@@ -44,7 +44,7 @@ describe('usePullToRefresh', () => {
   });
 
   it('clears the spinner when a task rejects', async () => {
-    const { result } = renderHook(() =>
+    const { result } = await renderHook(() =>
       usePullToRefresh([() => Promise.reject(new Error('section failed'))]),
     );
 
@@ -56,7 +56,7 @@ describe('usePullToRefresh', () => {
   });
 
   it('keeps refreshing true for a painted frame and min duration when the task resolves immediately', async () => {
-    const { result } = renderHook(() => usePullToRefresh([() => Promise.resolve()]));
+    const { result } = await renderHook(() => usePullToRefresh([() => Promise.resolve()]));
 
     await act(async () => {
       result.current.onRefresh();
@@ -75,13 +75,13 @@ describe('usePullToRefresh', () => {
   it('does not throw when unmounted during a refresh', async () => {
     const pending = deferred<void>();
     const task = jest.fn(() => pending.promise);
-    const { result, unmount } = renderHook(() => usePullToRefresh([task]));
+    const { result, unmount } = await renderHook(() => usePullToRefresh([task]));
 
     await act(async () => {
       result.current.onRefresh();
     });
     expect(result.current.refreshing).toBe(true);
-    unmount();
+    await unmount();
     pending.resolve();
     await expect(act(async () => {
       await pending.promise;

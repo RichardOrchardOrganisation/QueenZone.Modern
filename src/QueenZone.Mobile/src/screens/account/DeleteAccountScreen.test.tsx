@@ -1,3 +1,4 @@
+import { componentProps } from '../../test/renderer';
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
@@ -32,8 +33,8 @@ const deletionProfile = memberProfilePayload({
   },
 });
 
-function renderDeleteAccount() {
-  return renderWithProviders(<DeleteAccountScreen />);
+async function renderDeleteAccount() {
+  return await renderWithProviders(<DeleteAccountScreen />);
 }
 
 describe('DeleteAccountScreen', () => {
@@ -51,7 +52,7 @@ describe('DeleteAccountScreen', () => {
   });
 
   it('does not POST when the confirmation phrase is wrong', async () => {
-    renderDeleteAccount();
+    await renderDeleteAccount();
     await waitFor(() => expect(screen.getByLabelText('Type DELETE to confirm')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -68,13 +69,13 @@ describe('DeleteAccountScreen', () => {
   it('keeps the confirmation field visible when the keyboard opens', async () => {
     const scrollToEnd = jest.spyOn(ScrollView.prototype, 'scrollToEnd').mockImplementation(() => {});
     const addKeyboardListener = jest.spyOn(Keyboard, 'addListener');
-    renderDeleteAccount();
+    await renderDeleteAccount();
     const confirmation = await screen.findByLabelText('Type DELETE to confirm');
 
-    expect(screen.UNSAFE_getByType(KeyboardAvoidingView).props.behavior).toBe(
+    expect(componentProps(KeyboardAvoidingView).props.behavior).toBe(
       Platform.OS === 'ios' ? 'padding' : undefined,
     );
-    fireEvent(confirmation, 'focus');
+    await fireEvent(confirmation, 'focus');
     expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
 
     scrollToEnd.mockClear();
@@ -83,7 +84,7 @@ describe('DeleteAccountScreen', () => {
     expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
 
     scrollToEnd.mockClear();
-    fireEvent(confirmation, 'blur');
+    await fireEvent(confirmation, 'blur');
     keyboardShown?.({} as never);
     expect(scrollToEnd).not.toHaveBeenCalled();
   });
@@ -96,7 +97,7 @@ describe('DeleteAccountScreen', () => {
       message: 'You have been signed out.',
       statusReceipt: 'opaque-test-receipt',
     });
-    renderDeleteAccount();
+    await renderDeleteAccount();
     await waitFor(() => expect(screen.getByLabelText('Type DELETE to confirm')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -127,7 +128,7 @@ describe('DeleteAccountScreen', () => {
       }),
     );
     sendJsonMock.mockResolvedValueOnce(deletionProfile);
-    renderDeleteAccount();
+    await renderDeleteAccount();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel account deletion' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -142,7 +143,7 @@ describe('DeleteAccountScreen', () => {
 
   it('shows an API error when deletion fails', async () => {
     sendJsonMock.mockRejectedValueOnce(new ApiError(500, 'The server had a problem.'));
-    renderDeleteAccount();
+    await renderDeleteAccount();
     await waitFor(() => expect(screen.getByLabelText('Type DELETE to confirm')).toBeOnTheScreen());
 
     const user = userEvent.setup();

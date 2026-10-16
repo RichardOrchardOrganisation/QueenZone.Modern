@@ -1,7 +1,7 @@
+import { getHostByType } from '../../test/renderer';
 import { useNavigation } from '@react-navigation/native';
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { RefreshControl } from 'react-native';
 import { fetchSearchPage } from '../../api';
 import { ApiError } from '../../api/client';
 import type { SearchResult } from '../../api/types';
@@ -50,10 +50,10 @@ function resultFixture(overrides: Partial<SearchResult> = {}): SearchResult {
   };
 }
 
-function renderSearch(onOpen = jest.fn()) {
+async function renderSearch(onOpen = jest.fn()) {
   return {
     onOpen,
-    ...renderWithProviders(<SearchScreen onOpen={onOpen} />, { navigation: false }),
+    ...(await renderWithProviders(<SearchScreen onOpen={onOpen} />, { navigation: false })),
   };
 }
 
@@ -71,7 +71,7 @@ describe('SearchScreen', () => {
   });
 
   it('shows suggested query presets and does not search one character', async () => {
-    renderSearch();
+    await renderSearch();
     expect(screen.getByRole('button', { name: 'Search for Bohemian Rhapsody' })).toBeOnTheScreen();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'a');
@@ -80,8 +80,8 @@ describe('SearchScreen', () => {
 
   it('commits the native field on submit so search starts without waiting for debounce', async () => {
     fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
-    renderSearch();
-    fireEvent(screen.getByLabelText('Search the archive'), 'submitEditing', {
+    await renderSearch();
+    await fireEvent(screen.getByLabelText('Search the archive'), 'submitEditing', {
       nativeEvent: { text: '  modernisation  ' },
     });
     await waitFor(() =>
@@ -96,7 +96,7 @@ describe('SearchScreen', () => {
   it('loads live results and opens a news story by numeric id', async () => {
     const pending = deferred<ReturnType<typeof pagedResponse<SearchResult>>>();
     fetchSearch.mockReturnValueOnce(pending.promise);
-    const { onOpen } = renderSearch();
+    const { onOpen } = await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'modernisation');
     await waitFor(() => expect(screen.getByLabelText('Searching the archive…')).toBeOnTheScreen());
@@ -131,7 +131,7 @@ describe('SearchScreen', () => {
         1,
       ),
     );
-    const { onOpen } = renderSearch();
+    const { onOpen } = await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'studio album');
     await waitFor(() =>
@@ -159,7 +159,7 @@ describe('SearchScreen', () => {
         1,
       ),
     );
-    const { onOpen } = renderSearch();
+    const { onOpen } = await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'modernisation');
     await waitFor(() =>
@@ -177,7 +177,7 @@ describe('SearchScreen', () => {
 
   it('shows empty copy when the index has no matches', async () => {
     fetchSearch.mockResolvedValue(pagedResponse([], 1, 0));
-    renderSearch();
+    await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'xyzzy unmatched');
     await waitFor(() =>
@@ -189,7 +189,7 @@ describe('SearchScreen', () => {
     fetchSearch
       .mockRejectedValueOnce(new ApiError(0, 'Unable to reach QueenZone. Check your connection and try again.'))
       .mockResolvedValueOnce(pagedResponse([resultFixture()], 1, 1));
-    renderSearch();
+    await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'modernisation');
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
@@ -209,13 +209,13 @@ describe('SearchScreen', () => {
           2,
         ),
       );
-    renderSearch();
+    await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'modernisation');
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'QueenZone modernisation begins. News' })).toBeOnTheScreen(),
     );
-    fireEvent(screen.getByTestId('search-results'), 'onEndReached');
+    await fireEvent(screen.getByTestId('search-results'), 'onEndReached');
     await waitFor(() =>
       expect(fetchSearch).toHaveBeenCalledWith(expect.objectContaining({ q: 'modernisation', page: 2 })),
     );
@@ -226,7 +226,7 @@ describe('SearchScreen', () => {
 
   it('narrows the live query when a type chip is pressed', async () => {
     fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
-    renderSearch();
+    await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'archive');
     await waitFor(() => expect(screen.getByText('News')).toBeOnTheScreen());
@@ -239,7 +239,7 @@ describe('SearchScreen', () => {
 
   it('pull-to-refresh reloads the current search page', async () => {
     fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
-    renderSearch();
+    await renderSearch();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'modernisation');
     await waitFor(() =>
@@ -247,7 +247,7 @@ describe('SearchScreen', () => {
     );
     const callsAfterLoad = fetchSearch.mock.calls.length;
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
     await waitFor(() => expect(fetchSearch.mock.calls.length).toBeGreaterThan(callsAfterLoad));
     expect(fetchSearch).toHaveBeenLastCalledWith(
@@ -268,7 +268,7 @@ describe('SearchRouteScreen', () => {
 
   it('runs a Siri-provided search term without requiring keyboard input', async () => {
     fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
-    renderWithProviders(
+    await renderWithProviders(
       <SearchRouteScreen route={{ key: 'siri-search', name: 'Search', params: { query: 'Queen II' } }} />,
       { navigation: false },
     );
@@ -277,7 +277,7 @@ describe('SearchRouteScreen', () => {
 
   it('navigates news hits through the tab parent', async () => {
     fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
-    renderWithProviders(<SearchRouteScreen />, { navigation: false });
+    await renderWithProviders(<SearchRouteScreen />, { navigation: false });
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'modernisation');
     await waitFor(() =>
@@ -309,7 +309,7 @@ describe('SearchRouteScreen', () => {
         1,
       ),
     );
-    renderWithProviders(<SearchRouteScreen />, { navigation: false });
+    await renderWithProviders(<SearchRouteScreen />, { navigation: false });
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'community');
     await waitFor(() =>
@@ -325,7 +325,7 @@ describe('SearchRouteScreen', () => {
     const openBrowser = WebBrowser.openBrowserAsync as jest.MockedFunction<typeof WebBrowser.openBrowserAsync>;
     openBrowser.mockClear();
     fetchSearch.mockResolvedValue(pagedResponse([resultFixture()], 1, 1));
-    renderWithProviders(<SearchRouteScreen />, { navigation: false });
+    await renderWithProviders(<SearchRouteScreen />, { navigation: false });
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Search the archive'), 'modernisation');
     await waitFor(() =>

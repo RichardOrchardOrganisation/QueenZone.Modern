@@ -53,15 +53,15 @@ function topicFixture(overrides: Partial<ForumTopicListItem> = {}): ForumTopicLi
   };
 }
 
-function renderCategory(navigation = fakeNavigation()) {
+async function renderCategory(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <CategoryScreen
         navigation={navigation as never}
         route={{ key: 'category', name: 'Category', params: { id: 1, name: 'General' } } as never}
       />,
-    ),
+    )),
   };
 }
 
@@ -81,7 +81,7 @@ describe('CategoryScreen', () => {
     fetchCategory.mockResolvedValue(categoryFixture());
     fetchTopics.mockResolvedValue(pagedResponse([topicFixture()]));
 
-    const { navigation } = renderCategory();
+    const { navigation } = await renderCategory();
     await waitFor(() => expect(screen.getByTestId(testIds.forumCategoryScreen)).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Open thread Ranking every studio album' })).toBeOnTheScreen();
     expect(fetchCategory).toHaveBeenCalledWith(1, expect.any(AbortSignal));
@@ -104,7 +104,7 @@ describe('CategoryScreen', () => {
       .mockRejectedValueOnce(new ApiError(500, 'The server had a problem.'))
       .mockResolvedValueOnce(pagedResponse([topicFixture()]));
 
-    renderCategory();
+    await renderCategory();
     await waitFor(() => expect(screen.getByText('The server had a problem.')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -119,7 +119,7 @@ describe('CategoryScreen', () => {
     fetchCategory.mockResolvedValue(categoryFixture());
     fetchTopics.mockResolvedValue(pagedResponse([], 1, 0));
 
-    renderCategory();
+    await renderCategory();
     await waitFor(() =>
       expect(screen.getByText('No topics are available in this board yet.')).toBeOnTheScreen(),
     );

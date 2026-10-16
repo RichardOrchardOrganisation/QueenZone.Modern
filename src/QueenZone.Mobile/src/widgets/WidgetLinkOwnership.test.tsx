@@ -44,13 +44,13 @@ for (const platform of ['ios', 'android'] as const) {
 
     it.each(destinations)('opens one cold destination for %s', async (url, destination) => {
       getInitialURL.mockResolvedValue(url);
-      renderWithProviders(<><WidgetLinkBridge /><SiriLinkBridge /></>);
+      await renderWithProviders(<><WidgetLinkBridge /><SiriLinkBridge /></>);
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
       expect(mockNavigate).toHaveBeenCalledWith('Tabs', destination);
     });
 
     it.each(destinations)('opens one destination for each repeated warm %s tap', async (url, destination) => {
-      renderWithProviders(<><WidgetLinkBridge /><SiriLinkBridge /></>);
+      await renderWithProviders(<><WidgetLinkBridge /><SiriLinkBridge /></>);
       await waitFor(() => expect(mockHandlers).toHaveLength(platform === 'ios' ? 2 : 1));
       await act(async () => {
         for (let tap = 0; tap < 2; tap++) mockHandlers.forEach(handler => handler({ url }));
@@ -62,7 +62,7 @@ for (const platform of ['ios', 'android'] as const) {
     it('keeps the latest warm event when a cold URL resolves later', async () => {
       let resolveInitial: (url: string) => void = () => {};
       getInitialURL.mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
-      renderWithProviders(<><WidgetLinkBridge /><SiriLinkBridge /></>);
+      await renderWithProviders(<><WidgetLinkBridge /><SiriLinkBridge /></>);
       await act(async () => {
         mockHandlers.forEach(handler => handler({ url: 'queenzone://timeline/6' }));
         resolveInitial('queenzone://timeline/5');

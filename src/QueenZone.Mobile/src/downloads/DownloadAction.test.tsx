@@ -40,14 +40,14 @@ describe('DownloadAction', () => {
     setDownloadManifestStorageForTests(null);
   });
 
-  it('shows Download when idle, signed in or signed out', () => {
-    const signedIn = renderWithProviders(<DownloadAction track={track} />, { navigation: false });
+  it('shows Download when idle, signed in or signed out', async () => {
+    const signedIn = await renderWithProviders(<DownloadAction track={track} />, { navigation: false });
     expect(screen.getByText('Download')).toBeOnTheScreen();
-    signedIn.unmount();
+    await signedIn.unmount();
 
     mockSession.accessToken = null;
     mockSession.isSignedIn = false;
-    renderWithProviders(<DownloadAction track={track} />, { navigation: false });
+    await renderWithProviders(<DownloadAction track={track} />, { navigation: false });
     expect(screen.getByText('Download')).toBeOnTheScreen();
   });
 
@@ -65,7 +65,7 @@ describe('DownloadAction', () => {
     });
     setDownloadFileHostForTests(host);
 
-    renderWithProviders(<DownloadAction track={track} />, { navigation: false });
+    await renderWithProviders(<DownloadAction track={track} />, { navigation: false });
     const user = userEvent.setup();
     const button = () => screen.getByTestId(`${testIds.fanPerformanceDownloadPrefix}${track.id}`);
     await user.press(button());
@@ -88,7 +88,7 @@ describe('DownloadAction', () => {
         error: 'Could not download this recording. Try again.',
       }),
     );
-    renderWithProviders(<DownloadAction track={track} />, { navigation: false });
+    await renderWithProviders(<DownloadAction track={track} />, { navigation: false });
     expect(
       screen.getByLabelText(
         `Download failed for ${track.title}: Could not download this recording. Try again. Double tap to retry`,
@@ -97,7 +97,7 @@ describe('DownloadAction', () => {
     expect(screen.getByText('Could not download this recording. Try again.')).toBeOnTheScreen();
   });
 
-  it('shows the full rate-limit error in compact controls', () => {
+  it('shows the full rate-limit error in compact controls', async () => {
     setDownloadUiSnapshot(
       'member-1',
       transientSnapshot(String(track.id), 'failed', {
@@ -106,13 +106,13 @@ describe('DownloadAction', () => {
         error: DOWNLOAD_RATE_LIMITED_MESSAGE,
       }),
     );
-    renderWithProviders(<DownloadAction track={track} compact />, { navigation: false });
+    await renderWithProviders(<DownloadAction track={track} compact />, { navigation: false });
     expect(screen.getByText(DOWNLOAD_RATE_LIMITED_MESSAGE)).toBeOnTheScreen();
     expect(DOWNLOAD_RATE_LIMITED_MESSAGE).toContain('5 minutes');
     expect(DOWNLOAD_RATE_LIMITED_MESSAGE.toLowerCase()).not.toContain('wait a minute');
   });
 
-  it('shows in-situ percent while downloading', () => {
+  it('shows in-situ percent while downloading', async () => {
     setDownloadUiSnapshot(
       'member-1',
       transientSnapshot(String(track.id), 'downloading', {
@@ -122,7 +122,7 @@ describe('DownloadAction', () => {
         expectedBytes: 1024,
       }),
     );
-    renderWithProviders(<DownloadAction track={track} compact />, { navigation: false });
+    await renderWithProviders(<DownloadAction track={track} compact />, { navigation: false });
     expect(screen.getByText('25%')).toBeOnTheScreen();
     expect(screen.getByLabelText(`Downloading ${track.title}, 25%`)).toBeOnTheScreen();
   });

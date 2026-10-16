@@ -28,9 +28,9 @@ describe('MemberGate', () => {
     mockDispatch.mockReset();
   });
 
-  it('renders nothing while session restore is in flight', () => {
+  it('renders nothing while session restore is in flight', async () => {
     mockSession.isRestoring = true;
-    renderWithProviders(
+    await renderWithProviders(
       <MemberGate title="Messages">
         <Text>inbox</Text>
       </MemberGate>,
@@ -42,7 +42,7 @@ describe('MemberGate', () => {
 
   it('shows a sign-in gate and opens the root SignIn modal', async () => {
     const user = userEvent.setup();
-    renderWithProviders(
+    await renderWithProviders(
       <MemberGate title="Messages">
         <Text>inbox</Text>
       </MemberGate>,
@@ -60,9 +60,9 @@ describe('MemberGate', () => {
     );
   });
 
-  it('renders children when signed in', () => {
+  it('renders children when signed in', async () => {
     mockSession.isSignedIn = true;
-    renderWithProviders(
+    await renderWithProviders(
       <MemberGate title="Messages">
         <Text>inbox</Text>
       </MemberGate>,
@@ -72,10 +72,10 @@ describe('MemberGate', () => {
     expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
   });
 
-  it('renders children when a stored session is signed in even if restore is flagged', () => {
+  it('renders children when a stored session is signed in even if restore is flagged', async () => {
     mockSession.isSignedIn = true;
     mockSession.isRestoring = true;
-    renderWithProviders(
+    await renderWithProviders(
       <MemberGate title="Messages">
         <Text>inbox</Text>
       </MemberGate>,

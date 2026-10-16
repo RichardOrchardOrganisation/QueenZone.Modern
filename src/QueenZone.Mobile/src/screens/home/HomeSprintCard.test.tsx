@@ -23,7 +23,7 @@ describe('HomeSprintCard', () => {
     });
     const onPlay = jest.fn();
     const user = userEvent.setup();
-    renderWithProviders(<HomeSprintCard onPlay={onPlay} />, { navigation: false });
+    await renderWithProviders(<HomeSprintCard onPlay={onPlay} />, { navigation: false });
 
     await waitFor(() => expect(screen.getByText(/Beat 27 to top today's board/)).toBeOnTheScreen());
     expect(screen.getByText('Quiz Sprint')).toBeOnTheScreen();
@@ -33,7 +33,7 @@ describe('HomeSprintCard', () => {
 
   it('still renders when today has no scores or the board fails to load', async () => {
     daily.mockRejectedValue(new Error('offline'));
-    renderWithProviders(<HomeSprintCard onPlay={jest.fn()} />, { navigation: false });
+    await renderWithProviders(<HomeSprintCard onPlay={jest.fn()} />, { navigation: false });
 
     expect(screen.getByText(/Be first on today's board/)).toBeOnTheScreen();
     await waitFor(() => expect(daily).toHaveBeenCalled());
@@ -47,9 +47,9 @@ describe('HomeSprintCard', () => {
 
   it.each(['light', 'dark'] as const)(
     'keeps the black / gold / white stage card in %s mode',
-    (preference) => {
+    async (preference) => {
       daily.mockRejectedValue(new Error('offline'));
-      renderWithProviders(<HomeSprintCard onPlay={jest.fn()} />, {
+      await renderWithProviders(<HomeSprintCard onPlay={jest.fn()} />, {
         navigation: false,
         themePreference: preference,
       });

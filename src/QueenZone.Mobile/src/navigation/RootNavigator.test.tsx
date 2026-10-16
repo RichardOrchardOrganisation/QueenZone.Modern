@@ -50,8 +50,8 @@ jest.mock('./stacks', () => {
 });
 
 describe('RootNavigator', () => {
-  it('shows the five public tabs and keeps home/forum Maestro testIDs after commonScreens', () => {
-    renderWithProviders(<RootNavigator />);
+  it('shows the five public tabs and keeps home/forum Maestro testIDs after commonScreens', async () => {
+    await renderWithProviders(<RootNavigator />);
     for (const name of ['Home', 'News', 'Photography', 'Archive', 'Forum']) {
       expect(screen.getByLabelText(name)).toBeOnTheScreen();
     }
@@ -61,41 +61,41 @@ describe('RootNavigator', () => {
     expect(screen.getByText('Home stack')).toBeOnTheScreen();
   });
 
-  it('pressing Archive after a widget day-face tap lands on ArchiveHub, not leftover Timeline', () => {
+  it('pressing Archive after a widget day-face tap lands on ArchiveHub, not leftover Timeline', async () => {
     const ref = createNavigationContainerRef();
-    renderWithProviders(
+    await renderWithProviders(
       <NavigationContainer ref={ref}>
         <ArchiveTabRaceTabs />
       </NavigationContainer>,
       { navigation: false },
     );
 
-    fireEvent.press(screen.getByRole('button', { name: 'Open widget event' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Open widget event' }));
     expect(ref.getCurrentRoute()?.name).toBe('TimelineEvent');
 
-    fireEvent.press(screen.getByLabelText('Home'));
+    await fireEvent.press(screen.getByLabelText('Home'));
     expect(ref.getCurrentRoute()?.name).toBe('HomeTab');
 
-    fireEvent.press(screen.getByLabelText('Archive'));
+    await fireEvent.press(screen.getByLabelText('Archive'));
     expect(ref.getCurrentRoute()?.name).toBe('ArchiveHub');
   });
 
-  it('pressing Archive after Home View timeline lands on ArchiveHub, not leftover Timeline', () => {
+  it('pressing Archive after Home View timeline lands on ArchiveHub, not leftover Timeline', async () => {
     const ref = createNavigationContainerRef();
-    renderWithProviders(
+    await renderWithProviders(
       <NavigationContainer ref={ref}>
         <ArchiveTabRaceTabs />
       </NavigationContainer>,
       { navigation: false },
     );
 
-    fireEvent.press(screen.getByRole('button', { name: 'View timeline' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'View timeline' }));
     expect(ref.getCurrentRoute()?.name).toBe('Timeline');
 
-    fireEvent.press(screen.getByLabelText('Home'));
+    await fireEvent.press(screen.getByLabelText('Home'));
     expect(ref.getCurrentRoute()?.name).toBe('HomeTab');
 
-    fireEvent.press(screen.getByLabelText('Archive'));
+    await fireEvent.press(screen.getByLabelText('Archive'));
     expect(ref.getCurrentRoute()?.name).toBe('ArchiveHub');
   });
 
@@ -123,22 +123,22 @@ describe('RootNavigator', () => {
     expect(preventDefault).not.toHaveBeenCalled();
   });
 
-  it('pressing Forum after a leftover Category lands on ForumIndex', () => {
+  it('pressing Forum after a leftover Category lands on ForumIndex', async () => {
     const ref = createNavigationContainerRef();
-    renderWithProviders(
+    await renderWithProviders(
       <NavigationContainer ref={ref}>
         <ForumTabRaceTabs />
       </NavigationContainer>,
       { navigation: false },
     );
 
-    fireEvent.press(screen.getByRole('button', { name: 'Open category' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Open category' }));
     expect(ref.getCurrentRoute()?.name).toBe('Category');
 
-    fireEvent.press(screen.getByLabelText('Home'));
+    await fireEvent.press(screen.getByLabelText('Home'));
     expect(ref.getCurrentRoute()?.name).toBe('HomeTab');
 
-    fireEvent.press(screen.getByLabelText('Forum'));
+    await fireEvent.press(screen.getByLabelText('Forum'));
     expect(ref.getCurrentRoute()?.name).toBe('ForumIndex');
   });
 });

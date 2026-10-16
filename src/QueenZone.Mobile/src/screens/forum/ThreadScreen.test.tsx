@@ -1,6 +1,7 @@
+import { getHostByType } from '../../test/renderer';
 import type { ReactNode } from 'react';
-import { Alert, RefreshControl } from 'react-native';
-import { fireEvent, screen, userEvent, waitFor, within } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import { act, fireEvent, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import {
   fetchForumTopic,
   fetchForumPostModerationState,
@@ -137,10 +138,10 @@ const saveImageAttachment = saveForumAttachmentImage as jest.MockedFunction<
 const blockPostAuthor = blockForumPostAuthor as jest.MockedFunction<typeof blockForumPostAuthor>;
 const unblockPostAuthor = unblockForumPostAuthor as jest.MockedFunction<typeof unblockForumPostAuthor>;
 
-function renderThread(navigation = fakeNavigation()) {
+async function renderThread(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <ThreadScreen
         navigation={navigation as never}
         route={
@@ -152,7 +153,7 @@ function renderThread(navigation = fakeNavigation()) {
         }
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -177,7 +178,7 @@ describe('ThreadScreen watch control', () => {
   });
 
   it('asks signed-out members to sign in to watch', async () => {
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByTestId(testIds.forumThreadWatch)).toBeTruthy(), {
       timeout: 5_000,
     });
@@ -188,22 +189,22 @@ describe('ThreadScreen watch control', () => {
   it('watches and unwatches a topic for a signed-in member', async () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
-    renderThread();
+    await renderThread();
 
     await waitFor(() => expect(fetchWatch).toHaveBeenCalledWith(1002, 'tok', expect.any(AbortSignal)));
     const watchButton = await screen.findByLabelText('Watch topic');
-    fireEvent.press(watchButton);
+    await fireEvent.press(watchButton);
 
     await waitFor(() => expect(watchTopic).toHaveBeenCalledWith(1002, 'tok'));
     await screen.findByLabelText('Unwatch');
-    fireEvent.press(screen.getByLabelText('Unwatch'));
+    await fireEvent.press(screen.getByLabelText('Unwatch'));
     await waitFor(() => expect(unwatchTopic).toHaveBeenCalledWith(1002, 'tok'));
   });
 
   it('shows a topic error and retries', async () => {
     fetchTopicResult.mockRejectedValueOnce(new ApiError(500, 'The server had a problem.'));
     fetchTopicResult.mockResolvedValueOnce(asNetwork(defaultTopic));
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('The server had a problem.')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -214,7 +215,7 @@ describe('ThreadScreen watch control', () => {
 
   it('hides Reply when the topic is locked', async () => {
     mockNetworkTopic({ ...defaultTopic, isLocked: true });
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('This topic is locked.')).toBeOnTheScreen());
     expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Sign in to reply' })).toBeNull();
@@ -223,7 +224,7 @@ describe('ThreadScreen watch control', () => {
   it('opens the composer from the Reply CTA', async () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
-    const { navigation } = renderThread();
+    const { navigation } = await renderThread();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Reply' })).toBeOnTheScreen());
     expect(screen.getByTestId(testIds.forumThreadReply)).toBeOnTheScreen();
 
@@ -288,7 +289,7 @@ describe('ThreadScreen watch control', () => {
       })),
     });
     votePoll.mockResolvedValue(openPoll);
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('Best studio album?')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -316,11 +317,11 @@ describe('ThreadScreen header back control', () => {
   it('pops the forum stack when back has somewhere to go', async () => {
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(true);
-    renderThread(navigation);
+    await renderThread(navigation);
     await waitFor(() => expect(screen.getByTestId(testIds.forumThreadScreen)).toBeOnTheScreen());
 
     const user = userEvent.setup();
-    renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
+    await renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
     await user.press(screen.getByTestId(testIds.forumThreadBack));
     expect(navigation.goBack).toHaveBeenCalledTimes(1);
     expect(navigation.navigate).not.toHaveBeenCalled();
@@ -329,11 +330,11 @@ describe('ThreadScreen header back control', () => {
   it('falls back to ForumIndex when the stack has no history', async () => {
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(false);
-    renderThread(navigation);
+    await renderThread(navigation);
     await waitFor(() => expect(screen.getByTestId(testIds.forumThreadScreen)).toBeOnTheScreen());
 
     const user = userEvent.setup();
-    renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
+    await renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
     await user.press(screen.getByTestId(testIds.forumThreadBack));
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(navigation.navigate).toHaveBeenCalledWith('ForumIndex');
@@ -408,7 +409,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('anoto-setlist-scan.jpg')).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.forumThreadAttachmentViewer)).toBeNull();
     expect(openImage).not.toHaveBeenCalled();
@@ -458,7 +459,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('tour-poster.jpg')).toBeOnTheScreen());
     const preview = screen.getByLabelText('tour-poster.jpg');
     expect(preview.props.source.uri).toContain('/ugc/forum/tour-poster-thumb.webp');
@@ -512,7 +513,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('tour-poster.jpg')).toBeOnTheScreen());
     expect(screen.queryByLabelText('tour-poster.jpg')).toBeNull();
 
@@ -558,7 +559,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('anoto-setlist-scan.jpg')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -592,7 +593,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('anoto-setlist-scan.jpg')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -626,7 +627,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('anoto-setlist-scan.jpg')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -658,7 +659,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('opera-side-two-notes.pdf')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -698,7 +699,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('brighton-rock-solo.mp3')).toBeOnTheScreen());
     expect(screen.queryByLabelText('brighton-rock-solo.mp3')).toBeNull();
 
@@ -753,7 +754,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('brighton-rock-solo.mp3')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -785,7 +786,7 @@ describe('ThreadScreen attachments', () => {
         1,
       ),
     );
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('anoto-setlist-scan.jpg')).toBeOnTheScreen());
     expect(screen.getByText('opera-side-two-notes.pdf')).toBeOnTheScreen();
     expect(screen.getAllByText(/Members only/).length).toBe(2);
@@ -840,7 +841,7 @@ describe('ThreadScreen offline snapshot', () => {
   });
 
   it('shows the cached thread with an offline banner and disables reply, watch, poll, and attach', async () => {
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
     expect(screen.getByTestId(testIds.offlineBanner)).toBeOnTheScreen();
     expect(screen.getByLabelText(/Offline · last updated/)).toBeOnTheScreen();
@@ -853,12 +854,12 @@ describe('ThreadScreen offline snapshot', () => {
   });
 
   it('keeps the cached snapshot when pull-to-refresh fails offline', async () => {
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
 
     fetchTopicResult.mockRejectedValueOnce(ApiError.offline());
     fetchPostsResult.mockRejectedValueOnce(ApiError.offline());
-    fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+    await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
 
     await waitFor(() => expect(fetchTopicResult).toHaveBeenCalledTimes(2));
     expect(screen.getByText('brightonrock')).toBeOnTheScreen();
@@ -884,7 +885,7 @@ describe('ThreadScreen offline snapshot', () => {
       },
     ]);
 
-    renderThread();
+    await renderThread();
     await waitFor(() => expect(screen.getByText('Hello from cache')).toBeOnTheScreen());
     expect(screen.getByText('Queued forum reply')).toBeOnTheScreen();
     expect(screen.getByTestId(testIds.pendingForumPost)).toBeOnTheScreen();
@@ -919,11 +920,11 @@ describe('ThreadScreen forum moderation', () => {
 
   it('opens the report screen from the accessible post overflow menu', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    const { navigation } = renderThread();
+    const { navigation } = await renderThread();
 
     await waitFor(() => expect(screen.getByLabelText("Actions for Reported author's post")).toBeOnTheScreen());
-    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
-    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Report post')?.onPress?.();
+    await fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    await act(() => { alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Report post')?.onPress?.() });
 
     expect(navigation.navigate).toHaveBeenCalledWith('ForumReport', {
       postId: 42,
@@ -935,12 +936,12 @@ describe('ThreadScreen forum moderation', () => {
 
   it('confirms blocking and collapses the author immediately', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    renderThread();
+    await renderThread();
 
     await waitFor(() => expect(screen.getByLabelText("Actions for Reported author's post")).toBeOnTheScreen());
-    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
-    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Block member')?.onPress?.();
-    alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Block')?.onPress?.();
+    await fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    await act(() => { alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Block member')?.onPress?.() });
+    await act(() => { alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Block')?.onPress?.() });
 
     await waitFor(() => expect(blockPostAuthor).toHaveBeenCalledWith('tok', 42));
     expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen();
@@ -950,13 +951,13 @@ describe('ThreadScreen forum moderation', () => {
   it('offers Unblock member when the author is blocked and un-collapses posts', async () => {
     fetchModerationState.mockResolvedValue({ reportedPostIds: [], blockedMemberIds: ['author-1'] });
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    renderThread();
+    await renderThread();
 
     await waitFor(() => expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen());
-    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    await fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
     expect(alert.mock.calls[0]?.[2]?.some((action) => action.text === 'Block member')).toBe(false);
-    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Unblock member')?.onPress?.();
-    alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Unblock')?.onPress?.();
+    await act(() => { alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Unblock member')?.onPress?.() });
+    await act(() => { alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Unblock')?.onPress?.() });
 
     await waitFor(() => expect(unblockPostAuthor).toHaveBeenCalledWith('tok', 42));
     expect(screen.queryByLabelText('Show post from blocked member')).toBeNull();
@@ -968,12 +969,12 @@ describe('ThreadScreen forum moderation', () => {
     fetchModerationState.mockResolvedValue({ reportedPostIds: [], blockedMemberIds: ['author-1'] });
     unblockPostAuthor.mockRejectedValue(new ApiError(500, 'offline'));
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    renderThread();
+    await renderThread();
 
     await waitFor(() => expect(screen.getByLabelText('Show post from blocked member')).toBeOnTheScreen());
-    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
-    alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Unblock member')?.onPress?.();
-    alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Unblock')?.onPress?.();
+    await fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    await act(() => { alert.mock.calls[0]?.[2]?.find((action) => action.text === 'Unblock member')?.onPress?.() });
+    await act(() => { alert.mock.calls[1]?.[2]?.find((action) => action.text === 'Unblock')?.onPress?.() });
 
     await waitFor(() => expect(unblockPostAuthor).toHaveBeenCalledWith('tok', 42));
     await waitFor(() =>
@@ -985,10 +986,10 @@ describe('ThreadScreen forum moderation', () => {
   it('shows existing report state and prevents another submission', async () => {
     fetchModerationState.mockResolvedValue({ reportedPostIds: [42], blockedMemberIds: [] });
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    renderThread();
+    await renderThread();
 
     await waitFor(() => expect(screen.getByText('Report submitted')).toBeOnTheScreen());
-    fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
+    await fireEvent.press(screen.getByLabelText("Actions for Reported author's post"));
     expect(alert.mock.calls[0]?.[2]?.some((action) => action.text === 'Report post')).toBe(false);
   });
 
@@ -996,12 +997,12 @@ describe('ThreadScreen forum moderation', () => {
     fetchModerationState
       .mockRejectedValueOnce(new ApiError(500, 'Moderation unavailable'))
       .mockResolvedValueOnce({ reportedPostIds: [42], blockedMemberIds: [] });
-    renderThread();
+    await renderThread();
 
     await waitFor(() =>
       expect(screen.getByText('Could not load report and block status. Try again.')).toBeOnTheScreen(),
     );
-    fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(fetchModerationState).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByText('Report submitted')).toBeOnTheScreen());
     expect(screen.queryByText('Could not load report and block status. Try again.')).toBeNull();

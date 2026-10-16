@@ -34,16 +34,16 @@ function chapterFixture(overrides: Partial<BiographyChapterDetail> = {}): Biogra
   };
 }
 
-function renderChapter(navigation = fakeNavigation(), id = 14) {
+async function renderChapter(navigation = fakeNavigation(), id = 14) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <BiographyChapterScreen
         navigation={navigation as never}
         route={{ key: 'chapter', name: 'BiographyChapter', params: { id } } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -54,7 +54,7 @@ describe('BiographyChapterScreen', () => {
   });
 
   it('does not render a standfirst when summary is a truncated first paragraph of the body', async () => {
-    renderChapter();
+    await renderChapter();
 
     await waitFor(() => expect(screen.getByText('1982')).toBeOnTheScreen());
     expect(screen.getByText('Chapter 14')).toBeOnTheScreen();
@@ -79,7 +79,7 @@ describe('BiographyChapterScreen', () => {
         next: { id: 2, title: '1971', detailPath: '/biography/2' },
       }),
     );
-    renderChapter(fakeNavigation(), 1);
+    await renderChapter(fakeNavigation(), 1);
 
     await waitFor(() => expect(screen.getByText('1970')).toBeOnTheScreen());
     expect(screen.queryByText('Smile becomes Queen and the first album follows...')).toBeNull();

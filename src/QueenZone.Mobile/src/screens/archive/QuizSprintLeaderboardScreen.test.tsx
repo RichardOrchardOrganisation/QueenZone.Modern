@@ -31,8 +31,8 @@ function board(overrides: Partial<QuizSprintBoard> = {}): QuizSprintBoard {
   };
 }
 
-function renderBoard() {
-  renderWithProviders(
+async function renderBoard() {
+  await renderWithProviders(
     <QuizSprintLeaderboardScreen
       navigation={fakeNavigation() as never}
       route={{ key: 'board', name: 'QuizSprintLeaderboard' } as never}
@@ -49,7 +49,7 @@ describe('QuizSprintLeaderboardScreen', () => {
 
   it("shows today's board by default with the member count", async () => {
     load.mockResolvedValue(board());
-    renderBoard();
+    await renderBoard();
 
     await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
     expect(screen.getByText("Today's leaderboard")).toBeOnTheScreen();
@@ -60,7 +60,7 @@ describe('QuizSprintLeaderboardScreen', () => {
   it('switches to the all-time board', async () => {
     load.mockResolvedValueOnce(board());
     const user = userEvent.setup();
-    renderBoard();
+    await renderBoard();
     await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
 
     load.mockResolvedValueOnce(
@@ -77,7 +77,7 @@ describe('QuizSprintLeaderboardScreen', () => {
   it('shows run counts on the total-points board', async () => {
     load.mockResolvedValueOnce(board());
     const user = userEvent.setup();
-    renderBoard();
+    await renderBoard();
     await waitFor(() => expect(screen.getByText('brightonrock')).toBeOnTheScreen());
 
     load.mockResolvedValueOnce(
@@ -102,14 +102,14 @@ describe('QuizSprintLeaderboardScreen', () => {
     load.mockResolvedValue(
       board({ viewer: { rank: 9, displayName: 'me', score: 3, bestStreak: 2 }, players: 9 }),
     );
-    renderBoard();
+    await renderBoard();
 
     await waitFor(() => expect(screen.getByText('You')).toBeOnTheScreen());
   });
 
   it('shows an empty state when nobody has played yet', async () => {
     load.mockResolvedValue(board({ top: [], players: 0 }));
-    renderBoard();
+    await renderBoard();
 
     await waitFor(() => expect(screen.getByText('No scores yet today. Be the first on the board.')).toBeOnTheScreen());
     expect(screen.getByText('0 members ranked today.')).toBeOnTheScreen();
@@ -117,7 +117,7 @@ describe('QuizSprintLeaderboardScreen', () => {
 
   it('offers a retry when the board fails to load', async () => {
     load.mockRejectedValue(new Error('offline'));
-    renderBoard();
+    await renderBoard();
 
     await waitFor(() => expect(screen.getByText(/offline|Something went wrong/)).toBeOnTheScreen());
   });

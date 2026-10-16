@@ -25,16 +25,16 @@ function lastHeaderOptions(navigation: ReturnType<typeof fakeNavigation>) {
   return calls[calls.length - 1]?.[0] as { headerLeft?: () => ReactNode; title?: string };
 }
 
-function renderStory(navigation = fakeNavigation(), id = 42) {
+async function renderStory(navigation = fakeNavigation(), id = 42) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <NewsStoryScreen
         navigation={navigation as never}
         route={{ key: 'story', name: 'Story', params: { id } } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -59,11 +59,11 @@ describe('NewsStoryScreen', () => {
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(false);
     navigation.getState.mockReturnValue({ routeNames: ['Home', 'Search', 'Story'] });
-    renderStory(navigation, 7);
+    await renderStory(navigation, 7);
     await waitFor(() => expect(screen.getByTestId(testIds.newsStoryScreen)).toBeOnTheScreen());
 
     const user = userEvent.setup();
-    renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
+    await renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
     await user.press(screen.getByTestId(testIds.newsStoryBack));
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(navigation.navigate).toHaveBeenCalledWith('Home');
@@ -72,7 +72,7 @@ describe('NewsStoryScreen', () => {
   it('installs a back control that returns to NewsIndex when the stack has no history', async () => {
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(false);
-    renderStory(navigation, 7);
+    await renderStory(navigation, 7);
     await waitFor(() => expect(screen.getByTestId(testIds.newsStoryScreen)).toBeOnTheScreen());
 
     const options = lastHeaderOptions(navigation);
@@ -80,7 +80,7 @@ describe('NewsStoryScreen', () => {
     expect(options.headerLeft).toEqual(expect.any(Function));
 
     const user = userEvent.setup();
-    renderWithProviders(<>{options.headerLeft?.()}</>, { navigation: false });
+    await renderWithProviders(<>{options.headerLeft?.()}</>, { navigation: false });
     await user.press(screen.getByTestId(testIds.newsStoryBack));
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(navigation.navigate).toHaveBeenCalledWith('NewsIndex');
@@ -89,11 +89,11 @@ describe('NewsStoryScreen', () => {
   it('pops the news stack when back has somewhere to go', async () => {
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(true);
-    renderStory(navigation, 7);
+    await renderStory(navigation, 7);
     await waitFor(() => expect(screen.getByTestId(testIds.newsStoryScreen)).toBeOnTheScreen());
 
     const user = userEvent.setup();
-    renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
+    await renderWithProviders(<>{lastHeaderOptions(navigation).headerLeft?.()}</>, { navigation: false });
     await user.press(screen.getByLabelText('Back'));
     expect(navigation.goBack).toHaveBeenCalledTimes(1);
     expect(navigation.navigate).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ describe('NewsStoryScreen', () => {
     fetchDetail
       .mockRejectedValueOnce(new ApiError(0, 'Unable to reach QueenZone. Check your connection and try again.'))
       .mockResolvedValueOnce(newsDetailFixture({ title: 'Retried headline' }));
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Try again' }));
@@ -116,14 +116,14 @@ describe('NewsStoryScreen', () => {
       .mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce(newsDetailFixture({ title: 'Kept headline' }));
     const navigation = fakeNavigation();
-    const { rerender } = renderWithProviders(
+    const { rerender } = await renderWithProviders(
       <NewsStoryScreen
         navigation={navigation as never}
         route={{ key: 'story', name: 'Story', params: { id: 1 } } as never}
       />,
       { navigation: false },
     );
-    rerender(
+    await rerender(
       <NewsStoryScreen
         navigation={navigation as never}
         route={{ key: 'story', name: 'Story', params: { id: 2 } } as never}
@@ -148,7 +148,7 @@ describe('NewsStoryScreen', () => {
         ],
       }),
     );
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByText('Legacy article without topic')).toBeOnTheScreen());
 
     expect(screen.queryByTestId(testIds.newsStoryDiscussion)).toBeNull();
@@ -167,7 +167,7 @@ describe('NewsStoryScreen', () => {
         discussionPreview: [],
       }),
     );
-    const { navigation } = renderStory();
+    const { navigation } = await renderStory();
     await waitFor(() => expect(screen.getByText('Start the discussion')).toBeOnTheScreen());
 
     expect(screen.getByTestId(testIds.newsStoryDiscussion)).toBeOnTheScreen();
@@ -203,7 +203,7 @@ describe('NewsStoryScreen', () => {
         ],
       }),
     );
-    const { navigation } = renderStory();
+    const { navigation } = await renderStory();
     await waitFor(() => expect(screen.getByText('Join the discussion')).toBeOnTheScreen());
 
     expect(screen.getByText('3 replies')).toBeOnTheScreen();
@@ -238,7 +238,7 @@ describe('NewsStoryScreen', () => {
         ],
       }),
     );
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByText('Join the discussion')).toBeOnTheScreen());
 
     expect(screen.getByText('1 reply')).toBeOnTheScreen();
@@ -255,7 +255,7 @@ describe('NewsStoryScreen', () => {
         sourceUrl: youtube,
       }),
     );
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByLabelText('Open source')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -273,7 +273,7 @@ describe('NewsStoryScreen', () => {
       }),
     );
     jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error(`Unable to open URL: ${youtube}`));
-    renderStory();
+    await renderStory();
     await waitFor(() => expect(screen.getByLabelText('Open source')).toBeOnTheScreen());
 
     const user = userEvent.setup();

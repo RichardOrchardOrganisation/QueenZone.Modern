@@ -244,15 +244,15 @@ describe('TabRootMasthead placement', () => {
   it('keeps the full masthead on Home and peels it from the other tab roots', async () => {
     const navigation = fakeNavigation();
 
-    const home = renderWithProviders(
+    const home = await renderWithProviders(
       <HomeScreen navigation={navigation as never} route={{ key: 'home', name: 'Home' } as never} />,
       { navigation: false },
     );
     expect(screen.getByTestId(testIds.tabMasthead)).toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabIdentityHeader)).not.toBeOnTheScreen();
-    home.unmount();
+    await home.unmount();
 
-    const news = renderWithProviders(
+    const news = await renderWithProviders(
       <NewsIndexScreen
         navigation={navigation as never}
         route={{ key: 'news', name: 'NewsIndex' } as never}
@@ -262,9 +262,9 @@ describe('TabRootMasthead placement', () => {
     await waitFor(() => expect(screen.getByTestId(testIds.newsScreen)).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabIdentityHeader)).not.toBeOnTheScreen();
-    news.unmount();
+    await news.unmount();
 
-    const photos = renderWithProviders(
+    const photos = await renderWithProviders(
       <PhotosScreen
         navigation={navigation as never}
         route={{ key: 'photos', name: 'PhotoIndex' } as never}
@@ -274,9 +274,9 @@ describe('TabRootMasthead placement', () => {
     await waitFor(() => expect(screen.getByTestId(testIds.photosScreen)).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabIdentityHeader)).not.toBeOnTheScreen();
-    photos.unmount();
+    await photos.unmount();
 
-    const archive = renderWithProviders(
+    const archive = await renderWithProviders(
       <ArchiveHubScreen
         navigation={navigation as never}
         route={{ key: 'archive', name: 'ArchiveHub' } as never}
@@ -286,9 +286,9 @@ describe('TabRootMasthead placement', () => {
     expect(screen.getByTestId(testIds.archiveHubScreen)).toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabIdentityHeader)).not.toBeOnTheScreen();
-    archive.unmount();
+    await archive.unmount();
 
-    renderWithProviders(
+    await renderWithProviders(
       <ForumScreen
         navigation={navigation as never}
         route={{ key: 'forum', name: 'ForumIndex' } as never}
@@ -305,17 +305,17 @@ describe('TabRootMasthead placement', () => {
     const headers = tabRootHeaders(navigation);
 
     for (const header of headers) {
-      const view = renderWithProviders(header, { navigation: false });
+      const view = await renderWithProviders(header, { navigation: false });
       expect(screen.getByTestId(testIds.tabIdentityHeader)).toBeOnTheScreen();
       expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
-      view.unmount();
+      await view.unmount();
     }
   });
 
   it('opens search and Profile from Home masthead and the four tab-root headers', async () => {
     const user = userEvent.setup();
     const homeNav = fakeNavigation();
-    const home = renderWithProviders(
+    const home = await renderWithProviders(
       <HomeScreen navigation={homeNav as never} route={{ key: 'home', name: 'Home' } as never} />,
       { navigation: false },
     );
@@ -324,20 +324,20 @@ describe('TabRootMasthead placement', () => {
     expect(homeNav.navigate).toHaveBeenCalledWith('Search');
     expect(homeNav.navigate).toHaveBeenCalledWith('Profile');
     expect(screen.queryByTestId(testIds.homeMessages)).not.toBeOnTheScreen();
-    home.unmount();
+    await home.unmount();
 
     const otherNav = fakeNavigation();
     const headers = tabRootHeaders(otherNav);
 
     for (const header of headers) {
       otherNav.navigate.mockClear();
-      const view = renderWithProviders(header, { navigation: false });
+      const view = await renderWithProviders(header, { navigation: false });
       await user.press(screen.getByLabelText('Search'));
       await user.press(screen.getByTestId(testIds.homeProfile));
       expect(otherNav.navigate).toHaveBeenCalledWith('Search');
       expect(otherNav.navigate).toHaveBeenCalledWith('HomeTab', { screen: 'Profile' });
       expect(screen.queryByTestId(testIds.homeMessages)).not.toBeOnTheScreen();
-      view.unmount();
+      await view.unmount();
     }
   });
 
@@ -347,30 +347,30 @@ describe('TabRootMasthead placement', () => {
     const user = userEvent.setup();
 
     const homeNav = fakeNavigation();
-    const home = renderWithProviders(
+    const home = await renderWithProviders(
       <HomeScreen navigation={homeNav as never} route={{ key: 'home', name: 'Home' } as never} />,
       { navigation: false },
     );
     await user.press(screen.getByTestId(testIds.homeMessages));
     expect(homeNav.navigate).toHaveBeenCalledWith('Inbox');
-    home.unmount();
+    await home.unmount();
 
     const otherNav = fakeNavigation();
     const headers = tabRootHeaders(otherNav);
 
     for (const header of headers) {
       otherNav.navigate.mockClear();
-      const view = renderWithProviders(header, { navigation: false });
+      const view = await renderWithProviders(header, { navigation: false });
       await user.press(screen.getByTestId(testIds.homeMessages));
       expect(otherNav.navigate).toHaveBeenCalledWith('HomeTab', nestedTabParams('Inbox'));
-      view.unmount();
+      await view.unmount();
     }
   });
 
   it('is absent on Story, Quote, Thread, and Conversation', async () => {
     const navigation = fakeNavigation();
 
-    const story = renderWithProviders(
+    const story = await renderWithProviders(
       <NewsStoryScreen
         navigation={navigation as never}
         route={{ key: 'story', name: 'Story', params: { id: 1003 } } as never}
@@ -380,9 +380,9 @@ describe('TabRootMasthead placement', () => {
     await waitFor(() => expect(screen.getByTestId(testIds.newsStoryScreen)).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabIdentityHeader)).not.toBeOnTheScreen();
-    story.unmount();
+    await story.unmount();
 
-    const quote = renderWithProviders(
+    const quote = await renderWithProviders(
       <QuoteScreen
         navigation={navigation as never}
         route={{ key: 'quote', name: 'Quote', params: { id: 9 } } as never}
@@ -392,9 +392,9 @@ describe('TabRootMasthead placement', () => {
     await waitFor(() => expect(screen.getByTestId(testIds.quoteScreen)).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabIdentityHeader)).not.toBeOnTheScreen();
-    quote.unmount();
+    await quote.unmount();
 
-    const thread = renderWithProviders(
+    const thread = await renderWithProviders(
       <ThreadScreen
         navigation={navigation as never}
         route={
@@ -410,11 +410,11 @@ describe('TabRootMasthead placement', () => {
     await waitFor(() => expect(screen.getByTestId(testIds.forumThreadScreen)).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.tabMasthead)).not.toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.tabIdentityHeader)).not.toBeOnTheScreen();
-    thread.unmount();
+    await thread.unmount();
 
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
-    renderWithProviders(
+    await renderWithProviders(
       <ConversationScreen
         navigation={navigation as never}
         route={{ key: 'conversation', name: 'Conversation', params: { id: conversationId } } as never}

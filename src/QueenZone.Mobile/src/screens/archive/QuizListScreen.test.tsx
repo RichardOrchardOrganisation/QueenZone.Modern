@@ -25,14 +25,14 @@ function quizFixture(overrides: Partial<QuizListItem> = {}): QuizListItem {
   };
 }
 
-function renderQuizList() {
+async function renderQuizList() {
   const navigation = fakeNavigation();
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <QuizListScreen navigation={navigation as never} route={{ key: 'quiz-list', name: 'QuizList' } as never} />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -47,7 +47,7 @@ describe('QuizListScreen', () => {
 
   it('lists published quizzes and navigates to a quiz on press', async () => {
     fetchPage.mockResolvedValue(pagedResponse([quizFixture()]));
-    const { navigation } = renderQuizList();
+    const { navigation } = await renderQuizList();
 
     await waitFor(() => expect(screen.getByText('Queen Frontman Trivia')).toBeOnTheScreen());
     expect(fetchPage).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 20 }));
@@ -62,7 +62,7 @@ describe('QuizListScreen', () => {
 
   it('navigates to the leaderboard', async () => {
     fetchPage.mockResolvedValue(pagedResponse([quizFixture()]));
-    const { navigation } = renderQuizList();
+    const { navigation } = await renderQuizList();
 
     await waitFor(() => expect(screen.getByText('Queen Frontman Trivia')).toBeOnTheScreen());
     const user = userEvent.setup();
@@ -72,7 +72,7 @@ describe('QuizListScreen', () => {
 
   it('shows an empty state when no quizzes are published', async () => {
     fetchPage.mockResolvedValue(pagedResponse([]));
-    renderQuizList();
+    await renderQuizList();
 
     await waitFor(() =>
       expect(screen.getByText('No quizzes have been published yet.')).toBeOnTheScreen(),

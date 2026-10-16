@@ -20,20 +20,20 @@ describe('AnalyticsSettingsScreen', () => {
   });
 
   it('lets signed-in or signed-out users withdraw consent', async () => {
-    renderWithProviders(
+    await renderWithProviders(
       <AnalyticsSettingsScreen navigation={{} as never} route={{ key: 'analytics', name: 'AnalyticsSettings' }} />,
       { navigation: false },
     );
 
     const toggle = screen.getByRole('switch', { name: 'Share anonymous analytics' });
     expect(toggle).toHaveProp('value', true);
-    fireEvent(toggle, 'valueChange', false);
+    await fireEvent(toggle, 'valueChange', false);
     await waitFor(() => expect(updateAnalyticsConsent).toHaveBeenCalledWith(false));
   });
 
-  it('disables the control while the preference loads', () => {
+  it('disables the control while the preference loads', async () => {
     mockConsent = 'loading';
-    renderWithProviders(
+    await renderWithProviders(
       <AnalyticsSettingsScreen navigation={{} as never} route={{ key: 'analytics', name: 'AnalyticsSettings' }} />,
       { navigation: false },
     );
