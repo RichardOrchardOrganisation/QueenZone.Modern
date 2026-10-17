@@ -1,4 +1,4 @@
-/** CNG boundary for WebView 13.16.1 (#1958).
+/** CNG boundary for WebView 14.0.1 (#1958).
  * Upstream has no native fullscreen JS event and Android's download listener
  * bypasses onFileDownload. Fail closed on template drift. Remove when upstream
  * exposes these controls. No generated native files are committed.
@@ -59,7 +59,7 @@ function patchAndroidNavigation(source) {
   source = source.replace('defaulting to allow loading.', 'applying fixed-player navigation policy.');
   // These returns are only in the synchronous navigation helper.
   const start = source.indexOf('    private boolean qzShouldOverride(');
-  const end = source.indexOf('    @TargetApi(Build.VERSION_CODES.N)', start);
+  const end = source.indexOf('    @Override\n    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {', start);
   if (start < 0 || end < 0) throw new Error('WebView navigation helper template changed');
   const helper = source.slice(start, end).replaceAll('return false;', 'return blockedNavigation;').replace('return shouldOverride;', 'return shouldOverride || blockedNavigation;');
   source = source.slice(0, start) + helper + source.slice(end);

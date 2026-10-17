@@ -18,7 +18,7 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
   // label is remeasured; keep the player, fallback control and focus stable.
   const context = useForumPlayers();
   const view = useRef<View>(null);
-  const player = useRef<WebView>(null);
+  const player = useRef<WebView<object>>(null);
   const fallback = useRef<View>(null);
   const accessibilityFocused = useRef(false);
   const [owner, setOwner] = useState<number | null>(null);
@@ -87,7 +87,7 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
       Videos near the screen load automatically from YouTube before Play. Loading shares your IP address and this app’s identification with YouTube.
     </Text>
     <View ref={view} collapsable={false} onLayout={onLayout} style={{ height, width: '100%', backgroundColor: c.surfacePage }}>
-      {generation != null && source && width >= 200 ? <WebView
+      {generation != null && source && width >= 200 ? <WebView<object>
         key={generation} ref={player} testID={testIds.forumYoutubePlayer}
         accessibilityLabel="YouTube video player" onFocus={() => { accessibilityFocused.current = true; }}
         source={source} style={{ height, width: '100%' }}
