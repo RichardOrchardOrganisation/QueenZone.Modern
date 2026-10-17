@@ -54,7 +54,10 @@ jobs:
           cache-dependency-path: src/QueenZone.Mobile/package-lock.json
 
       - name: Install
-        run: npm ci
+        run: npm ci --no-audit
+
+      - name: Enforce npm advisory policy
+        run: node scripts/check-npm-advisories.mjs
 
       - name: Preflight
         run: npm run preflight
