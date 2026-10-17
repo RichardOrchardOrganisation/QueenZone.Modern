@@ -6,8 +6,8 @@ export function isShareCanceled(error: unknown): boolean {
   if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
     return error.code === 'ERR_SHARING_CANCELLED';
   }
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-  return /cancel|dismissed|ERR_SHARING_CANCELLED/i.test(message);
+  const message = error instanceof Error ? error.message : error;
+  return typeof message === 'string' && /cancel|dismissed|ERR_SHARING_CANCELLED/i.test(message);
 }
 
 /**
