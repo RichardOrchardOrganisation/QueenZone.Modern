@@ -24,7 +24,7 @@ describe('Sentry 8 on Expo SDK 57 (#1782 PR 1)', () => {
   });
 
   it('excludes @sentry/react-native from expo install so SDK 57 cannot pull 7.11 back', () => {
-    assert.deepEqual(packageJson.expo?.install?.exclude, ['@sentry/react-native']);
+    assert.ok(packageJson.expo?.install?.exclude?.includes('@sentry/react-native'));
   });
 
   it('lifts the Dependabot ignore for @sentry/react-native', () => {

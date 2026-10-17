@@ -23,7 +23,16 @@ describe('CNG forum WebView native boundary', () => {
   it('preserves Android main-frame and gesture identity and fails closed on JS timeout', () => {
     const source = readFileSync(new URL('../../node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewClient.java', import.meta.url), 'utf8');
     const next = patchAndroidNavigation(source);
-    assert.match(next, /request.isForMainFrame\(\), request.hasGesture\(\)/);
+    const overloadAnchor = '    @Override\n    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {';
+    const overloadStart = next.indexOf(overloadAnchor);
+    assert.ok(overloadStart > next.indexOf('    private boolean qzShouldOverride('));
+    assert.match(next.slice(0, overloadStart), /    }\n\n$/);
+    assert.equal(next.slice(overloadStart), source.slice(source.indexOf(overloadAnchor)).replace(
+      'return this.shouldOverrideUrlLoading(view, url);',
+      'return qzShouldOverride(view, url, request.isForMainFrame(), request.hasGesture());',
+    ));
+    assert.match(next.slice(overloadStart), /^    @Override\n    public boolean shouldOverrideUrlLoading\(WebView view, WebResourceRequest request\) {\n        final String url = request.getUrl\(\).toString\(\);\n        return qzShouldOverride\(view, url, request.isForMainFrame\(\), request.hasGesture\(\)\);\n    }/);
+    assert.throws(() => patchAndroidNavigation(source.replace(overloadAnchor, '')), /WebView navigation helper template changed/);
     assert.match(next, /putBoolean\("isTopFrame", isTopFrame\)/);
     assert.match(next, /return shouldOverride \|\| blockedNavigation/);
     assert.match(next, /return blockedNavigation/);

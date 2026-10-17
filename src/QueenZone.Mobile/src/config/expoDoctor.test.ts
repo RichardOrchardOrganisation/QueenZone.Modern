@@ -33,6 +33,12 @@ describe('Expo Doctor React Native Directory policy', () => {
 
 describe('Expo install exclude for Sentry 8 on SDK 57 (#1782)', () => {
   it('keeps @sentry/react-native out of expo install --check until SDK 58', () => {
-    assert.deepEqual(packageConfig.expo?.install?.exclude, ['@sentry/react-native']);
+    assert.ok(packageConfig.expo?.install?.exclude?.includes('@sentry/react-native'));
+  });
+});
+
+describe('Expo install exclude for react-native-webview 14 on SDK 57 (#1958)', () => {
+  it('excludes only Sentry and the re-ported WebView from SDK version validation', () => {
+    assert.deepEqual(packageConfig.expo?.install?.exclude, ['@sentry/react-native', 'react-native-webview']);
   });
 });
