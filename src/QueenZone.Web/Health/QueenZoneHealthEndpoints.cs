@@ -102,12 +102,14 @@ public static class QueenZoneHealthEndpoints
                 readinessMs);
             throw;
         }
-        catch
+        catch (Exception exception)
         {
+            // Keep diagnostic classification without exception messages, data, or URLs.
             logger.LogWarning(
-                "Warmup failed after {WarmupDurationMs}ms (readiness {WarmupReadinessMs}ms).",
+                "Warmup failed after {WarmupDurationMs}ms (readiness {WarmupReadinessMs}ms, type {ExceptionType}).",
                 started.ElapsedMilliseconds,
-                readinessMs);
+                readinessMs,
+                exception.GetType().Name);
             return Results.Json(new { status = "unhealthy" }, statusCode: StatusCodes.Status503ServiceUnavailable);
         }
     }
