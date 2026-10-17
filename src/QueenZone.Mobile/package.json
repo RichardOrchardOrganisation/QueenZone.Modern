@@ -9,7 +9,8 @@
   "expo": {
     "install": {
       "exclude": [
-        "@sentry/react-native"
+        "@sentry/react-native",
+        "react-native-webview"
       ]
     },
     "doctor": {
@@ -18,11 +19,6 @@
           "queenzone-wallpaper"
         ]
       }
-    },
-    "install": {
-      "exclude": [
-        "react-native-webview"
-      ]
     }
   },
   "scripts": {
